@@ -125,21 +125,13 @@ constexpr const char* RENDER_NAME = STRINGIFY(INCUBATE_RENDER);
 //
 // is_music_key routed the QWERTY letters to the analysis cartridge back
 // when the computer keyboard WAS the note source. Ableton is the source
-// now, so the split is QUARANTINED: dormant by default (every key falls
-// to render — the world owns W/A/S/D and the rest), kept WHOLE behind
-// INCUBATE_MUSIC_KEYS for the day a keyboard-piano returns. Build with
-// -DINCUBATE_MUSIC_KEYS to restore the letters->analysis routing.
+// now, so every key falls to render — the world owns W/A/S/D and the rest.
+// (The INCUBATE_MUSIC_KEYS escape hatch was never defined anywhere, so it
+//  had never compiled and would not have worked if switched on; deleted
+//  PRUNING_1 P1 Step 4. git has the routing if it is ever wanted back.)
 static bool is_music_key(int key) {
-#ifdef INCUBATE_MUSIC_KEYS
-    if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z) return true;
-    if (key == GLFW_KEY_SEMICOLON) return true;
-    if (key == GLFW_KEY_LEFT_BRACKET) return true;
-    if (key == GLFW_KEY_RIGHT_BRACKET) return true;
-    return false;
-#else
     (void)key;   // the keyboard is the world's; the note source is Ableton
     return false;
-#endif
 }
 
 // =========================================================================

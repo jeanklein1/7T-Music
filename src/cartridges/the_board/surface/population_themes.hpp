@@ -360,9 +360,6 @@ void reset_theme_envelope(ThemesState& ts);
 // Nothing here names Cartridge. MachineCtx's type precedes via contracts/entity_types.hpp
 // (the patch_system.hpp cohort precedent). ═══════════════════════════
 
-#ifdef DIAG_ENTITY_CENSUS
-void dump_entity_census(MachineCtx* c, const char* trigger);  // fwd (cohort law disclosure)
-#endif
 
 // Census home: sole consumer is the census dump below;
 // the names are this module's vocabulary.
@@ -419,9 +416,6 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t
         env.elapsed = 0;
 
         // Census dump on theme transition
-#ifdef DIAG_ENTITY_CENSUS
-        dump_entity_census(c, theme_short_name(selected));
-#endif
     }
     else {
         env.elapsed++;

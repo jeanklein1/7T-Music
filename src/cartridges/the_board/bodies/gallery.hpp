@@ -695,8 +695,7 @@ inline void capture_snapshot(GalleryState& gs, GalleryDeps* c, float pawn_x, flo
         "Panoramic", "Environmental", "Medium", "Close-up",
         "Portrait", "Bird's Eye", "Low Angle", "Cinematic"
     };
-    // DIAG-unwrapped (census: constitution §5): autonomous stdout
-    // (walk-cadence capture) — wrap in #ifdef DIAG_GALLERY at ship.
+    // Autonomous stdout — exhibition-guard candidate, still open.
     std::cout << "[Photographer] Capture -> layer " << layer
         << " (" << shot_names[static_cast<uint32_t>(shot)] << ")"
         << " aspect=" << aspect_ratio
@@ -1097,8 +1096,7 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
         gc.active = false;  // no paintings placed — release center
     }
     else {
-        // DIAG-unwrapped (census: constitution §5): autonomous stdout
-        // (procedural placement) — wrap in #ifdef DIAG_GALLERY at ship.
+        // Autonomous stdout — exhibition-guard candidate, still open.
         std::cout << "[Gallery] slot=" << plan.slot
             << " at (" << gallery_cx << "," << gallery_cz << ")"
             << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
@@ -1393,8 +1391,7 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
         for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
             if (gs.authored_staging[i].valid) gs.authored_staged_count++;
         }
-        // DIAG-unwrapped (census: constitution §5): autonomous stdout
-        // (teardown rotation) — wrap in #ifdef DIAG_GALLERY at ship.
+        // Autonomous stdout — exhibition-guard candidate, still open.
         std::cout << "[Authored] Rotated " << rotated
             << " slot(s), " << gs.authored_staged_count << " valid"
             << ", disk cursor at " << gs.authored_disk_cursor
@@ -1692,8 +1689,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
     const char* site_type_name = (site_type == IndoorSiteType::SNAPSHOT_ONLY) ? "SNAPSHOT"
         : (site_type == IndoorSiteType::MIXED) ? "MIXED" : "AUTHORED";
-    // DIAG-unwrapped (census: constitution §5): autonomous stdout
-    // (mood apply) — wrap in #ifdef DIAG_GALLERY at ship.
+    // Autonomous stdout — exhibition-guard candidate, still open.
     std::cout << "[WallPainting] Placed " << gs.wall_frame_count
         << " frame(s) across " << active_wall_count << " walls"
         << " (" << site_type_name << ")\n";
@@ -1746,11 +1742,6 @@ inline void dispatch_commit_gallery(MachineCtx* self,
     }
     else {
         self->gallery_state_.gallery_centers[pe.gallery.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-        std::cout << "[DIAG:REJECT] gall slot=" << pe.gallery.slot
-            << " host=(" << pe.gallery.host_gx << "," << pe.gallery.host_gz
-            << ") -- no host patch\n";
-#endif
     }
 }
 
@@ -1763,9 +1754,6 @@ inline void evict_gallery(MachineCtx* self,
         evict_paintings_for_patch(self->gallery_state_, self, gc.patch_gx, gc.patch_gz, queue);
         gc.active = false;
     }
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   gall slot=" << slot << "\n";
-#endif
 }
 
 

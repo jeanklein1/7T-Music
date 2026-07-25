@@ -432,9 +432,6 @@ inline void evict_cube(MachineCtx* self,
     self->cube_behaviors_state_.activeCubeCount_--;
     GPUFloatingEntityState empty{};
     self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   cube slot=" << slot << "\n";
-#endif
 }
 
 // ═══ THE CUBE RECIPE ══════════════════════════════════════════════

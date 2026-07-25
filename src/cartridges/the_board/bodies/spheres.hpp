@@ -73,9 +73,6 @@ inline void evict_sphere(MachineCtx* self,
     self->sphere_state_.activeSphereCount_--;
     GPUFloatingEntityState empty{};
     self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   sph slot=" << slot << "\n";
-#endif
 }
 
 // ═══ THE SPHERE RECIPE ════════════════════════════════════════════

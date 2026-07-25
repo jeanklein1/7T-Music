@@ -49,16 +49,6 @@ inline void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
 }
 
 inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue) {
-#ifdef DIAG_ENTITY_LIFECYCLE
-    if (patch.entity_ref_count > 0) {
-        float wx = (patch.grid_x + 0.5f) * Dim::PATCH_EXTENT;
-        float wz = (patch.grid_z + 0.5f) * Dim::PATCH_EXTENT;
-        float dx = wx - c->player_.readback_x, dz = wz - c->player_.readback_z;
-        std::cout << "[DIAG:EVICT] patch(" << patch.grid_x << "," << patch.grid_z
-            << ") dist=" << std::sqrt(dx * dx + dz * dz)
-            << " refs=" << patch.entity_ref_count << "\n";
-    }
-#endif
     for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
         auto& ref = patch.entity_refs[i];
         FAMILY_DISPATCH[ref.family].evict_slot(c, ref.slot, queue);
@@ -69,92 +59,6 @@ inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue&
 
 inline void audit_entity_integrity(MachineCtx* c) {
     (void)c;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    //
-    uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (c->entities_state_.arches[i].active) act_a++;
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) if (c->entities_state_.columns[i].active) act_c++;
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) if (c->entities_state_.antennas[i].active) act_n++;
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) if (c->entities_state_.pyramids[i].active) act_p++;
-
-    // Count consistency
-    if (act_a != c->entities_state_.arch_count)
-        std::cout << "[DIAG:AUDIT] ARCH COUNT active=" << act_a << " tracked=" << c->entities_state_.arch_count << "\n";
-    if (act_c != c->entities_state_.column_count)
-        std::cout << "[DIAG:AUDIT] COL COUNT active=" << act_c << " tracked=" << c->entities_state_.column_count << "\n";
-    if (act_n != c->entities_state_.antenna_count)
-        std::cout << "[DIAG:AUDIT] ANT COUNT active=" << act_n << " tracked=" << c->entities_state_.antenna_count << "\n";
-    if (act_p != c->entities_state_.pyramid_count)
-        std::cout << "[DIAG:AUDIT] PYR COUNT active=" << act_p << " tracked=" << c->entities_state_.pyramid_count << "\n";
-
-    // Collect refs from all patches
-    bool ra[Dim::MAX_ARCH_INSTANCES]{};
-    bool rc[Dim::MAX_COLUMN_ONLY]{};
-    bool rn[Dim::MAX_ANTENNA_ONLY]{};
-    bool rp[Dim::MAX_PYRAMID_INSTANCES]{};
-    for (uint32_t p = 0; p < c->world_state_.active_patch_count; p++) {
-        if (!c->patch_system_state_.patches_[p].valid) continue;
-        for (uint32_t r = 0; r < c->patch_system_state_.patches_[p].entity_ref_count; r++) {
-            auto& ref = c->patch_system_state_.patches_[p].entity_refs[r];
-            switch (ref.family) {
-            case PopFamily::PYRAMID:
-                if (ref.slot < Dim::MAX_PYRAMID_INSTANCES) {
-                    if (rp[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF pyr slot=" << ref.slot << " patch=(" << c->patch_system_state_.patches_[p].grid_x << "," << c->patch_system_state_.patches_[p].grid_z << ")\n";
-                    rp[ref.slot] = true;
-                } break;
-            case PopFamily::ARCH:
-                if (ref.slot < Dim::MAX_ARCH_INSTANCES) {
-                    if (ra[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF arch slot=" << ref.slot << " patch=(" << c->patch_system_state_.patches_[p].grid_x << "," << c->patch_system_state_.patches_[p].grid_z << ")\n";
-                    ra[ref.slot] = true;
-                } break;
-            case PopFamily::COLUMN:
-                if (ref.slot < Dim::MAX_COLUMN_ONLY) {
-                    if (rc[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF col slot=" << ref.slot << " patch=(" << c->patch_system_state_.patches_[p].grid_x << "," << c->patch_system_state_.patches_[p].grid_z << ")\n";
-                    rc[ref.slot] = true;
-                } break;
-            case PopFamily::ANTENNA:
-                if (ref.slot < Dim::MAX_ANTENNA_ONLY) {
-                    if (rn[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF ant slot=" << ref.slot << " patch=(" << c->patch_system_state_.patches_[p].grid_x << "," << c->patch_system_state_.patches_[p].grid_z << ")\n";
-                    rn[ref.slot] = true;
-                } break;
-            }
-        }
-    }
-
-    // Ghost: active but no ref (will never be evicted)
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
-        if (c->entities_state_.arches[i].active && !ra[i])
-            std::cout << "[DIAG:AUDIT] GHOST arch slot=" << i << " host=(" << c->entities_state_.arches[i].host_gx << "," << c->entities_state_.arches[i].host_gz << ")\n";
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++)
-        if (c->entities_state_.columns[i].active && !rc[i])
-            std::cout << "[DIAG:AUDIT] GHOST col slot=" << i << " host=(" << c->entities_state_.columns[i].host_gx << "," << c->entities_state_.columns[i].host_gz << ")\n";
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++)
-        if (c->entities_state_.antennas[i].active && !rn[i])
-            std::cout << "[DIAG:AUDIT] GHOST ant slot=" << i << " host=(" << c->entities_state_.antennas[i].host_gx << "," << c->entities_state_.antennas[i].host_gz << ")\n";
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
-        if (c->entities_state_.pyramids[i].active && !rp[i])
-            std::cout << "[DIAG:AUDIT] GHOST pyr slot=" << i << " host=(" << c->entities_state_.pyramids[i].host_gx << "," << c->entities_state_.pyramids[i].host_gz << ")\n";
-
-    // Orphan: ref but not active (ref points to freed slot)
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
-        if (!c->entities_state_.arches[i].active && ra[i])
-            std::cout << "[DIAG:AUDIT] ORPHAN arch slot=" << i << "\n";
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++)
-        if (!c->entities_state_.columns[i].active && rc[i])
-            std::cout << "[DIAG:AUDIT] ORPHAN col slot=" << i << "\n";
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++)
-        if (!c->entities_state_.antennas[i].active && rn[i])
-            std::cout << "[DIAG:AUDIT] ORPHAN ant slot=" << i << "\n";
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
-        if (!c->entities_state_.pyramids[i].active && rp[i])
-            std::cout << "[DIAG:AUDIT] ORPHAN pyr slot=" << i << "\n";
-
-    // Ref overflow: any patch at capacity
-    for (uint32_t p = 0; p < c->world_state_.active_patch_count; p++) {
-        if (c->patch_system_state_.patches_[p].valid && c->patch_system_state_.patches_[p].entity_ref_count >= ActivePatch::MAX_ENTITY_REFS)
-            std::cout << "[DIAG:AUDIT] REF FULL patch=(" << c->patch_system_state_.patches_[p].grid_x << "," << c->patch_system_state_.patches_[p].grid_z << ") count=" << c->patch_system_state_.patches_[p].entity_ref_count << "\n";
-    }
-#endif
 }
 
 // ── Dynamic budgets ────────────────────────────────────────────────
@@ -311,8 +215,7 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
 // TESTING[test-rig-piers] (ruled): a debug ground
 //   fixture, NOT a roster piece (roster rows are design pieces,
 //   not scaffolds). Mortal retirement: dies at ship (checklist).
-//   Joins the future exhibition-guard discussion alongside
-//   SEAM[spawn_engine:L1]'s DIAG_ENTITY_LIFECYCLE. Constitution §5
+//   Joins the future exhibition-guard discussion. Constitution §5
 //   TESTING class.
 inline void setup_test_rig_piers(MachineCtx* c, wgpu::Queue queue) {
     // Ramp: height 0→3 along +X.

@@ -1313,9 +1313,8 @@ inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
     ar.active = true;
     rs.active_count++;
     // SEAM[ribbon:L1] unconditional stdout — exhibition guard
-    //   candidate. Same family as the [DIAG:*] stdout pattern
-    //   noted across the codebase. Phase 1+ batch: wrap in
-    //   #ifdef DIAG_RIBBON or similar before exhibition.
+    //   candidate, still open. (The DIAG_RIBBON this once named was
+    //   never defined anywhere; deleted PRUNING_1 P1 Step 4.)
     std::cout << "[Ribbon] SPAWN slot=" << s << " at (" << plan.cx << ", " << plan.cz
         << ") tier=" << plan.tier_idx
         << " len=" << total_length

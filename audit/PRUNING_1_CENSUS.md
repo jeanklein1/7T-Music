@@ -5,12 +5,12 @@
 
 | anchor | value |
 |---|---|
-| audited tree state | `833eb6d8a362baadaaff58f075f8559005ad8ad5` |
-| generated at HEAD | `833eb6d8a362` |
+| audited tree state | `580ed78f279d4463c5f2cdffc4751fa8ccc831f2` |
+| generated at HEAD | `580ed78f279d` |
 | branch | `claude/pruning-1-p1` |
 | audited state date | 2026-07-25 |
-| history depth | 86 commits (root dated 2026-07-23) |
-| shader | `src/cartridges/the_board/realization/world.wgsl` — 12667 lines |
+| history depth | 88 commits (root dated 2026-07-23) |
+| shader | `src/cartridges/the_board/realization/world.wgsl` — 12625 lines |
 
 **Every finding below cites the audited tree state.** That is the last
 commit touching anything this census reads (`src/`, `web/`,
@@ -21,8 +21,8 @@ disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `15600388d51f`; the audited state `833eb6d8a362` is
-> **5 ahead / 0 behind** it, and **3 of those commits touch the
+> `origin/master` is `15600388d51f`; the audited state `580ed78f279d` is
+> **7 ahead / 0 behind** it, and **5 of those commits touch the
 > audited surface** (`src/`, `web/`, `CMakeLists.txt`). **A census run
 > on `origin/master` would give different numbers.** The handoff's
 > instruction — *anchor by HASH, never by remembered name* — is
@@ -53,8 +53,8 @@ verdicts that read RULE(Jean) for mirror reasons are now unblocked.
 
 | metric | count |
 |---|---|
-| file lines | 12667 |
-| comment lines (whole-line) | 3862 (30.5%) |
+| file lines | 12625 |
+| comment lines (whole-line) | 3857 (30.6%) |
 | blank lines | 1495 |
 | `fn` declarations | 288 |
 | entry points (`@compute`/`@vertex`/`@fragment`) | 64 — compute 30 · vertex 26 · fragment 8 |
@@ -63,7 +63,7 @@ verdicts that read RULE(Jean) for mirror reasons are now unblocked.
 | `fn` reachable from ANY entry point | 284 |
 | `fn` reachable from a LIVE entry point | 284 |
 | `fn` unreachable from every entry point | **4** |
-| `const` declarations (module-scope; 3 function-local excluded) | 332 |
+| `const` declarations (module-scope; 3 function-local excluded) | 295 |
 | `struct` declarations | 71 |
 | `override` declarations | 1 |
 | `@group/@binding` declarations | 96 |
@@ -122,10 +122,10 @@ so P1 should not be scoped as if it did.**
 
 | fn | line | callers (desktop) | called by | web mirror | mirror detail |
 |---|---|---|---|---|---|
-| contrib_paintings_base_at | 3100 | 0 | — | — | — |
-| contrib_vegetation_base_at | 3110 | 0 | — | — | — |
-| query_ground_celestial | 3502 | 0 | — | — | — |
-| query_ground_flyer_gradient | 3515 | 0 | — | — | — |
+| contrib_paintings_base_at | 3081 | 0 | — | — | — |
+| contrib_vegetation_base_at | 3091 | 0 | — | — | — |
+| query_ground_celestial | 3483 | 0 | — | — | — |
+| query_ground_flyer_gradient | 3496 | 0 | — | — | — |
 
 Recipe: `python tools/pruning_census.py` — closure over the call graph from
 all 64 entry points; anything outside that union is here.
@@ -138,69 +138,32 @@ Scope note: **module-scope only** (column 0). 3 function-local `const`
 declarations exist and are deliberately excluded — a body-scope constant
 is not a module symbol and cannot be an orphan of this kind.
 
-Unreferenced: **57** of 332 module-scope consts. Of those, **20 have a C++
+Unreferenced: **20** of 295 module-scope consts. Of those, **10 have a C++
 twin of the same name** (declared mirrors, not accidents) and **0 are
 still read by the web mirror**.
 
 | const | line | C++ twin | web mirror | class |
 |---|---|---|---|---|
-| AGENT_BEHAVIOR_COUNT_WGSL | 905 | `AGENT_BEHAVIOR_COUNT` | — | **MIRROR of C++ — RULE(Jean)** |
-| AMG_BACK_CAP | 10034 | — | — | orphan — DELETE |
-| AMG_FRONT_CAP | 10033 | — | — | orphan — DELETE |
-| AMG_INNER_SHELL | 10032 | — | — | orphan — DELETE |
-| AMG_MAX_PROFILE | 10109 | — | — | orphan — DELETE |
-| AMG_OUTER_SHELL | 10031 | — | — | orphan — DELETE |
-| AMG_TOTAL_INDICES | 10028 | `AMG_TOTAL_INDICES` | — | **MIRROR of C++ — RULE(Jean)** |
-| AURA_DELTA_CONVERGENT | 6122 | — | — | orphan — DELETE |
-| CMG_MAX_DISCS | 10382 | — | — | orphan — DELETE |
-| CMG_MAX_PROFILE | 10381 | — | — | orphan — DELETE |
-| CONTRIB_COUNT | 2871 | `CONTRIB_COUNT` | — | **MIRROR of C++ — RULE(Jean)** |
-| CONTRIB_PAINTINGS_BASES | 2864 | `CONTRIB_PAINTINGS_BASES` | — | **MIRROR of C++ — RULE(Jean)** |
-| CONTRIB_VEGETATION_BASES | 2865 | `CONTRIB_VEGETATION_BASES` | — | **MIRROR of C++ — RULE(Jean)** |
-| COUPLING_PAWN_TO_CELL_COLOR | 2521 | — | — | orphan — DELETE |
-| COUPLING_PAWN_TO_PROXIMITY_FIELD | 2518 | — | — | orphan — DELETE |
-| COUPLING_PAWN_TO_ZONE_COLOR | 2529 | — | — | orphan — DELETE |
-| COUPLING_PAWN_TO_ZONE_HEIGHT | 2528 | — | — | orphan — DELETE |
-| COUPLING_POLYPHONY_TO_AMPLITUDE | 2511 | — | — | orphan — DELETE |
-| COUPLING_POLYPHONY_TO_CELL_COLOR | 2520 | — | — | orphan — DELETE |
-| COUPLING_RANDOM_TO_CELL_GOALS | 2526 | — | — | orphan — DELETE |
-| COUPLING_SPHERE_TO_CELL_COLOR | 2522 | — | — | orphan — DELETE |
-| COUPLING_SPHERE_TO_PROXIMITY_FIELD | 2519 | — | — | orphan — DELETE |
-| COUPLING_SPHERE_TO_TERRAIN_TINT | 2524 | — | — | orphan — DELETE |
-| COUPLING_SPHERE_TO_ZONE_COLOR | 2531 | — | — | orphan — DELETE |
-| COUPLING_SPHERE_TO_ZONE_HEIGHT | 2530 | — | — | orphan — DELETE |
-| CUBE_BEHAVIOR_COUNT_WGSL | 7828 | `CUBE_BEHAVIOR_COUNT` | — | **MIRROR of C++ — RULE(Jean)** |
-| CUBE_BEHAVIOR_CURLFIELD | 7823 | `CUBE_BEHAVIOR_CURLFIELD` | — | **MIRROR of C++ — RULE(Jean)** |
-| CUBE_BEHAVIOR_PHASEWAVE | 7824 | `CUBE_BEHAVIOR_PHASEWAVE` | — | **MIRROR of C++ — RULE(Jean)** |
-| CUBE_BEHAVIOR_STATIONARY | 7822 | `CUBE_BEHAVIOR_STATIONARY` | — | **MIRROR of C++ — RULE(Jean)** |
-| FAM_REGULAR_W | 962 | — | — | orphan — DELETE |
-| FAM_SMOOTH_W | 963 | — | — | orphan — DELETE |
-| GOL_ALGORITHM_PULSE | 5956 | — | — | orphan — DELETE |
-| GOL_COLOR_BLACKISH | 5952 | — | — | orphan — DELETE |
-| GOL_NEUTRAL_DARKEN | 5980 | — | — | orphan — DELETE |
-| GOL_PULSE_ALGORITHM_CHANCE | 2165 | `GOL_PULSE_ALGORITHM_CHANCE` | — | **MIRROR of C++ — RULE(Jean)** |
-| PALMG_TOTAL_INDICES | 10934 | `PALMG_TOTAL_INDICES` | — | **MIRROR of C++ — RULE(Jean)** |
-| PATCH_SKIRT_RING | 289 | — | — | orphan — DELETE |
-| POLICY_BAKED_HEIGHTFIELD | 2881 | `POLICY_BAKED_HEIGHTFIELD` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_BAKED_HEIGHTFIELD_MASK | 2904 | — | — | orphan — DELETE |
-| POLICY_CELESTIAL | 2886 | `POLICY_CELESTIAL` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_CELESTIAL_MASK | 2931 | — | — | orphan — DELETE |
-| POLICY_FLYER_MASK | 2906 | — | — | orphan — DELETE |
-| POLICY_PLACEMENT_PAINTING | 2879 | `POLICY_PLACEMENT_PAINTING` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_PLACEMENT_PAINTING_MASK | 2900 | — | — | orphan — DELETE |
-| POLICY_PLACEMENT_PYRAMID | 2878 | `POLICY_PLACEMENT_PYRAMID` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_PLACEMENT_PYRAMID_MASK | 2899 | — | — | orphan — DELETE |
-| POLICY_PLACEMENT_VEGETATION | 2880 | `POLICY_PLACEMENT_VEGETATION` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_PLACEMENT_VEGETATION_MASK | 2903 | — | — | orphan — DELETE |
-| POLICY_TERRAIN_RENDER | 2887 | `POLICY_TERRAIN_RENDER` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_TERRAIN_RENDER_MASK | 2942 | — | — | orphan — DELETE |
-| POLICY_WALKER | 2883 | `POLICY_WALKER` | — | **MIRROR of C++ — RULE(Jean)** |
-| POLICY_WALKER_AGENT_MASK | 2925 | — | — | orphan — DELETE |
-| POLICY_WALKER_MASK | 2912 | — | — | orphan — DELETE |
-| POLICY_WALKER_TILT_MASK | 2919 | — | — | orphan — DELETE |
-| TOTAL_FLOATING_SLOTS | 2024 | `TOTAL_FLOATING_SLOTS` | — | **MIRROR of C++ — RULE(Jean)** |
-| ZONE_MESH_MAX_INDICES | 6428 | `ZONE_MESH_MAX_INDICES` | — | **MIRROR of C++ — RULE(Jean)** |
-| ZONE_PROP_DENSITY | 6256 | — | — | orphan — DELETE |
+| CONTRIB_COUNT | 2852 | `CONTRIB_COUNT` | — | **MIRROR of C++ — RULE(Jean)** |
+| CONTRIB_PAINTINGS_BASES | 2845 | `CONTRIB_PAINTINGS_BASES` | — | **MIRROR of C++ — RULE(Jean)** |
+| CONTRIB_VEGETATION_BASES | 2846 | `CONTRIB_VEGETATION_BASES` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_BAKED_HEIGHTFIELD | 2862 | `POLICY_BAKED_HEIGHTFIELD` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_BAKED_HEIGHTFIELD_MASK | 2885 | — | — | orphan — DELETE |
+| POLICY_CELESTIAL | 2867 | `POLICY_CELESTIAL` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_CELESTIAL_MASK | 2912 | — | — | orphan — DELETE |
+| POLICY_FLYER_MASK | 2887 | — | — | orphan — DELETE |
+| POLICY_PLACEMENT_PAINTING | 2860 | `POLICY_PLACEMENT_PAINTING` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_PLACEMENT_PAINTING_MASK | 2881 | — | — | orphan — DELETE |
+| POLICY_PLACEMENT_PYRAMID | 2859 | `POLICY_PLACEMENT_PYRAMID` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_PLACEMENT_PYRAMID_MASK | 2880 | — | — | orphan — DELETE |
+| POLICY_PLACEMENT_VEGETATION | 2861 | `POLICY_PLACEMENT_VEGETATION` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_PLACEMENT_VEGETATION_MASK | 2884 | — | — | orphan — DELETE |
+| POLICY_TERRAIN_RENDER | 2868 | `POLICY_TERRAIN_RENDER` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_TERRAIN_RENDER_MASK | 2923 | — | — | orphan — DELETE |
+| POLICY_WALKER | 2864 | `POLICY_WALKER` | — | **MIRROR of C++ — RULE(Jean)** |
+| POLICY_WALKER_AGENT_MASK | 2906 | — | — | orphan — DELETE |
+| POLICY_WALKER_MASK | 2893 | — | — | orphan — DELETE |
+| POLICY_WALKER_TILT_MASK | 2900 | — | — | orphan — DELETE |
 
 ### §1.4 — `struct` declarations with zero references
 
@@ -360,9 +323,9 @@ are legitimate ALIASES named for a *different* site on the same buffer
 
 | group | binding | WGSL var | wgsl line | type | constant at the same slot |
 |---|---|---|---|---|---|
-| g0 | 1 | fc_config | 9485 | DesignConfig | config |
-| g0 | 340 | fc_patches | 9487 | array<PatchInstance> | patch_instances |
-| g0 | 2 | fc_vp | 9486 | VPMatrix | vp_data |
+| g0 | 1 | fc_config | 9453 | DesignConfig | config |
+| g0 | 340 | fc_patches | 9455 | array<PatchInstance> | patch_instances |
+| g0 | 2 | fc_vp | 9454 | VPMatrix | vp_data |
 
 **3 of 3 are covered by a differently-named constant at the SAME slot**
 — exactly the `fc_`-alias set the registry header predicts by name. So
@@ -380,7 +343,7 @@ here and read there is not a free removal.
 
 | (group,binding) | WGSL var | space | wgsl line | bound in | web mirror | mirror detail |
 |---|---|---|---|---|---|---|
-| 0/200 | render_signal | storage, read | 5831 | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ | — | — |
+| 0/200 | render_signal | storage, read | 5812 | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ | — | — |
 
 ### §2.5 — flag (d): reserved / parked / do-not-reuse comments
 
@@ -391,7 +354,7 @@ Listed for retirement, not for action on the numbers themselves.
 Scope: the two rooms that OWN binding numbers (`binding_registry.hpp`, `state.hpp`).
 `RETIRED`/`REMOVED` tombstones are a different class and live in §6.1.
 
-Sites: **24**
+Sites: **17**
 
 | file | line | text |
 |---|---|---|
@@ -406,19 +369,12 @@ Sites: **24**
 | state.hpp | 71 | // (legacy cell mesh constants removed — bindings 40-45 reserved) |
 | state.hpp | 128 | // unchanged — widening EXIST is a separate, parked dial. |
 | state.hpp | 134 | // widening EXIST is a separate, parked dial. |
-| state.hpp | 316 | // Reserved-slot annotations mirrored from world.wgsl §2 — the |
-| state.hpp | 319 | // silently. Reserved slots stay declared because their bits flow |
-| state.hpp | 330 | constexpr uint32_t PAWN_TO_FIELD_COLOR       = 1u << 7;   // (reserved — legacy proximity field) |
-| state.hpp | 331 | constexpr uint32_t SPHERE_TO_FIELD_COLOR     = 1u << 8;   // (reserved — legacy proximity field) |
-| state.hpp | 332 | constexpr uint32_t POLYPHONY_TO_CELL_COLOR   = 1u << 9;   // (reserved — legacy cell system) |
-| state.hpp | 333 | constexpr uint32_t PAWN_TO_CELL_COLOR        = 1u << 10;  // (reserved — legacy cell system) |
-| state.hpp | 334 | constexpr uint32_t SPHERE_TO_CELL_COLOR      = 1u << 11;  // (reserved — legacy cell system) |
-| state.hpp | 338 | constexpr uint32_t RANDOM_TO_CELL_GOALS      = 1u << 15;  // (reserved — legacy cell system) |
-| state.hpp | 1283 | float    _pad_anchor;        //172: reserved (future anchor mode/rate) |
-| state.hpp | 1639 | // (bindings 21, 40 reserved — formerly proximity_field, cell_states) |
-| state.hpp | 1675 | // (legacy cell mesh buffers removed — bindings 43-45 reserved) |
-| state.hpp | 2659 | // (legacy cell mesh accessors removed — bindings 43-45 reserved) |
-| state.hpp | 3064 | // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved) |
+| state.hpp | 319 | // PRUNING_1 P1 3c: the twelve "reserved — legacy" bits and the seven |
+| state.hpp | 1263 | float    _pad_anchor;        //172: reserved (future anchor mode/rate) |
+| state.hpp | 1619 | // (bindings 21, 40 reserved — formerly proximity_field, cell_states) |
+| state.hpp | 1655 | // (legacy cell mesh buffers removed — bindings 43-45 reserved) |
+| state.hpp | 2639 | // (legacy cell mesh accessors removed — bindings 43-45 reserved) |
+| state.hpp | 3044 | // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved) |
 
 ---
 
@@ -443,7 +399,7 @@ members are exactly where the rooms can silently diverge — C++ packs a
 carries `offsetof(...) %% 16 == 0` static_asserts on them.
 
 The boot-pin block is `state.hpp::initializeState()`, located by name and
-brace-matched: **lines 5811–6045**. Writes inside it are pins, not consumers,
+brace-matched: **lines 5791–6025**. Writes inside it are pins, not consumers,
 and are counted in their own column. **A field pinned at boot and never
 read is not alive — it is a value nobody asks for.**
 
@@ -590,8 +546,8 @@ The handoff lists these as expected zero-reader candidates and says
 | wave_enable_mask | uint32_t | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
 | wave_freeze_mask | uint32_t | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
 | wave_frozen_t | float[3] | 12 | 0 | 0 | 0 | 3 | 0 | — | **ZERO READS — confirmed candidate** | — |
-| pawn_amp_scale | float | 4 | 0 | 0 | 1 | 1 | 1 | `set_pawn_amp_scale` ×0 | **ZERO LIVE READS** — only its own dead setter's guard | src/cartridges/the_board/realization/state.hpp:2566 |
-| pawn_height_bias | float | 4 | 0 | 0 | 1 | 1 | 1 | `set_pawn_height_bias` ×0 | **ZERO LIVE READS** — only its own dead setter's guard | src/cartridges/the_board/realization/state.hpp:2569 |
+| pawn_amp_scale | float | 4 | 0 | 0 | 1 | 1 | 1 | `set_pawn_amp_scale` ×0 | **ZERO LIVE READS** — only its own dead setter's guard | src/cartridges/the_board/realization/state.hpp:2546 |
+| pawn_height_bias | float | 4 | 0 | 0 | 1 | 1 | 1 | `set_pawn_height_bias` ×0 | **ZERO LIVE READS** — only its own dead setter's guard | src/cartridges/the_board/realization/state.hpp:2549 |
 | mute_dynamics_2d | uint32_t | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
 | active_cell_size | float | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
 
@@ -640,7 +596,7 @@ here — it is a mirror, so its tags are copies of desktop tags at an older
 commit, and ruling on them is the resync's business (§5.3), not §4's.
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 86 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 88 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -659,10 +615,10 @@ disagree the tag is worth reading by eye before ruling on it.
 
 | file | line | governs | inside fn | tag | class | reachable callers | first seen | text |
 |---|---|---|---|---|---|---|---|---|
-| …/bodies/cube_behaviors.hpp | 445 | CubeIdx | toggle_cube_kite_mode | INTENT[...] | **cross-reference — the tag lives elsewhere** | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
+| …/bodies/cube_behaviors.hpp | 442 | CubeIdx | toggle_cube_kite_mode | INTENT[...] | **cross-reference — the tag lives elsewhere** | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
 | …/bodies/grounded.hpp | 37 | PAWN_HEIGHT_UNITS | — | STATUS: LATENT | TAG | — | 2026-07-23 | // STATUS: LATENT[unused] — zero callers in the tree; |
-| …/bodies/grounded.hpp | 859 | BladeIdx | prepare_arch_mesh_gen | INTENT[...] | **cross-reference — the tag lives elsewhere** | — | 2026-07-23 | // (INTENT[services:themes] at its definition); the table rows p |
-| …/bodies/spheres.hpp | 86 | SphIdx | clear_spheres | INTENT[...] | **cross-reference — the tag lives elsewhere** | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
+| …/bodies/grounded.hpp | 838 | BladeIdx | prepare_arch_mesh_gen | INTENT[...] | **cross-reference — the tag lives elsewhere** | — | 2026-07-23 | // (INTENT[services:themes] at its definition); the table rows p |
+| …/bodies/spheres.hpp | 83 | SphIdx | clear_spheres | INTENT[...] | **cross-reference — the tag lives elsewhere** | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
 | …/contracts/ground_architecture.hpp | 11 | (the STATUS convention itself) | — | STATUS: LATENT | LEGEND (defines the vocabulary) | — | 2026-07-23 | //   STATUS: LATENT[name]  — capability with a plausible future; |
 | …/contracts/ground_architecture.hpp | 13 | (the STATUS convention itself) | — | DRIVERLESS | LEGEND (defines the vocabulary) | — | 2026-07-23 | //                           region is next worked (the DRIVERLE |
 | …/contracts/ground_architecture.hpp | 15 | (the STATUS convention itself) | — | STATUS: INTENT | LEGEND (defines the vocabulary) | — | 2026-07-23 | //   STATUS: INTENT        — declared, zero realization yet; kep |
@@ -678,60 +634,60 @@ disagree the tag is worth reading by eye before ruling on it.
 | …/contracts/spine_state.hpp | 100 | InputState | — | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ═════════════════ |
 | …/contracts/spine_state.hpp | 179 | fog_density | — | INTENT[...] | TAG | — | 2026-07-23 | // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO rea |
 | …/direction/input.hpp | 348 | update_movement_intent | on_scroll | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════ |
-| …/realization/state.hpp | 3056 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
-| …/realization/state.hpp | 3069 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
-| …/realization/state.hpp | 3136 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
-| …/realization/state.hpp | 3319 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
-| …/realization/state.hpp | 3348 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
-| …/realization/state.hpp | 3425 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
-| …/realization/state.hpp | 3470 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
-| …/realization/state.hpp | 3509 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
-| …/realization/state.hpp | 3537 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
-| …/realization/state.hpp | 3563 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
-| …/realization/state.hpp | 3639 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
-| …/realization/state.hpp | 3693 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
-| …/realization/state.hpp | 3715 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
-| …/realization/world.wgsl | 787 | stats | terrain_height_and_complexity | DRIVERLESS | TAG | `terrain_height_and_complexity`: 1 | 2026-07-23 | // DRIVERLESS: no shader consumer since M1-C. Kept as infrastruc |
-| …/realization/world.wgsl | 1127 | tile_modifiers_at | tile_grid_lookup | STATUS: LATENT | TAG | `tile_modifiers_at`: 1 | 2026-07-23 | // STATUS: LATENT[tile-activation] — the .z channel (activation_ |
-| …/realization/world.wgsl | 1788 | (unattributed — nearest declaration is 22 lines away) | discrete_cell_color_at_tier | DRIVERLESS | TAG | `discrete_cell_color_at_tier`: 3 | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mo |
-| …/realization/world.wgsl | 2568 | coupling_signal_polyphony_to_sphere_color | point_camera_hosted | DRIVERLESS | TAG | `coupling_signal_polyphony_to_sphere_color`: 2 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (the 8th capability — raw |
-| …/realization/world.wgsl | 3027 | (unattributed) | contrib_gol_zones_at | STATUS: INTENT | TAG | `contrib_gol_zones_at`: 1 | 2026-07-23 | //   POLICY_CELESTIAL           empty — ground is 0.0 (STATUS: I |
-| …/realization/world.wgsl | 3179 | contrib_radial_pulses_at | ground_formed_with_complexity | DRIVERLESS | TAG | `contrib_radial_pulses_at`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
-| …/realization/world.wgsl | 3278 | query_ground_placement_pyramid | contrib_pawn_aura_at_self | STATUS: LATENT | TAG | `query_ground_placement_pyramid`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
-| …/realization/world.wgsl | 3295 | query_ground_placement_painting | query_ground_placement_pyramid | STATUS: LATENT | TAG | `query_ground_placement_painting`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
-| …/realization/world.wgsl | 3311 | query_ground_placement_vegetation | query_ground_placement_painting | STATUS: LATENT | TAG | `query_ground_placement_vegetation`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
-| …/realization/world.wgsl | 3501 | query_ground_celestial | query_ground_walker_agent | STATUS: INTENT | TAG | `query_ground_celestial`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: INTENT — declared, zero realization; the row says so  |
-| …/realization/world.wgsl | 3513 | query_ground_flyer_gradient | query_ground_celestial | STATUS: LATENT | TAG | `query_ground_flyer_gradient`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: LATENT[policy-surface] — zero callers; plausible cons |
-| …/realization/world.wgsl | 4269 | @location(2) patch_uv: vec2<f32>,    // UV withi | shade_lit | LATENT[...] | tombstone-ref (already removed) | `shade_lit`: 3 | 2026-07-23 | // (complexity varying REMOVED — LATENT[complexity], read by no  |
-| …/realization/world.wgsl | 4372 | out.patch_uv = uv; | patch_terrain_vs | LATENT[...] | tombstone-ref (already removed) | `patch_terrain_vs`: 0 | 2026-07-23 | // (out.complexity REMOVED — the LATENT[complexity] varying; |
-| …/realization/world.wgsl | 6022 | freq | pulse_cell_target | DRIVERLESS | TAG | `pulse_cell_target`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
-| …/realization/world.wgsl | 6048 | id | gol_composite_cell_color | STATUS: INTENT | TAG | `gol_composite_cell_color`: 1 | 2026-07-23 | // (Jean): the zones' own coupling pass is coming. STATUS: INTEN |
-| …/realization/world.wgsl | 6556 | agent_post_step | step_trigger | INTENT (bare) | **prose — not a tag** | `agent_post_step`: 9 | (not in history) | // the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSIT |
-| …/realization/world.wgsl | 6611 | agent_settle | agent_post_step | INTENT (bare) | **prose — not a tag** | `agent_settle`: 1 | (not in history) | // contact gather, so the speed cap governs INTENT, not impositi |
-| …/realization/world.wgsl | 7786 | floating_entities.entities[slot].color = couplin | update_sphere | DRIVERLESS | TAG | `update_sphere`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
-| …/realization/world.wgsl | 8132 | floating_entities.entities[slot].color = couplin | update_cube | DRIVERLESS | TAG | `update_cube`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
-| …/realization/world.wgsl | 8307 | textureStore(patch_heightfield_array_write, texe | generate_patch_gradients | LATENT[...] | tombstone-ref (already removed) | `generate_patch_gradients`: 0 | 2026-07-23 | // The .w channel is unused (was LATENT[complexity], removed by  |
-| …/realization/world.wgsl | 9325 | (unattributed) | compute_photographer_vp | STATUS: LATENT | TAG | `compute_photographer_vp`: 0 | 2026-07-23 | // live caller today (STATUS: LATENT[policy-surface]): CPU spawn |
-| …/realization/world.wgsl | 11872 | force_radial | shadow_blade_cluster_vs | DRIVERLESS | TAG | `shadow_blade_cluster_vs`: 0 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (force/color/flock/speed co |
+| …/realization/state.hpp | 3036 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
+| …/realization/state.hpp | 3049 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
+| …/realization/state.hpp | 3116 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
+| …/realization/state.hpp | 3299 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
+| …/realization/state.hpp | 3328 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
+| …/realization/state.hpp | 3405 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
+| …/realization/state.hpp | 3450 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
+| …/realization/state.hpp | 3489 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
+| …/realization/state.hpp | 3517 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
+| …/realization/state.hpp | 3543 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
+| …/realization/state.hpp | 3619 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
+| …/realization/state.hpp | 3673 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
+| …/realization/state.hpp | 3695 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
+| …/realization/world.wgsl | 786 | stats | terrain_height_and_complexity | DRIVERLESS | TAG | `terrain_height_and_complexity`: 1 | 2026-07-23 | // DRIVERLESS: no shader consumer since M1-C. Kept as infrastruc |
+| …/realization/world.wgsl | 1123 | tile_modifiers_at | tile_grid_lookup | STATUS: LATENT | TAG | `tile_modifiers_at`: 1 | 2026-07-23 | // STATUS: LATENT[tile-activation] — the .z channel (activation_ |
+| …/realization/world.wgsl | 1784 | (unattributed — nearest declaration is 22 lines away) | discrete_cell_color_at_tier | DRIVERLESS | TAG | `discrete_cell_color_at_tier`: 3 | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mo |
+| …/realization/world.wgsl | 2549 | coupling_signal_polyphony_to_sphere_color | point_camera_hosted | DRIVERLESS | TAG | `coupling_signal_polyphony_to_sphere_color`: 2 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (the 8th capability — raw |
+| …/realization/world.wgsl | 3008 | (unattributed) | contrib_gol_zones_at | STATUS: INTENT | TAG | `contrib_gol_zones_at`: 1 | 2026-07-23 | //   POLICY_CELESTIAL           empty — ground is 0.0 (STATUS: I |
+| …/realization/world.wgsl | 3160 | contrib_radial_pulses_at | ground_formed_with_complexity | DRIVERLESS | TAG | `contrib_radial_pulses_at`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
+| …/realization/world.wgsl | 3259 | query_ground_placement_pyramid | contrib_pawn_aura_at_self | STATUS: LATENT | TAG | `query_ground_placement_pyramid`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
+| …/realization/world.wgsl | 3276 | query_ground_placement_painting | query_ground_placement_pyramid | STATUS: LATENT | TAG | `query_ground_placement_painting`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
+| …/realization/world.wgsl | 3292 | query_ground_placement_vegetation | query_ground_placement_painting | STATUS: LATENT | TAG | `query_ground_placement_vegetation`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
+| …/realization/world.wgsl | 3482 | query_ground_celestial | query_ground_walker_agent | STATUS: INTENT | TAG | `query_ground_celestial`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: INTENT — declared, zero realization; the row says so  |
+| …/realization/world.wgsl | 3494 | query_ground_flyer_gradient | query_ground_celestial | STATUS: LATENT | TAG | `query_ground_flyer_gradient`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: LATENT[policy-surface] — zero callers; plausible cons |
+| …/realization/world.wgsl | 4250 | @location(2) patch_uv: vec2<f32>,    // UV withi | shade_lit | LATENT[...] | tombstone-ref (already removed) | `shade_lit`: 3 | 2026-07-23 | // (complexity varying REMOVED — LATENT[complexity], read by no  |
+| …/realization/world.wgsl | 4353 | out.patch_uv = uv; | patch_terrain_vs | LATENT[...] | tombstone-ref (already removed) | `patch_terrain_vs`: 0 | 2026-07-23 | // (out.complexity REMOVED — the LATENT[complexity] varying; |
+| …/realization/world.wgsl | 5999 | freq | pulse_cell_target | DRIVERLESS | TAG | `pulse_cell_target`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
+| …/realization/world.wgsl | 6025 | id | gol_composite_cell_color | STATUS: INTENT | TAG | `gol_composite_cell_color`: 1 | 2026-07-23 | // (Jean): the zones' own coupling pass is coming. STATUS: INTEN |
+| …/realization/world.wgsl | 6530 | agent_post_step | step_trigger | INTENT (bare) | **prose — not a tag** | `agent_post_step`: 9 | (not in history) | // the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSIT |
+| …/realization/world.wgsl | 6585 | agent_settle | agent_post_step | INTENT (bare) | **prose — not a tag** | `agent_settle`: 1 | (not in history) | // contact gather, so the speed cap governs INTENT, not impositi |
+| …/realization/world.wgsl | 7760 | floating_entities.entities[slot].color = couplin | update_sphere | DRIVERLESS | TAG | `update_sphere`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
+| …/realization/world.wgsl | 8100 | floating_entities.entities[slot].color = couplin | update_cube | DRIVERLESS | TAG | `update_cube`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
+| …/realization/world.wgsl | 8275 | textureStore(patch_heightfield_array_write, texe | generate_patch_gradients | LATENT[...] | tombstone-ref (already removed) | `generate_patch_gradients`: 0 | 2026-07-23 | // The .w channel is unused (was LATENT[complexity], removed by  |
+| …/realization/world.wgsl | 9293 | (unattributed) | compute_photographer_vp | STATUS: LATENT | TAG | `compute_photographer_vp`: 0 | 2026-07-23 | // live caller today (STATUS: LATENT[policy-surface]): CPU spawn |
+| …/realization/world.wgsl | 11830 | force_radial | shadow_blade_cluster_vs | DRIVERLESS | TAG | `shadow_blade_cluster_vs`: 0 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (force/color/flock/speed co |
 | …/surface/terrain_looks.hpp | 87 | REST_TERRAIN_TIME | — | DRIVERLESS | TAG | — | 2026-07-23 | //   nothing else authors them today (the mode trio is DRIVERLES |
 | …/surface/tile_world.hpp | 119 | activation_scale | — | STATUS: LATENT | TAG | — | 2026-07-23 | // STATUS: LATENT[tile-activation] — authored here (per-archetyp |
 
 ### §4a — THE POLICY SURFACE (Tier 3)
 
-`manifold_height_hf` — `src/cartridges/the_board/realization/world.wgsl:3581`–3593, 2 callers. It is a `switch` over
+`manifold_height_hf` — `src/cartridges/the_board/realization/world.wgsl:3562`–3574, 2 callers. It is a `switch` over
 the policy id with **9 arms**.
 
 | arm | policy | dispatches | decl line | callers | live? | realization |
 |---|---|---|---|---|---|---|
-| case 0u | POLICY_PLACEMENT_PYRAMID | `query_ground_placement_pyramid` | 3283 | 1 | yes | policy-specific |
-| case 1u | POLICY_PLACEMENT_PAINTING | `query_ground_placement_painting` | 3299 | 1 | yes | policy-specific |
-| case 2u | POLICY_PLACEMENT_VEGETATION | `query_ground_placement_vegetation` | 3316 | 1 | yes | policy-specific |
-| case 3u | POLICY_BAKED_HEIGHTFIELD | `sample_terrain_y_at` | 9168 | 8 | yes | **generic fallback — the arm is a no-op distinction** |
-| case 4u | POLICY_FLYER | `query_ground_flyer` | 3373 | 2 | yes | policy-specific |
-| case 5u | POLICY_WALKER | `query_ground_walker` | 3402 | 1 | yes | policy-specific |
-| case 6u | POLICY_WALKER_TILT | `query_ground_walker_tilt` | 3432 | 1 | yes | policy-specific |
-| case 7u | POLICY_WALKER_AGENT | `query_ground_walker_agent` | 3488 | 1 | yes | policy-specific |
-| default | CELESTIAL/RENDER | `sample_terrain_y_at` | 9168 | 8 | yes | **generic fallback — the arm is a no-op distinction** |
+| case 0u | POLICY_PLACEMENT_PYRAMID | `query_ground_placement_pyramid` | 3264 | 1 | yes | policy-specific |
+| case 1u | POLICY_PLACEMENT_PAINTING | `query_ground_placement_painting` | 3280 | 1 | yes | policy-specific |
+| case 2u | POLICY_PLACEMENT_VEGETATION | `query_ground_placement_vegetation` | 3297 | 1 | yes | policy-specific |
+| case 3u | POLICY_BAKED_HEIGHTFIELD | `sample_terrain_y_at` | 9136 | 8 | yes | **generic fallback — the arm is a no-op distinction** |
+| case 4u | POLICY_FLYER | `query_ground_flyer` | 3354 | 2 | yes | policy-specific |
+| case 5u | POLICY_WALKER | `query_ground_walker` | 3383 | 1 | yes | policy-specific |
+| case 6u | POLICY_WALKER_TILT | `query_ground_walker_tilt` | 3413 | 1 | yes | policy-specific |
+| case 7u | POLICY_WALKER_AGENT | `query_ground_walker_agent` | 3469 | 1 | yes | policy-specific |
+| default | CELESTIAL/RENDER | `sample_terrain_y_at` | 9136 | 8 | yes | **generic fallback — the arm is a no-op distinction** |
 
 **7 of 9 arms dispatch a policy-specific function; 2 fall through to
 the generic baked sampler.** An arm whose body is the same call as the
@@ -757,18 +713,18 @@ analysis over it is a fixed point.
 
 | line | callee | policy argument | kind | inside fn |
 |---|---|---|---|---|
-| 3608 | `manifold_height_hf` | `policy` | forward | `manifold_position` |
-| 3618 | `manifold_position` | `policy` | forward | `manifold_resolve` |
-| 3620 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
-| 3621 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
-| 3648 | `manifold_position` | `POLICY_FLYER` | LITERAL | `coupling_terrain_to_sphere_orbit_height` |
-| 6456 | `manifold_resolve` | `POLICY_WALKER_TILT` | LITERAL | `terrain_normal_at` |
-| 6627 | `manifold_position` | `POLICY_WALKER_AGENT` | LITERAL | `agent_settle` |
-| 6840 | `manifold_position` | `POLICY_FLYER` | LITERAL | `behavior_player_controlled` |
-| 7727 | `manifold_position` | `POLICY_WALKER_TILT` | LITERAL | `update_camera` |
-| 8002 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
-| 8007 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
-| 8086 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 3589 | `manifold_height_hf` | `policy` | forward | `manifold_position` |
+| 3599 | `manifold_position` | `policy` | forward | `manifold_resolve` |
+| 3601 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
+| 3602 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
+| 3629 | `manifold_position` | `POLICY_FLYER` | LITERAL | `coupling_terrain_to_sphere_orbit_height` |
+| 6430 | `manifold_resolve` | `POLICY_WALKER_TILT` | LITERAL | `terrain_normal_at` |
+| 6601 | `manifold_position` | `POLICY_WALKER_AGENT` | LITERAL | `agent_settle` |
+| 6814 | `manifold_position` | `POLICY_FLYER` | LITERAL | `behavior_player_controlled` |
+| 7701 | `manifold_position` | `POLICY_WALKER_TILT` | LITERAL | `update_camera` |
+| 7970 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 7975 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 8054 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
 
 All four provenance checks PASS, so the conclusion is available.
 
@@ -802,31 +758,31 @@ The two columns are exact complements: **they agree on all 10 policies**.
 
 | fn | line | callers | called by | reachable from a live entry? |
 |---|---|---|---|---|
-| query_ground_celestial | 3502 | 0 | — **none** | **no** |
-| query_ground_flyer | 3373 | 2 | manifold_height_hf, query_ground_flyer_gradient | yes |
-| query_ground_flyer_gradient | 3515 | 0 | — **none** | **no** |
-| query_ground_placement_painting | 3299 | 1 | manifold_height_hf | yes |
-| query_ground_placement_pyramid | 3283 | 1 | manifold_height_hf | yes |
-| query_ground_placement_vegetation | 3316 | 1 | manifold_height_hf | yes |
-| query_ground_walker | 3402 | 1 | manifold_height_hf | yes |
-| query_ground_walker_agent | 3488 | 1 | manifold_height_hf | yes |
-| query_ground_walker_pair | 3457 | 1 | pawn_ground_resolve | yes |
-| query_ground_walker_tilt | 3432 | 1 | manifold_height_hf | yes |
+| query_ground_celestial | 3483 | 0 | — **none** | **no** |
+| query_ground_flyer | 3354 | 2 | manifold_height_hf, query_ground_flyer_gradient | yes |
+| query_ground_flyer_gradient | 3496 | 0 | — **none** | **no** |
+| query_ground_placement_painting | 3280 | 1 | manifold_height_hf | yes |
+| query_ground_placement_pyramid | 3264 | 1 | manifold_height_hf | yes |
+| query_ground_placement_vegetation | 3297 | 1 | manifold_height_hf | yes |
+| query_ground_walker | 3383 | 1 | manifold_height_hf | yes |
+| query_ground_walker_agent | 3469 | 1 | manifold_height_hf | yes |
+| query_ground_walker_pair | 3438 | 1 | pawn_ground_resolve | yes |
+| query_ground_walker_tilt | 3413 | 1 | manifold_height_hf | yes |
 
 **`POLICY_*_MASK` constants**
 
 | const | line | references (post-strip, excl. decl) |
 |---|---|---|
-| POLICY_BAKED_HEIGHTFIELD_MASK | 2904 | 0 |
-| POLICY_CELESTIAL_MASK | 2931 | 0 |
-| POLICY_FLYER_MASK | 2906 | 0 |
-| POLICY_PLACEMENT_PAINTING_MASK | 2900 | 0 |
-| POLICY_PLACEMENT_PYRAMID_MASK | 2899 | 0 |
-| POLICY_PLACEMENT_VEGETATION_MASK | 2903 | 0 |
-| POLICY_TERRAIN_RENDER_MASK | 2942 | 0 |
-| POLICY_WALKER_AGENT_MASK | 2925 | 0 |
-| POLICY_WALKER_MASK | 2912 | 0 |
-| POLICY_WALKER_TILT_MASK | 2919 | 0 |
+| POLICY_BAKED_HEIGHTFIELD_MASK | 2885 | 0 |
+| POLICY_CELESTIAL_MASK | 2912 | 0 |
+| POLICY_FLYER_MASK | 2887 | 0 |
+| POLICY_PLACEMENT_PAINTING_MASK | 2881 | 0 |
+| POLICY_PLACEMENT_PYRAMID_MASK | 2880 | 0 |
+| POLICY_PLACEMENT_VEGETATION_MASK | 2884 | 0 |
+| POLICY_TERRAIN_RENDER_MASK | 2923 | 0 |
+| POLICY_WALKER_AGENT_MASK | 2906 | 0 |
+| POLICY_WALKER_MASK | 2893 | 0 |
+| POLICY_WALKER_TILT_MASK | 2900 | 0 |
 
 **`contracts/ground_architecture.hpp` — what is load-bearing**
 
@@ -892,7 +848,7 @@ intent, not capability.
 
 | symbol | kind | line | callers | called by | partition |
 |---|---|---|---|---|---|
-| pga_color_motor | fn | 3775 | 1 | coupling_signal_polyphony_to_sphere_color | **THE CUT** (Jean's ruling) |
+| pga_color_motor | fn | 3756 | 1 | coupling_signal_polyphony_to_sphere_color | **THE CUT** (Jean's ruling) |
 | Motor | struct | 153 | 0 | — | **SURVIVES** — still reached via a live reference |
 | rotor | fn | 187 | 3 | dynamics_sphere_motor_orbit, pga_color_motor, ribbon_ring_motor | **SURVIVES** — still reached via `dynamics_sphere_motor_orbit`, `ribbon_ring_motor` |
 | translator | fn | 200 | 1 | pga_color_motor | falls with the colour motor |
@@ -916,7 +872,7 @@ The shortcut of "ignore every entry point whose closure contains the
 colour motor" gives the WRONG answer here, because the colour motor and
 the sphere-orbit path share an entry point.
 
-`pga_color_motor` — `src/cartridges/the_board/realization/world.wgsl:3775`, 1 caller(s): `coupling_signal_polyphony_to_sphere_color`. Its closure is 8 fn.
+`pga_color_motor` — `src/cartridges/the_board/realization/world.wgsl:3756`, 1 caller(s): `coupling_signal_polyphony_to_sphere_color`. Its closure is 8 fn.
 
 **Falls with the cut (1): `translator`**
 **Already dead at HEAD, independent of the cut (1): `Plane`**
@@ -1048,21 +1004,21 @@ Sites: **20**. These are the campaign's actual §5 surface.
 | src/cartridges/the_board/realization/binding_registry.hpp | 108 | zone_patch_instances | **NO** | // zone_patch_instances (the zone-mesh terrain-eval trio; |
 | src/cartridges/the_board/realization/binding_registry.hpp | 111 | zone_mesh_* | **NO** | // 167/168/169 RETIRED — zone_mesh_vertices / zone_mesh_indices / |
 | src/cartridges/the_board/realization/binding_registry.hpp | 112 | zone_mesh_* | **NO** | // zone_mesh_indirect (the extrusion mesh trio; UNIFIED_GROUND_1 U4 |
-| src/cartridges/the_board/realization/world.wgsl | 1754 | OVERLAY_WAVES | **NO** | // VS/FS. Removed. NOT the (then-live) OVERLAY_WAVES voice — itself |
-| src/cartridges/the_board/realization/world.wgsl | 3142 | OVERLAY_WAVES | **NO** | // (OverlayWave struct + OVERLAY_WAVE_COUNT + OVERLAY_WAVES + the |
-| src/cartridges/the_board/realization/world.wgsl | 3219 | zone_extrusion_* | **NO** | // side samples in patch_terrain_vs / zone_extrusion_vs. |
-| src/cartridges/the_board/realization/world.wgsl | 6087 | apply_gol_extrusion_color | **NO** | // (fn apply_gol_extrusion_color RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| src/cartridges/the_board/realization/world.wgsl | 6129 | zone_extrusion_* | **NO** | // render-side consumers (patch_terrain_vs, zone_extrusion_vs, |
-| src/cartridges/the_board/realization/world.wgsl | 8520 | cell_fields | **NO** | //  revival is a five-line wrapper"). The cell_fields LUT died with |
-| src/cartridges/the_board/realization/world.wgsl | 8630 | cell_fields | **NO** | // (cell_fields LUT store RETIRED — Commit C: the live path |
-| src/cartridges/the_board/realization/world.wgsl | 8788 | zone_mesh_* | **NO** | // (fn zone_mesh_gen_cell RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| src/cartridges/the_board/realization/world.wgsl | 8797 | zone_extrusion_* | **NO** | // (fn zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| src/cartridges/the_board/realization/world.wgsl | 8799 | zone_extrusion_* | **NO** | // (fn zone_extrusion_fs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| src/cartridges/the_board/realization/world.wgsl | 1750 | OVERLAY_WAVES | **NO** | // VS/FS. Removed. NOT the (then-live) OVERLAY_WAVES voice — itself |
+| src/cartridges/the_board/realization/world.wgsl | 3123 | OVERLAY_WAVES | **NO** | // (OverlayWave struct + OVERLAY_WAVE_COUNT + OVERLAY_WAVES + the |
+| src/cartridges/the_board/realization/world.wgsl | 3200 | zone_extrusion_* | **NO** | // side samples in patch_terrain_vs / zone_extrusion_vs. |
+| src/cartridges/the_board/realization/world.wgsl | 6064 | apply_gol_extrusion_color | **NO** | // (fn apply_gol_extrusion_color RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| src/cartridges/the_board/realization/world.wgsl | 6105 | zone_extrusion_* | **NO** | // render-side consumers (patch_terrain_vs, zone_extrusion_vs, |
+| src/cartridges/the_board/realization/world.wgsl | 8488 | cell_fields | **NO** | //  revival is a five-line wrapper"). The cell_fields LUT died with |
+| src/cartridges/the_board/realization/world.wgsl | 8598 | cell_fields | **NO** | // (cell_fields LUT store RETIRED — Commit C: the live path |
+| src/cartridges/the_board/realization/world.wgsl | 8756 | zone_mesh_* | **NO** | // (fn zone_mesh_gen_cell RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| src/cartridges/the_board/realization/world.wgsl | 8765 | zone_extrusion_* | **NO** | // (fn zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| src/cartridges/the_board/realization/world.wgsl | 8767 | zone_extrusion_* | **NO** | // (fn zone_extrusion_fs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
 
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `833eb6d8a362`):
+exists (`src/cartridges/the_chord/` is absent at `580ed78f279d`):
 
 | line | text |
 |---|---|
@@ -1112,7 +1068,7 @@ the web mirror" is unblocked. A WGSL deletion is a one-room edit.
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `833eb6d8a362` — every line above
+`src/cartridges/backup_board/` does not exist at `580ed78f279d` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1132,28 +1088,28 @@ is dangling.
 A COMMENT LINE is a line whose entire payload is comment — a trailing
 `// note` on a code line is not counted, because it is not removable mass.
 
-**Totals over `src/cartridges/the_board`, `src/coupling`, `src/musical`: 43734 lines, 10806 comment lines (24.7%).**
+**Totals over `src/cartridges/the_board`, `src/coupling`, `src/musical`: 43506 lines, 10785 comment lines (24.8%).**
 
 (LINES, not newlines: 9 of these 59 files have no trailing newline, so
-`sum(wc -l)` reads 43725. Same convention as §8.)
+`sum(wc -l)` reads 43497. Same convention as §8.)
 
 Top 15 by comment MASS:
 
 | file | lines | comment | blank | ratio |
 |---|---|---|---|---|
-| src/cartridges/the_board/realization/world.wgsl | 12667 | 3862 | 1495 | 30.5% |
-| src/cartridges/the_board/realization/state.hpp | 6049 | 903 | 690 | 14.9% |
-| src/cartridges/the_board/cartridge.hpp | 1779 | 576 | 149 | 32.4% |
-| src/cartridges/the_board/bodies/ribbon.hpp | 1493 | 356 | 133 | 23.8% |
+| src/cartridges/the_board/realization/world.wgsl | 12625 | 3857 | 1495 | 30.6% |
+| src/cartridges/the_board/realization/state.hpp | 6029 | 904 | 690 | 15.0% |
+| src/cartridges/the_board/cartridge.hpp | 1773 | 576 | 149 | 32.5% |
+| src/cartridges/the_board/bodies/ribbon.hpp | 1492 | 355 | 133 | 23.8% |
 | src/cartridges/the_board/direction/mood.hpp | 1287 | 263 | 149 | 20.4% |
-| src/cartridges/the_board/bodies/gallery.hpp | 1815 | 239 | 249 | 13.2% |
+| src/cartridges/the_board/bodies/gallery.hpp | 1803 | 235 | 249 | 13.0% |
 | src/cartridges/the_board/realization/renderer.hpp | 2195 | 231 | 239 | 10.5% |
-| src/cartridges/the_board/bodies/grounded.hpp | 1592 | 212 | 165 | 13.3% |
+| src/cartridges/the_board/bodies/grounded.hpp | 1571 | 212 | 165 | 13.5% |
 | src/coupling/visual_canvas.hpp | 532 | 205 | 36 | 38.5% |
-| src/cartridges/the_board/machine/spawn_engine.hpp | 730 | 199 | 80 | 27.3% |
+| src/cartridges/the_board/machine/spawn_engine.hpp | 721 | 194 | 80 | 26.9% |
 | src/cartridges/the_board/machine/entity_pipeline.hpp | 1142 | 193 | 122 | 16.9% |
-| src/cartridges/the_board/bodies/gol_zones.hpp | 752 | 181 | 110 | 24.1% |
-| src/cartridges/the_board/surface/patch_system.hpp | 951 | 172 | 108 | 18.1% |
+| src/cartridges/the_board/bodies/gol_zones.hpp | 744 | 181 | 110 | 24.3% |
+| src/cartridges/the_board/surface/patch_system.hpp | 854 | 165 | 103 | 19.3% |
 | src/musical/stream_data.hpp | 489 | 148 | 72 | 30.3% |
 | src/cartridges/the_board/surface/tile_world.hpp | 533 | 147 | 68 | 27.6% |
 
@@ -1182,16 +1138,16 @@ Full table, alphabetical:
 | file | lines | comment | blank | ratio |
 |---|---|---|---|---|
 | src/cartridges/the_board/bodies/agents.hpp | 793 | 133 | 100 | 16.8% |
-| src/cartridges/the_board/bodies/cube_behaviors.hpp | 682 | 144 | 76 | 21.1% |
-| src/cartridges/the_board/bodies/gallery.hpp | 1815 | 239 | 249 | 13.2% |
-| src/cartridges/the_board/bodies/gol_zones.hpp | 752 | 181 | 110 | 24.1% |
-| src/cartridges/the_board/bodies/grounded.hpp | 1592 | 212 | 165 | 13.3% |
+| src/cartridges/the_board/bodies/cube_behaviors.hpp | 679 | 144 | 76 | 21.2% |
+| src/cartridges/the_board/bodies/gallery.hpp | 1803 | 235 | 249 | 13.0% |
+| src/cartridges/the_board/bodies/gol_zones.hpp | 744 | 181 | 110 | 24.3% |
+| src/cartridges/the_board/bodies/grounded.hpp | 1571 | 212 | 165 | 13.5% |
 | src/cartridges/the_board/bodies/orbs.hpp | 814 | 108 | 110 | 13.3% |
 | src/cartridges/the_board/bodies/pawn.hpp | 220 | 63 | 26 | 28.6% |
 | src/cartridges/the_board/bodies/pawn_figures.hpp | 299 | 57 | 20 | 19.1% |
-| src/cartridges/the_board/bodies/ribbon.hpp | 1493 | 356 | 133 | 23.8% |
-| src/cartridges/the_board/bodies/spheres.hpp | 282 | 70 | 28 | 24.8% |
-| src/cartridges/the_board/cartridge.hpp | 1779 | 576 | 149 | 32.4% |
+| src/cartridges/the_board/bodies/ribbon.hpp | 1492 | 355 | 133 | 23.8% |
+| src/cartridges/the_board/bodies/spheres.hpp | 279 | 70 | 28 | 25.1% |
+| src/cartridges/the_board/cartridge.hpp | 1773 | 576 | 149 | 32.5% |
 | src/cartridges/the_board/contracts/demo_config.hpp | 35 | 19 | 4 | 54.3% |
 | src/cartridges/the_board/contracts/entity_types.hpp | 357 | 85 | 35 | 23.8% |
 | src/cartridges/the_board/contracts/floaters.hpp | 146 | 46 | 16 | 31.5% |
@@ -1209,16 +1165,16 @@ Full table, alphabetical:
 | src/cartridges/the_board/direction/input.hpp | 437 | 117 | 42 | 26.8% |
 | src/cartridges/the_board/direction/mood.hpp | 1287 | 263 | 149 | 20.4% |
 | src/cartridges/the_board/machine/entity_pipeline.hpp | 1142 | 193 | 122 | 16.9% |
-| src/cartridges/the_board/machine/spawn_engine.hpp | 730 | 199 | 80 | 27.3% |
+| src/cartridges/the_board/machine/spawn_engine.hpp | 721 | 194 | 80 | 26.9% |
 | src/cartridges/the_board/primitives/seed_utils.hpp | 129 | 46 | 14 | 35.7% |
 | src/cartridges/the_board/realization/binding_registry.hpp | 206 | 80 | 16 | 38.8% |
 | src/cartridges/the_board/realization/drawable_table.hpp | 125 | 37 | 9 | 29.6% |
 | src/cartridges/the_board/realization/render_passes.hpp | 588 | 89 | 83 | 15.1% |
 | src/cartridges/the_board/realization/renderer.hpp | 2195 | 231 | 239 | 10.5% |
-| src/cartridges/the_board/realization/state.hpp | 6049 | 903 | 690 | 14.9% |
-| src/cartridges/the_board/realization/world.wgsl | 12667 | 3862 | 1495 | 30.5% |
-| src/cartridges/the_board/surface/patch_system.hpp | 951 | 172 | 108 | 18.1% |
-| src/cartridges/the_board/surface/population_themes.hpp | 456 | 116 | 41 | 25.4% |
+| src/cartridges/the_board/realization/state.hpp | 6029 | 904 | 690 | 15.0% |
+| src/cartridges/the_board/realization/world.wgsl | 12625 | 3857 | 1495 | 30.6% |
+| src/cartridges/the_board/surface/patch_system.hpp | 854 | 165 | 103 | 19.3% |
+| src/cartridges/the_board/surface/population_themes.hpp | 450 | 116 | 41 | 25.8% |
 | src/cartridges/the_board/surface/terrain_looks.hpp | 156 | 109 | 8 | 69.9% |
 | src/cartridges/the_board/surface/tile_world.hpp | 533 | 147 | 68 | 27.6% |
 | src/coupling/trajectory.hpp | 80 | 43 | 10 | 53.8% |
@@ -1295,61 +1251,61 @@ Every tombstone site:
 | …/realization/binding_registry.hpp | 182 | (uncited) | // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.) |
 | …/realization/renderer.hpp | 1649 | UNIFIED_GROUND_1 | // (zone extrusion render pipeline RETIRED — UNIFIED_GROUND_1 U4) |
 | …/realization/state.hpp | 214 | (uncited) | // are REMOVED (the mesh-gen basket had no dispatch). |
-| …/realization/state.hpp | 612 | (uncited) | // (GPUTerrainState REMOVED: the dead terrain buffer's CPU |
-| …/realization/state.hpp | 953 | (uncited) | // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas |
-| …/realization/state.hpp | 959 | (uncited) | // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen |
-| …/realization/state.hpp | 1671 | (uncited) | // (Cell spatial field LUT members RETIRED — Commit C, the LUT |
-| …/realization/state.hpp | 2733 | (uncited) | //   index-count + the mesh-gen layout/group REMOVED; |
-| …/realization/state.hpp | 2734 | (uncited) | //   the ground buffer + its atlas write REMOVED — only |
-| …/realization/state.hpp | 3837 | (uncited) | // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.) |
-| …/realization/state.hpp | 4472 | (uncited) | // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.) |
-| …/realization/state.hpp | 4779 | (uncited) | // (Pyramid mesh gen layout REMOVED: bindings 190-192, |
-| …/realization/state.hpp | 5680 | (uncited) | // (Pyramid mesh gen bind group REMOVED: bindings |
+| …/realization/state.hpp | 592 | (uncited) | // (GPUTerrainState REMOVED: the dead terrain buffer's CPU |
+| …/realization/state.hpp | 933 | (uncited) | // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas |
+| …/realization/state.hpp | 939 | (uncited) | // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen |
+| …/realization/state.hpp | 1651 | (uncited) | // (Cell spatial field LUT members RETIRED — Commit C, the LUT |
+| …/realization/state.hpp | 2713 | (uncited) | //   index-count + the mesh-gen layout/group REMOVED; |
+| …/realization/state.hpp | 2714 | (uncited) | //   the ground buffer + its atlas write REMOVED — only |
+| …/realization/state.hpp | 3817 | (uncited) | // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.) |
+| …/realization/state.hpp | 4452 | (uncited) | // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.) |
+| …/realization/state.hpp | 4759 | (uncited) | // (Pyramid mesh gen layout REMOVED: bindings 190-192, |
+| …/realization/state.hpp | 5660 | (uncited) | // (Pyramid mesh gen bind group REMOVED: bindings |
 | …/realization/world.wgsl | 90 | (uncited) | // (Terrain-Mode Coupling section RETIRED — Phase 1, ruling 6.) |
-| …/realization/world.wgsl | 757 | UNIFIED_GROUND_1 | // (fn terrain_height_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 817 | (uncited) | // --- [STATE:terrain] TerrainState REMOVED — the dead terrain |
-| …/realization/world.wgsl | 1353 | (uncited) | // (Terrain-mode coupling field RETIRED — Phase 1, ruling 6. Lattice 9 |
-| …/realization/world.wgsl | 1428 | (uncited) | // (Prop 804 "receptivity" RETIRED — Phase 1, ruling 3: the pc-color |
-| …/realization/world.wgsl | 1904 | (uncited) | // (View 5, the sliver microscope, RETIRED — INCIDENT #3b CLOSED: |
-| …/realization/world.wgsl | 1910 | (uncited) | // ── ROW 6 — RETIRED (Phase 1, ruling 6) ─────────────────────────── |
-| …/realization/world.wgsl | 1943 | (uncited) | // The overlay matrix is RETIRED: the terrain animates with its OWN |
-| …/realization/world.wgsl | 2173 | (uncited) | // (PAWN_GOL_GROUND_ENABLED RETIRED — compile-time gate for the pre-card |
-| …/realization/world.wgsl | 2221 | CONTACT_4 | // (CONTACT_SPHERE_RADIUS RETIRED — CONTACT_4 S2c. It was the sphere's |
-| …/realization/world.wgsl | 2227 | CONTACT_5 | // (CONTACT_CUBE_RADIUS 3.0 RETIRED -- CONTACT_5 P2b. The cube's interaction |
-| …/realization/world.wgsl | 2293 | CONTACT_5 | // (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They |
-| …/realization/world.wgsl | 3092 | UNIFIED_GROUND_1 | // (fn contrib_static_base_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 3141 | TRUEBAND_CONTACT_1 | // ─── Overlay wave band table — RETIRED (TRUEBAND_CONTACT_1 T1c) ──── |
-| …/realization/world.wgsl | 3149 | UNIFIED_GROUND_1 | // (fn contrib_terrain_waves_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 3155 | TRUEBAND_CONTACT_1 | // (fn terrain_wave_overlay_with_gradient RETIRED — TRUEBAND_CONTACT_1 T1c; |
-| …/realization/world.wgsl | 3330 | UNIFIED_GROUND_1 | // (fn query_ground_baked_heightfield RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 4269 | (uncited) | // (complexity varying REMOVED — LATENT[complexity], read by no FS) |
-| …/realization/world.wgsl | 4372 | (uncited) | // (out.complexity REMOVED — the LATENT[complexity] varying; |
-| …/realization/world.wgsl | 4485 | (uncited) | //    (INCIDENT #2's I1 texel audit / I2 LUT field audit RETIRED — |
-| …/realization/world.wgsl | 5775 | (uncited) | // @binding(20) terrain_state REMOVED (dead terrain buffer) |
-| …/realization/world.wgsl | 5833 | (uncited) | // @binding(220) render_terrain REMOVED (dead terrain buffer) |
-| …/realization/world.wgsl | 5913 | (uncited) | // (binding 29, cell_fields_write, RETIRED — Commit C, the LUT |
-| …/realization/world.wgsl | 5914 | (uncited) | //  retirement. Number reserved; do not reuse.) |
-| …/realization/world.wgsl | 5922 | (uncited) | // (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.) |
-| …/realization/world.wgsl | 6087 | UNIFIED_GROUND_1 | // (fn apply_gol_extrusion_color RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 6232 | (uncited) | // (ZONE_DERIVE_EXTENT RETIRED — extent is tier-derived, grid_cells × |
-| …/realization/world.wgsl | 6426 | UNIFIED_GROUND_1 | // (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8033 | (uncited) | // RETIRED (a body contact never reached a hovering cube -- the |
-| …/realization/world.wgsl | 8252 | (uncited) | // ── Read center height from shared (complexity readback REMOVED) ─ |
-| …/realization/world.wgsl | 8411 | (uncited) | // (Terrain-mode coupling shift RETIRED here — Phase 1, ruling 6. |
-| …/realization/world.wgsl | 8518 | (uncited) | // (animated_cell_color_lut — the LUT reconstruction body — RETIRED, |
-| …/realization/world.wgsl | 8630 | (uncited) | // (cell_fields LUT store RETIRED — Commit C: the live path |
-| …/realization/world.wgsl | 8786 | UNIFIED_GROUND_1 | // (fn zone_emit_quad RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8788 | UNIFIED_GROUND_1 | // (fn zone_mesh_gen_cell RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8790 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_reset RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8792 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_gen RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8797 | UNIFIED_GROUND_1 | // (fn zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8799 | UNIFIED_GROUND_1 | // (fn zone_extrusion_fs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8801 | UNIFIED_GROUND_1 | // (fn shadow_zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 9134 | (uncited) | // (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed |
-| …/realization/world.wgsl | 9453 | (uncited) | // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and |
-| …/realization/world.wgsl | 9480 | (uncited) | // (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the |
-| …/realization/world.wgsl | 9999 | (uncited) | // §9.0 PYRAMID MESH GENERATION — REMOVED. |
-| …/surface/patch_system.hpp | 554 | (uncited) | // RETIRED by the veil cut — the chain lives in Dim + config.) |
+| …/realization/world.wgsl | 756 | UNIFIED_GROUND_1 | // (fn terrain_height_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 816 | (uncited) | // --- [STATE:terrain] TerrainState REMOVED — the dead terrain |
+| …/realization/world.wgsl | 1349 | (uncited) | // (Terrain-mode coupling field RETIRED — Phase 1, ruling 6. Lattice 9 |
+| …/realization/world.wgsl | 1424 | (uncited) | // (Prop 804 "receptivity" RETIRED — Phase 1, ruling 3: the pc-color |
+| …/realization/world.wgsl | 1900 | (uncited) | // (View 5, the sliver microscope, RETIRED — INCIDENT #3b CLOSED: |
+| …/realization/world.wgsl | 1906 | (uncited) | // ── ROW 6 — RETIRED (Phase 1, ruling 6) ─────────────────────────── |
+| …/realization/world.wgsl | 1939 | (uncited) | // The overlay matrix is RETIRED: the terrain animates with its OWN |
+| …/realization/world.wgsl | 2166 | (uncited) | // (PAWN_GOL_GROUND_ENABLED RETIRED — compile-time gate for the pre-card |
+| …/realization/world.wgsl | 2214 | CONTACT_4 | // (CONTACT_SPHERE_RADIUS RETIRED — CONTACT_4 S2c. It was the sphere's |
+| …/realization/world.wgsl | 2220 | CONTACT_5 | // (CONTACT_CUBE_RADIUS 3.0 RETIRED -- CONTACT_5 P2b. The cube's interaction |
+| …/realization/world.wgsl | 2286 | CONTACT_5 | // (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They |
+| …/realization/world.wgsl | 3073 | UNIFIED_GROUND_1 | // (fn contrib_static_base_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 3122 | TRUEBAND_CONTACT_1 | // ─── Overlay wave band table — RETIRED (TRUEBAND_CONTACT_1 T1c) ──── |
+| …/realization/world.wgsl | 3130 | UNIFIED_GROUND_1 | // (fn contrib_terrain_waves_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 3136 | TRUEBAND_CONTACT_1 | // (fn terrain_wave_overlay_with_gradient RETIRED — TRUEBAND_CONTACT_1 T1c; |
+| …/realization/world.wgsl | 3311 | UNIFIED_GROUND_1 | // (fn query_ground_baked_heightfield RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 4250 | (uncited) | // (complexity varying REMOVED — LATENT[complexity], read by no FS) |
+| …/realization/world.wgsl | 4353 | (uncited) | // (out.complexity REMOVED — the LATENT[complexity] varying; |
+| …/realization/world.wgsl | 4466 | (uncited) | //    (INCIDENT #2's I1 texel audit / I2 LUT field audit RETIRED — |
+| …/realization/world.wgsl | 5756 | (uncited) | // @binding(20) terrain_state REMOVED (dead terrain buffer) |
+| …/realization/world.wgsl | 5814 | (uncited) | // @binding(220) render_terrain REMOVED (dead terrain buffer) |
+| …/realization/world.wgsl | 5894 | (uncited) | // (binding 29, cell_fields_write, RETIRED — Commit C, the LUT |
+| …/realization/world.wgsl | 5895 | (uncited) | //  retirement. Number reserved; do not reuse.) |
+| …/realization/world.wgsl | 5903 | (uncited) | // (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.) |
+| …/realization/world.wgsl | 6064 | UNIFIED_GROUND_1 | // (fn apply_gol_extrusion_color RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 6208 | (uncited) | // (ZONE_DERIVE_EXTENT RETIRED — extent is tier-derived, grid_cells × |
+| …/realization/world.wgsl | 6401 | UNIFIED_GROUND_1 | // (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8001 | (uncited) | // RETIRED (a body contact never reached a hovering cube -- the |
+| …/realization/world.wgsl | 8220 | (uncited) | // ── Read center height from shared (complexity readback REMOVED) ─ |
+| …/realization/world.wgsl | 8379 | (uncited) | // (Terrain-mode coupling shift RETIRED here — Phase 1, ruling 6. |
+| …/realization/world.wgsl | 8486 | (uncited) | // (animated_cell_color_lut — the LUT reconstruction body — RETIRED, |
+| …/realization/world.wgsl | 8598 | (uncited) | // (cell_fields LUT store RETIRED — Commit C: the live path |
+| …/realization/world.wgsl | 8754 | UNIFIED_GROUND_1 | // (fn zone_emit_quad RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8756 | UNIFIED_GROUND_1 | // (fn zone_mesh_gen_cell RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8758 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_reset RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8760 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_gen RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8765 | UNIFIED_GROUND_1 | // (fn zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8767 | UNIFIED_GROUND_1 | // (fn zone_extrusion_fs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8769 | UNIFIED_GROUND_1 | // (fn shadow_zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 9102 | (uncited) | // (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed |
+| …/realization/world.wgsl | 9421 | (uncited) | // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and |
+| …/realization/world.wgsl | 9448 | (uncited) | // (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the |
+| …/realization/world.wgsl | 9967 | (uncited) | // §9.0 PYRAMID MESH GENERATION — REMOVED. |
+| …/surface/patch_system.hpp | 457 | (uncited) | // RETIRED by the veil cut — the chain lives in Dim + config.) |
 | …/surface/terrain_looks.hpp | 137 | (uncited) | //   ROW 6 — RETIRED (Phase 1, ruling 6): terrain-mode coupling went |
 
 ### §6.2 — CAMPAIGN COORDINATES in comments
@@ -1360,26 +1316,28 @@ deliberately NOT matched: in prose it collides with ordinary text and the
 false-positive rate is not worth the count. **The number below is therefore
 a floor, not a total** — stated so the §4 sizing is not overread.
 
-Coordinate sites: **117** across 7 files.
+Coordinate sites: **120** across 9 files.
 
 | file | coordinates | examples |
 |---|---|---|
-| …/realization/world.wgsl | 81 | 256: CONTACT_4 S3a; 572: TRUEBAND_CONTACT_1 T1a |
-| …/realization/state.hpp | 16 | 306: CONTACT_5 P2b; 564: CONTACT_2 C3a |
+| …/realization/world.wgsl | 81 | 256: CONTACT_4 S3a; 571: TRUEBAND_CONTACT_1 T1a |
+| …/realization/state.hpp | 17 | 306: CONTACT_5 P2b; 319: PRUNING_1 P1 |
 | …/bodies/gol_zones.hpp | 9 | 104: UNIFIED_GROUND_1 U5; 117: UNIFIED_GROUND_1 U5 |
 | …/realization/renderer.hpp | 6 | 136: UNIFIED_GROUND_1 U5; 263: UNIFIED_GROUND_1 U5 |
-| …/bodies/cube_behaviors.hpp | 2 | 85: CONTACT_3 K2c; 601: CONTACT_2 C1b |
+| …/bodies/cube_behaviors.hpp | 2 | 85: CONTACT_3 K2c; 598: CONTACT_2 C1b |
 | …/realization/binding_registry.hpp | 2 | 109: UNIFIED_GROUND_1 U4; 112: UNIFIED_GROUND_1 U4 |
 | …/bodies/agents.hpp | 1 | 175: CONTACT_4 S2a |
+| …/bodies/ribbon.hpp | 1 | 1317: PRUNING_1 P1 |
+| src/incubator_dual.cpp | 1 | 131: PRUNING_1 P1 |
 
 ### §6.3 — the four debug constants and `[DIAG:AUDIT]`
 
 | debug constant | declared at | current value | branches | branch sites | instrument status |
 |---|---|---|---|---|---|
-| TERRAIN_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1908 | `0u` | 2 | world.wgsl:4490, world.wgsl:4496 | branch(es) still present |
-| CHECKER_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1897 | `0u` | 2 | world.wgsl:4467, world.wgsl:4472 | branch(es) still present |
-| LIVE_CARD_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:255 | `0u` | 1 | world.wgsl:4411 | branch(es) still present |
-| CONTACT_SHELL_DEBUG | src/cartridges/the_board/realization/world.wgsl:261 | `0u` | 1 | world.wgsl:4600 | branch(es) still present |
+| TERRAIN_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1904 | `0u` | 2 | world.wgsl:4471, world.wgsl:4477 | branch(es) still present |
+| CHECKER_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1893 | `0u` | 2 | world.wgsl:4448, world.wgsl:4453 | branch(es) still present |
+| LIVE_CARD_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:255 | `0u` | 1 | world.wgsl:4392 | branch(es) still present |
+| CONTACT_SHELL_DEBUG | src/cartridges/the_board/realization/world.wgsl:261 | `0u` | 1 | world.wgsl:4581 | branch(es) still present |
 
 A debug constant pinned at its off value costs **zero runtime** (the
 branch is folded away per entry point) and N lines of shader text. The
@@ -1395,37 +1353,11 @@ A `#ifdef X` whose `X` is defined **nowhere** — not in the tree, not in
 species as an unreachable `fn`, and nothing in this tree censused it
 before. Compiler- and library-supplied guards are excluded.
 
-| guard | #ifdef sites | defined anywhere? | first sites |
-|---|---|---|---|
-| DIAG_ENTITY_CENSUS | 3 | **NO** | …/cartridge.hpp:1214, …/surface/population_themes.hpp:363, …/surface/population_themes.hpp:422 |
-| DIAG_ENTITY_LIFECYCLE | 16 | **NO** | …/bodies/cube_behaviors.hpp:435, …/bodies/gallery.hpp:1749, …/bodies/gallery.hpp:1766 …(+13) |
-| DIAG_GALLERY | 4 | **NO** | …/bodies/gallery.hpp:699, …/bodies/gallery.hpp:1101, …/bodies/gallery.hpp:1397 …(+1) |
-| DIAG_RIBBON | 1 | **NO** | …/bodies/ribbon.hpp:1318 |
-| INCUBATE_MUSIC_KEYS | 1 | **NO** | src/incubator_dual.cpp:133 |
+_(none)_
 
-Each is dead C++ that reads as live to anyone grepping for the feature.
+`[DIAG:AUDIT]` blocks: **0**.
 
-`[DIAG:AUDIT]` blocks: **17**.
-
-| file | line | text |
-|---|---|---|
-| …/surface/patch_system.hpp | 82 | std::cout << "[DIAG:AUDIT] ARCH COUNT active=" << act_a << " tracked=" << c->entities_state_.arch_co |
-| …/surface/patch_system.hpp | 84 | std::cout << "[DIAG:AUDIT] COL COUNT active=" << act_c << " tracked=" << c->entities_state_.column_c |
-| …/surface/patch_system.hpp | 86 | std::cout << "[DIAG:AUDIT] ANT COUNT active=" << act_n << " tracked=" << c->entities_state_.antenna_ |
-| …/surface/patch_system.hpp | 88 | std::cout << "[DIAG:AUDIT] PYR COUNT active=" << act_p << " tracked=" << c->entities_state_.pyramid_ |
-| …/surface/patch_system.hpp | 102 | if (rp[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF pyr slot=" << ref.slot << " patch=(" << c->patc |
-| …/surface/patch_system.hpp | 107 | if (ra[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF arch slot=" << ref.slot << " patch=(" << c->pat |
-| …/surface/patch_system.hpp | 112 | if (rc[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF col slot=" << ref.slot << " patch=(" << c->patc |
-| …/surface/patch_system.hpp | 117 | if (rn[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF ant slot=" << ref.slot << " patch=(" << c->patc |
-| …/surface/patch_system.hpp | 127 | std::cout << "[DIAG:AUDIT] GHOST arch slot=" << i << " host=(" << c->entities_state_.arches[i].host_ |
-| …/surface/patch_system.hpp | 130 | std::cout << "[DIAG:AUDIT] GHOST col slot=" << i << " host=(" << c->entities_state_.columns[i].host_ |
-| …/surface/patch_system.hpp | 133 | std::cout << "[DIAG:AUDIT] GHOST ant slot=" << i << " host=(" << c->entities_state_.antennas[i].host |
-| …/surface/patch_system.hpp | 136 | std::cout << "[DIAG:AUDIT] GHOST pyr slot=" << i << " host=(" << c->entities_state_.pyramids[i].host |
-| …/surface/patch_system.hpp | 141 | std::cout << "[DIAG:AUDIT] ORPHAN arch slot=" << i << "\n"; |
-| …/surface/patch_system.hpp | 144 | std::cout << "[DIAG:AUDIT] ORPHAN col slot=" << i << "\n"; |
-| …/surface/patch_system.hpp | 147 | std::cout << "[DIAG:AUDIT] ORPHAN ant slot=" << i << "\n"; |
-| …/surface/patch_system.hpp | 150 | std::cout << "[DIAG:AUDIT] ORPHAN pyr slot=" << i << "\n"; |
-| …/surface/patch_system.hpp | 155 | std::cout << "[DIAG:AUDIT] REF FULL patch=(" << c->patch_system_state_.patches_[p].grid_x << "," <<  |
+_(none)_
 
 ---
 
@@ -1454,77 +1386,40 @@ anything short of certain is `RULE(Jean)`.
 | 1 | zone_patch_instances | comments/docs/build | 1 sites — §5.1 | dangling | 0 | none-needed | none — behaviour-identical by construction | DELETE |
 | 1 | constitution §0 mirror law | docs | src/docs/old docs/cartridge_constitution.md | fossil (the_chord retired) | 0 | none-needed | none — a document, not code | DELETE (or mark SUPERSEDED) |
 | 1 | CMakeLists backup_board paragraph | build | CMakeLists.txt:247… | dangling | 0 | glaw1 (configure + build) | none — the path does not exist | DELETE |
-| 2 | contrib_paintings_base_at | wgsl | src/cartridges/the_board/realization/world.wgsl:3100 | unreachable; **named in `contracts/`** | 0 | glaw2 (Tint parse) **+ re-read the contract** | none at runtime; but `contracts/` names it as the realization of a declared node | **RULE(Jean)** — deleting it unrealizes a contract the DAG validates at compile time |
-| 2 | contrib_vegetation_base_at | wgsl | src/cartridges/the_board/realization/world.wgsl:3110 | unreachable; **named in `contracts/`** | 0 | glaw2 (Tint parse) **+ re-read the contract** | none at runtime; but `contracts/` names it as the realization of a declared node | **RULE(Jean)** — deleting it unrealizes a contract the DAG validates at compile time |
-| 2 | query_ground_celestial | wgsl | src/cartridges/the_board/realization/world.wgsl:3502 | // STATUS: INTENT — declared, zero realization; the row says so too. | 0 | glaw2 (Tint parse) | none — DCE'd per entry point; zero runtime cost today | **RULE(Jean)** — it carries an explicit in-tree STATUS tag |
-| 2 | query_ground_flyer_gradient | wgsl | src/cartridges/the_board/realization/world.wgsl:3515 | // STATUS: LATENT[policy-surface] — zero callers; plausible consumer: | 0 | glaw2 (Tint parse) **+ re-read the contract** | none at runtime; but `contracts/` names it as the realization of a declared node | **RULE(Jean)** — deleting it unrealizes a contract the DAG validates at compile time |
-| 2 | AGENT_BEHAVIOR_COUNT_WGSL | wgsl const | src/cartridges/the_board/realization/world.wgsl:905 | unreferenced, but MIRRORS C++ `AGENT_BEHAVIOR_COUNT` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | AMG_BACK_CAP | wgsl const | src/cartridges/the_board/realization/world.wgsl:10034 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | AMG_FRONT_CAP | wgsl const | src/cartridges/the_board/realization/world.wgsl:10033 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | AMG_INNER_SHELL | wgsl const | src/cartridges/the_board/realization/world.wgsl:10032 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | AMG_MAX_PROFILE | wgsl const | src/cartridges/the_board/realization/world.wgsl:10109 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | AMG_OUTER_SHELL | wgsl const | src/cartridges/the_board/realization/world.wgsl:10031 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | AMG_TOTAL_INDICES | wgsl const | src/cartridges/the_board/realization/world.wgsl:10028 | unreferenced, but MIRRORS C++ `AMG_TOTAL_INDICES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | AURA_DELTA_CONVERGENT | wgsl const | src/cartridges/the_board/realization/world.wgsl:6122 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | CMG_MAX_DISCS | wgsl const | src/cartridges/the_board/realization/world.wgsl:10382 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | CMG_MAX_PROFILE | wgsl const | src/cartridges/the_board/realization/world.wgsl:10381 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | CONTRIB_COUNT | wgsl const | src/cartridges/the_board/realization/world.wgsl:2871 | unreferenced, but MIRRORS C++ `CONTRIB_COUNT` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | CONTRIB_PAINTINGS_BASES | wgsl const | src/cartridges/the_board/realization/world.wgsl:2864 | unreferenced, but MIRRORS C++ `CONTRIB_PAINTINGS_BASES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | CONTRIB_VEGETATION_BASES | wgsl const | src/cartridges/the_board/realization/world.wgsl:2865 | unreferenced, but MIRRORS C++ `CONTRIB_VEGETATION_BASES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | COUPLING_PAWN_TO_CELL_COLOR | wgsl const | src/cartridges/the_board/realization/world.wgsl:2521 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_PAWN_TO_PROXIMITY_FIELD | wgsl const | src/cartridges/the_board/realization/world.wgsl:2518 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_PAWN_TO_ZONE_COLOR | wgsl const | src/cartridges/the_board/realization/world.wgsl:2529 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_PAWN_TO_ZONE_HEIGHT | wgsl const | src/cartridges/the_board/realization/world.wgsl:2528 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_POLYPHONY_TO_AMPLITUDE | wgsl const | src/cartridges/the_board/realization/world.wgsl:2511 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_POLYPHONY_TO_CELL_COLOR | wgsl const | src/cartridges/the_board/realization/world.wgsl:2520 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_RANDOM_TO_CELL_GOALS | wgsl const | src/cartridges/the_board/realization/world.wgsl:2526 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_SPHERE_TO_CELL_COLOR | wgsl const | src/cartridges/the_board/realization/world.wgsl:2522 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_SPHERE_TO_PROXIMITY_FIELD | wgsl const | src/cartridges/the_board/realization/world.wgsl:2519 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_SPHERE_TO_TERRAIN_TINT | wgsl const | src/cartridges/the_board/realization/world.wgsl:2524 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_SPHERE_TO_ZONE_COLOR | wgsl const | src/cartridges/the_board/realization/world.wgsl:2531 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | COUPLING_SPHERE_TO_ZONE_HEIGHT | wgsl const | src/cartridges/the_board/realization/world.wgsl:2530 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | CUBE_BEHAVIOR_COUNT_WGSL | wgsl const | src/cartridges/the_board/realization/world.wgsl:7828 | unreferenced, but MIRRORS C++ `CUBE_BEHAVIOR_COUNT` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | CUBE_BEHAVIOR_CURLFIELD | wgsl const | src/cartridges/the_board/realization/world.wgsl:7823 | unreferenced, but MIRRORS C++ `CUBE_BEHAVIOR_CURLFIELD` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | CUBE_BEHAVIOR_PHASEWAVE | wgsl const | src/cartridges/the_board/realization/world.wgsl:7824 | unreferenced, but MIRRORS C++ `CUBE_BEHAVIOR_PHASEWAVE` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | CUBE_BEHAVIOR_STATIONARY | wgsl const | src/cartridges/the_board/realization/world.wgsl:7822 | unreferenced, but MIRRORS C++ `CUBE_BEHAVIOR_STATIONARY` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | FAM_REGULAR_W | wgsl const | src/cartridges/the_board/realization/world.wgsl:962 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | FAM_SMOOTH_W | wgsl const | src/cartridges/the_board/realization/world.wgsl:963 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | GOL_ALGORITHM_PULSE | wgsl const | src/cartridges/the_board/realization/world.wgsl:5956 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | GOL_COLOR_BLACKISH | wgsl const | src/cartridges/the_board/realization/world.wgsl:5952 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | GOL_NEUTRAL_DARKEN | wgsl const | src/cartridges/the_board/realization/world.wgsl:5980 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | GOL_PULSE_ALGORITHM_CHANCE | wgsl const | src/cartridges/the_board/realization/world.wgsl:2165 | unreferenced, but MIRRORS C++ `GOL_PULSE_ALGORITHM_CHANCE` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | PALMG_TOTAL_INDICES | wgsl const | src/cartridges/the_board/realization/world.wgsl:10934 | unreferenced, but MIRRORS C++ `PALMG_TOTAL_INDICES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | PATCH_SKIRT_RING | wgsl const | src/cartridges/the_board/realization/world.wgsl:289 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_BAKED_HEIGHTFIELD | wgsl const | src/cartridges/the_board/realization/world.wgsl:2881 | unreferenced, but MIRRORS C++ `POLICY_BAKED_HEIGHTFIELD` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_BAKED_HEIGHTFIELD_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2904 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_CELESTIAL | wgsl const | src/cartridges/the_board/realization/world.wgsl:2886 | unreferenced, but MIRRORS C++ `POLICY_CELESTIAL` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_CELESTIAL_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2931 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_FLYER_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2906 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_PLACEMENT_PAINTING | wgsl const | src/cartridges/the_board/realization/world.wgsl:2879 | unreferenced, but MIRRORS C++ `POLICY_PLACEMENT_PAINTING` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_PLACEMENT_PAINTING_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2900 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_PLACEMENT_PYRAMID | wgsl const | src/cartridges/the_board/realization/world.wgsl:2878 | unreferenced, but MIRRORS C++ `POLICY_PLACEMENT_PYRAMID` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_PLACEMENT_PYRAMID_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2899 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_PLACEMENT_VEGETATION | wgsl const | src/cartridges/the_board/realization/world.wgsl:2880 | unreferenced, but MIRRORS C++ `POLICY_PLACEMENT_VEGETATION` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_PLACEMENT_VEGETATION_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2903 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_TERRAIN_RENDER | wgsl const | src/cartridges/the_board/realization/world.wgsl:2887 | unreferenced, but MIRRORS C++ `POLICY_TERRAIN_RENDER` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_TERRAIN_RENDER_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2942 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_WALKER | wgsl const | src/cartridges/the_board/realization/world.wgsl:2883 | unreferenced, but MIRRORS C++ `POLICY_WALKER` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | POLICY_WALKER_AGENT_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2925 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_WALKER_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2912 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | POLICY_WALKER_TILT_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2919 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 2 | TOTAL_FLOATING_SLOTS | wgsl const | src/cartridges/the_board/realization/world.wgsl:2024 | unreferenced, but MIRRORS C++ `TOTAL_FLOATING_SLOTS` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | ZONE_MESH_MAX_INDICES | wgsl const | src/cartridges/the_board/realization/world.wgsl:6428 | unreferenced, but MIRRORS C++ `ZONE_MESH_MAX_INDICES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
-| 2 | ZONE_PROP_DENSITY | wgsl const | src/cartridges/the_board/realization/world.wgsl:6256 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 3 | render_signal | binding 0/200 | src/cartridges/the_board/realization/world.wgsl:5831 | bound, zero reachable readers | 0 | Dawn enumeration probe | GPU: one binding slot + its buffer | RULE(Jean) |
-| 3 | mute_dynamics_2d | config mirror | src/cartridges/the_board/realization/state.hpp:412 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_time_scale | config mirror | src/cartridges/the_board/realization/state.hpp:417 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | camera_sensitivity (+ `set_camera_sensitivity`) | config mirror | src/cartridges/the_board/realization/state.hpp:419 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | active_cell_size | config mirror | src/cartridges/the_board/realization/state.hpp:421 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_enable_mask | config mirror | src/cartridges/the_board/realization/state.hpp:428 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_freeze_mask | config mirror | src/cartridges/the_board/realization/state.hpp:429 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_frozen_t | config mirror | src/cartridges/the_board/realization/state.hpp:430 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (3 writes) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 12 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | pawn_amp_scale (+ `set_pawn_amp_scale`) | config mirror | src/cartridges/the_board/realization/state.hpp:436 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | pawn_height_bias (+ `set_pawn_height_bias`) | config mirror | src/cartridges/the_board/realization/state.hpp:437 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 2 | contrib_paintings_base_at | wgsl | src/cartridges/the_board/realization/world.wgsl:3081 | unreachable; **named in `contracts/`** | 0 | glaw2 (Tint parse) **+ re-read the contract** | none at runtime; but `contracts/` names it as the realization of a declared node | **RULE(Jean)** — deleting it unrealizes a contract the DAG validates at compile time |
+| 2 | contrib_vegetation_base_at | wgsl | src/cartridges/the_board/realization/world.wgsl:3091 | unreachable; **named in `contracts/`** | 0 | glaw2 (Tint parse) **+ re-read the contract** | none at runtime; but `contracts/` names it as the realization of a declared node | **RULE(Jean)** — deleting it unrealizes a contract the DAG validates at compile time |
+| 2 | query_ground_celestial | wgsl | src/cartridges/the_board/realization/world.wgsl:3483 | // STATUS: INTENT — declared, zero realization; the row says so too. | 0 | glaw2 (Tint parse) | none — DCE'd per entry point; zero runtime cost today | **RULE(Jean)** — it carries an explicit in-tree STATUS tag |
+| 2 | query_ground_flyer_gradient | wgsl | src/cartridges/the_board/realization/world.wgsl:3496 | // STATUS: LATENT[policy-surface] — zero callers; plausible consumer: | 0 | glaw2 (Tint parse) **+ re-read the contract** | none at runtime; but `contracts/` names it as the realization of a declared node | **RULE(Jean)** — deleting it unrealizes a contract the DAG validates at compile time |
+| 2 | CONTRIB_COUNT | wgsl const | src/cartridges/the_board/realization/world.wgsl:2852 | unreferenced, but MIRRORS C++ `CONTRIB_COUNT` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | CONTRIB_PAINTINGS_BASES | wgsl const | src/cartridges/the_board/realization/world.wgsl:2845 | unreferenced, but MIRRORS C++ `CONTRIB_PAINTINGS_BASES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | CONTRIB_VEGETATION_BASES | wgsl const | src/cartridges/the_board/realization/world.wgsl:2846 | unreferenced, but MIRRORS C++ `CONTRIB_VEGETATION_BASES` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_BAKED_HEIGHTFIELD | wgsl const | src/cartridges/the_board/realization/world.wgsl:2862 | unreferenced, but MIRRORS C++ `POLICY_BAKED_HEIGHTFIELD` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_BAKED_HEIGHTFIELD_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2885 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_CELESTIAL | wgsl const | src/cartridges/the_board/realization/world.wgsl:2867 | unreferenced, but MIRRORS C++ `POLICY_CELESTIAL` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_CELESTIAL_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2912 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_FLYER_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2887 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_PLACEMENT_PAINTING | wgsl const | src/cartridges/the_board/realization/world.wgsl:2860 | unreferenced, but MIRRORS C++ `POLICY_PLACEMENT_PAINTING` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_PLACEMENT_PAINTING_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2881 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_PLACEMENT_PYRAMID | wgsl const | src/cartridges/the_board/realization/world.wgsl:2859 | unreferenced, but MIRRORS C++ `POLICY_PLACEMENT_PYRAMID` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_PLACEMENT_PYRAMID_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2880 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_PLACEMENT_VEGETATION | wgsl const | src/cartridges/the_board/realization/world.wgsl:2861 | unreferenced, but MIRRORS C++ `POLICY_PLACEMENT_VEGETATION` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_PLACEMENT_VEGETATION_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2884 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_TERRAIN_RENDER | wgsl const | src/cartridges/the_board/realization/world.wgsl:2868 | unreferenced, but MIRRORS C++ `POLICY_TERRAIN_RENDER` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_TERRAIN_RENDER_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2923 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_WALKER | wgsl const | src/cartridges/the_board/realization/world.wgsl:2864 | unreferenced, but MIRRORS C++ `POLICY_WALKER` | 0 | glaw2 (Tint parse) | none at runtime; the two rooms stop reading alike | **RULE(Jean)** — deleting a declared mirror is a policy change, not a pruning |
+| 2 | POLICY_WALKER_AGENT_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2906 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_WALKER_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2893 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 2 | POLICY_WALKER_TILT_MASK | wgsl const | src/cartridges/the_board/realization/world.wgsl:2900 | unreferenced (mirror: —) | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
+| 3 | render_signal | binding 0/200 | src/cartridges/the_board/realization/world.wgsl:5812 | bound, zero reachable readers | 0 | Dawn enumeration probe | GPU: one binding slot + its buffer | RULE(Jean) |
+| 3 | mute_dynamics_2d | config mirror | src/cartridges/the_board/realization/state.hpp:392 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | wave_time_scale | config mirror | src/cartridges/the_board/realization/state.hpp:397 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | camera_sensitivity (+ `set_camera_sensitivity`) | config mirror | src/cartridges/the_board/realization/state.hpp:399 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | active_cell_size | config mirror | src/cartridges/the_board/realization/state.hpp:401 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | wave_enable_mask | config mirror | src/cartridges/the_board/realization/state.hpp:408 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | wave_freeze_mask | config mirror | src/cartridges/the_board/realization/state.hpp:409 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | wave_frozen_t | config mirror | src/cartridges/the_board/realization/state.hpp:410 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (3 writes) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 12 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | pawn_amp_scale (+ `set_pawn_amp_scale`) | config mirror | src/cartridges/the_board/realization/state.hpp:416 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
+| 3 | pawn_height_bias (+ `set_pawn_height_bias`) | config mirror | src/cartridges/the_board/realization/state.hpp:417 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
 | 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/bodies/grounded.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 5 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/ground_architecture.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 3 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/roster.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
@@ -1534,21 +1429,16 @@ anything short of certain is `RULE(Jean)`.
 | 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/surface/terrain_looks.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/surface/tile_world.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | keep | 14 LEGEND / tombstone-ref / prose matches | comments | tree-wide — §4 | not tags | n/a | none-needed | deleting the legend deletes the vocabulary the other tags use | KEEP — excluded from the ruling surface by classification |
-| 2 | `#ifdef DIAG_ENTITY_CENSUS` | C++ preprocessor | 3 site(s) — §6.3 | guard defined NOWHERE — the block cannot compile | 0 | glaw1 (C++ compile — the blocks are already excluded) | none — the guarded code has never been in a build | DELETE |
-| 2 | `#ifdef DIAG_ENTITY_LIFECYCLE` | C++ preprocessor | 16 site(s) — §6.3 | guard defined NOWHERE — the block cannot compile | 0 | glaw1 (C++ compile — the blocks are already excluded) | none — the guarded code has never been in a build | **RULE(Jean)** — 16 sites; it may be a diagnostic Jean still switches on locally |
-| 2 | `#ifdef DIAG_GALLERY` | C++ preprocessor | 4 site(s) — §6.3 | guard defined NOWHERE — the block cannot compile | 0 | glaw1 (C++ compile — the blocks are already excluded) | none — the guarded code has never been in a build | DELETE |
-| 2 | `#ifdef DIAG_RIBBON` | C++ preprocessor | 1 site(s) — §6.3 | guard defined NOWHERE — the block cannot compile | 0 | glaw1 (C++ compile — the blocks are already excluded) | none — the guarded code has never been in a build | DELETE |
-| 2 | `#ifdef INCUBATE_MUSIC_KEYS` | C++ preprocessor | 1 site(s) — §6.3 | guard defined NOWHERE — the block cannot compile | 0 | glaw1 (C++ compile — the blocks are already excluded) | none — the guarded code has never been in a build | DELETE |
 | 4 | 1 tombstone citing CONTACT_4 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 2 tombstones citing CONTACT_5 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 2 tombstones citing TRUEBAND_CONTACT_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 16 tombstones citing UNIFIED_GROUND_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
-| 5 | query_ground_celestial | policy surface | src/cartridges/the_board/realization/world.wgsl:3502 | 0 callers (mirror: —) — same symbol as its tier-2 row | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
-| 5 | query_ground_flyer_gradient | policy surface | src/cartridges/the_board/realization/world.wgsl:3515 | 0 callers (mirror: —) — same symbol as its tier-2 row | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
-| 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3775 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
+| 5 | query_ground_celestial | policy surface | src/cartridges/the_board/realization/world.wgsl:3483 | 0 callers (mirror: —) — same symbol as its tier-2 row | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
+| 5 | query_ground_flyer_gradient | policy surface | src/cartridges/the_board/realization/world.wgsl:3496 | 0 callers (mirror: —) — same symbol as its tier-2 row | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
+| 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3756 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
 | keep | CONTRIBUTOR_DAG + its closure static_asserts | contracts | src/cartridges/the_board/contracts/ground_architecture.hpp | load-bearing | compile-time | n/a | n/a | KEEP — the one declared, checked statement of the composition |
 
-Verdict rows: **105** (DELETE 77 · RULE(Jean) 26 · KEEP 2) over **103
+Verdict rows: **63** (DELETE 46 · RULE(Jean) 15 · KEEP 2) over **61
 distinct candidates** — a few symbols appear under two tiers on purpose
 (`query_ground_celestial` is both an unreachable `fn` and a policy-surface
 row), because the two tiers are ruled by different people at different
@@ -1593,22 +1483,22 @@ cost of this tree is the single translation unit, not the shader.
 
 | item | files | lines |
 |---|---|---|
-| src/ excluding src/external/ | 84 | 49429 |
-| comment lines in the §6 scope | — | 10806 |
-| world.wgsl comment lines | — | 3862 |
+| src/ excluding src/external/ | 84 | 49193 |
+| comment lines in the §6 scope | — | 10785 |
+| world.wgsl comment lines | — | 3857 |
 | status-tag sites (§4, TAG class only) | — | 42 |
 | tombstone sites (§6.1) | — | 75 |
-| coordinate sites (§6.2, a floor) | — | 117 |
-| dead `#ifdef` guard sites (§6.3) | — | 25 |
+| coordinate sites (§6.2, a floor) | — | 120 |
+| dead `#ifdef` guard sites (§6.3) | — | 0 |
 | dangling reference sites (§5.1) | — | 20 |
 
 > These are LINES, not newlines. **13 of the 84 files under `src/` have
-> no trailing newline**, so `sum(wc -l)` reports 49416 — exactly 13 fewer.
+> no trailing newline**, so `sum(wc -l)` reports 49180 — exactly 13 fewer.
 > Said here so a cross-check does not look like a discrepancy.
 
-**The honest payoff of PRUNING_1 is tree mass, not frames.** 10806 comment
+**The honest payoff of PRUNING_1 is tree mass, not frames.** 10785 comment
 lines in the §6 scope, of which the tag/tombstone/coordinate/dangling sites
-above are the mechanically identifiable fraction (254 sites). Everything else
+above are the mechanically identifiable fraction (257 sites). Everything else
 in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 
 ---
@@ -1626,5 +1516,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at audited tree state `833eb6d8a362baadaaff58f075f8559005ad8ad5` (branch `claude/pruning-1-p1`).
+Anchored at audited tree state `580ed78f279d4463c5f2cdffc4751fa8ccc831f2` (branch `claude/pruning-1-p1`).
 

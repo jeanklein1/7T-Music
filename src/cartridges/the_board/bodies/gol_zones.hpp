@@ -691,11 +691,6 @@ inline void dispatch_commit_gol(MachineCtx* self,
     }
     else {
         self->gol_state_.zones[pe.gol.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-        std::cout << "[DIAG:REJECT] gol slot=" << pe.gol.slot
-            << " host=(" << pe.gol.host_gx << "," << pe.gol.host_gz
-            << ") -- no host patch\n";
-#endif
     }
 }
 
@@ -706,9 +701,6 @@ inline void evict_gol(MachineCtx* self,
     self->gpuState_.deactivate_zone_slot(queue, slot);
     self->gol_state_.zones[slot].active = false;
     self->gol_state_.zone_count--;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   gol slot=" << slot << "\n";
-#endif
 }
 
 

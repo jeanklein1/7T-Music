@@ -765,9 +765,6 @@ inline void evict_pyramid(MachineCtx* self,
     }
     self->entities_state_.cpu_pyramids.count = max_idx;
     self->gpuState_.upload_pyramids(queue, self->entities_state_.cpu_pyramids);
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
-#endif
 }
 
 inline void evict_arch(MachineCtx* self,
@@ -780,9 +777,6 @@ inline void evict_arch(MachineCtx* self,
     self->mood_state_.portals_dirty = true;
     { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.arch_mesh_gen_pending = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
-#endif
 }
 
 inline void evict_column(MachineCtx* self,
@@ -793,9 +787,6 @@ inline void evict_column(MachineCtx* self,
     self->entities_state_.column_count--;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.column_mesh_gen_pending = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
-#endif
 }
 
 inline void evict_antenna(MachineCtx* self,
@@ -807,9 +798,6 @@ inline void evict_antenna(MachineCtx* self,
     self->entities_state_.antenna_count--;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
     self->entities_state_.column_mesh_gen_pending = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   ant slot=" << slot << "\n";
-#endif
 }
 
 inline void evict_palm(MachineCtx* self,
@@ -820,9 +808,6 @@ inline void evict_palm(MachineCtx* self,
     { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.palm_mesh_gen_pending = true;
     self->world_state_.ground_entries_dirty = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   palm slot=" << slot << "\n";
-#endif
 }
 
 inline void evict_cactus(MachineCtx* self,
@@ -833,9 +818,6 @@ inline void evict_cactus(MachineCtx* self,
     { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.cactus_mesh_gen_pending = true;
     self->world_state_.ground_entries_dirty = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   cact slot=" << slot << "\n";
-#endif
 }
 
 inline void evict_blade(MachineCtx* self,
@@ -846,9 +828,6 @@ inline void evict_blade(MachineCtx* self,
     { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.blade_mesh_gen_pending = true;
     self->world_state_.ground_entries_dirty = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:EVICT]   blad slot=" << slot << "\n";
-#endif
 }
 
 // ═══ THE CLEAN THREE — BLADE / PALM / CACTUS RECIPES ══════════════

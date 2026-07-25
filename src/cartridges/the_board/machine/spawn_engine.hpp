@@ -22,11 +22,6 @@
 //   PlacementEntry unions and every type they embed live together in
 //   entity_types.hpp (the contract home); this module holds only the
 //   queues and loops. spawn_engine stays ONE pair, never split.
-// SEAM[spawn_engine:L1] latent diagnostic — DIAG_ENTITY_LIFECYCLE is
-//   compile-time guarded (flag defined at build time, off by
-//   default). Same family as the [DIAG:*] stdout pattern noted
-//   across the codebase. Document alongside any other diagnostic
-//   switches when the exhibition-guard discussion happens.
 //
 // Depends on cohort include order: roster.hpp (PopFamily),
 // entity_types.hpp (queue unions), state.hpp (GPU mesh params),
@@ -221,10 +216,6 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     if (slot == UINT32_MAX) return r;
     active_arr[slot].active = true;
 
-#ifdef DIAG_ENTITY_LIFECYCLE
-    std::cout << "[DIAG:SEL] " << diag_name << " slot=" << slot
-        << " patch=(" << gx << "," << gz << ")\n";
-#endif
 
     r.seed = ctx.seed;
     r.slot = slot;

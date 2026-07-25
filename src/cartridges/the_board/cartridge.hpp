@@ -1211,12 +1211,6 @@ namespace t7 {
                 }
 
                 // Periodic entity census dump
-#ifdef DIAG_ENTITY_CENSUS
-                if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
-                    dump_entity_census(&machine_ctx_, "periodic");
-                    spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
-                }
-#endif
             }
 
             // R7 — RIBBON TICK (music+wall-clock). One call; the conductor lives
