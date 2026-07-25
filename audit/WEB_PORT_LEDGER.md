@@ -96,3 +96,30 @@ Is web a **destination** the program is designed toward, or a
 in the charter even with no web code in the tree. If maybe-someday, the
 desktop optimizes for itself and a future port adapts. One charter line
 either way; nothing else in this campaign depends on the answer.
+
+---
+
+## Addendum — the boot clock (PRUNING_1 P2/P3/P4, ruling F4)
+
+Recorded here because it is the number the campaign's successors should be
+judged against, and because it is not the number anyone was watching.
+
+| | |
+|---|---|
+| boot, total | **227 s** |
+| of which pipeline creation | **221 s** |
+| slowest two | `patch_terrain` 10.9 s · `patch_terrain_indirect` 10.5 s |
+| glaw1 (syntax-only, one TU) | ~18 s |
+
+**glaw1 is not the iteration cost.** It checks one translation unit for
+syntax and lookup; it is a gate, not a wait. What a person waits for is
+221 s of pipeline creation, every boot. PRUNING_1 did not move it and could
+not have: §1.1 found zero dead entry points, so there was never a pipeline
+to remove. The campaign's honest payoff was tree mass and legibility, which
+is what its §8 says.
+
+The two leaders are the same shader stage compiled twice — `patch_terrain`
+and `patch_terrain_indirect` differ by the `USE_PATCH_INDIRECTION` override.
+Anyone hunting this number should start there, and should measure before
+believing: a pipeline cache, a smaller shared module, or fewer permutations
+are all plausible and none is proven.

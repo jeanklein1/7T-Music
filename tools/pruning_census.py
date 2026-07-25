@@ -1994,6 +1994,8 @@ def main():
       (wgsl_size, declared))
     R()
 
+    # Probed here rather than in §3.3, because §3.2's caveat branches on it.
+    web_u = read(WEB_UNIFORMS)
     R("### §3.2 — fields with ZERO READS in BOTH rooms (deletion candidates)")
     R()
     R("Reader spellings are **derived, not assumed**: the WGSL aliases come from")
@@ -2020,8 +2022,13 @@ def main():
       (running, cpp_size, 100.0 * running / max(1, cpp_size)))
     R()
     R("> Caveat, stated plainly. (1) Removing a field mid-struct **re-flows every")
-    R("> offset after it in ALL THREE rooms** — C++, WGSL, and the hand-written")
-    R("> JS packer of §3.3, which nothing checks. The total above is the ceiling if all of")
+    R("> offset after it in " + ("ALL THREE rooms** — C++, WGSL, and the "
+      "hand-written JS packer of §3.3, which nothing checks."
+      if web_u else "BOTH rooms** — and, less obviously, moves every `vec3` "
+      "member off its 16-byte boundary, because WGSL aligns `vec3` to 16 and "
+      "C++ packs `float[3]` at 4. Declared pad has to replace the gap; the "
+      "`offsetof` static_asserts are what catch it when it does not."))
+    R("> The total above is the ceiling if all of")
     R("> them go in ONE commit; taken one at a time the cost is a full mirror")
     R("> re-verification each time, and the `offsetof` witnesses in `state.hpp`")
     R("> are what makes that survivable at all. (2) The uniform is padded to its")
@@ -2041,7 +2048,6 @@ def main():
     # mirror: the web port packs the same 592-byte buffer by raw word index,
     # with the byte offsets hard-coded in JS. Nothing checks it. A field
     # deletion re-flows every later offset and silently corrupts it.
-    web_u = read(WEB_UNIFORMS)
     web_offsets, hazards = [], []
     zero_names = {z[0] for z in zero_readers}
     R("### §3.3 — THE THIRD ROOM (`%s`) — %s" %
@@ -2437,25 +2443,23 @@ def main():
         R("should go is a separate question — a policy realized by another")
         R("mechanism keeps its row and loses only its arm.")
         R()
-        # CORROBORATION. §1.3 arrives at the same partition by a completely
-        # different route — it counts textual references and knows nothing
-        # about dispatchers or call sites. Two methods, one answer.
-        unref = {n for n, ln in w.consts.items()
-                 if n.startswith("POLICY_") and not n.endswith("_MASK")
-                 and w.references_outside_decl(n, ln) == 0}
-        R("**Corroboration — two independent methods, same answer.** §1.3")
-        R("reaches this partition by counting textual references and knows")
-        R("nothing about dispatchers or call sites:")
-        R()
-        R.table(["", "reaches the dispatcher", "unreferenced per §1.3"],
-                [("`%s`" % p, "yes" if p in pq["literal"] else "**no**",
-                  "**yes**" if p in unref else "no")
-                 for p in sorted(pq["policy_consts"])])
-        agree = all((p in pq["literal"]) != (p in unref)
-                    for p in pq["policy_consts"])
-        R("The two columns are exact complements: %s." %
-          ("**they agree on all %d policies**" % len(pq["policy_consts"]) if agree
-           else "**THEY DISAGREE — read the rows above before ruling**"))
+        # F2 — THE CORROBORATION IS RETIRED, and saying why is the point.
+        # It used to cross this call-site analysis against §1.3's
+        # unreferenced-const list: two methods, one answer. PRUNING_1 P1 5a-i
+        # converted the switch selectors from bare literals to named
+        # constants, which made EVERY policy constant referenced — so §1.3
+        # can no longer see policy liveness at all, and the cross-check
+        # became a mirror of the fix rather than a second witness. It even
+        # printed "THEY DISAGREE" for POLICY_WALKER, which was an artifact of
+        # the conversion and not a finding. A witness that measures your own
+        # last edit is worse than no witness.
+        R("**On corroboration.** An earlier version of this section crossed the")
+        R("result against §1.3's unreferenced-const list — two methods, one")
+        R("answer. That cross-check is **retired**: P1 5a-i made every policy")
+        R("constant a case selector, so §1.3 now sees all of them as referenced")
+        R("and can say nothing about liveness. It would have been measuring the")
+        R("fix, not the tree. The call-site query above stands alone, and its")
+        R("four provenance checks are what carry it.")
     else:
         R("**One or more provenance checks FAILED — no conclusion available.**")
         R("The numbers above stand; the cannot-execute set is deliberately not")
@@ -3276,13 +3280,6 @@ def main():
     R("branch sites names an instrument that is already gone, and the constant")
     R("is the only thing left of it.")
     R()
-    diag = []
-    for p in src_files:
-        raw = read(p)
-        for i, line in enumerate(raw.split("\n")):
-            if DIAG_RE.search(line):
-                diag.append((p.replace("src/cartridges/the_board/", "…/"), i + 1,
-                             line.strip()[:100]))
     # DEAD PREPROCESSOR GUARDS. A `#ifdef X` whose X is never defined anywhere
     # — not in the tree, not in CMakeLists — is a block that can never compile.
     # It is the same species as an unreachable fn, and nothing else censuses it.
@@ -3304,6 +3301,30 @@ def main():
                           r"IMGUI|STB_|RTMIDI|GLFW|VK_|WGPU)")
     dead_guards = sorted((g, sites) for g, sites in guard_use.items()
                          if g not in guard_def and not EXTERNAL.match(g))
+
+    # NESTING IS RESOLVED BEFORE COUNTING. An earlier version reported 17
+    # live [DIAG:AUDIT] lines; every one of them sat inside
+    # `#ifdef DIAG_ENTITY_LIFECYCLE`, a guard no build defines, so none was
+    # live. Two categories where one contained the other, counted
+    # independently. A line inside a dead guard belongs to the guard.
+    dead_guard_names = {g for g, _s in dead_guards}
+    diag, diag_shadowed = [], []
+    for p in src_files:
+        raw = read(p)
+        depth_dead, stack = 0, []
+        for i, line in enumerate(splitlines_exact(raw)):
+            gm = re.match(r"\s*#\s*(?:ifdef|if\s+defined)\s*\(?\s*([A-Z_][A-Z0-9_]*)", line)
+            if re.match(r"\s*#\s*(?:if|ifdef|ifndef)\b", line):
+                dead = bool(gm and gm.group(1) in dead_guard_names)
+                stack.append(dead)
+                depth_dead += dead
+            elif re.match(r"\s*#\s*endif\b", line):
+                if stack:
+                    depth_dead -= stack.pop()
+            if DIAG_RE.search(line):
+                row = (p.replace("src/cartridges/the_board/", "…/"), i + 1,
+                       line.strip()[:100])
+                (diag_shadowed if depth_dead else diag).append(row)
     R("### Dead preprocessor guards")
     R()
     R("A `#ifdef X` whose `X` is defined **nowhere** — not in the tree, not in")
@@ -3320,7 +3341,16 @@ def main():
         R("Each is dead C++ that reads as live to anyone grepping for the feature.")
         R()
 
-    R("`[DIAG:AUDIT]` blocks: **%d**." % len(diag))
+    R("`[DIAG:AUDIT]` blocks: **%d** live." % len(diag))
+    if diag_shadowed:
+        R()
+        R("A further **%d** sit inside a dead `#ifdef` and are NOT live — they" % len(diag_shadowed))
+        R("belong to the guard, not to this count. Nesting is resolved before")
+        R("counting: a line inside a block that never compiles is not an")
+        R("instrument, and counting it in both categories double-counts one")
+        R("thing. (This is F3; the earlier report claimed 17 live lines that")
+        R("were all inside `#ifdef DIAG_ENTITY_LIFECYCLE`.)")
+    R()
     R()
     R.table(["file", "line", "text"], sorted(diag))
 
@@ -3464,11 +3494,17 @@ def main():
                   "zero live reads in BOTH C++/WGSL rooms (%d write%s%s)" %
                   (nwrites, "" if nwrites == 1 else "s",
                    ", %d guard-only read" % nguard if nguard else ""), "0",
-                  "rest bit-identity + glaw1 offsetof witnesses "
-                  "+ **a web offset witness that does not yet exist**",
-                  "GPU: %d B of the uniform; re-flows every later offset in "
-                  "THREE rooms, invalidating **%d** hand-written JS index%s "
-                  "above it (§3.3)" % (size, len(above), "" if len(above) == 1 else "es"),
+                  "rest bit-identity + glaw1 offsetof witnesses" +
+                  (" + **a web offset witness that does not yet exist**"
+                   if web_u else ""),
+                  ("GPU: %d B of the uniform; re-flows every later offset in "
+                   "THREE rooms, invalidating **%d** hand-written JS index%s "
+                   "above it (§3.3)" % (size, len(above), "" if len(above) == 1 else "es"))
+                  if web_u else
+                  ("GPU: %d B of the uniform; re-flows every later offset in "
+                   "BOTH rooms — and moves the four `vec3` members off their "
+                   "16-byte boundaries unless declared pad replaces the gap, "
+                   "which the `offsetof` witnesses catch" % size),
                   ("**RULE(Jean)** — %d hand-written JS index%s sit%s above this "
                    "field's offset (%s); removing it silently shifts them all"
                    % (len(above), "" if len(above) == 1 else "es",
@@ -3477,7 +3513,10 @@ def main():
                       else "the port does not write this field, but that is not "
                            "the hazard")
                    if above else
-                   "DELETE — nothing the JS packer writes sits above it")))
+                   "DELETE — nothing the JS packer writes sits above it")
+                  if web_u else
+                  "DELETE — two rooms, held by the `offsetof` witnesses; take "
+                  "the whole set in ONE commit and re-pin every witness"))
 
     # Tier 4 — status tags
     tag_by_file = Counter(t["file"] for t in actionable)
@@ -3604,9 +3643,22 @@ def main():
         if m:
             baseline = (p, lineno(read(p), m.start()), m.group(0).strip()[:80], m.group(1))
             break
+    R("> **F4 — THE CLOCK THAT ACTUALLY TAXES ITERATION IS NOT THIS ONE.**")
+    R("> A measured boot is **227 s total, 221 s of it pipeline creation**,")
+    R("> led by `patch_terrain` (10.9 s) and `patch_terrain_indirect` (10.5 s).")
+    R("> glaw1's ~18 s is a syntax-only check of one translation unit; the")
+    R("> 24.7 s baseline below is that same check. **Neither is what a person")
+    R("> waits for.** PRUNING_1 and its successors should be judged against the")
+    R("> 221 s, and nothing in this campaign moved it — no pipeline was removed,")
+    R("> because §1.1 found no dead entry point to remove. Say so plainly rather")
+    R("> than letting a build-time row imply a win.")
+    R()
     R.table(["item", "value"],
             [("entry points removed", len(dead_entries)),
              ("pipelines removed", len(dead_entries)),
+             ("**pipeline creation at boot**",
+              "**221 s of a 227 s boot** — the real iteration cost; unmoved by "
+              "this campaign"),
              ("baseline (located in-tree)",
               "**%s s** — `%s:%d`: “%s”" % (baseline[3], baseline[0], baseline[1], baseline[2])
               if baseline else "24.7 s per the handoff; NOT located in-tree")])

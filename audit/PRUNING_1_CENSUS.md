@@ -5,11 +5,11 @@
 
 | anchor | value |
 |---|---|
-| audited tree state | `29a9c471c6d3642f49eda4c67e6bf55ecf4e54c6` |
-| generated at HEAD | `29a9c471c6d3` |
+| audited tree state | `f6ee89bbdbae0cb26c001ff6dcaa203de9e52903` |
+| generated at HEAD | `f6ee89bbdbae` |
 | branch | `master` |
 | audited state date | 2026-07-25 |
-| history depth | 96 commits (root dated 2026-07-23) |
+| history depth | 98 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12274 lines |
 
 **Every finding below cites the audited tree state.** That is the last
@@ -21,8 +21,8 @@ disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `9b95baa17362`; the audited state `29a9c471c6d3` is
-> **2 ahead / 0 behind** it, and **2 of those commits touch the
+> `origin/master` is `9b95baa17362`; the audited state `f6ee89bbdbae` is
+> **4 ahead / 0 behind** it, and **4 of those commits touch the
 > audited surface** (`src/`, `web/`, `CMakeLists.txt`). **A census run
 > on `origin/master` would give different numbers.** The handoff's
 > instruction — *anchor by HASH, never by remembered name* — is
@@ -337,12 +337,12 @@ Sites: **15**
 | state.hpp | 71 | // (legacy cell mesh constants removed — bindings 40-45 reserved) |
 | state.hpp | 128 | // unchanged — widening EXIST is a separate, parked dial. |
 | state.hpp | 134 | // widening EXIST is a separate, parked dial. |
-| state.hpp | 319 | // PRUNING_1 P1 3c: the twelve "reserved — legacy" bits and the seven |
-| state.hpp | 1257 | float    _pad_anchor;        //172: reserved (future anchor mode/rate) |
-| state.hpp | 1619 | // (bindings 21, 40 reserved — formerly proximity_field, cell_states) |
-| state.hpp | 1655 | // (legacy cell mesh buffers removed — bindings 43-45 reserved) |
-| state.hpp | 2630 | // (legacy cell mesh accessors removed — bindings 43-45 reserved) |
-| state.hpp | 3038 | // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved) |
+| state.hpp | 316 | // PRUNING_1 P1 3c: the twelve "reserved — legacy" bits and the seven |
+| state.hpp | 1254 | float    _pad_anchor;        //172: reserved (future anchor mode/rate) |
+| state.hpp | 1616 | // (bindings 21, 40 reserved — formerly proximity_field, cell_states) |
+| state.hpp | 1652 | // (legacy cell mesh buffers removed — bindings 43-45 reserved) |
+| state.hpp | 2627 | // (legacy cell mesh accessors removed — bindings 43-45 reserved) |
+| state.hpp | 3035 | // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved) |
 
 ---
 
@@ -367,7 +367,7 @@ members are exactly where the rooms can silently diverge — C++ packs a
 carries `offsetof(...) %% 16 == 0` static_asserts on them.
 
 The boot-pin block is `state.hpp::initializeState()`, located by name and
-brace-matched: **lines 5772–5995**. Writes inside it are pins, not consumers,
+brace-matched: **lines 5769–5992**. Writes inside it are pins, not consumers,
 and are counted in their own column. **A field pinned at boot and never
 read is not alive — it is a value nobody asks for.**
 
@@ -461,8 +461,8 @@ _(none)_
 **Reclaimable config bytes: 0 B** of 560 (0.0%).
 
 > Caveat, stated plainly. (1) Removing a field mid-struct **re-flows every
-> offset after it in ALL THREE rooms** — C++, WGSL, and the hand-written
-> JS packer of §3.3, which nothing checks. The total above is the ceiling if all of
+> offset after it in BOTH rooms** — and, less obviously, moves every `vec3` member off its 16-byte boundary, because WGSL aligns `vec3` to 16 and C++ packs `float[3]` at 4. Declared pad has to replace the gap; the `offsetof` static_asserts are what catch it when it does not.
+> The total above is the ceiling if all of
 > them go in ONE commit; taken one at a time the cost is a full mirror
 > re-verification each time, and the `offsetof` witnesses in `state.hpp`
 > are what makes that survivable at all. (2) The uniform is padded to its
@@ -551,7 +551,7 @@ here — it is a mirror, so its tags are copies of desktop tags at an older
 commit, and ruling on them is the resync's business (§5.3), not §4's.
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 96 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 98 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -584,19 +584,19 @@ disagree the tag is worth reading by eye before ruling on it.
 | …/contracts/spine_state.hpp | 100 | InputState | — | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ═════════════════ |
 | …/contracts/spine_state.hpp | 179 | fog_density | — | INTENT[...] | TAG | — | 2026-07-23 | // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO rea |
 | …/direction/input.hpp | 348 | update_movement_intent | on_scroll | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════ |
-| …/realization/state.hpp | 3030 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
-| …/realization/state.hpp | 3043 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
-| …/realization/state.hpp | 3110 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
-| …/realization/state.hpp | 3293 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
-| …/realization/state.hpp | 3322 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
-| …/realization/state.hpp | 3399 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
-| …/realization/state.hpp | 3444 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
-| …/realization/state.hpp | 3483 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
-| …/realization/state.hpp | 3511 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
-| …/realization/state.hpp | 3537 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
-| …/realization/state.hpp | 3613 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
-| …/realization/state.hpp | 3667 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
-| …/realization/state.hpp | 3689 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
+| …/realization/state.hpp | 3027 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
+| …/realization/state.hpp | 3040 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
+| …/realization/state.hpp | 3107 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
+| …/realization/state.hpp | 3290 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
+| …/realization/state.hpp | 3319 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
+| …/realization/state.hpp | 3396 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
+| …/realization/state.hpp | 3441 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
+| …/realization/state.hpp | 3480 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
+| …/realization/state.hpp | 3508 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
+| …/realization/state.hpp | 3534 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
+| …/realization/state.hpp | 3610 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
+| …/realization/state.hpp | 3664 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
+| …/realization/state.hpp | 3686 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
 | …/realization/world.wgsl | 786 | stats | terrain_height_and_complexity | DRIVERLESS | TAG | `terrain_height_and_complexity`: 1 | 2026-07-23 | // DRIVERLESS: no shader consumer since M1-C. Kept as infrastruc |
 | …/realization/world.wgsl | 1123 | tile_modifiers_at | tile_grid_lookup | STATUS: LATENT | TAG | `tile_modifiers_at`: 1 | 2026-07-23 | // STATUS: LATENT[tile-activation] — the .z channel (activation_ |
 | …/realization/world.wgsl | 1770 | (unattributed — nearest declaration is 22 lines away) | discrete_cell_color_at_tier | DRIVERLESS | TAG | `discrete_cell_color_at_tier`: 3 | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mo |
@@ -675,18 +675,13 @@ An ID in the second list cannot select its arm. Whether the *row*
 should go is a separate question — a policy realized by another
 mechanism keeps its row and loses only its arm.
 
-**Corroboration — two independent methods, same answer.** §1.3
-reaches this partition by counting textual references and knows
-nothing about dispatchers or call sites:
-
-|  | reaches the dispatcher | unreferenced per §1.3 |
-|---|---|---|
-| `POLICY_FLYER` | yes | no |
-| `POLICY_WALKER` | **no** | no |
-| `POLICY_WALKER_AGENT` | yes | no |
-| `POLICY_WALKER_TILT` | yes | no |
-
-The two columns are exact complements: **THEY DISAGREE — read the rows above before ruling**.
+**On corroboration.** An earlier version of this section crossed the
+result against §1.3's unreferenced-const list — two methods, one
+answer. That cross-check is **retired**: P1 5a-i made every policy
+constant a case selector, so §1.3 now sees all of them as referenced
+and can say nothing about liveness. It would have been measuring the
+fix, not the tree. The call-site query above stands alone, and its
+four provenance checks are what carry it.
 
 **`query_ground_*` functions**
 
@@ -893,7 +888,7 @@ _(none)_
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `29a9c471c6d3`):
+exists (`src/cartridges/the_chord/` is absent at `f6ee89bbdbae`):
 
 | line | text |
 |---|---|
@@ -957,17 +952,17 @@ _(none)_
 A COMMENT LINE is a line whose entire payload is comment — a trailing
 `// note` on a code line is not counted, because it is not removable mass.
 
-**Totals over `src/cartridges/the_board`, `src/coupling`, `src/musical`: 43076 lines, 10540 comment lines (24.5%).**
+**Totals over `src/cartridges/the_board`, `src/coupling`, `src/musical`: 43073 lines, 10540 comment lines (24.5%).**
 
 (LINES, not newlines: 9 of these 59 files have no trailing newline, so
-`sum(wc -l)` reads 43067. Same convention as §8.)
+`sum(wc -l)` reads 43064. Same convention as §8.)
 
 Top 15 by comment MASS:
 
 | file | lines | comment | blank | ratio |
 |---|---|---|---|---|
 | src/cartridges/the_board/realization/world.wgsl | 12274 | 3621 | 1489 | 29.5% |
-| src/cartridges/the_board/realization/state.hpp | 5999 | 908 | 686 | 15.1% |
+| src/cartridges/the_board/realization/state.hpp | 5996 | 908 | 686 | 15.1% |
 | src/cartridges/the_board/cartridge.hpp | 1773 | 576 | 149 | 32.5% |
 | src/cartridges/the_board/bodies/ribbon.hpp | 1486 | 349 | 133 | 23.5% |
 | src/cartridges/the_board/direction/mood.hpp | 1287 | 263 | 149 | 20.4% |
@@ -1040,7 +1035,7 @@ Full table, alphabetical:
 | src/cartridges/the_board/realization/drawable_table.hpp | 125 | 37 | 9 | 29.6% |
 | src/cartridges/the_board/realization/render_passes.hpp | 588 | 89 | 83 | 15.1% |
 | src/cartridges/the_board/realization/renderer.hpp | 2195 | 231 | 239 | 10.5% |
-| src/cartridges/the_board/realization/state.hpp | 5999 | 908 | 686 | 15.1% |
+| src/cartridges/the_board/realization/state.hpp | 5996 | 908 | 686 | 15.1% |
 | src/cartridges/the_board/realization/world.wgsl | 12274 | 3621 | 1489 | 29.5% |
 | src/cartridges/the_board/surface/patch_system.hpp | 854 | 165 | 103 | 19.3% |
 | src/cartridges/the_board/surface/population_themes.hpp | 450 | 116 | 41 | 25.8% |
@@ -1117,16 +1112,16 @@ Every tombstone site:
 | …/realization/binding_registry.hpp | 177 | (uncited) | // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.) |
 | …/realization/renderer.hpp | 1649 | UNIFIED_GROUND_1 | // (zone extrusion render pipeline RETIRED — UNIFIED_GROUND_1 U4) |
 | …/realization/state.hpp | 214 | (uncited) | // are REMOVED (the mesh-gen basket had no dispatch). |
-| …/realization/state.hpp | 586 | (uncited) | // (GPUTerrainState REMOVED: the dead terrain buffer's CPU |
-| …/realization/state.hpp | 927 | (uncited) | // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas |
-| …/realization/state.hpp | 933 | (uncited) | // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen |
-| …/realization/state.hpp | 1651 | (uncited) | // (Cell spatial field LUT members RETIRED — Commit C, the LUT |
-| …/realization/state.hpp | 2704 | (uncited) | //   index-count + the mesh-gen layout/group REMOVED; |
-| …/realization/state.hpp | 2705 | (uncited) | //   the ground buffer + its atlas write REMOVED — only |
-| …/realization/state.hpp | 3811 | (uncited) | // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.) |
-| …/realization/state.hpp | 4441 | (uncited) | // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.) |
-| …/realization/state.hpp | 4748 | (uncited) | // (Pyramid mesh gen layout REMOVED: bindings 190-192, |
-| …/realization/state.hpp | 5641 | (uncited) | // (Pyramid mesh gen bind group REMOVED: bindings |
+| …/realization/state.hpp | 583 | (uncited) | // (GPUTerrainState REMOVED: the dead terrain buffer's CPU |
+| …/realization/state.hpp | 924 | (uncited) | // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas |
+| …/realization/state.hpp | 930 | (uncited) | // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen |
+| …/realization/state.hpp | 1648 | (uncited) | // (Cell spatial field LUT members RETIRED — Commit C, the LUT |
+| …/realization/state.hpp | 2701 | (uncited) | //   index-count + the mesh-gen layout/group REMOVED; |
+| …/realization/state.hpp | 2702 | (uncited) | //   the ground buffer + its atlas write REMOVED — only |
+| …/realization/state.hpp | 3808 | (uncited) | // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.) |
+| …/realization/state.hpp | 4438 | (uncited) | // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.) |
+| …/realization/state.hpp | 4745 | (uncited) | // (Pyramid mesh gen layout REMOVED: bindings 190-192, |
+| …/realization/state.hpp | 5638 | (uncited) | // (Pyramid mesh gen bind group REMOVED: bindings |
 | …/realization/world.wgsl | 90 | (uncited) | // (Terrain-Mode Coupling section RETIRED — Phase 1, ruling 6.) |
 | …/realization/world.wgsl | 756 | UNIFIED_GROUND_1 | // (fn terrain_height_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
 | …/realization/world.wgsl | 816 | (uncited) | // --- [STATE:terrain] TerrainState REMOVED — the dead terrain |
@@ -1179,7 +1174,7 @@ Coordinate sites: **118** across 10 files.
 | file | coordinates | examples |
 |---|---|---|
 | …/realization/world.wgsl | 76 | 256: CONTACT_4 S3a; 571: TRUEBAND_CONTACT_1 T1a |
-| …/realization/state.hpp | 17 | 306: CONTACT_5 P2b; 319: PRUNING_1 P1 |
+| …/realization/state.hpp | 17 | 303: CONTACT_5 P2b; 316: PRUNING_1 P1 |
 | …/bodies/gol_zones.hpp | 9 | 104: UNIFIED_GROUND_1 U5; 117: UNIFIED_GROUND_1 U5 |
 | …/realization/renderer.hpp | 6 | 136: UNIFIED_GROUND_1 U5; 263: UNIFIED_GROUND_1 U5 |
 | …/contracts/ground_architecture.hpp | 3 | 125: PRUNING_1 P1; 138: PRUNING_1 P1 |
@@ -1214,7 +1209,8 @@ before. Compiler- and library-supplied guards are excluded.
 
 _(none)_
 
-`[DIAG:AUDIT]` blocks: **0**.
+`[DIAG:AUDIT]` blocks: **0** live.
+
 
 _(none)_
 
@@ -1282,10 +1278,21 @@ and read-time, not frames. The GPU prize in this tree is the config bytes
 
 ### Build time
 
+> **F4 — THE CLOCK THAT ACTUALLY TAXES ITERATION IS NOT THIS ONE.**
+> A measured boot is **227 s total, 221 s of it pipeline creation**,
+> led by `patch_terrain` (10.9 s) and `patch_terrain_indirect` (10.5 s).
+> glaw1's ~18 s is a syntax-only check of one translation unit; the
+> 24.7 s baseline below is that same check. **Neither is what a person
+> waits for.** PRUNING_1 and its successors should be judged against the
+> 221 s, and nothing in this campaign moved it — no pipeline was removed,
+> because §1.1 found no dead entry point to remove. Say so plainly rather
+> than letting a build-time row imply a win.
+
 | item | value |
 |---|---|
 | entry points removed | 0 |
 | pipelines removed | 0 |
+| **pipeline creation at boot** | **221 s of a 227 s boot** — the real iteration cost; unmoved by this campaign |
 | baseline (located in-tree) | **24.7 s** — `CLAUDE CODE/AUDITS AND RECENT CAMPAIGNS/AUDIT_REPORT.md:24`: “Baseline: G-LAW 1: GREEN in 24.7 s.” |
 
 With 0 dead entry points there is **no build-time prize in §1**. The build
@@ -1295,7 +1302,7 @@ cost of this tree is the single translation unit, not the shader.
 
 | item | files | lines |
 |---|---|---|
-| src/ excluding src/external/ | 84 | 48763 |
+| src/ excluding src/external/ | 84 | 48760 |
 | comment lines in the §6 scope | — | 10540 |
 | world.wgsl comment lines | — | 3621 |
 | status-tag sites (§4, TAG class only) | — | 32 |
@@ -1305,7 +1312,7 @@ cost of this tree is the single translation unit, not the shader.
 | dangling reference sites (§5.1) | — | 0 |
 
 > These are LINES, not newlines. **13 of the 84 files under `src/` have
-> no trailing newline**, so `sum(wc -l)` reports 48750 — exactly 13 fewer.
+> no trailing newline**, so `sum(wc -l)` reports 48747 — exactly 13 fewer.
 > Said here so a cross-check does not look like a discrepancy.
 
 **The honest payoff of PRUNING_1 is tree mass, not frames.** 10540 comment
@@ -1328,5 +1335,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at audited tree state `29a9c471c6d3642f49eda4c67e6bf55ecf4e54c6` (branch `master`).
+Anchored at audited tree state `f6ee89bbdbae0cb26c001ff6dcaa203de9e52903` (branch `master`).
 
