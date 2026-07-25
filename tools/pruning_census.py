@@ -1175,13 +1175,18 @@ def main():
       (w.comment_lines, 100.0 * w.comment_lines / max(1, w.total)))
     R("| blank lines | %d |" % w.blank_lines)
     R("| `fn` declarations | %d |" % len(w.functions))
-    R("| entry points (`@compute`/`@vertex`/`@fragment`) | %d |" % len(w.entry_points))
+    stage_n = Counter(f["stage"] for f in w.entry_points.values())
+    R("| entry points (`@compute`/`@vertex`/`@fragment`) | %d — %s |" %
+      (len(w.entry_points),
+       " · ".join("%s %d" % (s, stage_n[s]) for s in ("compute", "vertex", "fragment")
+                  if stage_n[s])))
     R("| entry points a C++ pipeline names (LIVE) | %d |" % len(live_entries))
     R("| entry points NO pipeline names (DEAD) | **%d** |" % len(dead_entries))
     R("| `fn` reachable from ANY entry point | %d |" % len(all_entry_fns))
     R("| `fn` reachable from a LIVE entry point | %d |" % len(live_fns))
     R("| `fn` unreachable from every entry point | **%d** |" % len(unreachable_fns))
-    R("| `const` declarations | %d |" % len(w.consts))
+    R("| `const` declarations (module-scope; %d function-local excluded) | %d |"
+      % (len(w.local_consts), len(w.consts)))
     R("| `struct` declarations | %d |" % len(w.structs))
     R("| `override` declarations | %d |" % len(w.overrides))
     R("| `@group/@binding` declarations | %d |" % len(w.resources))

@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `7f4d4748ee0af7a532a916326eec3f30989e83c7` |
-| HEAD (short) | `7f4d4748ee0a` |
+| HEAD | `611c75dadd36d1faa8d2e47b652540bc5942b351` |
+| HEAD (short) | `611c75dadd36` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 66 commits (root dated 2026-07-23) |
+| history depth | 67 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **40 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`7f4d4748ee0a`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **41 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`611c75dadd36`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -65,13 +65,13 @@ candidates are written there at hand-typed offsets that nothing checks).
 | comment lines (whole-line) | 3883 (30.5%) |
 | blank lines | 1498 |
 | `fn` declarations | 294 |
-| entry points (`@compute`/`@vertex`/`@fragment`) | 64 |
+| entry points (`@compute`/`@vertex`/`@fragment`) | 64 — compute 30 · vertex 26 · fragment 8 |
 | entry points a C++ pipeline names (LIVE) | 64 |
 | entry points NO pipeline names (DEAD) | **0** |
 | `fn` reachable from ANY entry point | 284 |
 | `fn` reachable from a LIVE entry point | 284 |
 | `fn` unreachable from every entry point | **10** |
-| `const` declarations | 332 |
+| `const` declarations (module-scope; 3 function-local excluded) | 332 |
 | `struct` declarations | 75 |
 | `override` declarations | 1 |
 | `@group/@binding` declarations | 96 |
@@ -696,7 +696,7 @@ campaign's apparent size:
 | tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 66 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 67 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1063,7 +1063,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `7f4d4748ee0a`):
+exists (`src/cartridges/the_chord/` is absent at `611c75dadd36`):
 
 | line | text |
 |---|---|
@@ -1158,7 +1158,7 @@ Jean has to rule is narrower than "stop the campaign":
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `7f4d4748ee0a` — every line above
+`src/cartridges/backup_board/` does not exist at `611c75dadd36` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1648,5 +1648,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `7f4d4748ee0af7a532a916326eec3f30989e83c7` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `611c75dadd36d1faa8d2e47b652540bc5942b351` on `claude/pruning-handoff-review-c1opab`.
 
