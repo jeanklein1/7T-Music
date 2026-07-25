@@ -1088,19 +1088,26 @@ def main():
     R()
     R("| anchor | value |")
     R("|---|---|")
-    R("| HEAD | `%s` |" % head)
-    R("| HEAD (short) | `%s` |" % head_short)
+    # THE ANCHOR IS THE AUDITED TREE STATE, not HEAD. Committing this report
+    # moves HEAD, so anchoring to HEAD would make `--check` report STALE the
+    # instant the report lands — a gate that cries wolf on its own commit is
+    # not a gate. The subject hash is the last commit that touched anything
+    # this census READS, which is exactly what the findings describe.
+    subject = git("log", "-1", "--format=%H", "--", "src", "web", CMAKE) or head
+    R("| audited tree state | `%s` |" % subject)
+    R("| generated at HEAD | `%s` |" % head_short)
     R("| branch | `%s` |" % branch)
     R("| HEAD date | %s |" % head_date)
     R("| history depth | %s commits (root dated %s) |" % (hist_depth, root_commit))
     R("| shader | `%s` — %d lines |" % (WGSL, w.total))
     R()
-    R("**Every finding below cites this hash.** If HEAD has moved, re-run:")
-    R("`python tools/pruning_census.py`. Note the off-by-one that is inherent")
-    R("and not a defect: the hash above is HEAD *at generation time*, so when")
-    R("this file is then committed, the commit carrying it is the CHILD of the")
-    R("hash it names. `--check` re-derives the whole report and exits 1 if the")
-    R("copy on disk has gone stale, which is the honest staleness test.")
+    R("**Every finding below cites the audited tree state.** That is the last")
+    R("commit touching anything this census reads (`src/`, `web/`,")
+    R("`CMakeLists.txt`) — deliberately NOT `HEAD`, because committing this")
+    R("report moves HEAD and a gate that goes red on its own commit is not a")
+    R("gate. `--check` re-derives the whole report and exits 1 if the copy on")
+    R("disk has drifted from the tree; the provenance line is normalized out of")
+    R("that comparison, everything else must match byte for byte.")
     R()
     # The handoff says "anchor by HASH, never by remembered name". Honour that
     # literally: state where HEAD sits relative to the trunk, because in this
@@ -3357,14 +3364,20 @@ def main():
         ("no verdict EXECUTION", "✅ — §7 recommends, Jean rules, P1 executes"),
     ])
     R()
-    R("Anchored at `%s` on `%s`." % (head, branch))
+    R("Anchored at audited tree state `%s` (branch `%s`)." % (subject, branch))
     R()
 
     text = R.text()
 
     if args.check:
+        # The one volatile line is normalized away: "generated at HEAD" is
+        # provenance, not a finding, and it necessarily differs after the
+        # report is committed. Everything else must match byte for byte.
+        def _norm(t):
+            return re.sub(r"\| generated at HEAD \| `[0-9a-f]*` \|",
+                          "| generated at HEAD | |", t)
         cur = read(OUT)
-        if cur != text:
+        if _norm(cur) != _norm(text):
             sys.stderr.write("pruning_census: %s is STALE — re-run to regenerate\n" % OUT)
             return 1
         if not args.quiet:

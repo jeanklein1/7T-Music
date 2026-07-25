@@ -5,23 +5,24 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `a18743b73e2b76c6606db3ec008394ce1f5c9e33` |
-| HEAD (short) | `a18743b73e2b` |
+| audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
+| generated at HEAD | `1bec88ce2e39` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 72 commits (root dated 2026-07-23) |
+| history depth | 73 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
-**Every finding below cites this hash.** If HEAD has moved, re-run:
-`python tools/pruning_census.py`. Note the off-by-one that is inherent
-and not a defect: the hash above is HEAD *at generation time*, so when
-this file is then committed, the commit carrying it is the CHILD of the
-hash it names. `--check` re-derives the whole report and exits 1 if the
-copy on disk has gone stale, which is the honest staleness test.
+**Every finding below cites the audited tree state.** That is the last
+commit touching anything this census reads (`src/`, `web/`,
+`CMakeLists.txt`) — deliberately NOT `HEAD`, because committing this
+report moves HEAD and a gate that goes red on its own commit is not a
+gate. `--check` re-derives the whole report and exits 1 if the copy on
+disk has drifted from the tree; the provenance line is normalized out of
+that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **46 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`a18743b73e2b`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **47 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`1bec88ce2e39`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -745,7 +746,7 @@ here — it is a mirror, so its tags are copies of desktop tags at an older
 commit, and ruling on them is the resync's business (§5.3), not §4's.
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 72 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 73 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1123,7 +1124,7 @@ Sites: **20**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `a18743b73e2b`):
+exists (`src/cartridges/the_chord/` is absent at `1bec88ce2e39`):
 
 | line | text |
 |---|---|
@@ -1241,7 +1242,7 @@ measurement above exists. What Jean has to rule:
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `a18743b73e2b` — every line above
+`src/cartridges/backup_board/` does not exist at `1bec88ce2e39` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1767,122 +1768,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `
-    //
-    // STATUS: LATENT[policy-surface] (all three placement rows) — the
-    // declared placement queries have no live caller; the live Y path is
-    // compute_entity_placement's baked-heightfield hybrid (world.wgsl
-    // §compute_entity_placement). These rows are the future interface's
-    // landing sites — rewiring candidates when placement moves onto the
-    // policy API. NOTE where a declared mask EXCLUDES a contributor the
-    // live baked path includes (pyramid / vegetation exclude
-    // CONTRIB_PYRAMIDS; the bake caches it): the declared-intent
-    // exclusion is a possible future aesthetic ruling (Jean's); changing
-    // behavior is a BEHAVIOR stage, not a truth-fix.
-    { POLICY_PLACEMENT_PYRAMID, "placement_pyramid",
-      GROUND_STATIC_BASE_MASK,               // declared intent: "pyramids don't see themselves"; live baked path includes pyramids
-      /*gradient=*/false },
-
-    { POLICY_PLACEMENT_PAINTING, "placement_painting",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES),       // paintings sit on current GoL (preserves pre-refactor behavior)
-      /*gradient=*/false },                 // realized-of-record: the documented baked+analytic-GoL hybrid matches this set
-
-    { POLICY_PLACEMENT_VEGETATION, "placement_vegetation",
-      GROUND_STATIC_BASE_MASK,              // declared intent: "trees don't stand on pyramids"; live baked path includes pyramids
-      /*gradient=*/false },
-
-    // Baked heightfield — cached static ground texture consumed by
-    // patch VS interpolation and CPU readbacks.
-    // STATUS: REALIZED — fused twin ground_formed_with_complexity feeds
-    // the bake; analytic form is the zone-mesh fallback; texture variant
-    // is sample_terrain_y_at.
-    { POLICY_BAKED_HEIGHTFIELD, "baked_heightfield",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS),
-      /*gradient=*/false },
-
-    // Fly-over policy — spheres, cubes, cameras. Includes all global
-    // deformation fields so flyers ride pulses and auras.
-    // STATUS: REALIZED — camera clamp, sphere orbit clearance, cube
-    // hover + clearance (query_ground_flyer). gradient=true is intent:
-    // query_ground_flyer_gradient exists with zero callers — see its
-    // LATENT[policy-surface] tag.
-    { POLICY_FLYER, "flyer",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
-        | (1u << CONTRIB_TERRAIN_WAVES)
-        | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },                  // (intent; gradient path uncalled — see status)
-
-    // Walker — the pawn. Everything flyer includes, plus the
-    // consumer-local GoL suppression that flattens the zone under
-    // the querying consumer's feet.
-    // STATUS: REALIZED — pawn_ground_resolve via query_ground_walker_pair;
-    // the live tilt path is terrain_normal_at's 3-tap over walker_tilt.
-    { POLICY_WALKER, "walker",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
-        | (1u << CONTRIB_TERRAIN_WAVES)
-        | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA)
-        | (1u << CONTRIB_GOL_SUPPRESSION),
-      /*gradient=*/true },                  // (intent; gradient path uncalled — see status)
-
-    // Walker-tilt — walker minus the self aura, used for tilt/normal
-    // computation and step-climb decisions. Excludes CONTRIB_PAWN_AURA
-    // (the self form is a zero-gradient scalar; excluded so self-centered
-    // fields never drive tilt). It CARRIES the same pawn-centered GoL
-    // suppression the walker applies (truth-fix: the mask now
-    // states what the body computes) — the suppression is flat
-    // (supp_factor = 1, zero gradient) within the eps = 0.5 tilt-sample
-    // ring, so no slope is manufactured. The pawn still STANDS on full
-    // POLICY_WALKER ground; only tilt and step decisions read this policy.
-    // STATUS: REALIZED — terrain_normal_at (3-tap) and
-    // query_ground_walker_pair's tilt half.
-    { POLICY_WALKER_TILT, "walker_tilt",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
-        | (1u << CONTRIB_TERRAIN_WAVES)
-        | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_GOL_SUPPRESSION),  // pawn-centered; same suppression walker applies
-      /*gradient=*/true },
-
-    // Walker-agent — agents feel the full GoL lift (no suppression).
-    // STATUS: REALIZED — agent_post_step ground snap (scalar only).
-    { POLICY_WALKER_AGENT, "walker_agent",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
-        | (1u << CONTRIB_TERRAIN_WAVES)
-        | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },                  // (intent; gradient path unrealized — no gradient fn, no multi-sample consumer)
-
-    // Celestial — no ground (sun, stars). Symmetry slot.
-    // STATUS: INTENT — declared, zero realization ("none today");
-    // kept for symmetry.
-    { POLICY_CELESTIAL, "celestial",
-      0u,
-      /*gradient=*/false },
-
-    // Terrain-render — the fused render-side set: the baked heightfield
-    // (static base + pyramids) + pawn aura + terrain waves + radial
-    // pulses. Deliberately NO CONTRIB_GOL_ZONES: the patch heightfield
-    // does not cache GoL; zones render as their own extrusion pass.
-    // This policy has NO query_ground_* function by design — its
-    // realizations are hand-fused for per-vertex cost: patch_terrain_vs
-    // (the full set; gradients realized there via texture .yz + the
-    // analytic wave gradient) and shadow_patch_terrain_vs (baked + waves
-    // subset, documented at its site). The ~15 entity/painting VS sites
-    // that add contrib_terrain_waves_at alone atop the entity ground
-    // atlas are sanctioned single-contributor consumptions of this same
-    // render set.
-    // STATUS: REALIZED (fused-only).
-    ` on `claude/pruning-handoff-review-c1opab`.
+Anchored at audited tree state `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` (branch `claude/pruning-handoff-review-c1opab`).
 
