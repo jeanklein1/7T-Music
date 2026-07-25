@@ -1052,9 +1052,14 @@ def main():
     R()
     R("So a P1 WGSL deletion is a **two-room** edit and a P3 config-field")
     R("deletion is a **three-room** one. Neither is the one-room edit the")
-    R("handoff scoped. This is the single most consequential correction in this")
-    R("report, and it is the reason several §7 verdicts read RULE(Jean) where")
-    R("the handoff would have expected DELETE.")
+    R("handoff scoped, and that is the reason several §7 verdicts read")
+    R("RULE(Jean) where the handoff would have expected DELETE.")
+    R()
+    R("Sized honestly, because the correction is worth only what it measures:")
+    R("the shader mirror is cheap to fix today (§5.3 shows the web host")
+    R("dispatches two entry points and both still exist on the desktop), while")
+    R("the config packer is the one that actually bites (§3.3 — five deletion")
+    R("candidates are written there at hand-typed offsets that nothing checks).")
     R()
     R("---")
     R()
@@ -2281,7 +2286,13 @@ def main():
         sm = re.search(r"\b([0-9a-f]{7,40})\b", side)
         if sm:
             side_commit = sm.group(1)
-        behind = git("rev-list", "--count", "%s..HEAD" % side_commit) if side_commit else ""
+        # The sidecar commit predates the graft in this shallow clone, so the
+        # count is unavailable rather than zero — say which.
+        known = git("cat-file", "-e", "%s^{commit}" % side_commit) if side_commit else ""
+        behind = ""
+        if side_commit and git("rev-parse", "--verify", "-q", "%s^{commit}" % side_commit):
+            behind = git("rev-list", "--count", "%s..HEAD" % side_commit)
+        side_date = re.search(r"mirrored:\s*([0-9-]+)", side)
         mw = WgslModule(WEB_WGSL)
         R("`CLAUDE CODE/AUDITS AND RECENT CAMPAIGNS/CLAUDE.md` declares")
         R("`%s` a **byte-identical mirror** of `%s`." % (WEB_WGSL, WGSL))
@@ -2296,8 +2307,13 @@ def main():
                  ("@group/@binding", len(w.resources), len(mw.resources))])
         R("- sidecar `%s`: %s" % (WEB_WGSL_SIDECAR, side.strip().replace("\n", " · ")[:220] or "(empty)"))
         if side_commit:
-            R("- sidecar source commit `%s` — **%s commits behind HEAD**" %
-              (side_commit, behind or "?"))
+            R("- sidecar source commit `%s` — %s" %
+              (side_commit,
+               "**%s commits behind HEAD**" % behind if behind else
+               "**not present in this shallow clone's history**, so the distance "
+               "cannot be counted from here; the sidecar dates the mirror to "
+               "**%s**, which is before this clone's graft root (%s)" %
+               (side_date.group(1) if side_date else "an unrecorded date", root_commit)))
         added = sorted(set(w.entry_points) - set(mw.entry_points))
         removed = sorted(set(mw.entry_points) - set(w.entry_points))
         R("- entry points on desktop but NOT in the mirror: %s" % (", ".join(added) or "none"))
@@ -2307,14 +2323,61 @@ def main():
         R("- bindings on desktop but NOT in the mirror: %s" % (", ".join(ab) or "none"))
         R("- bindings in the mirror but NOT on desktop: %s" % (", ".join(rb) or "none"))
         R()
-        R("**This is the single most consequential correction to the P0 premise.**")
-        R("The handoff says \"`the_chord` is retired ⇒ `world.wgsl` is SINGLE-COPY.")
-        R("Every WGSL deletion is a one-room edit.\" The first clause is true; the")
-        R("conclusion is not. A WGSL deletion in P1+ is a **two-room** edit under a")
-        R("doctrine that is live, and the mirror is already stale — so P1 would be")
-        R("re-syncing a divergence it did not create. **RULE(Jean) required before")
-        R("any P1 WGSL deletion:** resync the mirror first, or formally suspend the")
-        R("mirror doctrine for the duration of PRUNING_1.")
+        R("The divergence runs in **both directions** — the desktop has since")
+        R("retired symbols the mirror still carries, and revived others the mirror")
+        R("records as retired (`animated_cell_color` is live on the desktop and")
+        R("tombstoned in the mirror; `animated_cell_color_lut` is the reverse). The")
+        R("mirror is nonetheless strictly OLDER; it is the desktop that reversed")
+        R("itself. A resync is still a copy, not a merge.")
+        R()
+        # How much does the staleness actually cost TODAY? Only the entry
+        # points the web host dispatches can break, and the port is early.
+        host_files = walk_src(exts={".js", ".mjs", ".html"}, roots=("web",))
+        host_named = set()
+        for hp in host_files:
+            host_named |= set(re.findall(r"entryPoint\s*:\s*[\"'](\w+)[\"']", read(hp)))
+        shared = sorted(n for n in host_named if n in w.entry_points or n in mw.entry_points)
+        local = sorted(n for n in host_named if n not in w.entry_points
+                       and n not in mw.entry_points)
+        R("**How much does the staleness cost today?** Only the entry points the")
+        R("web host actually dispatches can break on a resync:")
+        R()
+        R.table(["entry point named by the web host", "in desktop?", "in mirror?"],
+                [(n, "yes" if n in w.entry_points else "**no**",
+                  "yes" if n in mw.entry_points else "**no**") for n in shared] +
+                [(n + " *(harness placeholder)*", "—", "—") for n in local])
+        risky = [n for n in shared if n not in w.entry_points]
+        R("The port is early: it dispatches **%d** of the shared shader's %d entry" %
+          (len(shared), len(w.entry_points)))
+        R("points%s. %s" % (
+            (" (%s)" % ", ".join("`%s`" % n for n in shared)) if shared else "",
+            "**Every one of them still exists on the desktop, so a resync would "
+            "not break the demo today.**" if not risky else
+            "**%d of them are GONE from the desktop — a resync breaks the demo.**"
+            % len(risky)))
+        R("So the honest reading is: the doctrine is violated and the mirror is")
+        R("%s entry points behind, but the *shader* resync is low-risk right now." %
+          (len(added) + len(removed)))
+        R("**The part that actually bites is `%s` (§3.3)** — its hand-written" % WEB_UNIFORMS)
+        R("offsets are consumed by the host on every boot, and nothing checks them.")
+        R()
+        R("**The correction to the P0 premise.** The handoff says \"`the_chord` is")
+        R("retired ⇒ `world.wgsl` is SINGLE-COPY. Every WGSL deletion is a one-room")
+        R("edit.\" The first clause is true; the conclusion is not — a second copy")
+        R("exists under a live doctrine, so a P1 WGSL deletion is a **two-room**")
+        R("edit and P1 would inherit a divergence it did not create.")
+        R()
+        R("**But state the size honestly, or the correction becomes its own kind")
+        R("of error.** The measurement above says the shader half of this is cheap")
+        R("today: the port dispatches two entry points and both still exist. What")
+        R("Jean has to rule is narrower than \"stop the campaign\":")
+        R()
+        R("1. **Before P1 (WGSL deletions)** — either run the resync ritual once")
+        R("   (`cp` + `gzip -9` + sidecar sha256, per `CLAUDE.md`), or record that")
+        R("   the mirror doctrine is suspended for the duration. Either is a")
+        R("   one-line decision; leaving it unstated is what costs.")
+        R("2. **Before P3 (config-field deletions)** — the real blocker, and it is")
+        R("   `%s`, not the shader. See §3.3." % WEB_UNIFORMS)
         R()
 
     R("### §5.4 — CMakeLists.txt: `backup_board` and the `probe_*` targets")

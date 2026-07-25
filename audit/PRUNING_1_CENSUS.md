@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `f8072f4244b9b337dee617efd02272cb63d6b59f` |
-| HEAD (short) | `f8072f4244b9` |
+| HEAD | `68d9cc8f76d2d1d8c0d678f622cfeeea0ef8ca15` |
+| HEAD (short) | `68d9cc8f76d2` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 64 commits (root dated 2026-07-23) |
+| history depth | 65 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **38 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`f8072f4244b9`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **39 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`68d9cc8f76d2`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -46,9 +46,14 @@ has two more rooms, both live and neither compiler-checked:
 
 So a P1 WGSL deletion is a **two-room** edit and a P3 config-field
 deletion is a **three-room** one. Neither is the one-room edit the
-handoff scoped. This is the single most consequential correction in this
-report, and it is the reason several §7 verdicts read RULE(Jean) where
-the handoff would have expected DELETE.
+handoff scoped, and that is the reason several §7 verdicts read
+RULE(Jean) where the handoff would have expected DELETE.
+
+Sized honestly, because the correction is worth only what it measures:
+the shader mirror is cheap to fix today (§5.3 shows the web host
+dispatches two entry points and both still exist on the desktop), while
+the config packer is the one that actually bites (§3.3 — five deletion
+candidates are written there at hand-typed offsets that nothing checks).
 
 ---
 
@@ -663,7 +668,7 @@ campaign's apparent size:
 | tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 64 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 65 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1030,7 +1035,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `f8072f4244b9`):
+exists (`src/cartridges/the_chord/` is absent at `68d9cc8f76d2`):
 
 | line | text |
 |---|---|
@@ -1069,20 +1074,54 @@ That doctrine governs a LIVE web port. It is currently **violated**:
 | @group/@binding | 96 | 104 |
 
 - sidecar `web/shaders/world.wgsl.source`: source: src/cartridges/the_board/realization/world.wgsl · source-commit: f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81 · sha256: 1c8e5e225f00c0c1325b902a24087abd4f2c2b1416209295f5267ed59fb0e4a0 · mirrored: 2026-07-19 (post TE
-- sidecar source commit `f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81` — **? commits behind HEAD**
+- sidecar source commit `f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81` — **not present in this shallow clone's history**, so the distance cannot be counted from here; the sidecar dates the mirror to **2026-07-19**, which is before this clone's graft root (2026-07-23)
 - entry points on desktop but NOT in the mirror: write_live_card_heights, write_live_card_resolve, zone_seed_mask
 - entry points in the mirror but NOT on desktop: shadow_zone_extrusion_vs, zone_extrusion_fs, zone_extrusion_vs, zone_gol_mesh_gen, zone_gol_mesh_reset
 - bindings on desktop but NOT in the mirror: agent_figure_profiles, live_card_read, live_card_scratch, live_card_write
 - bindings in the mirror but NOT on desktop: cell_fields_read, cell_fields_write, fc_agents, fc_camera, photo_patch_instances, trajectories, zone_heightfield, zone_hf_sampler, zone_mesh_indices, zone_mesh_indirect, zone_mesh_vertices, zone_patch_instances
 
-**This is the single most consequential correction to the P0 premise.**
-The handoff says "`the_chord` is retired ⇒ `world.wgsl` is SINGLE-COPY.
-Every WGSL deletion is a one-room edit." The first clause is true; the
-conclusion is not. A WGSL deletion in P1+ is a **two-room** edit under a
-doctrine that is live, and the mirror is already stale — so P1 would be
-re-syncing a divergence it did not create. **RULE(Jean) required before
-any P1 WGSL deletion:** resync the mirror first, or formally suspend the
-mirror doctrine for the duration of PRUNING_1.
+The divergence runs in **both directions** — the desktop has since
+retired symbols the mirror still carries, and revived others the mirror
+records as retired (`animated_cell_color` is live on the desktop and
+tombstoned in the mirror; `animated_cell_color_lut` is the reverse). The
+mirror is nonetheless strictly OLDER; it is the desktop that reversed
+itself. A resync is still a copy, not a merge.
+
+**How much does the staleness cost today?** Only the entry points the
+web host actually dispatches can break on a resync:
+
+| entry point named by the web host | in desktop? | in mirror? |
+|---|---|---|
+| patch_terrain_fs | yes | yes |
+| patch_terrain_vs | yes | yes |
+| cs *(harness placeholder)* | — | — |
+| fs *(harness placeholder)* | — | — |
+| vs *(harness placeholder)* | — | — |
+
+The port is early: it dispatches **2** of the shared shader's 64 entry
+points (`patch_terrain_fs`, `patch_terrain_vs`). **Every one of them still exists on the desktop, so a resync would not break the demo today.**
+So the honest reading is: the doctrine is violated and the mirror is
+8 entry points behind, but the *shader* resync is low-risk right now.
+**The part that actually bites is `web/js/uniforms.js` (§3.3)** — its hand-written
+offsets are consumed by the host on every boot, and nothing checks them.
+
+**The correction to the P0 premise.** The handoff says "`the_chord` is
+retired ⇒ `world.wgsl` is SINGLE-COPY. Every WGSL deletion is a one-room
+edit." The first clause is true; the conclusion is not — a second copy
+exists under a live doctrine, so a P1 WGSL deletion is a **two-room**
+edit and P1 would inherit a divergence it did not create.
+
+**But state the size honestly, or the correction becomes its own kind
+of error.** The measurement above says the shader half of this is cheap
+today: the port dispatches two entry points and both still exist. What
+Jean has to rule is narrower than "stop the campaign":
+
+1. **Before P1 (WGSL deletions)** — either run the resync ritual once
+   (`cp` + `gzip -9` + sidecar sha256, per `CLAUDE.md`), or record that
+   the mirror doctrine is suspended for the duration. Either is a
+   one-line decision; leaving it unstated is what costs.
+2. **Before P3 (config-field deletions)** — the real blocker, and it is
+   `web/js/uniforms.js`, not the shader. See §3.3.
 
 ### §5.4 — CMakeLists.txt: `backup_board` and the `probe_*` targets
 
@@ -1091,7 +1130,7 @@ mirror doctrine for the duration of PRUNING_1.
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `f8072f4244b9` — every line above
+`src/cartridges/backup_board/` does not exist at `68d9cc8f76d2` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1578,5 +1617,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `f8072f4244b9b337dee617efd02272cb63d6b59f` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `68d9cc8f76d2d1d8c0d678f622cfeeea0ef8ca15` on `claude/pruning-handoff-review-c1opab`.
 
