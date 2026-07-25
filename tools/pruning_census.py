@@ -2626,7 +2626,7 @@ def main():
         hits = [(i + 1, l.strip()) for i, l in enumerate(clines)
                 if re.search(r"byte-identical|mirror|the_chord|\.inl", l, re.I)][:14]
         R("`%s` — this paragraph describes a two-cartridge world that no longer" % CONSTITUTION)
-        R("exists (`src/cartridges/the_chord/` is absent at `%s`):" % head_short)
+        R("exists (`src/cartridges/the_chord/` is absent at `%s`):" % subject[:12])
         R()
         R.table(["line", "text"], hits)
         R("**Verdict: FOSSIL — census it, do not obey it.** Both mirrored-module")
@@ -2793,7 +2793,7 @@ def main():
     bb = [(i + 1, l.strip()[:120]) for i, l in enumerate(cmlines) if "backup_board" in l]
     R.table(["CMakeLists.txt line", "backup_board reference"], bb)
     if bb:
-        R("`src/cartridges/backup_board/` does not exist at `%s` — every line above" % head_short)
+        R("`src/cartridges/backup_board/` does not exist at `%s` — every line above" % subject[:12])
         R("is dangling.")
         R()
     prow = []

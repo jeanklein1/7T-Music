@@ -6,7 +6,7 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `ddd2a9f8f4f7` |
+| generated at HEAD | `5847ddffa60b` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | audited state date | 2026-07-25 |
 | history depth | 62 commits (root dated 2026-07-23) |
@@ -1125,7 +1125,7 @@ Sites: **20**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `ddd2a9f8f4f7`):
+exists (`src/cartridges/the_chord/` is absent at `1ec6c5595795`):
 
 | line | text |
 |---|---|
@@ -1243,7 +1243,7 @@ measurement above exists. What Jean has to rule:
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `ddd2a9f8f4f7` — every line above
+`src/cartridges/backup_board/` does not exist at `1ec6c5595795` — every line above
 is dangling.
 
 | target | source | source exists? | line |
