@@ -2903,7 +2903,7 @@ const PULSE_AGE_DECAY: f32 = 0.4;      // age damping (1/seconds — half amplit
 // Contributes: sum of expanding gaussian ring wavefronts from note onsets.
 // Dependencies (via DAG): none — orthogonal to the static stack.
 // Notes: t_seconds is an explicit parameter so the contributor works in
-//   both render stages (render_signal.t_seconds) and compute stages
+//   both render stages and compute stages
 //   (signal.t_seconds). 8-slot ring buffer; dead entries early-exit.
 // DRIVERLESS since gen-1 retirement — held at neutral by the boot
 // block; revive via a gen-2 coupling or delete on the next pass here.
@@ -5485,7 +5485,6 @@ fn point_pos() -> vec3<f32> {
 }
 
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
-@group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
 @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
 // @binding(220) render_terrain REMOVED (dead terrain buffer)
 @group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;

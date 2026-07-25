@@ -137,7 +137,6 @@ namespace t7 {
                 inline constexpr uint32_t cmg_indices                = 198;
 
                 // render mirrors — the +200 band (200–361)
-                inline constexpr uint32_t render_signal              = 200;
                 inline constexpr uint32_t render_vp                  = 201;
                 inline constexpr uint32_t render_agents              = 260;
                 inline constexpr uint32_t render_camera              = 280;
@@ -191,7 +190,6 @@ namespace t7 {
             // If a future edit breaks the band, this fails the BUILD (loud),
             // it does not silently re-derive the number.
             // ─────────────────────────────────────────────────────────────
-            static_assert(g0::render_signal  == g0::signal  + 200, "render band: signal");
             static_assert(g0::render_vp      == g0::vp_data  + 199, "render band: vp (2 -> 201)");
             static_assert(g0::render_agents  == g0::agent_state  + 200, "render band: agents");
             static_assert(g0::render_camera  == g0::camera_state + 200, "render band: camera");
