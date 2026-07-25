@@ -178,9 +178,14 @@ BIND_RE = re.compile(
     r"@group\s*\(\s*(\d+)\s*\)\s*@binding\s*\(\s*(\d+)\s*\)\s*"
     r"var\s*(?:<([^>]*)>)?\s*([A-Za-z_]\w*)\s*:\s*([^;]+);"
 )
-CONST_RE = re.compile(r"^[ \t]*const\s+([A-Za-z_]\w*)\s*(?::|=)", re.M)
-OVERRIDE_RE = re.compile(r"^[ \t]*override\s+([A-Za-z_]\w*)\s*(?::|=)", re.M)
-STRUCT_RE = re.compile(r"^[ \t]*struct\s+([A-Za-z_]\w*)\s*\{", re.M)
+# MODULE SCOPE means column 0. An indented `const` is a FUNCTION-LOCAL, and
+# counting it as module-scope both inflates the total and puts a body-scope
+# constant (CMG_MAX_SA, COAST_EPS, TIER_ANTENNA_FIRST) into the "unreferenced
+# module const" deletion list, where it does not belong.
+CONST_RE = re.compile(r"^const\s+([A-Za-z_]\w*)\s*(?::|=)", re.M)
+LOCAL_CONST_RE = re.compile(r"^[ \t]+const\s+([A-Za-z_]\w*)\s*(?::|=)", re.M)
+OVERRIDE_RE = re.compile(r"^override\s+([A-Za-z_]\w*)\s*(?::|=)", re.M)
+STRUCT_RE = re.compile(r"^struct\s+([A-Za-z_]\w*)\s*\{", re.M)
 IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 LOCAL_DECL_RE = re.compile(r"\b(?:let|var|const)\s+([A-Za-z_]\w*)")
 
@@ -257,6 +262,8 @@ class WgslModule:
                 "line": lineno(t, m.start()),
             }
         self.consts = {m.group(1): lineno(t, m.start()) for m in CONST_RE.finditer(t)}
+        self.local_consts = {m.group(1): lineno(t, m.start())
+                             for m in LOCAL_CONST_RE.finditer(t)}
         self.overrides = {m.group(1): lineno(t, m.start()) for m in OVERRIDE_RE.finditer(t)}
         self.structs = {m.group(1): lineno(t, m.start()) for m in STRUCT_RE.finditer(t)}
         # A module-scope declaration REFERENCES other module-scope symbols:
@@ -364,6 +371,12 @@ class WgslModule:
 # THE SECOND GATE — which entry points does a C++ pipeline actually name?
 # ═══════════════════════════════════════════════════════════════════════
 
+CPP_KEYWORDS = {
+    "if", "for", "while", "switch", "else", "do", "try", "catch", "return",
+    "const", "constexpr", "static", "inline", "struct", "class", "namespace",
+    "auto", "sizeof", "using", "template", "typename", "operator", "new",
+    "delete", "case", "default", "public", "private", "protected",
+}
 ENTRY_CONST_RE = re.compile(r"constexpr\s+const\s+char\*\s*(\w+)\s*=\s*\"([^\"]+)\"")
 ENTRY_USE_RE = re.compile(r"\bEntry::(\w+)\b")
 PIPE_CREATE_RE = re.compile(
@@ -377,6 +390,7 @@ class PipelineGate:
     ONLY through it is dead with it. That is the gate that matters."""
 
     def __init__(self, files):
+        self.files = list(files)
         self.decls = {}          # C++ constant name -> WGSL entry string
         self.decl_sites = {}     # C++ constant name -> file:line
         self.uses = defaultdict(list)   # C++ constant name -> [file:line]
@@ -406,11 +420,72 @@ class PipelineGate:
                 self.pipelines.append(
                     (path, lineno(code, m.start()), kind, (m.group(1) or "<anon>"))
                 )
-        # An entry point is LIVE iff some non-declaration site names it.
-        self.live = set()
-        for cname, sites in self.uses.items():
-            if cname in self.decls and sites:
-                self.live.add(self.decls[cname])
+        # WHAT "LIVE" MEANS, precisely. Naming an entry point somewhere in C++
+        # is NOT the same as building a pipeline from it — a debug print or a
+        # dead branch would name it too. So each use site is resolved to the
+        # statement it sits in, and that statement must either create a
+        # pipeline directly or call a helper whose body creates one.
+        # The BLOCK, not the statement, is the right scope: the tree writes
+        #     fragment.entryPoint = Entry::ENTITY_FS;
+        #     ... a few statements ...
+        #     out = device_.CreateRenderPipeline(&desc);
+        # so a statement-level test rejects every genuinely live entry point.
+        # Helper names are the lambdas/functions whose own body creates a
+        # pipeline (makeComputePipeline, makeEntity, makeShadow, …); a call to
+        # one of those counts as building.
+        CREATE = re.compile(r"Create(?:Render|Compute)Pipeline\s*\(")
+        blocks = {}     # path -> [(start, end, builds_directly)]
+        helpers = set()
+        for path in files:
+            code = strip_cpp(read(path))
+            spans, stack = [], []
+            for i, ch in enumerate(code):
+                if ch == "{":
+                    stack.append(i)
+                elif ch == "}" and stack:
+                    a = stack.pop()
+                    spans.append((a, i))
+            spans = [(a, b, bool(CREATE.search(code[a:b]))) for a, b in spans]
+            blocks[path] = spans
+            # a helper is the identifier heading a block that creates a pipeline
+            for a, b, mk in spans:
+                if not mk:
+                    continue
+                head = code[max(0, a - 240):a]
+                # Only a genuine definition head names a helper. Control-flow
+                # keywords and type names sit in the same textual position and
+                # would otherwise be reported as "helpers" (`if`, `constexpr`,
+                # `Pipeline`).
+                for hm in (re.search(r"\bauto\s+([a-z_]\w*)\s*=\s*\[[^\]]*\]\s*\([^;]*\)"
+                                     r"[^;{]*$", head),
+                           re.search(r"\b[A-Za-z_][\w:<>\*&,\s]*?\b([a-z_]\w*)\s*"
+                                     r"\([^;{)]*\)\s*(?:const\s*)?$", head)):
+                    if hm and hm.group(1) not in CPP_KEYWORDS:
+                        helpers.add(hm.group(1))
+                        break
+        self.helpers = sorted(helpers)
+        helper_alt = "|".join(re.escape(h) for h in helpers) or r"(?!)"
+        USES_HELPER = re.compile(r"\b(?:" + helper_alt + r")\s*\(")
+
+        self.live, self.named_only = set(), {}
+        for path in files:
+            code = strip_cpp(read(path))
+            decl_lines = {lineno(read(path), m.start())
+                          for m in ENTRY_CONST_RE.finditer(read(path))}
+            for m in ENTRY_USE_RE.finditer(code):
+                cname = m.group(1)
+                if cname not in self.decls or lineno(code, m.start()) in decl_lines:
+                    continue
+                builds = False
+                for a, b, mk in blocks[path]:
+                    if a <= m.start() <= b and (mk or USES_HELPER.search(code[a:b])):
+                        builds = True
+                        break
+                if builds:
+                    self.live.add(self.decls[cname])
+        for cname, ep in self.decls.items():
+            if self.uses.get(cname) and ep not in self.live:
+                self.named_only[cname] = ep
         self.live |= set(self.literal_uses)
         self.unused_consts = sorted(c for c in self.decls if not self.uses.get(c))
         # entryPoint fields fed from a variable rather than a literal: the
@@ -949,6 +1024,29 @@ def main():
 
     # ── parse everything once ──────────────────────────────────────────
     w = WgslModule(WGSL)
+    # The web mirror is parsed HERE, not down in §5, because every WGSL
+    # deletion verdict has to consult it. A symbol that is dead on the
+    # desktop and LIVE in the mirror is not a free deletion — the next
+    # resync would silently drop code the web port is running.
+    mw = WgslModule(WEB_WGSL) if exists(WEB_WGSL) else None
+
+    def mirror_status(name):
+        """('live' | 'present but dead' | 'absent' | '—', detail)."""
+        if mw is None:
+            return "—", ""
+        if name in mw.functions:
+            callers = mw.callers_of(name)
+            if callers:
+                return ("**LIVE IN MIRROR**",
+                        "called by %s" % ", ".join("`%s`" % c for c in callers[:3]))
+            return "present, 0 callers", ""
+        if name in mw.consts or name in mw.structs or name in mw.resources:
+            n = mw.references_outside_decl(
+                name, mw.consts.get(name) or mw.structs.get(name)
+                or (mw.resources[name]["line"] if name in mw.resources else None))
+            return ("**LIVE IN MIRROR**" if n else "present, 0 refs",
+                    "%d reference(s)" % n if n else "")
+        return "absent", ""
     gate = PipelineGate([RENDERER, STATE, PASSES])
     reg = Registry(REGISTRY)
     refs = scan_bind_refs(STATE)
@@ -1009,16 +1107,19 @@ def main():
     )
     chord_dir = exists("src/cartridges/the_chord")
     prem.append((
-        "`the_chord` is retired ⇒ every WGSL edit is a one-room edit",
+        "`the_chord` is retired (the antecedent only — see the row below for "
+        "the one-room conclusion it is used to draw)",
         "CONFIRMED" if not chord_dir else "FALSE",
-        "no `src/cartridges/the_chord/` directory; %d textual mentions remain (§5)" % n_chord,
+        "no `src/cartridges/the_chord/` directory; %d textual mentions remain (§5). "
+        "**This confirms the premise, NOT the conclusion**: the cartridge mirror "
+        "is gone, but that is not the only mirror." % n_chord,
     ))
     web_live = exists(WEB_WGSL)
     if web_live:
         import hashlib
         d_sha = hashlib.sha256(read(WGSL).encode("utf-8", "replace")).hexdigest()
         m_sha = hashlib.sha256(read(WEB_WGSL).encode("utf-8", "replace")).hexdigest()
-        side = read(WEB_WGSL_SIDECAR).strip().replace("\n", " · ")[:200]
+        side = read(WEB_WGSL_SIDECAR).strip().replace("\n", " · ")
         prem.append((
             "`world.wgsl` is SINGLE-COPY",
             "**FALSE — a second copy exists**",
@@ -1100,10 +1201,31 @@ def main():
     R("through it is dead with it. Pipelines are created in `%s`; the entry" % RENDERER)
     R("point is named through the `Entry::` constant table there.")
     R()
+    R("**What \"LIVE\" means here, stated exactly.** Naming an entry point in C++")
+    R("is *not* the same as building a pipeline from it — a debug print or a dead")
+    R("branch would name it too. So each `Entry::` use site is resolved to the")
+    R("enclosing brace block, and that block must either call")
+    R("`Create{Render,Compute}Pipeline` directly or call a helper whose own body")
+    R("does. (The statement is the wrong scope: this tree writes")
+    R("`fragment.entryPoint = Entry::ENTITY_FS;` several statements above the")
+    R("`CreateRenderPipeline` call in the same block.)")
+    R()
     R("- `Entry::` string constants declared: **%d**" % len(gate.decls))
     R("- `Entry::` constants referenced at a non-declaration site: **%d**" % len(gate.uses))
-    R("- pipeline creation calls found: **%d**" % len(gate.pipelines))
-    R("- raw string literals assigned to an `entryPoint` field: **%d**" % len(gate.literal_uses))
+    R("- direct `Create*Pipeline` call sites: **%d**" % len(gate.pipelines))
+    R("- pipeline-building helpers detected: **%d** — %s" %
+      (len(gate.helpers), ", ".join("`%s`" % h for h in gate.helpers) or "none"))
+    R("- constants named in C++ but **not** inside a pipeline-building block: **%d**%s" %
+      (len(gate.named_only),
+       " — " + ", ".join("`%s`" % c for c in sorted(gate.named_only)) if gate.named_only else ""))
+    R("- raw string literals assigned to an `entryPoint` field, **within the %d" % len(gate.files))
+    R("  files this gate scans** (%s): **%d**" %
+      (", ".join("`%s`" % f.split("/")[-1] for f in gate.files), len(gate.literal_uses)))
+    R()
+    R("> Scope caveat, so the zero above is not overread: the gate scans the")
+    R("> desktop host only. `web/js/boot.js` assigns single-quoted entry-point")
+    R("> literals into its own pipeline descriptors — a different host, for the")
+    R("> web port, counted in §5.3 rather than here.")
     R()
     if gate.indirect_sites:
         R("**Indirection notice.** %d `entryPoint` assignments read a *variable*," % len(gate.indirect_sites))
@@ -1141,13 +1263,26 @@ def main():
     R("### §1.2 — `fn` unreachable from EVERY entry point")
     R()
     if unreachable_fns:
-        rows = [(n, w.functions[n]["line"],
-                 len(w.callers_of(n)),
-                 ", ".join(w.callers_of(n)[:4]) or "—")
-                for n in unreachable_fns]
-        R.table(["fn", "line", "callers", "called by"], rows)
+        rows = []
+        for n in unreachable_fns:
+            st, det = mirror_status(n)
+            rows.append((n, w.functions[n]["line"], len(w.callers_of(n)),
+                         ", ".join(w.callers_of(n)[:4]) or "—", st, det or "—"))
+        R.table(["fn", "line", "callers (desktop)", "called by",
+                 "web mirror", "mirror detail"], rows)
         R("Recipe: `python tools/pruning_census.py` — closure over the call graph from")
         R("all %d entry points; anything outside that union is here." % len(w.entry_points))
+        R()
+        live_in_mirror = [r[0] for r in rows if r[4].startswith("**")]
+        if live_in_mirror:
+            R("⚠ **%s %s dead on the desktop but LIVE in the web mirror.**" %
+              (", ".join("`%s`" % n for n in live_in_mirror),
+               "is" if len(live_in_mirror) == 1 else "are"))
+            R("These are **not** free deletions. \"Zero callers\" is true of the")
+            R("desktop room only; the next resync (`cp` desktop → mirror) would")
+            R("drop code the web port is currently running. They go to RULE(Jean)")
+            R("in §7, not DELETE. This is the concrete cost of the two-room")
+            R("situation §5.3 measures — the first place it changes a verdict.")
     else:
         R("_(none — every `fn` is reachable from at least one entry point)_")
     R()
@@ -1175,16 +1310,29 @@ def main():
     dead_consts = []
     for name, ln in sorted(w.consts.items()):
         if w.references_outside_decl(name, ln) == 0:
-            dead_consts.append((name, ln, cpp_twin(name)))
+            dead_consts.append((name, ln, cpp_twin(name), mirror_status(name)[0]))
     mirrors = [c for c in dead_consts if c[2]]
-    R("Unreferenced: **%d** of %d — of which **%d have a C++ twin of the same" %
-      (len(dead_consts), len(w.consts), len(mirrors)))
-    R("name** and are therefore *declared mirrors*, not accidents.")
+    web_live = [c for c in dead_consts if c[3].startswith("**")]
+    R("Scope note: **module-scope only** (column 0). %d function-local `const`" % len(w.local_consts))
+    R("declarations exist and are deliberately excluded — a body-scope constant")
+    R("is not a module symbol and cannot be an orphan of this kind.")
     R()
-    R.table(["const", "line", "C++ twin", "class"],
-            [(n, l, "`%s`" % t if t else "—",
-              "**MIRROR — RULE(Jean)**" if t else "orphan — DELETE")
-             for n, l, t in dead_consts])
+    R("Unreferenced: **%d** of %d module-scope consts. Of those, **%d have a C++" %
+      (len(dead_consts), len(w.consts), len(mirrors)))
+    R("twin of the same name** (declared mirrors, not accidents) and **%d are" % len(web_live))
+    R("still read by the web mirror**.")
+    R()
+
+    def const_class(twin, web):
+        if web.startswith("**"):
+            return "**LIVE IN THE WEB MIRROR — RULE(Jean)**"
+        if twin:
+            return "**MIRROR of C++ — RULE(Jean)**"
+        return "orphan — DELETE"
+
+    R.table(["const", "line", "C++ twin", "web mirror", "class"],
+            [(n, l, "`%s`" % t if t else "—", web, const_class(t, web))
+             for n, l, t, web in dead_consts])
 
     R("### §1.4 — `struct` declarations with zero references")
     R()
@@ -2305,7 +2453,7 @@ def main():
                  ("`fn` count", len(w.functions), len(mw.functions)),
                  ("entry points", len(w.entry_points), len(mw.entry_points)),
                  ("@group/@binding", len(w.resources), len(mw.resources))])
-        R("- sidecar `%s`: %s" % (WEB_WGSL_SIDECAR, side.strip().replace("\n", " · ")[:220] or "(empty)"))
+        R("- sidecar `%s`: %s" % (WEB_WGSL_SIDECAR, side.strip().replace("\n", " · ") or "(empty)"))
         if side_commit:
             R("- sidecar source commit `%s` — %s" %
               (side_commit,
@@ -2610,11 +2758,28 @@ def main():
 
     # Tier 2 — WGSL dead symbols
     for n in unreachable_fns:
-        V.append(("2", n, "wgsl", "%s:%d" % (WGSL, w.functions[n]["line"]),
-                  "unreachable", "0", "glaw2 (Tint parse)",
-                  "none — DCE'd per entry point; zero runtime cost today", "DELETE"))
-    for n, ln, twin in dead_consts:
-        if twin:
+        st, det = mirror_status(n)
+        if st.startswith("**"):
+            V.append(("2", n, "wgsl", "%s:%d" % (WGSL, w.functions[n]["line"]),
+                      "unreachable on the DESKTOP; **live in the web mirror** (%s)" % det,
+                      "0 desktop / %d mirror" % len(mw.callers_of(n)),
+                      "glaw2 (Tint parse) **+ a web smoke test**",
+                      "none on the desktop; the next resync would delete code the "
+                      "web port runs",
+                      "**RULE(Jean)** — resolve the mirror (§5.3) first"))
+        else:
+            V.append(("2", n, "wgsl", "%s:%d" % (WGSL, w.functions[n]["line"]),
+                      "unreachable (mirror: %s)" % st, "0", "glaw2 (Tint parse)",
+                      "none — DCE'd per entry point; zero runtime cost today", "DELETE"))
+    for n, ln, twin, web in dead_consts:
+        if web.startswith("**"):
+            V.append(("2", n, "wgsl const", "%s:%d" % (WGSL, ln),
+                      "unreferenced on the DESKTOP; **read by the web mirror**", "0",
+                      "glaw2 (Tint parse) **+ a web smoke test**",
+                      "none on the desktop; the next resync would delete a const "
+                      "the web port reads",
+                      "**RULE(Jean)** — resolve the mirror (§5.3) first"))
+        elif twin:
             V.append(("2", n, "wgsl const", "%s:%d" % (WGSL, ln),
                       "unreferenced, but MIRRORS C++ `%s`" % twin, "0",
                       "glaw2 (Tint parse)",
@@ -2622,7 +2787,8 @@ def main():
                       "**RULE(Jean)** — deleting a declared mirror is a policy "
                       "change, not a pruning"))
         else:
-            V.append(("2", n, "wgsl const", "%s:%d" % (WGSL, ln), "unreferenced", "0",
+            V.append(("2", n, "wgsl const", "%s:%d" % (WGSL, ln),
+                      "unreferenced (mirror: %s)" % web, "0",
                       "glaw2 (Tint parse)", "none — behaviour-identical by construction",
                       "DELETE"))
     for n, ln in dead_structs:
@@ -2767,7 +2933,8 @@ def main():
     R("### Tree mass — what a context window actually pays")
     R()
     all_src = walk_src(exts={".hpp", ".cpp", ".wgsl"}, roots=("src",))
-    src_lines = sum(read(p).count("\n") + 1 for p in all_src)
+    src_lines = sum(len(splitlines_exact(read(p))) for p in all_src)
+    no_eol = sum(1 for p in all_src if read(p) and not read(p).endswith("\n"))
     R.table(["item", "files", "lines"],
             [("src/ excluding src/external/", len(all_src), src_lines),
              ("comment lines in the §6 scope", "—", tot_c),
@@ -2777,6 +2944,13 @@ def main():
              ("coordinate sites (§6.2, a floor)", "—", sum(coord.values())),
              ("dangling reference sites (§5.1)",
               "—", sum(1 for r in dang_rows if r[3].startswith("**")))])
+    if no_eol:
+        R("> These are LINES, not newlines. **%d of the %d files under `src/` have" %
+          (no_eol, len(all_src)))
+        R("> no trailing newline**, so `sum(wc -l)` reports %d — exactly %d fewer." %
+          (src_lines - no_eol, no_eol))
+        R("> Said here so a cross-check does not look like a discrepancy.")
+        R()
     R("**The honest payoff of PRUNING_1 is tree mass, not frames.** %d comment" % tot_c)
     R("lines in the §6 scope, of which the tag/tombstone/coordinate/dangling sites")
     R("above are the mechanically identifiable fraction (%d sites). Everything else" %
