@@ -299,10 +299,7 @@ namespace t7 {
             constexpr float SPHERE_ORBIT_SPEED = 0.3f;
             constexpr float SPHERE_HOVER_HEIGHT = 8.0f;
             constexpr float SPHERE_INFLUENCE_RADIUS = 12.0f;
-            constexpr float WAVE_TIME_SCALE = 1.0f;
             constexpr float PAWN_SPEED = 15.0f;
-            constexpr float CAMERA_SENSITIVITY = 0.005f;
-            constexpr float ACTIVE_CELL_SIZE = 64.0f;
             constexpr float CUBE_PLASTICITY_DEFAULT = 1.0f;  // CONTACT_5 P2b: the live λ master;
                                                              // raised 0.6 -> 1.0 so a shove RELOCATES
                                                              // rather than partially returns -- "shove
