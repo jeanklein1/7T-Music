@@ -3560,16 +3560,26 @@ struct SurfaceHit {
 // b2b (the agreement flip: baked consumers seeing the live overlays)
 // stays deferred to its own gated cut.
 fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
+    // Selectors are the NAMED constants, not bare literals. WGSL accepts a
+    // module-scope `const` as a case selector, so the arm and the policy id
+    // are bound by the compiler: deleting a POLICY_* takes its arm with it
+    // as a compile error, instead of silently re-pointing the arm at its
+    // neighbour. (PRUNING_1 P1 5a-i — the renumber trap, removed rather
+    // than handled.)
     switch policy {
-        case 0u:  { return query_ground_placement_pyramid(xz); }     // POLICY_PLACEMENT_PYRAMID
-        case 1u:  { return query_ground_placement_painting(xz); }    // POLICY_PLACEMENT_PAINTING
-        case 2u:  { return query_ground_placement_vegetation(xz); }  // POLICY_PLACEMENT_VEGETATION
-        case 3u:  { return sample_terrain_y_at(xz); }                // POLICY_BAKED_HEIGHTFIELD (texture form — byte-consistent by construction; the analytic body stays for the zone baked-sampler fallback chain)
-        case 4u:  { return query_ground_flyer(xz, qi); }             // POLICY_FLYER
-        case 5u:  { return query_ground_walker(xz, qi); }            // POLICY_WALKER
-        case 6u:  { return query_ground_walker_tilt(xz, qi); }       // POLICY_WALKER_TILT
-        case 7u:  { return query_ground_walker_agent(xz, qi); }      // POLICY_WALKER_AGENT
-        default:  { return sample_terrain_y_at(xz); }                // CELESTIAL/RENDER: baked-path fallback (GROUND_CARD_1 — the inline contributor arm rewired per H5)
+        case POLICY_PLACEMENT_PYRAMID:    { return query_ground_placement_pyramid(xz); }
+        case POLICY_PLACEMENT_PAINTING:   { return query_ground_placement_painting(xz); }
+        case POLICY_PLACEMENT_VEGETATION: { return query_ground_placement_vegetation(xz); }
+        // texture form — byte-consistent by construction; the analytic body
+        // stays for the zone baked-sampler fallback chain
+        case POLICY_BAKED_HEIGHTFIELD:    { return sample_terrain_y_at(xz); }
+        case POLICY_FLYER:                { return query_ground_flyer(xz, qi); }
+        case POLICY_WALKER:               { return query_ground_walker(xz, qi); }
+        case POLICY_WALKER_TILT:          { return query_ground_walker_tilt(xz, qi); }
+        case POLICY_WALKER_AGENT:         { return query_ground_walker_agent(xz, qi); }
+        // CELESTIAL/RENDER: baked-path fallback (GROUND_CARD_1 — the inline
+        // contributor arm rewired per H5). WGSL requires a default arm.
+        default:                          { return sample_terrain_y_at(xz); }
     }
 }
 

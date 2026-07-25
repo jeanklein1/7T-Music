@@ -2325,12 +2325,22 @@ def main():
         raw_body = w.raw[w.raw.find("\n", w.raw.find("fn manifold_height_hf")):]
         raw_body = raw_body[: raw_body.find("\n}\n")]
         arms = []
+        # Selectors may be bare literals OR named constants (5a-i converted
+        # this tree to names). Both forms are parsed; the named form carries
+        # the policy identity in the LABEL rather than in a trailing comment,
+        # which is the whole point of the conversion.
         for m in re.finditer(
-                r"(case\s+(\d+)u|default)\s*:\s*\{\s*return\s+(\w+)\s*\([^\n]*?"
+                r"(case\s+(?:(\d+)u|(POLICY_\w+))|default)\s*:\s*\{\s*return\s+(\w+)\s*\([^\n]*?"
                 r"(?://\s*(.*))?$", raw_body, re.M):
-            label = ("case %su" % m.group(2)) if m.group(2) else "default"
-            fn, comment = m.group(3), (m.group(4) or "").strip()
-            pol = re.search(r"\b(POLICY_\w+|CELESTIAL/RENDER)", comment)
+            if m.group(2):
+                label = "case %su" % m.group(2)
+            elif m.group(3):
+                label = "case `%s`" % m.group(3)
+            else:
+                label = "default"
+            fn, comment = m.group(4), (m.group(5) or "").strip()
+            pol = re.search(r"\b(POLICY_\w+|CELESTIAL/RENDER)",
+                            (m.group(3) or "") + " " + comment)
             arms.append((label, pol.group(1) if pol else "—", fn, comment[:70]))
             arm_targets[fn] = arm_targets.get(fn, 0) + 1
             # the arm's comment names which POLICIES[] row it serves; the
@@ -2338,8 +2348,12 @@ def main():
             for pid in re.findall(r"POLICY_\w+", comment):
                 arm_policy[pid] = fn
             if label == "default":
-                for word in re.findall(r"\b([A-Z][A-Z_]{3,})\b", comment):
-                    arm_policy.setdefault("POLICY_" + word, fn)
+                # the default arm's identity sits in the comment block above
+                # it once the labels carry names
+                head = raw_body[:m.start()].rsplit("\n\n", 1)[-1]
+                for word in re.findall(r"\b([A-Z][A-Z_]{3,})\b", comment + " " + head[-300:]):
+                    if word not in ("WGSL",):
+                        arm_policy.setdefault("POLICY_" + word.replace("POLICY_", ""), fn)
         R("`manifold_height_hf` — `%s:%d`–%d, %d callers. It is a `switch` over" %
           (WGSL, mh["line"], mh["end_line"], len(w.callers_of("manifold_height_hf"))))
         R("the policy id with **%d arms**." % len(arms))
