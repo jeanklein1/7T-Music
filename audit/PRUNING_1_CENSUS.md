@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `611c75dadd36d1faa8d2e47b652540bc5942b351` |
-| HEAD (short) | `611c75dadd36` |
+| HEAD | `c9a64c693894634497386d6f7843ab2e60f179c7` |
+| HEAD (short) | `c9a64c693894` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 67 commits (root dated 2026-07-23) |
+| history depth | 68 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **41 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`611c75dadd36`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **42 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`c9a64c693894`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -254,6 +254,17 @@ entries (`src/cartridges/the_board/realization/state.hpp`), and the shader decla
 | distinct bind-group layouts | 25 |
 | distinct bind groups | 26 |
 
+**The registry header describes itself, and the description is stale.**
+| claimed in `binding_registry.hpp`'s header | true at this HEAD |
+|---|---|
+| 100 WGSL `@binding` declarations | **96**  ← differs |
+| 97 distinct slots | **93**  ← differs |
+
+Prose does not recompile. The header's own recount is off by 4 and 4;
+it is scaffolding of exactly the kind this campaign exists to find, and
+it is the file whose *whole purpose* is to be the single source of truth
+for these numbers. Recipe: this table.
+
 ### §2.1 — the joined slot table
 
 The registry column resolves by **(group, slot)**, not by name — the
@@ -387,11 +398,19 @@ crash, not a compile error.
 ### §2.4 — flag (c): bound resource read by ZERO reachable functions ← GPU cost
 
 Reachability is computed **from LIVE entry points only** — an entry point
-no pipeline names cannot keep a binding alive.
+no pipeline names cannot keep a binding alive. The web mirror is checked
+too, for the same reason it is checked in §1.2: a binding that is dead
+here and read there is not a free removal.
 
-| (group,binding) | WGSL var | space | wgsl line | bound in |
-|---|---|---|---|---|
-| 0/200 | render_signal | storage, read | 5890 | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ |
+| (group,binding) | WGSL var | space | wgsl line | bound in | web mirror | mirror detail |
+|---|---|---|---|---|---|---|
+| 0/200 | render_signal | storage, read | 5890 | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ | **LIVE IN MIRROR** | 1 reference(s) |
+
+⚠ **`render_signal` read by the web mirror.** The desktop finding stands — it has
+zero references of any kind in `src/cartridges/the_board/realization/world.wgsl`, not merely zero reachable ones —
+but the binding cannot be retired from the *registry* while the mirror
+still binds it. Freeing the C++ buffer and layout entry is safe; taking
+the number back is not, until §5.3 is resolved.
 
 ### §2.5 — flag (d): reserved / parked / do-not-reuse comments
 
@@ -561,7 +580,8 @@ is visible: pinning is not consumption.
 **Reclaimable config bytes: 44 B** of 592 (7.4%).
 
 > Caveat, stated plainly. (1) Removing a field mid-struct **re-flows every
-> offset after it in BOTH rooms**. The total above is the ceiling if all of
+> offset after it in ALL THREE rooms** — C++, WGSL, and the hand-written
+> JS packer of §3.3, which nothing checks. The total above is the ceiling if all of
 > them go in ONE commit; taken one at a time the cost is a full mirror
 > re-verification each time, and the `offsetof` witnesses in `state.hpp`
 > are what makes that survivable at all. (2) The uniform is padded to its
@@ -585,7 +605,7 @@ struct — no `static_assert`, no generator, no test.
 | C++ `sizeof(GPUDesignConfig)` | 592 B |
 | WGSL `DesignConfig` | 592 B |
 | sizes agree | **YES** |
-| indexed writes found | 27 |
+| indexed writes found | 30 |
 
 Every indexed write, resolved to the field it lands in:
 
@@ -597,6 +617,9 @@ Every indexed write, resolved to the field it lands in:
 | 24 | f[8] | 32 | active_cell_size | AGREE | **⚠ ON A DELETION CANDIDATE** |
 | 25 | u[10] | 40 | wave_enable_mask | AGREE | **⚠ ON A DELETION CANDIDATE** |
 | 26 | u[15] | 60 | world_seed | AGREE |  |
+| 27 | f[16] | 64 | sun_direction | AGREE |  |
+| 27 | f[17] | 68 | sun_direction | — (covered by this line's first annotation) |  |
+| 27 | f[18] | 72 | sun_direction | — (covered by this line's first annotation) |  |
 | 28 | f[19] | 76 | aura_enabled | AGREE |  |
 | 29 | f[20] | 80 | pawn_amp_scale | AGREE | **⚠ ON A DELETION CANDIDATE** |
 | 30 | f[23] | 92 | fog_density | AGREE |  |
@@ -619,7 +642,7 @@ Every indexed write, resolved to the field it lands in:
 | 44 | f.set(…, 120) | 480 | palette_light | — |  |
 | 46 | f.set(…, 136) | 544 | palette_weight | — |  |
 
-**20 of 20 hand-annotated offsets AGREE with the offsets this tool
+**21 of 21 hand-annotated offsets AGREE with the offsets this tool
 computed from `state.hpp`; 0 disagree.** That is worth stating in its
 own right: the web port's byte map was authored by hand, independently
 of this instrument, and it lands on the same numbers. It is a genuine
@@ -696,7 +719,7 @@ campaign's apparent size:
 | tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 67 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 68 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1063,7 +1086,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `611c75dadd36`):
+exists (`src/cartridges/the_chord/` is absent at `c9a64c693894`):
 
 | line | text |
 |---|---|
@@ -1158,7 +1181,7 @@ Jean has to rule is narrower than "stop the campaign":
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `611c75dadd36` — every line above
+`src/cartridges/backup_board/` does not exist at `c9a64c693894` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1545,7 +1568,7 @@ anything short of certain is `RULE(Jean)`.
 | 2 | CellMeshVertex | wgsl struct | src/cartridges/the_board/realization/world.wgsl:5965 | unreferenced | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
 | 2 | Plane | wgsl struct | src/cartridges/the_board/realization/world.wgsl:163 | unreferenced | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
 | 2 | ZoneExtrusionVarying | wgsl struct | src/cartridges/the_board/realization/world.wgsl:8867 | unreferenced | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
-| 3 | render_signal | binding 0/200 | src/cartridges/the_board/realization/world.wgsl:5890 | bound, zero reachable readers | 0 | Dawn enumeration probe | GPU: one binding slot + its buffer | RULE(Jean) |
+| 3 | render_signal | binding 0/200 | src/cartridges/the_board/realization/world.wgsl:5890 | bound, zero reachable readers; **read by the web mirror** (1 reference(s)) | 0 | Dawn enumeration probe | GPU: one binding slot + its buffer; the registry number cannot be retired while the mirror binds it | RULE(Jean) |
 | 3 | mute_dynamics_2d | config mirror | src/cartridges/the_board/realization/state.hpp:412 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
 | 3 | wave_time_scale | config mirror | src/cartridges/the_board/realization/state.hpp:417 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
 | 3 | camera_sensitivity (+ `set_camera_sensitivity`) | config mirror | src/cartridges/the_board/realization/state.hpp:419 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
@@ -1648,5 +1671,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `611c75dadd36d1faa8d2e47b652540bc5942b351` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `c9a64c693894634497386d6f7843ab2e60f179c7` on `claude/pruning-handoff-review-c1opab`.
 

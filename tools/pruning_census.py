@@ -1376,6 +1376,30 @@ def main():
       len({s for (k, s) in by_sink if k == "BindGroupLayout"}))
     R("| distinct bind groups | %d |" % len({s for (k, s) in by_sink if k == "BindGroup"}))
     R()
+    # The registry header describes itself in prose, and prose does not
+    # recompile. Check the numbers it claims against the numbers that are
+    # true — a stale self-description is scaffolding too.
+    slot_n = len({("g%d" % r["group"], r["binding"]) for r in w.resources.values()})
+    hm = re.search(r"\((\d+)\s+\n?[^\n]*declarations over (\d+)\s*\n?[^\n]*slots", reg.raw)
+    if not hm:
+        hm = re.search(r"(\d+)\s+declarations over\s+(\d+)\s+slots", " ".join(reg.raw.split()))
+    if hm:
+        cd, cs = int(hm.group(1)), int(hm.group(2))
+        ok = (cd == len(w.resources) and cs == slot_n)
+        R("**The registry header describes itself, and the description is%s stale.**" %
+          ("" if not ok else " NOT"))
+        R.table(["claimed in `%s`'s header" % REGISTRY.split("/")[-1], "true at this HEAD"],
+                [("%d WGSL `@binding` declarations" % cd,
+                  "**%d**" % len(w.resources) + ("" if cd == len(w.resources) else "  ← differs")),
+                 ("%d distinct slots" % cs,
+                  "**%d**" % slot_n + ("" if cs == slot_n else "  ← differs"))])
+        if not ok:
+            R("Prose does not recompile. The header's own recount is off by %d and %d;" %
+              (abs(cd - len(w.resources)), abs(cs - slot_n)))
+            R("it is scaffolding of exactly the kind this campaign exists to find, and")
+            R("it is the file whose *whole purpose* is to be the single source of truth")
+            R("for these numbers. Recipe: this table.")
+            R()
 
     # the joined slot table
     res_readers = {}
@@ -1474,12 +1498,27 @@ def main():
         if not fns:
             r = w.resources[rn]
             bound = sorted({x["sink"] for x in refs if x["name"] == rn})
+            st, det = mirror_status(rn)
             unread.append(("%d/%d" % (r["group"], r["binding"]), rn, r["space"] or "handle",
-                           r["line"], ", ".join(bound) or "— (not bound in state.hpp)"))
+                           r["line"], ", ".join(bound) or "— (not bound in state.hpp)",
+                           st, det or "—"))
     R("Reachability is computed **from LIVE entry points only** — an entry point")
-    R("no pipeline names cannot keep a binding alive.")
+    R("no pipeline names cannot keep a binding alive. The web mirror is checked")
+    R("too, for the same reason it is checked in §1.2: a binding that is dead")
+    R("here and read there is not a free removal.")
     R()
-    R.table(["(group,binding)", "WGSL var", "space", "wgsl line", "bound in"], unread)
+    R.table(["(group,binding)", "WGSL var", "space", "wgsl line", "bound in",
+             "web mirror", "mirror detail"], unread)
+    unread_mirror = [u for u in unread if u[5].startswith("**")]
+    if unread_mirror:
+        R("⚠ **%s read by the web mirror.** The desktop finding stands — %s has" %
+          (", ".join("`%s`" % u[1] for u in unread_mirror),
+           "it" if len(unread_mirror) == 1 else "they have"))
+        R("zero references of any kind in `%s`, not merely zero reachable ones —" % WGSL)
+        R("but the binding cannot be retired from the *registry* while the mirror")
+        R("still binds it. Freeing the C++ buffer and layout entry is safe; taking")
+        R("the number back is not, until §5.3 is resolved.")
+        R()
     if not unread:
         R("Every declared binding is read by at least one function reachable from a")
         R("live entry point. **§2 yields no unread-binding prize either.**")
@@ -1748,7 +1787,8 @@ def main():
       (running, cpp_size, 100.0 * running / max(1, cpp_size)))
     R()
     R("> Caveat, stated plainly. (1) Removing a field mid-struct **re-flows every")
-    R("> offset after it in BOTH rooms**. The total above is the ceiling if all of")
+    R("> offset after it in ALL THREE rooms** — C++, WGSL, and the hand-written")
+    R("> JS packer of §3.3, which nothing checks. The total above is the ceiling if all of")
     R("> them go in ONE commit; taken one at a time the cost is a full mirror")
     R("> re-verification each time, and the `offsetof` witnesses in `state.hpp`")
     R("> are what makes that survivable at all. (2) The uniform is padded to its")
@@ -1802,7 +1842,11 @@ def main():
         body = web_u[lo_off:hi_off]
 
         rows, hazards, seen_line = [], [], set()
-        for wm in re.finditer(r"\b([fu])\s*\[\s*(\d+)\s*\]\s*=", body):
+        # `f[16] = …` AND the destructuring form `[f[16], f[17], f[18]] = …`,
+        # where only the LAST element is followed by `]` + `=`. Requiring `=`
+        # immediately after the subscript silently drops the other two — and
+        # in this file that hides all three sun_direction words.
+        for wm in re.finditer(r"\b([fu])\s*\[\s*(\d+)\s*\]\s*(?==|,|\])", body):
             idx = int(wm.group(2))
             byte = idx * 4
             ln = lineno(web_u, lo_off + wm.start())
@@ -2802,10 +2846,14 @@ def main():
                   "DELETE"))
 
     # Tier 3 — bindings
-    for slot, rn, space, ln, bound in unread:
+    for slot, rn, space, ln, bound, mst, mdet in unread:
         V.append(("3", rn, "binding %s" % slot, "%s:%d" % (WGSL, ln),
-                  "bound, zero reachable readers", "0",
-                  "Dawn enumeration probe", "GPU: one binding slot + its buffer",
+                  "bound, zero reachable readers" +
+                  ("; **read by the web mirror** (%s)" % mdet if mst.startswith("**") else ""),
+                  "0", "Dawn enumeration probe",
+                  "GPU: one binding slot + its buffer" +
+                  ("; the registry number cannot be retired while the mirror binds it"
+                   if mst.startswith("**") else ""),
                   "RULE(Jean)"))
 
     # Tier 3 — config fields
