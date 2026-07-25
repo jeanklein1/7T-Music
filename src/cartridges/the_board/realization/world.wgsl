@@ -286,7 +286,6 @@ fn cell_address(world_xz: vec2<f32>) -> vec2<i32> {
 // ring→copy. Skirt verts have vertex_index >= PATCH_GRID_VERT_COUNT; the
 // index geometry is appended by the C++ patch-IB gen (state.hpp).
 const PATCH_GRID_VERT_COUNT: u32 = PATCH_MESH_STRIDE * PATCH_MESH_STRIDE;  // 65*65 = 4225
-const PATCH_SKIRT_RING: u32 = 4u * PATCH_MESH_N;                           // 256 perimeter verts
 // Curtain depth (world units below the composited edge). For a heightfield
 // the curtain only ever shows at the crack it fills or, in a finite world,
 // the outer rim — so start generous; rig-tuned.
@@ -959,8 +958,6 @@ const PAWN_FIGURE_COUNT_WGSL: u32 = 14u;
 
 @group(0) @binding(112) var<uniform> agent_figure_profiles: array<PawnFigure, 14>;
 
-const FAM_REGULAR_W:  u32 = 0u;
-const FAM_SMOOTH_W:   u32 = 1u;
 const FAM_HERALDIC_W: u32 = 2u;
 
 // --- [STATE:camera] CameraState
@@ -2508,27 +2505,15 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 
 // --- Coupling bit flags
 
-const COUPLING_POLYPHONY_TO_AMPLITUDE:       u32 = 1u << 0u;
 const COUPLING_TERRAIN_TO_PAWN_Y:            u32 = 1u << 1u;
 const COUPLING_TERRAIN_TO_PAWN_TILT:         u32 = 1u << 2u;
 const COUPLING_PAWN_TO_CAMERA_TARGET:        u32 = 1u << 3u;
 const COUPLING_INPUT_MOVES_PLAYER:           u32 = 1u << 4u;
 const COUPLING_INPUT_ORBITS_CAMERA:          u32 = 1u << 5u;
 const COUPLING_INPUT_ZOOMS_CAMERA:           u32 = 1u << 6u;
-const COUPLING_PAWN_TO_PROXIMITY_FIELD:      u32 = 1u << 7u;   // (reserved — legacy proximity field)
-const COUPLING_SPHERE_TO_PROXIMITY_FIELD:    u32 = 1u << 8u;   // (reserved — legacy proximity field)
-const COUPLING_POLYPHONY_TO_CELL_COLOR:      u32 = 1u << 9u;   // (reserved — legacy cell system)
-const COUPLING_PAWN_TO_CELL_COLOR:           u32 = 1u << 10u;  // (reserved — legacy cell system)
-const COUPLING_SPHERE_TO_CELL_COLOR:         u32 = 1u << 11u;  // (reserved — legacy cell system)
 const COUPLING_POLYPHONY_TO_SPHERE_COLOR:    u32 = 1u << 12u;
-const COUPLING_SPHERE_TO_TERRAIN_TINT:       u32 = 1u << 13u;
 const COUPLING_TERRAIN_TO_SPHERE_HEIGHT:     u32 = 1u << 14u;
-const COUPLING_RANDOM_TO_CELL_GOALS:         u32 = 1u << 15u;  // (reserved — legacy cell system)
 const COUPLING_PAWN_TO_SUN_VP:               u32 = 1u << 16u;
-const COUPLING_PAWN_TO_ZONE_HEIGHT:          u32 = 1u << 17u;  // pawn suppresses zone extrusion
-const COUPLING_PAWN_TO_ZONE_COLOR:           u32 = 1u << 18u;  // pawn tints zone cell color
-const COUPLING_SPHERE_TO_ZONE_HEIGHT:        u32 = 1u << 19u;  // sphere suppresses zone extrusion
-const COUPLING_SPHERE_TO_ZONE_COLOR:         u32 = 1u << 20u;  // sphere tints zone cell color
 
 // --- Muting query functions
 
@@ -5949,11 +5934,9 @@ struct GoLZoneConfig {
 // --- GoL Zone Visual Parameters
 const GOL_COLOR_NEUTRAL:  u32 = 0u;  // no color change (height-only extrusion)
 const GOL_COLOR_LENS:     u32 = 1u;  // shift ground toward per-zone target color
-const GOL_COLOR_BLACKISH: u32 = 2u;  // darken toward near-black
 
 // Algorithm constants (must match CPU AlgorithmType::)
 const GOL_ALGORITHM_CONWAY: u32 = 0u;
-const GOL_ALGORITHM_PULSE:  u32 = 1u;
 
 // Boundary mode constants (must match CPU BoundaryMode::)
 const GOL_BOUNDARY_REFLECT: u32 = 0u;
@@ -5976,8 +5959,6 @@ const GOL_BLACK_DARK_RANGE: f32     = 0.20;  // per-cell variation on darkness
 const GOL_BLACK_R_SHIFT_RANGE: f32  = 0.10;  // red warmth/coolness (±half)
 const GOL_BLACK_G_SHIFT_RANGE: f32  = 0.06;  // green variation (±half)
 
-// --- Neutral mode (extrusion only — no terrain color change)
-const GOL_NEUTRAL_DARKEN: f32 = 0.75; // extrusion blocks: terrain × this
 
 // --- Per-cell hash for consistent randomization
 fn gol_cell_hash(cx: u32, cy: u32) -> u32 {
@@ -6119,7 +6100,6 @@ struct PawnAuraConfig {
     height_scale: f32,         // height contribution scale (world units)
 }
 
-const AURA_DELTA_CONVERGENT: u32 = 0u;
 const AURA_DELTA_RANDOM: u32 = 1u;
 
 // Helper: sample pawn aura with toroidal lookup and ghost rejection.
@@ -6253,7 +6233,6 @@ const GOL_COLOR_WEIGHTS_NO_HEIGHT = array<f32, 3>(0.00, 0.55, 0.45);
 // Property indices for zone parameter derivation (must match CPU GoLZoneProp / PulseZoneProp)
 const ZONE_PROP_TIER: u32         = 921u;
 const ZONE_PROP_COLOR_ROLL: u32   = 923u;
-const ZONE_PROP_DENSITY: u32      = 930u;
 const ZONE_PROP_TICK_PERIOD: u32  = 931u;
 const ZONE_PROP_SPRING: u32       = 932u;
 const ZONE_PROP_HEIGHT: u32       = 933u;
@@ -10027,11 +10006,6 @@ const AMG_FLOATS_PER_VERTEX: u32    = 10u;   // pos(3) + normal(3) + color(3) + 
 const AMG_MAX_SLOTS: u32            = 16u;
 const AMG_TOTAL_INDICES: u32        = 120000u; // 16 × 7500
 
-// Sub-mesh IDs
-const AMG_OUTER_SHELL: u32 = 0u;
-const AMG_INNER_SHELL: u32 = 1u;
-const AMG_FRONT_CAP: u32   = 2u;
-const AMG_BACK_CAP: u32    = 3u;
 
 // ── Parameter buffer ──────────────────────────────────────────────────
 //
@@ -10106,7 +10080,6 @@ fn amg_write_vertex(
 // arrays, then reused across all v-rows. This eliminates (sv) redundant
 // exp() evaluations per u-column (13× reduction for monumental arches).
 
-const AMG_MAX_PROFILE: u32 = 49u;  // max su+1 (monumental: 48+1)
 
 fn amg_gen_shell(
     p: ArchMeshParams, slot: u32,
@@ -10378,8 +10351,6 @@ const CMG_MAX_VERTS_PER_SLOT: u32    = 1500u;
 const CMG_MAX_INDICES_PER_SLOT: u32  = 6000u; // must be divisible by 3
 const CMG_FLOATS_PER_VERTEX: u32     = 10u;   // pos(3) + normal(3) + color(3) + index(1)
 const CMG_MAX_SLOTS: u32             = 32u;
-const CMG_MAX_PROFILE: u32           = 32u;    // max profile polyline points
-const CMG_MAX_DISCS: u32             = 12u;    // max horizontal disc records
 const CMG_PI: f32                    = 3.14159265359;
 
 // ── Parameter buffer ──────────────────────────────────────────────────
