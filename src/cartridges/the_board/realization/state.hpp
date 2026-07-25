@@ -659,7 +659,8 @@ namespace t7 {
             float    drift[4];   // 272
         };                       // 288
 
-        // Typed registry → GPU array. Call once at world-init (H4 wires the call).
+        // Typed registry → GPU array. Called once at world-init by
+        // GPUState::upload_pawn_figures.
         inline void pack_pawn_figures(GPUPawnFigure out[PAWN_FIGURE_COUNT]) {
             for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; ++i) {
                 const PawnFigureDef& f = PAWN_FIGURES[i];
@@ -1859,8 +1860,9 @@ namespace t7 {
                 writeArray(queue, agentTierGainsBuffer_, tiers, tier_count);
             }
 
-            // One-shot upload of the pawn figure table (values are constexpr; H4
-            // wires the boot call). Packs PAWN_FIGURES → GPUPawnFigure[14] → buffer.
+            // One-shot upload of the pawn figure table. Packs PAWN_FIGURES →
+            // GPUPawnFigure[PAWN_FIGURE_COUNT] → buffer. Called once at world-init
+            // from upload_agent_registries_to_gpu (bodies/agents.hpp).
             void upload_pawn_figures(wgpu::Queue& queue) {
                 GPUPawnFigure figs[PAWN_FIGURE_COUNT];
                 pack_pawn_figures(figs);

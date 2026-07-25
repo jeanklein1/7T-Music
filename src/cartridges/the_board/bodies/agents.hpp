@@ -667,9 +667,10 @@ inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved
                                float preserved_color_r, float preserved_color_g, float preserved_color_b,
                                uint32_t preserved_skin) {
     std::memset(as.slots, 0, sizeof(as.slots));
-    as.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
-    as.slots[0].pos_y = 0.0f;
-    as.slots[0].pos_z = 0.0f;
+    as.slots[0].pos_x   = Idle::PAWN_POS_X;
+    as.slots[0].pos_y   = Idle::PAWN_POS_Y;
+    as.slots[0].pos_z   = Idle::PAWN_POS_Z;
+    as.slots[0].heading = Idle::PAWN_HEADING;
     as.slots[0].orient_w = 1.0f;
     as.slots[0].is_active = 1u;
     as.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
