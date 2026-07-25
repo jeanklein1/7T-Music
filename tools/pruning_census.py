@@ -689,62 +689,145 @@ TAG_PATTERNS = [
     ("INTENT (bare)", re.compile(r"(?<!STATUS: )\bINTENT\b(?!\s*:)")),
 ]
 
-DECL_HINT = re.compile(
-    r"^\s*(?:inline\s+)?(?:static\s+)?(?:constexpr\s+)?"
-    r"(?:const\s+)?(?:struct|class|enum|namespace|fn|var|override|template|using|"
-    r"void|bool|int|float|double|uint\w*|std::|auto|wgpu::|[A-Z]\w*)\b.*?"
-    r"([A-Za-z_]\w*)\s*[\(\{=;:<]"
-)
+# WGSL attributes are not declarations. `@compute @workgroup_size(1)` above a
+# fn, or `@location(2)` on a struct member, will hand a naive "first line
+# below" rule the answers `workgroup_size` and `location`.
+ATTR_ONLY = re.compile(r"^\s*@[A-Za-z_]\w*(\s*\([^)]*\))?(\s*@[A-Za-z_]\w*(\s*\([^)]*\))?)*\s*$")
+DECL_NAME = [
+    re.compile(r"^\s*(?:@[^\n]*\s+)?fn\s+([A-Za-z_]\w*)\s*\("),          # wgsl fn
+    re.compile(r"^\s*struct\s+([A-Za-z_]\w*)"),                          # struct
+    re.compile(r"^\s*(?:const|override)\s+([A-Za-z_]\w*)"),              # wgsl const
+    re.compile(r"^\s*@group[^\n]*var\s*(?:<[^>]*>)?\s*([A-Za-z_]\w*)"),  # wgsl binding
+    re.compile(r"^\s*([A-Za-z_]\w*)\s*:\s*\S"),                          # struct member
+    re.compile(r"^\s*(?:inline\s+|static\s+|constexpr\s+|const\s+|virtual\s+)*"
+               r"[A-Za-z_][\w:<>,\s\*&]*?\b([A-Za-z_]\w*)\s*[\(\[=;]"),  # c++ declarator
+]
+FN_HEAD = re.compile(r"^fn\s+([A-Za-z_]\w*)\s*\(")
+CPP_FN_HEAD = re.compile(
+    r"^\s{0,20}(?:inline\s+|static\s+|virtual\s+|constexpr\s+)*"
+    r"[A-Za-z_][\w:<>,\s\*&]*?\b([A-Za-z_]\w*)\s*\([^;]*\)\s*(?:const\s*)?\{\s*$")
 
 
-def governed_symbol(lines, idx):
-    """The symbol a tag governs: the first declaration-shaped line at or
-    below the tag (a comment sits above what it describes), falling back to
-    the nearest one above. Reported as a best-effort attribution — the
-    file:line is the authority."""
-    for k in range(idx, min(idx + 8, len(lines))):
-        s = lines[k].strip()
-        if not s or s.startswith("//") or s.startswith("*"):
+def _is_comment(s):
+    t = s.strip()
+    return t.startswith("//") or t.startswith("*") or t.startswith("/*")
+
+
+def governed_symbol(lines, idx, wgsl=False):
+    """(governs, inside) — the declaration a tag sits above, and the function
+    it sits inside, if any.
+
+    Comments in this tree run to eight lines and more, and a fixed lookahead
+    window silently walks off the end of one and falls back to the line
+    ABOVE — which is a different symbol entirely. So comment and blank lines
+    are skipped without consuming budget, attribute-only lines are stepped
+    over, and the enclosing function is reported separately rather than being
+    confused with the governed one."""
+    governs = "(unattributed)"
+    scanned = 0
+    for k in range(idx, len(lines)):
+        s = lines[k]
+        if not s.strip() or _is_comment(s) or ATTR_ONLY.match(s):
             continue
-        m = DECL_HINT.match(lines[k])
+        scanned += 1
+        if scanned > 3:
+            break
+        for pat in DECL_NAME:
+            m = pat.match(s)
+            if m:
+                governs = m.group(1)
+                break
+        if governs != "(unattributed)":
+            break
+        governs = s.strip()[:48]
+        break
+    inside = None
+    for k in range(idx, -1, -1):
+        m = FN_HEAD.match(lines[k]) if wgsl else CPP_FN_HEAD.match(lines[k])
         if m:
-            return m.group(1)
-        m2 = re.search(r"\b([A-Za-z_]\w*)\s*[\(=:]", s)
-        if m2:
-            return m2.group(1)
-        return s[:60]
-    for k in range(idx - 1, max(idx - 6, -1), -1):
-        s = lines[k].strip()
-        if s and not s.startswith("//"):
-            m2 = re.search(r"\b([A-Za-z_]\w*)\s*[\(=:]", s)
-            if m2:
-                return m2.group(1)
-    return "(unattributed)"
+            inside = m.group(1)
+            break
+    return governs, inside
 
 
 def scan_status_tags(files):
+    """Tag sites, each CLASSIFIED. Not every match is a prunable tag:
+
+      LEGEND        — the lines that DEFINE the vocabulary (`STATUS: LATENT[name]
+                      — capability with a plausible future`). Pruning the
+                      legend is a category error.
+      tombstone-ref — the tag appears inside a `(X REMOVED — LATENT[y])`
+                      marker. The capability is already gone; the tag is a
+                      record of it, and belongs to §6.1, not here.
+      prose         — an unbracketed LATENT/INTENT inside an English sentence
+                      or a banner ("THE DRIVER'S INTENT ORGAN"). Not a tag.
+      TAG           — everything else: a live claim about a live symbol.
+
+    Only TAG rows are the ruling surface. The others are reported so the
+    count cannot be quietly inflated by them."""
     hits = []
     for path in files:
         raw = read(path)
         if not raw:
             continue
-        lines = raw.split("\n")
+        wgsl = path.endswith(".wgsl")
+        lines = splitlines_exact(raw)
+        # A LEGEND is a run of tag lines that define the vocabulary: three or
+        # more distinct tag words inside one 8-line window, each followed by a
+        # dash and a definition.
+        legend_lines = set()
+        defn = [i for i, l in enumerate(lines)
+                if re.search(r"STATUS:\s*[A-Z]+(\[\w[\w:-]*\])?\s*[—–-]{1,2}\s", l)]
+        for i in defn:
+            near = [j for j in defn if abs(j - i) <= 8]
+            if len(near) < 3:
+                continue
+            # Expand to the whole contiguous comment block: a legend's
+            # continuation lines ("… (the DRIVERLESS pattern, generalized)")
+            # carry tag words too, and are just as much dictionary.
+            for seed in near:
+                k = seed
+                while k > 0 and _is_comment(lines[k - 1]):
+                    k -= 1
+                j = seed
+                while j + 1 < len(lines) and _is_comment(lines[j + 1]):
+                    j += 1
+                legend_lines.update(range(k, j + 1))
         for i, line in enumerate(lines):
             for label, pat in TAG_PATTERNS:
                 m = pat.search(line)
                 if not m:
                     continue
-                # bare-INTENT / bare-LATENT only count inside a comment
-                if label in ("INTENT (bare)", "LATENT[...]") and "//" not in line[: m.start()] \
-                        and not line.strip().startswith(("*", "//")):
+                # every tag class must live inside a comment
+                before = line[: m.start()]
+                if "//" not in before and not line.strip().startswith(("*", "//", "/*")):
                     continue
+                if i in legend_lines:
+                    kind = "LEGEND (defines the vocabulary)"
+                elif TOMBSTONE_RE.search(line):
+                    kind = "tombstone-ref (already removed)"
+                elif label == "INTENT (bare)" and "INTENT[" not in line:
+                    kind = "**prose — not a tag**"
+                elif label == "LATENT[...]" and "LATENT[" not in line:
+                    kind = "**prose — not a tag**"
+                else:
+                    kind = "TAG"
+                gov, inside = governed_symbol(lines, i, wgsl)
+                # A tag in the file's opening banner governs the FILE, not the
+                # `#include` or `namespace` that happens to follow it.
+                if re.match(r"^\s*(?:#include|#pragma|namespace\b|using\b)", gov):
+                    gov = "(file header)"
+                if kind.startswith("LEGEND"):
+                    gov = "(the STATUS convention itself)"
                 hits.append(
                     {
                         "file": path,
                         "line": i + 1,
                         "tag": label,
+                        "kind": kind,
                         "text": line.strip()[:160],
-                        "symbol": governed_symbol(lines, i),
+                        "symbol": gov,
+                        "inside": inside,
                     }
                 )
                 break
@@ -1712,7 +1795,29 @@ def main():
     R("by DEFAULT. Every site below arrives with its own evidence row; Jean rules")
     R("the exceptions.")
     R()
-    R.table(["tag class", "sites"], sorted(counts.items()))
+    kinds = Counter(t["kind"] for t in tags)
+    actionable = [t for t in tags if t["kind"] == "TAG"]
+    R.table(["tag class", "raw sites", "of which TAG (the ruling surface)"],
+            sorted((c, n, sum(1 for t in actionable if t["tag"] == c))
+                   for c, n in counts.items()))
+    R("**%d raw matches, of which %d are the actual ruling surface.**" %
+      (len(tags), len(actionable)))
+    R("The rest are not tags at all, and counting them would inflate the")
+    R("campaign's apparent size:")
+    R()
+    R.table(["classification", "sites", "why it is not a prunable tag"],
+            [(k, n, {
+                "TAG": "— (this IS the surface)",
+                "LEGEND (defines the vocabulary)":
+                    "these lines DEFINE `STATUS: LATENT` / `STATUS: INTENT`; "
+                    "deleting them deletes the dictionary",
+                "tombstone-ref (already removed)":
+                    "the tag sits inside a `(X REMOVED — …)` marker; the "
+                    "capability is already gone — §6.1's business",
+                "**prose — not a tag**":
+                    "an unbracketed LATENT/INTENT in an English sentence or a "
+                    "banner, e.g. “THE DRIVER'S INTENT ORGAN”",
+            }.get(k, "—")) for k, n in sorted(kinds.items())])
     shallow = exists(".git/shallow")
     R("**Dating caveat — read this before treating age as evidence.** This")
     R("checkout is a **%sclone %s commits deep, rooted at %s**." %
@@ -1732,14 +1837,23 @@ def main():
     for t in tags:
         d = first_appearance(t["file"], t["text"][:60], dates_on)
         callers = "—"
-        if t["file"].endswith(".wgsl") and t["symbol"] in w.functions:
-            callers = str(len(w.callers_of(t["symbol"])))
-            if t["symbol"] not in all_entry_fns:
-                callers += " (UNREACHABLE)"
+        for cand in (t["symbol"], t["inside"]):
+            if t["file"].endswith(".wgsl") and cand in w.functions:
+                callers = "`%s`: %d" % (cand, len(w.callers_of(cand)))
+                if cand not in all_entry_fns:
+                    callers += " · **UNREACHABLE**"
+                break
         trows.append((t["file"].replace("src/cartridges/the_board/", "…/"), t["line"],
-                      t["symbol"], t["tag"], callers, d, t["text"][:70]))
-    R.table(["file", "line", "symbol", "tag", "reachable callers",
-             "first seen", "text"], trows)
+                      t["symbol"], t["inside"] or "—", t["tag"], t["kind"],
+                      callers, d, t["text"][:64]))
+    R("Symbol attribution is computed by skipping comment, blank and")
+    R("attribute-only lines to the first real declaration below the tag, and by")
+    R("separately reporting the function the tag sits *inside*. Both are")
+    R("best-effort; **`file:line` is the authority**, and where the two columns")
+    R("disagree the tag is worth reading by eye before ruling on it.")
+    R()
+    R.table(["file", "line", "governs", "inside fn", "tag", "class",
+             "reachable callers", "first seen", "text"], trows)
 
     # 4a — the policy surface
     R("### §4a — THE POLICY SURFACE (Tier 3)")
@@ -2479,11 +2593,17 @@ def main():
                    "after §3.3's third room is re-mapped")))
 
     # Tier 4 — status tags
-    tag_by_file = Counter(t["file"] for t in tags)
+    tag_by_file = Counter(t["file"] for t in actionable)
     for f, n in sorted(tag_by_file.items()):
         V.append(("4", "%d STATUS/LATENT/INTENT tags" % n, "comments", f,
                   "LATENT/INTENT", "n/a", "none-needed",
                   "none — comment text only", "DELETE-AND-RECORD (standing ruling)"))
+    nonactionable = [t for t in tags if t["kind"] != "TAG"]
+    if nonactionable:
+        V.append(("keep", "%d LEGEND / tombstone-ref / prose matches" % len(nonactionable),
+                  "comments", "tree-wide — §4", "not tags", "n/a", "none-needed",
+                  "deleting the legend deletes the vocabulary the other tags use",
+                  "KEEP — excluded from the ruling surface by classification"))
 
     # Tier 4 — tombstones of shipped campaigns
     for t, n in sorted(bycamp.items()):
@@ -2589,7 +2709,7 @@ def main():
             [("src/ excluding src/external/", len(all_src), src_lines),
              ("comment lines in the §6 scope", "—", tot_c),
              ("world.wgsl comment lines", "—", w.comment_lines),
-             ("status-tag sites (§4)", "—", len(tags)),
+             ("status-tag sites (§4, TAG class only)", "—", len(actionable)),
              ("tombstone sites (§6.1)", "—", len(tomb)),
              ("coordinate sites (§6.2, a floor)", "—", sum(coord.values())),
              ("dangling reference sites (§5.1)",
@@ -2597,7 +2717,7 @@ def main():
     R("**The honest payoff of PRUNING_1 is tree mass, not frames.** %d comment" % tot_c)
     R("lines in the §6 scope, of which the tag/tombstone/coordinate/dangling sites")
     R("above are the mechanically identifiable fraction (%d sites). Everything else" %
-      (len(tags) + len(tomb) + sum(coord.values()) +
+      (len(actionable) + len(tomb) + sum(coord.values()) +
        sum(1 for r in dang_rows if r[3].startswith("**"))))
     R("in §6 is prose that needs a human ruling, which is P4's job, not P0's.")
     R()

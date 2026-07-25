@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `ba575a00bc0af159839c282a9604b59744f8c0b5` |
-| HEAD (short) | `ba575a00bc0a` |
+| HEAD | `f8072f4244b9b337dee617efd02272cb63d6b59f` |
+| HEAD (short) | `f8072f4244b9` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 63 commits (root dated 2026-07-23) |
+| history depth | 64 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **37 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`ba575a00bc0a`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **38 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`f8072f4244b9`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -643,16 +643,27 @@ Standing ruling: `STATUS: LATENT` and `STATUS: INTENT` are DELETE-AND-RECORD
 by DEFAULT. Every site below arrives with its own evidence row; Jean rules
 the exceptions.
 
-| tag class | sites |
-|---|---|
-| DRIVERLESS | 10 |
-| INTENT (bare) | 8 |
-| LATENT[...] | 20 |
-| STATUS: INTENT | 8 |
-| STATUS: LATENT | 11 |
+| tag class | raw sites | of which TAG (the ruling surface) |
+|---|---|---|
+| DRIVERLESS | 10 | 9 |
+| INTENT (bare) | 8 | 4 |
+| LATENT[...] | 20 | 18 |
+| STATUS: INTENT | 8 | 7 |
+| STATUS: LATENT | 11 | 10 |
+
+**57 raw matches, of which 48 are the actual ruling surface.**
+The rest are not tags at all, and counting them would inflate the
+campaign's apparent size:
+
+| classification | sites | why it is not a prunable tag |
+|---|---|---|
+| **prose — not a tag** | 4 | an unbracketed LATENT/INTENT in an English sentence or a banner, e.g. “THE DRIVER'S INTENT ORGAN” |
+| LEGEND (defines the vocabulary) | 3 | these lines DEFINE `STATUS: LATENT` / `STATUS: INTENT`; deleting them deletes the dictionary |
+| TAG | 48 | — (this IS the surface) |
+| tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 63 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 64 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -663,65 +674,71 @@ run against this history at all. Rule on reachability, which §1–§3 measure
 directly, and treat the date column as decoration until someone runs this
 instrument on a full clone.
 
-| file | line | symbol | tag | reachable callers | first seen | text |
-|---|---|---|---|---|---|---|
-| …/bodies/cube_behaviors.hpp | 445 | CubeIdx | INTENT (bare) | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
-| …/bodies/grounded.hpp | 37 | PAWN_HEIGHT_UNITS | STATUS: LATENT | — | 2026-07-23 | // STATUS: LATENT[unused] — zero callers in the tree; |
-| …/bodies/grounded.hpp | 859 | BladeIdx | INTENT (bare) | — | 2026-07-23 | // (INTENT[services:themes] at its definition); the table rows point |
-| …/bodies/spheres.hpp | 86 | SphIdx | INTENT (bare) | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
-| …/contracts/ground_architecture.hpp | 11 | (unattributed) | STATUS: LATENT | — | 2026-07-23 | //   STATUS: LATENT[name]  — capability with a plausible future; kept |
-| …/contracts/ground_architecture.hpp | 13 | (unattributed) | DRIVERLESS | — | 2026-07-23 | //                           region is next worked (the DRIVERLESS |
-| …/contracts/ground_architecture.hpp | 15 | (unattributed) | STATUS: INTENT | — | 2026-07-23 | //   STATUS: INTENT        — declared, zero realization yet; kept in |
-| …/contracts/ground_architecture.hpp | 56 | STATUS | STATUS: INTENT | — | 2026-07-23 | CONTRIB_PAINTINGS_BASES   = 4,   // STATUS: INTENT — 0.0 stub (contrib |
-| …/contracts/ground_architecture.hpp | 57 | STATUS | STATUS: INTENT | — | 2026-07-23 | CONTRIB_VEGETATION_BASES  = 5,   // STATUS: INTENT — 0.0 stub (contrib |
-| …/contracts/ground_architecture.hpp | 97 | { CONTRIB_PYRAMIDS,         CONTRIB_PAINTINGS_BASES  }, | STATUS: INTENT | — | 2026-07-23 | // STATUS: INTENT — endpoints are 0.0 stubs today; real composition |
-| …/contracts/ground_architecture.hpp | 125 | (unattributed) | STATUS: LATENT | — | 2026-07-23 | // STATUS: LATENT[policy-surface] (all three placement rows) — the |
-| …/contracts/ground_architecture.hpp | 164 | { POLICY_FLYER, "flyer", | LATENT[...] | — | 2026-07-23 | // LATENT[policy-surface] tag. |
-| …/contracts/ground_architecture.hpp | 221 | { POLICY_CELESTIAL, "celestial", | STATUS: INTENT | — | 2026-07-23 | // STATUS: INTENT — declared, zero realization ("none today"); |
-| …/contracts/roster.hpp | 12 | (unattributed) | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared]. |
-| …/contracts/roster.hpp | 31 | (unattributed) | LATENT[...] | — | 2026-07-23 | // LATENT[roster-split:photographer]: the photographer (capture cadenc |
-| …/contracts/roster.hpp | 48 | t7 | LATENT[...] | — | 2026-07-23 | //   LATENT[gate-a-shared] with the retirement condition; NO-RES piece |
-| …/contracts/spine_state.hpp | 100 | InputState | INTENT (bare) | — | 2026-07-23 | // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ══════════════════════ |
-| …/contracts/spine_state.hpp | 179 | fog_density | INTENT (bare) | — | 2026-07-23 | // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO readers — |
-| …/direction/input.hpp | 348 | update_movement_intent | INTENT (bare) | — | 2026-07-23 | // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════ |
-| …/realization/state.hpp | 3056 | ribbonBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + readbac |
-| …/realization/state.hpp | 3069 | spotLightArrayBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffer_ + s |
-| …/realization/state.hpp | 3136 | paintingSlotsBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/photog |
-| …/realization/state.hpp | 3319 | vector | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppable, bu |
-| …/realization/state.hpp | 3348 | J | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+droppa |
-| …/realization/state.hpp | 3425 | archVertexBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pipelines |
-| …/realization/state.hpp | 3470 | columnVertexBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 pipelin |
-| …/realization/state.hpp | 3509 | palmVertexBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+droppabl |
-| …/realization/state.hpp | 3537 | cactusVertexBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+droppa |
-| …/realization/state.hpp | 3563 | bladeVertexBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+droppab |
-| …/realization/state.hpp | 3639 | zoneConfigBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLifeText |
-| …/realization/state.hpp | 3693 | pawnAuraConfigBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers + Paw |
-| …/realization/state.hpp | 3715 | orbStateBuffer_ | LATENT[...] | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB + Orb |
-| …/realization/world.wgsl | 790 | aspect_ratio | DRIVERLESS | — | 2026-07-23 | // DRIVERLESS: no shader consumer since M1-C. Kept as infrastructure; |
-| …/realization/world.wgsl | 1130 | tile_modifiers_at | STATUS: LATENT | 1 | 2026-07-23 | // STATUS: LATENT[tile-activation] — the .z channel (activation_scale) |
-| …/realization/world.wgsl | 1791 | (unattributed) | DRIVERLESS | — | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mode tri |
-| …/realization/world.wgsl | 2577 | (unattributed) | DRIVERLESS | — | 2026-07-23 | // DRIVERLESS since gen-1 retirement (the 8th capability — raw |
-| …/realization/world.wgsl | 2874 | contrib_gol_suppression_at | STATUS: LATENT | 0 (UNREACHABLE) | 2026-07-23 | // STATUS: LATENT[policy-surface] — the standalone form has zero calle |
-| …/realization/world.wgsl | 3058 | (unattributed) | STATUS: INTENT | — | 2026-07-23 | //   POLICY_CELESTIAL           empty — ground is 0.0 (STATUS: INTENT) |
-| …/realization/world.wgsl | 3210 | contrib_radial_pulses_at | DRIVERLESS | 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the boot |
-| …/realization/world.wgsl | 3309 | query_ground_placement_pyramid | STATUS: LATENT | 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no live |
-| …/realization/world.wgsl | 3326 | query_ground_placement_painting | STATUS: LATENT | 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no live |
-| …/realization/world.wgsl | 3342 | query_ground_placement_vegetation | STATUS: LATENT | 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no live |
-| …/realization/world.wgsl | 3532 | query_ground_celestial | STATUS: INTENT | 0 (UNREACHABLE) | 2026-07-23 | // STATUS: INTENT — declared, zero realization; the row says so too. |
-| …/realization/world.wgsl | 3544 | query_ground_flyer_gradient | STATUS: LATENT | 0 (UNREACHABLE) | 2026-07-23 | // STATUS: LATENT[policy-surface] — zero callers; plausible consumer: |
-| …/realization/world.wgsl | 4304 | location | LATENT[...] | — | 2026-07-23 | // (complexity varying REMOVED — LATENT[complexity], read by no FS) |
-| …/realization/world.wgsl | 4407 | patch_uv | LATENT[...] | — | 2026-07-23 | // (out.complexity REMOVED — the LATENT[complexity] varying; |
-| …/realization/world.wgsl | 6093 | freq | DRIVERLESS | — | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the boot |
-| …/realization/world.wgsl | 6119 | id | STATUS: INTENT | — | 2026-07-23 | // (Jean): the zones' own coupling pass is coming. STATUS: INTENT — |
-| …/realization/world.wgsl | 6627 | (unattributed) | INTENT (bare) | — | (not in history) | // the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSITION —  |
-| …/realization/world.wgsl | 6682 | agent_settle | INTENT (bare) | 1 | (not in history) | // contact gather, so the speed cap governs INTENT, not imposition — a |
-| …/realization/world.wgsl | 7857 | color | DRIVERLESS | — | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
-| …/realization/world.wgsl | 8203 | color | DRIVERLESS | — | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
-| …/realization/world.wgsl | 8378 | textureStore | LATENT[...] | — | 2026-07-23 | // The .w channel is unused (was LATENT[complexity], removed by the hu |
-| …/realization/world.wgsl | 9402 | (unattributed) | STATUS: LATENT | — | 2026-07-23 | // live caller today (STATUS: LATENT[policy-surface]): CPU spawn |
-| …/realization/world.wgsl | 11949 | force_radial | DRIVERLESS | — | 2026-07-23 | // DRIVERLESS since gen-1 retirement (force/color/flock/speed coupling |
-| …/surface/terrain_looks.hpp | 87 | (unattributed) | DRIVERLESS | — | 2026-07-23 | //   nothing else authors them today (the mode trio is DRIVERLESS sinc |
-| …/surface/tile_world.hpp | 119 | activation_scale | STATUS: LATENT | — | 2026-07-23 | // STATUS: LATENT[tile-activation] — authored here (per-archetype |
+Symbol attribution is computed by skipping comment, blank and
+attribute-only lines to the first real declaration below the tag, and by
+separately reporting the function the tag sits *inside*. Both are
+best-effort; **`file:line` is the authority**, and where the two columns
+disagree the tag is worth reading by eye before ruling on it.
+
+| file | line | governs | inside fn | tag | class | reachable callers | first seen | text |
+|---|---|---|---|---|---|---|---|---|
+| …/bodies/cube_behaviors.hpp | 445 | CubeIdx | toggle_cube_kite_mode | INTENT (bare) | TAG | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
+| …/bodies/grounded.hpp | 37 | PAWN_HEIGHT_UNITS | — | STATUS: LATENT | TAG | — | 2026-07-23 | // STATUS: LATENT[unused] — zero callers in the tree; |
+| …/bodies/grounded.hpp | 859 | BladeIdx | prepare_arch_mesh_gen | INTENT (bare) | TAG | — | 2026-07-23 | // (INTENT[services:themes] at its definition); the table rows p |
+| …/bodies/spheres.hpp | 86 | SphIdx | clear_spheres | INTENT (bare) | TAG | — | 2026-07-23 | // (INTENT[services:themes] at its definition). |
+| …/contracts/ground_architecture.hpp | 11 | (the STATUS convention itself) | — | STATUS: LATENT | LEGEND (defines the vocabulary) | — | 2026-07-23 | //   STATUS: LATENT[name]  — capability with a plausible future; |
+| …/contracts/ground_architecture.hpp | 13 | (the STATUS convention itself) | — | DRIVERLESS | LEGEND (defines the vocabulary) | — | 2026-07-23 | //                           region is next worked (the DRIVERLE |
+| …/contracts/ground_architecture.hpp | 15 | (the STATUS convention itself) | — | STATUS: INTENT | LEGEND (defines the vocabulary) | — | 2026-07-23 | //   STATUS: INTENT        — declared, zero realization yet; kep |
+| …/contracts/ground_architecture.hpp | 56 | CONTRIB_PAINTINGS_BASES   = 4,   // STATUS: INTE | — | STATUS: INTENT | TAG | — | 2026-07-23 | CONTRIB_PAINTINGS_BASES   = 4,   // STATUS: INTENT — 0.0 stub (c |
+| …/contracts/ground_architecture.hpp | 57 | CONTRIB_VEGETATION_BASES  = 5,   // STATUS: INTE | — | STATUS: INTENT | TAG | — | 2026-07-23 | CONTRIB_VEGETATION_BASES  = 5,   // STATUS: INTENT — 0.0 stub (c |
+| …/contracts/ground_architecture.hpp | 97 | { CONTRIB_PYRAMIDS,         CONTRIB_PAINTINGS_BA | — | STATUS: INTENT | TAG | — | 2026-07-23 | // STATUS: INTENT — endpoints are 0.0 stubs today; real composit |
+| …/contracts/ground_architecture.hpp | 125 | { POLICY_PLACEMENT_PYRAMID, "placement_pyramid", | — | STATUS: LATENT | TAG | — | 2026-07-23 | // STATUS: LATENT[policy-surface] (all three placement rows) — t |
+| …/contracts/ground_architecture.hpp | 164 | { POLICY_FLYER, "flyer", | — | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[policy-surface] tag. |
+| …/contracts/ground_architecture.hpp | 221 | { POLICY_CELESTIAL, "celestial", | — | STATUS: INTENT | TAG | — | 2026-07-23 | // STATUS: INTENT — declared, zero realization ("none today"); |
+| …/contracts/roster.hpp | 12 | (file header) | — | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared]. |
+| …/contracts/roster.hpp | 31 | (file header) | — | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[roster-split:photographer]: the photographer (capture  |
+| …/contracts/roster.hpp | 48 | (file header) | — | LATENT[...] | TAG | — | 2026-07-23 | //   LATENT[gate-a-shared] with the retirement condition; NO-RES |
+| …/contracts/spine_state.hpp | 100 | InputState | — | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ═════════════════ |
+| …/contracts/spine_state.hpp | 179 | fog_density | — | INTENT (bare) | TAG | — | 2026-07-23 | // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO rea |
+| …/direction/input.hpp | 348 | update_movement_intent | on_scroll | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════ |
+| …/realization/state.hpp | 3056 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
+| …/realization/state.hpp | 3069 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
+| …/realization/state.hpp | 3136 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
+| …/realization/state.hpp | 3319 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
+| …/realization/state.hpp | 3348 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
+| …/realization/state.hpp | 3425 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
+| …/realization/state.hpp | 3470 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
+| …/realization/state.hpp | 3509 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
+| …/realization/state.hpp | 3537 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
+| …/realization/state.hpp | 3563 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
+| …/realization/state.hpp | 3639 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
+| …/realization/state.hpp | 3693 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
+| …/realization/state.hpp | 3715 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
+| …/realization/world.wgsl | 790 | stats | terrain_height_and_complexity | DRIVERLESS | TAG | `terrain_height_and_complexity`: 1 | 2026-07-23 | // DRIVERLESS: no shader consumer since M1-C. Kept as infrastruc |
+| …/realization/world.wgsl | 1130 | tile_modifiers_at | tile_grid_lookup | STATUS: LATENT | TAG | `tile_modifiers_at`: 1 | 2026-07-23 | // STATUS: LATENT[tile-activation] — the .z channel (activation_ |
+| …/realization/world.wgsl | 1791 | PALETTE_DOMINANT_WEIGHT | discrete_cell_color_at_tier | DRIVERLESS | TAG | `discrete_cell_color_at_tier`: 3 | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mo |
+| …/realization/world.wgsl | 2577 | coupling_signal_polyphony_to_sphere_color | point_camera_hosted | DRIVERLESS | TAG | `coupling_signal_polyphony_to_sphere_color`: 2 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (the 8th capability — raw |
+| …/realization/world.wgsl | 2874 | contrib_gol_suppression_at | contrib_gol_zones_at | STATUS: LATENT | TAG | `contrib_gol_suppression_at`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: LATENT[policy-surface] — the standalone form has zero |
+| …/realization/world.wgsl | 3058 | contrib_paintings_base_at | contrib_gol_suppression_at | STATUS: INTENT | TAG | `contrib_paintings_base_at`: 0 · **UNREACHABLE** | 2026-07-23 | //   POLICY_CELESTIAL           empty — ground is 0.0 (STATUS: I |
+| …/realization/world.wgsl | 3210 | contrib_radial_pulses_at | ground_formed_with_complexity | DRIVERLESS | TAG | `contrib_radial_pulses_at`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
+| …/realization/world.wgsl | 3309 | query_ground_placement_pyramid | contrib_pawn_aura_at_self | STATUS: LATENT | TAG | `query_ground_placement_pyramid`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
+| …/realization/world.wgsl | 3326 | query_ground_placement_painting | query_ground_placement_pyramid | STATUS: LATENT | TAG | `query_ground_placement_painting`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
+| …/realization/world.wgsl | 3342 | query_ground_placement_vegetation | query_ground_placement_painting | STATUS: LATENT | TAG | `query_ground_placement_vegetation`: 1 | 2026-07-23 | // STATUS: LATENT[policy-surface] — declared placement query, no |
+| …/realization/world.wgsl | 3532 | query_ground_celestial | query_ground_walker_agent | STATUS: INTENT | TAG | `query_ground_celestial`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: INTENT — declared, zero realization; the row says so  |
+| …/realization/world.wgsl | 3544 | query_ground_flyer_gradient | query_ground_celestial | STATUS: LATENT | TAG | `query_ground_flyer_gradient`: 0 · **UNREACHABLE** | 2026-07-23 | // STATUS: LATENT[policy-surface] — zero callers; plausible cons |
+| …/realization/world.wgsl | 4304 | @location(2) patch_uv: vec2<f32>,    // UV withi | shade_lit | LATENT[...] | tombstone-ref (already removed) | `shade_lit`: 3 | 2026-07-23 | // (complexity varying REMOVED — LATENT[complexity], read by no  |
+| …/realization/world.wgsl | 4407 | out.patch_uv = uv; | patch_terrain_vs | LATENT[...] | tombstone-ref (already removed) | `patch_terrain_vs`: 0 | 2026-07-23 | // (out.complexity REMOVED — the LATENT[complexity] varying; |
+| …/realization/world.wgsl | 6093 | freq | pulse_cell_target | DRIVERLESS | TAG | `pulse_cell_target`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
+| …/realization/world.wgsl | 6119 | id | gol_composite_cell_color | STATUS: INTENT | TAG | `gol_composite_cell_color`: 1 | 2026-07-23 | // (Jean): the zones' own coupling pass is coming. STATUS: INTEN |
+| …/realization/world.wgsl | 6627 | agent_post_step | step_trigger | INTENT (bare) | **prose — not a tag** | `agent_post_step`: 9 | (not in history) | // the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSIT |
+| …/realization/world.wgsl | 6682 | agent_settle | agent_post_step | INTENT (bare) | **prose — not a tag** | `agent_settle`: 1 | (not in history) | // contact gather, so the speed cap governs INTENT, not impositi |
+| …/realization/world.wgsl | 7857 | floating_entities.entities[slot].color = couplin | update_sphere | DRIVERLESS | TAG | `update_sphere`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
+| …/realization/world.wgsl | 8203 | floating_entities.entities[slot].color = couplin | update_cube | DRIVERLESS | TAG | `update_cube`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
+| …/realization/world.wgsl | 8378 | textureStore(patch_heightfield_array_write, texe | generate_patch_gradients | LATENT[...] | TAG | `generate_patch_gradients`: 0 | 2026-07-23 | // The .w channel is unused (was LATENT[complexity], removed by  |
+| …/realization/world.wgsl | 9402 | compute_entity_placement | compute_photographer_vp | STATUS: LATENT | TAG | `compute_entity_placement`: 0 | 2026-07-23 | // live caller today (STATUS: LATENT[policy-surface]): CPU spawn |
+| …/realization/world.wgsl | 11949 | force_radial | shadow_blade_cluster_vs | DRIVERLESS | TAG | `shadow_blade_cluster_vs`: 0 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (force/color/flock/speed co |
+| …/surface/terrain_looks.hpp | 87 | REST_TERRAIN_TIME | — | DRIVERLESS | TAG | — | 2026-07-23 | //   nothing else authors them today (the mode trio is DRIVERLES |
+| …/surface/tile_world.hpp | 119 | activation_scale | — | STATUS: LATENT | TAG | — | 2026-07-23 | // STATUS: LATENT[tile-activation] — authored here (per-archetyp |
 
 ### §4a — THE POLICY SURFACE (Tier 3)
 
@@ -1013,7 +1030,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `ba575a00bc0a`):
+exists (`src/cartridges/the_chord/` is absent at `f8072f4244b9`):
 
 | line | text |
 |---|---|
@@ -1074,7 +1091,7 @@ mirror doctrine for the duration of PRUNING_1.
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `ba575a00bc0a` — every line above
+`src/cartridges/backup_board/` does not exist at `f8072f4244b9` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1475,14 +1492,14 @@ anything short of certain is `RULE(Jean)`.
 | 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/cube_behaviors.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 2 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/grounded.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/spheres.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 9 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/ground_architecture.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 6 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/ground_architecture.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 3 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/roster.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 2 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/spine_state.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/direction/input.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/spine_state.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 13 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/realization/state.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 23 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/realization/world.wgsl | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 19 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/realization/world.wgsl | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/surface/terrain_looks.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/surface/tile_world.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| keep | 9 LEGEND / tombstone-ref / prose matches | comments | tree-wide — §4 | not tags | n/a | none-needed | deleting the legend deletes the vocabulary the other tags use | KEEP — excluded from the ruling surface by classification |
 | 4 | 1 tombstones citing CONTACT_4 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 2 tombstones citing CONTACT_5 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 2 tombstones citing TRUEBAND_CONTACT_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
@@ -1492,7 +1509,7 @@ anything short of certain is `RULE(Jean)`.
 | 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3810 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
 | keep | CONTRIBUTOR_DAG + its closure static_asserts | contracts | src/cartridges/the_board/contracts/ground_architecture.hpp | load-bearing | compile-time | n/a | n/a | KEEP — the one declared, checked statement of the composition |
 
-Verdict rows: **115** (DELETE 87 · RULE(Jean) 27 · KEEP 1).
+Verdict rows: **115** (DELETE 86 · RULE(Jean) 27 · KEEP 2).
 
 ---
 
@@ -1536,14 +1553,14 @@ cost of this tree is the single translation unit, not the shader.
 | src/ excluding src/external/ | 84 | 49602 |
 | comment lines in the §6 scope | — | 10829 |
 | world.wgsl comment lines | — | 3883 |
-| status-tag sites (§4) | — | 57 |
+| status-tag sites (§4, TAG class only) | — | 48 |
 | tombstone sites (§6.1) | — | 76 |
 | coordinate sites (§6.2, a floor) | — | 117 |
 | dangling reference sites (§5.1) | — | 24 |
 
 **The honest payoff of PRUNING_1 is tree mass, not frames.** 10829 comment
 lines in the §6 scope, of which the tag/tombstone/coordinate/dangling sites
-above are the mechanically identifiable fraction (274 sites). Everything else
+above are the mechanically identifiable fraction (265 sites). Everything else
 in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 
 ---
@@ -1561,5 +1578,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `ba575a00bc0af159839c282a9604b59744f8c0b5` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `f8072f4244b9b337dee617efd02272cb63d6b59f` on `claude/pruning-handoff-review-c1opab`.
 
