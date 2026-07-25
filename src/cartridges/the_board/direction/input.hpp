@@ -214,15 +214,6 @@ void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <->
 #ifndef GLFW_KEY_V
 #define GLFW_KEY_V  86
 #endif
-#ifndef GLFW_KEY_F1
-#define GLFW_KEY_F1  290
-#endif
-#ifndef GLFW_KEY_F2
-#define GLFW_KEY_F2  291
-#endif
-#ifndef GLFW_KEY_F3
-#define GLFW_KEY_F3  292
-#endif
 #ifndef GLFW_KEY_F4
 #define GLFW_KEY_F4  293
 #endif
@@ -292,9 +283,6 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(agent_state, &agents_deps, q);  break;
 
     // ── Diagnostics (function keys) ──────────────────────────────
-    case GLFW_KEY_F1: cycle_agent_behavior_override(agent_state, &agents_deps, q);  break;
-    case GLFW_KEY_F2: cycle_agent_tier_override(agent_state, &agents_deps, q);      break;
-    case GLFW_KEY_F3: force_respawn_population(agent_state, &agents_deps, q);       break;
     case GLFW_KEY_F4: cycle_cube_behavior_override(cube_behaviors_state, &cube_deps, q);   break;
     case GLFW_KEY_F5: cycle_floater_coordination(cube_behaviors_state, &cube_deps);        break;
     case GLFW_KEY_F6: corral_cubes(cube_behaviors_state, &cube_deps, q);                   break;

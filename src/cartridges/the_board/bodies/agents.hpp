@@ -271,13 +271,9 @@ static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_
 
 // ═══ AGENT MODULE STATE ══════════════════════════════════════════
 
-inline constexpr uint32_t AGENT_OVERRIDE_NONE = 0xFFFFFFFFu;
-
 struct AgentState {
     GPUAgentState slots[Dim::MAX_AGENTS]            = {};
     uint32_t      respawn_counters[Dim::MAX_AGENTS] = {};
-    uint32_t      behavior_override                 = AGENT_OVERRIDE_NONE;
-    uint32_t      tier_override                     = AGENT_OVERRIDE_NONE;
     float         last_census_dump                  = -999.0f;
 };
 
@@ -296,10 +292,6 @@ void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
                             wgpu::Queue& queue);
 // Player commands
 void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
-// Diagnostic cycling (wired in direction/input.hpp)
-void cycle_agent_behavior_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
-void cycle_agent_tier_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
-void force_respawn_population(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 void seed_player_body(AgentState& as, AgentsDeps* c);
 void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
                         float preserved_color_r, float preserved_color_g, float preserved_color_b,
@@ -369,27 +361,17 @@ inline void populate_agent_slot_(const AgentState& as,
                           uint32_t agent_seed,
                           float beh_sum, float tier_sum,
                           float center_x, float center_z) {
-    // ── Roll behavior (or honor override) ─────────────────────────
-    uint32_t behavior_id = AGENT_BEHAVIOR_RANDOM_WALK;
-    if (as.behavior_override != AGENT_OVERRIDE_NONE) {
-        behavior_id = as.behavior_override;
-    } else {
-        float w[AGENT_BEHAVIOR_COUNT];
-        for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
-            w[b] = pop.behavior_weights[b] / beh_sum;
-        behavior_id = select_tier(agent_seed, 1u, w, AGENT_BEHAVIOR_COUNT);
-    }
+    // ── Roll behavior ─────────────────────────────────────────────
+    float w_beh[AGENT_BEHAVIOR_COUNT];
+    for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
+        w_beh[b] = pop.behavior_weights[b] / beh_sum;
+    uint32_t behavior_id = select_tier(agent_seed, 1u, w_beh, AGENT_BEHAVIOR_COUNT);
 
-    // ── Roll tier (or honor override) ─────────────────────────────
-    uint32_t tier_idx = AGENT_TIER_WORKER;
-    if (as.tier_override != AGENT_OVERRIDE_NONE) {
-        tier_idx = as.tier_override;
-    } else {
-        float w[AGENT_TIER_COUNT];
-        for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++)
-            w[t] = pop.tier_weights[t] / tier_sum;
-        tier_idx = select_tier(agent_seed, 2u, w, AGENT_TIER_COUNT);
-    }
+    // ── Roll tier ─────────────────────────────────────────────────
+    float w_tier[AGENT_TIER_COUNT];
+    for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++)
+        w_tier[t] = pop.tier_weights[t] / tier_sum;
+    uint32_t tier_idx = select_tier(agent_seed, 2u, w_tier, AGENT_TIER_COUNT);
 
     // ── Sample annulus position (uniform area distribution) ───────
     const float two_pi = 6.28318530718f;
@@ -613,80 +595,6 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
               << ", dist " << std::sqrt(best_d2) << ")\n";
 }
 
-// ═══ DIAGNOSTIC CYCLING ══════════════════════════════════════════
-
-inline void apply_agent_overrides_(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
-    for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
-        auto& a = as.slots[s];
-        if (a.is_active == 0u) continue;
-        bool changed = false;
-        if (as.behavior_override != AGENT_OVERRIDE_NONE
-            && a.behavior_id != as.behavior_override) {
-            a.behavior_id = as.behavior_override;
-            changed = true;
-        }
-        if (as.tier_override != AGENT_OVERRIDE_NONE
-            && a.tier_idx != as.tier_override) {
-            a.tier_idx = as.tier_override;
-            changed = true;
-        }
-        if (changed) {
-            c->gpuState_.upload_agent_slot(queue, s, &as.slots[s]);
-        }
-    }
-}
-
-inline void cycle_agent_behavior_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
-    if (as.behavior_override == AGENT_OVERRIDE_NONE) {
-        as.behavior_override = AGENT_BEHAVIOR_RANDOM_WALK;
-    } else {
-        uint32_t next = as.behavior_override + 1u;
-        as.behavior_override = (next >= AGENT_BEHAVIOR_COUNT)
-            ? AGENT_OVERRIDE_NONE : next;
-    }
-
-    apply_agent_overrides_(as, c, queue);
-
-    if (as.behavior_override == AGENT_OVERRIDE_NONE) {
-        std::cout << "[Agents] behavior override: none\n";
-    } else {
-        std::cout << "[Agents] behavior override: "
-                  << AGENT_BEHAVIOR_NAMES[as.behavior_override] << "\n";
-    }
-}
-
-// Cycle: NONE → WORKER → SCOUT → SENTINEL → LEADER → NONE.
-inline void cycle_agent_tier_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
-    if (as.tier_override == AGENT_OVERRIDE_NONE) {
-        as.tier_override = AGENT_TIER_WORKER;
-    } else {
-        uint32_t next = as.tier_override + 1u;
-        as.tier_override = (next >= AGENT_TIER_COUNT)
-            ? AGENT_OVERRIDE_NONE : next;
-    }
-
-    apply_agent_overrides_(as, c, queue);
-
-    if (as.tier_override == AGENT_OVERRIDE_NONE) {
-        std::cout << "[Agents] tier override: none\n";
-    } else {
-        std::cout << "[Agents] tier override: "
-                  << AGENT_TIER_NAMES[as.tier_override] << "\n";
-    }
-}
-
-inline void force_respawn_population(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
-    uint32_t cleared = 0;
-    for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
-        if (as.slots[s].is_active == 0u) continue;
-        as.slots[s].is_active = 0u;
-        c->gpuState_.upload_agent_slot(queue, s, &as.slots[s]);
-        cleared++;
-    }
-    std::cout << "[Agents] force-respawn cleared " << cleared
-              << " slot(s); refill on next frame\n";
-}
-
 // ═══ DIAGNOSTIC: agent census ═════════════════════════════════════
 
 inline void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger) {
@@ -725,21 +633,6 @@ inline void dump_agent_census(const AgentState& as, const AgentsDeps* c, const c
         first = false;
     }
     std::cout << "}";
-
-    if (as.behavior_override != AGENT_OVERRIDE_NONE
-        || as.tier_override != AGENT_OVERRIDE_NONE) {
-        std::cout << " override:{";
-        bool first_o = true;
-        if (as.behavior_override != AGENT_OVERRIDE_NONE) {
-            std::cout << "beh=" << AGENT_BEHAVIOR_NAMES[as.behavior_override];
-            first_o = false;
-        }
-        if (as.tier_override != AGENT_OVERRIDE_NONE) {
-            if (!first_o) std::cout << " ";
-            std::cout << "tier=" << AGENT_TIER_NAMES[as.tier_override];
-        }
-        std::cout << "}";
-    }
 
     std::cout << "\n";
 }
