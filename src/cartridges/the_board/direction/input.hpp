@@ -154,35 +154,8 @@ void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <->
 
 // ═══ GLFW KEY CODE FALLBACKS ═════════════════════════════════════
 
-#ifndef GLFW_KEY_KP_0
-#define GLFW_KEY_KP_0  320
-#endif
-#ifndef GLFW_KEY_KP_1
-#define GLFW_KEY_KP_1  321
-#endif
-#ifndef GLFW_KEY_KP_2
-#define GLFW_KEY_KP_2  322
-#endif
-#ifndef GLFW_KEY_KP_3
-#define GLFW_KEY_KP_3  323
-#endif
-#ifndef GLFW_KEY_KP_4
-#define GLFW_KEY_KP_4  324
-#endif
-#ifndef GLFW_KEY_KP_5
-#define GLFW_KEY_KP_5  325
-#endif
-#ifndef GLFW_KEY_KP_6
-#define GLFW_KEY_KP_6  326
-#endif
-#ifndef GLFW_KEY_KP_7
-#define GLFW_KEY_KP_7  327
-#endif
 #ifndef GLFW_KEY_KP_8
 #define GLFW_KEY_KP_8  328
-#endif
-#ifndef GLFW_KEY_KP_9
-#define GLFW_KEY_KP_9  329
 #endif
 #ifndef GLFW_KEY_KP_DECIMAL
 #define GLFW_KEY_KP_DECIMAL  330
@@ -253,9 +226,6 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_D: c->keys_.right = true;    break;
 
     // ── World / aura toggles ─────────────────────────────────────
-    case GLFW_KEY_1:
-        c->gpuState_.toggle_freeze_sphere();
-        break;
     case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door
     case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door
     case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly)

@@ -2412,12 +2412,6 @@ namespace t7 {
                 configDirty_ = true;
             }
 
-            // Sphere freeze
-            void toggle_freeze_sphere() {
-                config_.freeze_sphere = config_.freeze_sphere ? 0 : 1;
-                configDirty_ = true;
-            }
-
             void set_config_dynamic(bool d) { configDynamic_ = d; }
             void mark_config_dirty() { configDirty_ = true; }
 
