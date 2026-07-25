@@ -6,8 +6,8 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `d54119a1cc8e` |
-| branch | `claude/pruning-handoff-review-c1opab` |
+| generated at HEAD | `99c9f9224045` |
+| branch | `master` |
 | audited state date | 2026-07-25 |
 | history depth | 62 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
@@ -21,8 +21,8 @@ disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and the audited state is **36 commit(s)
-> ahead / 0 behind** it. Every count in this report is taken at
+> `origin/master` is `99c9f9224045`, and the audited state is **0 commit(s)
+> ahead / 15 behind** it. Every count in this report is taken at
 > `1ec6c5595795`, which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
@@ -1769,5 +1769,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at audited tree state `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` (branch `claude/pruning-handoff-review-c1opab`).
+Anchored at audited tree state `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` (branch `master`).
 

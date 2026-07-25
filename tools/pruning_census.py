@@ -3378,8 +3378,14 @@ def main():
         # provenance, not a finding, and it necessarily differs after the
         # report is committed. Everything else must match byte for byte.
         def _norm(t):
-            return re.sub(r"\| generated at HEAD \| `[0-9a-f]*` \|",
-                          "| generated at HEAD | |", t)
+            t = re.sub(r"\| generated at HEAD \| `[0-9a-f]*` \|",
+                       "| generated at HEAD | |", t)
+            # The branch name is provenance too: the same audited tree state
+            # is the same census whether it is read from a review branch or
+            # from master, and a merge must not turn the gate red.
+            t = re.sub(r"\| branch \| `[^`]*` \|", "| branch | |", t)
+            t = re.sub(r"\(branch `[^`]*`\)", "(branch)", t)
+            return t
         cur = read(OUT)
         if _norm(cur) != _norm(text):
             sys.stderr.write("pruning_census: %s is STALE — re-run to regenerate\n" % OUT)
