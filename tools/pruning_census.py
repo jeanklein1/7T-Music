@@ -1037,10 +1037,14 @@ def main():
     R = Report()
 
     head = git("rev-parse", "HEAD") or "(no git)"
+    # Everything the report states about history is measured at the AUDITED
+    # TREE STATE, not at HEAD, so that committing the report cannot change a
+    # single number in it. Only the provenance line moves.
+    subject = git("log", "-1", "--format=%H", "--", "src", "web", CMAKE) or head
     head_short = head[:12]
     branch = git("rev-parse", "--abbrev-ref", "HEAD") or "(detached)"
-    head_date = git("log", "-1", "--format=%as") or "-"
-    hist_depth = git("rev-list", "--count", "HEAD") or "?"
+    head_date = git("log", "-1", "--format=%as", subject) or "-"
+    hist_depth = git("rev-list", "--count", subject) or "?"
     root_commit = git("log", "--reverse", "--format=%as", "--max-parents=0") .split("\n")[0] \
         if git("log", "--reverse", "--format=%as", "--max-parents=0") else "-"
 
@@ -1093,11 +1097,10 @@ def main():
     # instant the report lands — a gate that cries wolf on its own commit is
     # not a gate. The subject hash is the last commit that touched anything
     # this census READS, which is exactly what the findings describe.
-    subject = git("log", "-1", "--format=%H", "--", "src", "web", CMAKE) or head
     R("| audited tree state | `%s` |" % subject)
     R("| generated at HEAD | `%s` |" % head_short)
     R("| branch | `%s` |" % branch)
-    R("| HEAD date | %s |" % head_date)
+    R("| audited state date | %s |" % head_date)
     R("| history depth | %s commits (root dated %s) |" % (hist_depth, root_commit))
     R("| shader | `%s` — %d lines |" % (WGSL, w.total))
     R()
@@ -1113,14 +1116,15 @@ def main():
     # literally: state where HEAD sits relative to the trunk, because in this
     # checkout they are NOT the same commit and a census read as if it were
     # taken on master would be read wrong.
-    ahead = git("rev-list", "--count", "origin/master..HEAD")
-    behind = git("rev-list", "--count", "HEAD..origin/master")
+    ahead = git("rev-list", "--count", "origin/master..%s" % subject)
+    behind = git("rev-list", "--count", "%s..origin/master" % subject)
     om = git("rev-parse", "origin/master")
-    if om and om != head:
+    if om and om != subject:
         R("> **ANCHOR NOTICE — read before citing this census as \"master\".**")
-        R("> `origin/master` is `%s`, and HEAD is **%s commit(s) ahead / %s behind**" %
-          (om[:12], ahead or "?", behind or "?"))
-        R("> it. Every count in this report is taken at HEAD (`%s`), which" % head_short)
+        R("> `origin/master` is `%s`, and the audited state is **%s commit(s)" %
+          (om[:12], ahead or "?"))
+        R("> ahead / %s behind** it. Every count in this report is taken at" % (behind or "?"))
+        R("> `%s`, which" % subject[:12])
         R("> carries the shipped ground-campaign work that `origin/master` does not.")
         R("> A census run on `origin/master` would give different numbers. The")
         R("> handoff's instruction — *anchor by HASH, never by remembered name* —")

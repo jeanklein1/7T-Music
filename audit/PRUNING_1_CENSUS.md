@@ -6,10 +6,10 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `1bec88ce2e39` |
+| generated at HEAD | `ddd2a9f8f4f7` |
 | branch | `claude/pruning-handoff-review-c1opab` |
-| HEAD date | 2026-07-25 |
-| history depth | 73 commits (root dated 2026-07-23) |
+| audited state date | 2026-07-25 |
+| history depth | 62 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites the audited tree state.** That is the last
@@ -21,8 +21,9 @@ disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **47 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`1bec88ce2e39`), which
+> `origin/master` is `60818b0abcbd`, and the audited state is **36 commit(s)
+> ahead / 0 behind** it. Every count in this report is taken at
+> `1ec6c5595795`, which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -746,7 +747,7 @@ here — it is a mirror, so its tags are copies of desktop tags at an older
 commit, and ruling on them is the resync's business (§5.3), not §4's.
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 73 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 62 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1124,7 +1125,7 @@ Sites: **20**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `1bec88ce2e39`):
+exists (`src/cartridges/the_chord/` is absent at `ddd2a9f8f4f7`):
 
 | line | text |
 |---|---|
@@ -1242,7 +1243,7 @@ measurement above exists. What Jean has to rule:
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `1bec88ce2e39` — every line above
+`src/cartridges/backup_board/` does not exist at `ddd2a9f8f4f7` — every line above
 is dangling.
 
 | target | source | source exists? | line |
