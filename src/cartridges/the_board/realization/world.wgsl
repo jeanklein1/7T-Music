@@ -901,7 +901,6 @@ struct AgentBehaviorParams {
     _pad:            f32,  // pad to 32 bytes (matches GPUAgentBehaviorDef)
 }
 
-const AGENT_BEHAVIOR_COUNT_WGSL: u32 = 10u;
 
 @group(0) @binding(110) var<uniform> agent_behaviors: array<AgentBehaviorParams, 10>;
 
@@ -2018,7 +2017,6 @@ const FPV_MAX_ELEVATION: f32 = 1.5;              // Look up ~86°
 const SPHERE_SLOT_COUNT: u32 = 8u;
 const CUBE_SLOT_OFFSET: u32 = 8u;
 const CUBE_SLOT_COUNT: u32 = 256u;
-const TOTAL_FLOATING_SLOTS: u32 = 264u;
 
 const SPHERE_COLOR_RELEASE_RATE: f32 = 2.0;
 const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
@@ -2158,8 +2156,6 @@ const GOL_PULSE_TIERS = array<GolPulseTierParams, 3>(
     /* 2: Drift    */ GolPulseTierParams( 4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u, 8u ),
 );
 
-// Probability of a zone being Pulse (vs Conway) — must match CPU GOL_PULSE_ALGORITHM_CHANCE.
-const GOL_PULSE_ALGORITHM_CHANCE: f32 = 0.35;
 
 // --- Pawn Safety Force Field
 const PAWN_FORCEFIELD_ENABLED: bool = true;
@@ -6404,7 +6400,6 @@ fn zone_seed_mask(@builtin(global_invocation_id) gid: vec3<u32>) {
 // Searches patch instances for the covering patch and samples its layer.
 // (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
-const ZONE_MESH_MAX_INDICES: u32 = 75000u;
 
 
 // §7.1 COMPUTE ENTRY POINTS
@@ -7798,13 +7793,7 @@ fn update_sphere() {
 // integrator stays stable (∼10× spring_stiffness is the noticeable
 // limit; beyond that drift overshoots before damping catches it).
 
-const CUBE_BEHAVIOR_STATIONARY: u32 = 0u;
-const CUBE_BEHAVIOR_CURLFIELD:  u32 = 1u;
-const CUBE_BEHAVIOR_PHASEWAVE:  u32 = 2u;
 
-// MUST match bodies/cube_behaviors.hpp::CUBE_BEHAVIOR_COUNT
-// (mirrors the agents pattern at AGENT_BEHAVIOR_COUNT_WGSL above).
-const CUBE_BEHAVIOR_COUNT_WGSL: u32 = 3u;
 
 // ─ Force: Stationary ─────────────────────────────────────────────
 // No-op. Drift sits at zero, pos == home, identical to pre-Phase-3
@@ -10004,7 +9993,6 @@ const AMG_MAX_VERTS_PER_SLOT: u32   = 2000u;
 const AMG_MAX_INDICES_PER_SLOT: u32 = 7500u;  // must be divisible by 3 (triangle alignment)
 const AMG_FLOATS_PER_VERTEX: u32    = 10u;   // pos(3) + normal(3) + color(3) + index(1)
 const AMG_MAX_SLOTS: u32            = 16u;
-const AMG_TOTAL_INDICES: u32        = 120000u; // 16 × 7500
 
 
 // ── Parameter buffer ──────────────────────────────────────────────────
@@ -10902,7 +10890,6 @@ const PALMG_MAX_VERTS_PER_SLOT: u32 = 1200u;
 const PALMG_MAX_INDICES_PER_SLOT: u32 = 6000u;
 const PALMG_FLOATS_PER_VERTEX: u32 = 10u;
 const PALMG_MAX_SLOTS: u32 = 24u;
-const PALMG_TOTAL_INDICES: u32 = 144000u;
 
 @group(0) @binding(180) var<storage, read>       palmg_params: array<PalmMeshParams, 24>;
 @group(0) @binding(181) var<storage, read_write>  palmg_vertices: array<f32>;
