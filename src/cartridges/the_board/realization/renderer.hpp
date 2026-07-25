@@ -361,10 +361,6 @@ namespace t7 {
                 return true;
             }
 
-
-            // RAYMARCH/SDF EXCAVATION: dispatch_update_terrain_config removed
-            // (dead TerrainState writer).
-
             void dispatch_update_player_agent(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
@@ -1291,9 +1287,6 @@ namespace t7 {
                     device_.CreatePipelineLayout(&liveContribLayoutDesc);
                 if (!liveContribComputeLayout) return false;
 
-                // RAYMARCH/SDF EXCAVATION: update_terrain_config pipeline
-                // removed (dead TerrainState writer kernel).
-
                 // Pipeline 1b: update_player_agent (0D, 1 thread — possessed slot only)
                 // Live-contributor layout — pawn_ground_resolve, terrain_normal_at
                 // call query_ground_walker → contrib_pawn_aura_at → sample_pawn_aura.
@@ -1457,7 +1450,7 @@ namespace t7 {
                     if (!makeComputePipeline("zone_gol_evolve", "GoL Zone Evolve", pl, Entry::ZONE_GOL_EVOLVE, zoneGolEvolvePipeline_)) return false;
                 }
 
-                // Zone derive pipeline (shared GoL layout; mesh pair retired — UNIFIED_GROUND_1 U4)
+                // Zone derive pipeline (shared GoL layout)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
                     if (!pl) return false;

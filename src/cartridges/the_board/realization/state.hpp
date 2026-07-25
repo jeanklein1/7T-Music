@@ -1711,7 +1711,6 @@ namespace t7 {
             // heightfield (camera clamps) do not bind this group.
             wgpu::BindGroupLayout computeTextureBindGroupLayout_;
             wgpu::BindGroupLayout meshGenEntityBindGroupLayout_;  // binding 1 only — still used by fade overlay
-            // (meshGenBindGroupLayout_ removed — legacy cell mesh gen)
             wgpu::BindGroupLayout terrainIndexGenLayout_;
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout ribbonComputeLayout_;
@@ -1720,7 +1719,6 @@ namespace t7 {
             wgpu::BindGroup renderTextureBindGroup_, shadowTextureBindGroup_;
             wgpu::BindGroup computeTextureBindGroup_;  // live-contributor textures for flyer/walker compute
             wgpu::BindGroup meshGenEntityBindGroup_;  // still used by fade overlay
-            // (meshGenBindGroup_ removed — legacy cell mesh gen)
             wgpu::BindGroup terrainIndexGenBindGroup_;
             wgpu::BindGroup patchGenBindGroup_;
             wgpu::BindGroup ribbonComputeBindGroup_;
@@ -2234,7 +2232,6 @@ namespace t7 {
                 uint32_t v = m ? 1 : 0;
                 if (config_.mute_dynamics_0d != v) { config_.mute_dynamics_0d = v; configDirty_ = true; }
             }
-            // (set_mute_dynamics_2d removed — config field kept for alignment, never read by GPU)
             void set_mute_coupling(uint32_t b, bool m) {
                 uint32_t prev = config_.mute_couplings;
                 if (m) config_.mute_couplings |= b; else config_.mute_couplings &= ~b;
@@ -2245,7 +2242,6 @@ namespace t7 {
             }
 
             // Tuning
-            // (set_wave_time_scale, set_active_cell_size removed — config fields kept for alignment)
             void set_pawn_speed(float s) {
                 if (config_.pawn_speed != s) { config_.pawn_speed = s; configDirty_ = true; }
             }
@@ -2840,8 +2836,6 @@ namespace t7 {
                     offsetof(GPUOrbConfig, color_pulse),
                     &packed, sizeof(packed));
             }
-            // (upload_orb_dome_center retired — the orb VS
-            // eye-centers the dome; dome_center_* is dead wire.)
             // Partial upload of the palette slice (palette_count..pal3_weight).
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
             // (dt, t_seconds, noise_amp, force_radial) elsewhere in the struct.
@@ -2917,7 +2911,6 @@ namespace t7 {
 
             // --- Dispatch dimensions ---
             static constexpr uint32_t terrain_mesh_workgroups() { return Dim::TERRAIN_MESH_N / 8; }
-            // (terrain_height_field_workgroups, cell_grid_workgroups, surface_color_workgroups removed)
             static constexpr uint32_t patch_heightfield_workgroups() { return Dim::PATCH_HEIGHTFIELD_N / 16; }
             static constexpr uint32_t patch_cell_workgroups() { return Dim::PATCH_CELL_N / 8; }
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
@@ -4027,7 +4020,6 @@ namespace t7 {
                 // -- Shadow texture layout (Group 1) -- bindings 22-23, 28, 34 --
                 // Used during shadow pass: samplers + patch heightfield only, NO shadow map.
                 // Avoids read/write conflict (shadow map is depth attachment).
-                // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
@@ -4060,7 +4052,6 @@ namespace t7 {
 
                 // -- Render texture layout (Group 1) -- bindings 22-23, 25-29, 31-34 -
                 // Used during main render pass: samplers + shadow maps + patches + GoL zones + pawn aura.
-                // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
 
@@ -4322,7 +4313,6 @@ namespace t7 {
                 // builds VP, clamps camera above terrain.
                 // Entity Y-correction is handled separately by compute_entity_placement.
                 // 1 config uniform + 4 storage + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 9 entries.
-                // (photo_patch_instances 144 removed — dead, audit cc3/cc4; GROUND_CARD_1 H1.)
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
@@ -4435,7 +4425,6 @@ namespace t7 {
 
                 // -- Frustum cull compute layout (Group 0) -- GPU patch visibility --
                 // Reads VP + config + patch instances, writes visible indices + indirect draw args.
-                // (fc_camera 80 + fc_agents 60 removed — dead in the kernel, audit cc3/cc4; GROUND_CARD_1 H1.)
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
@@ -4468,10 +4457,7 @@ namespace t7 {
                 }
 
                 // -- GoL zone compute layout (Group 0) -- bindings 1, 160-162, 166 --
-                // (UNIFIED_GROUND_1 U4: mesh half + terrain-eval trio retired)
-                // Shared by ALL zone entry points: sync, evolve, mesh_reset, mesh_gen, derive_params.
-                // Mesh gen reads tile_grid, solids, pyramids for terrain height evaluation.
-                // Mesh gen also samples the baked heightfield for exact terrain alignment.
+                // Shared by all three zone entry points: sync, evolve, derive_params.
                 // derive_params writes zone_config.zones[slot] from tier tables.
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 5> entries{};

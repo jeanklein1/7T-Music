@@ -1122,9 +1122,12 @@ COORD_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(t) for t in CAMPAIGN_TAGS) + r")\s+"
     r"([A-Za-z]{1,3}\d{1,2}[a-z]?)\b"
 )
+# PRUNING_1 P4 consolidated the four (TERRAIN_DEBUG_VIEW /
+# CHECKER_DEBUG_VIEW / LIVE_CARD_DEBUG_VIEW / CONTACT_SHELL_DEBUG) into
+# one numbered registry. The list stays a list: a second instrument const
+# is exactly the regression this section exists to catch.
 DEBUG_CONSTS = [
-    "TERRAIN_DEBUG_VIEW", "CHECKER_DEBUG_VIEW",
-    "LIVE_CARD_DEBUG_VIEW", "CONTACT_SHELL_DEBUG",
+    "DEBUG_VIEW",
 ]
 DIAG_RE = re.compile(r"\[DIAG:AUDIT\]")
 
@@ -3248,7 +3251,7 @@ def main():
               "; ".join(coord_examples[p])) for p, n in sorted(coord.items(), key=lambda x: -x[1])])
 
     # debug constants
-    R("### §6.3 — the four debug constants and `[DIAG:AUDIT]`")
+    R("### §6.3 — the debug constants and `[DIAG:AUDIT]`")
     R()
     drows = []
     for name in DEBUG_CONSTS:

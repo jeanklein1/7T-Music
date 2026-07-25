@@ -180,9 +180,6 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
         );
     }
 
-    // RAYMARCH/SDF EXCAVATION: dispatch_update_terrain_config removed (dead
-    // writer of the TerrainState buffer — no reader).
-
     c->renderer_.dispatch_update_player_agent(
         compute,
         c->gpuState_.compute_entity_group(),
@@ -331,9 +328,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
     DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.shadow_texture_group(),
                 /*shadow=*/true,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
-    // (zone indexed-indirect retired — UNIFIED_GROUND_1; one
-    //  DrawIndexedIndirect budget line free in this pass under the
-    //  FXC banner law.)
+    // One DrawIndexedIndirect budget line free in this pass (L2.4).
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 }
 
@@ -404,9 +399,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.render_texture_group(),
                 /*shadow=*/false,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
-    // (zone indexed-indirect retired — UNIFIED_GROUND_1; one
-    //  DrawIndexedIndirect budget line free in this pass under the
-    //  FXC banner law.)
+    // One DrawIndexedIndirect budget line free in this pass (L2.4).
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
     // FORKS — the specials, kept explicit. Wall paintings + gallery frames use

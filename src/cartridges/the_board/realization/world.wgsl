@@ -1675,13 +1675,6 @@ struct DesignConfig {
 // (population_themes' panel), the veil (visibility's jurisdiction),
 // GoL/pulse internals (ROW 9 points at the shared tint funnel).
 
-// RAYMARCH/SDF EXCAVATION: the legacy WAVES table + WAVE_COUNT +
-// HEIGHT_MAX_AMPLITUDE + the amplitude-trajectory feeder constants
-// (IDLE_AMPLITUDE_SCALE / AMPLITUDE_ATTACK_TIME / AMPLITUDE_RELEASE_TIME)
-// were the animated field the dead SDF marched. Removed.
-// SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
-// (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
-
 // ── ROW 1 — THE PALETTE QUARTET (GRADUATED) ────────────────────────
 // The four palettes now live in the CONFIG UNIFORM (config.palette_center
 // / palette_light / palette_weight — C++ twin GPUDesignConfig, setters
@@ -1759,8 +1752,6 @@ const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 // in DEBUG_VIEW 4 — the art shows it only after patch regen.
 const MODE_WARP_AMP: f32 = 0.0;      // wu displacement; 0 = identity
 const MODE_WARP_SCALE: f32 = 240.0;  // wavelength (~2× mode spacing)
-
-// (temperament retired — YAGNI, Movement 1 close; prop 502 reserved. charter.)
 
 // ── ROW 5 — COMPOSITE CUTS & EDGES ──────────────────────────────────
 // The decision thresholds of the color composite, promoted OUT of the
@@ -2455,10 +2446,6 @@ fn point_camera_hosted() -> bool {
 // signal.stats[0] terrain-amplitude coupling, retired M1-C). Revive
 // only as a deliberately designed gen-2 idiom; direct shader reads of
 // the signal bypass canvas and bank (sovereignty decision, parked).
-
-// RAYMARCH/SDF EXCAVATION: coupling_signal_polyphony_to_terrain_amplitude
-// removed — the amplitude-trajectory feeder into the dead lipschitz limb
-// (its only consumer was update_terrain_config, also removed).
 
 // §3.2 signal → entities
 
@@ -3298,12 +3285,6 @@ fn coupling_velocity_to_pawn_heading(velocity: vec2<f32>, current_heading: f32, 
     return new_heading;
 }
 
-// §3.6 entities → terrain
-
-// RAYMARCH/SDF EXCAVATION: coupling_sphere_to_terrain_tint removed — it fed
-// only the dead terrain_state.tint store (the residue's one entangled wire,
-// severed surgically from the live update_sphere kernel).
-
 // §3.7 GoL → evolution
 
 // --- [COUPLING:gol→next_state] Conway's rules
@@ -3314,12 +3295,6 @@ fn coupling_gol_next_state(alive: bool, neighbors: i32) -> f32 {
         return select(0.0, 1.0, neighbors == 3);
     }
 }
-
-// RAYMARCH/SDF EXCAVATION: the legacy fixed-wave dynamics limb removed —
-// wave_enabled + dynamics_terrain_gradient_max were the last survivors of
-// the SDF cone-march (gradient_max → lipschitz_factor, a step bound read by
-// nobody). Whole chain (WAVES → gradient_max → lipschitz) was dead; gone
-// with update_terrain_config.
 
 // §4 DYNAMICS
 // §4.1 PGA MOTOR INTEGRATION
@@ -3444,7 +3419,6 @@ fn compose_camera_position_from_orbit(aim_point: vec3<f32>, cam: CameraState) ->
 
 // §5.1 0D COMPOSITION — split into 4 entry points (§7.1):
 //   update_player_agent, update_other_agents, update_camera, update_sphere
-//   (update_terrain_config removed — RAYMARCH/SDF excavation)
 struct VPMatrix {
     m: mat4x4<f32>,
     light_vp: mat4x4<f32>,
@@ -5406,8 +5380,7 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 // Atlas slot offsets (must match Dim:: constants in state.hpp)
 const GROUND_ATLAS_ARCH: i32     = 0;
 const GROUND_ATLAS_COLUMN: i32   = 16;
-// slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers cut at
-// cut; the write path followed as residue). Do NOT re-pack; these offsets are
+// slots 48..55: A DOCUMENTED HOLE. Do NOT re-pack — these offsets are
 // hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
 const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
@@ -5564,10 +5537,8 @@ fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
     return select(0.0, 1.0, sin(phase) > 0.0);
 }
 
-// --- Terrain cell color at a world position
-// (GOL_TERRAIN_CELL_SIZE retired — a second spelling of the cell size;
-//  the ONE-ADDRESS LAW's cell_address is the only address derivation.)
-
+// --- Terrain cell color at a world position. cell_address is the only
+//     address derivation (THE ONE-ADDRESS LAW).
 fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let addr = cell_address(world_xz);
     let cell_gx = addr.x;
@@ -5946,10 +5917,6 @@ fn zone_seed_mask(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // §7.1 COMPUTE ENTRY POINTS
 // Execution order (critical for correctness):
-// RAYMARCH/SDF EXCAVATION: update_terrain_config removed — the writer kernel
-// of the dead TerrainState buffer (it wrote amplitude_scale + lipschitz_factor,
-// read by nobody). Its C++ dispatch + pipeline went with it; the terrain_state
-// buffer/bindings/struct husk was swept.
 
 // --- Walker terrain normal (forward-difference)
 // POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones
@@ -7309,12 +7276,6 @@ fn update_sphere() {
             );
         }
     }
-
-    // RAYMARCH/SDF EXCAVATION: the terrain-tint dead store removed. This
-    // whole nearest-sphere search wrote only terrain_state.tint (the dead
-    // TerrainState buffer, read by nobody); its locals fed nothing live.
-    // update_sphere's live work (eviction + orbital motion + sphere color,
-    // which write floating_entities) is above and untouched.
 }
 
 // ─── Cube behavior registry ─────────────────────────────────────
@@ -7536,13 +7497,13 @@ fn update_cube() {
             // (OCCUPANCY, not motion -- the beach-ball Jean asked for). The
             // gate is an INFINITE CYLINDER (planar CUBE_PUSH_RADIUS, no vertical
             // window), admitted by a REACH test on the cube's authored altitude
-            // (row_cube_push, T2b): a hovering body's shell is the column
-            // beneath it, and only in-reach cubes have a column at all.
-            // Radial (tangential 0), falloff_mix 1 (soft at the rim). Replaces
-            // the CONTACT_4 approach-parting; the cube-vs-pawn CONTACT row is
-            // RETIRED (a body contact never reached a hovering cube -- the
-            // ledger's [UNREACHABLE] 4.6 < H; the presence column does).
-            // Persistence: config.cube_plasticity default is raised to 1.0
+            // (row_cube_push): a hovering body's shell is the column beneath
+            // it, and only in-reach cubes have a column at all.
+            // Radial (tangential 0), falloff_mix 1 (soft at the rim). There is
+            // no cube-vs-pawn body-contact row and there cannot be one: a
+            // contact shell never reaches a hovering cube (4.6 < H). The
+            // presence column is what reaches it.
+            // Persistence: config.cube_plasticity is 1.0
             // (Idle::CUBE_PLASTICITY_DEFAULT) so a shove RELOCATES rather than
             // partially returns -- lambda=1 semantics (the leak below).
             //
@@ -8570,9 +8531,6 @@ struct PhotographerConfig {
 @group(0) @binding(141) var<storage, read_write> photographer_vp: VPMatrix;
 @group(0) @binding(142) var<storage, read_write> photographer_camera_out: CameraState;
 @group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, 32>;
-// (binding 144 photo_patch_instances removed — the coordinated edit the old
-//  TODO[seam-map:cleanup] here called for; layouts dropped it in the same
-//  commit — GROUND_CARD_1 H1.)
 @group(0) @binding(145) var photo_heightfield: texture_2d_array<f32>;
 @group(0) @binding(146) var photo_sampler: sampler;
 
@@ -12072,8 +12030,7 @@ fn orb_vs(
     // ruling): centered on the camera EYE, all three axes, every
     // frame — the sky rises when you fly and never parallaxes away.
     // render_camera is already in this VS (the billboard basis above);
-    // the old orb_config.dome_center_* wire is dead (bytes retained
-    // for ABI; the CPU anchor machinery retired with it).
+    // orb_config.dome_center_* is dead, its bytes retained for ABI.
     let dome_center = render_camera.pos;
     let world_pos = dome_center + orb.pos
         + cam_right * (quad_pos.x * orb.size)
