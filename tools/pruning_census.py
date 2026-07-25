@@ -2876,7 +2876,8 @@ def main():
     # Tier 4 — status tags
     tag_by_file = Counter(t["file"] for t in actionable)
     for f, n in sorted(tag_by_file.items()):
-        V.append(("4", "%d STATUS/LATENT/INTENT tags" % n, "comments", f,
+        V.append(("4", "%d STATUS/LATENT/INTENT tag%s" % (n, "" if n == 1 else "s"),
+                  "comments", f,
                   "LATENT/INTENT", "n/a", "none-needed",
                   "none — comment text only", "DELETE-AND-RECORD (standing ruling)"))
     nonactionable = [t for t in tags if t["kind"] != "TAG"]
@@ -2889,16 +2890,24 @@ def main():
     # Tier 4 — tombstones of shipped campaigns
     for t, n in sorted(bycamp.items()):
         if shipped.get(t) == "SHIPPED":
-            V.append(("4", "%d tombstones citing %s" % (n, t), "comments",
+            V.append(("4", "%d tombstone%s citing %s" % (n, "" if n == 1 else "s", t),
+                      "comments",
                       "tree-wide — §6.1", "campaign SHIPPED", "n/a", "none-needed",
                       "none — comment text only", "DELETE"))
 
     # Tier 5 — policy + PGA, the ruled surface
     for n in qg:
         if not w.callers_of(n):
+            st, det = mirror_status(n)
+            dup = " — same symbol as its tier-2 row" if n in unreachable_fns else ""
             V.append(("5", n, "policy surface", "%s:%d" % (WGSL, w.functions[n]["line"]),
-                      "0 callers", "0", "glaw2 (Tint parse)",
-                      "none — unreachable today", "DELETE"))
+                      "0 callers (mirror: %s)%s" % (st, dup), "0",
+                      "glaw2 (Tint parse)" +
+                      (" **+ a web smoke test**" if st.startswith("**") else ""),
+                      "none — unreachable today" if not st.startswith("**") else
+                      "none on the desktop; the mirror still runs it",
+                      "**RULE(Jean)** — resolve the mirror (§5.3) first"
+                      if st.startswith("**") else "DELETE"))
     if "pga_color_motor" in w.functions:
         V.append(("5", "pga_color_motor + tail", "PGA",
                   "%s:%d" % (WGSL, w.functions["pga_color_motor"]["line"]),

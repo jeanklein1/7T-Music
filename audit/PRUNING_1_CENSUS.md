@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `27aa37fddb66e87cd6baf42ea4c63b327f528272` |
-| HEAD (short) | `27aa37fddb66` |
+| HEAD | `a25d7b4ebea8361ee8d319b93a91c8b9a8c6bd53` |
+| HEAD (short) | `a25d7b4ebea8` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 69 commits (root dated 2026-07-23) |
+| history depth | 70 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **43 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`27aa37fddb66`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **44 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`a25d7b4ebea8`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -719,7 +719,7 @@ campaign's apparent size:
 | tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 69 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 70 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1086,7 +1086,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `27aa37fddb66`):
+exists (`src/cartridges/the_chord/` is absent at `a25d7b4ebea8`):
 
 | line | text |
 |---|---|
@@ -1181,7 +1181,7 @@ Jean has to rule is narrower than "stop the campaign":
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `27aa37fddb66` — every line above
+`src/cartridges/backup_board/` does not exist at `a25d7b4ebea8` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1578,23 +1578,23 @@ anything short of certain is `RULE(Jean)`.
 | 3 | wave_frozen_t | config mirror | src/cartridges/the_board/realization/state.hpp:430 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (3 writes) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 12 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
 | 3 | pawn_amp_scale (+ `set_pawn_amp_scale`) | config mirror | src/cartridges/the_board/realization/state.hpp:436 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
 | 3 | pawn_height_bias (+ `set_pawn_height_bias`) | config mirror | src/cartridges/the_board/realization/state.hpp:437 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
-| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/cube_behaviors.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/bodies/cube_behaviors.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 2 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/grounded.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/spheres.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/bodies/spheres.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 6 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/ground_architecture.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 3 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/roster.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/spine_state.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/contracts/spine_state.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 13 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/realization/state.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 19 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/realization/world.wgsl | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/surface/terrain_looks.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
-| 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/surface/tile_world.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/surface/terrain_looks.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
+| 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/surface/tile_world.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | keep | 9 LEGEND / tombstone-ref / prose matches | comments | tree-wide — §4 | not tags | n/a | none-needed | deleting the legend deletes the vocabulary the other tags use | KEEP — excluded from the ruling surface by classification |
-| 4 | 1 tombstones citing CONTACT_4 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
+| 4 | 1 tombstone citing CONTACT_4 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 2 tombstones citing CONTACT_5 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 2 tombstones citing TRUEBAND_CONTACT_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 16 tombstones citing UNIFIED_GROUND_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
-| 5 | query_ground_celestial | policy surface | src/cartridges/the_board/realization/world.wgsl:3533 | 0 callers | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
-| 5 | query_ground_flyer_gradient | policy surface | src/cartridges/the_board/realization/world.wgsl:3546 | 0 callers | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
+| 5 | query_ground_celestial | policy surface | src/cartridges/the_board/realization/world.wgsl:3533 | 0 callers (mirror: present, 0 callers) — same symbol as its tier-2 row | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
+| 5 | query_ground_flyer_gradient | policy surface | src/cartridges/the_board/realization/world.wgsl:3546 | 0 callers (mirror: present, 0 callers) — same symbol as its tier-2 row | 0 | glaw2 (Tint parse) | none — unreachable today | DELETE |
 | 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3810 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
 | keep | CONTRIBUTOR_DAG + its closure static_asserts | contracts | src/cartridges/the_board/contracts/ground_architecture.hpp | load-bearing | compile-time | n/a | n/a | KEEP — the one declared, checked statement of the composition |
 
@@ -1671,5 +1671,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `27aa37fddb66e87cd6baf42ea4c63b327f528272` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `a25d7b4ebea8361ee8d319b93a91c8b9a8c6bd53` on `claude/pruning-handoff-review-c1opab`.
 
