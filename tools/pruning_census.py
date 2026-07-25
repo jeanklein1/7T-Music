@@ -1075,7 +1075,11 @@ def main():
     R("| shader | `%s` — %d lines |" % (WGSL, w.total))
     R()
     R("**Every finding below cites this hash.** If HEAD has moved, re-run:")
-    R("`python tools/pruning_census.py`.")
+    R("`python tools/pruning_census.py`. Note the off-by-one that is inherent")
+    R("and not a defect: the hash above is HEAD *at generation time*, so when")
+    R("this file is then committed, the commit carrying it is the CHILD of the")
+    R("hash it names. `--check` re-derives the whole report and exits 1 if the")
+    R("copy on disk has gone stale, which is the honest staleness test.")
     R()
     # The handoff says "anchor by HASH, never by remembered name". Honour that
     # literally: state where HEAD sits relative to the trunk, because in this

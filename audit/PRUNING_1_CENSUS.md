@@ -5,19 +5,23 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `a25d7b4ebea8361ee8d319b93a91c8b9a8c6bd53` |
-| HEAD (short) | `a25d7b4ebea8` |
+| HEAD | `e5142be1aeeee7f4f9d46329a845265ed1c8061f` |
+| HEAD (short) | `e5142be1aeee` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 70 commits (root dated 2026-07-23) |
+| history depth | 71 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
-`python tools/pruning_census.py`.
+`python tools/pruning_census.py`. Note the off-by-one that is inherent
+and not a defect: the hash above is HEAD *at generation time*, so when
+this file is then committed, the commit carrying it is the CHILD of the
+hash it names. `--check` re-derives the whole report and exits 1 if the
+copy on disk has gone stale, which is the honest staleness test.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **44 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`a25d7b4ebea8`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **45 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`e5142be1aeee`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -719,7 +723,7 @@ campaign's apparent size:
 | tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 70 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 71 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1086,7 +1090,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `a25d7b4ebea8`):
+exists (`src/cartridges/the_chord/` is absent at `e5142be1aeee`):
 
 | line | text |
 |---|---|
@@ -1181,7 +1185,7 @@ Jean has to rule is narrower than "stop the campaign":
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `a25d7b4ebea8` — every line above
+`src/cartridges/backup_board/` does not exist at `e5142be1aeee` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1671,5 +1675,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `a25d7b4ebea8361ee8d319b93a91c8b9a8c6bd53` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `e5142be1aeeee7f4f9d46329a845265ed1c8061f` on `claude/pruning-handoff-review-c1opab`.
 
