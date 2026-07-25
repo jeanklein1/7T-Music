@@ -119,8 +119,8 @@ inline void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
     // Theme envelope — through the owner's door
     reset_theme_envelope(themes_state);
 
-    // Clear all entity piers (keep test rig at slots 0-2)
-    for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
+    // Clear every pier.
+    for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
         clear_pier(c, queue, i);
     }
 
@@ -208,48 +208,6 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
     c->world_state_.placement_dirty = true;
-}
-
-// Test rig piers: ramp + plateau + block at pier slots 0-2.
-// Same geometry as the old test rig solids, now as GPUPierInstance.
-// TESTING[test-rig-piers] (ruled): a debug ground
-//   fixture, NOT a roster piece (roster rows are design pieces,
-//   not scaffolds). Mortal retirement: dies at ship (checklist).
-//   Joins the future exhibition-guard discussion. Constitution §5
-//   TESTING class.
-inline void setup_test_rig_piers(MachineCtx* c, wgpu::Queue queue) {
-    // Ramp: height 0→3 along +X.
-    GPUPierInstance ramp{};
-    ramp.origin[0] = 12.0f;  ramp.origin[1] = 0.0f;
-    ramp.half_size[0] = 6.5f; ramp.half_size[1] = 3.0f;
-    ramp.height_near = 0.0f;  ramp.height_far = 3.0f;
-    ramp.rotation = 0.0f;
-    ramp.edge_blend = 0.5f;
-    ramp.tier = PierTier::TEST_RIG;
-    ramp.is_active = 1;
-    write_pier(c, queue, 0, ramp);
-
-    // Plateau: flat at height 3, overlaps ramp at x=18.
-    GPUPierInstance plat{};
-    plat.origin[0] = 21.0f;  plat.origin[1] = 0.0f;
-    plat.half_size[0] = 3.5f; plat.half_size[1] = 3.0f;
-    plat.height_near = 3.0f;  plat.height_far = 3.0f;
-    plat.rotation = 0.0f;
-    plat.edge_blend = 0.5f;
-    plat.tier = PierTier::TEST_RIG;
-    plat.is_active = 1;
-    write_pier(c, queue, 1, plat);
-
-    // Block: sharp edges → step-height walls (impassable).
-    GPUPierInstance block{};
-    block.origin[0] = 21.0f;  block.origin[1] = 0.0f;
-    block.half_size[0] = 1.2f; block.half_size[1] = 1.2f;
-    block.height_near = 5.0f;  block.height_far = 5.0f;
-    block.rotation = 0.0f;
-    block.edge_blend = 0.0f;
-    block.tier = PierTier::TEST_RIG;
-    block.is_active = 1;
-    write_pier(c, queue, 2, block);
 }
 
 // ── Patch generation ───────────────────────────────────────────────

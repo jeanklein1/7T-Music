@@ -809,8 +809,8 @@ namespace t7 {
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
 
         // Unified pier instance — terrain-raising volume with tier metadata.
-        // Replaces the old GPUSolidInstance/GPUSolidArray. Deterministic slot
-        // addressing: test rig at 0-2, arches at 4-35, columns at 36-67.
+        // Deterministic slot addressing: arches at 4-35, columns at 36-67.
+        // Slots 0-3 are unassigned.
         // Must match WGSL PierInstance exactly.
         struct alignas(16) GPUPierInstance {
             float origin[2];           // world XZ center of footprint
@@ -826,9 +826,9 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPierInstance) == 48, "GPUPierInstance must be 48 bytes");
 
-        // Pier tier enum (carried in tier field, not read by evaluation today)
+        // Pier tier enum (carried in tier field, not read by evaluation today).
+        // Tier 0 is unassigned.
         namespace PierTier {
-            constexpr uint32_t TEST_RIG = 0;
             constexpr uint32_t ARCH_DOORWAY = 1;
             constexpr uint32_t ARCH_STANDARD = 2;
             constexpr uint32_t ARCH_MONUMENTAL = 3;
@@ -5762,7 +5762,7 @@ namespace t7 {
                 ribbon.is_visible = 0u;  // hidden until spawning system activates one
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(ribbon));
 
-                // Pier instances (all inactive — cartridge uploads test rig at setup)
+                // Pier instances — all inactive.
                 {
                     std::vector<GPUPierInstance> emptyPiers(Dim::PIER_TOTAL);
                     queue.WriteBuffer(pierBuffer_, 0, emptyPiers.data(),

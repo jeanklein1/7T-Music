@@ -502,7 +502,6 @@ namespace t7 {
 
                 // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
                 init_patch_system(&machine_ctx_, tile_world_state_);
-                setup_test_rig_piers(&machine_ctx_, device_.GetQueue());
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);

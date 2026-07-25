@@ -203,7 +203,6 @@ void flush_pier_count(MachineCtx* c, wgpu::Queue& queue);
 void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);
-void setup_test_rig_piers(MachineCtx* c, wgpu::Queue queue);
 void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count,
     uint32_t stagingOffset = 0);
