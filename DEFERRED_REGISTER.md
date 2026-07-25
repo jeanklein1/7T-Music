@@ -6,22 +6,6 @@ charter means "recorded here."
 
 ## Open
 
-### D1 — Web mirror resync (`web/shaders/world.wgsl`)
-- **State:** the mirror is a full-file byte-identical snapshot of
-  `src/cartridges/the_board/realization/world.wgsl`, last synced **2026-07-19**
-  from commit `f1b16f5` (per `web/shaders/world.wgsl.source`). It has since
-  diverged by **~2596 lines** from desktop `master` — the web port runs on its
-  own resync cadence.
-- **Immediate consequence:** the mirror still holds `FLOATER_EVICTION_RADIUS = 400`
-  while desktop `master` is `800` (FIX batch S4). The value now lives in three
-  rooms and only the two desktop ones (the const + its doc-table line) agree.
-- **Why deferred, not done now:** the resync ritual (CLAUDE.md) is a full-file
-  `cp` + `gzip -9` regen + `.source` sha256 update + a **boot smoke-test of the
-  web page** — an out-of-band, human-gated operation. Folding a 2596-line mirror
-  refresh into a floater-radius fix would import unrelated desktop divergence and
-  cannot be smoke-tested from here.
-- **Trigger:** the next scheduled resync ritual. At that point `FLOATER_EVICTION_
-  RADIUS 800` (and everything else since 2026-07-19) crosses over in one vetted step.
 
 ### D2 — Derive `FLOATER_EVICTION_RADIUS` from the allocation radius
 - **State:** the eviction radius (GPU const, `world.wgsl`) must exceed the patch
@@ -33,3 +17,18 @@ charter means "recorded here."
 - **Trigger:** a dedicated change that puts both values in one room, making the
   relation `const_assert`-able (COLLISION_CHARTER, the feasibility corollary + the
   containment rule).
+
+## Closed
+
+### D1 — Web mirror resync (`web/shaders/world.wgsl`) — **VOID**
+- **Closed:** PRUNING_1 P1 Step 2, ruling R1. There is no mirror to resync:
+  `web/` was deleted in full and the Mirror doctrine is dead, not suspended.
+- **Consequence for the item that motivated it:** `FLOATER_EVICTION_RADIUS`
+  now lives in **two** rooms, not three, and both desktop rooms already agree
+  at 800. The divergence this entry existed to track is gone with its third
+  room — closed by deletion, not by doing the work.
+- **What survives:** `audit/WEB_PORT_LEDGER.md` — the last-good commit and the
+  binding-closure lesson, which is the part a rebuild would otherwise pay for
+  again. Note in particular that the ritual this entry deferred (`cp` + `gzip`
+  + sidecar sha) was **unsound**: it would have failed at pipeline creation,
+  because entry-point existence is not the test — binding closure is.

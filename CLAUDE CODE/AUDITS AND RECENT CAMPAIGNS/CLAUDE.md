@@ -1,10 +1,23 @@
-# 7T — Web Port Mission
+# 7T — Web Port Mission  ·  **PAUSED, CODE DELETED**
+
+> **STATUS (PRUNING_1 P1, ruling R1).** The port is paused, possibly
+> abandoned. `web/` was deleted in full; the Mirror doctrine and the Resync
+> ritual are **dead, not suspended**. What is worth keeping from the attempt
+> — the last-good commit, and the binding-closure lesson that governs any
+> future resync — is in `audit/WEB_PORT_LEDGER.md`. The design decisions
+> below are kept as the record of what was already settled; they are NOT
+> live instructions, and nothing in this file governs the tree today.
+>
+> A resume starts from the CURRENT native shader, never from the deleted
+> fork. Open ruling for Jean: is web a destination the program is designed
+> toward, or a maybe-someday? One charter line either way.
 
 This repo is the desktop 7T Musical Visualizer: C++20 host, WGSL shaders, WebGPU via
 Google Dawn. The mission is a browser build in `web/` that becomes the public demo
 ("art gallery" experience) for The Ever Expanding Board website. The desktop build
 stays green throughout; the desktop source is upstream for every shader change
-(see Mirror doctrine).
+(the mirror doctrine that governed this is retired — see
+audit/WEB_PORT_LEDGER.md).
 
 ## Decisions already made — do not relitigate
 
@@ -32,26 +45,7 @@ stays green throughout; the desktop source is upstream for every shader change
   public build (merge families into one buffer with offsets; strip families the
   demo doesn't need). Acceptable interim: `requiredLimits` raise on Chrome/Dawn
   with a `TODO(portability)` comment.
-- **Mirror doctrine.** `web/shaders/world.wgsl` is a byte-identical MIRROR of
-  `src/cartridges/the_board/realization/world.wgsl`. Any WGSL change the port
-  needs lands in the DESKTOP source first (small commit, desktop build stays
-  green), then re-copies. The web side never edits the mirror. Demo cuts exist
-  only in the JS host (never create/dispatch/draw); no WGSL deletions.
 
-## Resync ritual (standing; for the every-few-days coupling updates)
-
-1. `cp src/cartridges/the_board/realization/world.wgsl web/shaders/world.wgsl`
-2. Regenerate the served-compressed copy: `gzip -9 -c web/shaders/world.wgsl >
-   web/shaders/world.wgsl.gz` (the page fetches `.gz`-first via DecompressionStream).
-3. Record the source commit hash + sha256 in the sidecar `web/shaders/world.wgsl.source`.
-4. Emit a diff summary (what changed since the last mirror) in the commit message.
-5. Smoke-test the page — boot clean, no console errors — before pushing.
-
-Note: `*.wgsl` is pinned to LF in `.gitattributes` so the mirror stays byte-identical
-across platforms (Windows CRLF checkout would break the sidecar sha256). Any branch that
-wholesale-imports `world.wgsl` from an older tree must carry the two uniform-stride
-conformance declarations (`stats: array<vec4<f32>,16>`, `wave_frozen_t` as three scalars),
-or released-Chrome Tint rejects it.
 
 ## Reference implementation
 
@@ -85,8 +79,7 @@ Produce `web/PORT_MAP.md` containing:
 
 ## Phase 1 — Lift shaders
 
-Mirror WGSL into `web/shaders/` per the mirror doctrine and resync ritual —
-divergence is handled by the ritual, not by dedupe. Replace the harness placeholder
+Replace the harness placeholder
 at the seams one pipeline at a time, one family at a time. The page must stay
 runnable after every step.
 
