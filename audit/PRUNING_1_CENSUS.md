@@ -5,11 +5,11 @@
 
 | anchor | value |
 |---|---|
-| audited tree state | `42700cfd8ee70f1772124dd112fe950882442713` |
-| generated at HEAD | `42700cfd8ee7` |
+| audited tree state | `6ce5139a55b58e254983736cb214c81cc1140430` |
+| generated at HEAD | `6ce5139a55b5` |
 | branch | `master` |
 | audited state date | 2026-07-25 |
-| history depth | 100 commits (root dated 2026-07-23) |
+| history depth | 101 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12060 lines |
 
 **Every finding below cites the audited tree state.** That is the last
@@ -21,8 +21,8 @@ disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `9b95baa17362`; the audited state `42700cfd8ee7` is
-> **6 ahead / 0 behind** it, and **5 of those commits touch the
+> `origin/master` is `9b95baa17362`; the audited state `6ce5139a55b5` is
+> **7 ahead / 0 behind** it, and **6 of those commits touch the
 > audited surface** (`src/`, `web/`, `CMakeLists.txt`). **A census run
 > on `origin/master` would give different numbers.** The handoff's
 > instruction — *anchor by HASH, never by remembered name* — is
@@ -529,7 +529,7 @@ here — it is a mirror, so its tags are copies of desktop tags at an older
 commit, and ruling on them is the resync's business (§5.3), not §4's.
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 100 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 101 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -852,7 +852,7 @@ _(none)_
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `42700cfd8ee7`):
+exists (`src/cartridges/the_chord/` is absent at `6ce5139a55b5`):
 
 | line | text |
 |---|---|
@@ -1213,5 +1213,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at audited tree state `42700cfd8ee70f1772124dd112fe950882442713` (branch `master`).
+Anchored at audited tree state `6ce5139a55b58e254983736cb214c81cc1140430` (branch `master`).
 
