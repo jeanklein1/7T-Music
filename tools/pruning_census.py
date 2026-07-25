@@ -3397,19 +3397,21 @@ def main():
 
     text = R.text()
 
+    # Provenance is normalized away for BOTH the staleness check and the
+    # write: "generated at HEAD" and the branch name necessarily differ after
+    # the report is committed, and rewriting the file for those alone would
+    # dirty the working tree on every run for no informational gain.
+    def _norm(t):
+        t = re.sub(r"\| generated at HEAD \| `[0-9a-f]*` \|",
+                   "| generated at HEAD | |", t)
+        # The branch name is provenance too: the same audited tree state is
+        # the same census whether it is read from a review branch or from
+        # master, and a merge must not turn the gate red.
+        t = re.sub(r"\| branch \| `[^`]*` \|", "| branch | |", t)
+        t = re.sub(r"\(branch `[^`]*`\)", "(branch)", t)
+        return t
+
     if args.check:
-        # The one volatile line is normalized away: "generated at HEAD" is
-        # provenance, not a finding, and it necessarily differs after the
-        # report is committed. Everything else must match byte for byte.
-        def _norm(t):
-            t = re.sub(r"\| generated at HEAD \| `[0-9a-f]*` \|",
-                       "| generated at HEAD | |", t)
-            # The branch name is provenance too: the same audited tree state
-            # is the same census whether it is read from a review branch or
-            # from master, and a merge must not turn the gate red.
-            t = re.sub(r"\| branch \| `[^`]*` \|", "| branch | |", t)
-            t = re.sub(r"\(branch `[^`]*`\)", "(branch)", t)
-            return t
         cur = read(OUT)
         if _norm(cur) != _norm(text):
             sys.stderr.write("pruning_census: %s is STALE — re-run to regenerate\n" % OUT)
@@ -3419,6 +3421,13 @@ def main():
         return 0
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    prev = read(OUT)
+    if prev and _norm(prev) == _norm(text):
+        if not args.quiet:
+            sys.stdout.write(text)
+            sys.stderr.write("\npruning_census: %s already current — not rewritten "
+                             "(only provenance differs)\n" % OUT)
+        return 0
     with io.open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
     if not args.quiet:
