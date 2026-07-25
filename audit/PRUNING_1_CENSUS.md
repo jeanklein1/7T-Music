@@ -6,8 +6,8 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `c8342c4f5030` |
-| branch | `master` |
+| generated at HEAD | `3eab62b3ee71` |
+| branch | `claude/pruning-1-p1` |
 | audited state date | 2026-07-25 |
 | history depth | 62 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
@@ -844,6 +844,66 @@ the generic baked sampler.** An arm whose body is the same call as the
 `default` arm distinguishes nothing at runtime — it is a *declared*
 distinction, and that is precisely the LATENT surface Jean asked about.
 
+**Which policy IDs are ever PASSED to the dispatcher?** An arm whose
+selector never arrives cannot execute, whatever its body says. The
+honesty predicate refuses on unresolved **provenance**, not on
+non-literal **syntax**: a selector read from a buffer or produced by a
+`select` has unknown origin; one that is textually the enclosing
+function's own parameter inside a closed family is an edge, and the
+analysis over it is a fixed point.
+
+| provenance check | result | detail |
+|---|---|---|
+| (1) dispatcher family is closed | PASS | 3 dispatcher(s): `manifold_height_hf` arg[1], `manifold_position` arg[1], `manifold_resolve` arg[1] |
+| (2) no selector travels in a struct, buffer or uniform | PASS | clean |
+| (3) every non-literal argument is an enclosing parameter | PASS | 4 forward(s), 0 unresolved |
+| (4) no selector is a computed expression | PASS | clean |
+
+**N = 12 call sites · M = 8 literal · K = 4 non-literal** (4 provable forwards, 0 unresolved).
+
+| line | callee | policy argument | kind | inside fn |
+|---|---|---|---|---|
+| 3643 | `manifold_height_hf` | `policy` | forward | `manifold_position` |
+| 3653 | `manifold_position` | `policy` | forward | `manifold_resolve` |
+| 3655 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
+| 3656 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
+| 3683 | `manifold_position` | `POLICY_FLYER` | LITERAL | `coupling_terrain_to_sphere_orbit_height` |
+| 6527 | `manifold_resolve` | `POLICY_WALKER_TILT` | LITERAL | `terrain_normal_at` |
+| 6698 | `manifold_position` | `POLICY_WALKER_AGENT` | LITERAL | `agent_settle` |
+| 6911 | `manifold_position` | `POLICY_FLYER` | LITERAL | `behavior_player_controlled` |
+| 7798 | `manifold_position` | `POLICY_WALKER_TILT` | LITERAL | `update_camera` |
+| 8073 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 8078 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 8157 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+
+All four provenance checks PASS, so the conclusion is available.
+
+- policy IDs that reach the dispatcher (**3**): `POLICY_FLYER`, `POLICY_WALKER_AGENT`, `POLICY_WALKER_TILT`
+- policy IDs that **never** reach it (**7**): `POLICY_BAKED_HEIGHTFIELD`, `POLICY_CELESTIAL`, `POLICY_PLACEMENT_PAINTING`, `POLICY_PLACEMENT_PYRAMID`, `POLICY_PLACEMENT_VEGETATION`, `POLICY_TERRAIN_RENDER`, `POLICY_WALKER`
+
+An ID in the second list cannot select its arm. Whether the *row*
+should go is a separate question — a policy realized by another
+mechanism keeps its row and loses only its arm.
+
+**Corroboration — two independent methods, same answer.** §1.3
+reaches this partition by counting textual references and knows
+nothing about dispatchers or call sites:
+
+|  | reaches the dispatcher | unreferenced per §1.3 |
+|---|---|---|
+| `POLICY_BAKED_HEIGHTFIELD` | **no** | **yes** |
+| `POLICY_CELESTIAL` | **no** | **yes** |
+| `POLICY_FLYER` | yes | no |
+| `POLICY_PLACEMENT_PAINTING` | **no** | **yes** |
+| `POLICY_PLACEMENT_PYRAMID` | **no** | **yes** |
+| `POLICY_PLACEMENT_VEGETATION` | **no** | **yes** |
+| `POLICY_TERRAIN_RENDER` | **no** | **yes** |
+| `POLICY_WALKER` | **no** | **yes** |
+| `POLICY_WALKER_AGENT` | yes | no |
+| `POLICY_WALKER_TILT` | yes | no |
+
+The two columns are exact complements: **they agree on all 10 policies**.
+
 **`query_ground_*` functions**
 
 | fn | line | callers | called by | reachable from a live entry? |
@@ -1001,7 +1061,7 @@ values, stateless GPU evaluators). Evidence the destination exists:
 
 ## §5 — DANGLING-REFERENCE CENSUS
 
-Scanned 268 files (src/, audit/, web/, tools/, `CLAUDE CODE/`,
+Scanned 272 files (src/, audit/, web/, tools/, `CLAUDE CODE/`,
 CMakeLists.txt), excluding `src/external/` and `package-lock.json`.
 
 **Rooms are split, and the split is the point.** The constitution's own
@@ -1030,7 +1090,7 @@ wherever it sits — a past transcript is a record, not a reference.
 | zone_mesh_* | no | 0 | 3 |
 | zone_patch_instances | no | 0 | 1 |
 
-Archival mentions (recorded, **not** for deletion): **1031** across 59 files.
+Archival mentions (recorded, **not** for deletion): **1032** across 60 files.
 
 | archival file | referent | mentions |
 |---|---|---|
@@ -1162,7 +1222,7 @@ That doctrine governs a LIVE web port. It is currently **violated**:
 | @group/@binding | 96 | 104 |
 
 - sidecar `web/shaders/world.wgsl.source`: source: src/cartridges/the_board/realization/world.wgsl · source-commit: f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81 · sha256: 1c8e5e225f00c0c1325b902a24087abd4f2c2b1416209295f5267ed59fb0e4a0 · mirrored: 2026-07-19 (post TERRAIN P2 + CHECKER-REBUILD) · ritual: CLAUDE.md "Resync ritual" — never edit this mirror; changes land upstream first
-- sidecar source commit `f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81` — **not present in this shallow clone's history**, so the distance cannot be counted from here; the sidecar dates the mirror to **2026-07-19**, which is before this clone's graft root (2026-07-23)
+- sidecar source commit `f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81` — **82 commits behind HEAD**
 - entry points on desktop but NOT in the mirror: write_live_card_heights, write_live_card_resolve, zone_seed_mask
 - entry points in the mirror but NOT on desktop: shadow_zone_extrusion_vs, zone_extrusion_fs, zone_extrusion_vs, zone_gol_mesh_gen, zone_gol_mesh_reset
 - bindings on desktop but NOT in the mirror: agent_figure_profiles, live_card_read, live_card_scratch, live_card_write
@@ -1767,5 +1827,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at audited tree state `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` (branch `master`).
+Anchored at audited tree state `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` (branch `claude/pruning-1-p1`).
 

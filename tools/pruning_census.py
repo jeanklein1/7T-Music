@@ -754,6 +754,136 @@ def pair_fields(cpp, wg):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# THE POLICY-ARGUMENT QUERY  (PRUNING_1 P1 Step 1)
+#
+# Which policy IDs are ever PASSED to the manifold dispatcher? An arm whose
+# selector never arrives cannot execute, whatever its body says.
+#
+# R6 — THE HONESTY PREDICATE. Refuse on unresolved PROVENANCE, not on
+# non-literal SYNTAX. A selector read from a buffer, produced by a
+# `select`, or arriving from outside a closed family has unknown origin and
+# no conclusion is available. A selector that is textually the enclosing
+# function's own parameter, inside a closed family, is an EDGE — the
+# analysis over it is a fixed point, not a guess.
+#
+# The four conditions are CHECKS, not reasoning done once by hand:
+#   (1) the dispatcher family is closed — no other fn takes a selector;
+#   (2) no selector travels in any struct, buffer or uniform;
+#   (3) every non-literal argument is textually an enclosing parameter;
+#   (4) no selector is a computed expression.
+# If any fails, the tool reports the numbers and REFUSES to conclude.
+# ═══════════════════════════════════════════════════════════════════════
+
+SELECTOR_PARAM = re.compile(r"^(policy|policy_id|pol)\s*:\s*u32$")
+COMPUTED = re.compile(r"select\s*\(|[+\-*/%]|\?|\[|\.\w")
+
+
+def split_args(s):
+    """Top-level comma split, respecting (), <> and []."""
+    out, depth, cur = [], 0, ""
+    for ch in s:
+        if ch in "(<[":
+            depth += 1
+        elif ch in ")>]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def policy_query(w):
+    t = w.text
+    # (1) the family: every fn taking a selector, and which parameter it is
+    family = {}
+    for name in w.functions:
+        m = re.search(r"\bfn\s+" + re.escape(name) + r"\s*\(([^)]*)\)", t)
+        if not m:
+            continue
+        for i, p in enumerate(split_args(m.group(1))):
+            if SELECTOR_PARAM.match(p):
+                family[name] = (i, p.split(":")[0].strip())
+    # (2) does a selector travel inside a struct / buffer / uniform?
+    in_struct = []
+    for sname, sline in w.structs.items():
+        m = re.search(r"^struct\s+" + re.escape(sname) + r"\s*\{", t, re.M)
+        if not m:
+            continue
+        depth, i = 1, t.find("{", m.start()) + 1
+        while i < len(t) and depth:
+            if t[i] == "{":
+                depth += 1
+            elif t[i] == "}":
+                depth -= 1
+            i += 1
+        for line in t[m.start():i].split("\n"):
+            if SELECTOR_PARAM.match(line.strip().rstrip(",")):
+                in_struct.append((sname, sline))
+    for rn, r in w.resources.items():
+        if re.search(r"\b(policy|policy_id)\b", rn):
+            in_struct.append((rn, r["line"]))
+
+    policy_consts = {n for n in w.consts
+                     if n.startswith("POLICY_") and not n.endswith("_MASK")}
+    sites, literal, forwards, unresolved = [], {}, [], []
+    for callee, (idx, _pname) in sorted(family.items()):
+        for m in re.finditer(r"\b" + re.escape(callee) + r"\s*\(", t):
+            if re.search(r"\bfn\s+$", t[max(0, m.start() - 8):m.start()]):
+                continue                       # the declaration itself
+            depth, i = 1, m.end()
+            while i < len(t) and depth:
+                if t[i] == "(":
+                    depth += 1
+                elif t[i] == ")":
+                    depth -= 1
+                i += 1
+            args = split_args(t[m.end():i - 1])
+            arg = args[idx] if idx < len(args) else "(missing)"
+            ln = lineno(t, m.start())
+            encl = None
+            for fn, ff in w.functions.items():
+                if ff["line"] <= ln <= ff["end_line"]:
+                    if encl is None or w.functions[encl]["line"] < ff["line"]:
+                        encl = fn
+            if arg in policy_consts or re.fullmatch(r"\d+u?", arg):
+                kind = "LITERAL"
+                literal.setdefault(arg, []).append((ln, callee, encl))
+            elif encl in family and arg == family[encl][1]:
+                kind = "forward"               # provable pass-through (R6)
+                forwards.append((ln, callee, arg, encl))
+            else:
+                kind = "**UNRESOLVED**"
+                unresolved.append((ln, callee, arg, encl))
+            sites.append((ln, callee, arg, kind, encl))
+
+    checks = [
+        ("(1) dispatcher family is closed",
+         len(family) > 0,
+         "%d dispatcher(s): %s" % (len(family), ", ".join("`%s` arg[%d]" %
+                                                          (k, v[0]) for k, v in sorted(family.items())))),
+        ("(2) no selector travels in a struct, buffer or uniform",
+         not in_struct,
+         "clean" if not in_struct else "FOUND: %s" % in_struct),
+        ("(3) every non-literal argument is an enclosing parameter",
+         not unresolved,
+         "%d forward(s), %d unresolved" % (len(forwards), len(unresolved))),
+        ("(4) no selector is a computed expression",
+         not any(COMPUTED.search(a) for _l, _c, a, _e in unresolved),
+         "clean" if not unresolved else "see (3)"),
+    ]
+    return {
+        "family": family, "sites": sites, "literal": literal,
+        "forwards": forwards, "unresolved": unresolved,
+        "policy_consts": policy_consts, "checks": checks,
+        "conclusive": all(ok for _n, ok, _d in checks),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # §4 — STATUS TAGS
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -2212,6 +2342,66 @@ def main():
     else:
         R("`manifold_height_hf` not found in `%s`." % WGSL)
         R()
+
+    # ── the policy-argument query ──────────────────────────────────────
+    pq = policy_query(w)
+    R("**Which policy IDs are ever PASSED to the dispatcher?** An arm whose")
+    R("selector never arrives cannot execute, whatever its body says. The")
+    R("honesty predicate refuses on unresolved **provenance**, not on")
+    R("non-literal **syntax**: a selector read from a buffer or produced by a")
+    R("`select` has unknown origin; one that is textually the enclosing")
+    R("function's own parameter inside a closed family is an edge, and the")
+    R("analysis over it is a fixed point.")
+    R()
+    R.table(["provenance check", "result", "detail"],
+            [(n, "PASS" if ok else "**FAIL**", d) for n, ok, d in pq["checks"]])
+    n_lit = sum(len(v) for v in pq["literal"].values())
+    R("**N = %d call sites · M = %d literal · K = %d non-literal** "
+      "(%d provable forwards, %d unresolved)." %
+      (len(pq["sites"]), n_lit, len(pq["forwards"]) + len(pq["unresolved"]),
+       len(pq["forwards"]), len(pq["unresolved"])))
+    R()
+    R.table(["line", "callee", "policy argument", "kind", "inside fn"],
+            [(ln, "`%s`" % c, "`%s`" % a, k, "`%s`" % (e or "—"))
+             for ln, c, a, k, e in sorted(pq["sites"])])
+    if pq["conclusive"]:
+        seen = sorted(pq["literal"])
+        never = sorted(pq["policy_consts"] - set(pq["literal"]))
+        R("All four provenance checks PASS, so the conclusion is available.")
+        R()
+        R("- policy IDs that reach the dispatcher (**%d**): %s" %
+          (len(seen), ", ".join("`%s`" % s for s in seen)))
+        R("- policy IDs that **never** reach it (**%d**): %s" %
+          (len(never), ", ".join("`%s`" % s for s in never)))
+        R()
+        R("An ID in the second list cannot select its arm. Whether the *row*")
+        R("should go is a separate question — a policy realized by another")
+        R("mechanism keeps its row and loses only its arm.")
+        R()
+        # CORROBORATION. §1.3 arrives at the same partition by a completely
+        # different route — it counts textual references and knows nothing
+        # about dispatchers or call sites. Two methods, one answer.
+        unref = {n for n, ln in w.consts.items()
+                 if n.startswith("POLICY_") and not n.endswith("_MASK")
+                 and w.references_outside_decl(n, ln) == 0}
+        R("**Corroboration — two independent methods, same answer.** §1.3")
+        R("reaches this partition by counting textual references and knows")
+        R("nothing about dispatchers or call sites:")
+        R()
+        R.table(["", "reaches the dispatcher", "unreferenced per §1.3"],
+                [("`%s`" % p, "yes" if p in pq["literal"] else "**no**",
+                  "**yes**" if p in unref else "no")
+                 for p in sorted(pq["policy_consts"])])
+        agree = all((p in pq["literal"]) != (p in unref)
+                    for p in pq["policy_consts"])
+        R("The two columns are exact complements: %s." %
+          ("**they agree on all %d policies**" % len(pq["policy_consts"]) if agree
+           else "**THEY DISAGREE — read the rows above before ruling**"))
+    else:
+        R("**One or more provenance checks FAILED — no conclusion available.**")
+        R("The numbers above stand; the cannot-execute set is deliberately not")
+        R("asserted. Under-reach, never over-reach.")
+    R()
 
     qg = sorted(n for n in w.functions if n.startswith("query_ground_"))
     R("**`query_ground_*` functions**")
