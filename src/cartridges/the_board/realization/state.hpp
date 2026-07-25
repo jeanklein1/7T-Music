@@ -2224,26 +2224,10 @@ namespace t7 {
             }
 
             // Muting
-            void set_mute_signal(bool m) {
-                uint32_t v = m ? 1 : 0;
-                if (config_.mute_signal != v) { config_.mute_signal = v; configDirty_ = true; }
-            }
-            void set_mute_dynamics_0d(bool m) {
-                uint32_t v = m ? 1 : 0;
-                if (config_.mute_dynamics_0d != v) { config_.mute_dynamics_0d = v; configDirty_ = true; }
-            }
             void set_mute_coupling(uint32_t b, bool m) {
                 uint32_t prev = config_.mute_couplings;
                 if (m) config_.mute_couplings |= b; else config_.mute_couplings &= ~b;
                 if (config_.mute_couplings != prev) configDirty_ = true;
-            }
-            void set_mute_couplings(uint32_t mask) {
-                if (config_.mute_couplings != mask) { config_.mute_couplings = mask; configDirty_ = true; }
-            }
-
-            // Tuning
-            void set_pawn_speed(float s) {
-                if (config_.pawn_speed != s) { config_.pawn_speed = s; configDirty_ = true; }
             }
 
             // ─── The point's host + fly speed ────────────────────────
@@ -2252,12 +2236,6 @@ namespace t7 {
             }
             void set_point_fly_speed(float s) {
                 if (config_.point_fly_speed != s) { config_.point_fly_speed = s; configDirty_ = true; }
-            }
-            void set_point_bubble_radius(float r) {   // CONTACT_2: the coupling campaign's wire
-                if (config_.point_bubble_radius != r) { config_.point_bubble_radius = r; configDirty_ = true; }
-            }
-            void set_cube_plasticity(float p) {        // CONTACT_3 K2c: the live λ master
-                if (config_.cube_plasticity != p) { config_.cube_plasticity = p; configDirty_ = true; }
             }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
@@ -2394,37 +2372,6 @@ namespace t7 {
             void set_mode_checker_scatter(float v) {
                 if (config_.mode_checker_scatter != v) { config_.mode_checker_scatter = v; configDirty_ = true; }
             }
-            // ─── The palette mirror setters ──────────────────────────────
-            void set_palette_center(uint32_t i, float r, float g, float b) {
-                if (i >= 4) return;
-                if (config_.palette_center[i][0] != r || config_.palette_center[i][1] != g
-                    || config_.palette_center[i][2] != b) {
-                    config_.palette_center[i][0] = r;
-                    config_.palette_center[i][1] = g;
-                    config_.palette_center[i][2] = b;
-                    configDirty_ = true;
-                }
-            }
-            void set_palette_light(uint32_t i, float r, float g, float b) {
-                if (i >= 4) return;
-                if (config_.palette_light[i][0] != r || config_.palette_light[i][1] != g
-                    || config_.palette_light[i][2] != b) {
-                    config_.palette_light[i][0] = r;
-                    config_.palette_light[i][1] = g;
-                    config_.palette_light[i][2] = b;
-                    configDirty_ = true;
-                }
-            }
-            void set_palette_weight(float w0, float w1, float w2, float w3) {
-                if (config_.palette_weight[0] != w0 || config_.palette_weight[1] != w1
-                    || config_.palette_weight[2] != w2 || config_.palette_weight[3] != w3) {
-                    config_.palette_weight[0] = w0;
-                    config_.palette_weight[1] = w1;
-                    config_.palette_weight[2] = w2;
-                    config_.palette_weight[3] = w3;
-                    configDirty_ = true;
-                }
-            }
 
             void set_mode_palette_drift(float target, float intensity, float discrete_tier) {
                 if (config_.mode_palette_target != target || config_.mode_palette_intensity != intensity
@@ -2470,10 +2417,6 @@ namespace t7 {
                 config_.freeze_sphere = config_.freeze_sphere ? 0 : 1;
                 configDirty_ = true;
             }
-            void set_freeze_sphere(bool f) {
-                uint32_t v = f ? 1 : 0;
-                if (config_.freeze_sphere != v) { config_.freeze_sphere = v; configDirty_ = true; }
-            }
 
             void set_config_dynamic(bool d) { configDynamic_ = d; }
             void mark_config_dirty() { configDirty_ = true; }
@@ -2501,15 +2444,6 @@ namespace t7 {
             // Dirty-gated config setters (ride the U8 drain); getters feed
             // the CPU band + entity cull so every draw gate and the GPU
             // share ONE live value.
-            void set_veil(float ring, float icing, float lod0) {
-                if (config_.veil_ring != ring || config_.veil_icing != icing ||
-                    config_.lod0_radius != lod0) {
-                    config_.veil_ring   = ring;
-                    config_.veil_icing  = icing;
-                    config_.lod0_radius = lod0;
-                    configDirty_ = true;
-                }
-            }
             void set_veil_strength(float s) {
                 if (config_.veil_strength != s) { config_.veil_strength = s; configDirty_ = true; }
             }
