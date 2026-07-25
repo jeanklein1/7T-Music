@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import os
 import re
@@ -1116,7 +1117,6 @@ def main():
     ))
     web_live = exists(WEB_WGSL)
     if web_live:
-        import hashlib
         d_sha = hashlib.sha256(read(WGSL).encode("utf-8", "replace")).hexdigest()
         m_sha = hashlib.sha256(read(WEB_WGSL).encode("utf-8", "replace")).hexdigest()
         side = read(WEB_WGSL_SIDECAR).strip().replace("\n", " · ")
@@ -2474,7 +2474,6 @@ def main():
     R("### §5.3 — the OTHER mirror law, which is NOT fossil ⚠")
     R()
     if exists(WEB_WGSL):
-        import hashlib
         d_raw, m_raw = read(WGSL), read(WEB_WGSL)
         d_sha = hashlib.sha256(d_raw.encode("utf-8", "replace")).hexdigest()
         m_sha = hashlib.sha256(m_raw.encode("utf-8", "replace")).hexdigest()

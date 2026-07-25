@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `c9a64c693894634497386d6f7843ab2e60f179c7` |
-| HEAD (short) | `c9a64c693894` |
+| HEAD | `27aa37fddb66e87cd6baf42ea4c63b327f528272` |
+| HEAD (short) | `27aa37fddb66` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 68 commits (root dated 2026-07-23) |
+| history depth | 69 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **42 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`c9a64c693894`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **43 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`27aa37fddb66`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -719,7 +719,7 @@ campaign's apparent size:
 | tombstone-ref (already removed) | 2 | the tag sits inside a `(X REMOVED — …)` marker; the capability is already gone — §6.1's business |
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 68 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 69 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -1086,7 +1086,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `c9a64c693894`):
+exists (`src/cartridges/the_chord/` is absent at `27aa37fddb66`):
 
 | line | text |
 |---|---|
@@ -1181,7 +1181,7 @@ Jean has to rule is narrower than "stop the campaign":
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `c9a64c693894` — every line above
+`src/cartridges/backup_board/` does not exist at `27aa37fddb66` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1671,5 +1671,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `c9a64c693894634497386d6f7843ab2e60f179c7` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `27aa37fddb66e87cd6baf42ea4c63b327f528272` on `claude/pruning-handoff-review-c1opab`.
 
