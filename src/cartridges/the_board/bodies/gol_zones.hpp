@@ -27,7 +27,7 @@
 //   only the parameter sampling and life initialization branch.
 // ─────────────────────────────────────────────────────────────────
 
-#include <cmath>      // std::floor   // (impl, merged)
+#include <cmath>      // std::floor, std::hypot (the footprint radius)   // (impl, merged)
 #include <algorithm>  // std::max, std::min   // (impl, merged)
 #include <iostream>   // the spawn log   // (impl, merged)
 #include <vector>     // life / height-factor staging   // (impl, merged)
@@ -101,7 +101,10 @@ struct GoLZoneProp {
 struct GoLZoneSpawnConfig {
     static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones
     static constexpr float HEIGHT_CHANCE = 0.30f;  // fraction of zones that get extrusion
-    static constexpr float ZONE_EXTENT = 100.0f; // 32 × 3.125 = cell-aligned
+    // (ZONE_EXTENT RETIRED — UNIFIED_GROUND_1 U5 made a zone's extent
+    //  tier-derived; it is now gol_tier_extent(tier_idx), grid_cells ×
+    //  PATCH_CELL_SIZE per axis. The fixed 100 wu was 32 × 3.125, true
+    //  only for the 32-cell tiers.)
     static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
     // Per-cell height factor seeding (Gaussian draw per cell)
     static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
@@ -111,8 +114,11 @@ struct GoLZoneSpawnConfig {
     // Lens target color range: color = hash * RANGE + LO
     static constexpr float LENS_TARGET_LO = 0.2f;
     static constexpr float LENS_TARGET_RANGE = 0.6f;
-    // Footprint: inscribed circle of 100×100 zone
-    static constexpr float FOOTPRINT_RADIUS = 50.0f;
+    // (FOOTPRINT_RADIUS RETIRED — UNIFIED_GROUND_1 U5. It was the
+    //  INSCRIBED circle of a fixed 100×100 zone, which over-reserved at
+    //  16 cells and would UNDER-reserve at 64. The reservation is now
+    //  the CIRCUMSCRIBED radius of the tier's own rectangle, derived at
+    //  the selection site.)
     // SEAM[gol_zones:P4] hygiene rows pattern (P4): the gol mood row
     //   lives in MOOD_SPAWN_MULT (population_themes.hpp — the GOL
     //   column). Zero entries are reachable via mood IDs but the gate
@@ -156,17 +162,23 @@ struct GoLTierProfile {
     // ─── Selection ───────────────────────────────────────────
     float weight;
     bool  force_no_height;
+
+    // ─── Size (UNIFIED_GROUND_1 U5; cells, not world units) ──
+    uint32_t grid_cells;       // zone side in cells ∈ {8..32}
 };
 
-//                                          dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h
+// MUST match world.wgsl's GOL_TIERS cells column (UNIFIED_GROUND_1 U5 —
+// "authored defaults by weight order thirds, 32/24/16"). Hardware
+// mirror — when tuning, change both sides.
+//                                          dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h   cells
 inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-    /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false },
-    /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false },
-    /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false },
-    /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false },
-    /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true  },
-    /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false },
-    /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false },
+    /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false, 16u },
+    /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false, 32u },
+    /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false, 32u },
+    /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false, 16u },
+    /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true,  24u },
+    /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false, 16u },
+    /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false, 24u },
 };
 
 inline constexpr const char* GOL_TIER_NAMES[] = {
@@ -219,18 +231,48 @@ struct GolPulseTierProfile {
     float weight;
     bool  force_no_height;
     uint32_t boundary_mode;
+
+    // ─── Size (UNIFIED_GROUND_1 U5; cells, not world units) ──
+    uint32_t grid_cells;       // zone side in cells ∈ {8..32}
 };
 
-//                                              tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
+// MUST match world.wgsl's GOL_PULSE_TIERS cells column
+// (UNIFIED_GROUND_1 U5 — "32/16/8 by weight order"). Hardware
+// mirror — when tuning, change both sides.
+//                                              tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd                    cells
 inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
-    /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT },
-    /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT },
-    /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP    },
+    /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT, 32u },
+    /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT, 16u },
+    /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP, 8u },
 };
 
 inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {
     "Breathe", "Sparkle", "Drift"
 };
+
+// ── The tier's zone size (UNIFIED_GROUND_1 U5) ───────────────────
+// tier_idx is the COMPOUND index select_gol_zone packs: 0..
+// GOL_TIER_COUNT-1 are Conway rows, GOL_TIER_COUNT.. are Pulse. This
+// is the only place that decode lives.
+//
+// Two values for one square: cells_x == cells_z until S3 splits the
+// grid, and writing it as a pair now means S3 touches nothing here.
+// The GPU derives the same number in zone_derive_params from the same
+// tables — this is the CPU half of that twin, not a second opinion.
+inline void gol_tier_cells(uint32_t tier_idx, uint32_t& cells_x, uint32_t& cells_z) {
+    const uint32_t n = (tier_idx < GOL_TIER_COUNT)
+        ? GOL_TIERS[tier_idx].grid_cells
+        : GOL_PULSE_TIERS[tier_idx - GOL_TIER_COUNT].grid_cells;
+    cells_x = n;
+    cells_z = n;
+}
+
+inline void gol_tier_extent(uint32_t tier_idx, float& extent_x, float& extent_z) {
+    uint32_t cx = 0u, cz = 0u;
+    gol_tier_cells(tier_idx, cx, cz);
+    extent_x = (float)cx * PATCH_CELL_SIZE;
+    extent_z = (float)cz * PATCH_CELL_SIZE;
+}
 
 // ═══ SPAWN PAYLOADS — AT THE CONTRACT HOME ═══════════════════════
 //
@@ -360,11 +402,10 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
             // Reserve slot
             gs.zones[slot].active = true;
 
-            // Zone corner (cell-grid-snapped)
-            float corner_x = std::floor(
-                (raw_cx - GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
-            float corner_z = std::floor(
-                (raw_cz - GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+            // (The corner snap moved BELOW tier selection — U5 made the
+            //  extent tier-derived, so the corner cannot be known until
+            //  the tier is. zone_derive_params made the same move on the
+            //  GPU side; this is the CPU catching up.)
 
             // Algorithm selection
             float algo_roll = cpu_hash_f(seed, PulseZoneProp::ALGORITHM_ROLL);
@@ -407,6 +448,20 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
                 tier_idx = GOL_TIER_COUNT + tier;  // Pulse: 7–9 (compound index)
             }
 
+            // Zone extent + corner (cell-grid-snapped), from the tier's
+            // own size. Snapping subtracts an exact multiple of
+            // PATCH_CELL_SIZE, so corner + extent/2 returns the snapped
+            // raw centre for every tier — the same identity the GPU's
+            // zone_derive_params relies on, which is why the centre was
+            // right even while the extent was a fixed 100.
+            float extent_x = 0.0f, extent_z = 0.0f;
+            gol_tier_extent(tier_idx, extent_x, extent_z);
+
+            float corner_x = std::floor(
+                (raw_cx - extent_x * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+            float corner_z = std::floor(
+                (raw_cz - extent_z * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+
             // Fill selection
             sel.seed = seed;
             sel.trigger_gx = gx;
@@ -421,7 +476,16 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
             sel.tick_period = tick_period;
             sel.initial_density = initial_density;
             sel.height_enabled = height_enabled;
-            sel.footprint_r = GoLZoneSpawnConfig::FOOTPRINT_RADIUS;
+            // The CIRCUMSCRIBED radius of the tier's rectangle, not the
+            // inscribed one. The registry must never PERMIT an overlap:
+            // two GoL zones that overlap would let contrib_gol_zones_at
+            // (returns on its first covering zone) and the tint (breaks
+            // on its first) disagree about which zone owns a cell, with
+            // no defined order and unequal filters. Conservative here
+            // costs a little density; inscribed would allow corner
+            // overlap, and the old fixed 50 allowed 80 wu of it at 64
+            // cells.
+            sel.footprint_r = 0.5f * std::hypot(extent_x, extent_z);
 
             return true;  // at most one zone per patch
         }
@@ -433,8 +497,10 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
 
 inline bool place_gol_from_selection(MachineCtx* c,
     const GoLSelection& sel, GoLPlacement& plan) {
-    float cx = sel.corner_x + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
-    float cz = sel.corner_z + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
+    float extent_x = 0.0f, extent_z = 0.0f;
+    gol_tier_extent(sel.tier_idx, extent_x, extent_z);
+    float cx = sel.corner_x + extent_x * 0.5f;
+    float cz = sel.corner_z + extent_z * 0.5f;
 
     if (!check_position(c, cx, cz, sel.footprint_r, PopFamily::GOL))
         return false;
