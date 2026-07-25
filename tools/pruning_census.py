@@ -1116,20 +1116,38 @@ def main():
     # literally: state where HEAD sits relative to the trunk, because in this
     # checkout they are NOT the same commit and a census read as if it were
     # taken on master would be read wrong.
-    ahead = git("rev-list", "--count", "origin/master..%s" % subject)
-    behind = git("rev-list", "--count", "%s..origin/master" % subject)
+    # The notice fires only when the difference MATTERS. `origin/master` and
+    # the audited state routinely differ by this report's own commits, which
+    # touch nothing the census reads — warning about that would be noise. What
+    # counts is a commit on either side touching the AUDITED SURFACE.
     om = git("rev-parse", "origin/master")
     if om and om != subject:
-        R("> **ANCHOR NOTICE — read before citing this census as \"master\".**")
-        R("> `origin/master` is `%s`, and the audited state is **%s commit(s)" %
-          (om[:12], ahead or "?"))
-        R("> ahead / %s behind** it. Every count in this report is taken at" % (behind or "?"))
-        R("> `%s`, which" % subject[:12])
-        R("> carries the shipped ground-campaign work that `origin/master` does not.")
-        R("> A census run on `origin/master` would give different numbers. The")
-        R("> handoff's instruction — *anchor by HASH, never by remembered name* —")
-        R("> is exactly why this notice exists.")
-        R()
+        drift_out = git("rev-list", "--count", "%s..origin/master" % subject,
+                        "--", "src", "web", CMAKE)
+        drift_in = git("rev-list", "--count", "origin/master..%s" % subject,
+                       "--", "src", "web", CMAKE)
+        ahead = git("rev-list", "--count", "origin/master..%s" % subject)
+        behind = git("rev-list", "--count", "%s..origin/master" % subject)
+        if (drift_out and drift_out != "0") or (drift_in and drift_in != "0"):
+            R("> **ANCHOR NOTICE — read before citing this census as \"master\".**")
+            R("> `origin/master` is `%s`; the audited state `%s` is" %
+              (om[:12], subject[:12]))
+            R("> **%s ahead / %s behind** it, and **%s of those commits touch the" %
+              (ahead or "?", behind or "?",
+               str(int(drift_out or 0) + int(drift_in or 0))))
+            R("> audited surface** (`src/`, `web/`, `CMakeLists.txt`). **A census run")
+            R("> on `origin/master` would give different numbers.** The handoff's")
+            R("> instruction — *anchor by HASH, never by remembered name* — is")
+            R("> exactly why this notice exists.")
+            R()
+        else:
+            R("> **Anchor check.** `origin/master` is `%s` and the audited state is" %
+              om[:12])
+            R("> `%s` — %s ahead / %s behind, but **none of those commits touch" %
+              (subject[:12], ahead or "0", behind or "0"))
+            R("> `src/`, `web/` or `CMakeLists.txt`**. They are this report's own")
+            R("> commits. The census and the trunk describe the same tree.")
+            R()
     R("---")
     R()
 

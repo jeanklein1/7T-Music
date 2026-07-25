@@ -6,7 +6,7 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `99c9f9224045` |
+| generated at HEAD | `4aa455d730bd` |
 | branch | `master` |
 | audited state date | 2026-07-25 |
 | history depth | 62 commits (root dated 2026-07-23) |
@@ -20,14 +20,10 @@ gate. `--check` re-derives the whole report and exits 1 if the copy on
 disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
-> **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `99c9f9224045`, and the audited state is **0 commit(s)
-> ahead / 15 behind** it. Every count in this report is taken at
-> `1ec6c5595795`, which
-> carries the shipped ground-campaign work that `origin/master` does not.
-> A census run on `origin/master` would give different numbers. The
-> handoff's instruction — *anchor by HASH, never by remembered name* —
-> is exactly why this notice exists.
+> **Anchor check.** `origin/master` is `4aa455d730bd` and the audited state is
+> `1ec6c5595795` — 0 ahead / 16 behind, but **none of those commits touch
+> `src/`, `web/` or `CMakeLists.txt`**. They are this report's own
+> commits. The census and the trunk describe the same tree.
 
 ---
 
