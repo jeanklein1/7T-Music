@@ -1880,19 +1880,20 @@ namespace t7 {
 
             // Targeted 4-byte upload of pier_count only — called from write_pier/clear_pier.
             // Bypasses the config dirty flag since pier changes happen mid-frame during spawn.
+            // THE OFFSET IS DERIVED, NEVER LITERAL: a literal drifted here once and
+            // wrote pier_count into terrain_time. offsetof cannot drift.
             void upload_pier_count(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, pier_count) == 92,
-                    "pier_count offset must be 124 for targeted upload");
-                queue.WriteBuffer(configBuffer_, 124, &config_.pier_count, sizeof(uint32_t));
+                queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, pier_count),
+                    &config_.pier_count, sizeof(uint32_t));
             }
 
             // Targeted 4-byte upload of placement_patch_count — called from stream_patches
             // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
             // current frame's patch set (decoupled from the photographer config).
+            // THE OFFSET IS DERIVED (see upload_pier_count).
             void upload_placement_patch_count(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, placement_patch_count) == 112,
-                    "placement_patch_count offset must be 144 for targeted upload");
-                queue.WriteBuffer(configBuffer_, 144, &config_.placement_patch_count, sizeof(uint32_t));
+                queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, placement_patch_count),
+                    &config_.placement_patch_count, sizeof(uint32_t));
             }
 
             // Targeted 8-byte upload of lod_point_x/z — called from stream_patches each
