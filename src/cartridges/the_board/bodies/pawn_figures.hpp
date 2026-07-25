@@ -74,76 +74,77 @@ struct SmoothProfile {
 //                                         start flare flr_t  peak pk_t  base body_r  body waist  neck nk_r  coll bulge  head hd_r  sph_r
 inline constexpr SmoothProfile PROF_PAWN     = { 0.75f,0.88f,0.04f, 0.92f,0.10f, 0.14f,0.70f, 0.50f,0.22f, 0.62f,0.18f, 0.70f,0.08f, 0.95f,0.15f,0.35f }; // reference (regular pawn uses hardcoded path)
 inline constexpr SmoothProfile PROF_SQUAT    = { 0.85f,0.90f,0.05f, 1.05f,0.12f, 0.18f,0.85f, 0.58f,0.25f, 0.60f,0.40f, 0.67f,0.24f, 0.93f,0.30f,0.20f };
-inline constexpr SmoothProfile PROF_COLOSSAL = { 0.78f,0.92f,0.05f, 0.98f,0.12f, 0.16f,0.72f, 0.48f,0.16f, 0.60f,0.14f, 0.68f,0.13f, 0.96f,0.18f,0.42f };
+inline constexpr SmoothProfile PROF_COLOSSAL = { 0.78f,0.92f,0.05f, 0.98f,0.12f, 0.16f,0.72f, 0.48f,0.26f, 0.60f,0.14f, 0.68f,0.17f, 0.96f,0.18f,0.42f };
 inline constexpr SmoothProfile PROF_ACORN    = { 0.50f,0.90f,0.05f, 0.80f,0.18f, 0.28f,0.50f, 0.50f,0.35f, 0.65f,0.30f, 0.70f,0.25f, 0.93f,0.25f,0.20f };
-inline constexpr SmoothProfile PROF_SPIRE    = { 0.50f,0.55f,0.05f, 0.60f,0.15f, 0.20f,0.50f, 0.65f,0.30f, 0.75f,0.20f, 0.82f,0.05f, 0.92f,0.18f,0.15f };
+inline constexpr SmoothProfile PROF_SPIRE    = { 0.50f,0.65f,0.05f, 0.65f,0.15f, 0.20f,0.50f, 0.55f,0.30f, 0.75f,0.20f, 0.85f,0.05f, 0.99f,0.18f,0.19f };
 inline constexpr SmoothProfile PROF_IDOL     = { 0.50f,0.62f,0.05f, 0.68f,0.10f, 0.16f,0.55f, 0.45f,0.20f, 0.55f,0.20f, 0.66f,0.30f, 0.92f,0.10f,0.20f };
-inline constexpr SmoothProfile PROF_STELE    = { 0.78f,0.82f,0.04f, 0.85f,0.10f, 0.14f,0.78f, 0.60f,0.55f, 0.72f,0.38f, 0.80f,0.03f, 0.95f,0.35f,0.20f };
+inline constexpr SmoothProfile PROF_STELE    = { 0.78f,0.82f,0.04f, 0.955f,0.10f, 0.14f,0.78f, 0.60f,0.35f, 0.72f,0.28f, 0.80f,0.03f, 0.95f,0.35f,0.20f };
 
 // ═══ HERALDIC PROFILES — segment lists (≤7), mirrors heraldicRadiusAt() ══════
 struct HeraldicSeg     { float height, r_bot, r_top; PawnShape shape; };
 struct HeraldicProfile { uint32_t seg_count; HeraldicSeg seg[7]; };  // unused segs zeroed
 
 inline constexpr HeraldicProfile PROF_H_BRONZE = { 5, {
-    { 0.04f, 1.00f, 0.92f, SHAPE_CONVEX  },   // foot moulding
-    { 0.10f, 0.92f, 0.55f, SHAPE_CONVEX  },   // base
-    { 0.34f, 0.50f, 0.30f, SHAPE_CONCAVE },   // shank (pinched)
-    { 0.04f, 0.30f, 0.42f, SHAPE_CONVEX  },   // collar disc
-    { 0.40f, 0.00f, 0.40f, SHAPE_SPHERE  },   // head sphere
+    { 0.070f, 0.76f, 0.64f, SHAPE_CONVEX  },   // foot
+    { 0.385f, 0.81f, 0.55f, SHAPE_CONCAVE },   // base (was convex)
+    { 0.635f, 0.50f, 0.30f, SHAPE_OGEE    },   // shank (was concave)
+    { 0.185f, 0.21f, 0.31f, SHAPE_CONVEX  },   // collar disc
+    { 0.650f, 0.00f, 0.40f, SHAPE_SPHERE  },   // head sphere — 28% → 34% of the figure
     {}, {},
 }};
 inline constexpr HeraldicProfile PROF_H_SILVER = { 5, {
-    { 0.04f, 1.00f, 0.92f, SHAPE_CONVEX },
-    { 0.10f, 0.92f, 0.55f, SHAPE_CONVEX },
-    { 0.38f, 0.50f, 0.28f, SHAPE_OGEE   },    // refined shank
-    { 0.04f, 0.28f, 0.42f, SHAPE_CONVEX },
-    { 0.40f, 0.00f, 0.40f, SHAPE_SPHERE },
+    { 0.005f, 1.00f, 0.92f, SHAPE_CONVEX },    // foot, now a thin lip
+    { 0.185f, 0.92f, 0.55f, SHAPE_CONVEX },
+    { 0.380f, 0.50f, 0.28f, SHAPE_OGEE   },
+    { 0.040f, 0.28f, 0.42f, SHAPE_CONVEX },
+    { 0.265f, 0.00f, 0.40f, SHAPE_SPHERE },
     {}, {},
 }};
-inline constexpr HeraldicProfile PROF_H_GOLD = { 6, {
-    { 0.04f, 1.00f, 0.92f, SHAPE_CONVEX },
-    { 0.10f, 0.92f, 0.55f, SHAPE_CONVEX },
-    { 0.36f, 0.50f, 0.26f, SHAPE_OGEE   },
-    { 0.04f, 0.26f, 0.26f, SHAPE_BELL   },    // bead
-    { 0.04f, 0.26f, 0.42f, SHAPE_CONVEX },
-    { 0.42f, 0.00f, 0.42f, SHAPE_SPHERE },
-    {},
+// Gold: rebuilt, 6 → 7 segments. No padding entry remains.
+inline constexpr HeraldicProfile PROF_H_GOLD = { 7, {
+    { 0.335f, 0.660f, 0.700f, SHAPE_CONVEX  },
+    { 0.735f, 0.840f, 0.670f, SHAPE_OGEE    },
+    { 0.360f, 0.675f, 0.280f, SHAPE_CONCAVE },
+    { 0.040f, 0.135f, 0.175f, SHAPE_BELL    },
+    { 0.005f, 0.200f, 0.000f, SHAPE_CONVEX  },
+    { 0.210f, 0.285f, 0.145f, SHAPE_CONCAVE },
+    { 0.685f, 0.465f, 0.205f, SHAPE_SPHERE  },
 }};
 inline constexpr HeraldicProfile PROF_H_STEEL = { 6, {
-    { 0.04f, 1.05f, 0.95f, SHAPE_CONVEX },    // wider foot
+    { 0.04f, 1.05f, 0.95f, SHAPE_CONVEX },
     { 0.10f, 0.95f, 0.58f, SHAPE_CONVEX },
-    { 0.42f, 0.52f, 0.24f, SHAPE_OGEE   },    // longer shank
-    { 0.05f, 0.24f, 0.24f, SHAPE_BELL   },    // thicker bead
-    { 0.04f, 0.24f, 0.42f, SHAPE_CONVEX },
-    { 0.42f, 0.00f, 0.42f, SHAPE_SPHERE },
+    { 0.42f, 0.52f, 0.24f, SHAPE_OGEE   },
+    { 0.05f, 0.24f, 0.24f, SHAPE_OGEE   },   // bead: bell → ogee
+    { 0.04f, 0.24f, 0.00f, SHAPE_CONVEX },   // r_top 0.42 → 0
+    { 0.42f, 0.00f, 0.52f, SHAPE_SPHERE },   // head r_top 0.42 → 0.52
     {},
 }};
 inline constexpr HeraldicProfile PROF_H_CRYSTAL = { 7, {
     { 0.04f, 1.05f, 0.95f, SHAPE_CONVEX },
-    { 0.10f, 0.95f, 0.58f, SHAPE_CONVEX },
-    { 0.42f, 0.52f, 0.24f, SHAPE_OGEE   },
-    { 0.05f, 0.24f, 0.24f, SHAPE_BELL   },
+    { 0.10f, 0.69f, 0.58f, SHAPE_CONVEX },   // r_bot 0.95 → 0.69
+    { 0.42f, 0.63f, 0.24f, SHAPE_OGEE   },   // r_bot 0.52 → 0.63
+    { 0.05f, 0.24f, 0.37f, SHAPE_BELL   },   // r_top 0.24 → 0.37
     { 0.04f, 0.24f, 0.42f, SHAPE_CONVEX },
     { 0.40f, 0.00f, 0.40f, SHAPE_SPHERE },
-    { 0.06f, 0.00f, 0.10f, SHAPE_SPHERE },    // finial bud
+    { 0.06f, 0.00f, 0.10f, SHAPE_SPHERE },   // finial bud
 }};
 inline constexpr HeraldicProfile PROF_H_STAR = { 7, {
-    { 0.04f, 1.00f, 0.90f, SHAPE_CONVEX },
-    { 0.09f, 0.90f, 0.52f, SHAPE_CONVEX },
-    { 0.48f, 0.48f, 0.20f, SHAPE_OGEE   },    // even longer shank
-    { 0.04f, 0.20f, 0.20f, SHAPE_BELL   },    // small refined bead
+    { 0.04f, 0.00f, 0.90f, SHAPE_CONVEX },   // foot now springs from a POINT (r_bot 1.00 → 0)
+    { 0.09f, 0.57f, 0.52f, SHAPE_CONVEX },
+    { 0.48f, 0.45f, 0.20f, SHAPE_OGEE   },
+    { 0.04f, 0.20f, 0.20f, SHAPE_BELL   },
     { 0.03f, 0.20f, 0.36f, SHAPE_CONVEX },
-    { 0.36f, 0.00f, 0.36f, SHAPE_SPHERE },    // smaller head
+    { 0.36f, 0.00f, 0.36f, SHAPE_SPHERE },
     { 0.06f, 0.00f, 0.08f, SHAPE_SPHERE },
 }};
 inline constexpr HeraldicProfile PROF_H_DIVINE = { 7, {
-    { 0.04f, 1.00f, 0.88f, SHAPE_CONVEX },
-    { 0.10f, 0.88f, 0.50f, SHAPE_CONVEX },
+    { 0.04f, 0.39f, 0.88f, SHAPE_CONVEX },   // r_bot 1.00 → 0.39
+    { 0.10f, 0.63f, 0.50f, SHAPE_CONVEX },   // r_bot 0.88 → 0.63
     { 0.50f, 0.46f, 0.18f, SHAPE_OGEE   },
-    { 0.07f, 0.20f, 0.20f, SHAPE_BELL   },    // doubled-band bead
+    { 0.07f, 0.20f, 0.20f, SHAPE_BELL   },
     { 0.03f, 0.20f, 0.38f, SHAPE_CONVEX },
     { 0.38f, 0.00f, 0.38f, SHAPE_SPHERE },
-    { 0.07f, 0.00f, 0.10f, SHAPE_SPHERE },    // tapered bud
+    { 0.07f, 0.00f, 0.10f, SHAPE_SPHERE },
 }};
 
 // ═══ PALETTES — height gradients (foot→head). t < 0 ends the list. ══════════
@@ -186,8 +187,8 @@ inline constexpr PawnStop PAL_H_SILVER[] = {
     {0.55f,0.85f,0.85f,0.86f},{1.00f,0.92f,0.92f,0.94f},{-1,0,0,0},
 };
 inline constexpr PawnStop PAL_H_GOLD[] = {
-    {0.00f,0.42f,0.30f,0.10f},{0.06f,0.62f,0.45f,0.16f},{0.20f,0.78f,0.58f,0.20f},
-    {0.50f,0.92f,0.72f,0.28f},{0.58f,0.85f,0.65f,0.24f},{1.00f,0.98f,0.82f,0.38f},{-1,0,0,0},
+    {0.00f,0.52f,0.30f,0.10f},{0.06f,0.70f,0.45f,0.16f},{0.20f,0.78f,0.40f,0.25f},
+    {0.50f,0.92f,0.32f,0.38f},{0.58f,0.85f,0.65f,0.44f},{1.00f,0.98f,0.70f,0.58f},{-1,0,0,0},
 };
 inline constexpr PawnStop PAL_H_STEEL[] = {
     {0.00f,0.22f,0.26f,0.32f},{0.06f,0.35f,0.42f,0.50f},{0.20f,0.50f,0.58f,0.65f},
@@ -246,20 +247,20 @@ struct PawnFigureDef {
 
 inline constexpr PawnFigureDef PAWN_FIGURES[] = {
   //  family        name        H      R      smooth          heraldic         palette         drift{hue,sat,val}      tilt_tau
-  { FAM_REGULAR,  "Pawn",     1.50f, 0.50f, nullptr,        nullptr,         nullptr,        { 0.0f, 0.00f, 0.00f}, TILT_LAG_NONE  }, // 0  legacy profile + legacy color
-  { FAM_SMOOTH,   "Squat",    1.90f, 0.55f, &PROF_SQUAT,    nullptr,         PAL_BRONZE,     {10.0f, 0.15f, 0.12f}, TILT_LAG_NONE  }, // 1  aspect 3.45 — pawn-proportioned
-  { FAM_SMOOTH,   "Colossal", 3.50f, 0.75f, &PROF_COLOSSAL, nullptr,         PAL_BLACKGOLD,  { 8.0f, 0.10f, 0.20f}, TILT_LAG_TALL  }, // 2  the monolith
-  { FAM_SMOOTH,   "Acorn",    1.70f, 0.50f, &PROF_ACORN,    nullptr,         PAL_ACORN,      {12.0f, 0.15f, 0.10f}, TILT_LAG_NONE  }, // 3  aspect 3.40
-  { FAM_SMOOTH,   "Spire",    2.80f, 0.35f, &PROF_SPIRE,    nullptr,         PAL_STEELBLUE,  {10.0f, 0.12f, 0.12f}, TILT_LAG_STICK }, // 4  aspect 8.00 — the stick
-  { FAM_SMOOTH,   "Idol",     1.80f, 0.55f, &PROF_IDOL,     nullptr,         PAL_JADE,       {10.0f, 0.15f, 0.10f}, TILT_LAG_NONE  }, // 5  aspect 3.27
-  { FAM_SMOOTH,   "Stele",    2.00f, 0.40f, &PROF_STELE,    nullptr,         PAL_LIMESTONE,  { 6.0f, 0.08f, 0.15f}, TILT_LAG_STICK }, // 6  aspect 5.00 — the slab
-  { FAM_HERALDIC, "Bronze",   1.00f, 0.50f, nullptr,        &PROF_H_BRONZE,  PAL_H_BRONZE,   {10.0f, 0.15f, 0.12f}, TILT_LAG_NONE  }, // 7  short + stout
-  { FAM_HERALDIC, "Silver",   1.10f, 0.50f, nullptr,        &PROF_H_SILVER,  PAL_H_SILVER,   { 4.0f, 0.06f, 0.15f}, TILT_LAG_NONE  }, // 8
-  { FAM_HERALDIC, "Gold",     1.15f, 0.50f, nullptr,        &PROF_H_GOLD,    PAL_H_GOLD,     { 6.0f, 0.10f, 0.12f}, TILT_LAG_NONE  }, // 9
-  { FAM_HERALDIC, "Steel",    1.30f, 0.55f, nullptr,        &PROF_H_STEEL,   PAL_H_STEEL,    { 8.0f, 0.10f, 0.12f}, TILT_LAG_NONE  }, // 10
-  { FAM_HERALDIC, "Crystal",  1.35f, 0.55f, nullptr,        &PROF_H_CRYSTAL, PAL_H_CRYSTAL,  { 8.0f, 0.08f, 0.10f}, TILT_LAG_NONE  }, // 11
-  { FAM_HERALDIC, "Star",     1.45f, 0.55f, nullptr,        &PROF_H_STAR,    PAL_H_STAR,     {10.0f, 0.06f, 0.08f}, TILT_LAG_NONE  }, // 12
-  { FAM_HERALDIC, "Divine",   1.55f, 0.55f, nullptr,        &PROF_H_DIVINE,  PAL_H_DIVINE,   { 4.0f, 0.05f, 0.06f}, TILT_LAG_NONE  }, // 13
+  { FAM_REGULAR,  "Pawn",     1.50f, 0.50f, nullptr,        nullptr,         nullptr,        { 0.0f, 0.00f, 0.00f}, TILT_LAG_NONE  }, // 0  unchanged, as ruled
+  { FAM_SMOOTH,   "Squat",    1.90f, 0.55f, &PROF_SQUAT,    nullptr,         PAL_BRONZE,     {10.0f, 0.15f, 0.12f}, TILT_LAG_NONE  }, // 1  scale unchanged
+  { FAM_SMOOTH,   "Colossal", 3.50f, 0.75f, &PROF_COLOSSAL, nullptr,         PAL_BLACKGOLD,  { 8.0f, 0.10f, 0.20f}, TILT_LAG_TALL  }, // 2  scale unchanged
+  { FAM_SMOOTH,   "Acorn",    2.00f, 0.60f, &PROF_ACORN,    nullptr,         PAL_ACORN,      {12.0f, 0.15f, 0.10f}, TILT_LAG_NONE  }, // 3  was 1.70/0.50
+  { FAM_SMOOTH,   "Spire",    3.80f, 1.04f, &PROF_SPIRE,    nullptr,         PAL_STEELBLUE,  {10.0f, 0.12f, 0.12f}, TILT_LAG_TALL  }, // 4  was 2.80/0.35 — now tallest; STICK → TALL
+  { FAM_SMOOTH,   "Idol",     2.30f, 0.75f, &PROF_IDOL,     nullptr,         PAL_JADE,       {10.0f, 0.15f, 0.10f}, TILT_LAG_NONE  }, // 5  was 1.80/0.55
+  { FAM_SMOOTH,   "Stele",    3.00f, 0.70f, &PROF_STELE,    nullptr,         PAL_LIMESTONE,  { 6.0f, 0.08f, 0.15f}, TILT_LAG_STICK }, // 6  was 2.00/0.40
+  { FAM_HERALDIC, "Bronze",   1.50f, 0.76f, nullptr,        &PROF_H_BRONZE,  PAL_H_BRONZE,   {10.0f, 0.15f, 0.12f}, TILT_LAG_NONE  }, // 7  was 1.00/0.50
+  { FAM_HERALDIC, "Silver",   1.61f, 0.50f, nullptr,        &PROF_H_SILVER,  PAL_H_SILVER,   { 4.0f, 0.06f, 0.15f}, TILT_LAG_NONE  }, // 8  was 1.10/0.50
+  { FAM_HERALDIC, "Gold",     2.26f, 0.74f, nullptr,        &PROF_H_GOLD,    PAL_H_GOLD,     { 6.0f, 0.10f, 0.12f}, TILT_LAG_NONE  }, // 9  was 1.15/0.50
+  { FAM_HERALDIC, "Steel",    1.93f, 0.55f, nullptr,        &PROF_H_STEEL,   PAL_H_STEEL,    { 8.0f, 0.10f, 0.12f}, TILT_LAG_NONE  }, // 10 was 1.30/0.55
+  { FAM_HERALDIC, "Crystal",  1.75f, 0.59f, nullptr,        &PROF_H_CRYSTAL, PAL_H_CRYSTAL,  { 8.0f, 0.08f, 0.10f}, TILT_LAG_NONE  }, // 11 was 1.35/0.55
+  { FAM_HERALDIC, "Star",     1.45f, 0.55f, nullptr,        &PROF_H_STAR,    PAL_H_STAR,     {10.0f, 0.06f, 0.08f}, TILT_LAG_NONE  }, // 12 scale unchanged
+  { FAM_HERALDIC, "Divine",   1.88f, 0.55f, nullptr,        &PROF_H_DIVINE,  PAL_H_DIVINE,   { 4.0f, 0.05f, 0.06f}, TILT_LAG_NONE  }, // 13 was 1.55/0.55
 };
 
 inline constexpr uint32_t PAWN_FIGURE_COUNT = sizeof(PAWN_FIGURES) / sizeof(PAWN_FIGURES[0]);
