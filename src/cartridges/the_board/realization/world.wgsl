@@ -1745,10 +1745,7 @@ struct DesignConfig {
 // RAYMARCH/SDF EXCAVATION: the legacy WAVES table + WAVE_COUNT +
 // HEIGHT_MAX_AMPLITUDE + the amplitude-trajectory feeder constants
 // (IDLE_AMPLITUDE_SCALE / AMPLITUDE_ATTACK_TIME / AMPLITUDE_RELEASE_TIME)
-// were the animated field the dead SDF marched — read only by the
-// (also removed) update_terrain_config lipschitz chain, never by any live
-// VS/FS. Removed. NOT the (then-live) OVERLAY_WAVES voice — itself
-// retired later (TRUEBAND_CONTACT_1 T1c).
+// were the animated field the dead SDF marched. Removed.
 // SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
 // (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
 
@@ -2875,11 +2872,6 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // Cost: 6 sin() calls per evaluation point. Called in VS + pawn + camera.
 //
-// ─── Overlay wave band table — RETIRED (TRUEBAND_CONTACT_1 T1c) ────
-// (OverlayWave struct + OVERLAY_WAVE_COUNT + OVERLAY_WAVES + the
-//  design matrix — panel-era residents of ROW 7 §2.2 — retired whole
-//  with their evaluators when the true-band writer replaced the
-//  overlay. The tombstones below mark the evaluators' sites.)
 
 
 
@@ -2953,7 +2945,7 @@ fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
 // position as the field's anchor for the bounding-box check. Used by
 // consumers querying away from the pawn: POLICY_FLYER (spheres, cubes,
 // camera), POLICY_WALKER_AGENT (non-pawn walkers), and inline render-
-// side samples in patch_terrain_vs / zone_extrusion_vs.
+// side samples in patch_terrain_vs.
 // Contributes: height extrusion at xz based on the directional-biased
 //   aura cell that xz falls into.
 // Dependencies (via DAG): none — orthogonal to the static stack.
@@ -5744,7 +5736,6 @@ fn apply_gol_color(base_color: vec3<f32>, zp: GoLZoneConfig, cx: u32, cy: u32, b
 }
 
 // Extrusion block color: starts from per-cell terrain color, applies mode
-// (fn apply_gol_extrusion_color RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
 struct GoLZoneArray {
     count: u32,
@@ -5785,8 +5776,7 @@ const AURA_DELTA_RANDOM: u32 = 1u;
 // Returns vec4(height_blend, delta_r, delta_g, delta_b) or vec4(0) if ghost/inactive.
 //
 // Called by contrib_pawn_aura_at_external(xz) and by the inline
-// render-side consumers (patch_terrain_vs, zone_extrusion_vs,
-// photo_painting FS tinting). NOT called by the pawn's own Y resolve:
+// render-side consumers (patch_terrain_vs, photo_painting FS tinting). NOT called by the pawn's own Y resolve:
 // POLICY_WALKER uses contrib_pawn_aura_at_self() which returns the
 // scalar peak directly — the pawn knows it sits at its own aura peak
 // without reading the directionally-biased grid. See those functions
@@ -8166,12 +8156,6 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
     return mix(color_lo, color_hi, frac);
 }
 
-// (animated_cell_color_lut — the LUT reconstruction body — RETIRED,
-//  Commit C: the Phase-2 deletion note's prophecy fulfilled ("a
-//  revival is a five-line wrapper"). The cell_fields LUT died with
-//  it; the name animated_cell_color returns, now THE one live
-//  composite body.)
-
 // THE ONE LIVE COMPOSITE BODY — the bake's evaluator at VOICE = now,
 // sampled at the owned cell's center (charter C8). Rest look catches
 // up on regen.
@@ -8278,10 +8262,6 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     // Store: RGB = fully composited color, A = behavior tag
     textureStore(patch_cell_color_array_write, texel, layer, vec4(final_color, behavior_tag));
 
-    // (cell_fields LUT store RETIRED — Commit C: the live path
-    //  evaluates the same fields analytically at the cell center. The
-    //  bake's one artifact is the color+tag texture — the cache of
-    //  this function at VOICE = rest.)
 }
 
 
@@ -8436,7 +8416,6 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // (fn zone_emit_quad RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
-// (fn zone_mesh_gen_cell RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
 // (fn zone_gol_mesh_reset RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
@@ -8445,9 +8424,7 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 // --- Zone extrusion render shaders
 
 
-// (fn zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
-// (fn zone_extrusion_fs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
 // (fn shadow_zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 

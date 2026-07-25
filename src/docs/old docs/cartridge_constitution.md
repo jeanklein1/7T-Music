@@ -1,19 +1,22 @@
 # THE CARTRIDGE CONSTITUTION
-Branch FINAL_LAPS · applies to both cartridges · repo home: src/docs/
+Branch FINAL_LAPS · repo home: src/docs/
 Ratification = CC audits every claim here against the tree (§5's counts,
 §3's order) and the document ships same-commit with any change it governs.
 
 ## §0 — PREAMBLE: WHAT A CARTRIDGE IS
 A cartridge is the composition root and the ambient world: the one place
 where entities are assembled into an exhibit, and the environment every
-module breathes. It is swappable as a whole — the_chord (the lab) and
-the_board (the exhibit) are two instances of one anatomy, mirrors except
-where a divergence is authored and declared. Mirror conventions (the
-practiced law): mirrored-module deltas are byte-identical (ribbon.inl,
-pawn.inl); ribbon.inl carries a UTF-8 BOM; world.wgsl is BOM-free LF;
-world.wgsl deltas are byte-identical between cartridges. Nothing musical
-happens in it except through the canvas; nothing entity-shaped lives in
-it except assembly.
+module breathes. It is swappable as a whole. `world.wgsl` is BOM-free LF.
+Nothing musical happens in it except through the canvas; nothing
+entity-shaped lives in it except assembly.
+
+> THE MIRROR LAW IS RETIRED (PRUNING_1 P1 Step 6). This section described a
+> two-cartridge world — the_chord (the lab) and the_board (the exhibit) as
+> mirrors, with byte-identical `ribbon.inl` / `pawn.inl` deltas and
+> byte-identical `world.wgsl` between cartridges. `the_chord` is gone, no
+> `.inl` file exists anywhere in the tree, and there is one cartridge. The
+> law had no subject left. (The desktop↔web mirror that replaced it in
+> spirit is also retired — `audit/WEB_PORT_LEDGER.md`.)
 
 ## §1 — THE COMPOSITION LAW (amended 2026-07-11; supersedes the
 ## single-organism law)

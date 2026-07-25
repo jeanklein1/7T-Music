@@ -104,13 +104,9 @@ namespace t7 {
                 inline constexpr uint32_t zone_config                = 160;
                 inline constexpr uint32_t zone_life                  = 161;
                 inline constexpr uint32_t zone_life_tex_write        = 162;
-                // 163/164/165 RETIRED — zone_heightfield / zone_hf_sampler /
-                // zone_patch_instances (the zone-mesh terrain-eval trio;
-                // UNIFIED_GROUND_1 U4 — numbers parked per the 149 precedent).
+                // 163/164/165 free (UNIFIED_GROUND_1 U4).
                 inline constexpr uint32_t zone_derive_requests       = 166;
-                // 167/168/169 RETIRED — zone_mesh_vertices / zone_mesh_indices /
-                // zone_mesh_indirect (the extrusion mesh trio; UNIFIED_GROUND_1 U4
-                // — numbers parked per the 149 precedent).
+                // 167/168/169 free (UNIFIED_GROUND_1 U4).
                 inline constexpr uint32_t pawn_aura_cfg              = 170;
                 inline constexpr uint32_t pawn_aura_cells            = 171;
                 inline constexpr uint32_t pawn_aura_tex_write        = 172;

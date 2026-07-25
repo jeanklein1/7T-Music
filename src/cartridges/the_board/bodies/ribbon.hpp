@@ -17,12 +17,6 @@
 // pen; the propagation law replays the head's past down the body at
 // P. Couple the head, and the rest follows.
 //
-// PAIRING (historical): the mirror law — byte-identical the_board/the_chord
-// mirrored-module deltas — is
-// RETIRED with the_chord itself: the testbed served its
-// purpose, and the mirror law was the testbed's honesty constraint. Ribbon
-// is now just a module; no mirror constraint binds this file.
-//
 // The impl additionally reaches the spawn-engine services
 // (run_spawn_preamble, negotiate_position,
 // record_placement_bookkeeping — spawn_engine.hpp), the tile_world

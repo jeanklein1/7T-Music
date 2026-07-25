@@ -244,9 +244,6 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 #   Analysis cartridges: src/analysis/<name>/canvas.hpp
 #
 #   Available render cartridges: the_board
-#     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build
-#      target — see src/cartridges/backup_board/README.md. the_chord retired:
-#      testbed, purpose served — see audit/LADDER.md sibling-prune entry.)
 #
 # Set INCUBATOR_ONLY=ON during development to hide the main target entirely.
 # The main target pulls ALL cartridges and pollutes IntelliSense.
@@ -633,10 +630,9 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS
 # ── PROBE_CANVAS — headless reading check (RtMidi only; no Dawn, no ImGui) ──
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# The canvas-cartridge probe. The earlier one-off probes (probe, probe_events,
-# probe_field, probe_interval, probe_lowest, probe_vector*) were scaffolding for
-# building the analysis layer and have been archived under
-# "src/dev/BACKUP 15 06/"; their targets are removed.
+# The canvas-cartridge probe. Earlier one-off probes were scaffolding for
+# building the analysis layer; their targets and sources are gone (git has
+# them).
 
 add_executable(probe_canvas src/analysis/canvas_1/probe_canvas.cpp src/external/RtMidi.cpp)
 target_include_directories(probe_canvas PRIVATE src)
