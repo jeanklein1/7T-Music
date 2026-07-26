@@ -179,23 +179,21 @@ function ribbedColumn(T, cx, cy, cz, dirX, dirY, dirZ, h, r, taper, ribs, ribDep
 }
 
 /* ═══ 3D RENDERER ═══ */
-function render3D(ctx, W, H, T, rotY, tilt, seed, zoom = 1, panX = 0, panY = 0, view = null) {
-  if (!view?.noClear) ctx.clearRect(0, 0, W, H);
+/* Rotated WORLD space only — never projects, draws, clears, or sees W/H/zoom/pan.
+   Scale-free by design: that is what lets tiers merge into one sorted list. */
+function buildFaces(T, rotY, tilt, xOff, midY, seed) {
   const ld = normalize3([-0.6, -0.7, -0.3]);
   const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
   const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
   const armCount = Math.max(0, Math.round(T.arm_count));
-  const extent = Math.max(T.height * 1.2, T.arm_length * 2 + T.radius * 2);
-  const scale = (view?.scale ?? Math.min(W, H) * 0.36 / (extent * 0.5)) * zoom;
-  const midY = T.height * 0.45;
 
   const rv = (v) => {
+    const vx = v[0] + xOff;          // world-space row offset, BEFORE the Y-rotation
     const vy = v[1] - midY;
-    const x1 = v[0] * cosR + v[2] * sinR;
-    const z1 = -v[0] * sinR + v[2] * cosR;
+    const x1 = vx * cosR + v[2] * sinR;
+    const z1 = -vx * sinR + v[2] * cosR;
     return [x1, vy * cosT - z1 * sinT, vy * sinT + z1 * cosT];
   };
-  const pj = (v) => [W / 2 + panX + v[0] * scale, H / 2 + panY - v[1] * scale];
 
   const faces = [];
   const addQuads = (quads) => {
@@ -272,14 +270,61 @@ function render3D(ctx, W, H, T, rotY, tilt, seed, zoom = 1, panX = 0, panY = 0, 
     addQuads(armQuads);
   }
 
+  return faces;
+}
+
+/* ═══ CAMERA PRIMITIVES — world→screen, and the depth-sorted fill ═══ */
+function makeProject(W, H, scale, panX, panY) {
+  return (v) => [W / 2 + panX + v[0] * scale, H / 2 + panY - v[1] * scale];
+}
+
+function drawFaces(ctx, faces, project) {
   faces.sort((a, b) => a.z - b.z);
   for (const f of faces) {
-    const pts = f.v.map(pj);
+    const pts = f.v.map(project);
     ctx.fillStyle = rgb01(f.col[0] * f.li, f.col[1] * f.li, f.col[2] * f.li);
     ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.closePath(); ctx.fill();
   }
+}
+
+function tierExtent(T) { return Math.max(T.height * 1.2, T.arm_length * 2 + T.radius * 2); }
+function tierHeight(T) { return T.height; }
+
+/* Single view — keeps render3D's original public signature, so the call sites
+   and effect deps from [2] are untouched. */
+function render3D(ctx, W, H, T, rotY, tilt, seed, zoom = 1, panX = 0, panY = 0) {
+  ctx.clearRect(0, 0, W, H);
+  const scale = Math.min(W, H) * 0.36 / (tierExtent(T) * 0.5) * zoom;
+  const midY = T.height * 0.45;
+  drawFaces(ctx, buildFaces(T, rotY, tilt, 0, midY, seed), makeProject(W, H, scale, panX, panY));
+}
+
+/* All tiers in ONE shared scene: bases on a common line, spaced along world x,
+   the row rotating as a unit. Every tier's faces merge into a single
+   depth-sorted list so they occlude correctly at any angle. Scale is shared and
+   taken from the largest tier — the RELATIVE SIZE IS THE COMPARISON, so a tier
+   is never normalised to its own slot. */
+function render3DCompare(ctx, W, H, tiers, rotY, tilt, seed, zoom = 1, panX = 0, panY = 0) {
+  ctx.clearRect(0, 0, W, H);
+  const exts = tiers.map(tierExtent);
+  const maxExt = Math.max(...exts, 1e-4);
+  const maxH = Math.max(...tiers.map(tierHeight), 1e-4);
+
+  // Slot per tier: its own footprint plus a constant gutter, so a large tier
+  // gets more room and neighbours never touch.
+  const slotW = exts.map(e => e * 0.7 + maxExt * 0.18);
+  const totalW = slotW.reduce((a, b) => a + b, 0);
+  const scale = Math.min(W * 0.92 / totalW, H * 0.72 / maxExt) * zoom;
+
+  let cum = -totalW / 2;
+  const xOffs = slotW.map(w => { const c = cum + w / 2; cum += w; return c; });
+
+  const midY = maxH * 0.5;                       // shared → bases align
+  const all = [];
+  tiers.forEach((T, i) => all.push(...buildFaces(T, rotY, tilt, xOffs[i], midY, seed)));
+  drawFaces(ctx, all, makeProject(W, H, scale, panX, panY));
 }
 
 /* ═══ 2D PROFILE ═══ */
@@ -473,10 +518,13 @@ export default function CactusDesigner() {
   const [seed, setSeed] = useState(42);
   const resolved = resolveColors(T, seed);
   const RT = { ...T, body_color: resolved.bodyCol, rib_color: resolved.ribCol };
+  // Compare renders the whole row, so resolve each tier's colours the same way RT does.
+  const cmpTiers = tiers.map(t => { const rc = resolveColors(t, seed); return { ...t, body_color: rc.bodyCol, rib_color: rc.ribCol }; });
 
   const [rotY, setRotY] = useState(0.4);
   const [tilt, setTilt] = useState(0.15);
   const [autoRot, setAutoRot] = useState(true);
+  const [compareMode, setCompareMode] = useState(false);
   const [zoom, setZoom] = useState(1.0);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
@@ -502,7 +550,9 @@ export default function CactusDesigner() {
         c3.width = rect.width * devicePixelRatio; c3.height = rect.height * devicePixelRatio;
         const ctx = c3.getContext("2d");
         ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-        render3D(ctx, rect.width, rect.height, RT, autoRot ? rotY + frame * 0.008 : rotY, tilt, seed, zoom, panX, panY);
+        const r3 = autoRot ? rotY + frame * 0.008 : rotY;
+        if (compareMode) render3DCompare(ctx, rect.width, rect.height, cmpTiers, r3, tilt, seed, zoom, panX, panY);
+        else render3D(ctx, rect.width, rect.height, RT, r3, tilt, seed, zoom, panX, panY);
       }
       if (c2) {
         const rect = c2.parentElement.getBoundingClientRect();
@@ -514,7 +564,7 @@ export default function CactusDesigner() {
       frame++; animRef.current = requestAnimationFrame(tick);
     };
     tick(); return () => cancelAnimationFrame(animRef.current);
-  }, [RT, rotY, tilt, autoRot, seed, zoom, panX, panY]);
+  }, [RT, cmpTiers, compareMode, rotY, tilt, autoRot, seed, zoom, panX, panY]);
 
   // Camera. Attached via the canvas's onPointerDown JSX prop, NOT
   // addEventListener — React binds at render time, so the listener cannot be
@@ -570,7 +620,14 @@ export default function CactusDesigner() {
     <div style={{ display: "flex", gap: 8, height: "100vh", padding: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, overflow: "hidden", background: "var(--color-background-primary)", color: "var(--color-text-primary)", boxSizing: "border-box", position: "relative" }}>
       <div style={{ flex: "1 1 55%", display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
         <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
-          {TIER_NAMES.map((name, i) => (<button key={i} onClick={() => setTierIdx(i)} style={{ ...btnStyle, background: i === tierIdx ? "var(--color-background-info)" : "var(--color-background-secondary)", color: i === tierIdx ? "var(--color-text-on-info)" : "var(--color-text-secondary)", fontWeight: i === tierIdx ? 600 : 400 }}>{name}</button>))}
+          {TIER_NAMES.map((name, i) => (<button key={i} onClick={() => { setTierIdx(i); setCompareMode(false); }} style={{ ...btnStyle, background: i === tierIdx ? "var(--color-background-info)" : "var(--color-background-secondary)", color: i === tierIdx ? "var(--color-text-on-info)" : "var(--color-text-secondary)", fontWeight: i === tierIdx ? 600 : 400 }}>{name}</button>))}
+          <button onClick={() => setCompareMode(c => !c)} style={{
+            ...btnStyle,
+            border: compareMode ? "2px solid var(--color-border-info)" : undefined,
+            background: compareMode ? "var(--color-background-info)" : "var(--color-background-secondary)",
+            color: compareMode ? "var(--color-text-on-info)" : "var(--color-text-secondary)",
+            fontWeight: compareMode ? 600 : 400,
+          }} title="Show all tiers side-by-side at shared scale">Compare</button>
           <span style={{ flex: 1 }} />
           <button onClick={() => setAutoRot(!autoRot)} style={{ ...btnStyle, opacity: autoRot ? 1 : 0.5 }}>{autoRot ? "◉ spin" : "○ spin"}</button>
           <button onClick={resetAll} style={btnStyle}>Reset all</button>

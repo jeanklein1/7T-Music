@@ -281,25 +281,22 @@ function frondGeometry(T, frondIdx, totalFronds, crownY, crownLeanX) {
 }
 
 /* ═══ 3D RENDERER ═══ */
-function render3D(ctx, W, H, T, rotY, tilt, zoom = 1, panX = 0, panY = 0, view = null) {
-  if (!view?.noClear) ctx.clearRect(0, 0, W, H);
+/* Rotated WORLD space only — never projects, draws, clears, or sees W/H/zoom/pan.
+   Scale-free by design: that is what lets tiers merge into one sorted list. */
+function buildFaces(T, rotY, tilt, xOff, midY) {
   const RENDER_SEGS = Math.min(T.trunk_segs, 24);
   const profile = trunkProfile(T);
   const lightDir = normalize3([-0.6, -0.7, -0.3]);
   const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
   const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
 
-  const extent = Math.max(T.height, T.frond_len * 2, T.base_r * 4);
-  const scale = (view?.scale ?? Math.min(W, H) * 0.38 / (extent * 0.5)) * zoom;
-  const midY = T.height * 0.5;
-
   const rotV = (v) => {
+    const vx = v[0] + xOff;          // world-space row offset, BEFORE the Y-rotation
     const vy = v[1] - midY;
-    const x1 = v[0] * cosR + v[2] * sinR;
-    const z1 = -v[0] * sinR + v[2] * cosR;
+    const x1 = vx * cosR + v[2] * sinR;
+    const z1 = -vx * sinR + v[2] * cosR;
     return [x1, vy * cosT - z1 * sinT, vy * sinT + z1 * cosT];
   };
-  const project = (v) => [W / 2 + panX + v[0] * scale, H / 2 + panY - v[1] * scale];
 
   const faces = [];
   const addTri = (a, b, c, col) => {
@@ -353,7 +350,15 @@ function render3D(ctx, W, H, T, rotY, tilt, zoom = 1, panX = 0, panY = 0, view =
     }
   }
 
-  // Sort and render
+  return faces;
+}
+
+/* ═══ CAMERA PRIMITIVES — world→screen, and the depth-sorted fill ═══ */
+function makeProject(W, H, scale, panX, panY) {
+  return (v) => [W / 2 + panX + v[0] * scale, H / 2 + panY - v[1] * scale];
+}
+
+function drawFaces(ctx, faces, project) {
   faces.sort((a, b) => a.avgZ - b.avgZ);
   for (const f of faces) {
     const pts = f.verts.map(project);
@@ -364,6 +369,44 @@ function render3D(ctx, W, H, T, rotY, tilt, zoom = 1, panX = 0, panY = 0, view =
     ctx.closePath();
     ctx.fill();
   }
+}
+
+function tierExtent(T) { return Math.max(T.height, T.frond_len * 2, T.base_r * 4); }
+function tierHeight(T) { return T.height; }
+
+/* Single view — keeps render3D's original public signature, so the call sites
+   and effect deps from [2] are untouched. */
+function render3D(ctx, W, H, T, rotY, tilt, zoom = 1, panX = 0, panY = 0) {
+  ctx.clearRect(0, 0, W, H);
+  const scale = Math.min(W, H) * 0.38 / (tierExtent(T) * 0.5) * zoom;
+  const midY = T.height * 0.5;
+  drawFaces(ctx, buildFaces(T, rotY, tilt, 0, midY), makeProject(W, H, scale, panX, panY));
+}
+
+/* All tiers in ONE shared scene: bases on a common line, spaced along world x,
+   the row rotating as a unit. Every tier's faces merge into a single
+   depth-sorted list so they occlude correctly at any angle. Scale is shared and
+   taken from the largest tier — the RELATIVE SIZE IS THE COMPARISON, so a tier
+   is never normalised to its own slot. */
+function render3DCompare(ctx, W, H, tiers, rotY, tilt, zoom = 1, panX = 0, panY = 0) {
+  ctx.clearRect(0, 0, W, H);
+  const exts = tiers.map(tierExtent);
+  const maxExt = Math.max(...exts, 1e-4);
+  const maxH = Math.max(...tiers.map(tierHeight), 1e-4);
+
+  // Slot per tier: its own footprint plus a constant gutter, so a large tier
+  // gets more room and neighbours never touch.
+  const slotW = exts.map(e => e * 0.7 + maxExt * 0.18);
+  const totalW = slotW.reduce((a, b) => a + b, 0);
+  const scale = Math.min(W * 0.92 / totalW, H * 0.72 / maxExt) * zoom;
+
+  let cum = -totalW / 2;
+  const xOffs = slotW.map(w => { const c = cum + w / 2; cum += w; return c; });
+
+  const midY = maxH * 0.5;                       // shared → bases align
+  const all = [];
+  tiers.forEach((T, i) => all.push(...buildFaces(T, rotY, tilt, xOffs[i], midY)));
+  drawFaces(ctx, all, makeProject(W, H, scale, panX, panY));
 }
 
 /* ═══ 2D PROFILE ═══ */
@@ -577,10 +620,13 @@ export default function PalmDesigner() {
   // Resolved tier: hash-derived colors applied for preview rendering
   const resolved = resolveColors(T, seed);
   const RT = { ...T, trunk_color: resolved.trunkCol, frond_color: resolved.frondCol, frond_color_aged: resolved.frondAgedCol };
+  // Compare renders the whole row, so resolve each tier's colours the same way RT does.
+  const cmpTiers = tiers.map(t => { const rc = resolveColors(t, seed); return { ...t, trunk_color: rc.trunkCol, frond_color: rc.frondCol, frond_color_aged: rc.frondAgedCol }; });
 
   const [rotY, setRotY] = useState(0.4);
   const [tilt, setTilt] = useState(0.15);
   const [autoRot, setAutoRot] = useState(true);
+  const [compareMode, setCompareMode] = useState(false);
   const [zoom, setZoom] = useState(1.0);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
@@ -611,7 +657,8 @@ export default function PalmDesigner() {
         const ctx = c3.getContext("2d");
         ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
         const r = autoRot ? rotY + frame * 0.008 : rotY;
-        render3D(ctx, rect.width, rect.height, RT, r, tilt, zoom, panX, panY);
+        if (compareMode) render3DCompare(ctx, rect.width, rect.height, cmpTiers, r, tilt, zoom, panX, panY);
+        else render3D(ctx, rect.width, rect.height, RT, r, tilt, zoom, panX, panY);
       }
       if (c2) {
         const rect = c2.parentElement.getBoundingClientRect();
@@ -626,7 +673,7 @@ export default function PalmDesigner() {
     };
     tick();
     return () => cancelAnimationFrame(animRef.current);
-  }, [RT, rotY, tilt, autoRot, zoom, panX, panY]);
+  }, [RT, cmpTiers, compareMode, rotY, tilt, autoRot, zoom, panX, panY]);
 
   // Camera. Attached via the canvas's onPointerDown JSX prop, NOT
   // addEventListener — React binds at render time, so the listener cannot be
@@ -686,8 +733,15 @@ export default function PalmDesigner() {
         {/* Tier tabs + controls */}
         <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
           {TIER_NAMES.map((name, i) => (
-            <button key={i} onClick={() => setTierIdx(i)} style={{ ...btnStyle, background: i === tierIdx ? "var(--color-background-info)" : "var(--color-background-secondary)", color: i === tierIdx ? "var(--color-text-on-info)" : "var(--color-text-secondary)", fontWeight: i === tierIdx ? 600 : 400 }}>{name}</button>
+            <button key={i} onClick={() => { setTierIdx(i); setCompareMode(false); }} style={{ ...btnStyle, background: i === tierIdx ? "var(--color-background-info)" : "var(--color-background-secondary)", color: i === tierIdx ? "var(--color-text-on-info)" : "var(--color-text-secondary)", fontWeight: i === tierIdx ? 600 : 400 }}>{name}</button>
           ))}
+          <button onClick={() => setCompareMode(c => !c)} style={{
+            ...btnStyle,
+            border: compareMode ? "2px solid var(--color-border-info)" : undefined,
+            background: compareMode ? "var(--color-background-info)" : "var(--color-background-secondary)",
+            color: compareMode ? "var(--color-text-on-info)" : "var(--color-text-secondary)",
+            fontWeight: compareMode ? 600 : 400,
+          }} title="Show all tiers side-by-side at shared scale">Compare</button>
           <span style={{ flex: 1 }} />
           <button onClick={() => setAutoRot(!autoRot)} style={{ ...btnStyle, opacity: autoRot ? 1 : 0.5 }}>{autoRot ? "◉ spin" : "○ spin"}</button>
           <button onClick={resetAll} style={btnStyle}>Reset all</button>
