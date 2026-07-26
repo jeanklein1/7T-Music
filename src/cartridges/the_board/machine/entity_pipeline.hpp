@@ -415,7 +415,7 @@ inline SpawnGateOutput column_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.columns, Dim::MAX_COLUMN_ONLY,
         ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::COLUMN), PopFamily::COLUMN, "col");
+        mood_mult_for(PopFamily::COLUMN), PopFamily::COLUMN);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -557,7 +557,7 @@ inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.antennas, Dim::MAX_ANTENNA_ONLY,
         AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::ANTENNA), PopFamily::ANTENNA, "ant");
+        mood_mult_for(PopFamily::ANTENNA), PopFamily::ANTENNA);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -778,7 +778,7 @@ inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.pyramids, Dim::MAX_PYRAMID_INSTANCES,
         PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::PYRAMID), PopFamily::PYRAMID, "pyr");
+        mood_mult_for(PopFamily::PYRAMID), PopFamily::PYRAMID);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -934,7 +934,7 @@ inline constexpr EntityFamilyTraits ARCH_TRAITS = {
 inline SpawnGateOutput arch_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
         ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::ARCH), PopFamily::ARCH, "arch");
+        mood_mult_for(PopFamily::ARCH), PopFamily::ARCH);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 

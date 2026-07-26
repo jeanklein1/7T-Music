@@ -945,7 +945,7 @@ inline SpawnGateOutput blade_run_gate(MachineCtx* c,
         c->entities_state_.blades, Dim::MAX_BLADE_INSTANCES,
         BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
         mood_mult_for(PopFamily::BLADE),
-        PopFamily::BLADE, "blad");
+        PopFamily::BLADE);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -1160,7 +1160,7 @@ inline SpawnGateOutput palm_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.palms, Dim::MAX_PALM_INSTANCES,
         PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::PALM), PopFamily::PALM, "palm");
+        mood_mult_for(PopFamily::PALM), PopFamily::PALM);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -1388,7 +1388,7 @@ inline SpawnGateOutput cactus_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.cacti, Dim::MAX_CACTUS_INSTANCES,
         CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::CACTUS), PopFamily::CACTUS, "cact");
+        mood_mult_for(PopFamily::CACTUS), PopFamily::CACTUS);
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 

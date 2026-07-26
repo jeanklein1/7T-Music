@@ -238,7 +238,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     ActiveT* active_arr, uint32_t max_instances,
     uint32_t spawn_roll_prop, float spawn_chance,
     const float* mood_mult,
-    uint32_t family, const char* diag_name);
+    uint32_t family);
 
 // ═══ PIPELINE VERBS — DECLARATIONS (entity_pipeline) ══════════════
 //

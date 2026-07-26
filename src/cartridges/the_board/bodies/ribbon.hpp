@@ -1107,7 +1107,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
         rs.active, MAX_RIBBON_INSTANCES,
         RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
         mood_mult_for(PopFamily::RIBBON),
-        PopFamily::RIBBON, "ribn");
+        PopFamily::RIBBON);
     if (!gate.ok) return false;
 
     // Tier selection with theme bias
