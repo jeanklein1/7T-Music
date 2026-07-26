@@ -219,7 +219,6 @@ PositionResult negotiate_position(MachineCtx* c,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
     float footprint_r, float containment_r, uint32_t family, uint32_t tier = 0);
-void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx);
 GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot);
 GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c);
 GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot);

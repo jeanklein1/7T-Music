@@ -18,8 +18,8 @@
 // streaming conductor (stream_patches).
 //
 // SEAM[spine:active-patch-system] the ActivePatch struct, the
-//   patches_ registry, find_patch / evict_patch / evict_patch_entities /
-//   audit_entity_integrity, plus the entity_refs registry on each
+//   patches_ registry, find_patch / evict_patch / evict_patch_entities,
+//   plus the entity_refs registry on each
 //   ActivePatch. Cross-module readers: machine/spawn_engine.hpp (commit
 //   functions call host->record_entity), bodies/ribbon.hpp (two-tip late
 //   registration), bodies/gallery.hpp (evict_paintings_for_patch via the
@@ -180,7 +180,6 @@ ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
 
 void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
-void audit_entity_integrity(MachineCtx* c);
 uint32_t count_pending_patches(MachineCtx* c);
 uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState);
 
@@ -219,7 +218,6 @@ bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32
 void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::Queue& queue,
     ThemesState& themes_state);
-void on_patch_first_generated(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     uint32_t& patchStagingOffset, bool& tileGridDirty,

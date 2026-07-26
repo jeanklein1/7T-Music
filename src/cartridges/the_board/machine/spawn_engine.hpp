@@ -327,12 +327,6 @@ inline PositionResult negotiate_position(MachineCtx* c,
     return r;
 }
 
-// ── Helper 3: record_placement_bookkeeping ──────────────────
-
-inline void record_placement_bookkeeping(uint32_t /*family*/, uint32_t /*tier_idx*/)
-{
-}
-
 // ═══ MESH GEN PREPARERS + CULLING ════════════════════════════════
 
 // ─── Column / Arch / Pyramid mesh-gen preparers ───────────────

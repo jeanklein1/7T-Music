@@ -195,7 +195,6 @@ inline bool generic_place(MachineCtx* c,
 
     inst.cached_ground_y = 0.0f;
 
-    record_placement_bookkeeping(traits.family_id, inst.tier_idx);
     return true;
 }
 

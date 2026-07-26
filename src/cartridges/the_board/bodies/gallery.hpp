@@ -859,7 +859,6 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     plan.gallery_size_mean = sel.gallery_size_mean;
     plan.site_type = sel.site_type;
 
-    record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
     return true;
 }
 

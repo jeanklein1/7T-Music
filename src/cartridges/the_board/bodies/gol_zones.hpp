@@ -524,7 +524,6 @@ inline bool place_gol_from_selection(MachineCtx* c,
     plan.initial_density = sel.initial_density;
     plan.height_enabled = sel.height_enabled;
 
-    record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
     return true;
 }
 

@@ -18,9 +18,8 @@
 // P. Couple the head, and the rest follows.
 //
 // The impl additionally reaches the spawn-engine services
-// (run_spawn_preamble, negotiate_position,
-// record_placement_bookkeeping — spawn_engine.hpp), the tile_world
-// surface samplers (estimate_terrain_height / terrain_tile_warm),
+// (run_spawn_preamble, negotiate_position — spawn_engine.hpp), the
+// tile_world surface samplers (estimate_terrain_height / terrain_tile_warm),
 // seed_utils.hpp, cartridge core (time_state_.seconds/dt/beat_rate,
 // THEMES / Dim::PATCH_EXTENT (file-scope vocabulary), the four ribbon
 // canvas bindings ride RibbonDeps; the sky trio is OWN state), and the GPU wires
@@ -1206,7 +1205,6 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
     plan.checker_scatter = sel.checker_scatter;
     plan.checker_hue_spread = sel.checker_hue_spread;
 
-    record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
     return true;
 }
 

@@ -57,10 +57,6 @@ inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue&
     patch.entity_ref_count = 0;
 }
 
-inline void audit_entity_integrity(MachineCtx* c) {
-    (void)c;
-}
-
 // ── Dynamic budgets ────────────────────────────────────────────────
 
 inline uint32_t count_pending_patches(MachineCtx* c) {
@@ -371,13 +367,6 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
     }
 }
 
-// Hook: fires once when a patch transitions SPAWNED → GENERATED.
-inline void on_patch_first_generated(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
-    // Galleries → entity pipeline (select_gallery_for_patch)
-    // GoL zones → entity pipeline (select_gol_for_patch)
-    (void)c; (void)pi; (void)queue;
-}
-
 // Process heightfield generation for pre-collected patch candidates.
 inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
@@ -400,11 +389,7 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
     patchStagingOffset += count;
     for (uint32_t b = 0; b < count; b++) {
         uint32_t pi = batchIdx[b];
-        bool first_gen = (c->patch_system_state_.patches_[pi].phase == PatchPhase::SPAWNED);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::GENERATED;
-        if (first_gen) {
-            on_patch_first_generated(c, pi, queue);
-        }
     }
     c->world_state_.patch_instances_dirty = true;
 }
@@ -812,8 +797,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── Deferred uploads (one per frame max) ────────────────
     if (tileGridDirty) upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
     flush_pier_count(c, queue);
-
-    audit_entity_integrity(c);
 
     // Restore radius if we capped it for finite mode
     if (c->world_state_.finite_mode) { c->world_state_.active_radius = savedRadius; }
