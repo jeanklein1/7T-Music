@@ -92,6 +92,49 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
     "re-column all eight PopFamily-ordered tables + FAMILY_DISPATCH "
     "before renumbering any family");
 
+// ═══ PLACEMENT ORDER ═════════════════════════════════════════════
+//
+// WHO WINS CONTESTED GROUND, as data. select_entities_for_patch walks this
+// array and pushes in that order, and the queue places in push order — so
+// within one patch the family listed first registers its footprint before the
+// next family's check_position runs. The order allocates GROUND.
+//
+// It was previously the loop counter itself (`for f = 0..COUNT`), which
+// welded placement priority to the enum. But the enum is ALSO the column
+// order of eight positional tables and the row order of FAMILY_DISPATCH
+// (F-1), so re-ranking priority meant re-columning everything. Splitting the
+// two lets priority be re-ranked here, alone, without touching a single
+// table — PopFamily stays pinned.
+//
+// IDENTITY DEFAULT: today this is exactly PopFamily order, so behaviour is
+// unchanged. Reordering is a deliberate, isolated edit.
+inline constexpr uint32_t PLACEMENT_ORDER[PopFamily::COUNT] = {
+    PopFamily::PYRAMID, PopFamily::ARCH,   PopFamily::COLUMN, PopFamily::ANTENNA,
+    PopFamily::PALM,    PopFamily::CACTUS, PopFamily::BLADE,  PopFamily::SPHERE,
+    PopFamily::RIBBON,  PopFamily::CUBE,   PopFamily::GOL,    PopFamily::GALLERY,
+};
+
+// F-6: PLACEMENT_ORDER must be a PERMUTATION of 0..COUNT-1 — every family
+// exactly once. A duplicated index would silently drop the family it displaced
+// from every spawn, forever, with no other symptom: no crash, no log, just a
+// world missing a family. This is the cheapest possible guard against that,
+// and it runs at compile time.
+constexpr bool placement_order_is_permutation() {
+    bool seen[PopFamily::COUNT] = {};
+    for (uint32_t i = 0; i < PopFamily::COUNT; i++) {
+        const uint32_t f = PLACEMENT_ORDER[i];
+        if (f >= PopFamily::COUNT) return false;   // out of range
+        if (seen[f]) return false;                 // duplicate
+        seen[f] = true;
+    }
+    for (uint32_t f = 0; f < PopFamily::COUNT; f++)
+        if (!seen[f]) return false;                // omitted
+    return true;
+}
+static_assert(placement_order_is_permutation(),
+    "F-6: PLACEMENT_ORDER must list every PopFamily exactly once — a duplicate "
+    "or omission silently removes a family from every spawn");
+
 struct Roster {
     bool pyramid, arch, column, antenna, palm, cactus, blade,
          sphere, ribbon, cube, gol, gallery;

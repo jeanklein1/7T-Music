@@ -853,7 +853,12 @@ inline float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_
 // ─── Select / Place / Commit dispatch loops ─────────────────────
 
 inline void select_entities_for_patch(MachineCtx* c, int32_t gx, int32_t gz) {
-    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+    // PLACEMENT_ORDER (roster.hpp, F-6) is the priority, not the loop counter:
+    // push order IS placement order, so whoever comes first claims contested
+    // ground first. Identity today, so this is bit-identical to the old
+    // `f = 0..COUNT`.
+    for (uint32_t i = 0; i < PopFamily::COUNT; i++) {
+        const uint32_t f = PLACEMENT_ORDER[i];
         if (!ROSTER.family_enabled(f)) continue;  // ROSTER-GATE family (b) — disabled family never selected -> never placed/committed/meshed/drawn. Budgeted stream path, not the per-frame hot path.
         EntityQueueEntry e{};
         e.family = f;
