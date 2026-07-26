@@ -79,10 +79,12 @@ budgeted stream path, not per-frame-per-entity.
   (always-on infrastructure); the pawn↔agent-slot-0 dependency is a
   hard edge like portal↔transitions. Listed here so the census is
   complete, not to gate it.
-- **Test-rig piers** (`setup_test_rig_piers` init_renderer:2774) — a debug
+- **Test-rig piers** (`setup_test_rig_piers`, called from `init_renderer`) — a debug
   boot one-shot (3 fixed piers). Minor; a `test_rig` bit could gate it,
   but it is debug scaffolding. **STATUS: LATENT[roster]** candidate;
   ratify whether it earns a bit.
+  RETIRED (BOOT_ONE_VOICE C, 4cc629d): setup_test_rig_piers deleted; pier
+  slots 0-3 unassigned. The bit was never ratified; the subject died first.
 - **NOT pieces (spine infra / shader capability — out of roster scope):**
   patch streaming, frustum cull, placement correction, ground-entry
   packing, the visual-canvas/fog coupling, terrain index gen, the
@@ -222,6 +224,9 @@ one deviation form the method forbids)
   `setup_test_rig_piers`; added to Constitution §5 TESTING (count 1→2);
   joins the future exhibition-guard discussion with
   `SEAM[spawn_engine:L1]` DIAG_ENTITY_LIFECYCLE.
+  RETIRED (BOOT_ONE_VOICE C, 4cc629d): setup_test_rig_piers deleted; pier
+  slots 0-3 unassigned. The mortal retirement was honoured — it died at
+  ship, as the checklist said (count 2→1 at C).
 
 ## PHASE I — LANDED (ratified go-order)
 

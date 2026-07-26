@@ -115,7 +115,7 @@ The pier is the codebase's unified "terrain-raising volume" — the successor of
 
 | Caller | Site | Slots | Geometry notes |
 |---|---|---|---|
-| Test rig (`setup_test_rig_piers`) | cartridge.hpp:2388-2421, called once from `initialize` at :2770 | 0 (ramp 0→3), 1 (plateau), 2 (block, `edge_blend = 0`) | permanent; survives `teardown_world` (clear loop starts at `PIER_ARCH_BASE`, cartridge.hpp:2178-2181) |
+| Test rig (`setup_test_rig_piers`) — **RETIRED (BOOT_ONE_VOICE C, 4cc629d): setup_test_rig_piers deleted; pier slots 0-3 unassigned** | `cartridge.hpp`, called once from `initialize` | 0 (ramp 0→3), 1 (plateau), 2 (block, `edge_blend = 0`) | permanent; survives `teardown_world` (clear loop starts at `PIER_ARCH_BASE`, `cartridge.hpp`) |
 | Column `column_post_commit` | entity_pipeline.inl:1212-1226 (`write_pier` :1225) | `PIER_COLUMN_BASE + inst.slot` | square `solid_half` footprint (= shaft_r + max overhang + pad + blend, :1130-1137), flat `SOLID_HEIGHT`, rotation 0 |
 | Antenna `antenna_post_commit` | entity_pipeline.inl:1377-1392 (`write_pier` :1391) | `PIER_COLUMN_BASE + slot + ANTENNA_SLOT_OFFSET` | shares the column pier range |
 | Arch `arch_post_commit` | entity_pipeline.inl:2196-2242 (`write_pier` :2223, :2234) | `PIER_ARCH_BASE + slot*2`, `+1` | two rotated feet at ±half_span; only family that also marks regen (:2238-2241) |

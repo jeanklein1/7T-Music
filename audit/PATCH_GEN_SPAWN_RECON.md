@@ -159,7 +159,7 @@ Design forks POSED, not answered:
 - **audit_entity_integrity** (patch_system.hpp:70-158) — DIAG_ENTITY_LIFECYCLE-guarded, compiles to (void)c in ship.
 - **on_patch_first_generated** (patch_system.hpp:504-508) — pure no-op stub; reserved for gallery/GoL, wired to nothing.
 - **ActivePatch::animated** (surface_services.hpp:99) — declared, never written; M6 GENUINELY-DEAD.
-- **setup_test_rig_piers** (patch_system.hpp:319-352) — test fixture, dies at ship per header.
+- **setup_test_rig_piers** (patch_system.hpp) — test fixture, dies at ship per header. RETIRED (BOOT_ONE_VOICE C, 4cc629d): setup_test_rig_piers deleted; pier slots 0-3 unassigned.
 - **alloc_layer exhaustion fallback** (patch_system.hpp:408-412) — unreached while evict/alloc budgets balance.
 - **GPUPatchParams.time** (state.hpp:1214) — always 0; A2 generator temporally frozen, live wire no driver.
 - **RENDER_RADIUS / RENDER_SIDE / GRID_SIDE** (surface_services.hpp:78-80) — the grid "render" box (5/11) is never consulted; the live alloc/render window is active_radius=PREGEN_RADIUS(7) and the draw gate is the world-space cylinder(5.5 patches). The word "render" is attached to a DEAD constant; the runtime-toggle path that would revive it is not wired here.

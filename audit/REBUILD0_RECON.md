@@ -37,10 +37,14 @@ anatomy) and cites the charter's v3 section numbers on faith where it does not.
 **BOOT** — initialize() (cartridge.hpp:398-419) stages GPU neutral defaults
 (ROOT). init_renderer() (421-544) in order: renderer/offscreen init +
 terrain-index one-shot pass (445-458, REALIZATION); init_patch_system (461) +
-setup_test_rig_piers (462) (S2); configure_orbs gated ROSTER.orbs (465);
+setup_test_rig_piers (S2); configure_orbs gated ROSTER.orbs (465);
 upload_agent_registries (475); **STRAY** inline slot-0 pawn seeding (481-489);
 spawn_population_for_mood gated ROSTER.wanderers (494); load_authored_textures
 **UNGATED** (500-503) — **this is P2**; compile-time ROSTER report (517-541).
+
+> RETIRED (BOOT_ONE_VOICE C, 4cc629d): setup_test_rig_piers deleted; pier
+> slots 0-3 unassigned. The BOOT score above stands as written for every
+> other verb; the S2 movement is now init_patch_system alone.
 
 **UPDATE** (560-751) — frame-signal fill (563-582); SNAP-1 neutral sky words
 (584-603); clock/tempo (605-613); visual_canvas tick (615, S4-driver); fog
@@ -82,7 +86,7 @@ today's strays into their owners (§1.4).
 // ═══ MOVEMENT: BOOT — REALIZATION (the stage exists first) ═══
 renderer init · offscreen resources · terrain-index one-shot pass
 // ═══ MOVEMENT: BOOT — S2 THE SURFACE ═══
-init_patch_system · setup_test_rig_piers
+init_patch_system · setup_test_rig_piers   // RETIRED (BOOT_ONE_VOICE C, 4cc629d): setup_test_rig_piers deleted; pier slots 0-3 unassigned
 // ═══ MOVEMENT: BOOT — S3 PLACEMENT ═══
 seed_player_body†(agent_state_, …)                      // stray (3) dies; ungated — the pawn is unconditional
 if constexpr (ROSTER.wanderers)  spawn_population_for_mood
