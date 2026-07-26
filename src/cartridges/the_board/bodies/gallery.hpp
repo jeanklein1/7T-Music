@@ -972,17 +972,19 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
             candidates[candidate_count++] = { i };
     }
 
+    // THE RESIDUAL ZERO-CONTENT ABORTS. SPAWN_4's reservation removed the
+    // dominant path (place rejects when nothing is available), but these three
+    // survive for a reason the reservation structurally cannot cover: the
+    // mono-tier curation below is a per-gallery seed-derived filter that only
+    // commit can apply, and load_authored_textures is a GPU write, barred from
+    // place by the standing law that the place phase writes no GPU state.
+    // Each releases the ground place claimed.
     bool have_snapshots = candidate_count > 0;
     bool have_authored = gs.authored_staged_count > 0;
-    if (site_type == GallerySiteType::SNAPSHOT_ONLY && !have_snapshots) {
-        gs.gallery_centers[plan.slot].active = false;
-        return;
-    }
-    if (site_type == GallerySiteType::AUTHORED_ONLY && !have_authored) {
-        gs.gallery_centers[plan.slot].active = false;
-        return;
-    }
-    if (site_type == GallerySiteType::MIXED && !have_snapshots && !have_authored) {
+    if ((site_type == GallerySiteType::SNAPSHOT_ONLY && !have_snapshots)
+        || (site_type == GallerySiteType::AUTHORED_ONLY && !have_authored)
+        || (site_type == GallerySiteType::MIXED && !have_snapshots && !have_authored)) {
+        unregister_footprint_for(c, PopFamily::GALLERY, plan.slot);
         gs.gallery_centers[plan.slot].active = false;
         return;
     }
@@ -1181,6 +1183,9 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     gc.host_gz = plan.host_gz;
 
     if (placed == 0) {
+        // Reachable when the mono-tier filter empties the candidate list after
+        // the guards above passed. Release the ground with the centre.
+        unregister_footprint_for(c, PopFamily::GALLERY, plan.slot);
         gc.active = false;  // no paintings placed — release center
     }
     else {
@@ -1829,6 +1834,8 @@ inline void dispatch_commit_gallery(MachineCtx* self,
         }
     }
     else {
+        // Host patch gone — release by owner (the patch key can never match).
+        unregister_footprint_for(self, PopFamily::GALLERY, pe.gallery.slot);
         self->gallery_state_.gallery_centers[pe.gallery.slot].active = false;
     }
 }

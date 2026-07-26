@@ -686,6 +686,8 @@ inline void dispatch_commit_gol(MachineCtx* self,
         host->record_entity(PopFamily::GOL, pe.gol.slot);
     }
     else {
+        // Host patch gone — release by owner (the patch key can never match).
+        unregister_footprint_for(self, PopFamily::GOL, pe.gol.slot);
         self->gol_state_.zones[pe.gol.slot].active = false;
     }
 }

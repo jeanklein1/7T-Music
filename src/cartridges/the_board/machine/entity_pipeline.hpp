@@ -542,7 +542,10 @@ inline bool dispatch_place_column_generic(MachineCtx* self, EntityQueueEntry& e,
 inline void dispatch_commit_column_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, COLUMN_TRAITS, COLUMN_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::COLUMN, pe.generic.slot); }
-    else { self->entities_state_.columns[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::COLUMN, pe.generic.slot); self->entities_state_.columns[pe.generic.slot].active = false; }
 }
 
 // ── Antenna adapter functions ──
@@ -679,7 +682,10 @@ inline bool dispatch_place_antenna_generic(MachineCtx* self, EntityQueueEntry& e
 inline void dispatch_commit_antenna_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, ANTENNA_TRAITS, ANTENNA_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ANTENNA, pe.generic.slot); }
-    else { self->entities_state_.antennas[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::ANTENNA, pe.generic.slot); self->entities_state_.antennas[pe.generic.slot].active = false; }
 }
 
 // ═══ FAMILY: PYRAMID ══════════════════════════════════════════════
@@ -875,7 +881,10 @@ inline bool dispatch_place_pyramid_generic(MachineCtx* self, EntityQueueEntry& e
 inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PYRAMID, pe.generic.slot); }
-    else { self->entities_state_.pyramids[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::PYRAMID, pe.generic.slot); self->entities_state_.pyramids[pe.generic.slot].active = false; }
 }
 
 // ═══ FAMILIES: SPHERE / CUBE — RELOCATED ═════════════════════════
@@ -1107,7 +1116,10 @@ inline bool dispatch_place_arch_generic(MachineCtx* self, EntityQueueEntry& e, P
 inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, ARCH_TRAITS, ARCH_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ARCH, pe.generic.slot); }
-    else { self->entities_state_.arches[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::ARCH, pe.generic.slot); self->entities_state_.arches[pe.generic.slot].active = false; }
 }
 
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────

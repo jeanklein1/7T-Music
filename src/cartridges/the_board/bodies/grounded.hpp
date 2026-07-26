@@ -1024,7 +1024,10 @@ inline bool dispatch_place_blade_generic(MachineCtx* self, EntityQueueEntry& e, 
 inline void dispatch_commit_blade_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, BLADE_TRAITS, BLADE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::BLADE, pe.generic.slot); }
-    else { self->entities_state_.blades[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::BLADE, pe.generic.slot); self->entities_state_.blades[pe.generic.slot].active = false; }
 }
 
 // ═══ FAMILY: PALM ═════════════════════════════════════════════════
@@ -1266,7 +1269,10 @@ inline bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, P
 inline void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, PALM_TRAITS, PALM_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PALM, pe.generic.slot); }
-    else { self->entities_state_.palms[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::PALM, pe.generic.slot); self->entities_state_.palms[pe.generic.slot].active = false; }
 }
 
 // ═══ FAMILY: CACTUS ═══════════════════════════════════════════════
@@ -1451,7 +1457,10 @@ inline bool dispatch_place_cactus_generic(MachineCtx* self, EntityQueueEntry& e,
 inline void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, CACTUS_TRAITS, CACTUS_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::CACTUS, pe.generic.slot); }
-    else { self->entities_state_.cacti[pe.generic.slot].active = false; }
+    // HOST PATCH GONE. The footprint was registered at place, keyed to a
+    // patch that no longer exists — so unregister_footprints_for_patch could
+    // never match it and it survived to reset_surface. Release by OWNER.
+    else { unregister_footprint_for(self, PopFamily::CACTUS, pe.generic.slot); self->entities_state_.cacti[pe.generic.slot].active = false; }
 }
 
 

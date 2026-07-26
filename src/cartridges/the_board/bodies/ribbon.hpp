@@ -1361,6 +1361,11 @@ inline void dispatch_commit_ribbon(MachineCtx* self,
     if (refs == 0) {
         std::cout << "[Ribbon] REJECT slot=" << slot
             << " — no tip patches alive\n";
+        // Corollary 3: a rejecting phase releases what earlier phases
+        // reserved. place_ribbon_from_selection registered through
+        // negotiate_position; nothing here freed it, and the host key it was
+        // filed under belongs to a patch that is already gone.
+        unregister_footprint_for(self, PopFamily::RIBBON, slot);
         ar = ActiveRibbon{};
         self->ribbon_state_.gpu[slot] = GPURibbonState{};
         self->ribbon_state_.active_count--;
