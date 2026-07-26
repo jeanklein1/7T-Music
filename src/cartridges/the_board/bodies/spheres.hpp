@@ -107,36 +107,25 @@ static_assert(SPHERE_PARAM_COUNT == SphIdx::COUNT,
 //   [0]BODY_RADIUS [1]ORBIT_RADIUS [2]ORBIT_HEIGHT [3]ORBIT_SPEED
 //   [4]INFLUENCE_RADIUS
 //
-// Note: the original SphereTierProfile carried a number of fields
-// (spin_speed, bob_amplitude/period, spin_tilt, aspect_y/z, face_variance,
-// geometry_type, motion_type) that the sphere adapter never reads —
-// sphere_write_gpu hardcodes those slots in the GPU upload. We preserve
-// them here verbatim per the migration spec ("preserve all numeric
-// values"); dropping the dead fields would be a separate cleanup.
+// The row carries the sampling profile and nothing else. It once held fifteen
+// more fields — spin_speed, bob_amplitude/period, spin_tilt, aspect_y/z,
+// face_variance, geometry_type, motion_type — every one zero in both tiers and
+// read by nobody: sphere_write_gpu HARDCODES those GPU slots (see fe.spin_speed
+// = 0.0f … fe.geometry_type = 0 below) rather than sourcing them here.
+//
+// They were kept with a note saying the cleanup was someone else's job. A YAGNI
+// violation with a note attached is worse than one without — it records that
+// somebody saw it and walked past. This is that cleanup.
 struct SphereTierRow {
     TierProfile profile;
-    // Dead-but-preserved extras (not consumed by sphere adapter).
-    float       spin_speed_mean,    spin_speed_sigma;
-    float       bob_amplitude_mean, bob_amplitude_sigma;
-    float       bob_period_mean,    bob_period_sigma;
-    float       spin_tilt_sigma;
-    float       aspect_y_mean,      aspect_y_sigma;
-    float       aspect_z_mean,      aspect_z_sigma;
-    float       face_variance_mean, face_variance_sigma;
-    uint32_t    geometry_type;
-    uint32_t    motion_type;
 };
 
 inline constexpr SphereTierRow SPHERE_TIERS[SPHERE_TIER_COUNT] = {
     /* 0: Sentinel */ {
-        { 0.65f, 0.0f, { {1.5f, 0.3f}, {12.0f, 3.0f}, {6.0f, 2.0f}, {1.4f, 0.3f}, {8.0f, 2.0f} }},
-        0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,
-        1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f,  0, 0
+        { 0.65f, 0.0f, { {1.5f, 0.3f}, {12.0f, 3.0f}, {6.0f, 2.0f}, {1.4f, 0.3f}, {8.0f, 2.0f} }}
     },
     /* 1: Anomaly  */ {
-        { 0.35f, 0.0f, { {1.2f, 0.2f}, {8.0f, 2.0f},  {4.0f, 1.5f}, {2.0f, 0.5f}, {6.0f, 1.5f} }},
-        0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,
-        1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f,  0, 0
+        { 0.35f, 0.0f, { {1.2f, 0.2f}, {8.0f, 2.0f},  {4.0f, 1.5f}, {2.0f, 0.5f}, {6.0f, 1.5f} }}
     },
 };
 
