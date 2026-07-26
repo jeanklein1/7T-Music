@@ -125,9 +125,12 @@ struct MoodState {
     // ── Currently active mood ──
     uint32_t active = 0;  // authored at the composition root (Cartridge ctor) from DEMO.boot_mood
 
-    // ── Mood-applied values (re-set on each apply_mood) ──
-    float sun_intensity = 0.8f;
-    float sun_ambient   = 0.25f;
+    // ── Mood-applied values (authored by apply_mood, boot included) ──
+    // 0 is deliberate: if apply_mood ever failed to run, the sun goes out and
+    // the failure is visible on frame 1 rather than hiding behind mood 0's
+    // values. Fails loud.
+    float sun_intensity = 0.0f;
+    float sun_ambient   = 0.0f;
     float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
     bool  spot_light_active = false;
 

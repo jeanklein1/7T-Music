@@ -5628,14 +5628,6 @@ namespace t7 {
                 config_.freeze_sphere = 0;
                 config_.fpv_mode = 0;
                 config_.world_seed = 42;
-                // Default sun direction (normalized) — matches MOOD_TABLE[0].sun_direction
-                {
-                    float d[3] = { 0.69f, -0.71f, -0.14f };
-                    float len = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-                    config_.sun_direction[0] = d[0] / len;
-                    config_.sun_direction[1] = d[1] / len;
-                    config_.sun_direction[2] = d[2] / len;
-                }
                 config_.aura_enabled = 1.0f;
                 config_.pawn_aura_height = 0.0f;
                 // THE PALETTE MIRROR — rest = the pre-graduation WGSL

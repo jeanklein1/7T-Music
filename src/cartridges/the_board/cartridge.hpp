@@ -183,10 +183,11 @@ namespace t7 {
             TargetBinding checker_mean_dst_{};
             TargetBinding checker_var_dst_{};
 
-            // Sun + atmosphere (driven by active mood — see apply_mood)
-            float sunDirection_[3] = { 0.69f, -0.71f, -0.14f };
-            float sunColor_[3] = { 1.0f, 0.95f, 0.9f };
-            float clearColor_[3] = { 0.85f, 0.78f, 0.72f };
+            // Sun + atmosphere — authored solely by apply_mood, at boot and at
+            // every transition. No boot literals: MOOD_TABLE is the one source.
+            float sunDirection_[3] = {};
+            float sunColor_[3] = {};
+            float clearColor_[3] = {};
 
             // ═══ MOOD STATE ═════════════════════════════════════════════
             //
@@ -506,17 +507,17 @@ namespace t7 {
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
                 // one conductor call per piece, presence constexpr-gated.
-                // The boot mood's own cull setting. set_frustum_cull_active has one
-                // other caller — apply_mood — and boot does not call apply_mood, so
-                // the flag would otherwise sit at the Renderer's member default
-                // until the first transition. One MOOD_TABLE row, read the way
-                // apply_mood reads it. RETIRES WITH [4b].
-                renderer_.set_frustum_cull_active(MOOD_TABLE[mood_state_.active].allow_frustum_cull);
-
-                // Sky orbs for the initial mood (apply_mood runs only on transitions).
-                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (c) — boot one-shot skipped when disabled
+                // BOOT IS A TRANSITION FROM NOTHING. The world has one way to come
+                // into being; the only difference between boot and a mood change is
+                // what came before. apply_mood is that one way — it subsumes the
+                // frustum-cull row, the orb one-shot, and every atmospheric value
+                // boot used to hand-copy from MOOD_TABLE[0].
+                {
                     wgpu::Queue q = device_.GetQueue();
-                    configure_orbs(orbs_state_, &orbs_deps_, ORB_MOOD_TABLE[mood_state_.active], q);
+                    apply_mood(&mood_deps_, mood_state_.active, q,
+                        machine_ctx_, ribbon_state_, ribbon_deps_,
+                        orbs_state_, orbs_deps_, gallery_state_, gallery_deps_,
+                        pawn_state_);
                 }
 
                 // Agent registries — single source of truth in bodies/agents.hpp
