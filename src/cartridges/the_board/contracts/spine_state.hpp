@@ -236,6 +236,19 @@ static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
     "MOOD_TABLE rows are positional in mood-id order (F-3): "
     "reorder the table together with the ids");
 
+// COLUMN WITNESSES. F-3 pins ROW order; these pin COLUMN offsets. The
+// rows are positionally brace-initialised, so a column added or cut
+// mid-row shifts every field after it with no diagnostic. One probe per
+// region of the row — head, middle, tail — so a shift anywhere trips.
+static_assert(MOOD_TABLE[MOOD_OPEN_DEFAULT].finite        == false, "MOOD_TABLE column drift: finite (head)");
+static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].finite      == true,  "MOOD_TABLE column drift: finite (head)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].indoor         == false, "MOOD_TABLE column drift: indoor (middle)");
+static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].indoor        == true,  "MOOD_TABLE column drift: indoor (middle)");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].ceiling_height  == 20.0f, "MOOD_TABLE column drift: ceiling_height");
+static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].ceiling_height == 25.0f, "MOOD_TABLE column drift: ceiling_height");
+static_assert(MOOD_TABLE[MOOD_OPEN_DEFAULT].has_anchor_ribbon       == false, "MOOD_TABLE column drift: has_anchor_ribbon (tail)");
+static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR_REF].has_anchor_ribbon == true,  "MOOD_TABLE column drift: has_anchor_ribbon (tail)");
+
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.
 // DEPS-FORM: the driver world holds no MachineCtx; the door
