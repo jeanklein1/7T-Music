@@ -100,9 +100,9 @@ header's own claim ("one implementation, ten callers"):
 | `machine/entity_pipeline.hpp:935` | `"arch"` | `entities_state_.arches` |
 | `machine/entity_pipeline.hpp:415` | `"col"` | `entities_state_.columns` |
 | `machine/entity_pipeline.hpp:557` | `"ant"` | `entities_state_.antennas` |
-| `bodies/grounded.hpp:1166` | `"palm"` | `entities_state_.palms` |
-| `bodies/grounded.hpp:1394` | `"cact"` | `entities_state_.cacti` |
-| `bodies/grounded.hpp:950` | `"blad"` | `entities_state_.blades` |
+| `bodies/grounded.hpp:1160` | `"palm"` | `entities_state_.palms` |
+| `bodies/grounded.hpp:1388` | `"cact"` | `entities_state_.cacti` |
+| `bodies/grounded.hpp:944` | `"blad"` | `entities_state_.blades` |
 | `bodies/spheres.hpp:160` | `"sph"` | `sphere_state_.activeSpheres_` |
 | `bodies/cube_behaviors.hpp:537` | `"cube"` | `cube_behaviors_state_.activeCubes_` |
 | `bodies/ribbon.hpp:1106` | `"ribn"` | `ribbon_state_.active` |
@@ -171,6 +171,17 @@ correct.
 Every line number in *this* report has been re-derived against the tree as it
 stands at `db326d2`. The lesson stands for the next stage: a read-only audit
 and an edit pass should not overlap, even when the edits are provably safe.
+
+**The adversarial pass earned its cost twice**, and both times against claims
+that read as settled:
+
+- It caught a **substantive** error in the first draft of this report — the
+  claim that portal arches hold no footprint. That is true of one of the two
+  portal channels and false of the dominant one. See FINDING 3; the corrected
+  version narrows SPAWN_3's registration work rather than expanding it.
+- It caught the same line-drift in **my own** anchor-4 table (the three
+  `grounded.hpp` call sites, cited six lines high) that it had flagged in the
+  agents' output. Corrected above.
 
 ### The three findings that change the campaign
 
@@ -330,17 +341,38 @@ written in the past tense.
   and zeroes the GPU mesh params. It touches the footprint registry **not at
   all** — no family evictor does.
 
-So portal arches are invisible to the registry in **both** directions: they
-claim no ground, and nothing collide-tests against them. This is exactly the
-gap SPAWN_3 exists to close — the work is real, but it is *new* work, not the
-wiring-up of something already half-present. Ruling 2 ("portal arches register")
-stands as a decision, not an observation.
+**But "portal arches" is not one population — it is two, and only one of them
+is unregistered.** This is the correction that matters most for scoping
+SPAWN_3, and it emerged only under adversarial re-derivation:
 
-A consequence for SPAWN_1's gate: because the current census counts
-**footprints**, and portals hold none, the existing census undercounts arches
-by exactly the number of live portals. An array-based census will not have that
-gap — so the arch row is expected to *change* at SPAWN_1, and that change is
-correct, not a leak.
+- **Channel A — generic, through `FAMILY_DISPATCH[ARCH]`.** `arch_write_active`
+  recomputes portal state on *every* ordinary arch commit: it clears
+  `aa.is_portal = false` (`machine/entity_pipeline.hpp:1018`), then sets
+  `aa.is_portal = true` (`:1025`) whenever the arch is DOORWAY tier and
+  `portal_roll < PORTAL_DENSITY`. **`PORTAL_DENSITY = 1.00f`**
+  (`direction/mood.hpp:111`) — so *every* DOORWAY-tier arch spawned through
+  dispatch becomes a portal. These arches reached commit via
+  `dispatch_place_arch_generic` → `generic_place` → `negotiate_position` →
+  `register_footprint`. **They register normally.**
+- **Channel B — force-spawn.** `force_spawn_portal_arch`
+  (`bodies/grounded.hpp:626-744`, sole `is_portal = true` write at `:716`),
+  called from `force_spawn_portal_at` (`direction/mood.hpp`). **This is the
+  only channel that registers nothing.**
+
+There are exactly four `is_portal` write sites in live code: the default
+initializer (`grounded.hpp:117`), Channel B's `:716`, and Channel A's pair
+(`entity_pipeline.hpp:1018`, `:1025`).
+
+So the accurate statement is: **force-spawned portals are invisible to the
+registry in both directions; dispatch-spawned portals — the dominant
+population, since `PORTAL_DENSITY` is 1.0 — are already fully registered.**
+SPAWN_3's registration work applies to Channel B only. `evict_arch` releases
+nothing for either channel, because no evictor touches the registry at all.
+
+A consequence for SPAWN_1's gate: the existing footprint-based census
+undercounts arches by the number of live **force-spawned** portals — not by the
+number of live portals. An array-based census closes that gap, so the arch row
+is expected to move at SPAWN_1, and that movement is correct, not a leak.
 
 ---
 
@@ -427,11 +459,27 @@ Traps for the author of SPAWN_1's twelve one-liners:
   **high-water marks** ("highest active slot + 1"), not populations. Both are
   read by live code, which makes them tempting; either would over-count
   whenever slots are fragmented.
-- GALLERY has a second slot store, `painting_slots[32]`, which *does* carry a
-  read count (`active_painting_count`, drawn at `render_passes.hpp:422`) — but
-  it is **shared with the `indoor_shell` feature** via `form_type ==
-  FormType::WALL_FRAME`, so counting it would mix outdoor paintings with indoor
-  wall frames. The census wants `gallery_centers`.
+- GALLERY has a second slot store, `painting_slots[32]`, carrying **two**
+  stored-and-read counts — `active_painting_count` (drawn at
+  `render_passes.hpp:422`) and `wall_frame_count` (`gallery.hpp:462`, read at
+  `render_passes.hpp:414` as the `draw_wall_paintings` instance count). The
+  array is **shared with the `indoor_shell` feature** via `form_type ==
+  FormType::WALL_FRAME`, which is exactly why it needs two counts. Counting it
+  would mix outdoor paintings with indoor wall frames; the census wants
+  `gallery_centers`.
+
+Two further facts a census author will hit:
+
+- **The roster gates the whole thing.** `select_entities_for_patch` opens with
+  `if (!ROSTER.family_enabled(f)) continue;` (`spawn_engine.hpp:680`;
+  `family_enabled` at `roster.hpp:107-123`, the selected constant at
+  `demos/demo.hpp:40`). "All twelve families register" is true *for enabled
+  families*. A census row for a disabled family should read zero on both sides,
+  and that agreement is itself a check worth having.
+- **A second scan-for-count convention already exists.** The cube corral
+  (`cube_behaviors.hpp:290-292`) derives its own `active_count` by scanning
+  `activeCubes_[i].active`, read at `:294` and `:304`. Whatever shape SPAWN_1's
+  twelve accessors take, this one should agree with them.
 
 ### B5 — MIN_SEPARATION sphere/cube columns: **self-only, confirmed both ways**
 
@@ -471,6 +519,25 @@ thing being deliberately given up is bodily overlap-exclusion with a hovering
 object, and the self-separation that must be preserved (20 wu sphere↔sphere,
 15 wu cube↔cube) is exactly what the local scan replaces. No further ruling
 needed — flagged only so the trade is explicit at the moment it is made.
+
+**The other five positional tables are inert for the floaters too — checked,
+because SPAWN_2 needs all eight, not one.** `roster.hpp:72-83` names eight
+PopFamily-positional tables; the brief asked only about `MIN_SEPARATION`. Read
+directly at columns 7 (SPHERE) and 9 (CUBE):
+
+| table | site | Sph | Cube | meaning |
+|---|---|---|---|---|
+| `PROXIMITY_RADIUS` | `spawn_engine.hpp:98` | `0.0f` | `0.0f` | never scans |
+| `PROXIMITY_MAX_BOOST` | `:99` | `1.0f` | `1.0f` | no boost possible |
+| `PROXIMITY_THRESHOLD` | `:100` | `0` | `0` | no minimum |
+| `PROXIMITY_GAP_REDUCTION` | `:101` | `0.0f` | `0.0f` | gap never shrinks |
+| `PROXIMITY_AFFINITY` | `:105-117` | row all-zero | row all-zero | never clusters |
+
+Every one is the documented sentinel. So removing sphere and cube from the
+registry costs nothing in the proximity machinery either — `proximity_row_active`
+(`spawn_engine.hpp:122`, called at `:654`) short-circuits both families before
+the scan. SPAWN_2's subtraction is clean across all eight tables, not just the
+one it was asked about.
 
 **A drifted second model of the placement law.** `check_position` is the sole
 *reader* of `MIN_SEPARATION`, but it is not the only *implementation* of the
@@ -526,24 +593,43 @@ transition TEARDOWN (`cartridge.hpp:901`).
 and call `register_footprint` directly. `unregister_footprint_for(family, slot)`
 exists only in the spec — ABSENT from live code.
 
-**Two leak paths the campaign has not accounted for.** Both arise because the
-footprint is registered at *place* but the owner can still be abandoned at
-*commit*:
+**Place-time failure is clean — the leak is entirely commit-side.** Worth
+stating before the leak list, because it halves the work: `register_footprint`
+is the **last** step of `negotiate_position` (`spawn_engine.hpp:321`, after
+`check_position` at `:315`), and gallery and GoL likewise register last
+(`gallery.hpp:842` after `:836`; `gol_zones.hpp:508` after `:502`). A `false`
+return from any place therefore always means *nothing was registered*. Every
+family already rolls its reserved slot back on place failure —
+`entity_pipeline.hpp:546` (column), `:688` (antenna), `:889` (pyramid), `:1127`
+(arch); `grounded.hpp:1023` (blade), `:1270` (palm), `:1460` (cactus);
+`spheres.hpp:240`; `cube_behaviors.hpp:648`; `gol_zones.hpp:676`;
+`gallery.hpp:1727`. **A per-owner release needs no hook on any of these.**
+
+**Three leak paths, all commit-side.** Each arises because the footprint is
+registered at *place* but the owner can still be abandoned at *commit*:
 
 1. **Host-patch-missing commit abort.** Every generic committer does
    `find_patch(self, pe.generic.host_gx, pe.generic.host_gz)` and on `nullptr`
    frees only the family slot (e.g. `entity_pipeline.hpp:551`, and the
-   equivalent in each body; bespoke: `gol_zones.hpp:691`, `gallery.hpp:1743`).
+   equivalent in each body; bespoke: `gol_zones.hpp:689`, `gallery.hpp:1743`).
    The footprint is not released — and because it is keyed to a host patch that
    does not exist, `unregister_footprints_for_patch` can **never** match it. It
-   survives until `reset_surface`. This is a permanent leak, and it is the one
-   most likely to be what SPAWN_1's census surfaces first.
+   survives until `reset_surface`. This is a permanent leak, and the one most
+   likely to be what SPAWN_1's census surfaces first.
 2. **Gallery zero-painting abort** (see B7). Bounded — the host patch exists, so
    eviction eventually reclaims it.
+3. **Ribbon zero-tips reject.** `dispatch_commit_ribbon` (`ribbon.hpp:1336`)
+   registers with each tip patch that exists; if neither is alive it prints
+   `[Ribbon] REJECT`, clears `ar = ActiveRibbon{}`, zeroes the GPU mirror and
+   decrements `active_count` — **without releasing the footprint** that
+   `place_ribbon_from_selection` registered through `negotiate_position`
+   (`ribbon.hpp:1170`). The campaign already schedules this one: SPAWN_4's
+   "Ribbon's 0-tips rejection releases its footprint (corollary 3)."
 
 **This matters for SPAWN_3.** A per-owner release keyed on `(family, slot)`
-needs hooks on these abort paths, not only on the evictors. The spec's
-"Release routed through every evictor" is necessary but not sufficient.
+needs hooks on these three commit-side aborts, not only on the evictors. The
+spec's "Release routed through every evictor" is necessary but not sufficient —
+though, per the paragraph above, it needs nothing at all on the place path.
 
 ### B7 — gallery staging, and why indoor galleries are absent
 
@@ -661,8 +747,8 @@ placement feeds the heightfield`, with fuller prose at `cartridge.hpp:319-322`.
 | Stage | Status after this audit |
 |---|---|
 | SPAWN_1 | **Scope grew.** Wire the census first (4-line mirror at `cartridge.hpp:1225`), then rebuild it. Counts must come from `.active` scans, never the stored fields. Two bounds are not in `Dim::`. |
-| SPAWN_2 | **Unblocked, clean.** Self-only confirmed both directions. The trade being made (losing the unconditional radii-sum overlap test) is exactly ruling 1's intent. |
-| SPAWN_3 | **Bigger than written.** Portal registration and arch release are both *new*. Per-owner release also needs hooks on the two commit-abort paths, not just the evictors. |
+| SPAWN_2 | **Unblocked, clean across all eight positional tables** — not just `MIN_SEPARATION`. The trade being made (losing the unconditional radii-sum overlap test) is exactly ruling 1's intent. |
+| SPAWN_3 | **Rescoped, not simply bigger.** Only *force-spawned* portals need registration — dispatch-spawned ones (the dominant population, `PORTAL_DENSITY = 1.0`) already register. Arch release is new for both. Per-owner release needs hooks on three commit-abort paths and **none** on the place path. |
 | SPAWN_4 | **Confirmed and quantified.** Radius originates at select, not place. Containment is the same variable, not a similar formula. Guard the `row_start` underflow. |
 | SPAWN_5 | **Depends entirely on SPAWN_1 being wired.** Deleting the sweep on the strength of a census that never printed would be unsound. |
 | SPAWN_6 | **Ready.** 10/10 traits fields dead; `has_footprint` uniformly `true`, so cutting it discards no intent. Nine traits objects, not twelve; no `traits` pointer on `FamilyDispatch`. |
@@ -675,10 +761,14 @@ placement feeds the heightfield`, with fuller prose at `cartridge.hpp:319-322`.
 1. **`PierTier`** — ruling still deferred, as instructed. Zero readers
    confirmed in C++ and WGSL; 48-byte assert confirmed. Note the
    `GPUColumnMeshParams.tier` collision before anyone acts.
-2. **Portals in the census** — an array-based census will see force-spawned
-   portal arches (same array, `is_portal` discriminant). Do they count as ARCH
-   population? The arch row will move at SPAWN_1 either way; the question is
-   which number is "right."
+2. **Portals in the census** — an array-based census will see *both* portal
+   channels (same array, `is_portal` discriminant). Dispatch-spawned portals
+   already hold footprints, so they are counted today; force-spawned ones are
+   not. Do force-spawned portals count as ARCH population? The arch row moves
+   at SPAWN_1 either way; the question is which number is "right."
+5. **`7t_theme_tool.jsx`** — resync its 9×9 separation matrix to the live 12×12,
+   or retire the tool. Left alone it will mislead the retuning that SPAWN_3
+   makes necessary.
 3. **Ruling 13 (formations)** — untouched, still parked.
 4. **`force_spawn_portal_arch` never writes `aa.host_gx` / `aa.host_gz`.** They
    retain whatever the slot last held. Any census or eviction logic keying on an
