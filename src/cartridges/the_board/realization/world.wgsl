@@ -5640,8 +5640,13 @@ const AURA_DELTA_RANDOM: u32 = 1u;
 // suppression target also benefit from the smoother interpolation.
 fn sample_pawn_aura(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> vec4<f32> {
     if (config.aura_enabled < 0.5) { return vec4(0.0); }
-    let aura_cs = PATCH_CELL_SIZE;   // the C++ uploads this same value as pawn_aura_cfg.cell_size
-    let aura_n = 64;
+    // NOT pawn_aura_cfg.*: that uniform is bound ONLY in the Pawn Aura
+    // Compute Layout, and this sampler runs in the terrain VS, the terrain FS
+    // and the compute-entity policy path — three pipelines that never bind it.
+    // The two constants are the only spelling reachable from here, and they
+    // are the same numbers the CPU stages into cell_size / aura_n.
+    let aura_cs = PATCH_CELL_SIZE;
+    let aura_n = PAWN_AURA_N;
     let half_extent = f32(aura_n) * aura_cs * 0.5;
     if (abs(world_xz.x - pawn_xz.x) >= half_extent ||
         abs(world_xz.y - pawn_xz.y) >= half_extent) {
