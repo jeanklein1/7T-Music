@@ -336,8 +336,15 @@ struct PlacementEntry {
 // ─── Dispatch row type ─────────────────────────────────────────────
 //
 // One row per family: the six verbs the spine's dispatch loops call
-// through. The table itself (FAMILY_DISPATCH) is the spine's
-// integration hub (SEAM[spine:owns] at its banner in cartridge.hpp).
+// through, plus the census accessor. The table itself (FAMILY_DISPATCH)
+// is the spine's integration hub (SEAM[spine:owns] at its banner in
+// cartridge.hpp).
+//
+// active_count is the only row member that is not a verb the pipeline
+// drives: it is the census's per-family view of "how many slots are
+// live", answered by scanning the family's own array. It takes the
+// machine face CONST — the census reads and never writes, and the
+// signature says so.
 
 struct FamilyDispatch {
     bool (*try_select)(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
@@ -346,6 +353,7 @@ struct FamilyDispatch {
     void (*evict_slot)(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
     bool (*prepare_mesh)(MachineCtx* self, wgpu::Queue& queue);
     void (*dispatch_mesh)(MachineCtx* self, wgpu::ComputePassEncoder& pass);
+    uint32_t (*active_count)(const MachineCtx* self);
     const char* name;
 };
 

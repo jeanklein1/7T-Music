@@ -1744,6 +1744,56 @@ namespace t7 {
             (void)self; (void)pass;
         }
 
+        // ─── Census: the per-family active_count row ───────────────────────
+        //
+        // THE COUNT IS A `.active` SCAN. NEVER A STORED FIELD. All seven
+        // EntitiesState count fields (pyramid_count … blade_count) are
+        // write-only — every occurrence in the tree is a declaration, ++, --,
+        // or = 0. A census reading them would report a number no consumer has
+        // ever validated. The scan is ground truth; the disagreement between
+        // scan and stored field is then a free leak check for a later stage.
+        //
+        // The bound is DEDUCED from the array, never written. That is not
+        // brevity — it makes three standing traps structurally unreachable:
+        //   · MAX_RIBBON_INSTANCES / MAX_GALLERIES are t7::the_board namespace
+        //     constants, NOT Dim:: members. Nothing here has to know that.
+        //   · Dim::ANTENNA_SLOT_OFFSET (16) / Dim::CUBE_SLOT_OFFSET (8) are
+        //     GPU-side only; both CPU arrays are 0-based. No offset can leak
+        //     in, because no index arithmetic is written.
+        //   · gol_state_.active_slot_count and cpu_pyramids.count are
+        //     HIGH-WATER MARKS (highest active slot + 1), not populations.
+        //     Both are live-read, which is what makes them tempting; neither
+        //     is reachable from here.
+        //
+        // GALLERY counts gallery_centers, not painting_slots[32] — the latter
+        // is shared with the indoor_shell feature via form_type == WALL_FRAME
+        // and would mix outdoor paintings with indoor wall frames.
+        //
+        // ROSTER-disabled families are NOT special-cased: a disabled family is
+        // never selected, so its array stays empty and it reads zero on both
+        // sides. That agreement is itself a check.
+
+        // One implementation, twelve callers (the P11 shape).
+        template<typename T, size_t N>
+        inline uint32_t census_scan_active(const T (&arr)[N]) {
+            uint32_t n = 0;
+            for (size_t i = 0; i < N; i++) if (arr[i].active) n++;
+            return n;
+        }
+
+        inline uint32_t active_count_pyramid(const MachineCtx* c) { return census_scan_active(c->entities_state_.pyramids); }
+        inline uint32_t active_count_arch   (const MachineCtx* c) { return census_scan_active(c->entities_state_.arches); }
+        inline uint32_t active_count_column (const MachineCtx* c) { return census_scan_active(c->entities_state_.columns); }
+        inline uint32_t active_count_antenna(const MachineCtx* c) { return census_scan_active(c->entities_state_.antennas); }
+        inline uint32_t active_count_palm   (const MachineCtx* c) { return census_scan_active(c->entities_state_.palms); }
+        inline uint32_t active_count_cactus (const MachineCtx* c) { return census_scan_active(c->entities_state_.cacti); }
+        inline uint32_t active_count_blade  (const MachineCtx* c) { return census_scan_active(c->entities_state_.blades); }
+        inline uint32_t active_count_sphere (const MachineCtx* c) { return census_scan_active(c->sphere_state_.activeSpheres_); }
+        inline uint32_t active_count_ribbon (const MachineCtx* c) { return census_scan_active(c->ribbon_state_.active); }
+        inline uint32_t active_count_cube   (const MachineCtx* c) { return census_scan_active(c->cube_behaviors_state_.activeCubes_); }
+        inline uint32_t active_count_gol    (const MachineCtx* c) { return census_scan_active(c->gol_state_.zones); }
+        inline uint32_t active_count_gallery(const MachineCtx* c) { return census_scan_active(c->gallery_state_.gallery_centers); }
+
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
         //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
@@ -1752,47 +1802,59 @@ namespace t7 {
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
         //     { try_select, try_place, try_commit, evict_slot,
-        //       prepare_mesh, dispatch_mesh, name }
+        //       prepare_mesh, dispatch_mesh, active_count, name }
         // CONSUMERS: the machine tail walks select/place/commit per queue
         //   entry; eviction routes through evict_slot; the mesh pair feeds the
         //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
         inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
             { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
               evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
+              active_count_pyramid,
               "pyr" },
             { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
               evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
+              active_count_arch,
               "arch" },
             { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
               evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+              active_count_column,
               "col" },
             { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
               evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+              active_count_antenna,
               "ant" },
             { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
               evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
+              active_count_palm,
               "palm" },
             { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
               evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
+              active_count_cactus,
               "cact" },
             { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
               evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
+              active_count_blade,
               "blad" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
               evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              active_count_sphere,
               "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
             { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
               evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              active_count_ribbon,
               "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
             { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
               evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              active_count_cube,
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
             { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
               evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              active_count_gol,
               "gol" },   // mesh hook → none-fork: GoL has no mesh — the zone IS
                          // the ground (UNIFIED_GROUND_1); the lift rides the card's .a
             { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
               evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              active_count_gallery,
               "gall" },
         };
     } // namespace the_board

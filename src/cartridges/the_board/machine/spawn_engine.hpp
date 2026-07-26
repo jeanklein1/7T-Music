@@ -547,23 +547,67 @@ inline const char* family_short_name(uint32_t family) {
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 
+// TWO INDEPENDENT REGISTRIES, ONE LINE. `active` is the family's own
+// array, scanned through FAMILY_DISPATCH[f].active_count. `claimed` is
+// the footprints keyed to that family. They measure different things
+// and MUST agree: delta = claimed − active, and a nonzero delta is a
+// leak that names its family — a body with no ground, or ground with
+// no body.
+//
+// The old print walked footprints_[] alone and called the result
+// "entities". It reported a proxy: it could not see a family that had
+// spawned without registering, and it counted ground that outlived its
+// owner as though the owner were alive.
+// The delta column: explicit sign, except zero — which has none. Zero is
+// the resting state and reads as noise with a sign glued to it.
+inline void census_put_delta(int32_t d) {
+    if (d == 0) std::cout << std::setw(8) << 0;
+    else        std::cout << std::setw(8) << std::showpos << d << std::noshowpos;
+}
+
 inline void dump_entity_census(MachineCtx* c, const char* trigger) {
-    uint32_t count = 0;
-    uint32_t by_family[PopFamily::COUNT] = {};
+    // The claimed side: footprints, keyed by family.
+    uint32_t claimed[PopFamily::COUNT] = {};
+    uint32_t claimed_total = 0;   // sum over the twelve families
+    uint32_t occupancy = 0;       // every live slot, family or not
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         if (!c->spawn_engine_state_.footprints_[i].active) continue;
+        occupancy++;
         if (c->spawn_engine_state_.footprints_[i].family >= PopFamily::COUNT) continue;
-        count++;
-        by_family[c->spawn_engine_state_.footprints_[i].family]++;
+        claimed[c->spawn_engine_state_.footprints_[i].family]++;
+        claimed_total++;
     }
 
-    std::cout << "[CENSUS t=" << std::fixed << std::setprecision(1) << c->time_state_.seconds
-        << " trigger=" << trigger << "] " << count << " entities (";
+    std::cout << "[CENSUS t=" << std::fixed << std::setprecision(1) << std::setw(7)
+        << c->time_state_.seconds << " trigger=" << trigger << "]\n"
+        << "  fam    active  claimed   delta\n";
+
+    uint32_t active_total = 0;
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-        if (f > 0) std::cout << " ";
-        std::cout << family_short_name(f) << ":" << by_family[f];
+        const uint32_t a = FAMILY_DISPATCH[f].active_count(c);
+        active_total += a;
+        std::cout << "  " << std::left << std::setw(7) << family_short_name(f) << std::right
+            << std::setw(6) << a
+            << std::setw(9) << claimed[f];
+        census_put_delta((int32_t)claimed[f] - (int32_t)a);
+        std::cout << "\n";
     }
-    std::cout << ")\n";
+
+    std::cout << "  " << std::left << std::setw(7) << "TOTAL" << std::right
+        << std::setw(6) << active_total
+        << std::setw(9) << claimed_total;
+    census_put_delta((int32_t)claimed_total - (int32_t)active_total);
+    std::cout << "    footprints " << occupancy << "/" << MAX_FOOTPRINTS << "\n";
+
+    // An unfamilied live footprint is unreachable through the three
+    // register sites (all pass a real PopFamily), so this never fires
+    // today. It is here because occupancy is what saturates, and the
+    // per-family sum is what the delta column is built from: if those
+    // two ever part company, every delta above is understated.
+    if (occupancy != claimed_total) {
+        std::cout << "  [CENSUS] WARNING: " << (occupancy - claimed_total)
+            << " live footprint(s) carry no family — deltas above are understated\n";
+    }
 
     // Per-entity detail, sorted by family then spawn_time
     struct CensusEntry { uint32_t fp_idx; uint32_t family; uint32_t tier; float spawn_time; };
@@ -582,6 +626,10 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
         }
         entries[j] = key;
     }
+    // CLAIMED GROUND, not entities. XZ, host patch and age live in the
+    // registry, so this listing can only ever describe footprints — the
+    // owning body may already be gone. The label is the whole point.
+    if (n > 0) std::cout << "  claimed ground (" << n << "):\n";
     for (uint32_t i = 0; i < n; i++) {
         const auto& fp = c->spawn_engine_state_.footprints_[entries[i].fp_idx];
         std::cout << "  " << family_short_name(fp.family)
