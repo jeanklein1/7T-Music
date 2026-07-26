@@ -297,7 +297,7 @@ namespace t7 {
             // every index and bound is derived from THAT. Never mix the two.
             constexpr uint32_t GOL_ZONE_GRID = 32;
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
-            constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
+            constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 5;  // 5 slots: visual, velocity, target, next, height_factor
 
             // Orb sky layer — luminous points on a dome above the world
             constexpr uint32_t MAX_ORBS = 256;
@@ -1692,8 +1692,8 @@ namespace t7 {
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
             wgpu::Buffer zoneDeriveRequestBuffer_; // GPUZoneDeriveRequestArray uniform
-            wgpu::Buffer zoneLifeBuffer_;          // life state: MAX_ZONES × GOL_ZONE_LIFE_STRIDE (7168) floats
-            wgpu::Texture zoneLifeTexture_;        // 32×32 × MAX_ZONES RG32Float texture array
+            wgpu::Buffer zoneLifeBuffer_;          // life state: MAX_ZONES × GOL_ZONE_LIFE_STRIDE (5120) floats
+            wgpu::Texture zoneLifeTexture_;        // 32×32 × MAX_ZONES R32Float texture array
             wgpu::TextureView zoneLifeWriteView_;  // storage texture write (compute)
             wgpu::TextureView zoneLifeReadView_;   // sampled texture read (fragment)
 
@@ -2872,10 +2872,6 @@ namespace t7 {
                 queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 3, life_data, cells_bytes);
                 // Slot 4: per-cell height factor (persistent)
                 queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 4, height_factors, cells_bytes);
-                // Slot 5: color visual (initial = target)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 5, life_data, cells_bytes);
-                // Slot 6: color velocity (zero)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 6, zeros.data(), cells_bytes);
             }
 
             // --- Dispatch dimensions ---
@@ -3531,12 +3527,12 @@ namespace t7 {
 
                 if (!zoneConfigBuffer_ || !zoneLifeBuffer_) return false;
 
-                // Zone life texture: 32×32 × MAX_ZONES, RG32Float (R=height, G=color)
+                // Zone life texture: 32×32 × MAX_ZONES, R32Float (R = the cell's spring visual)
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "GoL Zone Life Texture Array";
                     desc.size = { Dim::GOL_ZONE_GRID, Dim::GOL_ZONE_GRID, Dim::MAX_GOL_ZONES };
-                    desc.format = wgpu::TextureFormat::RG32Float;
+                    desc.format = wgpu::TextureFormat::R32Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
                     desc.dimension = wgpu::TextureDimension::e2D;
                     zoneLifeTexture_ = device_.CreateTexture(&desc);
@@ -4441,7 +4437,7 @@ namespace t7 {
                     entries[3].binding = bind::g0::zone_life_tex_write;  // zone_life_tex (storage texture, write)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[3].storageTexture.format = wgpu::TextureFormat::RG32Float;
+                    entries[3].storageTexture.format = wgpu::TextureFormat::R32Float;
                     entries[3].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
                     entries[4].binding = bind::g0::zone_derive_requests; // zone_derive_requests (uniform)

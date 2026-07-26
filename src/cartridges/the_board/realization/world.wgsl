@@ -4064,7 +4064,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                         let life_sample = textureSampleLevel(
                             zone_life_read, nearest_sampler, uv, i32(z), 0.0
                         );
-                        let color_val = life_sample.y;  // G channel = color spring
+                        let color_val = life_sample.x;  // R channel = the cell's spring visual
 
                         if (color_val > 0.01) {
                             base_color = apply_gol_color(
@@ -5674,7 +5674,7 @@ struct PawnAuraCell {
 
 @group(0) @binding(160) var<storage, read_write> zone_config: GoLZoneArray;
 @group(0) @binding(161) var<storage, read_write> zone_life: array<f32>;
-@group(0) @binding(162) var zone_life_tex_write: texture_storage_2d_array<rg32float, write>;
+@group(0) @binding(162) var zone_life_tex_write: texture_storage_2d_array<r32float, write>;
 
 // --- GoL zone system (Group 1: bindings 31-32, render texture layout)
 @group(1) @binding(31) var zone_life_read: texture_2d_array<f32>;
@@ -8109,14 +8109,17 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
 // {8..32}: the sim writes texels [0, grid_size)² of a 32² layer, so
 // every fetch normalizes by THIS, never by the zone's own grid.
 const GOL_ZONE_TEX_N: f32 = 32.0;
-const GOL_ZONE_STRIDE: u32 = 7168u;     // floats per zone (7 slots × 1024 cells)
+const GOL_ZONE_STRIDE: u32 = 5120u;     // floats per zone (5 slots × 1024 cells)
 const GOL_CELL_VISUAL: u32 = 0u;        // slot 0: height spring visual [0,1]
 const GOL_CELL_VELOCITY: u32 = 1024u;   // slot 1: height spring velocity
 const GOL_CELL_TARGET: u32 = 2048u;     // slot 2: current target (binary, Conway reads)
 const GOL_CELL_NEXT: u32 = 3072u;       // slot 3: next target (binary, Conway writes)
 const GOL_CELL_HEIGHT_FACTOR: u32 = 4096u;  // slot 4: per-cell height multiplier (persistent)
-const GOL_CELL_COLOR_VISUAL: u32 = 5120u;   // slot 5: color spring visual [0,1]
-const GOL_CELL_COLOR_VELOCITY: u32 = 6144u; // slot 6: color spring velocity
+// Slots 5-6 were a COLOUR spring. It was provably the height spring: same
+// target, same omega/e, same settle thresholds, same apply_boundary and
+// select guard, and seeded from the same life_data with the same zero
+// velocity — so color_visual == visual for every cell at every frame, and
+// always had been. Collapsed; see the commit for the induction.
 
 @compute @workgroup_size(8, 8, 1)
 fn zone_gol_sync(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -8216,30 +8219,15 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
         velocity = select(new_velocity, 0.0, new_visual < 0.0 || new_visual > 1.0);
     }
 
-    // --- Analytical critically damped spring — COLOR
-    var color_visual = zone_life[base + GOL_CELL_COLOR_VISUAL + idx];
-    var color_velocity = zone_life[base + GOL_CELL_COLOR_VELOCITY + idx];
-
-    let cd = color_visual - current_tgt;
-    let new_cv = current_tgt + (cd * (1.0 + omega_dt) + color_velocity * dt) * e;
-    let new_cvv = (color_velocity * (1.0 - omega_dt) - cd * omega * omega * dt) * e;
-
-    if (abs(new_cv - current_tgt) < 0.001 && abs(new_cvv) < 0.01) {
-        color_visual = current_tgt;
-        color_velocity = 0.0;
-    } else {
-        color_visual = apply_boundary(new_cv, z.boundary_mode);
-        color_velocity = select(new_cvv, 0.0, new_cv < 0.0 || new_cv > 1.0);
-    }
 
     // --- Write back
     zone_life[base + GOL_CELL_VISUAL + idx] = visual;
     zone_life[base + GOL_CELL_VELOCITY + idx] = velocity;
-    zone_life[base + GOL_CELL_COLOR_VISUAL + idx] = color_visual;
-    zone_life[base + GOL_CELL_COLOR_VELOCITY + idx] = color_velocity;
 
-    // Write to texture: R = height visual, G = color visual
-    textureStore(zone_life_tex_write, cell, i32(zone_id), vec4(visual, color_visual, 0.0, 0.0));
+    // Write to texture: R = the cell's spring visual. The FS tint reads it;
+    // the LIFT reads zone_life[VISUAL] from the buffer. One number, two
+    // consumers, one channel.
+    textureStore(zone_life_tex_write, cell, i32(zone_id), vec4(visual, 0.0, 0.0, 0.0));
 }
 
 
