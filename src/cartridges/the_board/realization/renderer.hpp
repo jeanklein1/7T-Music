@@ -88,8 +88,6 @@ namespace t7 {
             constexpr const char* ZONE_GOL_EVOLVE = "zone_gol_evolve";
             constexpr const char* ZONE_DERIVE_PARAMS = "zone_derive_params";
 
-            // Zone extrusion rendering
-
             // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT)
             constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
             constexpr const char* COLUMN_MESH_GEN = "column_mesh_gen";
@@ -275,10 +273,9 @@ namespace t7 {
             wgpu::ComputePipeline zoneGolSyncPipeline_;
             wgpu::ComputePipeline zoneGolEvolvePipeline_;
 
-            // Zone mesh gen (two-group: compute entity + mesh gen)
+            // Zone parameter derivation (shares the GoL compute layout; one
+            // workgroup per pending derive request)
             wgpu::ComputePipeline zoneDeriveParamsPipeline_;
-
-            // Zone extrusion render
 
             // Fade overlay (fullscreen alpha-blended triangle)
             wgpu::RenderPipeline fadeOverlayPipeline_;
@@ -627,8 +624,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(4, 4, zone_count);
             }
 
-            // Zone mesh gen (single group — same layout as sync/evolve)
-
             // Zone parameter derivation (GPU-authoritative tier selection + Gaussian sampling)
             void dispatch_zone_derive_params(
                 wgpu::ComputePassEncoder& pass,
@@ -709,9 +704,6 @@ namespace t7 {
                 pass.SetBindGroup(0, group);
                 pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
             }
-
-            // Zone extrusion rendering
-
 
             void draw_patch_terrain_lod0_indirect(
                 wgpu::RenderPassEncoder& pass,

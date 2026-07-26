@@ -1776,7 +1776,8 @@ namespace t7 {
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
             { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
               evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-              "gol" },   // zone mesh gen is a separate compute pass
+              "gol" },   // mesh hook → none-fork: GoL has no mesh — the zone IS
+                         // the ground (UNIFIED_GROUND_1); the lift rides the card's .a
             { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
               evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               "gall" },

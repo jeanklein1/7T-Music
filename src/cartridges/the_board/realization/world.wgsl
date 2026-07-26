@@ -2528,7 +2528,8 @@ const ZONE_SPHERE_TINT: vec3<f32> = vec3(0.5, 0.35, 0.0);  // gold shift near sp
 const ZONE_PAWN_TINT_STRENGTH: f32 = 0.6;
 const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 
-// --- Pawn GoL suppression radii (shared between height_at + extrusion VS)
+// --- Pawn GoL suppression radii (shared by the compute policies and the
+// --- two patch VS — the three callers of pawn_gol_suppression below)
 const ZONE_SUPPRESS_INNER: f32 = 4.0;   // full suppression inside this radius
 const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
 
@@ -2758,15 +2759,6 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     return vec2(height, hc.y);
 }
 
-// ─── Polyphony-driven wave overlay ──────────────────────────────────────
-//
-// 6 cheap directional sine waves layered on the frozen lattice terrain.
-// Polyphony count activates waves progressively (fine ripples first,
-// continental swells last). Blend ramp and phase origin prevent teleportation.
-// Seed-derived jitter makes each finite outdoor world feel different.
-//
-// Cost: 6 sin() calls per evaluation point. Called in VS + pawn + camera.
-
 // ─── Radial pulses: expanding ring wavefronts from note onsets ──────────
 //
 // Each pulse is an expanding ring centered on the pawn's position at onset.
@@ -2887,8 +2879,8 @@ struct QueryInputs {
 
 // POLICY_BAKED_HEIGHTFIELD — what the cached patch heightfield texture caches.
 // Contributors: contrib_static_base_at + CONTRIB_PYRAMIDS.
-// Typical consumers: zone-mesh analytical fallback, any compute that wants
-//   the ground-without-dynamics. The texture variant is sample_terrain_y_at.
+// Typical consumers: any compute that wants the ground-without-dynamics.
+//   The texture variant is sample_terrain_y_at.
 // Notes: must stay consistent with ground_formed_with_complexity (the
 //   two-pass patch heightfield generator) — same contributor set.
 
@@ -3815,8 +3807,9 @@ struct PatchTerrainVarying {
 //   + CONTRIB_TERRAIN_WAVES
 //   + CONTRIB_RADIAL_PULSES
 //
-// Does NOT include CONTRIB_GOL_ZONES — the patch heightfield does not
-// cache GoL; zones are rendered as a separate extrusion pass.
+// Does NOT include CONTRIB_GOL_ZONES — the patch heightfield caches the
+// STATIC ground only. The GoL lift rides the live card's .a and is added
+// per-vertex in the VS (UNIFIED_GROUND_1), never baked.
 //
 // Waves + pulses arrive via the live card (GROUND_CARD_1; true-band
 // deltas since TRUEBAND_CONTACT_1): the resolve pass computes the
@@ -5556,7 +5549,7 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     return composite_cell_color(id, dcol);
 }
 
-// --- Shared color application (called by terrain FS and extrusion FS)
+// --- Shared color application (the terrain FS is the sole caller)
 fn apply_gol_color(base_color: vec3<f32>, zp: GoLZoneConfig, cx: u32, cy: u32, blend: f32) -> vec3<f32> {
     if (zp.color_mode == GOL_COLOR_NEUTRAL) {
         return base_color;  // no color change on terrain
@@ -5581,8 +5574,6 @@ fn apply_gol_color(base_color: vec3<f32>, zp: GoLZoneConfig, cx: u32, cy: u32, b
     let alive_color = clamp(base_color * dark_factor + vec3(r_shift, g_shift, -r_shift), vec3(0.0), vec3(1.0));
     return mix(base_color, alive_color, blend * GOL_TINT_STRENGTH);
 }
-
-// Extrusion block color: starts from per-cell terrain color, applies mode
 
 struct GoLZoneArray {
     count: u32,
@@ -5688,14 +5679,6 @@ struct PawnAuraCell {
 @group(0) @binding(172) var pawn_aura_tex_write: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(31) var live_card_write: texture_storage_2d<rgba16float, write>;  // GROUND_CARD_1: writer kernel
 @group(0) @binding(32) var<storage, read_write> live_card_scratch: array<f32>;  // stride-2: Δh, gol — the two-pass writer (TRUEBAND_CONTACT_1)
-
-// --- Zone mesh gen output (Group 0: bindings 167-169, same layout as GoL compute)
-
-// --- Zone heightfield sampling (mesh gen terrain alignment)
-// Runtime-sized: capacity is the bound buffer's — the CPU side
-// (Dim::MAX_ACTIVE_PATCHES) is the single source; no WGSL twin exists.
-// Zone terrain scan covers every active patch slot; overflow to the
-// analytic fallback is thereby eliminated, not merely bounded.
 
 // --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
 //
@@ -8227,11 +8210,7 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 
-// §7.3 GOL ZONE MESH GENERATION — Cell extrusion geometry
-
-
-
-// ═══ §7.3b THE LIVE CARD (GROUND_CARD_1) ═══════════════════════════════
+// ═══ §7.3 THE LIVE CARD (GROUND_CARD_1) ════════════════════════════════
 // The per-frame deformation field. The writer CALLS the existing
 // evaluators at texel centers — one derivation, one new sampling
 // site (campaign v2 §5). Rest ⇒ zeros ⇒ every consumer adds 0.

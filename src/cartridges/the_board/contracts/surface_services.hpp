@@ -74,7 +74,10 @@ inline constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3
 enum class PatchPhase : uint8_t {
     ALLOCATED,      // layer assigned, tile cached, no entities yet
     SPAWNED,        // entities selected + placed + committed
-    GENERATED,      // heightfield computed, gallery + GoL spawned
+    GENERATED,      // heightfield computed. EVERY family — gallery and GoL
+                    //   included — was already placed at ALLOCATED->SPAWNED,
+                    //   before this heightfield existed; Y-correction is
+                    //   additive and lands later (compute_entity_placement).
     NEEDS_REGEN,    // heightfield stale (new pier in range)
 };
 

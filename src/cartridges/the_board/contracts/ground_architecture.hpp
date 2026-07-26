@@ -154,8 +154,8 @@ inline constexpr PolicyDef POLICIES[] = {
 
     // Terrain-render — the fused render-side set: the baked heightfield
     // (static base + pyramids) + pawn aura + terrain waves + radial
-    // pulses. Deliberately NO CONTRIB_GOL_ZONES: the patch heightfield
-    // does not cache GoL; zones render as their own extrusion pass.
+    // pulses — and GoL, which the mask below SETS; its inline note there
+    // carries the how (the card's .a, cell-nearest, pawn-suppressed).
     // This policy has NO query_ground_* function by design — its
     // realizations are hand-fused for per-vertex cost: patch_terrain_vs
     // (the full set; gradients realized there via texture .yz + the

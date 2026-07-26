@@ -9,7 +9,7 @@
 //
 // PIXEL-SAFETY. Every drawable IN THIS TABLE is OPAQUE (depth-tested,
 // depth-write, no blend — or an alpha=1.0 output that makes SrcAlpha a
-// no-op): terrain(fork), zone, pawn, sphere, monolith, ribbon, arch,
+// no-op): terrain(fork), pawn, sphere, monolith, ribbon, arch,
 // column, palm, cactus, blade, shell, and the gallery/wall FORKS. Draw
 // order among OPAQUE geometry is immaterial — the depth test resolves
 // visibility identically regardless of order — so the ONE canonical order

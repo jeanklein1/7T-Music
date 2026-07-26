@@ -252,10 +252,6 @@ namespace t7 {
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
 
-            // Zone cell mesh extrusion budget
-            constexpr uint32_t ZONE_MESH_MAX_VERTICES = 50000;
-            constexpr uint32_t ZONE_MESH_MAX_INDICES = 75000;
-
             // Orb sky layer — luminous points on a dome above the world
             constexpr uint32_t MAX_ORBS = 256;
 
@@ -1647,12 +1643,10 @@ namespace t7 {
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
             wgpu::Buffer zoneDeriveRequestBuffer_; // GPUZoneDeriveRequestArray uniform
-            wgpu::Buffer zoneLifeBuffer_;          // life state: MAX_ZONES × 4096 floats
-            wgpu::Texture zoneLifeTexture_;        // 32×32 × MAX_ZONES r32float texture array
+            wgpu::Buffer zoneLifeBuffer_;          // life state: MAX_ZONES × GOL_ZONE_LIFE_STRIDE (7168) floats
+            wgpu::Texture zoneLifeTexture_;        // 32×32 × MAX_ZONES RG32Float texture array
             wgpu::TextureView zoneLifeWriteView_;  // storage texture write (compute)
             wgpu::TextureView zoneLifeReadView_;   // sampled texture read (fragment)
-
-            // Zone cell mesh extrusion buffers
 
             // Pawn aura system
             wgpu::Buffer pawnAuraConfigBuffer_;    // GPUPawnAuraConfig uniform
@@ -3519,12 +3513,6 @@ namespace t7 {
                 std::cout << "[GPUState] GoL zone buffers: " << Dim::MAX_GOL_ZONES
                     << " zones × " << Dim::GOL_ZONE_GRID << "×" << Dim::GOL_ZONE_GRID << " grid\n";
 
-                // Zone cell mesh extrusion buffers
-
-                std::cout << "[GPUState] Zone mesh buffers: "
-                    << Dim::ZONE_MESH_MAX_VERTICES << " vert, "
-                    << Dim::ZONE_MESH_MAX_INDICES << " index capacity\n";
-
                 // Pawn aura buffers
                 // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers + Pawn Aura group + pawnAura pipeline droppable, but pawnAuraTexture_ (created in createTextures) is sampled by the terrain FS → bound in Render Texture + Compute Texture groups. Retire = re-section those two groups.
                 pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Config",
@@ -4459,13 +4447,13 @@ namespace t7 {
                     if (!pawnAuraComputeLayout_) return false;
                 }
 
-                // -- Live card writer layout (Group 0) -- bindings 0, 1, 160, 161, 31 --
+                // -- Live card writer layout (Group 0) -- bindings 0, 1, 160, 161, 31, 32 --
                 // (GROUND_CARD_1) The writer kernel calls the existing evaluators at
                 // texel centers: signal (band blends + pulse clock), config (waves +
-                // pulses + lod_point origin), the zone pair (raw GoL lift), and the
-                // card's storage-texture write. NOTE: this layout is the zone pair's
-                // future sole home outside the GoL sim (post-H5 Compute Entity
-                // eviction — GROUND_CARD_1).
+                // pulses + lod_point origin), the zone pair (raw GoL lift), the
+                // card's storage-texture write, and the two-pass scratch
+                // (TRUEBAND_CONTACT_1). The Compute Entity eviction has LANDED —
+                // this layout IS the zone pair's sole home outside the GoL sim.
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
