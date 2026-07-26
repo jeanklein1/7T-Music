@@ -506,6 +506,13 @@ namespace t7 {
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
                 // one conductor call per piece, presence constexpr-gated.
+                // The boot mood's own cull setting. set_frustum_cull_active has one
+                // other caller — apply_mood — and boot does not call apply_mood, so
+                // the flag would otherwise sit at the Renderer's member default
+                // until the first transition. One MOOD_TABLE row, read the way
+                // apply_mood reads it. RETIRES WITH [4b].
+                renderer_.set_frustum_cull_active(MOOD_TABLE[mood_state_.active].allow_frustum_cull);
+
                 // Sky orbs for the initial mood (apply_mood runs only on transitions).
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (c) — boot one-shot skipped when disabled
                     wgpu::Queue q = device_.GetQueue();
