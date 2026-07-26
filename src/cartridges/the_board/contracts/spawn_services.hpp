@@ -81,6 +81,21 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   applies; the consumer skips the gap term entirely).
 // Placement determinant — frozen biography (§12): changing a number
 // changes which candidate positions survive, i.e. changes worlds.
+//
+// NON-PARTICIPANTS — SPHERE (7) and CUBE (9), ruling 21/23. Both are
+//   unreachable in BOTH directions and no number in either line can change
+//   anything:
+//     · their ROWS never execute — negotiate_position skips check_position
+//       entirely for a non-`grounded` family, so those families never read
+//       the table at all;
+//     · their COLUMNS never match — they register no footprint, so no
+//       sphere or cube entry will ever be found by the scan.
+//   The rows and columns REMAIN because F-1 pins this table at 12x12 in
+//   PopFamily order and it is one of eight positional tables — deleting a
+//   line would re-column all of them. They are held as structural zeros.
+//   Their diagonals were 20 (sph) and 15 (cube); ruling 22 retired them with
+//   the footprint. If floaters ever claim ground again, the values are in git
+//   and this note is what tells you they were deliberate.
 inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
     //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
     /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
