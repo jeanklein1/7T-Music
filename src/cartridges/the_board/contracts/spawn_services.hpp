@@ -90,9 +90,9 @@ inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
     /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
     /* placing Cactus   */ {  5.0f,  5.0f,  5.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
     /* placing Blade    */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 20.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
     /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 15.0f,  0.0f,  0.0f },
+    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
     /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 60.0f,  0.0f },
     /* placing Gallery  */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 10.0f, 30.0f },
 };
@@ -214,10 +214,19 @@ void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz);
 // caller skips the spawn (the loud line prints in the law).
 bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
     float footprint_r, float containment_r, float& cx, float& cz);
+// `grounded` (ruling 21) decides whether footprint_r means anything: a family
+// registers iff its own extent touches the ground plane. FALSE skips BOTH the
+// check and the registration — the floater is neither blocked by ground nor a
+// claimant of it. It does NOT skip indoor_bounds_clamp (containment is a
+// different concept) nor the host-patch derivation (eviction bookkeeping,
+// which every family needs). Deliberately NOT defaulted: with two call sites,
+// an explicit value at each beats a default that would silently register a
+// future floater family whose author forgot the flag.
 PositionResult negotiate_position(MachineCtx* c,
     uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
+    bool grounded,
     float footprint_r, float containment_r, uint32_t family, uint32_t tier = 0);
 GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot);
 GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c);

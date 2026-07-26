@@ -297,6 +297,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
     uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
+    bool grounded,
     float footprint_r, float containment_r, uint32_t family, uint32_t tier)
 {
     PositionResult r{};
@@ -316,14 +317,31 @@ inline PositionResult negotiate_position(MachineCtx* c,
     if (!indoor_bounds_clamp(c, family, footprint_r, containment_r, r.cx, r.cz))
         return r;
 
-    // 2. Separation + footprint check (single pass)
-    if (!check_position(c, r.cx, r.cz, footprint_r, family))
+    // 2. Separation + footprint check — GROUND CLAIM, and only for bodies
+    // that touch the ground. A non-grounded family (sphere, cube) is not
+    // blocked by a standing footprint: a pyramid beneath a hovering cube is a
+    // composition, not a collision. Ruling 21 — the campaign law is "a family
+    // registers iff its own extent touches the ground plane", which is what
+    // `grounded` already means and says.
+    if (grounded && !check_position(c, r.cx, r.cz, footprint_r, family))
         return r;
 
-    // 3. Host patch + footprint registration (Q6a: one key derivation)
+    // 3. Host patch. NOT part of the ground claim — this is the entity's
+    // address for eviction bookkeeping and EVERY family needs it, floaters
+    // included: dispatch_commit_sphere_generic (spheres.hpp) and
+    // dispatch_commit_cube_generic (cube_behaviors.hpp) both gate their commit
+    // on find_patch(host_gx, host_gz). Step 3 used to fuse this with
+    // registration as "one key derivation"; the fusion is why the two look
+    // like one concept. They are not, and skipping this alongside the
+    // footprint would leave every floater addressed to patch (0,0) — silently
+    // dropping any that spawned away from the world origin.
     auto hk = tile_key(r.cx, r.cz);
     r.host_gx = hk.x; r.host_gz = hk.z;
-    if (register_footprint(c, r.cx, r.cz, footprint_r,
+
+    // 4. Footprint registration — the claim itself. Skipped for the same
+    // families, in the same direction: they claim no ground. Both steps
+    // conditional, or the ruling is half-applied.
+    if (grounded && register_footprint(c, r.cx, r.cz, footprint_r,
         r.host_gx, r.host_gz, family, tier) == UINT32_MAX) return r;
 
     r.ok = true;

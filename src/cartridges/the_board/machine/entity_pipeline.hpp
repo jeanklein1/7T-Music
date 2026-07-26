@@ -184,6 +184,7 @@ inline bool generic_place(MachineCtx* c,
         traits.pos_x_prop, traits.pos_z_prop,
         traits.position_jitter,
         traits.rotation_prop,
+        traits.grounded,   // ruling 21: the ground-claim policy, from the family's own record
         inst.solid_half, /*containment_r*/ inst.solid_half, traits.family_id, inst.tier_idx);
     if (!pos.ok) return false;
 

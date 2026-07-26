@@ -1172,6 +1172,7 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
         RibbonProp::ANCHOR_X, RibbonProp::ANCHOR_Z,
         RibbonConfig::POSITION_JITTER,
         RibbonProp::ORIENTATION,
+        /*grounded=*/true,   // the anchor ribbon's tips touch ground; it claims and is blocked
         sel.footprint_r,
         // FULL containment (INDOOR_TREATMENT): the MINIATURE extent —
         // scaled lateral_amp + the scaled cube span (S-4's scale ran

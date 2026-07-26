@@ -523,8 +523,8 @@ inline const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
 
 inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, "cube", Dim::MAX_CUBE_INSTANCES,
-    false, false, 0,
-    true,
+    false, false, 0,      // not grounded
+    false,                // has_footprint: not read by anything; the LIVE flag is `grounded` above (ruling 21)
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::CUBE), CubeConfig::POSITION_JITTER,
     CUBE_TIER_COUNT, CubeProp::TIER,
