@@ -387,26 +387,24 @@ inline const TierProfile& antenna_get_tier_profile(uint32_t tier_idx) {
 // ── Column traits ──
 
 inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
-    PopFamily::COLUMN, "col", Dim::MAX_COLUMN_ONLY,
-    true, true, 1,                                     // grounded, creates ground, 1 pier
-    true,
+    PopFamily::COLUMN, Dim::MAX_COLUMN_ONLY,
+    true,                 // grounded — creates ground, 1 pier
     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::COLUMN), ColumnConfig::POSITION_JITTER,
     COLUMN_TIER_COUNT, ColumnProp::TIER,
     COLUMN_PARAM_DEFS, COLUMN_PARAM_COUNT,
-    ColumnProp::POSITION_X, ColumnProp::POSITION_Z, 355u, true,
+    ColumnProp::POSITION_X, ColumnProp::POSITION_Z, 355u,
     0, nullptr,  // color handled entirely by adapter
 };
 
 inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
-    PopFamily::ANTENNA, "ant", Dim::MAX_ANTENNA_ONLY,
-    true, true, 1,
-    true,
+    PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,
+    true,                 // grounded — creates ground, 1 pier
     AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::ANTENNA), AntennaConfig::POSITION_JITTER,
     ANTENNA_TIER_COUNT, AntennaProp::TIER,
     ANTENNA_PARAM_DEFS, COLUMN_PARAM_COUNT,
-    AntennaProp::POSITION_X, AntennaProp::POSITION_Z, 355u, true,
+    AntennaProp::POSITION_X, AntennaProp::POSITION_Z, 355u,
     0, nullptr,
 };
 
@@ -754,14 +752,13 @@ inline const TierProfile& pyramid_get_tier_profile(uint32_t tier_idx) {
 }
 
 inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
-    PopFamily::PYRAMID, "pyr", Dim::MAX_PYRAMID_INSTANCES,
-    true, false, 0,       // grounded, no piers (bakes into heightfield instead)
-    true,
+    PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES,
+    true,                 // grounded — bakes into the heightfield, no piers
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::PYRAMID), PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
     PYRAMID_PARAM_DEFS, PYRAMID_PARAM_COUNT,
-    PyramidProp::POSITION_X, PyramidProp::POSITION_Z, PyramidProp::ROTATION, true,
+    PyramidProp::POSITION_X, PyramidProp::POSITION_Z, PyramidProp::ROTATION,
     0, nullptr,  // color handled by adapter
 };
 
@@ -907,14 +904,13 @@ inline const TierProfile& arch_get_tier_profile(uint32_t tier_idx) {
 }
 
 inline constexpr EntityFamilyTraits ARCH_TRAITS = {
-    PopFamily::ARCH, "arch", Dim::MAX_ARCH_INSTANCES,
-    true, true, 2,        // grounded, creates ground, 2 piers
-    true,
+    PopFamily::ARCH, Dim::MAX_ARCH_INSTANCES,
+    true,                 // grounded — creates ground, 2 piers
     ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::ARCH), ArchConfig::POSITION_JITTER,
     static_cast<uint32_t>(ArchTier::COUNT), ArchProp::TIER,
     ARCH_PARAM_DEFS, ARCH_PARAM_COUNT,
-    ArchProp::POSITION_X, ArchProp::POSITION_Z, ArchProp::ROTATION, true,
+    ArchProp::POSITION_X, ArchProp::POSITION_Z, ArchProp::ROTATION,
     0, nullptr,
 };
 
@@ -1132,24 +1128,50 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
 // This is the last point in the cohort where all nine TRAITS are visible
 // (entity_pipeline.hpp trails grounded/spheres/cube_behaviors), which is why
 // the block lives here rather than at the contract.
-#define T7_GATE_PIN(TR, FAM, MAXN, PROP, CHANCE)                                  \
+// The pin doubles as the POSITIONAL-SHIFT PROOF for the A2 field cut. All nine
+// TRAITS are positional aggregates, so removing a field silently slides every
+// later initialiser up one slot — and glaw1 catches a type mismatch but NOT a
+// same-typed value landing in the wrong field. Five fields were removed at
+// positions 2, 5, 6, 7 and 19 of twenty-one.
+//
+// Every removal point has a pinned field immediately after it, so a slide
+// cannot pass unnoticed:
+//   after short_name(2)                        -> max_instances   PINNED
+//   after creates_ground/piers/has_footprint(5,6,7) -> spawn_roll_prop PINNED
+//   after gpu_ground_y(19)                     -> color_part_count PINNED
+// grounded(4) is pinned too, which brackets the first removal from both sides.
+#define T7_GATE_PIN(TR, FAM, MAXN, GND, PROP, CHANCE, NCOL)                       \
     static_assert(TR.family_id       == FAM,     #TR " family_id must match");    \
     static_assert(TR.max_instances   == MAXN,    #TR " max_instances must match");\
+    static_assert(TR.grounded        == GND,     #TR " grounded must match");     \
     static_assert(TR.spawn_roll_prop == PROP,    #TR " spawn_roll_prop must match"); \
     static_assert(TR.spawn_chance    == CHANCE,  #TR " spawn_chance must match"); \
+    static_assert(TR.color_part_count == NCOL,   #TR " color_part_count must match"); \
     static_assert(TR.mood_multiplier == mood_mult_for(FAM), #TR " mood_multiplier must match")
 
-T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE);
-T7_GATE_PIN(ARCH_TRAITS,    PopFamily::ARCH,    Dim::MAX_ARCH_INSTANCES,    ArchProp::SPAWN_ROLL,    ArchConfig::SPAWN_CHANCE);
-T7_GATE_PIN(COLUMN_TRAITS,  PopFamily::COLUMN,  Dim::MAX_COLUMN_ONLY,       ColumnProp::SPAWN_ROLL,  ColumnConfig::SPAWN_CHANCE);
-T7_GATE_PIN(ANTENNA_TRAITS, PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,      AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE);
-T7_GATE_PIN(PALM_TRAITS,    PopFamily::PALM,    Dim::MAX_PALM_INSTANCES,    PalmProp::SPAWN_ROLL,    PalmConfig::SPAWN_CHANCE);
-T7_GATE_PIN(CACTUS_TRAITS,  PopFamily::CACTUS,  Dim::MAX_CACTUS_INSTANCES,  CactusProp::SPAWN_ROLL,  CactusConfig::SPAWN_CHANCE);
-T7_GATE_PIN(BLADE_TRAITS,   PopFamily::BLADE,   Dim::MAX_BLADE_INSTANCES,   BladeProp::SPAWN_ROLL,   BladeClusterConfig::SPAWN_CHANCE);
-T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE);
-T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    CubeProp::SPAWN_ROLL,    CubeConfig::SPAWN_CHANCE);
+T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, true,  PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,     0u);
+T7_GATE_PIN(ARCH_TRAITS,    PopFamily::ARCH,    Dim::MAX_ARCH_INSTANCES,    true,  ArchProp::SPAWN_ROLL,    ArchConfig::SPAWN_CHANCE,        0u);
+T7_GATE_PIN(COLUMN_TRAITS,  PopFamily::COLUMN,  Dim::MAX_COLUMN_ONLY,       true,  ColumnProp::SPAWN_ROLL,  ColumnConfig::SPAWN_CHANCE,      0u);
+T7_GATE_PIN(ANTENNA_TRAITS, PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,      true,  AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,     0u);
+T7_GATE_PIN(PALM_TRAITS,    PopFamily::PALM,    Dim::MAX_PALM_INSTANCES,    true,  PalmProp::SPAWN_ROLL,    PalmConfig::SPAWN_CHANCE,        3u);
+T7_GATE_PIN(CACTUS_TRAITS,  PopFamily::CACTUS,  Dim::MAX_CACTUS_INSTANCES,  true,  CactusProp::SPAWN_ROLL,  CactusConfig::SPAWN_CHANCE,      2u);
+T7_GATE_PIN(BLADE_TRAITS,   PopFamily::BLADE,   Dim::MAX_BLADE_INSTANCES,   true,  BladeProp::SPAWN_ROLL,   BladeClusterConfig::SPAWN_CHANCE, 2u);
+T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  false, SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE,      0u);
+T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    false, CubeProp::SPAWN_ROLL,    CubeConfig::SPAWN_CHANCE,        0u);
 
 #undef T7_GATE_PIN
+
+// The tail pair, checked once per family by pointer identity: color_parts is
+// the LAST field, so if anything above it slid, this is where it shows.
+static_assert(PYRAMID_TRAITS.color_parts == nullptr,            "PYRAMID_TRAITS color_parts");
+static_assert(ARCH_TRAITS.color_parts    == nullptr,            "ARCH_TRAITS color_parts");
+static_assert(COLUMN_TRAITS.color_parts  == nullptr,            "COLUMN_TRAITS color_parts");
+static_assert(ANTENNA_TRAITS.color_parts == nullptr,            "ANTENNA_TRAITS color_parts");
+static_assert(PALM_TRAITS.color_parts    == PALM_COLOR_PARTS,   "PALM_TRAITS color_parts");
+static_assert(CACTUS_TRAITS.color_parts  == CACTUS_COLOR_PARTS, "CACTUS_TRAITS color_parts");
+static_assert(BLADE_TRAITS.color_parts   == BLADE_COLOR_PARTS,  "BLADE_TRAITS color_parts");
+static_assert(SPHERE_TRAITS.color_parts  == nullptr,            "SPHERE_TRAITS color_parts");
+static_assert(CUBE_TRAITS.color_parts    == nullptr,            "CUBE_TRAITS color_parts");
 
 // ═══ END MODULE IMPLEMENTATION ═══════════════════════════════════
 

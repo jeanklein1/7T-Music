@@ -922,16 +922,15 @@ inline constexpr ColorPartDef BLADE_COLOR_PARTS[] = {
 // ─── Traits Declaration ──────────────────────────────────────────
 
 inline constexpr EntityFamilyTraits BLADE_TRAITS = {
-    PopFamily::BLADE, "blad",
+    PopFamily::BLADE,
     Dim::MAX_BLADE_INSTANCES,
-    true, false, 0,                                    // grounded, no piers
-    true,                                             // footprint
+    true,                 // grounded, no piers
     BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::BLADE),
     BladeClusterConfig::POSITION_JITTER,
     BLADE_TIER_COUNT, BladeProp::TIER,
     BLADE_PARAM_DEFS, BLADE_PARAM_COUNT,
-    BladeProp::POSITION_X, BladeProp::POSITION_Z, BladeProp::ROTATION, true,
+    BladeProp::POSITION_X, BladeProp::POSITION_Z, BladeProp::ROTATION,
     2, BLADE_COLOR_PARTS,
 };
 
@@ -1136,14 +1135,13 @@ inline constexpr ColorPartDef PALM_COLOR_PARTS[] = {
 };
 
 inline constexpr EntityFamilyTraits PALM_TRAITS = {
-    PopFamily::PALM, "palm", Dim::MAX_PALM_INSTANCES,
-    true, false, 0,
-    true,
+    PopFamily::PALM, Dim::MAX_PALM_INSTANCES,
+    true,                 // grounded
     PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::PALM), PalmConfig::POSITION_JITTER,
     PALM_TIER_COUNT, PalmProp::TIER,
     PALM_PARAM_DEFS, PALM_PARAM_COUNT,
-    PalmProp::POSITION_X, PalmProp::POSITION_Z, PalmProp::ROTATION, true,
+    PalmProp::POSITION_X, PalmProp::POSITION_Z, PalmProp::ROTATION,
     3, PALM_COLOR_PARTS,
 };
 
@@ -1360,14 +1358,13 @@ inline constexpr ColorPartDef CACTUS_COLOR_PARTS[] = {
 };
 
 inline constexpr EntityFamilyTraits CACTUS_TRAITS = {
-    PopFamily::CACTUS, "cact", Dim::MAX_CACTUS_INSTANCES,
-    true, false, 0,
-    true,
+    PopFamily::CACTUS, Dim::MAX_CACTUS_INSTANCES,
+    true,                 // grounded
     CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::CACTUS), CactusConfig::POSITION_JITTER,
     CACTUS_TIER_COUNT, CactusProp::TIER,
     CACTUS_PARAM_DEFS, CACTUS_PARAM_COUNT,
-    CactusProp::POSITION_X, CactusProp::POSITION_Z, CactusProp::ROTATION, true,
+    CactusProp::POSITION_X, CactusProp::POSITION_Z, CactusProp::ROTATION,
     2, CACTUS_COLOR_PARTS,
 };
 

@@ -125,12 +125,8 @@ struct ColorPartDef {
 
 struct EntityFamilyTraits {
     uint32_t    family_id;
-    const char* short_name;
     uint32_t    max_instances;
     bool        grounded;
-    bool        creates_ground;
-    uint32_t    piers_per_entity;
-    bool        has_footprint;
     uint32_t    spawn_roll_prop;
     float       spawn_chance;
     const float* mood_multiplier;
@@ -142,7 +138,6 @@ struct EntityFamilyTraits {
     uint32_t    pos_x_prop;
     uint32_t    pos_z_prop;
     uint32_t    rotation_prop;
-    bool        gpu_ground_y;       // true = GPU compute corrects ground_y (CPU uploads offset only)
     uint32_t    color_part_count;
     const ColorPartDef* color_parts;
 };
