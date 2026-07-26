@@ -847,10 +847,17 @@ namespace t7 {
             float motor_p0[4];         // PGA motor rotor part        (16)
             float motor_p1[4];         // PGA motor translator part   (16)
             float center[3];           // ring world-space center     (12)
-            float terrain_y;           // ( 4) = 48 — always 0.0: flying ribbons
-                                       // (no terrain follow). Field retained for
-                                       // the 48-byte stride; removal is a cleanup-
-                                       // campaign item (VS input layout stride).
+            float _pad0;               // ( 4) = 48 — explicit padding. Was
+                                       // `terrain_y`, always 0.0 since ribbons
+                                       // stopped following terrain: two writers
+                                       // in world.wgsl, zero readers anywhere.
+                                       // The 48 bytes are REQUIRED — this is the
+                                       // array stride of a storage buffer the VS
+                                       // indexes (bindings 121 / 361), and the
+                                       // readback sizes off sizeof(). The shader
+                                       // still zeroes it so unused slots read
+                                       // clean; that write is now honest about
+                                       // what it is zeroing.
         };
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
 

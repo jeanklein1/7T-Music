@@ -1024,9 +1024,10 @@ struct RibbonRingTransform {
     motor_p0: vec4<f32>,    // PGA motor rotor part
     motor_p1: vec4<f32>,    // PGA motor translator part
     center: vec3<f32>,      // ring world-space center (extracted from motor)
-    terrain_y: f32,         // always 0.0 — flying ribbons (no terrain follow);
-                            // retained for 48-byte stride (cleanup-campaign
-                            // item: VS input layout stride)
+    _pad0: f32,             // explicit padding — mirrors GPURibbonRingTransform.
+                            // Was `terrain_y`, always 0.0 since ribbons stopped
+                            // following terrain; written below only so unused
+                            // slots read clean.
 }
 
 // --- [STATE:patch] PatchParams
@@ -4990,7 +4991,7 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
             ring_xforms[ring_idx].motor_p0 = vec4(1.0, 0.0, 0.0, 0.0);
             ring_xforms[ring_idx].motor_p1 = vec4(0.0);
             ring_xforms[ring_idx].center = vec3(0.0);
-            ring_xforms[ring_idx].terrain_y = 0.0;
+            ring_xforms[ring_idx]._pad0 = 0.0;
         }
         return;
     }
@@ -4999,12 +5000,11 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
     let motor = ribbon_ring_motor(ring_idx, ribbon);
     let center = sw_mp(motor, vec3(0.0));
 
-    let terrain_y: f32 = 0.0;  // Only flying ribbons now; no terrain-following needed.
 
     ring_xforms[ring_idx].motor_p0 = motor.p0;
     ring_xforms[ring_idx].motor_p1 = motor.p1;
     ring_xforms[ring_idx].center = center;
-    ring_xforms[ring_idx].terrain_y = terrain_y;
+    ring_xforms[ring_idx]._pad0 = 0.0;   // pad, kept zeroed for clean readback
 }
 
 // Chroma constants for the checker skin's CB-1e reconstruction: DIR is
