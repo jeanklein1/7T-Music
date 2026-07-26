@@ -59,7 +59,8 @@ inline constexpr float INDOOR_ENTITY_WALL_MARGIN  = 20.0f; // existing, re-homed
 inline constexpr float COLUMN_MIN_INDOOR_HEIGHT   = 1.0f;  // extreme-terrain floor: a column never collapses below this
 
 // AXES: PopFamily order, PINNED by F-1. gol size is NATURAL here —
-// its height cap is GPU-side (the zone mesh kernel), noted on the row.
+// its height cap is GPU-side (zone_derive_params, once per zone birth),
+// noted on the row.
 inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* pyramid */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* arch    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
@@ -71,7 +72,7 @@ inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* sphere  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* ribbon  */ { IndoorSize::CAP,     IndoorBounds::FULL   },  // pre-scaled by RIBBON_INDOOR_SCALE; stays inside
     /* cube    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* gol     */ { IndoorSize::NATURAL, IndoorBounds::FREE   },  // may straddle; height capped GPU-side
+    /* gol     */ { IndoorSize::NATURAL, IndoorBounds::FREE   },  // may straddle; lift capped at derive
     /* gallery */ { IndoorSize::NATURAL, IndoorBounds::FULL   },  // sand-standing exhibits wholly inside
 };
 

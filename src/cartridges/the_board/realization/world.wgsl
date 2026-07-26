@@ -1588,7 +1588,7 @@ struct DesignConfig {
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
     veil_dither: f32,     // THE RIM taste knob: >0.5 → icing dither-dissolves (mirror of GPUDesignConfig)
-    indoor_height_cap: f32,  // indoor GoL height cap, 0 = disabled (mirror of GPUDesignConfig — last pulse pad repurposed)
+    indoor_height_cap: f32,  // indoor cap on the GoL cell lift, 0 = disabled. READER: zone_derive_params, once per zone birth (mirror of GPUDesignConfig — last pulse pad repurposed)
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
     // lod_pawn → lod_point: the value has been THE POINT).
@@ -5719,6 +5719,11 @@ struct ZoneDeriveRequestArray {
 
 // Constants for zone derivation (must match CPU GoLZoneSpawnConfig / GoLColorMode)
 // A zone's extent is tier-derived: grid_cells × PATCH_CELL_SIZE.
+// L3 MIRROR: GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_HI (bodies/gol_zones.hpp).
+// The per-cell height_factor is a CPU Gaussian clamped to [LO, HI] and then
+// multiplied by the birth mask's {0,1}, so this is the true upper bound on
+// the per-cell multiplier. The indoor cap below divides by it. Both rooms.
+const GOL_HEIGHT_FACTOR_MAX: f32 = 1.4;
 const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
 const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
 
@@ -5867,6 +5872,25 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 
         // Pulse zones always use LENS color mode
         zc.color_mode = GOL_COLOR_LENS;
+    }
+
+    // THE INDOOR HEIGHT CAP. Pre-Stage-5 a zone that punched a ceiling was a
+    // separate extrusion mesh; now GoL IS the ground, so an uncapped indoor
+    // zone lifts the LAND through the roof of a room the camera is clamped
+    // inside. Applied HERE because derive is the only site that sees
+    // alive_height, and it runs ONCE PER ZONE BIRTH — 8 per world — instead
+    // of at every card texel, walker, flyer, placement and entity VS.
+    // DIVIDED BY THE CLAMP BOUND: the realised lift is
+    //   visual · alive_height · height_factor · mode_gol_height_scale
+    // with visual ∈ [0,1] (apply_boundary) and height_factor ≤
+    // GOL_HEIGHT_FACTOR_MAX, so bounding alive_height by cap/MAX makes the
+    // MAXIMUM realised lift exactly the cap. A cell at the top of the mask
+    // range reaches exactly INDOOR_HEIGHT_CAP_FRACTION × ceiling; cells below
+    // reach less, which is the mask doing its job, not the cap lying.
+    // cap == 0 is the disable sentinel — outdoor stays byte-identical.
+    if (config.indoor_height_cap > 0.0) {
+        zc.alive_height = min(zc.alive_height,
+                              config.indoor_height_cap / GOL_HEIGHT_FACTOR_MAX);
     }
 
     // Zone origin: snap corner to the cell grid with the TIER-DERIVED

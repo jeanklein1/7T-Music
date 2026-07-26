@@ -109,6 +109,9 @@ struct GoLZoneSpawnConfig {
     static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
     static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
     static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
+    // L3 MIRROR: world.wgsl GOL_HEIGHT_FACTOR_MAX. This is the upper bound on
+    // the per-cell multiplier, and the indoor height cap divides by it at
+    // zone_derive_params so the capped lift is exact. Change both rooms.
     static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
     // Lens target color range: color = hash * RANGE + LO
     static constexpr float LENS_TARGET_LO = 0.2f;

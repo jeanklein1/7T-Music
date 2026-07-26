@@ -462,8 +462,10 @@ namespace t7 {
             // instead of tinting) at the two icing FS sites. Repurposes one
             // of the pulse pad floats — no struct-size delta.
             float veil_dither;
-            // Indoor GoL height cap (0 = disabled): the zone mesh kernel
-            // clamps its extrusion height to this. Staged by
+            // Indoor GoL height cap (0 = disabled): zone_derive_params bounds
+            // each new zone's alive_height so the MAXIMUM realised cell lift
+            // equals this exactly (it divides by the height_factor clamp
+            // bound to get there). Staged by
             // apply_mood_lighting — INDOOR_HEIGHT_CAP_FRACTION ×
             // ceiling_height indoors, 0 elsewhere. Repurposes the last
             // pulse pad float — no struct-size delta (the sizeof witness
