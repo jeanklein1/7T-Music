@@ -184,10 +184,11 @@ void audit_entity_integrity(MachineCtx* c);
 uint32_t count_pending_patches(MachineCtx* c);
 uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState);
 
-// Root-called owner verb. CALLER: the transition machine
-// (root); OWNER: patch_system.
-void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world; reduced to the surface core
+// Root-called owner verb. CALLERS: boot (init_renderer) AND the transition
+// machine (root); OWNER: patch_system. One door, both paths — boot is a
+// transition from nothing (LAWS L10).
+void reset_surface(MachineCtx* c, wgpu::Queue& queue,
+    TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world -> teardown_surface; reduced to the surface core, then called from boot too
 
 void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // The recenter door: names the hidden regen request — the

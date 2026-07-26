@@ -103,7 +103,19 @@ inline void request_recenter(WorldState& ws) {
     ws.last_center_z = INT32_MAX;
 }
 
-inline void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
+// THE ONE SURFACE RESET. Called from BOTH paths — boot and the transition
+// machine — because boot is a transition from nothing (LAWS L10). Every line
+// below was already true at boot, but by in-struct default rather than by
+// call: the equality was asserted by luck and would have parted silently the
+// day any default moved. Now it is enforced by call.
+//
+// ONE line is not a no-op at boot: the clear_pier sweep sets
+// world_state_.pier_count_dirty, whose boot default is false. Frame 1's
+// flush_pier_count therefore fires and uploads pier_count = 0 over a
+// pier_count that is already 0 — one redundant 4-byte write, no behaviour
+// delta. (That write lands in the right field only because of BOOT_ONE_VOICE
+// commit A; before it, upload_pier_count wrote into terrain_time.)
+inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     TileWorldState& tile_world_state, ThemesState& themes_state) {
     // Patches + tile cache
     init_patch_system(c, tile_world_state);

@@ -502,7 +502,14 @@ namespace t7 {
                 auto t2 = std::chrono::high_resolution_clock::now();
 
                 // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
-                init_patch_system(&machine_ctx_, tile_world_state_);
+                // The same door the transition machine uses. reset_surface opens
+                // with init_patch_system, so boot's order is unchanged; what boot
+                // gains is the rest of the reset, which it previously received
+                // only as in-struct defaults that HAPPENED to match.
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    reset_surface(&machine_ctx_, q, tile_world_state_, themes_state_);
+                }
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
@@ -891,7 +898,7 @@ namespace t7 {
                         // owner-verb order is free; the new gates eliminate
                         // only zeros-over-pristine GPU writes (disclosed at
                         // the ladder).
-                        teardown_surface(&machine_ctx_, queue, tile_world_state_, themes_state_);
+                        reset_surface(&machine_ctx_, queue, tile_world_state_, themes_state_);
                         teardown_entities(&machine_ctx_, queue);
                         if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
                             teardown_gol(gol_state_, &gol_deps_, queue);

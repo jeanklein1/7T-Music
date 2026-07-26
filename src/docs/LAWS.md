@@ -185,3 +185,45 @@ Two riders, both learned the hard way:
 2. **A tag dies with its subject.** When the declaration goes, the tag goes;
    a status describing something already deleted is a tombstone (L8), and the
    status word makes it read as live.
+
+## L10 — BOOT IS A TRANSITION FROM NOTHING
+
+**The world has exactly one way to come into being; the only difference
+between boot and a mood change is what came before.**
+
+Boot is not a special case that happens to resemble a transition. It IS the
+transition whose prior state is empty. Wherever a transition path applies a
+value, boot must reach that value **by calling the same door** — never by a
+literal, an in-struct default, or a hand-copied table row that happens to
+agree today.
+
+The failure mode is silence. A hand copy and its source do not diverge with a
+build error; they diverge the day someone edits one of them, and the symptom
+is a boot frame that is subtly wrong in a way no test names. BOOT_ONE_VOICE
+found the whole family at once: an amber sphere the CPU census did not know
+existed, a test rig that outlived its own retirement condition, five
+transcriptions of `MOOD_TABLE[0]` across three files, and a frustum-cull flag
+whose only writer was `apply_mood` — so the world booted in `open_default`
+wearing a cull setting that belonged to no mood at all.
+
+The two doors this law currently names:
+
+- `apply_mood` — the atmosphere, the feature gates, the orbs. Called at boot
+  and at every transition, with `mood_state_.active`.
+- `reset_surface` — patches, tiles, themes, queues, piers, footprints. Called
+  at boot and by the transition machine. It was `teardown_surface`; the rename
+  is the law made visible in the name.
+
+**What this does NOT license.** Boot legitimately owns things a transition
+never touches — buffer creation, pipeline construction, the one-shot index
+generation, and the REST values of knobs no mood authors (fog is the live
+example: `apply_mood_lighting` does not touch it, so the boot fog values are
+correct, not residue). The test is not "did a transition write it" but
+"**does a transition path author this value?**" If yes, boot calls that path.
+If no, boot is its author and says so.
+
+A corollary worth stating, because it was learned the expensive way: when boot
+stops hand-copying a value, give the field a rest value that **fails loud**.
+`MoodState::sun_intensity` rests at `0.0f`, not `0.8f` — if the door ever
+fails to run, the sun goes out on frame 1 instead of hiding behind the value
+the door would have written.
