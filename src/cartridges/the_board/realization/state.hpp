@@ -97,8 +97,22 @@ namespace t7 {
             // nearest fetch of .a is cell-exact.
             // L3 MIRROR: world.wgsl LIVE_CARD_SIZE / LIVE_CARD_EXTENT — same
             // names, same values, both rooms change together.
-            constexpr uint32_t LIVE_CARD_SIZE   = 512;
-            constexpr float    LIVE_CARD_EXTENT = 800.0f;
+            constexpr uint32_t LIVE_CARD_SIZE   = 640;
+            constexpr float    LIVE_CARD_EXTENT = 1000.0f;
+
+            // THE WINDOW COVENANT, stated with the numbers that hold.
+            // The origin snaps DOWN to the PATCH_CELL_SIZE grid, so the
+            // window is not exactly centred: the guaranteed half-extent is
+            //   +x/+z : EXTENT/2 − PATCH_CELL_SIZE = 496.875 wu
+            //   −x/−z : EXTENT/2                   = 500.0   wu
+            // What it must cover is NOT the EXIST ring. Agents and floaters
+            // are EXIST-gated at 350, but flora, columns, arches and outdoor
+            // paintings are PATCH-lifetime: they live as long as their host
+            // patch, out to the allocation window, which reaches 450 wu per
+            // axis (patches span [pawnGX−8, pawnGX+8] and the pawn sits
+            // anywhere inside its own cell), 453.125 with the snap.
+            // Slack 43.75 wu. Outside the window a sample returns the
+            // ClampToEdge texel — sample_live_card does no bounds test.
 
             // CELL-EXACTNESS — the relation the nearest .a fetch stands on: one
             // patch cell is EXACTLY two card texels, so both texels inside a
@@ -1696,7 +1710,7 @@ namespace t7 {
             wgpu::Texture liveCardTexture_;         // compute writes, VS/FS/compute read
             wgpu::TextureView liveCardWriteView_;   // storage texture write (writer kernel)
             wgpu::TextureView liveCardView_;        // sampled read (render + compute)
-            wgpu::Buffer liveCardScratchBuffer_;    // 512×512×2 floats (Δh + gol) — two-pass writer scratch (TRUEBAND_CONTACT_1)
+            wgpu::Buffer liveCardScratchBuffer_;    // LIVE_CARD_SIZE² × 2 floats (Δh + gol) — two-pass writer scratch (TRUEBAND_CONTACT_1)
             wgpu::BindGroupLayout liveCardWriterLayout_;
             wgpu::BindGroup liveCardWriterGroup_;
             wgpu::BindGroupLayout zoneMaskLayout_;      // UNIFIED_GROUND_1 U5

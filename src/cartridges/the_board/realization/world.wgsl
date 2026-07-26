@@ -226,8 +226,8 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 const PATCH_CELL_SIZE: f32 = PATCH_EXTENT / f32(PATCH_CELL_N);   // 3.125
 
 // ── THE LIVE CARD (GROUND_CARD_1; C++ room: Dim::LIVE_CARD_*) ──
-const LIVE_CARD_SIZE: u32 = 512u;
-const LIVE_CARD_EXTENT: f32 = 800.0;
+const LIVE_CARD_SIZE: u32 = 640u;
+const LIVE_CARD_EXTENT: f32 = 1000.0;
 const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band (DEBUG_VIEW 6)
 fn live_card_origin() -> vec2<f32> {
     let cs = PATCH_CELL_SIZE;
