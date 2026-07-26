@@ -689,6 +689,16 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     auto& aa = es.arches[slot];
     aa.patch_gx = gx;
     aa.patch_gz = gz;
+    // RULING 20, and it must land BEFORE the registration below. This channel
+    // never wrote the host patch — the slot kept whatever the previous arch
+    // left there, so registering first would have filed the portal's ground
+    // under an arbitrary patch, and released it when THAT patch evicted. The
+    // generic path has always written both (entity_pipeline.hpp): patch_* is
+    // the trigger, host_* is the patch actually covering the body. Here they
+    // coincide, because a forced portal has no trigger patch — gx/gz above are
+    // derived from its own world position.
+    aa.host_gx = gx;
+    aa.host_gz = gz;
     aa.active = true;
     aa.draw_visible = true;
     aa.world_x = cx;
@@ -717,6 +727,23 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     aa.destination = dest;
 
     es.arch_count++;
+
+    // RULING 14 — CHANNEL B ONLY. A portal you can walk a pyramid into is a
+    // real artifact and claims real ground. Channel A (generic, dispatch-
+    // spawned) already registers through negotiate_position, and with
+    // PORTAL_DENSITY at 1.0 every DOORWAY-tier arch through dispatch IS a
+    // portal — so this is the one channel that claimed nothing. The census
+    // measured the gap exactly twice: arch delta -2 in a world with two forced
+    // portals, -4 in a world with four.
+    //
+    // NO check_position, deliberately. This is a FORCE-spawn: the transition
+    // machinery has already chosen where the portal goes and the arch is
+    // committed by this point. It claims its ground; it does not ask for it.
+    // A full registry therefore cannot deny the portal — the loud line inside
+    // register_footprint reports it and the portal stands anyway, which is the
+    // correct trade for the one family the world cannot do without.
+    (void)register_footprint(c, cx, cz, half_span,
+        gx, gz, PopFamily::ARCH, slot, static_cast<uint32_t>(ArchTier::DOORWAY));
 
     GPUArchMeshParams meshParams{};
     meshParams.center_x = cx;
