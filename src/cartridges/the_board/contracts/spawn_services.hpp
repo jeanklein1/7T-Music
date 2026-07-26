@@ -219,8 +219,11 @@ float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_t famil
 bool check_position(MachineCtx* c, float px, float pz, float placing_radius,
     uint32_t placing_family);
 uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
-    int32_t gx, int32_t gz, uint32_t family = UINT32_MAX,
+    int32_t gx, int32_t gz, uint32_t family, uint32_t slot,
     uint32_t tier = 0);
+// Release by owner identity (family, slot). No index is stored anywhere — the
+// registry is scanned. See the definition for why that is the design.
+void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t slot);
 void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz);
 // The indoor bounds law (INDOOR_TREATMENT.bounds — contracts/
 // indoor_module.hpp): MARGIN clamps footprint_r inside the wall
@@ -242,7 +245,8 @@ PositionResult negotiate_position(MachineCtx* c,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
     bool grounded,
-    float footprint_r, float containment_r, uint32_t family, uint32_t tier = 0);
+    float footprint_r, float containment_r, uint32_t family, uint32_t slot,
+    uint32_t tier = 0);
 GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot);
 GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c);
 GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot);

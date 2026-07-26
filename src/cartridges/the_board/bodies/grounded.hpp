@@ -746,6 +746,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
 inline void evict_pyramid(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::PYRAMID, slot);   // the hand that claims is the hand that frees
     self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
     self->entities_state_.pyramids[slot].active = false;
     self->entities_state_.pyramid_count--;
@@ -762,6 +763,7 @@ inline void evict_pyramid(MachineCtx* self,
 inline void evict_arch(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::ARCH, slot);   // the hand that claims is the hand that frees
     clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2);
     clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
     self->entities_state_.arches[slot].active = false;
@@ -774,6 +776,7 @@ inline void evict_arch(MachineCtx* self,
 inline void evict_column(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::COLUMN, slot);   // the hand that claims is the hand that frees
     clear_pier(self, queue, Dim::PIER_COLUMN_BASE + slot);
     self->entities_state_.columns[slot].active = false;
     self->entities_state_.column_count--;
@@ -784,6 +787,7 @@ inline void evict_column(MachineCtx* self,
 inline void evict_antenna(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::ANTENNA, slot);   // the hand that claims is the hand that frees
     uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
     clear_pier(self, queue, Dim::PIER_COLUMN_BASE + gpu_slot);
     self->entities_state_.antennas[slot].active = false;
@@ -795,6 +799,7 @@ inline void evict_antenna(MachineCtx* self,
 inline void evict_palm(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::PALM, slot);   // the hand that claims is the hand that frees
     self->entities_state_.palms[slot].active = false;
     self->entities_state_.palm_count--;
     { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
@@ -805,6 +810,7 @@ inline void evict_palm(MachineCtx* self,
 inline void evict_cactus(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::CACTUS, slot);   // the hand that claims is the hand that frees
     self->entities_state_.cacti[slot].active = false;
     self->entities_state_.cactus_count--;
     { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
@@ -815,6 +821,7 @@ inline void evict_cactus(MachineCtx* self,
 inline void evict_blade(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
+    unregister_footprint_for(self, PopFamily::BLADE, slot);   // the hand that claims is the hand that frees
     self->entities_state_.blades[slot].active = false;
     self->entities_state_.blade_count--;
     { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }

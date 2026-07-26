@@ -55,6 +55,7 @@ struct GroundFootprint {
     float radius = 0.0f;
     int32_t patch_gx = 0, patch_gz = 0;
     uint32_t family = UINT32_MAX;  // PopFamily index
+    uint32_t slot = UINT32_MAX;    // slot within that family — (family, slot) IS the owner
     uint32_t tier = 0;             // tier index within family
     float spawn_time = 0.0f;       // time_state_.seconds at registration
     bool active = false;
@@ -350,7 +351,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
     bool grounded,
-    float footprint_r, float containment_r, uint32_t family, uint32_t tier)
+    float footprint_r, float containment_r, uint32_t family, uint32_t slot, uint32_t tier)
 {
     PositionResult r{};
     r.ok = false;
@@ -394,7 +395,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
     // families, in the same direction: they claim no ground. Both steps
     // conditional, or the ruling is half-applied.
     if (grounded && register_footprint(c, r.cx, r.cz, footprint_r,
-        r.host_gx, r.host_gz, family, tier) == UINT32_MAX) return r;
+        r.host_gx, r.host_gz, family, slot, tier) == UINT32_MAX) return r;
 
     r.ok = true;
     return r;
@@ -596,14 +597,41 @@ inline bool check_position(MachineCtx* c, float px, float pz, float placing_radi
 
 inline uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
     int32_t gx, int32_t gz, uint32_t family,
-    uint32_t tier) {
+    uint32_t slot, uint32_t tier) {
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         if (!c->spawn_engine_state_.footprints_[i].active) {
-            c->spawn_engine_state_.footprints_[i] = { x, z, radius, gx, gz, family, tier, c->time_state_.seconds, true };
+            c->spawn_engine_state_.footprints_[i] = { x, z, radius, gx, gz, family, slot, tier, c->time_state_.seconds, true };
             return i;
         }
     }
-    return UINT32_MAX;  // full — entity should not spawn
+    // SATURATION WAS SILENT, and which family lost was decided by PopFamily
+    // order — the tail (cube, gol, gallery) simply stopped appearing, with no
+    // symptom anywhere. Capacity stays 128 (ruling 8: post-SPAWN_2 occupancy
+    // peaked at 65% and settles near 45%), so if this ever prints, the leak it
+    // names is the thing to fix, not the number.
+    std::cerr << "[SPAWN] footprint registry FULL (" << MAX_FOOTPRINTS
+              << ") — dropping " << family_short_name(family)
+              << " slot " << slot << "; spawn silently denied\n";
+    return UINT32_MAX;
+}
+
+// Release by OWNER. The (family, slot) pair is the identity; nothing stores the
+// registry index anywhere, deliberately.
+//
+// A stored index would be a second copy of a fact the registry already holds,
+// and it would have to be threaded through PositionResult, the placement DTOs
+// and every family's active record to reach the evictor. This campaign has now
+// found EIGHT defects whose shape was two copies of one fact. A 128-slot scan
+// costs nothing at eviction cadence (EVICT_BUDGET_PER_FRAME is 4) and cannot
+// drift, because there is nothing to drift from.
+inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t slot) {
+    for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+        auto& fp = c->spawn_engine_state_.footprints_[i];
+        if (fp.active && fp.family == family && fp.slot == slot) {
+            fp.active = false;
+            return;   // one footprint per owner
+        }
+    }
 }
 
 inline void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz) {

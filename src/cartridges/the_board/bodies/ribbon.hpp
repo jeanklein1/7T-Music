@@ -1179,7 +1179,7 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
         // at selection, before this clamp: a small ribbon needs only
         // a small room). Outdoors the clamp never fires.
         /*containment_r*/ sel.lateral_amp + (float)sel.cube_count * sel.cube_size,
-        PopFamily::RIBBON, sel.tier_idx);
+        PopFamily::RIBBON, sel.slot, sel.tier_idx);
     if (!pos.ok) return false;
 
     plan = RibbonPlacement{};
@@ -1396,7 +1396,11 @@ inline void evict_ribbon(MachineCtx* self,
         return;
     }
 
-    // Final reference gone — full eviction
+    // Final reference gone — full eviction. The release belongs HERE and not
+    // at the top: the two early returns above are a live ribbon (sky-mode /
+    // wanderer pin, and the refcount still holding). Releasing there would
+    // free the ground of a ribbon that is still standing on it.
+    unregister_footprint_for(self, PopFamily::RIBBON, slot);
     ar = ActiveRibbon{};
     self->ribbon_state_.gpu[slot] = GPURibbonState{};
     self->ribbon_state_.active_count--;

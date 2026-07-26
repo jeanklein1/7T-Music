@@ -908,7 +908,7 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     int32_t host_gz = (int32_t)std::floor(cz / Dim::PATCH_EXTENT);
 
     if (register_footprint(c, cx, cz, footprint_r,
-        host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
+        host_gx, host_gz, PopFamily::GALLERY, sel.slot, sel.archetype) == UINT32_MAX)
         return false;
 
     gs.staging_reserved += reserved;   // released at commit, by the same value
@@ -1840,6 +1840,7 @@ inline void evict_gallery(MachineCtx* self,
     auto& gc = self->gallery_state_.gallery_centers[slot];
     if (gc.active) {
         evict_paintings_for_patch(self->gallery_state_, self, gc.patch_gx, gc.patch_gz, queue);
+        unregister_footprint_for(self, PopFamily::GALLERY, slot);   // the hand that claims is the hand that frees
         gc.active = false;
     }
 }

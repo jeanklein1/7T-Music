@@ -506,7 +506,7 @@ inline bool place_gol_from_selection(MachineCtx* c,
     int32_t host_gz = (int32_t)std::floor(cz / Dim::PATCH_EXTENT);
 
     if (register_footprint(c, cx, cz, sel.footprint_r,
-        host_gx, host_gz, PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
+        host_gx, host_gz, PopFamily::GOL, sel.slot, sel.tier_idx) == UINT32_MAX)
         return false;
 
     plan = GoLPlacement{};
@@ -694,6 +694,7 @@ inline void dispatch_commit_gol(MachineCtx* self,
 
 inline void evict_gol(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
+    unregister_footprint_for(self, PopFamily::GOL, slot);   // the hand that claims is the hand that frees
     self->gpuState_.deactivate_zone_slot(queue, slot);
     self->gol_state_.zones[slot].active = false;
     self->gol_state_.zone_count--;
