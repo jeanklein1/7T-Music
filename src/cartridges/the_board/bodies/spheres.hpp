@@ -157,10 +157,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
 };
 
 inline SpawnGateOutput sphere_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    auto gate = run_spawn_preamble(c, gx, gz, c->sphere_state_.activeSpheres_, Dim::MAX_SPHERE_INSTANCES,
-        SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::SPHERE), PopFamily::SPHERE);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+    return gate_from_traits(c, gx, gz, SPHERE_TRAITS, c->sphere_state_.activeSpheres_);
 }
 
 inline void sphere_compute_solid_half(EntityInstance& inst, const TierProfile&) {

@@ -413,11 +413,7 @@ inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
 // ── Column adapter functions ──
 
 inline SpawnGateOutput column_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    auto gate = run_spawn_preamble(c, gx, gz,
-        c->entities_state_.columns, Dim::MAX_COLUMN_ONLY,
-        ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::COLUMN), PopFamily::COLUMN);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+    return gate_from_traits(c, gx, gz, COLUMN_TRAITS, c->entities_state_.columns);
 }
 
 inline constexpr uint32_t COLUMN_INDOOR_RESCALE_PARAMS[] = {
@@ -554,11 +550,7 @@ inline void dispatch_commit_column_generic(MachineCtx* self, PlacementEntry& pe,
 // ── Antenna adapter functions ──
 
 inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    auto gate = run_spawn_preamble(c, gx, gz,
-        c->entities_state_.antennas, Dim::MAX_ANTENNA_ONLY,
-        AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::ANTENNA), PopFamily::ANTENNA);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+    return gate_from_traits(c, gx, gz, ANTENNA_TRAITS, c->entities_state_.antennas);
 }
 
 inline void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
@@ -774,11 +766,7 @@ inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
 };
 
 inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    auto gate = run_spawn_preamble(c, gx, gz,
-        c->entities_state_.pyramids, Dim::MAX_PYRAMID_INSTANCES,
-        PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::PYRAMID), PopFamily::PYRAMID);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+    return gate_from_traits(c, gx, gz, PYRAMID_TRAITS, c->entities_state_.pyramids);
 }
 
 inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
@@ -931,10 +919,7 @@ inline constexpr EntityFamilyTraits ARCH_TRAITS = {
 };
 
 inline SpawnGateOutput arch_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    auto gate = run_spawn_preamble(c, gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
-        ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
-        mood_mult_for(PopFamily::ARCH), PopFamily::ARCH);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+    return gate_from_traits(c, gx, gz, ARCH_TRAITS, c->entities_state_.arches);
 }
 
 inline constexpr uint32_t ARCH_INDOOR_RESCALE_PARAMS[] = {
@@ -1130,6 +1115,41 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
 }
 
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────
+
+// ═══ F-5: THE COLLAPSE'S BIT-IDENTITY PIN ═════════════════════════
+//
+// Before the collapse, each *_run_gate passed five constants by hand. Now
+// gate_from_traits reads them off the traits row instead. These asserts are
+// the PROOF that the swap was value-for-value — the row must carry exactly
+// what the hand-written call passed, or the gate math moved and no compiler
+// would otherwise say so.
+//
+// They also outlive the collapse. max_instances is now the ONLY declaration of
+// each family's slot bound reachable from the gate; if it ever drifts from the
+// array's real extent, the gate would scan a different count than the array
+// holds. This is the line that stops that.
+//
+// This is the last point in the cohort where all nine TRAITS are visible
+// (entity_pipeline.hpp trails grounded/spheres/cube_behaviors), which is why
+// the block lives here rather than at the contract.
+#define T7_GATE_PIN(TR, FAM, MAXN, PROP, CHANCE)                                  \
+    static_assert(TR.family_id       == FAM,     #TR " family_id must match");    \
+    static_assert(TR.max_instances   == MAXN,    #TR " max_instances must match");\
+    static_assert(TR.spawn_roll_prop == PROP,    #TR " spawn_roll_prop must match"); \
+    static_assert(TR.spawn_chance    == CHANCE,  #TR " spawn_chance must match"); \
+    static_assert(TR.mood_multiplier == mood_mult_for(FAM), #TR " mood_multiplier must match")
+
+T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE);
+T7_GATE_PIN(ARCH_TRAITS,    PopFamily::ARCH,    Dim::MAX_ARCH_INSTANCES,    ArchProp::SPAWN_ROLL,    ArchConfig::SPAWN_CHANCE);
+T7_GATE_PIN(COLUMN_TRAITS,  PopFamily::COLUMN,  Dim::MAX_COLUMN_ONLY,       ColumnProp::SPAWN_ROLL,  ColumnConfig::SPAWN_CHANCE);
+T7_GATE_PIN(ANTENNA_TRAITS, PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,      AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE);
+T7_GATE_PIN(PALM_TRAITS,    PopFamily::PALM,    Dim::MAX_PALM_INSTANCES,    PalmProp::SPAWN_ROLL,    PalmConfig::SPAWN_CHANCE);
+T7_GATE_PIN(CACTUS_TRAITS,  PopFamily::CACTUS,  Dim::MAX_CACTUS_INSTANCES,  CactusProp::SPAWN_ROLL,  CactusConfig::SPAWN_CHANCE);
+T7_GATE_PIN(BLADE_TRAITS,   PopFamily::BLADE,   Dim::MAX_BLADE_INSTANCES,   BladeProp::SPAWN_ROLL,   BladeClusterConfig::SPAWN_CHANCE);
+T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE);
+T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    CubeProp::SPAWN_ROLL,    CubeConfig::SPAWN_CHANCE);
+
+#undef T7_GATE_PIN
 
 // ═══ END MODULE IMPLEMENTATION ═══════════════════════════════════
 

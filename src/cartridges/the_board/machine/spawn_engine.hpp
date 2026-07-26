@@ -225,6 +225,36 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     return r;
 }
 
+// ── The generic gate: one law, one per-family fact ─────────────────
+//
+// Nine families ran identical bodies here, each restating five constants that
+// its own TRAITS row already declares — max_instances, spawn_roll_prop,
+// spawn_chance, mood_multiplier, family_id — around one call. The restating
+// was why four of those fields read as DEAD: the row was the right home and
+// nobody read it, so the cut was about to remove the home and keep the nine
+// duplicates.
+//
+// The only genuinely per-family fact is the ACTIVE ARRAY. Its type varies, so
+// it stays a parameter and the template deduces ActiveT from it; everything
+// else travels as data on the traits row.
+//
+// BIT-IDENTITY: same callee, same arguments, same order. run_spawn_preamble is
+// untouched. The SpawnGatePreambleResult -> SpawnGateOutput conversion moves
+// from nine copies to one; note the two structs order their fields
+// DIFFERENTLY (preamble: seed, slot, theme_idx, ok — output: ok, seed, slot,
+// theme_idx), so this is a real field-by-field reorder and must stay written
+// out rather than becoming a cast or a copy.
+template<typename ActiveT>
+inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
+    const EntityFamilyTraits& t, ActiveT* active_arr)
+{
+    auto gate = run_spawn_preamble(c, gx, gz,
+        active_arr, t.max_instances,
+        t.spawn_roll_prop, t.spawn_chance,
+        t.mood_multiplier, t.family_id);
+    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+}
+
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //

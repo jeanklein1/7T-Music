@@ -264,6 +264,17 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     const float* mood_mult,
     uint32_t family);
 
+// The generic gate — DECLARATION only; defined beside run_spawn_preamble at
+// the cohort tail. Same binding law: the nine family run_gates that call it
+// (grounded.hpp, spheres.hpp, cube_behaviors.hpp all precede spawn_engine.hpp
+// in the cohort) bind by end-of-TU instantiation.
+//
+// Every per-family constant travels on the traits row; only the ACTIVE ARRAY
+// is a parameter, because its type varies and ActiveT deduces from it.
+template<typename ActiveT>
+SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
+    const EntityFamilyTraits& t, ActiveT* active_arr);
+
 // ═══ PIPELINE VERBS — DECLARATIONS (entity_pipeline) ══════════════
 //
 // DEFINED in machine/entity_pipeline.hpp (merged, cohort tail): the
