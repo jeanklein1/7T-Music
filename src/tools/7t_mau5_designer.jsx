@@ -194,7 +194,7 @@ function mouthDist(lat, lon, T) {
 
 /* ═══ 3D RENDERER ═══
    Head + mouth built as a single connected mesh (see file header). */
-function render3D(ctx, W, H, T, rotY, tilt, roll = 0, zoom = 1.0) {
+function render3D(ctx, W, H, T, rotY, tilt, roll = 0, zoom = 1.0, panX = 0, panY = 0) {
   ctx.clearRect(0, 0, W, H);
   const lightDir = normalize3([-0.5, -0.6, -0.6]);
   const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
@@ -223,7 +223,7 @@ function render3D(ctx, W, H, T, rotY, tilt, roll = 0, zoom = 1.0) {
     const y3 = x1*sinL + y2*cosL;
     return [x3, y3, z2];
   };
-  const project = (v) => [W/2 + v[0]*scale, H/2 - v[1]*scale];
+  const project = (v) => [W/2 + panX + v[0]*scale, H/2 + panY - v[1]*scale];
 
   const faces = [];
   const addTri = (a, b, c, col, emissive = 0) => {
@@ -811,6 +811,8 @@ export default function Mau5Designer() {
   const [tilt, setTilt] = useState(0.15);
   const [roll, setRoll] = useState(0);
   const [zoom, setZoom] = useState(1.0);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
   const [autoRot, setAutoRot] = useState(true);
   const cv3dRef = useRef(null);
   const cv2dRef = useRef(null);
@@ -837,7 +839,7 @@ export default function Mau5Designer() {
         const ctx = c3.getContext("2d");
         ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
         const r = autoRot ? rotY + frame * 0.008 : rotY;
-        render3D(ctx, rect.width, rect.height, RT, r, tilt, roll, zoom);
+        render3D(ctx, rect.width, rect.height, RT, r, tilt, roll, zoom, panX, panY);
       }
       if (c2) {
         const rect = c2.parentElement.getBoundingClientRect();
@@ -852,13 +854,27 @@ export default function Mau5Designer() {
     };
     tick();
     return () => cancelAnimationFrame(animRef.current);
-  }, [RT, rotY, tilt, roll, zoom, autoRot]);
+  }, [RT, rotY, tilt, roll, zoom, autoRot, panX, panY]);
 
   // Camera: drag rotates, shift+drag rolls, wheel zooms.
   // Uses useCallback + React onPointerDown (ribbon designer pattern) —
   // the handler is attached via JSX prop, not addEventListener.
   const onPointerDown3D = useCallback(e => {
     const sx = e.clientX, sy = e.clientY;
+    // Right button pans in screen pixels, independent of zoom/scale. Tested
+    // BEFORE the shift/roll branch so right-drag pans rather than rolls.
+    if (e.button === 2) {
+      e.preventDefault();
+      const spx = panX, spy = panY;
+      const onMoveP = ev => { setPanX(spx + (ev.clientX - sx)); setPanY(spy + (ev.clientY - sy)); };
+      const onUpP = () => {
+        window.removeEventListener("pointermove", onMoveP);
+        window.removeEventListener("pointerup", onUpP);
+      };
+      window.addEventListener("pointermove", onMoveP);
+      window.addEventListener("pointerup", onUpP);
+      return;
+    }
     const sr = rotY, st = tilt, sl = roll, sz = zoom;
     const shift = e.shiftKey;
     const sens = 0.012 / Math.max(sz, 0.3);
@@ -878,7 +894,7 @@ export default function Mau5Designer() {
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [rotY, tilt, roll, zoom]);
+  }, [rotY, tilt, roll, zoom, panX, panY]);
 
   // Scroll-wheel zoom on the 3D preview. The [loaded] dep is critical: at first mount
   // `loaded` is false and the canvas isn't in the DOM yet (the component returns a
@@ -937,12 +953,19 @@ export default function Mau5Designer() {
         </div>
         <div style={{ flex: "1 1 65%", background: "#1a1a1e", borderRadius: 8, overflow: "hidden",
                       cursor: "grab", minHeight: 180, position: "relative" }}>
-          <canvas ref={cv3dRef} onPointerDown={onPointerDown3D} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} />
+          <canvas ref={cv3dRef} onPointerDown={onPointerDown3D} onContextMenu={e => e.preventDefault()} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} />
+          <div
+            onClick={() => { setZoom(1); setPanX(0); setPanY(0); }}
+            title="Click to reset view"
+            style={{ position: "absolute", top: 4, right: 8, fontSize: 9,
+                     color: "rgba(255,255,255,0.4)", cursor: "pointer",
+                     userSelect: "none", padding: "2px 4px" }}
+          >{Math.round(zoom * 100)}%</div>
           <div style={{ position: "absolute", bottom: 6, left: 8, right: 8,
                         display: "flex", justifyContent: "space-between",
                         fontSize: 9, color: "rgba(255,255,255,0.45)",
                         fontFamily: "monospace", pointerEvents: "none", userSelect: "none" }}>
-            <span>drag rotate · shift+drag roll · wheel zoom</span>
+            <span>drag rotate · shift+drag roll · right-drag pan · wheel zoom</span>
             <span>yaw {deg(rotY)} · pitch {deg(tilt)} · roll {deg(roll)}</span>
           </div>
         </div>

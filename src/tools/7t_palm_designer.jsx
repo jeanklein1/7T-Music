@@ -281,8 +281,8 @@ function frondGeometry(T, frondIdx, totalFronds, crownY, crownLeanX) {
 }
 
 /* ═══ 3D RENDERER ═══ */
-function render3D(ctx, W, H, T, rotY, tilt) {
-  ctx.clearRect(0, 0, W, H);
+function render3D(ctx, W, H, T, rotY, tilt, zoom = 1, panX = 0, panY = 0, view = null) {
+  if (!view?.noClear) ctx.clearRect(0, 0, W, H);
   const RENDER_SEGS = Math.min(T.trunk_segs, 24);
   const profile = trunkProfile(T);
   const lightDir = normalize3([-0.6, -0.7, -0.3]);
@@ -290,7 +290,7 @@ function render3D(ctx, W, H, T, rotY, tilt) {
   const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
 
   const extent = Math.max(T.height, T.frond_len * 2, T.base_r * 4);
-  const scale = Math.min(W, H) * 0.38 / (extent * 0.5);
+  const scale = (view?.scale ?? Math.min(W, H) * 0.38 / (extent * 0.5)) * zoom;
   const midY = T.height * 0.5;
 
   const rotV = (v) => {
@@ -299,7 +299,7 @@ function render3D(ctx, W, H, T, rotY, tilt) {
     const z1 = -v[0] * sinR + v[2] * cosR;
     return [x1, vy * cosT - z1 * sinT, vy * sinT + z1 * cosT];
   };
-  const project = (v) => [W / 2 + v[0] * scale, H / 2 - v[1] * scale];
+  const project = (v) => [W / 2 + panX + v[0] * scale, H / 2 + panY - v[1] * scale];
 
   const faces = [];
   const addTri = (a, b, c, col) => {
@@ -581,6 +581,9 @@ export default function PalmDesigner() {
   const [rotY, setRotY] = useState(0.4);
   const [tilt, setTilt] = useState(0.15);
   const [autoRot, setAutoRot] = useState(true);
+  const [zoom, setZoom] = useState(1.0);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
   const cv3dRef = useRef(null);
   const cv2dRef = useRef(null);
   const animRef = useRef(null);
@@ -608,7 +611,7 @@ export default function PalmDesigner() {
         const ctx = c3.getContext("2d");
         ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
         const r = autoRot ? rotY + frame * 0.008 : rotY;
-        render3D(ctx, rect.width, rect.height, RT, r, tilt);
+        render3D(ctx, rect.width, rect.height, RT, r, tilt, zoom, panX, panY);
       }
       if (c2) {
         const rect = c2.parentElement.getBoundingClientRect();
@@ -623,14 +626,26 @@ export default function PalmDesigner() {
     };
     tick();
     return () => cancelAnimationFrame(animRef.current);
-  }, [RT, rotY, tilt, autoRot]);
+  }, [RT, rotY, tilt, autoRot, zoom, panX, panY]);
 
   // Camera. Attached via the canvas's onPointerDown JSX prop, NOT
   // addEventListener — React binds at render time, so the listener cannot be
-  // lost to the Loading… placeholder's mount ordering (see the note on the
-  // wheel effect). Left/middle drag rotates.
+  // lost to the Loading… placeholder's mount ordering.
   const onPointerDown3D = useCallback(e => {
     const sx = e.clientX, sy = e.clientY;
+    // Right button pans in screen pixels, independent of zoom/scale.
+    if (e.button === 2) {
+      e.preventDefault();
+      const spx = panX, spy = panY;
+      const onMoveP = ev => { setPanX(spx + (ev.clientX - sx)); setPanY(spy + (ev.clientY - sy)); };
+      const onUpP = () => {
+        window.removeEventListener("pointermove", onMoveP);
+        window.removeEventListener("pointerup", onUpP);
+      };
+      window.addEventListener("pointermove", onMoveP);
+      window.addEventListener("pointerup", onUpP);
+      return;
+    }
     const sr = rotY, st = tilt;
     setAutoRot(false);
     const onMove = ev => {
@@ -643,7 +658,23 @@ export default function PalmDesigner() {
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [rotY, tilt]);
+  }, [rotY, tilt, panX, panY]);
+
+  // Scroll-wheel zoom on the 3D preview. The [loaded] dep is critical: at first
+  // mount `loaded` is false and the canvas isn't in the DOM yet (the component
+  // returns a Loading… placeholder), so the ref is null. When the load completes
+  // and the canvas mounts, this effect re-runs and binds the listener for real.
+  // Non-passive so we can preventDefault and stop the page from scrolling.
+  useEffect(() => {
+    const cv = cv3dRef.current;
+    if (!cv) return;
+    const onWheel = e => {
+      e.preventDefault();
+      setZoom(z => Math.max(0.1, Math.min(20, z * (e.deltaY > 0 ? 0.9 : 1.1))));
+    };
+    cv.addEventListener("wheel", onWheel, { passive: false });
+    return () => cv.removeEventListener("wheel", onWheel);
+  }, [loaded]);
 
   if (!loaded) return <div style={{ padding: 20, fontFamily: "monospace", fontSize: 11, color: "#555" }}>Loading…</div>;
 
@@ -676,13 +707,22 @@ export default function PalmDesigner() {
           <span style={{ width: 16, height: 16, borderRadius: 3, background: rgb01(...resolved.frondAgedCol), border: "1px solid var(--color-border-tertiary)", display: "inline-block" }} />
         </div>
         {/* 3D viewport */}
-        <div style={{ flex: "1 1 65%", background: "#1a1a1e", borderRadius: 8, overflow: "hidden", cursor: "grab", minHeight: 180 }}>
+        <div style={{ flex: "1 1 65%", position: "relative", background: "#1a1a1e", borderRadius: 8, overflow: "hidden", cursor: "grab", minHeight: 180 }}>
           <canvas
             ref={cv3dRef}
             onPointerDown={onPointerDown3D}
             onContextMenu={e => e.preventDefault()}
             style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }}
           />
+          <div
+            onClick={() => { setZoom(1); setPanX(0); setPanY(0); }}
+            title="Click to reset view"
+            style={{ position: "absolute", top: 4, right: 8, fontSize: 9,
+                     color: "rgba(255,255,255,0.4)", cursor: "pointer",
+                     userSelect: "none", padding: "2px 4px" }}
+          >{Math.round(zoom * 100)}%</div>
+          <div style={{ position: "absolute", bottom: 4, left: 8, fontSize: 9,
+                        color: "rgba(255,255,255,0.3)" }}>drag to rotate · right-drag to pan · scroll to zoom</div>
         </div>
         {/* 2D profile */}
         <div style={{ flex: "0 0 28%", background: "#111114", borderRadius: 8, overflow: "hidden", minHeight: 100 }}>
