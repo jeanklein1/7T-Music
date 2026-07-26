@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include <vector>         // the two queues
 #include <iostream>       // census + the indoor-skip line
 #include <cmath>      // std::floor, std::sqrt, std::min/max companions   // (impl, merged)
 #include <algorithm>  // std::min, std::max   // (impl, merged)
@@ -152,10 +151,33 @@ inline constexpr bool proximity_row_active(uint32_t family) {
 // for GPU commit.
 
 // Instance (spawn_engine_state_) lives at the composition root.
+// THE BOUND, PROVEN — not estimated. spawn_selected_patches
+// (surface/patch_system.hpp) is the SOLE caller of all three queue verbs and
+// runs them as one straight line, within a single frame:
+//
+//   fill    select_entities_for_patch, once per patch, for at most
+//           SPAWN_BUDGET_PER_FRAME patches; each pushes at most one entry per
+//           family, so at most PopFamily::COUNT per patch
+//   drain   place_entity_queue  — unconditional full-range loop, then an
+//           unconditional reset of the count
+//   drain   commit_entity_queue — same shape
+//
+// There is NO partial drain and no early exit in either drain, so nothing can
+// carry into the next frame's fill. That is what makes the bound a bound.
+// placementResults_ takes at most one push per entityQueue_ entry, so it
+// shares the ceiling and cannot exceed it.
+//
+// Derived symbolically rather than written as 48: raising the spawn budget or
+// adding a family moves the capacity with it, instead of silently outgrowing a
+// literal.
+inline constexpr uint32_t SPAWN_QUEUE_MAX = SPAWN_BUDGET_PER_FRAME * PopFamily::COUNT;
+
 struct SpawnEngineState {
-    std::vector<EntityQueueEntry> entityQueue_;
-    std::vector<PlacementEntry> placementResults_;
-    GroundFootprint footprints_[MAX_FOOTPRINTS]{};
+    EntityQueueEntry entityQueue_[SPAWN_QUEUE_MAX]{};
+    uint32_t         entityQueueCount_ = 0;
+    PlacementEntry   placementResults_[SPAWN_QUEUE_MAX]{};
+    uint32_t         placementCount_ = 0;
+    GroundFootprint  footprints_[MAX_FOOTPRINTS]{};
     float lastCensusDump_ = -999.0f;
 };
 
@@ -863,28 +885,49 @@ inline void select_entities_for_patch(MachineCtx* c, int32_t gx, int32_t gz) {
         EntityQueueEntry e{};
         e.family = f;
         e.gx = gx; e.gz = gz;
-        if (FAMILY_DISPATCH[f].try_select(c, gx, gz, e))
-            c->spawn_engine_state_.entityQueue_.push_back(e);
+        if (!FAMILY_DISPATCH[f].try_select(c, gx, gz, e)) continue;
+        auto& st = c->spawn_engine_state_;
+        if (st.entityQueueCount_ >= SPAWN_QUEUE_MAX) {
+            // Unreachable if the bound above holds. LOUD rather than silent:
+            // a dropped selection is an entity that never existed, with no
+            // other symptom anywhere.
+            std::cerr << "[SPAWN] entityQueue_ OVERFLOW at " << SPAWN_QUEUE_MAX
+                      << " — dropping " << family_short_name(f)
+                      << " and the rest of this patch. The proven bound"
+                         " (SPAWN_BUDGET_PER_FRAME x PopFamily::COUNT) is wrong.\n";
+            break;
+        }
+        st.entityQueue_[st.entityQueueCount_++] = e;
     }
 }
 
 // ─── Place: spatial negotiation (no GPU writes) ──────────────
 
 inline void place_entity_queue(MachineCtx* c) {
-    for (auto& e : c->spawn_engine_state_.entityQueue_) {
+    auto& st = c->spawn_engine_state_;
+    for (uint32_t i = 0; i < st.entityQueueCount_; i++) {
         PlacementEntry pe{};
-        if (FAMILY_DISPATCH[e.family].try_place(c, e, pe))
-            c->spawn_engine_state_.placementResults_.push_back(pe);
+        if (!FAMILY_DISPATCH[st.entityQueue_[i].family].try_place(c, st.entityQueue_[i], pe))
+            continue;
+        if (st.placementCount_ >= SPAWN_QUEUE_MAX) {
+            // Structurally unreachable — at most one push per queue entry, and
+            // the queue shares this ceiling. Guarded anyway, and loudly.
+            std::cerr << "[SPAWN] placementResults_ OVERFLOW at " << SPAWN_QUEUE_MAX
+                      << " — dropping a placed entity\n";
+            break;
+        }
+        st.placementResults_[st.placementCount_++] = pe;
     }
-    c->spawn_engine_state_.entityQueue_.clear();
+    st.entityQueueCount_ = 0;
 }
 
 // ─── Commit: GPU writes from placement results ──────────────
 
 inline void commit_entity_queue(MachineCtx* c, wgpu::Queue& queue) {
-    for (auto& pe : c->spawn_engine_state_.placementResults_)
-        FAMILY_DISPATCH[pe.family].try_commit(c, pe, queue);
-    c->spawn_engine_state_.placementResults_.clear();
+    auto& st = c->spawn_engine_state_;
+    for (uint32_t i = 0; i < st.placementCount_; i++)
+        FAMILY_DISPATCH[st.placementResults_[i].family].try_commit(c, st.placementResults_[i], queue);
+    st.placementCount_ = 0;
 }
 
 } // namespace the_board

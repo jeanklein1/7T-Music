@@ -121,8 +121,8 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     // Terrain tokens — through the owner's door
     reset_terrain_memory(tile_world_state);
 
-    c->spawn_engine_state_.entityQueue_.clear();
-    c->spawn_engine_state_.placementResults_.clear();
+    c->spawn_engine_state_.entityQueueCount_ = 0;
+    c->spawn_engine_state_.placementCount_ = 0;
 
     // Theme envelope — through the owner's door
     reset_theme_envelope(themes_state);
