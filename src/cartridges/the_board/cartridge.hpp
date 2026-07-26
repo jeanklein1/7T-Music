@@ -1802,7 +1802,7 @@ namespace t7 {
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
         //     { try_select, try_place, try_commit, evict_slot,
-        //       prepare_mesh, dispatch_mesh, active_count, name }
+        //       prepare_mesh, dispatch_mesh, active_count, grounded, name }
         // CONSUMERS: the machine tail walks select/place/commit per queue
         //   entry; eviction routes through evict_slot; the mesh pair feeds the
         //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
@@ -1810,51 +1810,63 @@ namespace t7 {
             { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
               evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
               active_count_pyramid,
+              PYRAMID_TRAITS.grounded,
               "pyr" },
             { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
               evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
               active_count_arch,
+              ARCH_TRAITS.grounded,
               "arch" },
             { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
               evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
               active_count_column,
+              COLUMN_TRAITS.grounded,
               "col" },
             { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
               evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
               active_count_antenna,
+              ANTENNA_TRAITS.grounded,
               "ant" },
             { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
               evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
               active_count_palm,
+              PALM_TRAITS.grounded,
               "palm" },
             { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
               evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
               active_count_cactus,
+              CACTUS_TRAITS.grounded,
               "cact" },
             { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
               evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
               active_count_blade,
+              BLADE_TRAITS.grounded,
               "blad" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
               evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,
+              SPHERE_TRAITS.grounded,   // false — orbits an anchor, claims no ground
               "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
             { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
               evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_ribbon,
+              true,   // anchored: the tips touch ground (no TRAITS object)
               "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
             { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
               evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_cube,
+              CUBE_TRAITS.grounded,      // false — hovers and drifts, claims no ground
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
             { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
               evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_gol,
+              true,   // registers directly, gol_zones.hpp (no TRAITS object)
               "gol" },   // mesh hook → none-fork: GoL has no mesh — the zone IS
                          // the ground (UNIFIED_GROUND_1); the lift rides the card's .a
             { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
               evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_gallery,
+              true,   // registers directly, gallery.hpp (no TRAITS object)
               "gall" },
         };
     } // namespace the_board

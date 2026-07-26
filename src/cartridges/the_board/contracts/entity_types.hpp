@@ -354,6 +354,15 @@ struct FamilyDispatch {
     bool (*prepare_mesh)(MachineCtx* self, wgpu::Queue& queue);
     void (*dispatch_mesh)(MachineCtx* self, wgpu::ComputePassEncoder& pass);
     uint32_t (*active_count)(const MachineCtx* self);
+    // Does this family claim ground? (ruling 21 — the campaign law is "a
+    // family registers iff its own extent touches the ground plane".) The
+    // census needs it for all TWELVE families, and ribbon/gol/gallery have no
+    // EntityFamilyTraits at all — so the answer cannot live in the traits
+    // alone. The nine generic rows initialise this FROM their own
+    // <FAMILY>_TRAITS.grounded, making the row a view of the authored field
+    // rather than a second copy of the policy; the three bespoke rows state
+    // it here because here is the only place they can.
+    bool grounded;
     const char* name;
 };
 

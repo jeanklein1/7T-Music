@@ -588,6 +588,22 @@ inline void census_put_delta(int32_t d) {
     else        std::cout << std::setw(8) << std::showpos << d << std::noshowpos;
 }
 
+// NON-PARTICIPANT, not zero. A family that claims no ground (ruling 21) has
+// nothing to report in the footprint-derived columns, and `0` would be a
+// MEASUREMENT — it would read as "registered nothing", which is a different
+// claim from "does not register". The distinction is load-bearing: after
+// SPAWN_2 the floaters hold a live `active` against no footprint forever, and
+// a row that disagrees permanently and CORRECTLY teaches the reader to
+// discount the delta column — the one thing here that catches real leaks.
+// Do not "repair" these back to 0.
+//
+// Padded by hand because the em-dash is three UTF-8 bytes and one display
+// column, and setw counts bytes.
+inline void census_put_dash(int width) {
+    for (int i = 1; i < width; i++) std::cout << ' ';
+    std::cout << "—";
+}
+
 inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // The claimed side: footprints, keyed by family. `arrived` (the `new`
     // column) rides this same pass — one scan, not two.
@@ -619,22 +635,38 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
         << c->time_state_.seconds << " trigger=" << trigger << "]\n"
         << "  fam    active  claimed   delta     new\n";
 
-    uint32_t active_total = 0;
+    uint32_t active_total = 0;            // all twelve — reports what EXISTS
+    uint32_t active_grounded_total = 0;   // registrants only — feeds the delta
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         const uint32_t a = FAMILY_DISPATCH[f].active_count(c);
         active_total += a;
         std::cout << "  " << std::left << std::setw(7) << family_short_name(f) << std::right
-            << std::setw(6) << a
-            << std::setw(9) << claimed[f];
-        census_put_delta((int32_t)claimed[f] - (int32_t)a);
-        // `new` is an unsigned count: no sign, and a plain 0 at rest.
-        std::cout << std::setw(8) << arrived[f] << "\n";
+            << std::setw(6) << a;
+        if (FAMILY_DISPATCH[f].grounded) {
+            active_grounded_total += a;
+            std::cout << std::setw(9) << claimed[f];
+            census_put_delta((int32_t)claimed[f] - (int32_t)a);
+            // `new` is an unsigned count: no sign, and a plain 0 at rest.
+            std::cout << std::setw(8) << arrived[f];
+        }
+        else {
+            // claimed / delta / new are all footprint-derived — see
+            // census_put_dash. This family does not participate.
+            census_put_dash(9); census_put_dash(8); census_put_dash(8);
+        }
+        std::cout << "\n";
     }
 
+    // TOTAL's columns answer different questions, deliberately. `active` sums
+    // all twelve, because it reports what exists. `claimed` sums only
+    // registrants, because only registrants can have footprints. The delta
+    // must therefore be the sum of the PRINTED deltas — measured against
+    // active_grounded_total — or TOTAL would report a permanent leak equal to
+    // the live floater population, which is not a leak at all.
     std::cout << "  " << std::left << std::setw(7) << "TOTAL" << std::right
         << std::setw(6) << active_total
         << std::setw(9) << claimed_total;
-    census_put_delta((int32_t)claimed_total - (int32_t)active_total);
+    census_put_delta((int32_t)claimed_total - (int32_t)active_grounded_total);
     std::cout << std::setw(8) << arrived_total
         << "    footprints " << occupancy << "/" << MAX_FOOTPRINTS << "\n";
 
