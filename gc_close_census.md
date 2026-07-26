@@ -11,6 +11,65 @@ it, inline, run from the repo root. All `file:line` are against `8d90d44`.
 
 ---
 
+## PROVENANCE — re-verified against master, 2026-07-26
+
+This report was written against `8d90d44` and then merged to `master`. The
+audited tree and current master carry an **identical source tree**:
+
+```
+git diff --stat 8d90d44 origin/master                       # → gc_close_census.md only
+git diff --stat 8d90d44 origin/master -- src/ CMakeLists.txt tools/ assets/ audit/
+                                                            # → empty (zero source-path changes)
+git merge-base --is-ancestor 8d90d44 origin/master           # → true
+```
+
+The report file itself is the only delta, so every `file:line` below still
+resolves. Machine re-verification run on the master checkout:
+
+| check | result |
+|---|---|
+| all quoted source lines re-resolved byte-exact | **609 / 609**, 0 mismatched |
+| CC-6 budget recount | identical; `flags` = `[]` |
+| binding mirror census | 95 decls / 92 slots vs 92 constants / 92 slots, 0 orphans |
+| entry-point closure | 64 / 64, symmetric difference 0 |
+| §Q3 ABSENT verdicts re-greped | unchanged |
+| headline finding re-greped | `config.indoor_height_cap` readers = **0** |
+
+**A caveat on the shallow clone.** The container clones at `--depth=50`. Before
+`git fetch --unshallow`, `master` and `origin/master` appear to have *no common
+ancestor* (50 commits each side, `git merge-base` exits 1) and a fetch reports a
+`forced update`. That is entirely an artifact of the truncated history — after
+deepening, `60818b0` is a plain ancestor of `8d90d44` (845 → 940 commits
+visible). **Deepen before drawing any ancestry conclusion in this environment.**
+
+### Correction log (counts amended after machine re-verification)
+
+Eleven stated counts did not reproduce their own recipes and have been corrected
+in place. **No verdict changed** — every verdict rests on a hit list that was
+opened and classified line by line; the defects were in the tallies and in one
+recipe that was written but never executed.
+
+| § | was | is | cause |
+|---|---|---|---|
+| anchor-1 | 16 `GOL_ZONE_*` | **17** | miscount |
+| anchor-1 | 21 `grid_size` | **23** | miscount |
+| anchor-2 | "16 + 21 + 16 hit lines" | **31 + 22 + 16** | the three greps were never separately tallied |
+| anchor-7d | 28 card sites | **31** (2 defs, 2 comments, 27 calls) | miscount |
+| anchor-10c | 4 renderer headers | **5** (4 empty + 1 mislabel) | 5 lines reported as 4 items |
+| anchor-13 | "9 hits: 2 in source (+1 call)" / "all three" | **4 in `src/cartridges/`** / "all four" | prose disagreed with its own 4-row table |
+| anchor-14 | 5 `on_patch_first_generated` | **6** | miscount |
+| anchor-14 | 4 `PatchPhase::SPAWNED` | **5** — added `:359` (the write), fixed `:793`→`:791` | missed the assignment site; it *strengthens* the argument |
+| anchor-15 | 16 / "all six" | **21** / "all eight" | prose disagreed with its own 8-row table |
+| anchor-16 | 16 fog hits (6/2/8) | **17** (4/2/11) | miscount in two of three buckets |
+| anchor-16 | member-access recipe "→ 0 hits" | **recipe corrected** — as written it returns **5** | ⚠ the recipe was stated but not run; the `config_.` exclusion it needed was missing. The five hits are all `config_.fog_color[…]` (`GPUDesignConfig`), so the ZERO-READER VERDICT IS UNCHANGED |
+| headline | `grep … src/` "→ 6 hits" | **`src/cartridges/` → 6** (8 in `src/`; 2 are archived docs) | wrong path in the recipe |
+
+The last row is the one that matters as a process failure: a number was
+published with a recipe that had not been executed. It is the exact thing this
+census's own law forbids, and it is recorded here rather than quietly fixed.
+
+---
+
 ## SUMMARY (five lines)
 
 1. **§Q1 — NONE FOUND.** No site derives a cell index from one authority and a
@@ -59,10 +118,10 @@ grep -rn "grid_size" --include=*.hpp --include=*.wgsl --include=*.cpp src/ | sor
 grep -n "GOL_ZONE_STRIDE\|GOL_CELL_\|GOL_ZONE_TEX_N\|ZONE_DERIVE_CELL_SIZE" \
   src/cartridges/the_board/realization/world.wgsl
 ```
-Counts: **16** `GOL_ZONE_*` hits (3 declarations + 13 uses), **9** `grid_cells`
-hits, **21** `grid_size` hits in the cartridge (the 2 `src/external/implot`
-hits are an unrelated local variable and are excluded), **0** hits for
-`ZONE_EXTENT` / `zone_extent` / `ZONE_WORLD`.
+Counts: **17** `GOL_ZONE_*` hits (3 declarations + 14 uses), **9** `grid_cells`
+hits, **23** `grid_size` hits in the cartridge (25 raw, less the 2
+`src/external/implot` hits — an unrelated local variable), **0** hits for
+`ZONE_EXTENT` / `zone_extent` / `ZONE_WORLD` / `zone_world`.
 
 ### The two authorities, named
 
@@ -193,7 +252,8 @@ grep -n "GOL_ZONE_STRIDE\|GOL_CELL_\|GOL_ZONE_TEX_N" src/cartridges/the_board/re
 grep -n "grid_size" src/cartridges/the_board/realization/world.wgsl
 grep -rn "GOL_ZONE_CELLS\|GOL_ZONE_LIFE_STRIDE\|GOL_ZONE_GRID" --include=*.hpp src/
 ```
-→ 16 + 21 + 16 hit lines, each opened and classified in the [anchor-1] table.
+→ **31 + 22 + 16 hit lines** (WGSL stride/offset constants · WGSL `grid_size` ·
+C++ `GOL_ZONE_*`), each opened and classified in the [anchor-1] table.
 No pairing violates the law.
 
 ### Two things that are NOT bugs but are worth the record
@@ -571,8 +631,9 @@ I enumerated every call site first:
 ```
 grep -n "sample_live_card\|sample_live_card_gol" src/cartridges/the_board/realization/world.wgsl
 ```
-→ **28 hit lines**: 2 definitions (`8241`, `8245`), 1 helper (`355`), and
-25 call sites.
+→ **31 hit lines**: 2 definitions (`8241`, `8245`), 2 in comments (`2899`,
+`8791`), and **27 call sites** — of which `355` is the shared `ug_cell_lift`
+helper that the patch VS and shadow patch VS both reach through.
 
 | §4 row | sites | max per-axis offset from `lod_point` | verdict |
 |---|---|---|---|
@@ -921,7 +982,8 @@ allocated.
 ### (c) `renderer.hpp` empty section headers — **CONFIRMED, and there are THREE, not one**
 
 Recipe: `grep -n "Zone extrusion\|Zone mesh gen" src/cartridges/the_board/realization/renderer.hpp`
-→ 4 hits, of which 3 head an empty region and 1 mislabels a survivor.
+→ **5 hits** (`:91`, `:278`, `:281`, `:630`, `:713`), of which **4** head an
+empty region and 1 mislabels a survivor.
 
 **(c-1) `renderer.hpp:83-96` — the `Entry::` namespace:**
 ```cpp
@@ -1284,9 +1346,10 @@ eviction claims verified by the machine dump.
 ```
 grep -rn "audit_entity_integrity" . 2>/dev/null | grep -v "^\./\.git/"
 ```
-→ **9 hits: 2 in source (+1 call site), 1 in an archived doc, 5 in `audit/`.**
+→ **9 hits: 4 in `src/cartridges/`, 1 in an archived doc (`src/docs/`), 4 in
+`audit/`.**
 
-Source hits, all three:
+Source hits, all four:
 | file:line | kind |
 |---|---|
 | `contracts/surface_services.hpp:183` | **declaration** |
@@ -1380,7 +1443,7 @@ source. No second cartridge calls it. **Reported separately as requested: N/A.**
 ## [anchor-14] `on_patch_first_generated` — **ONLY caller confirmed; the `first_gen` local dies with it**
 
 **Recipe:** `grep -rn "on_patch_first_generated" . | grep -v "^\./\.git/"`
-→ **5 hits: 3 in source, 2 in `audit/`.**
+→ **6 hits: 3 in `src/cartridges/`, 3 in `audit/`.**
 
 | file:line | kind |
 |---|---|
@@ -1399,10 +1462,12 @@ observer** — `PatchPhase::SPAWNED` is read in exactly three places, all of the
 ```
 grep -rn "PatchPhase::SPAWNED" src/
 ```
-→ 4 hits: `patch_system.hpp:70` (`count_pending_patches`),
-`:666` (fullregen gen candidate predicate), `:793` (steady-state gen candidate
-predicate), `:403` (this local). Each asks "is it currently SPAWNED?", never
-"did it just stop being SPAWNED?".
+→ **5 hits**: `patch_system.hpp:70` (`count_pending_patches`), `:359` (the
+**write** — `phase = PatchPhase::SPAWNED` in `spawn_selected_patches`), `:403`
+(this local), `:666` (fullregen gen-candidate predicate), `:791` (steady-state
+gen-candidate predicate). One write and four reads; every read asks "is it
+*currently* SPAWNED?", never "did it just *stop* being SPAWNED?". The write at
+`:359` is the edge's only producer and it keeps no record of having fired.
 
 **Therefore: the local dies with the call.** Deleting the hook lets lines 401-408
 collapse to:
@@ -1465,9 +1530,10 @@ phase earlier — the same misordering §Q5 [anchor-18] pins on `PatchPhase::GEN
 ## [anchor-15] `record_placement_bookkeeping` — **PREMISE REFUTED: FOUR callers, not one**
 
 **Recipe:** `grep -rn "record_placement_bookkeeping" . | grep -v "^\./\.git/"`
-→ **16 hits: 6 in source, 3 in archived docs, 7 in `audit/`.**
+→ **21 hits: 8 in `src/cartridges/`, 3 in `src/docs/` (archived), 10 in
+`audit/`.**
 
-Source hits, all six:
+Source hits, all eight:
 | file:line | kind |
 |---|---|
 | `contracts/spawn_services.hpp:222` | **declaration** — confirmed as the handoff states |
@@ -1605,21 +1671,28 @@ plus the ribbon banner mention.
 grep -rn "fog_density\|fog_color" --include=*.hpp --include=*.cpp --include=*.h src/ \
   | grep -v "config_\.fog\|GPUDesignConfig\|fog_density_dst_\|fog_color_dst_"
 ```
-→ **16 hits.** Classification:
-- **6 hits in `contracts/spine_state.hpp`** — the two field declarations, the
-  STATUS comment (3 lines), the column header, and (via the table) the rows.
+→ **17 hits.** Classification:
+- **4 hits in `contracts/spine_state.hpp`** — the two field declarations
+  (`:186`, `:187`), the first line of the STATUS comment (`:182` — the only one
+  of its four lines carrying the token), and the column header (`:218`). The six
+  `MOOD_TABLE` rows do **not** match: they carry the values positionally, with
+  no field name, which is exactly the hazard flagged at the end of this anchor.
 - **2 hits in `realization/state.hpp:381,383`** — `GPUDesignConfig::fog_density`
   / `fog_color`. **Different struct.** Written by `set_fog`
   (`state.hpp:2290-2295`), whose only caller is `cartridge.hpp:796` reading the
   **visual-canvas** pipes, never `MoodProfile`.
-- **8 hits in `src/coupling/visual_canvas.hpp`** — `fog_density_` / `fog_color_`
+- **11 hits in `src/coupling/visual_canvas.hpp`** — `fog_density_` / `fog_color_`
   / `fog_color_seg_`, members of `VisualCanvas`. **Different type.** This is the
   field-driven path that replaced the mood baseline.
 
 **No site reads `MoodProfile::fog_density` or `MoodProfile::fog_color`.**
-Corroborating recipe (member-access form, tree-wide):
+Corroborating recipe (member-access form, tree-wide). The `config_.` exclusion
+is load-bearing: without it the trailing `\.fog_color\[` alternative also matches
+the five `GPUDesignConfig` writes in `state.hpp` (`:2292`, `:2294`, `:5659-5661`),
+and the raw pattern returns **5**:
 ```
-grep -rn "m\.fog_\|profile\.fog_\|->fog_density\|->fog_color\|\.fog_color\[" src/
+grep -rn "m\.fog_\|profile\.fog_\|->fog_density\|->fog_color\|\.fog_color\[" src/ \
+  | grep -v "config_\."
 ```
 → **0 hits.** Also verified negatively at the one place a reader would live:
 `apply_mood_lighting` (`direction/mood.hpp:~575-588`) touches
@@ -1908,7 +1981,9 @@ kernel)") and `:74` ("height capped GPU-side").
 
 **Recipe:**
 ```
-grep -rn "indoor_height_cap" src/                      # → 6 hits
+grep -rn "indoor_height_cap" src/cartridges/           # → 6 hits
+                                                       # (8 in src/; the other 2
+                                                       #  are archived docs)
 grep -c "config.indoor_height_cap" src/cartridges/the_board/realization/world.wgsl   # → 0
 ```
 
