@@ -99,7 +99,7 @@ struct PawnDeps {
 // ─── IMPL:
 // bodies deref only PawnDeps members; no Cartridge. The merged file
 // sits after renderer.hpp in the cohort (Renderer/GPUState complete;
-// PATCH_CELL_SIZE from patch_system.hpp). ───────────────────────────
+// Dim::PATCH_CELL_SIZE from patch_system.hpp). ───────────────────────────
 
 // ─── Per-frame pawn coupling tick ────────────────────────────────
 inline void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue) {
@@ -154,7 +154,7 @@ inline void dispatch_pawn_aura(PawnState& ps, PawnDeps* c,
             float p = c->player_.aura_presence;
 
             GPUPawnAuraConfig auraCfg{};
-            auraCfg.cell_size = PATCH_CELL_SIZE;
+            auraCfg.cell_size = Dim::PATCH_CELL_SIZE;
             auraCfg.influence_radius = ap.influence_radius * p;
             auraCfg.attack_stiffness = ap.attack_stiffness;
             auraCfg.attack_damping = ap.attack_damping;

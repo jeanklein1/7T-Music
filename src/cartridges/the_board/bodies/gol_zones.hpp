@@ -264,8 +264,8 @@ inline void gol_tier_cells(uint32_t tier_idx, uint32_t& cells_x, uint32_t& cells
 inline void gol_tier_extent(uint32_t tier_idx, float& extent_x, float& extent_z) {
     uint32_t cx = 0u, cz = 0u;
     gol_tier_cells(tier_idx, cx, cz);
-    extent_x = (float)cx * PATCH_CELL_SIZE;
-    extent_z = (float)cz * PATCH_CELL_SIZE;
+    extent_x = (float)cx * Dim::PATCH_CELL_SIZE;
+    extent_z = (float)cz * Dim::PATCH_CELL_SIZE;
 }
 
 // ═══ SPAWN PAYLOADS — AT THE CONTRACT HOME ═══════════════════════
@@ -444,7 +444,7 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
 
             // Zone extent + corner (cell-grid-snapped), from the tier's
             // own size. Snapping subtracts an exact multiple of
-            // PATCH_CELL_SIZE, so corner + extent/2 returns the snapped
+            // Dim::PATCH_CELL_SIZE, so corner + extent/2 returns the snapped
             // raw centre for every tier — the same identity the GPU's
             // zone_derive_params relies on, which is why the centre was
             // right even while the extent was a fixed 100.
@@ -452,9 +452,9 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
             gol_tier_extent(tier_idx, extent_x, extent_z);
 
             float corner_x = std::floor(
-                (raw_cx - extent_x * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+                (raw_cx - extent_x * 0.5f) / Dim::PATCH_CELL_SIZE) * Dim::PATCH_CELL_SIZE;
             float corner_z = std::floor(
-                (raw_cz - extent_z * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+                (raw_cz - extent_z * 0.5f) / Dim::PATCH_CELL_SIZE) * Dim::PATCH_CELL_SIZE;
 
             // Fill selection
             sel.seed = seed;

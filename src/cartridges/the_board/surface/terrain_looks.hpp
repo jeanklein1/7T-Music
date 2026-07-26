@@ -82,8 +82,10 @@ inline constexpr float PALETTE_WEIGHT_REST[4] = {
 //   (Cartridge::initialize) writes exactly these through the setters;
 //   nothing else authors them today (the mode trio is DRIVERLESS since
 //   gen-1 retirement — driver-ready, held at rest by this row).
-// UNITS: terrain_time = beats (≤ 0 freezes the true-band writer
-//   evaluators — rest IS today's stillness); band blend = activation
+// UNITS: terrain_time = beats (≤ 0 freezes the BAND SUM in the card's
+//   heights pass — ONE of three rest conjuncts, see REST_PULSE_COUNT
+//   below and the full statement at world.wgsl write_live_card_heights);
+//   band blend = activation
 //   [0,1] per band, -1 = inactive sentinel; band phase origin = beats;
 //   mode_color_shift = mode-field bias [−1,1]; mode_checker_scatter =
 //   sparse-threshold bias; palette drift = (target palette idx [0,3],

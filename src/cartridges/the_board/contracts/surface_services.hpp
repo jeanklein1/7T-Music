@@ -67,7 +67,8 @@ struct WorldState {
 };
 
 // One spelling: patch dimensions are Dim:: everywhere (the veil-chain law).
-inline constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell; pawn aura + gol zones consume it
+// PATCH_CELL_SIZE moved to Dim (state.hpp, beside PATCH_CELL_N) — it IS a
+// dimension, and the card's cell-exactness assert has to reference it.
 
 // ── The patch registry ─────────────────────────────────────────────
 

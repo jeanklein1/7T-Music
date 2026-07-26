@@ -219,13 +219,18 @@ const TERRAIN_MESH_STRIDE: u32 = TERRAIN_MESH_N + 1u;  // vertices per row (fenc
 const PATCH_HEIGHTFIELD_N: u32 = 256u;  // texels per patch heightfield side
 const PATCH_CELL_N: u32 = 16u;          // cell color texture side per patch
 const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
+// THE CELL — one spelling, and this is it. The card's window snap, the
+// one-address law, the zone extent + corner snap and the aura all read
+// THIS name. L3 MIRROR: Dim::PATCH_CELL_SIZE (state.hpp, beside
+// PATCH_CELL_N). Change both rooms together.
+const PATCH_CELL_SIZE: f32 = PATCH_EXTENT / f32(PATCH_CELL_N);   // 3.125
 
 // ── THE LIVE CARD (GROUND_CARD_1; C++ room: Dim::LIVE_CARD_*) ──
 const LIVE_CARD_SIZE: u32 = 512u;
 const LIVE_CARD_EXTENT: f32 = 800.0;
 const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band (DEBUG_VIEW 6)
 fn live_card_origin() -> vec2<f32> {
-    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);           // 3.125
+    let cs = PATCH_CELL_SIZE;
     let raw = vec2(config.lod_point_x, config.lod_point_z)
             - vec2(LIVE_CARD_EXTENT * 0.5);
     return floor(raw / cs) * cs;                          // cell snap
@@ -239,7 +244,7 @@ const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 // texel is COMPUTED FROM the address; patch_uv never addresses
 // anything by itself again.
 fn cell_address(world_xz: vec2<f32>) -> vec2<i32> {
-    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);
+    let cs = PATCH_CELL_SIZE;
     return vec2<i32>(floor(world_xz / cs));
 }
 
@@ -1446,7 +1451,7 @@ fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
 fn checker_region_median(cell: vec2<i32>, seed_mean: vec3<f32>,
                          resultant: vec3<f32>, music_amount: f32) -> vec3<f32> {
     // Region id: the 80-unit node containing the CELL CENTER.
-    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);
+    let cs = PATCH_CELL_SIZE;
     let center = (vec2<f32>(cell) + 0.5) * cs;
     let node = vec2<i32>(floor(center / DISCRETE_COLOR_LATTICE_SPACING));
     let rid = color_lattice_seed(node, 20u);
@@ -1700,8 +1705,9 @@ struct DesignConfig {
 // / mode_palette_{target,intensity,discrete_tier} rest at
 // terrain_looks::REST_* (C++ ROW 2), written once by the cartridge
 // boot-pin block; nothing else authors them today. terrain_time ≤ 0
-// freezes the true-band writer (ROW 7's consumer — the card's heights
-// pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mode trio is DRIVERLESS since the gen-1
+// freezes the BAND SUM inside the card's heights pass (ROW 7's
+// consumer; TRUEBAND_CONTACT_1) — one of three rest conjuncts, not the
+// whole law; the full statement is at write_live_card_heights (§7.3). The mode trio is DRIVERLESS since the gen-1
 // retirement: driver-ready dials held at rest, read by
 // animated_cell_color — the one live composite body (analytic since
 // Commit C) — (mode_bias, sparse_bias, drift).
@@ -1831,8 +1837,9 @@ const DEBUG_VIEW: u32 = 0u;
 // ── ROW 7 — THE MOVEMENT THIRD ──────────────────────────────────────
 // The surface voice's motion vocabulary (moved here from §1.6 —
 // TERRAIN_LOOKS gather; values unchanged). REST pins live in the C++
-// room (ROW 2): terrain_time ≤ 0 freezes both overlay evaluators —
-// rest IS today's stillness; band blend -1 = inactive.
+// room (ROW 2). terrain_time ≤ 0 freezes the BAND SUM only — it is one
+// of three rest conjuncts, not the whole law; the full statement is at
+// write_live_card_heights (§7.3). Band blend -1 = inactive.
 
 // Activity envelope — the authorless static field that gates band
 // motion (its seed plumbing — ACTIVITY_SEED_BAND / ACTIVITY_PROP_* —
@@ -3991,7 +3998,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     } else if (has_mode_bias) {
         // SAMPLE-POINT + ANALYTIC (charter C8): the bake's evaluator,
         // at the cell center — one function, two moments, no cache.
-        let cell_center = (vec2<f32>(addr_used) + 0.5) * (PATCH_EXTENT / f32(PATCH_CELL_N));
+        let cell_center = (vec2<f32>(addr_used) + 0.5) * PATCH_CELL_SIZE;
         base_color = animated_cell_color(cell_center, addr_used);
     }
 
@@ -5575,12 +5582,15 @@ fn apply_gol_color(base_color: vec3<f32>, zp: GoLZoneConfig, cx: u32, cy: u32, b
     return mix(base_color, alive_color, blend * GOL_TINT_STRENGTH);
 }
 
+// L3 MIRROR: Dim::MAX_GOL_ZONES (state.hpp). Sizes BOTH zone arrays below.
+const MAX_GOL_ZONES: u32 = 8u;
+
 struct GoLZoneArray {
     count: u32,
     t_beats: f32,
     dt: f32,
     tick_mask: u32,              // bit N = zone N should tick Conway this frame
-    zones: array<GoLZoneConfig, 8>,
+    zones: array<GoLZoneConfig, MAX_GOL_ZONES>,
 }
 
 // §7.0c PAWN AURA HELPERS
@@ -5624,13 +5634,13 @@ const AURA_DELTA_RANDOM: u32 = 1u;
 // is a continuous influence field, not a discrete grid. Consumers
 // reading across cell boundaries (terrain rendering, flyers passing
 // through the aura's edge) need smooth interpolation; nearest-neighbor
-// would produce visible banding at cell boundaries (aura_cs = 3.125 m).
+// would produce visible banding at cell boundaries (one PATCH_CELL_SIZE).
 // pawn_aura_read is rgba16float which supports bilinear filtering on
-// all target hardware; color deltas (.gba) and zone extrusion's
+// all target hardware; color deltas (.gba) and the cell lift's
 // suppression target also benefit from the smoother interpolation.
 fn sample_pawn_aura(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> vec4<f32> {
     if (config.aura_enabled < 0.5) { return vec4(0.0); }
-    let aura_cs = 3.125;
+    let aura_cs = PATCH_CELL_SIZE;   // the C++ uploads this same value as pawn_aura_cfg.cell_size
     let aura_n = 64;
     let half_extent = f32(aura_n) * aura_cs * 0.5;
     if (abs(world_xz.x - pawn_xz.x) >= half_extent ||
@@ -5702,14 +5712,13 @@ struct ZoneDeriveRequestArray {
     _pad0: u32,
     _pad1: u32,
     _pad2: u32,
-    requests: array<ZoneDeriveRequest, 8>,
+    requests: array<ZoneDeriveRequest, MAX_GOL_ZONES>,
 }
 
 @group(0) @binding(166) var<uniform> zone_derive_requests: ZoneDeriveRequestArray;
 
 // Constants for zone derivation (must match CPU GoLZoneSpawnConfig / GoLColorMode)
-// A zone's extent is tier-derived: grid_cells × ZONE_DERIVE_CELL_SIZE.
-const ZONE_DERIVE_CELL_SIZE: f32      = 3.125;     // PATCH_EXTENT / PATCH_CELL_N
+// A zone's extent is tier-derived: grid_cells × PATCH_CELL_SIZE.
 const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
 const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
 
@@ -5784,7 +5793,7 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 
         // Size: cells, not world units (UNIFIED_GROUND_1 U5)
         zc.grid_size = tp.grid_cells;
-        zc.extent    = f32(zc.grid_size) * ZONE_DERIVE_CELL_SIZE;
+        zc.extent    = f32(zc.grid_size) * PATCH_CELL_SIZE;
 
         let actual_height = height_enabled && (tp.force_no_height == 0u);
 
@@ -5831,7 +5840,7 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 
         // Size: cells, not world units (UNIFIED_GROUND_1 U5)
         zc.grid_size = pp.grid_cells;
-        zc.extent    = f32(zc.grid_size) * ZONE_DERIVE_CELL_SIZE;
+        zc.extent    = f32(zc.grid_size) * PATCH_CELL_SIZE;
 
         let actual_height = height_enabled && (pp.force_no_height == 0u);
 
@@ -5862,8 +5871,8 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // Zone origin: snap corner to the cell grid with the TIER-DERIVED
     // extent, then center (the same snap formula; extent now varies).
-    let corner_x = floor((raw_cx - zc.extent * 0.5) / ZONE_DERIVE_CELL_SIZE) * ZONE_DERIVE_CELL_SIZE;
-    let corner_z = floor((raw_cz - zc.extent * 0.5) / ZONE_DERIVE_CELL_SIZE) * ZONE_DERIVE_CELL_SIZE;
+    let corner_x = floor((raw_cx - zc.extent * 0.5) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+    let corner_z = floor((raw_cz - zc.extent * 0.5) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
     zc.origin = vec2(corner_x + zc.extent * 0.5, corner_z + zc.extent * 0.5);
 
     zone_config.zones[req.slot] = zc;
@@ -8231,9 +8240,25 @@ fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
 // waves: Σ bands of blend × Σnodes band_act (moving − frozen)) + pulses
 // into the stride-2 scratch; pass 2 resolves gradients (the bake's
 // cooperative-tile stencils) and stores vec4(h, gx, gz, gol).
-// terrain_time ≤ 0 ⇒ zeros (rest bit-frozen). Waking anti-teleport is
-// inherited: t_eff = 0 at the origin ⇒ moving ≡ frozen ⇒ a woken band
-// grows out of the frozen shape.
+// THE REST LAW IS A CONJUNCTION, and only two of its three conjuncts
+// are MUSICAL. The card is zero — and every consumer therefore adds 0 —
+// only when ALL of:
+//   (1) config.terrain_time <= 0        the band sum is gated off  [MUSICAL]
+//   (2) the pulse ring is empty         contrib_radial_pulses_at is
+//       (pulse_count == 0, or every     added OUTSIDE that gate, on its
+//       slot aged out / zero-amp)       own clock signal.t_seconds  [MUSICAL]
+//   (3) no zone covers the texel        contrib_gol_zones_at feeds .a
+//       (zone_config.count == 0, or     with no gate at all, and a zone
+//       no covering zone has            runs on ITS OWN tick clock —
+//       alive_height >= 0.01 and        beats, not the music's voice.
+//       transition_fraction > 0)        [NOT MUSICAL]
+// Conjunct (3) is why the one-way "terrain_time <= 0 => zeros" claim was
+// tempting and wrong: silence the music and a living zone still lifts.
+// Boot pins all three: REST_TERRAIN_TIME and REST_PULSE_COUNT
+// (surface/terrain_looks.hpp ROW 2) and an empty zone table.
+//
+// Waking anti-teleport is inherited: t_eff = 0 at the origin ⇒ moving ≡
+// frozen ⇒ a woken band grows out of the frozen shape.
 @compute @workgroup_size(8, 8, 1)
 fn write_live_card_heights(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (gid.x >= LIVE_CARD_SIZE || gid.y >= LIVE_CARD_SIZE) { return; }
@@ -8728,7 +8753,7 @@ fn compute_photographer_vp() {
 // tile-cache proxy in machine/spawn_engine.hpp), and this GPU pass is
 // the live Y path via the baked heightfield.
 //
-// Paintings: terrain + GoL zone extrusion.
+// Paintings: terrain + the GoL cell lift (the card's .a).
 // Arch: 2-point min at pier feet + pier_height offset.
 // Pyramid: 5-point min at center + 4 rotated corners.
 // Column/antenna, palm, cactus, blade: single-point center.

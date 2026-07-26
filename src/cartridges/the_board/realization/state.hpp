@@ -78,6 +78,11 @@ namespace t7 {
             constexpr float    PATCH_EXTENT = 50.0f;    // world units per patch side
             constexpr uint32_t PATCH_HEIGHTFIELD_N = 256;     // texels per patch heightfield side
             constexpr uint32_t PATCH_CELL_N = 16;      // cell color texture side per patch
+            // THE CELL — one spelling, and this is it. The pawn aura, the GoL
+            // zone extent + corner snap, the card's window origin and the
+            // cell-exactness assert below all read THIS name.
+            // L3 MIRROR: world.wgsl PATCH_CELL_SIZE. Change both rooms together.
+            constexpr float    PATCH_CELL_SIZE = PATCH_EXTENT / (float)PATCH_CELL_N;  // 3.125
             constexpr uint32_t PATCH_GRID_RADIUS = 3;       // inner priority radius (7×7)
             constexpr uint32_t PATCH_GRID_SIDE = 2 * PATCH_GRID_RADIUS + 1;       // 7
             constexpr uint32_t PATCH_PREGEN_RADIUS = 8;                                // deep pre-gen buffer (17×17, 400 world units)
@@ -88,13 +93,37 @@ namespace t7 {
             // One 2D RGBA16F field over the ground window, point-centered,
             // fully rewritten per frame. R = waves+pulses Δh; G/B = wave ∂x/∂z
             // (waves-only this campaign — pulse shading is Stage 6); A = raw
-            // GoL lift. Window ORIGIN SNAPS to the 3.125 cell grid so a
+            // GoL lift. Window ORIGIN SNAPS to the PATCH_CELL_SIZE grid so a
             // nearest fetch of .a is cell-exact.
-            constexpr uint32_t LIVE_CARD_SIZE      = 512;
-            constexpr float    LIVE_CARD_EXTENT_WU = 800.0f;
-            static_assert(LIVE_CARD_SIZE * 25u == (uint32_t)LIVE_CARD_EXTENT_WU * 16u,
-                "live card: texel must be PATCH_CELL_SIZE/2 (1.5625 wu) — "
-                "512*25 == 800*16");
+            // L3 MIRROR: world.wgsl LIVE_CARD_SIZE / LIVE_CARD_EXTENT — same
+            // names, same values, both rooms change together.
+            constexpr uint32_t LIVE_CARD_SIZE   = 512;
+            constexpr float    LIVE_CARD_EXTENT = 800.0f;
+
+            // CELL-EXACTNESS — the relation the nearest .a fetch stands on: one
+            // patch cell is EXACTLY two card texels, so both texels inside a
+            // cell were written from the same GoL cell and either one answers.
+            // Stated in INTEGER arithmetic (both denominators cleared) so the
+            // check never rests on float rounding:
+            //   2·EXTENT/SIZE == PATCH_EXTENT/PATCH_CELL_N
+            //     ⟺  2·EXTENT·PATCH_CELL_N == PATCH_EXTENT·SIZE
+            static_assert(2u * (uint32_t)LIVE_CARD_EXTENT * PATCH_CELL_N
+                          == (uint32_t)PATCH_EXTENT * LIVE_CARD_SIZE,
+                "live card: one patch cell must be EXACTLY two card texels — "
+                "the nearest .a fetch is cell-exact only if it is");
+            // The same relation named through PATCH_CELL_SIZE, for the reader.
+            // Exact here because every operand is a binary fraction.
+            static_assert(2.0f * LIVE_CARD_EXTENT == PATCH_CELL_SIZE * (float)LIVE_CARD_SIZE,
+                "live card: 2 × extent must equal PATCH_CELL_SIZE × size");
+
+            // The two writer dispatches divide the card side by 8 (pass 1,
+            // write_live_card_heights) and 16 (pass 2, write_live_card_resolve).
+            // Neither kernel guards a remainder, so a size that is not a
+            // multiple of BOTH silently under-dispatches and leaves a strip of
+            // the card never written.
+            static_assert(LIVE_CARD_SIZE % 8u == 0u && LIVE_CARD_SIZE % 16u == 0u,
+                "live card: SIZE must divide by both writer workgroup sizes "
+                "(8 = write_live_card_heights, 16 = write_live_card_resolve)");
 
             // TILE_GRID ceiling — the pinned capacity pair's C++ half;
             // twin: world.wgsl TILE_GRID_CAPACITY. Authored, NOT derived
@@ -248,7 +277,11 @@ namespace t7 {
             constexpr uint32_t MAX_CUBE_INSTANCES = 256;
             constexpr uint32_t CUBE_SLOT_OFFSET = MAX_SPHERE_INSTANCES;
             constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 264
-            constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
+            // CAPACITY — the MAXIMUM cells per zone side, and the side of the
+            // life-buffer plane and the life texture. A zone's ACTUAL side is
+            // its tier's grid_cells ∈ {8,16,24,32} (bodies/gol_zones.hpp), and
+            // every index and bound is derived from THAT. Never mix the two.
+            constexpr uint32_t GOL_ZONE_GRID = 32;
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
 

@@ -270,6 +270,12 @@ namespace t7 {
             wgpu::RenderPipeline  orbRenderPipeline_;
 
             // GoL zone compute pipelines (dedicated layout, z-dispatched per zone)
+            // ZONE_GRID_WG: workgroups per axis for the three 8×8 zone kernels
+            // (zone_gol_sync / zone_gol_evolve / zone_seed_mask). DERIVED from
+            // the capacity constant — the one-spelling law. Kernel-side the
+            // bound is the zone's own grid_size, so this over-dispatches a
+            // sub-32 tier and the guard retires the excess threads.
+            static constexpr uint32_t ZONE_GRID_WG = (Dim::GOL_ZONE_GRID + 7u) / 8u;
             wgpu::ComputePipeline zoneGolSyncPipeline_;
             wgpu::ComputePipeline zoneGolEvolvePipeline_;
 
@@ -609,7 +615,12 @@ namespace t7 {
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolSyncPipeline_);
                 pass.SetBindGroup(0, zoneComputeBindGroup);
-                pass.DispatchWorkgroups(4, 4, zone_count);  // 32/8=4 per axis, z=zones
+                // CAPACITY-shaped dispatch, SIZE-bounded kernel: the grid is
+                // derived from Dim::GOL_ZONE_GRID over the 8×8 workgroup (was
+                // a hard 4 with a "32/8=4" comment — the one-spelling law).
+                // The kernel early-outs on cell >= z.grid_size, so dispatching
+                // to capacity is correct for every tier; only the guard costs.
+                pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, zone_count);
             }
 
             void dispatch_zone_gol_evolve(
@@ -621,7 +632,7 @@ namespace t7 {
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolEvolvePipeline_);
                 pass.SetBindGroup(0, zoneComputeBindGroup);
-                pass.DispatchWorkgroups(4, 4, zone_count);
+                pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, zone_count);
             }
 
             // Zone parameter derivation (GPU-authoritative tier selection + Gaussian sampling)
@@ -646,7 +657,7 @@ namespace t7 {
                 if (request_count == 0) return;
                 pass.SetPipeline(zoneSeedMaskPipeline_);
                 pass.SetBindGroup(0, maskGroup);
-                pass.DispatchWorkgroups(4, 4, request_count);
+                pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, request_count);
             }
 
             // dispatch_pyramid_mesh_gen CUT — mesh never drawn;
