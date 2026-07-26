@@ -550,6 +550,7 @@ namespace t7 {
                         spawn_population_for_mood(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed,
                             Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
                     dump_agent_census(agent_state_, &agents_deps_, "boot");
+                    dump_entity_census(&machine_ctx_, "boot");
                 }
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part two) ═══════
@@ -946,6 +947,12 @@ namespace t7 {
                             spawn_population_for_mood(agent_state_, &agents_deps_, pendingDestination_.mood, world_state_.active_seed,
                                 Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                         dump_agent_census(agent_state_, &agents_deps_, "mood-transition");
+                        // Fires AFTER reset_surface (:901) and every teardown
+                        // verb above, and before stream_patches (a RENDER_SPINE
+                        // row) can re-stream. Both columns must therefore read
+                        // 0 for all twelve — a teardown-completeness assertion,
+                        // not an observation.
+                        dump_entity_census(&machine_ctx_, "mood-transition");
                         // ROSTER-GATE ribbon (c) — finite-mode release, owner
                         // verb. Zero effect
                         // when ribbon is off (active_count stays 0). ORDER
@@ -1222,7 +1229,13 @@ namespace t7 {
                     agent_state_.last_census_dump = time_state_.seconds;
                 }
 
-                // Periodic entity census dump
+                // Periodic entity census dump. Mirrors the agent cadence above
+                // on its own interval + its own gate; both were authored with
+                // this pair and only the agent half was ever wired.
+                if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
+                    dump_entity_census(&machine_ctx_, "periodic");
+                    spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
+                }
             }
 
             // R7 — RIBBON TICK (music+wall-clock). One call; the conductor lives
