@@ -81,8 +81,8 @@ function evaluatePyramid(lx, lz, T) {
    • pointed (trunc < 0.01) → 4 tri sides + 2 bottom-cap tris (6 tris, 18 idx)
    • truncated (trunc ≥ 0.01) → 4 quad sides + top + bottom (12 tris, 36 idx)
    Winding matches pyramid_mesh_gen (world.wgsl §9.0). */
-function render3D(ctx, W, H, T, rotY, tilt) {
-  ctx.clearRect(0, 0, W, H);
+function render3D(ctx, W, H, T, rotY, tilt, zoom = 1, panX = 0, panY = 0, view = null) {
+  if (!view?.noClear) ctx.clearRect(0, 0, W, H);
   const bx = T.base_half, bz = T.base_half * T.aspect;
   const h = T.height;
   const col = T.color;
@@ -130,10 +130,10 @@ function render3D(ctx, W, H, T, rotY, tilt) {
 
   // Include blend in framing extent so the edge_blend zone outline stays visible
   const extent = Math.max((bx + blend) * 2, (bz + blend) * 2, h);
-  const scale = Math.min(W, H) * 0.40 / (extent * 0.5);
+  const scale = (view?.scale ?? Math.min(W, H) * 0.40 / (extent * 0.5)) * zoom;
   const midY = h / 2;
   const rotVert = (v) => { const vy = v[1] - midY; const x1 = v[0]*cosR + v[2]*sinR; const z1 = -v[0]*sinR + v[2]*cosR; return [x1, vy*cosT - z1*sinT, vy*sinT + z1*cosT]; };
-  const project = (v) => [W/2 + v[0]*scale, H/2 - v[1]*scale];
+  const project = (v) => [W/2 + panX + v[0]*scale, H/2 + panY - v[1]*scale];
 
   // Process faces: cull, shade, sort
   const renderFaces = [];
@@ -346,6 +346,9 @@ export default function PyramidDesigner() {
   const T = tiers[tierIdx];
   const isModified = JSON.stringify(tiers) !== DEFAULTS_JSON;
   const [rotY, setRotY] = useState(0.5); const [tilt, setTilt] = useState(0.2);
+  const [zoom, setZoom] = useState(1.0);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
   const [dockKey, setDockKey] = useState(0);
   const [showCode, setShowCode] = useState(false); const [copied, setCopied] = useState(false);
   const defaultOrder = ["geometry", "appearance", "export"];
@@ -375,9 +378,24 @@ export default function PyramidDesigner() {
   }, [tiers, loaded]);
 
   useEffect(() => { const ro = new ResizeObserver(() => setResizeTick(t => t + 1)); if (c3dRef.current) ro.observe(c3dRef.current); if (c2dRef.current) ro.observe(c2dRef.current); return () => ro.disconnect(); }, []);
-  useEffect(() => { const cv = cv3dRef.current; if (!cv) return; const dpr = window.devicePixelRatio || 1; const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); render3D(ctx, W, H, T, rotY, tilt); }, [T, rotY, tilt, resizeTick]);
+  useEffect(() => { const cv = cv3dRef.current; if (!cv) return; const dpr = window.devicePixelRatio || 1; const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); render3D(ctx, W, H, T, rotY, tilt, zoom, panX, panY); }, [T, rotY, tilt, resizeTick, zoom, panX, panY]);
   useEffect(() => { const cv = cv2dRef.current; if (!cv) return; const dpr = window.devicePixelRatio || 1; const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); render2D(ctx, W, H, T); }, [T, resizeTick]);
-  const onPointerDown3D = useCallback(e => { const sx = e.clientX, sy = e.clientY, sr = rotY, st = tilt; const onMove = ev => { setRotY(sr + (ev.clientX - sx) * 0.01); setTilt(st - (ev.clientY - sy) * 0.008); }; const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }, [rotY, tilt]);
+  const onPointerDown3D = useCallback(e => { const sx = e.clientX, sy = e.clientY; if (e.button === 2) { e.preventDefault(); const spx = panX, spy = panY; const onMoveP = ev => { setPanX(spx + (ev.clientX - sx)); setPanY(spy + (ev.clientY - sy)); }; const onUpP = () => { window.removeEventListener("pointermove", onMoveP); window.removeEventListener("pointerup", onUpP); }; window.addEventListener("pointermove", onMoveP); window.addEventListener("pointerup", onUpP); return; } const sr = rotY, st = tilt; const onMove = ev => { setRotY(sr + (ev.clientX - sx) * 0.01); setTilt(st - (ev.clientY - sy) * 0.008); }; const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }, [rotY, tilt, panX, panY]);
+  // Scroll-wheel zoom on the 3D preview. The [loaded] dep is critical: at first
+  // mount `loaded` is false and the canvas isn't in the DOM yet (the component
+  // returns a Loading… placeholder), so the ref is null. When the load completes
+  // and the canvas mounts, this effect re-runs and binds the listener for real.
+  // Non-passive so we can preventDefault and stop the page from scrolling.
+  useEffect(() => {
+    const cv = cv3dRef.current;
+    if (!cv) return;
+    const onWheel = e => {
+      e.preventDefault();
+      setZoom(z => Math.max(0.1, Math.min(20, z * (e.deltaY > 0 ? 0.9 : 1.1))));
+    };
+    cv.addEventListener("wheel", onWheel, { passive: false });
+    return () => cv.removeEventListener("wheel", onWheel);
+  }, [loaded]);
 
   const resetAll = () => { setTiers(DEFAULTS()); setDockKey(k => k + 1); };
   const resetTier = () => setTiers(prev => { const n = [...prev]; n[tierIdx] = defaultTier(tierIdx); return n; });
@@ -398,7 +416,7 @@ export default function PyramidDesigner() {
       </div>
       <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>{TIER_NAMES.map((name, i) => (<button key={i} onClick={() => setTierIdx(i)} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: i === tierIdx ? "2px solid var(--color-border-info)" : "1px solid var(--color-border-tertiary)", background: i === tierIdx ? "var(--color-background-info)" : "var(--color-background-secondary)", color: i === tierIdx ? "var(--color-text-info)" : "var(--color-text-secondary)", fontWeight: i === tierIdx ? 600 : 400 }}>{name}</button>))}</div>
       <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-        <div ref={c3dRef} style={{ flex: 2, position: "relative", border: "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", background: "#0a0a0e", resize: "vertical", minHeight: 180, height: 340 }}><canvas ref={cv3dRef} onPointerDown={onPointerDown3D} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} /><div style={{ position: "absolute", bottom: 4, left: 8, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>drag to rotate · resize ↘</div></div>
+        <div ref={c3dRef} style={{ flex: 2, position: "relative", border: "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", background: "#0a0a0e", resize: "vertical", minHeight: 180, height: 340 }}><canvas ref={cv3dRef} onPointerDown={onPointerDown3D} onContextMenu={e => e.preventDefault()} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} /><div onClick={() => { setZoom(1); setPanX(0); setPanY(0); }} title="Click to reset view" style={{ position: "absolute", top: 4, right: 8, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: "pointer", userSelect: "none", padding: "2px 4px" }}>{Math.round(zoom * 100)}%</div><div style={{ position: "absolute", bottom: 4, left: 8, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>drag to rotate · right-drag to pan · scroll to zoom · resize ↘</div></div>
         <div ref={c2dRef} style={{ flex: 1, minWidth: 140, border: "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", resize: "vertical", minHeight: 180, height: 340 }}><canvas ref={cv2dRef} style={{ width: "100%", height: "100%", display: "block" }} /></div>
       </div>
       {panelOrder.map(pid => {

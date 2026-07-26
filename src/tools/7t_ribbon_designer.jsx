@@ -110,8 +110,8 @@ function sub3(a, b) { return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
 function normalize3(v) { const l = Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); return l < 1e-8 ? [0,0,1] : [v[0]/l, v[1]/l, v[2]/l]; }
 function rgb01(r, g, b) { return `rgb(${Math.round(Math.max(0,Math.min(1,r))*255)},${Math.round(Math.max(0,Math.min(1,g))*255)},${Math.round(Math.max(0,Math.min(1,b))*255)})`; }
 
-function render3D(ctx, W, H, T, rotY, tilt, time, zoom) {
-  ctx.clearRect(0, 0, W, H);
+function render3D(ctx, W, H, T, rotY, tilt, time, zoom, panX = 0, panY = 0, view = null) {
+  if (!view?.noClear) ctx.clearRect(0, 0, W, H);
   const N = Math.min(Math.round(T.cubes), 400);
   const cubeHalf = T.cube_size * 0.5;
   const col = T.color;
@@ -125,10 +125,10 @@ function render3D(ctx, W, H, T, rotY, tilt, time, zoom) {
   const maxLateral = T.lat_amp + 0.4 * T.twist_amp;
   const maxVertical = T.vert_amp + 0.3 * T.twist_amp;
   const extent = Math.max(totalLength, maxLateral * 2 + T.cube_size, maxVertical * 2 + T.cube_size);
-  const scale = Math.min(W, H) * 0.40 / (extent * 0.5) * (zoom || 1);
+  const scale = (view?.scale ?? Math.min(W, H) * 0.40 / (extent * 0.5)) * (zoom || 1);
   const midY = 0; // vertical wave centers on 0
   const rotVert = (v) => { const vy=v[1]-midY; const x1=v[0]*cosR+v[2]*sinR; const z1=-v[0]*sinR+v[2]*cosR; return [x1, vy*cosT-z1*sinT, vy*sinT+z1*cosT]; };
-  const project = (v) => [W/2 + v[0]*scale, H/2 - v[1]*scale];
+  const project = (v) => [W/2 + panX + v[0]*scale, H/2 + panY - v[1]*scale];
 
   const faces = [];
   // Face indices for standard box convention:
@@ -322,6 +322,8 @@ export default function RibbonDesigner() {
   const isModified = JSON.stringify(tiers) !== DEFAULTS_JSON;
   const [rotY, setRotY] = useState(0.4); const [tilt, setTilt] = useState(0.1);
   const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [dockKey, setDockKey] = useState(0);
   const [showCode, setShowCode] = useState(false);
@@ -376,10 +378,10 @@ export default function RibbonDesigner() {
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [playing]);
 
-  useEffect(() => { const cv = cv3dRef.current; if (!cv) return; const dpr = window.devicePixelRatio || 1; const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); render3D(ctx, W, H, T, rotY, tilt, time, zoom); }, [T, rotY, tilt, time, resizeTick, zoom]);
+  useEffect(() => { const cv = cv3dRef.current; if (!cv) return; const dpr = window.devicePixelRatio || 1; const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); render3D(ctx, W, H, T, rotY, tilt, time, zoom, panX, panY); }, [T, rotY, tilt, time, resizeTick, zoom, panX, panY]);
   useEffect(() => { const cv = cv2dRef.current; if (!cv) return; const dpr = window.devicePixelRatio || 1; const W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); render2D(ctx, W, H, T, time); }, [T, time, resizeTick]);
 
-  const onPointerDown3D = useCallback(e => { const sx = e.clientX, sy = e.clientY, sr = rotY, st = tilt, sz = zoom; const sens = 0.01 / Math.max(sz, 0.3); const onMove = ev => { setRotY(sr + (ev.clientX - sx) * sens); setTilt(st - (ev.clientY - sy) * sens * 0.8); }; const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }, [rotY, tilt, zoom]);
+  const onPointerDown3D = useCallback(e => { const sx = e.clientX, sy = e.clientY; if (e.button === 2) { e.preventDefault(); const spx = panX, spy = panY; const onMoveP = ev => { setPanX(spx + (ev.clientX - sx)); setPanY(spy + (ev.clientY - sy)); }; const onUpP = () => { window.removeEventListener("pointermove", onMoveP); window.removeEventListener("pointerup", onUpP); }; window.addEventListener("pointermove", onMoveP); window.addEventListener("pointerup", onUpP); return; } const sr = rotY, st = tilt, sz = zoom; const sens = 0.01 / Math.max(sz, 0.3); const onMove = ev => { setRotY(sr + (ev.clientX - sx) * sens); setTilt(st - (ev.clientY - sy) * sens * 0.8); }; const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }, [rotY, tilt, zoom, panX, panY]);
 
   // Scroll-to-zoom: non-passive listener so preventDefault() works
   useEffect(() => { const cv = cv3dRef.current; if (!cv) return; const handler = e => { e.preventDefault(); setZoom(z => Math.max(0.1, Math.min(20, z * (e.deltaY > 0 ? 0.9 : 1.1)))); }; cv.addEventListener("wheel", handler, { passive: false }); return () => cv.removeEventListener("wheel", handler); }, [loaded]);
@@ -405,7 +407,7 @@ export default function RibbonDesigner() {
       <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>{TIER_NAMES.map((name, i) => (<button key={i} onClick={() => setTierIdx(i)} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: i === tierIdx ? "2px solid var(--color-border-info)" : "1px solid var(--color-border-tertiary)", background: i === tierIdx ? "var(--color-background-info)" : "var(--color-background-secondary)", color: i === tierIdx ? "var(--color-text-info)" : "var(--color-text-secondary)", fontWeight: i === tierIdx ? 600 : 400 }}>{name}</button>))}</div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-        <div ref={c3dRef} style={{ flex: 2, position: "relative", border: "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", background: "#0a0a0e", resize: "vertical", minHeight: 180, height: 420 }}><canvas ref={cv3dRef} onPointerDown={onPointerDown3D} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} /><div style={{ position: "absolute", bottom: 4, left: 8, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>drag to rotate · scroll to zoom · resize ↘</div></div>
+        <div ref={c3dRef} style={{ flex: 2, position: "relative", border: "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", background: "#0a0a0e", resize: "vertical", minHeight: 180, height: 420 }}><canvas ref={cv3dRef} onPointerDown={onPointerDown3D} onContextMenu={e => e.preventDefault()} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} /><div onClick={() => { setZoom(1); setPanX(0); setPanY(0); }} title="Click to reset view" style={{ position: "absolute", top: 4, right: 8, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: "pointer", userSelect: "none", padding: "2px 4px" }}>{Math.round(zoom * 100)}%</div><div style={{ position: "absolute", bottom: 4, left: 8, fontSize: 9, color: "rgba(255,255,255,0.3)" }}>drag to rotate · right-drag to pan · scroll to zoom · resize ↘</div></div>
         <div ref={c2dRef} style={{ flex: 1, minWidth: 160, border: "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", resize: "vertical", minHeight: 180, height: 420 }}><canvas ref={cv2dRef} style={{ width: "100%", height: "100%", display: "block" }} /></div>
       </div>
 

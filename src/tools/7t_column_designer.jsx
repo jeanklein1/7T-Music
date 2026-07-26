@@ -108,8 +108,8 @@ function normalize3(v) { const l = Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); ret
 function rgb01(r, g, b) { return `rgb(${Math.round(Math.max(0,Math.min(1,r))*255)},${Math.round(Math.max(0,Math.min(1,g))*255)},${Math.round(Math.max(0,Math.min(1,b))*255)})`; }
 function lerpC(a, b, t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
 
-function render3D(ctx, W, H, profile, rotY, tilt) {
-  ctx.clearRect(0, 0, W, H);
+function render3D(ctx, W, H, profile, rotY, tilt, zoom = 1, panX = 0, panY = 0, view = null) {
+  if (!view?.noClear) ctx.clearRect(0, 0, W, H);
   if (profile.length < 2) return;
   const faces = [];
   const lightDir = normalize3([-0.6, -0.7, -0.3]);
@@ -118,10 +118,10 @@ function render3D(ctx, W, H, profile, rotY, tilt) {
   let maxR=0, minY=Infinity, maxY=-Infinity;
   for (const p of profile) { maxR=Math.max(maxR,p.r); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); }
   const totalH=maxY-minY||1, midY=(minY+maxY)/2, extent=Math.max(maxR*2,totalH);
-  const scale=Math.min(W,H)*0.44/(extent*0.5), cy=H*0.5;
+  const scale=(view?.scale ?? Math.min(W,H)*0.44/(extent*0.5))*zoom, cy=H*0.5;
 
   const rotV = (v) => { const vy=v[1]-midY; const x1=v[0]*cosR+v[2]*sinR,z1=-v[0]*sinR+v[2]*cosR; return [x1, vy*cosT-z1*sinT, vy*sinT+z1*cosT]; };
-  const project=(v)=>[W/2+v[0]*scale, cy-v[1]*scale];
+  const project=(v)=>[W/2+panX+v[0]*scale, cy+panY-v[1]*scale];
 
   const addTri = (v0, v1, v2, col) => {
     const verts = [v0, v1, v2];
@@ -307,6 +307,9 @@ export default function ColumnDesigner() {
   const isModified = JSON.stringify(tiers) !== DEFAULTS_JSON;
   const [rotY, setRotY] = useState(0.5);
   const [tilt, setTilt] = useState(0.12);
+  const [zoom, setZoom] = useState(1.0);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
   const [dockKey, setDockKey] = useState(0);
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -336,9 +339,24 @@ export default function ColumnDesigner() {
   const profile = buildProfile(T);
 
   useEffect(()=>{const ro=new ResizeObserver(()=>setResizeTick(t=>t+1));if(c3dRef.current)ro.observe(c3dRef.current);if(c2dRef.current)ro.observe(c2dRef.current);return()=>ro.disconnect();},[]);
-  useEffect(()=>{const cv=cv3dRef.current;if(!cv)return;const dpr=window.devicePixelRatio||1;const W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const ctx=cv.getContext("2d");ctx.scale(dpr,dpr);render3D(ctx,W,H,profile,rotY,tilt);},[profile,rotY,tilt,resizeTick]);
+  useEffect(()=>{const cv=cv3dRef.current;if(!cv)return;const dpr=window.devicePixelRatio||1;const W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const ctx=cv.getContext("2d");ctx.scale(dpr,dpr);render3D(ctx,W,H,profile,rotY,tilt,zoom,panX,panY);},[profile,rotY,tilt,resizeTick,zoom,panX,panY]);
   useEffect(()=>{const cv=cv2dRef.current;if(!cv)return;const dpr=window.devicePixelRatio||1;const W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const ctx=cv.getContext("2d");ctx.scale(dpr,dpr);render2D(ctx,W,H,profile);},[profile,resizeTick]);
-  const onPointerDown3D=useCallback(e=>{const sx=e.clientX,sy=e.clientY,sr=rotY,st=tilt;const onMove=ev=>{setRotY(sr+(ev.clientX-sx)*0.01);setTilt(st-(ev.clientY-sy)*0.008);};const onUp=()=>{window.removeEventListener("pointermove",onMove);window.removeEventListener("pointerup",onUp);};window.addEventListener("pointermove",onMove);window.addEventListener("pointerup",onUp);},[rotY,tilt]);
+  const onPointerDown3D=useCallback(e=>{const sx=e.clientX,sy=e.clientY;if(e.button===2){e.preventDefault();const spx=panX,spy=panY;const onMoveP=ev=>{setPanX(spx+(ev.clientX-sx));setPanY(spy+(ev.clientY-sy));};const onUpP=()=>{window.removeEventListener("pointermove",onMoveP);window.removeEventListener("pointerup",onUpP);};window.addEventListener("pointermove",onMoveP);window.addEventListener("pointerup",onUpP);return;}const sr=rotY,st=tilt;const onMove=ev=>{setRotY(sr+(ev.clientX-sx)*0.01);setTilt(st-(ev.clientY-sy)*0.008);};const onUp=()=>{window.removeEventListener("pointermove",onMove);window.removeEventListener("pointerup",onUp);};window.addEventListener("pointermove",onMove);window.addEventListener("pointerup",onUp);},[rotY,tilt,panX,panY]);
+  // Scroll-wheel zoom on the 3D preview. The [loaded] dep is critical: at first
+  // mount `loaded` is false and the canvas isn't in the DOM yet (the component
+  // returns a Loading… placeholder), so the ref is null. When the load completes
+  // and the canvas mounts, this effect re-runs and binds the listener for real.
+  // Non-passive so we can preventDefault and stop the page from scrolling.
+  useEffect(() => {
+    const cv = cv3dRef.current;
+    if (!cv) return;
+    const onWheel = e => {
+      e.preventDefault();
+      setZoom(z => Math.max(0.1, Math.min(20, z * (e.deltaY > 0 ? 0.9 : 1.1))));
+    };
+    cv.addEventListener("wheel", onWheel, { passive: false });
+    return () => cv.removeEventListener("wheel", onWheel);
+  }, [loaded]);
 
   const resetAll = () => { setTiers(DEFAULTS()); setDockKey(k => k + 1); };
   const resetTier = () => setTiers(prev => { const n = [...prev]; n[tierIdx] = defaultTier(tierIdx); return n; });
@@ -369,7 +387,16 @@ export default function ColumnDesigner() {
       {/* CANVASES */}
       <div style={{display:"flex",gap:6,marginBottom:6}}>
         <div ref={c3dRef} style={{flex:2,position:"relative",border:"1px solid var(--color-border-tertiary)",borderRadius:8,overflow:"hidden",background:"#0a0a0e",resize:"vertical",minHeight:180,height:380}}>
-          <canvas ref={cv3dRef} onPointerDown={onPointerDown3D} style={{width:"100%",height:"100%",display:"block",cursor:"grab"}}/>
+          <canvas ref={cv3dRef} onPointerDown={onPointerDown3D} onContextMenu={e=>e.preventDefault()} style={{width:"100%",height:"100%",display:"block",cursor:"grab"}}/>
+          <div
+            onClick={() => { setZoom(1); setPanX(0); setPanY(0); }}
+            title="Click to reset view"
+            style={{ position: "absolute", top: 4, right: 8, fontSize: 9,
+                     color: "rgba(255,255,255,0.4)", cursor: "pointer",
+                     userSelect: "none", padding: "2px 4px" }}
+          >{Math.round(zoom * 100)}%</div>
+          <div style={{ position: "absolute", bottom: 4, left: 8, fontSize: 9,
+                        color: "rgba(255,255,255,0.3)" }}>drag to rotate · right-drag to pan · scroll to zoom</div>
           <div style={{position:"absolute",bottom:4,left:8,fontSize:9,color:"rgba(255,255,255,0.3)"}}>drag to rotate · resize ↘</div>
           <div style={{position:"absolute",top:4,right:8,fontSize:9,color:"rgba(255,255,255,0.3)"}}>{TIER_NAMES[tierIdx]} · {profile.length} pts</div>
         </div>
