@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <vector>         // the two queues
-#include <iostream>       // DIAG block in the preamble template
+#include <iostream>       // census + the indoor-skip line
 #include <cmath>      // std::floor, std::sqrt, std::min/max companions   // (impl, merged)
 #include <algorithm>  // std::min, std::max   // (impl, merged)
 #include <iomanip>    // census column formatting   // (impl, merged)
@@ -63,8 +63,6 @@ struct GroundFootprint {
 
 inline constexpr uint32_t MAX_FOOTPRINTS = 128;
 inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
-
-// ─── Property Index Registry ────────────────────────────────────
 
 // ── Proximity affinity ─────────────────────────────────────────────
 //
@@ -599,16 +597,12 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 
 // ═══ SPAWN UTILITIES ═════════════════════════════════════════════
 //
-// The spawn lifecycle's smallest building blocks: gate evaluation,
-// jittered position, the family enum, the global density dial,
-// and two load-bearing tag tables (Spawn Configuration Summary,
-// Property Index Registry) that document the contracts every family
-// participates in.
+// The spawn lifecycle's smallest building blocks: the composition
+// law, gate evaluation, jittered position, and the proximity
+// affinity boost.
 
 // ─── Spawn gate ──────────────────────────────────────────────────
 
-// Evaluate the spawn gate: seed + flat probability check.
-// adjacency_mod is a multiplier from the full spawn cascade.
 // ═══ THE COMPOSITION LAW — definition (decl: spawn_services.hpp) ═══
 // The ONE place the spawn-probability stack is authored. The
 // float multiplication ORDER below is the bit-identity contract
@@ -635,6 +629,7 @@ inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t
     return { chance, false };
 }
 
+// Evaluate the spawn gate: seed + flat probability check.
 inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
     float chance) {
