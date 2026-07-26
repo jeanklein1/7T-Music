@@ -236,9 +236,8 @@ struct GallerySelection {
     int32_t  trigger_gx, trigger_gz;
     uint32_t slot;              // gallery center slot
     float    cx, cz;            // gallery center (jittered)
-    float    footprint_r;       // gallery spatial envelope
     uint32_t archetype;         // 0–3 (terrain type, used as tier_idx)
-    uint32_t painting_count;
+    uint32_t painting_count;    // seed-derived WISH; place reserves against content
     float    facing_angle;
     float    gallery_size_mean;
     uint32_t site_type;         // 0=snapshot, 1=mixed, 2=authored
@@ -253,6 +252,11 @@ struct GalleryPlacement {
     float    footprint_r;
     uint32_t archetype;
     uint32_t painting_count;
+    // The RESERVATION: how many staging layers place claimed for this gallery.
+    // Commit draws from this instead of re-discovering scarcity, and the
+    // footprint radius above was computed from it. Plain built-in by design —
+    // the contract home carries no owner vocabulary.
+    uint32_t reserved_count;
     float    facing_angle;
     float    gallery_size_mean;
     uint32_t site_type;

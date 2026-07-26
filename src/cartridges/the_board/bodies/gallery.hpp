@@ -180,6 +180,20 @@ struct GalleryConfig {
     static constexpr float ROW_DEPTH_MIN = 8.0f;      // minimum depth gap between rows
     static constexpr float ROW_DEPTH_RANGE = 4.0f;    // depth jitter on top of minimum
     static constexpr float ROW_LATERAL_JITTER = 2.0f;
+    // The fan's extent reaches past the outermost painting's CENTRE to its
+    // EDGE, and then a little further. Two authored numbers, split because
+    // they answer different questions:
+    //   PAINTING_HALF — half the canvas width the layout budgets per painting.
+    //     ROW_SPACING/2 by construction: that IS the width the row reserves per
+    //     slot, so a canvas wider than this already overlaps its neighbour and
+    //     the spacing, not the radius, is what would need changing.
+    //   FAN_MARGIN — authored clearance beyond that edge.
+    // Together 12, against the old formula's undifferentiated trailing 15. The
+    // allowance was never the defect (the count it multiplied was), but 15 put
+    // a mean-count gallery at 54.8 wu against a legal 55 in the smallest room —
+    // passing by 0.2 wu is luck, not a design.
+    static constexpr float PAINTING_HALF = 9.0f;
+    static constexpr float FAN_MARGIN    = 3.0f;
 
     static constexpr float MONO_TIER_CHANCE = 0.40f;  // 40% mono, 60% chronological
 
@@ -443,6 +457,15 @@ struct GalleryState {
     SnapshotStagingRecord snapshot_staging[Dim::STAGING_LAYERS]{};
     uint32_t              snapshot_write_cursor = 0;
     uint32_t              snapshot_count = 0;
+
+    // Staging layers claimed by galleries that have been PLACED but not yet
+    // COMMITTED. Up to SPAWN_BUDGET_PER_FRAME galleries can be placed before
+    // any of them commits, and without this they would each reserve against
+    // the same unclaimed pool. Incremented at place by reserved_count,
+    // decremented at commit by the same value — every placement commits
+    // exactly once (commit_entity_queue drains placementResults_ whole), so
+    // it is balanced by construction and cannot drift.
+    uint32_t              staging_reserved = 0;
 
     AuthoredStagingRecord authored_staging[Dim::STAGING_LAYERS]{};
     uint32_t              authored_write_cursor = 0;
@@ -773,9 +796,11 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
     gs.gallery_centers[gallery_slot].patch_gx = gx;
     gs.gallery_centers[gallery_slot].patch_gz = gz;
 
-    // Footprint radius: gallery spread
-    float footprint_r = (float)GalleryConfig::PAINTINGS_MAX_BY_ARCHETYPE[archetype]
-        * 0.5f * GalleryConfig::ROW_SPACING + 15.0f;
+    // NO RADIUS HERE. It was computed from PAINTINGS_MAX_BY_ARCHETYPE — the
+    // archetype MAXIMUM — before commit capped the count to available content,
+    // giving 87/105/123/123 wu against a median true half-span near 50. The
+    // radius is a PLACEMENT fact and is now computed there, from the count
+    // place actually reserves. See place_gallery_from_selection.
 
     // Painting count (seed-derived; capped to content availability in commit)
     float count_raw = GalleryConfig::PAINTINGS_MEAN
@@ -810,7 +835,6 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
     sel.slot = gallery_slot;
     sel.cx = gallery_cx;
     sel.cz = gallery_cz;
-    sel.footprint_r = footprint_r;
     sel.archetype = archetype;
     sel.painting_count = painting_count;
     sel.facing_angle = facing_angle;
@@ -822,26 +846,72 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
 
 // ── place_gallery_from_selection ──
 
+// The fan's true extent, from the count that will actually be laid out.
+//
+// The paintings sit on a LINE of half-span (count-1) x ROW_SPACING/2 along the
+// row axis, offset by up to ROW_DEPTH_MIN + ROW_DEPTH_RANGE perpendicular and
+// ROW_LATERAL_JITTER along it. The whole fan then ROTATES by facing_angle.
+//
+// indoor_bounds_clamp takes ONE scalar and applies it to both axes, so the
+// honest answer for a fan that can face any direction is the CIRCUMSCRIBING
+// radius of that rectangle — rotation-invariant, and correct at every angle
+// rather than only at the axis-aligned ones.
+inline float gallery_fan_radius(uint32_t count) {
+    const float half_span = (count > 0 ? (float)(count - 1) : 0.0f)
+        * 0.5f * GalleryConfig::ROW_SPACING + GalleryConfig::ROW_LATERAL_JITTER;
+    const float half_depth = GalleryConfig::ROW_DEPTH_MIN + GalleryConfig::ROW_DEPTH_RANGE;
+    return std::sqrt(half_span * half_span + half_depth * half_depth)
+        + GalleryConfig::PAINTING_HALF + GalleryConfig::FAN_MARGIN;
+}
+
+// How many staging layers are free for a gallery being placed right now.
+// Mirrors commit's availability test, minus the two things place cannot see:
+// the mono-tier curation (a per-gallery filter) and the lazy authored texture
+// load (a GPU write, and the place phase writes no GPU state — preserved law).
+// Both can only REDUCE what commit finds, so this is an upper bound and the
+// radius errs large rather than small.
+inline uint32_t gallery_available_staging(const GalleryState& gs, uint32_t site_type) {
+    uint32_t snaps = 0;
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+        if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed) snaps++;
+    uint32_t pool = (site_type == GallerySiteType::SNAPSHOT_ONLY) ? snaps
+                  : (site_type == GallerySiteType::AUTHORED_ONLY) ? gs.authored_staged_count
+                  : snaps + gs.authored_staged_count;
+    return pool > gs.staging_reserved ? pool - gs.staging_reserved : 0u;
+}
+
 inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& sel, GalleryPlacement& plan) {
-    // FULL containment (INDOOR_TREATMENT): the sand-standing fan
-    // stays wholly inside the walls. The containment extent is
-    // sel.footprint_r — its authored formula IS the fan law
-    // (max-count half-span + the painting allowance). Wall-hung
-    // frames are the shell's and never cross this site. A
-    // collapsed box skips the gallery (loud line in the clamp).
+    auto& gs = c->gallery_state_;
+
+    // THE RESERVATION. The count is resolved HERE, against content, so the
+    // radius below describes the gallery that will actually be built. Commit
+    // draws from this instead of discovering scarcity after the ground is
+    // already claimed.
+    const uint32_t avail = gallery_available_staging(gs, sel.site_type);
+    const uint32_t reserved = sel.painting_count < avail ? sel.painting_count : avail;
+    if (reserved == 0) return false;   // no content: never claim ground for a gallery that cannot exist
+
+    // ONE extent, used for both questions, and they are the same question.
+    // The old code passed the SAME VARIABLE for footprint and containment too
+    // — that was never the defect. The defect was that the variable came from
+    // the archetype maximum. Ground claim and containment are both "how far
+    // does this fan reach", and for a fan of realized count that is one number.
+    const float footprint_r = gallery_fan_radius(reserved);
+
     float cx = sel.cx, cz = sel.cz;
-    if (!indoor_bounds_clamp(c, PopFamily::GALLERY,
-        sel.footprint_r, sel.footprint_r, cx, cz))
+    if (!indoor_bounds_clamp(c, PopFamily::GALLERY, footprint_r, footprint_r, cx, cz))
         return false;
-    if (!check_position(c, cx, cz, sel.footprint_r, PopFamily::GALLERY))
+    if (!check_position(c, cx, cz, footprint_r, PopFamily::GALLERY))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(cx / Dim::PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(cz / Dim::PATCH_EXTENT);
 
-    if (register_footprint(c, cx, cz, sel.footprint_r,
+    if (register_footprint(c, cx, cz, footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
         return false;
+
+    gs.staging_reserved += reserved;   // released at commit, by the same value
 
     plan = GalleryPlacement{};
     plan.slot = sel.slot;
@@ -852,7 +922,8 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     plan.tier_idx = sel.archetype;
     plan.cx = cx;
     plan.cz = cz;
-    plan.footprint_r = sel.footprint_r;
+    plan.footprint_r = footprint_r;
+    plan.reserved_count = reserved;
     plan.archetype = sel.archetype;
     plan.painting_count = sel.painting_count;
     plan.facing_angle = sel.facing_angle;
@@ -875,6 +946,13 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     uint32_t archetype = plan.archetype;
     float gallery_size_mean = plan.gallery_size_mean;
     float facing_angle = plan.facing_angle;
+
+    // Release the reservation place took. Balanced by construction: every
+    // placement reaches commit exactly once, because commit_entity_queue
+    // drains placementResults_ whole. Done FIRST so every early return below
+    // releases it too.
+    gs.staging_reserved = gs.staging_reserved > plan.reserved_count
+        ? gs.staging_reserved - plan.reserved_count : 0u;
 
     // Resolve site type with content availability
     uint32_t site_type = plan.site_type;
@@ -940,8 +1018,13 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     }
     uint32_t snap_cursor = 0;
 
-    // Cap painting count to available content
-    uint32_t painting_count = plan.painting_count;
+    // DRAW FROM THE RESERVATION. Place already resolved the count against
+    // content and sized the registered footprint from it, so re-deriving a
+    // larger number here would lay out paintings the claimed ground does not
+    // cover. The two remaining caps below it are the ones place cannot see:
+    // mono-tier curation (per-gallery) and the authored texture load (a GPU
+    // write, barred from place). Both only ever REDUCE.
+    uint32_t painting_count = plan.reserved_count;
     uint32_t max_available = candidate_count + gs.authored_staged_count;
     if (site_type == GallerySiteType::SNAPSHOT_ONLY) max_available = candidate_count;
     if (site_type == GallerySiteType::AUTHORED_ONLY) max_available = gs.authored_staged_count;
@@ -952,7 +1035,13 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     float face_z = std::sin(facing_angle);
     float row_x = -face_z;
     float row_z = face_x;
-    float row_start = -(float)(painting_count - 1) * 0.5f * GalleryConfig::ROW_SPACING;
+    // GUARDED: painting_count is uint32_t and the caps above can drive it to
+    // 0, where (count - 1) wraps to 0xFFFFFFFF and row_start becomes about
+    // -3.87e10. Inert before this stage only because the loop never ran at 0 —
+    // and this stage is exactly the refactor that hoists the layout math.
+    float row_start = painting_count > 0
+        ? -(float)(painting_count - 1) * 0.5f * GalleryConfig::ROW_SPACING
+        : 0.0f;
 
     uint32_t placed = 0;
     bool usedAuthored[Dim::STAGING_LAYERS]{};
@@ -1769,6 +1858,12 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     gs.pending_promotion_count = 0;
     gs.wall_frame_count = 0;
     gs.active_painting_count = 0;
+    // The place/commit reservation balance is void here: reset_surface (same
+    // TEARDOWN block) zeroes placementCount_ without committing, so any
+    // gallery placed-but-not-committed never reaches its release. Without this
+    // the counter would be permanently high and every later gallery would
+    // reserve against a pool it thinks is smaller than it is.
+    gs.staging_reserved = 0;
     // Clear all painting slots (CPU + GPU)
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
         gs.painting_slots[i] = GPUPaintingSlot{};
