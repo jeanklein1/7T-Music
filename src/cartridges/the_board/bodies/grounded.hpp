@@ -675,7 +675,6 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     pl.half_size[0] = pier_half_x;  pl.half_size[1] = pier_half_z;
     pl.height_near = pier_height;  pl.height_far = pier_height;
     pl.rotation = rotation;  pl.edge_blend = edge_blend;
-    pl.tier = PierTier::ARCH_DOORWAY;
     pl.is_active = 1;
     write_pier(c, queue, pier_l_slot, pl);
 
@@ -684,7 +683,6 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     pr.half_size[0] = pier_half_x;  pr.half_size[1] = pier_half_z;
     pr.height_near = pier_height;  pr.height_far = pier_height;
     pr.rotation = rotation;  pr.edge_blend = edge_blend;
-    pr.tier = PierTier::ARCH_DOORWAY;
     pr.is_active = 1;
     write_pier(c, queue, pier_r_slot, pr);
 

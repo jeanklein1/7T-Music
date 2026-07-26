@@ -2560,10 +2560,10 @@ struct PierInstance {
     height_far:  f32,         // height delta at local +X edge
     rotation:    f32,         // Y-axis rotation (radians, 0 = world +X)
     edge_blend:  f32,         // smoothstep transition width (world units)
-    tier:        u32,         // pier tier (metadata — not read by evaluation)
+    _pad0:       u32,         // explicit padding (mirrors GPUPierInstance)
     is_active:   u32,         // 0 = inactive, contributes nothing
-    _pad0:       u32,
     _pad1:       u32,
+    _pad2:       u32,
 };
 
 @group(0) @binding(26) var<storage, read> pier_instances: array<PierInstance, 68>;

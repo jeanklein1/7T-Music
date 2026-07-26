@@ -865,26 +865,14 @@ namespace t7 {
             float height_far;          // height delta at local +X edge
             float rotation;            // Y-axis rotation (radians, 0 = aligned with world +X)
             float edge_blend;          // smoothstep transition width at boundaries (world units)
-            uint32_t tier;             // pier tier (metadata for future use)
+            uint32_t _pad0;            // explicit padding — 44 data bytes is not
+                                       //   16-aligned, so alignas(16) requires 4
+                                       //   bytes here. Compliance, not capacity.
             uint32_t is_active;        // 0 = inactive, contributes nothing to heightfield
-            uint32_t _pad0;
             uint32_t _pad1;
+            uint32_t _pad2;
         };
         static_assert(sizeof(GPUPierInstance) == 48, "GPUPierInstance must be 48 bytes");
-
-        // Pier tier enum (carried in tier field, not read by evaluation today).
-        // Tier 0 is unassigned.
-        namespace PierTier {
-            constexpr uint32_t ARCH_DOORWAY = 1;
-            constexpr uint32_t ARCH_STANDARD = 2;
-            constexpr uint32_t ARCH_MONUMENTAL = 3;
-            constexpr uint32_t COL_PILLAR = 4;
-            constexpr uint32_t COL_DORIC = 5;
-            constexpr uint32_t COL_ORNATE = 6;
-            constexpr uint32_t COL_ANTENNA = 7;
-            constexpr uint32_t COL_ANTENNA_SQUAT = 8;
-            constexpr uint32_t COL_ANTENNA_COLOSSAL = 9;
-        }
 
         struct alignas(16) GPUArchGroundEntry {
             float pier_left_x;

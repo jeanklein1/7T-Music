@@ -520,7 +520,6 @@ inline void column_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::
     pier.height_far = inst.params[ColIdx::SOLID_HEIGHT];
     pier.rotation = 0.0f;
     pier.edge_blend = inst.params[ColIdx::EDGE_BLEND];
-    pier.tier = PierTier::COL_PILLAR + inst.tier_idx;
     pier.is_active = 1;
     write_pier(c, queue, pier_slot, pier);
 }
@@ -662,7 +661,6 @@ inline void antenna_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu:
     pier.height_far = inst.params[ColIdx::SOLID_HEIGHT];
     pier.rotation = 0.0f;
     pier.edge_blend = inst.params[ColIdx::EDGE_BLEND];
-    pier.tier = PierTier::COL_PILLAR + inst.tier_idx;
     pier.is_active = 1;
     write_pier(c, queue, pier_slot, pier);
 }
@@ -1085,7 +1083,6 @@ inline void arch_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     pier_l.height_near = pier_height; pier_l.height_far = pier_height;
     pier_l.rotation = inst.rotation;
     pier_l.edge_blend = edge_blend;
-    pier_l.tier = PierTier::ARCH_DOORWAY + inst.tier_idx;
     pier_l.is_active = 1;
     write_pier(c, queue, pier_l_slot, pier_l);
 
@@ -1096,7 +1093,6 @@ inline void arch_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     pier_r.height_near = pier_height; pier_r.height_far = pier_height;
     pier_r.rotation = inst.rotation;
     pier_r.edge_blend = edge_blend;
-    pier_r.tier = PierTier::ARCH_DOORWAY + inst.tier_idx;
     pier_r.is_active = 1;
     write_pier(c, queue, pier_l_slot + 1, pier_r);
 
