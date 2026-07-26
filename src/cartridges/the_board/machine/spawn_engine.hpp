@@ -63,6 +63,11 @@ struct GroundFootprint {
 
 inline constexpr uint32_t MAX_FOOTPRINTS = 128;
 inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
+// Hard ceiling on the census detail listing. The arrivals filter should
+// already bound it well under this; the cap is what guarantees the print
+// can never cost a frame regardless of what the world does. An instrument
+// must be cheap enough not to become the phenomenon.
+inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 
 // ── Proximity affinity ─────────────────────────────────────────────
 //
@@ -566,21 +571,35 @@ inline void census_put_delta(int32_t d) {
 }
 
 inline void dump_entity_census(MachineCtx* c, const char* trigger) {
-    // The claimed side: footprints, keyed by family.
+    // The claimed side: footprints, keyed by family. `arrived` (the `new`
+    // column) rides this same pass — one scan, not two.
+    //
+    // NAME IT HONESTLY: `new` is FOOTPRINT-derived, so it counts claimed
+    // arrivals, not active ones. It is consistent with the listing beneath
+    // it, which is also footprint data. A family that spawned WITHOUT
+    // registering shows 0 here while its `active` count still moves — and
+    // that disagreement is exactly what the delta column exists to catch.
     uint32_t claimed[PopFamily::COUNT] = {};
+    uint32_t arrived[PopFamily::COUNT] = {};
     uint32_t claimed_total = 0;   // sum over the twelve families
+    uint32_t arrived_total = 0;
     uint32_t occupancy = 0;       // every live slot, family or not
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-        if (!c->spawn_engine_state_.footprints_[i].active) continue;
+        const auto& fp = c->spawn_engine_state_.footprints_[i];
+        if (!fp.active) continue;
         occupancy++;
-        if (c->spawn_engine_state_.footprints_[i].family >= PopFamily::COUNT) continue;
-        claimed[c->spawn_engine_state_.footprints_[i].family]++;
+        if (fp.family >= PopFamily::COUNT) continue;
+        claimed[fp.family]++;
         claimed_total++;
+        if (c->time_state_.seconds - fp.spawn_time < CENSUS_DUMP_INTERVAL) {
+            arrived[fp.family]++;
+            arrived_total++;
+        }
     }
 
     std::cout << "[CENSUS t=" << std::fixed << std::setprecision(1) << std::setw(7)
         << c->time_state_.seconds << " trigger=" << trigger << "]\n"
-        << "  fam    active  claimed   delta\n";
+        << "  fam    active  claimed   delta     new\n";
 
     uint32_t active_total = 0;
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
@@ -590,14 +609,16 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
             << std::setw(6) << a
             << std::setw(9) << claimed[f];
         census_put_delta((int32_t)claimed[f] - (int32_t)a);
-        std::cout << "\n";
+        // `new` is an unsigned count: no sign, and a plain 0 at rest.
+        std::cout << std::setw(8) << arrived[f] << "\n";
     }
 
     std::cout << "  " << std::left << std::setw(7) << "TOTAL" << std::right
         << std::setw(6) << active_total
         << std::setw(9) << claimed_total;
     census_put_delta((int32_t)claimed_total - (int32_t)active_total);
-    std::cout << "    footprints " << occupancy << "/" << MAX_FOOTPRINTS << "\n";
+    std::cout << std::setw(8) << arrived_total
+        << "    footprints " << occupancy << "/" << MAX_FOOTPRINTS << "\n";
 
     // An unfamilied live footprint is unreachable through the three
     // register sites (all pass a real PopFamily), so this never fires
@@ -609,36 +630,64 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
             << " live footprint(s) carry no family — deltas above are understated\n";
     }
 
-    // Per-entity detail, sorted by family then spawn_time
-    struct CensusEntry { uint32_t fp_idx; uint32_t family; uint32_t tier; float spawn_time; };
+    // ARRIVALS ONLY — the detail listing shows what appeared since the last
+    // census, not everything that stands.
+    //
+    // A snapshot re-printed on a timer cannot tell a world at rest from a
+    // world in motion: it emits the same ~140 lines either way. That is how a
+    // static list came to read as a spawn sequence, how a frozen world looked
+    // busy, and how the print's own cost read as a spawn burst. Filtering to
+    // arrivals makes stillness print nothing, which is the point.
+    //
+    // THE WINDOW IS THE INTERVAL CONSTANT, not a delta against
+    // lastCensusDump_. Boot and mood-transition never write that field (they
+    // mirror the agent census, which does not either), so a delta would
+    // measure the wrong span immediately after a transition; a fixed window
+    // means the same thing at every trigger. Sub-frame slop is expected and
+    // deliberately untreated — the periodic gate fires at 30.0-30.02s, so an
+    // arrival may miss its window by a frame. No epsilon.
+    struct CensusEntry { uint32_t fp_idx; float spawn_time; };
     CensusEntry entries[MAX_FOOTPRINTS];
     uint32_t n = 0;
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-        if (!c->spawn_engine_state_.footprints_[i].active || c->spawn_engine_state_.footprints_[i].family >= PopFamily::COUNT) continue;
-        entries[n++] = { i, c->spawn_engine_state_.footprints_[i].family, c->spawn_engine_state_.footprints_[i].tier, c->spawn_engine_state_.footprints_[i].spawn_time };
+        const auto& fp = c->spawn_engine_state_.footprints_[i];
+        if (!fp.active || fp.family >= PopFamily::COUNT) continue;
+        if (c->time_state_.seconds - fp.spawn_time >= CENSUS_DUMP_INTERVAL) continue;
+        entries[n++] = { i, fp.spawn_time };
     }
-    // Insertion sort by (family, spawn_time)
+    // Insertion sort by spawn_time ASCENDING, and by nothing else. The family
+    // term is gone: family-major ordering is precisely what made a static
+    // listing read as arrival order. Sorted by age alone, a burst shows up as
+    // a run of near-equal ages — which is how the patch-row cadence was
+    // diagnosed by hand in the first place.
     for (uint32_t i = 1; i < n; i++) {
         CensusEntry key = entries[i]; uint32_t j = i;
-        while (j > 0 && (entries[j - 1].family > key.family ||
-            (entries[j - 1].family == key.family && entries[j - 1].spawn_time > key.spawn_time))) {
+        while (j > 0 && entries[j - 1].spawn_time > key.spawn_time) {
             entries[j] = entries[j - 1]; j--;
         }
         entries[j] = key;
     }
     // CLAIMED GROUND, not entities. XZ, host patch and age live in the
     // registry, so this listing can only ever describe footprints — the
-    // owning body may already be gone. The label is the whole point.
-    if (n > 0) std::cout << "  claimed ground (" << n << "):\n";
-    for (uint32_t i = 0; i < n; i++) {
-        const auto& fp = c->spawn_engine_state_.footprints_[entries[i].fp_idx];
-        std::cout << "  " << family_short_name(fp.family)
-            << " t" << fp.tier
-            << " (" << std::setw(8) << std::setprecision(1) << fp.x
-            << "," << std::setw(8) << fp.z << ")"
-            << " p(" << std::setw(3) << fp.patch_gx << "," << std::setw(3) << fp.patch_gz << ")"
-            << " age=" << std::setprecision(1) << (c->time_state_.seconds - fp.spawn_time)
-            << "\n";
+    // owning body may already be gone. Only the CONTENTS narrowed to
+    // arrivals; the claim the label makes is unchanged.
+    if (n > 0) {
+        // Oldest-first, so the tail that gets dropped is the most recent. A
+        // later census will not show them: a known, accepted loss for a
+        // diagnostic that must not cost a frame.
+        const uint32_t shown = (n < CENSUS_LISTING_MAX) ? n : CENSUS_LISTING_MAX;
+        std::cout << "  claimed ground — arrivals (" << n << "):\n";
+        for (uint32_t i = 0; i < shown; i++) {
+            const auto& fp = c->spawn_engine_state_.footprints_[entries[i].fp_idx];
+            std::cout << "  " << family_short_name(fp.family)
+                << " t" << fp.tier
+                << " (" << std::setw(8) << std::setprecision(1) << fp.x
+                << "," << std::setw(8) << fp.z << ")"
+                << " p(" << std::setw(3) << fp.patch_gx << "," << std::setw(3) << fp.patch_gz << ")"
+                << " age=" << std::setprecision(1) << (c->time_state_.seconds - fp.spawn_time)
+                << "\n";
+        }
+        if (n > shown) std::cout << "    ... +" << (n - shown) << " more\n";
     }
     std::cout << std::flush;
 }
