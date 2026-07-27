@@ -7471,15 +7471,32 @@ fn update_cube() {
             //     toggle still preserves world position exactly).
             //     home.y still terrain-relative at home.xz.
             //
-            // Y is *always* terrain-relative in both modes. This makes
-            // F7 toggle preserve world position cleanly: at the moment
-            // of toggle, the home.xz interpretation switches but the
-            // ground query underneath gives the same answer (anchor.xz
-            // == point.xz + offset.xz at the toggle moment by
-            // construction, since offset is captured as cube.cx -
-            // point.xz). Cubes feel like balloons leashed to the point
-            // — float at orbit_height above whatever terrain they're
-            // over, regardless of the point's current altitude.
+            // Y is *always* terrain-relative in both modes, so cubes
+            // feel like balloons leashed to the point — they float at
+            // orbit_height above whatever terrain they are over,
+            // regardless of the point's current altitude. Under ruling
+            // 1 that now holds in BOTH modes; before it, the anchor arm
+            // read its BIRTHPLACE's ground and the claim was kite-only.
+            //
+            // F7 toggle, what is preserved and what is not. home.xz is
+            // continuous across the switch (anchor.xz == point.xz +
+            // offset.xz at the toggle moment by construction, since
+            // offset is captured as cube.cx - point.xz), and drift is
+            // carried, so pos.xz is continuous. home.y is continuous
+            // only when drift.xz is zero: the anchor arm queries ground
+            // at pos.xz (ruling 1) while the kite arm still queries at
+            // kite_xz == anchor.xz. A cube toggled mid-drift across a
+            // slope therefore steps vertically by the ground difference
+            // over drift.xz — zero for a cube at rest, visible on a
+            // pyramid face under CurlField's ~3 wu. Closing it is
+            // ruling 1 applied to the kite arm as well (kite_xz ->
+            // pos.xz); that is ANCHOR_2, not this edit.
+            //
+            // Related, and older than ruling 1: the CPU mirror the
+            // offset capture reads (activeCubes_[i].cx/cz) is never
+            // refreshed from either GPU-side anchor write — the
+            // plasticity leak below or the kite release above — so it
+            // drifts stale whenever lambda > 0.
             //
             // POLICY_FLYER — the ground query picks up radial pulses
             // and pawn aura, same as anchor mode.
@@ -7494,9 +7511,14 @@ fn update_cube() {
                 let ground_k = manifold_position(vec3(kite_xz.x, 0.0, kite_xz.y), POLICY_FLYER, kite_qi).y;
                 home = vec3(kite_xz.x, ground_k + fe.orbit_height + bob_y, kite_xz.y);
             } else {
-                let home_xz = vec2(fe.anchor.x, fe.anchor.z);
-                let qi = QueryInputs(fe.anchor, signal.t_seconds);
-                let ground_a = manifold_position(vec3(home_xz.x, 0.0, home_xz.y), POLICY_FLYER, qi).y;
+                // RULING 1 (anchor): clearance is a PER-FRAME evaluation, so
+                // it evaluates where the body IS — the live xz — not where it
+                // was born.  home.xz stays anchor.xz: the spring's rest point
+                // is a force-law constant, not a reading of the world, so the
+                // cube stays leashed while its clearance follows it.
+                let live_xz = fe.pos.xz;
+                let qi = QueryInputs(vec3(live_xz.x, 0.0, live_xz.y), signal.t_seconds);
+                let ground_a = manifold_position(vec3(live_xz.x, 0.0, live_xz.y), POLICY_FLYER, qi).y;
                 home = vec3(fe.anchor.x, ground_a + fe.orbit_height + bob_y, fe.anchor.z);
             }
 
@@ -7561,6 +7583,15 @@ fn update_cube() {
             // needs to know about *that* ground, not the flat ground
             // at the anchor. PhaseWave doesn't move xz, so for it the
             // two queries return the same value.
+            //
+            // Since ruling 1 this is a FLOOR, no longer the kernel's
+            // only live-xz reader: home.y already tracks local ground,
+            // so min_drift_y goes deeply negative and the clamp rests
+            // slack in the ordinary case. It still earns its keep — it
+            // covers the one frame of lag in home.y (which reads LAST
+            // frame's pos.xz, the integrator running below the home
+            // block), it covers the kite arm, and it is the hard floor
+            // no drift may cross.
             //
             // The kite-mode case is covered too — home.xz tracks the
             // pawn, drift.xz overlays on top, pos.xz is where the cube
