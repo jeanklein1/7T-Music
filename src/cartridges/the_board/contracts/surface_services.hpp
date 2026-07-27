@@ -88,7 +88,6 @@ struct ActivePatch {
     uint32_t layer = 0;
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
-    bool animated = false;   // true if patch overlaps an active pool
 
     // Entity ownership (recorded at commit, read at eviction)
     struct EntityRef {
