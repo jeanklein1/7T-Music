@@ -7477,11 +7477,16 @@ fn update_cube() {
             //
             // follow_pawn == 2u — kite-RELEASE: freeze the cube's
             // CURRENT world xz as the new anchor, cancel any in-flight
-            // glide (target := the captured anchor), zero drift,
-            // switch to anchor mode. xz preserved bit-exactly (anchor
-            // := pos, drift 0, pos = home); drift.y is DISCARDED — the
-            // 2u semantics it always had (a PhaseWave cube can hold
-            // ~10 wu of vertical drift, and release snaps it).
+            // glide (target := the captured anchor), switch to anchor
+            // mode. xz is preserved bit-exactly (anchor := pos, drift
+            // .xz zeroed, so pos.xz = home.xz), and Y WALKS HOME: only
+            // the xz components of drift and drift_vel are cleared,
+            // and the existing spring/drag settle the vertical the way
+            // every other displacement settles. Zeroing drift.y here
+            // was a ~10 wu snap under PhaseWave (a vertical force);
+            // goals may leap, values may only walk — the same law the
+            // xz side already obeys. Bit-neutral whenever drift.y is
+            // zero, which is every planar behavior.
             //
             // follow_pawn == 3u — kite-CAPTURE: the offset is taken
             // from the true present WITH drift subtracted, so
@@ -7498,8 +7503,10 @@ fn update_cube() {
                 fe.anchor = vec3(fe.pos.x, 0.0, fe.pos.z);
                 fe.target_x = fe.pos.x;
                 fe.target_z = fe.pos.z;
-                fe.drift = vec3(0.0);
-                fe.drift_vel = vec3(0.0);
+                fe.drift.x = 0.0;
+                fe.drift.z = 0.0;
+                fe.drift_vel.x = 0.0;
+                fe.drift_vel.z = 0.0;
                 fe.follow_pawn = 0u;
             }
             if (fe.follow_pawn == 3u) {
