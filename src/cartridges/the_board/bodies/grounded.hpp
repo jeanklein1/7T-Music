@@ -467,34 +467,27 @@ struct ActivePyramid {
 struct EntitiesState {
     // ── Arch ─────────────────────────────────────────────────────
     ActiveArch arches[Dim::MAX_ARCH_INSTANCES]{};
-    uint32_t   arch_count = 0;
     bool       arch_mesh_gen_pending = false;
 
     // ── Column + Antenna (sibling families, shared mesh-gen flag) ─
     ActiveColumn columns[Dim::MAX_COLUMN_ONLY]{};
     ActiveColumn antennas[Dim::MAX_ANTENNA_ONLY]{};
-    uint32_t     column_count = 0;
-    uint32_t     antenna_count = 0;
     bool         column_mesh_gen_pending = false;  // shared by column + antenna
 
     // ── Palm ─────────────────────────────────────────────────────
     ActivePalm palms[Dim::MAX_PALM_INSTANCES]{};
-    uint32_t   palm_count = 0;
     bool       palm_mesh_gen_pending = false;
 
     // ── Cactus ───────────────────────────────────────────────────
     ActiveCactus cacti[Dim::MAX_CACTUS_INSTANCES]{};
-    uint32_t     cactus_count = 0;
     bool         cactus_mesh_gen_pending = false;
 
     // ── Blade ────────────────────────────────────────────────────
     ActiveBlade blades[Dim::MAX_BLADE_INSTANCES]{};
-    uint32_t    blade_count = 0;
     bool        blade_mesh_gen_pending = false;
 
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
-    uint32_t        pyramid_count = 0;
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
 };
 
@@ -726,8 +719,6 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     aa.position_hash = cpu_hash(static_cast<uint32_t>(cx * 73856093.0f), static_cast<uint32_t>(cz * 19349663.0f));
     aa.destination = dest;
 
-    es.arch_count++;
-
     // RULING 14 — CHANNEL B ONLY. A portal you can walk a pyramid into is a
     // real artifact and claims real ground. Channel A (generic, dispatch-
     // spawned) already registers through negotiate_position, and with
@@ -776,7 +767,6 @@ inline void evict_pyramid(MachineCtx* self,
     unregister_footprint_for(self, PopFamily::PYRAMID, slot);   // the hand that claims is the hand that frees
     self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
     self->entities_state_.pyramids[slot].active = false;
-    self->entities_state_.pyramid_count--;
     self->world_state_.ground_entries_dirty = true;
 
     uint32_t max_idx = 0;
@@ -794,7 +784,6 @@ inline void evict_arch(MachineCtx* self,
     clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2);
     clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
     self->entities_state_.arches[slot].active = false;
-    self->entities_state_.arch_count--;
     self->mood_state_.portals_dirty = true;
     { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.arch_mesh_gen_pending = true;
@@ -806,7 +795,6 @@ inline void evict_column(MachineCtx* self,
     unregister_footprint_for(self, PopFamily::COLUMN, slot);   // the hand that claims is the hand that frees
     clear_pier(self, queue, Dim::PIER_COLUMN_BASE + slot);
     self->entities_state_.columns[slot].active = false;
-    self->entities_state_.column_count--;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.column_mesh_gen_pending = true;
 }
@@ -818,7 +806,6 @@ inline void evict_antenna(MachineCtx* self,
     uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
     clear_pier(self, queue, Dim::PIER_COLUMN_BASE + gpu_slot);
     self->entities_state_.antennas[slot].active = false;
-    self->entities_state_.antenna_count--;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
     self->entities_state_.column_mesh_gen_pending = true;
 }
@@ -828,7 +815,6 @@ inline void evict_palm(MachineCtx* self,
 {
     unregister_footprint_for(self, PopFamily::PALM, slot);   // the hand that claims is the hand that frees
     self->entities_state_.palms[slot].active = false;
-    self->entities_state_.palm_count--;
     { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.palm_mesh_gen_pending = true;
     self->world_state_.ground_entries_dirty = true;
@@ -839,7 +825,6 @@ inline void evict_cactus(MachineCtx* self,
 {
     unregister_footprint_for(self, PopFamily::CACTUS, slot);   // the hand that claims is the hand that frees
     self->entities_state_.cacti[slot].active = false;
-    self->entities_state_.cactus_count--;
     { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.cactus_mesh_gen_pending = true;
     self->world_state_.ground_entries_dirty = true;
@@ -850,7 +835,6 @@ inline void evict_blade(MachineCtx* self,
 {
     unregister_footprint_for(self, PopFamily::BLADE, slot);   // the hand that claims is the hand that frees
     self->entities_state_.blades[slot].active = false;
-    self->entities_state_.blade_count--;
     { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.blade_mesh_gen_pending = true;
     self->world_state_.ground_entries_dirty = true;
@@ -996,7 +980,6 @@ inline void blade_write_active(MachineCtx* c, const EntityInstance& inst) {
     ab.radius   = inst.params[BladeIdx::BLADE_W] + inst.params[BladeIdx::SPLAY];
     ab.tier_idx = inst.tier_idx;
     ab.cached_ground_y = inst.cached_ground_y;
-    c->entities_state_.blade_count++;
 }
 
 inline void blade_write_gpu(MachineCtx* c,
@@ -1240,7 +1223,6 @@ inline void palm_write_active(MachineCtx* c, const EntityInstance& inst) {
     ap.base_r = inst.params[PalmIdx::BASE_R];
     ap.tier_idx = inst.tier_idx;
     ap.cached_ground_y = inst.cached_ground_y;
-    c->entities_state_.palm_count++;
 }
 
 inline void palm_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1430,7 +1412,6 @@ inline void cactus_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.radius = inst.params[CactusIdx::RADIUS];
     ac.tier_idx = inst.tier_idx;
     ac.cached_ground_y = inst.cached_ground_y;
-    c->entities_state_.cactus_count++;
 }
 
 inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1503,7 +1484,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         c->entities_state_.arches[i] = ActiveArch{};
     }
-    c->entities_state_.arch_count = 0;
     c->mood_state_.portals_dirty = true;
     c->gpuState_.set_arch_index_count(0);
     // Clear all arch mesh gen param slots
@@ -1522,8 +1502,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
         c->entities_state_.antennas[i] = ActiveColumn{};
     }
-    c->entities_state_.column_count = 0;
-    c->entities_state_.antenna_count = 0;
     c->gpuState_.set_column_index_count(0);
     // Clear all column mesh gen param slots
     {
@@ -1538,7 +1516,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
         c->entities_state_.palms[i] = ActivePalm{};
     }
-    c->entities_state_.palm_count = 0;
     c->gpuState_.set_palm_index_count(0);
     {
         GPUPalmMeshParams emptyParams{};
@@ -1552,7 +1529,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
         c->entities_state_.cacti[i] = ActiveCactus{};
     }
-    c->entities_state_.cactus_count = 0;
     c->gpuState_.set_cactus_index_count(0);
     {
         GPUCactusMeshParams emptyParams{};
@@ -1566,7 +1542,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
         c->entities_state_.blades[i] = ActiveBlade{};
     }
-    c->entities_state_.blade_count = 0;
     c->gpuState_.set_blade_index_count(0);
     {
         GPUBladeClusterMeshParams emptyParams{};
@@ -1580,7 +1555,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
         c->entities_state_.pyramids[i] = ActivePyramid{};
     }
-    c->entities_state_.pyramid_count = 0;
     c->entities_state_.cpu_pyramids = GPUPyramidArray{};
     c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
 }

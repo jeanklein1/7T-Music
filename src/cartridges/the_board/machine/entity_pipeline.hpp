@@ -486,7 +486,6 @@ inline void column_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.cached_ground_y = inst.cached_ground_y;
     ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
     std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
-    c->entities_state_.column_count++;
 }
 
 inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -629,7 +628,6 @@ inline void antenna_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.cached_ground_y = inst.cached_ground_y;
     ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
     std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
-    c->entities_state_.antenna_count++;
 }
 
 inline void antenna_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -815,8 +813,6 @@ inline void pyramid_write_active(MachineCtx* c, const EntityInstance& inst) {
     // 5-point ground_y: GPU compute shader evaluates the heightfield
     // at center + 4 rotated corners and takes the min. CPU uploads 0.
     ap.cached_ground_y = 0.0f;
-
-    c->entities_state_.pyramid_count++;
 }
 
 inline void pyramid_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1022,7 +1018,6 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
         }
     }
 
-    c->entities_state_.arch_count++;
     c->mood_state_.portals_dirty = true;
 }
 

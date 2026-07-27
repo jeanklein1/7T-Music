@@ -164,7 +164,6 @@ struct CubeBehaviorsState {
     bool           kite_mode          = false;
     float          pawn_offset[Dim::MAX_CUBE_INSTANCES][2] = {};  // xz only
     ActiveCube     activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
-    uint32_t       activeCubeCount_ = 0;
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -251,7 +250,6 @@ inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& que
         GPUFloatingEntityState empty{};
         gpu.upload_cube_entity_slot(queue, i, empty);
     }
-    cbs.activeCubeCount_ = 0;
 }
 
 inline float corral_ease_(float t) {
@@ -429,7 +427,6 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Qu
 inline void evict_cube(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
     self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
-    self->cube_behaviors_state_.activeCubeCount_--;
     GPUFloatingEntityState empty{};
     self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
 }
@@ -555,7 +552,6 @@ inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.cx = inst.cx; ac.cz = inst.cz;
     ac.last_alloc_time = c->time_state_.seconds;
     ac.active = true;
-    c->cube_behaviors_state_.activeCubeCount_++;
 }
 
 inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -665,7 +661,6 @@ inline void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPU
         if (cs.activeCubes_[i].active && !gpu_active &&
             (now - cs.activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
             cs.activeCubes_[i].active = false;
-            if (cs.activeCubeCount_ > 0) cs.activeCubeCount_--;
         }
     }
 }

@@ -1746,12 +1746,10 @@ namespace t7 {
 
         // ─── Census: the per-family active_count row ───────────────────────
         //
-        // THE COUNT IS A `.active` SCAN. NEVER A STORED FIELD. All seven
-        // EntitiesState count fields (pyramid_count … blade_count) are
-        // write-only — every occurrence in the tree is a declaration, ++, --,
-        // or = 0. A census reading them would report a number no consumer has
-        // ever validated. The scan is ground truth; the disagreement between
-        // scan and stored field is then a free leak check for a later stage.
+        // THE COUNT IS A `.active` SCAN. NEVER A STORED FIELD. A stored
+        // counter would be a number no consumer has ever validated; the
+        // scan is ground truth. (The write-only per-family counters the
+        // modules once carried were cut once the scan became the census.)
         //
         // The bound is DEDUCED from the array, never written. That is not
         // brevity — it makes three standing traps structurally unreachable:
