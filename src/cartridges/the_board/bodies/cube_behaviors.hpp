@@ -494,15 +494,37 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
     fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
-    // Kite mode starts disabled — cube is anchored to its spawn patch
-    // until the user explicitly toggles kite mode via toggle_cube_kite_mode (below).
-    fe.follow_pawn = 0;
-    fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
-    // The anchor law: target := anchor.xz at spawn — the ONE init home
-    // (the kernel never re-inits; its sentinels only RETARGET). At rest
-    // target == param, so update_cube's glide term is exactly zero.
-    fe.target_x = inst.cx;
-    fe.target_z = inst.cz;
+    // BIRTH INTO THE LIVE MODE (RIDER[cube:spawn-mode-desync]).
+    // Per-cube mode truth lives on the GPU; kite_mode is one CPU flag
+    // for the flock. A newborn left in anchor mode while the flock is
+    // kited would be handed RING OFFSETS by the next corral — and a
+    // mode-0 cube walks its ANCHOR toward its target, reading those
+    // offsets as absolute world coordinates: a smooth glide to a ring
+    // around the WORLD ORIGIN. So a newborn joins the mode that is
+    // live at its spawn.
+    //
+    // Drift is exactly zero at birth (set below), so the offset is
+    // exact — no sentinel round-trip, no capture frame. This is the
+    // ONE init home for target in both arms: at rest target == param,
+    // so update_cube's glide term is exactly zero either way.
+    if (c->cube_behaviors_state_.kite_mode) {
+        // Kite arm: the param is the OFFSET from the point, and the
+        // point is player_.readback_x/z — the same host-authored
+        // snapshot corral_cubes rings around.
+        fe.follow_pawn = 1u;
+        fe.pawn_offset[0] = inst.cx - c->player_.readback_x;
+        fe.pawn_offset[1] = 0.0f;
+        fe.pawn_offset[2] = inst.cz - c->player_.readback_z;
+        fe.target_x = fe.pawn_offset[0];
+        fe.target_z = fe.pawn_offset[2];
+    } else {
+        // Anchor arm: the param is anchor.xz, written above from the
+        // same spawn position.
+        fe.follow_pawn = 0u;
+        fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
+        fe.target_x = inst.cx;
+        fe.target_z = inst.cz;
+    }
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 }
 
