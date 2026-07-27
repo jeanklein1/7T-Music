@@ -73,7 +73,7 @@
 //
 // ── Pawn (§2.2) ──────────────────────────────────────────────────
 //   PAWN_HEIGHT / PAWN_RADIUS     Physical dimensions
-//   PAWN_STEP_HEIGHT              Max terrain step
+//   PAWN_MAX_SLOPE                Max climbable grade (the slope law)
 //
 // ── Radial Pulses (§3.5) ─────────────────────────────────────────
 //   PULSE_SPEED / MAX_AGE / DAMPING  Ring dynamics
@@ -1910,9 +1910,17 @@ fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
 const PAWN_HEIGHT: f32 = 1.5;
 const PAWN_RADIUS: f32 = 0.5;
 const PAWN_SPEED: f32 = 15.0;
-// Max height the pawn can "step up" in a single frame.
-// Anything higher is treated as a solid wall (XZ motion is blocked).
-const PAWN_STEP_HEIGHT: f32 = 0.5;
+// THE SLOPE LAW. What stops the pawn is GRADE, not height: a rise is
+// impassable when dh/dxz exceeds this. Slope is geometry, so v·dt
+// cancels and the verdict is frame-rate independent — the height form
+// this replaced was not. It compared a per-FRAME rise against a fixed
+// 0.5, so the same dune was a ramp at 60 fps and a wall at 30, and a
+// dune was a pier by accident of frame time. Downhill never blocks:
+// the test is one-sided. Jean-tunable, panel-destined.
+const PAWN_MAX_SLOPE: f32 = 1.75;           // ≈60° — the climbable limit
+// A NUMERICAL noise floor, NOT a step allowance: under it, the tilt
+// query's own finite-diff jitter dominates dh and the ratio is noise.
+const PAWN_SLOPE_NOISE_FLOOR: f32 = 0.05;
 const PAWN_TURN_SPEED: f32 = 8.0;
 
 // Chess pawn mesh resolution (GPU-generated from vertex_index)
@@ -2148,9 +2156,12 @@ const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the
 // anticipation ahead of the walker. A distance, not a gate.
 const STEER_LOOKAHEAD_WU: f32 = 4.0;   // sensing distance ahead of velocity
 const STEER_GAIN: f32 = 3.0;           // lateral accel per unit gradient
-// The wall is pawn_ground_resolve's PAWN_STEP_HEIGHT gate (a height STEP,
-// not a gradient-magnitude const), so there is no shared steepness truth
-// to re-point to; these are authored here (Jean-tunable):
+// The wall is pawn_ground_resolve's SLOPE LAW — and since BATCH E that
+// wall is a gradient magnitude too (PAWN_MAX_SLOPE), so these numbers
+// and it are finally the same kind of thing. Read them as one band:
+// 0.7 no whisper → 1.4 full whisper → 1.75 the wall. Still authored
+// here (Jean-tunable), but now deliberately BELOW the wall rather than
+// merely unrelated to it:
 const STEER_GRAD_LO: f32 = 0.7;        // below: no whisper
 const STEER_GRAD_HI: f32 = 1.4;        // above: full whisper (the wall's shadow)
 
@@ -5976,8 +5987,8 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 //   POLICY_WALKER       gives the resolved standing height (returned y).
 //                       The pawn rides aura-lifted ground, so its y must
 //                       include CONTRIB_PAWN_AURA + CONTRIB_GOL_SUPPRESSION.
-//   POLICY_WALKER_TILT  gives step-climb-safe heights for the
-//                       PAWN_STEP_HEIGHT comparison. Excludes the two
+//   POLICY_WALKER_TILT  gives climb-safe heights for the slope-law
+//                       comparison. Excludes the two
 //                       self-centered contributors so the pawn can't
 //                       "trip on its own aura" or self-suppression
 //                       gradient between frames.
@@ -5992,6 +6003,21 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 // prev_y_tilt is computed fresh from the paired query at prev_xz (one
 // extra evaluation per frame; no pawn_state field added — see follow-up
 // brief Part C.3d for the rationale).
+// THE SLOPE LAW, one home for all three candidate tests below.
+// dh = the tilt-height rise of the candidate move; dxz = its horizontal
+// length. Blocked iff the rise clears the noise floor AND its grade
+// exceeds PAWN_MAX_SLOPE — so downhill (dh ≤ 0) always passes.
+//
+// `|` and not `||`: the non-short-circuiting form. Both operands are
+// always evaluated, which keeps this function's branch count exactly
+// what the height test had — the L2 posture for the collision/ground
+// chain (no new runtime branching). max(dxz, 1e-4) makes the divide
+// total; dxz is 0 only when the candidate did not move on that axis,
+// where dh is 0 too and the noise floor already passed it.
+fn slope_passable(dh: f32, dxz: f32) -> bool {
+    return (dh <= PAWN_SLOPE_NOISE_FLOOR) | (dh / max(dxz, 1e-4) <= PAWN_MAX_SLOPE);
+}
+
 fn pawn_ground_resolve(
     new_xz: vec2<f32>, prev_xz: vec2<f32>, prev_y: f32, qi: QueryInputs
 ) -> vec4<f32> {
@@ -6005,7 +6031,7 @@ fn pawn_ground_resolve(
 
     // No XZ movement (idle/bootstrap) or passable slope → just snap
     let moved = any(new_xz != prev_xz);
-    if (!moved || y_tilt - prev_y_tilt <= PAWN_STEP_HEIGHT) {
+    if (!moved || slope_passable(y_tilt - prev_y_tilt, distance(new_xz, prev_xz))) {
         return vec4(new_xz.x, y, new_xz.y, 1.0);              // happy path
     }
 
@@ -6014,11 +6040,12 @@ fn pawn_ground_resolve(
     // (the step-climb comparison) from a single paired query.
     let slide_x = vec2(new_xz.x, prev_xz.y);
     let x_pair  = query_ground_walker_pair(slide_x, qi);
-    let x_ok = (x_pair.y - prev_y_tilt) <= PAWN_STEP_HEIGHT;
+    // Each slide's dxz is its own axis delta — the other axis is held.
+    let x_ok = slope_passable(x_pair.y - prev_y_tilt, abs(new_xz.x - prev_xz.x));
 
     let slide_z = vec2(prev_xz.x, new_xz.y);
     let z_pair  = query_ground_walker_pair(slide_z, qi);
-    let z_ok = (z_pair.y - prev_y_tilt) <= PAWN_STEP_HEIGHT;
+    let z_ok = slope_passable(z_pair.y - prev_y_tilt, abs(new_xz.y - prev_xz.y));
 
     if (x_ok && z_ok) {
         if (abs(new_xz.x - prev_xz.x) >= abs(new_xz.y - prev_xz.y)) {
