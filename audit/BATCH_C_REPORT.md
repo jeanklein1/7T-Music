@@ -233,3 +233,42 @@ finding outranks this batch.
   run; read the `[FLOATER]` lines; then delete both `DIAG_FLOATER_BRIDGE`
   blocks. Paste the lines either way — a dead bridge is a finding, not a
   failure.
+
+---
+
+## VERIFICATION ADDENDUM (post-batch adversarial pass)
+
+Six independent verifiers were run against the landed commits, each briefed
+to refute the batch's claims. **Zero defects on the trunk.** What survived
+scrutiny, and what didn't:
+
+- **C5 — A SECOND STOP CONDITION, and it outranks J1's silence.** The
+  verifier refuted "everything already releases by owner" on the prepared
+  branch: **the sky-mode exit path orphans a ribbon footprint.** A
+  dispatch-spawned ribbon registers a grounded footprint at place
+  (`place_ribbon_from_selection` → `negotiate_position` with
+  `/*grounded=*/true`). Sky mode is a mid-world keypress, not a transition —
+  and the sky-exit edge block in `ribbon_frame_tick` clears the flown
+  ribbon's body directly (`rs.active[s] = ActiveRibbon{}`), bypassing
+  `evict_ribbon` and its `unregister_footprint_for`. Today the per-patch
+  sweep eventually reclaims that ground when the host patch evicts; after
+  C5 nothing would — a permanent claim with no body. CONFIRMED against the
+  live tree by CC. **C5 therefore stays out even if J1 is silent**, until
+  the sky-exit block releases by owner (thread the release into the edge
+  block, or route the exit through `evict_ribbon` with the sky pin
+  bypassed) — a small named rider, not an improvisation into C5.
+  (The verifier also re-derived BATCH_B's overflow warning independently:
+  a `record_entity` ref-drop at MAX_ENTITY_REFS leaves an entity no evictor
+  will ever visit — exactly what J1's grep is for. The gate stands.)
+- **C2 truth-fix miss, repaired**: the "Entity Density Field" signpost in
+  `tile_world.hpp` still pointed at the DENSITY_* constants "moved to
+  population_themes.hpp" — constants C2 deleted. Banner truth-fixed in the
+  addendum commit.
+- **C3 residue, repaired**: the dead `#theme_tool` hash route in the
+  `App.jsx` launcher comment, and two `7t_pawn_designer.jsx` comments citing
+  the deleted tool as their sync anchor. (The spec's own `rg 7t_theme_tool`
+  census was clean — these used the route id and prose name.) Truth-fixed.
+- **C1, stands**: no compiled-code occurrence of any of the nine counters
+  survives; the one flagged site is stale prose in `New chat first
+  handoff.txt` at the src root (already classified as prose in C0-a). Left
+  untouched — deleting Jean's prose is Jean's call.

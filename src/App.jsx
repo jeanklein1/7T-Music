@@ -4,7 +4,7 @@ import TOOLS from "./tools/registry";
 /* ═══════════════════════════════════════════════════════════════════════
    7T TOOL LAUNCHER
    
-   Hash routing:  /#theme_tool  /#stamp  /#pawn_designer
+   Hash routing:  /#stamp  /#pawn_designer  /#column_designer
    No hash  →  landing menu
    ═══════════════════════════════════════════════════════════════════════ */
 

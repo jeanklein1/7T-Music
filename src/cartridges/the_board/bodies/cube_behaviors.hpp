@@ -308,8 +308,9 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Qu
     //         (pos − point − drift); target := offset.
     //   OFF → 2u kite-release: anchor := current pos; target :=
     //         anchor; drift zeroed.
-    // Both exactly position-preserving, even under drift — the
-    // capture happens where drift lives.
+    // Both xz-position-preserving even under drift — the capture
+    // happens where drift lives. (Release discards drift.y — the
+    // 2u semantics it always had; capture is xz-exact to f32.)
     const uint32_t sentinel = cbs.kite_mode ? 3u : 2u;
     uint32_t affected = 0;
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {

@@ -59,10 +59,11 @@ struct ArchetypeSelectionRules {
     // 0 neighbors: weight stays at base_weight (no modification)
 };
 
-// ── Entity Density Field ───────────────────────────────────────────
-// The DENSITY_* lattice constants + TilePopulation + its authoring moved
-// to population_themes.hpp — the density/theme half of the tile is
-// a population concern. Only TileState (below) still names TilePopulation.
+// ── Tile Population ────────────────────────────────────────────────
+// TilePopulation + its authoring live in population_themes.hpp — the
+// theme half of the tile is a population concern. (The DENSITY_*
+// lattice was cut in SPAWN_C2: entity_density was 1.0 everywhere.)
+// Only TileState (below) still names TilePopulation.
 
 // ── Terrain Tokens ─────────────────────────────────────────────────
 

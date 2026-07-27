@@ -229,3 +229,42 @@ struct, zero for spheres, inert.
 - **[G:visual]** — the corral ring forms as before (CUBE_CORRAL_RADIUS
   unchanged); the feel ≈ the old 4 s ease; CUBE_GLIDE_TAU (world.wgsl,
   beside the cube constants) is the dial if not.
+
+---
+
+## VERIFICATION ADDENDUM (post-batch adversarial pass)
+
+Independent verifiers briefed to refute the batch. No blocker on the landed
+mechanism; three findings sharpen the predictions, and one is a NAMED RIDER:
+
+- **RIDER[cube:spawn-mode-desync]** — specced, not improvised (the D3
+  pattern). `cbs.kite_mode` is a global CPU flag; per-cube mode truth lives
+  only on the GPU. A cube SPAWNED while kite mode is ON is born
+  `follow_pawn = 0` (`cube_write_gpu` writes it unconditionally), so a
+  subsequent corral — which keys target shape on the global flag — hands
+  that mode-0 newborn a ring OFFSET, which the mode-agnostic walk applies to
+  its ANCHOR as absolute coordinates: it glides toward the ring around the
+  WORLD ORIGIN. The desync predates this batch (the old corral uploaded
+  `pawn_offset` to a mode-0 cube — a silent no-op); the target door turned
+  the dormant desync into visible wrong motion. Two candidate closures,
+  Jean's pick: (a) spawn into the live mode — `cube_write_gpu` (or the
+  spawn commit) uploads sentinel 3u when `cbs.kite_mode` is on, so newborns
+  join the flock; (b) make the target encoding mode-agnostic — always
+  absolute, the mode-1 walk subtracting `point_xz` kernel-side. Until the
+  rider lands: F6 after spawning-while-kited mis-corrals the newborns
+  (smooth glide, wrong destination — no snap, no crash).
+- **[G:runtime] move 1 (F7 OFF), prediction scoped**: xz is preserved
+  bit-exactly; **drift.y is discarded at release** — the 2u semantics the
+  kernel always had, untouched by this batch. Under PhaseWave (a vertical
+  force, amplitude 30) a cube can hold ~10 wu of vertical drift, and F7 OFF
+  snaps it. The four scripted moves (curlfield, planar) don't reach it;
+  PhaseWave + F7 does. Comments truth-fixed to say xz-exact; folding
+  drift.y into a decay at release is a design change — a rider if wanted.
+- **[G:runtime] move 4 (curlfield + F7 ON), prediction scoped**: the xz
+  capture is exact (algebraically; a few f32 ULPs). On SLOPED ground the
+  ground query moves from `pos.xz` (anchor arm, ruling 1) to
+  `pos.xz − drift.xz` (kite arm) at the toggle frame, so home.y can step by
+  the ground difference over drift.xz — the kernel's own F7 paragraph
+  already concedes this; it is the ANCHOR_2 seam (ruling 1 on the kite
+  arm), not this batch's. Zero-jump holds unconditionally in xz, and in y
+  on locally flat ground.

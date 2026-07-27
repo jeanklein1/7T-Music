@@ -858,7 +858,7 @@ function generateWGSL(prof, stops) {
   return code;
 }
 
-/* ═══ UI PRIMITIVES (matching theme tool) ═══ */
+/* ═══ UI PRIMITIVES (the shared 7t tool idiom) ═══ */
 const ist = { padding: "2px 3px", fontSize: 11, fontFamily: "monospace", borderRadius: 4, border: "1px solid var(--color-border-tertiary)", background: "var(--color-background-primary)", color: "var(--color-text-primary)", textAlign: "right" };
 
 function Num({ value, onChange, min = 0, max = 1, step = 0.01, w = 46, tip = "" }) {
@@ -882,7 +882,7 @@ function Num({ value, onChange, min = 0, max = 1, step = 0.01, w = 46, tip = "" 
   );
 }
 
-/* ═══ DRAGGABLE PANEL (synced with theme tool) ═══ */
+/* ═══ DRAGGABLE PANEL (the shared 7t tool idiom) ═══ */
 function DragPanel({ title, children, ini = false, id, resetKey, onDock }) {
   const [open, setOpen] = useState(ini);
   const [pos, setPos] = useState(null);

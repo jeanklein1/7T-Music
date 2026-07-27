@@ -7451,17 +7451,19 @@ fn update_cube() {
             // follow_pawn == 2u — kite-RELEASE: freeze the cube's
             // CURRENT world xz as the new anchor, cancel any in-flight
             // glide (target := the captured anchor), zero drift,
-            // switch to anchor mode. Visible position preserved
-            // exactly — anchor-mode home re-derives ground at the new
-            // anchor.xz, drift = 0, so pos = home.
+            // switch to anchor mode. xz preserved bit-exactly (anchor
+            // := pos, drift 0, pos = home); drift.y is DISCARDED — the
+            // 2u semantics it always had (a PhaseWave cube can hold
+            // ~10 wu of vertical drift, and release snaps it).
             //
             // follow_pawn == 3u — kite-CAPTURE: the offset is taken
             // from the true present WITH drift subtracted, so
-            // home.xz + drift.xz lands exactly on pos.xz — the toggle
-            // is position-preserving even mid-shove. target := the
-            // captured offset cancels any in-flight glide (stated and
-            // deliberate: a mode switch retargets to the present).
-            // drift is untouched — it carries across the switch.
+            // home.xz + drift.xz reconstructs pos.xz — algebraically
+            // exact, a few f32 ULPs in practice — even mid-shove.
+            // target := the captured offset cancels any in-flight
+            // glide (stated and deliberate: a mode switch retargets
+            // to the present). drift is untouched — it carries
+            // across the switch.
             //
             // After either sentinel fires, the rest of update_cube
             // runs in the new mode this frame, on consistent state.
