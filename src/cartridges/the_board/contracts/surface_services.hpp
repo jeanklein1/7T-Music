@@ -57,7 +57,6 @@ struct WorldState {
     uint32_t entities_culled    = 0;    // entities hidden by the EXIST-ring overdraw cull this frame
 
     // ── Dirty flags (deferred GPU uploads) ──
-    bool pier_count_dirty       = false;  // defer recompute_and_upload_pier_count
     bool ground_entries_dirty   = true;   // defer upload_ground_entries (true at boot)
     bool patch_instances_dirty  = true;   // defer LOD sort + upload_patch_instances
     bool placement_dirty        = true;   // defer dispatch_placement_correction
@@ -79,7 +78,7 @@ enum class PatchPhase : uint8_t {
                     //   included — was already placed at ALLOCATED->SPAWNED,
                     //   before this heightfield existed; Y-correction is
                     //   additive and lands later (compute_entity_placement).
-    NEEDS_REGEN,    // heightfield stale (new pier in range)
+    NEEDS_REGEN,    // heightfield stale (new pyramid in range)
 };
 
 struct ActivePatch {
@@ -150,8 +149,6 @@ struct PatchSystemState {
     ActivePatch patches_[Dim::MAX_ACTIVE_PATCHES]{};
     // Free-list of available texture layers
     uint32_t freeLayerStack_[Dim::MAX_ACTIVE_PATCHES]{};
-    // The unified pier mirror (PIERS ride patch_system)
-    GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
@@ -190,10 +187,6 @@ void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // driver world holds no MachineCtx — the door takes its
 // one organ explicitly (the deps-form precedent, clear_spheres).
 void request_recenter(WorldState& ws);
-void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
-void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot);
-void recompute_and_upload_pier_count(MachineCtx* c, wgpu::Queue& queue);
-void flush_pier_count(MachineCtx* c, wgpu::Queue& queue);
 void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);

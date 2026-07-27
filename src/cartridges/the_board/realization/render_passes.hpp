@@ -55,7 +55,7 @@ void compute_sun_matrices(const float* direction, float* view_proj_out,
 //
 // The dispatch/pass bodies + the two pure light-matrix helpers. The
 // bodies reach the machine face (c->gpuState_ / c->renderer_ /
-// c->entities_state_ / c->patch_system_state_.cpuPiers_ /
+// c->entities_state_ /
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ /
 // c->gallery_state_ / c->mood_state_) and the call-site extras
 // (cpuSpotLights_ / clearColor_ / the orbs pair).
@@ -65,17 +65,20 @@ void compute_sun_matrices(const float* direction, float* view_proj_out,
 
 inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
     // ── Arch ground entries ──
+    // Leg positions from the arch's OWN geometry (world_x/z ± half_span
+    // rotated) — the identical values the retired pier writer computed;
+    // the pier mirror died in BATCH G and the arch was always the source.
     GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!c->entities_state_.arches[i].active) continue;
-        const auto& pl = c->patch_system_state_.cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
-        const auto& pr = c->patch_system_state_.cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
-        archOrigins[i].pier_left_x = pl.origin[0];
-        archOrigins[i].pier_left_z = pl.origin[1];
-        archOrigins[i].pier_right_x = pr.origin[0];
-        archOrigins[i].pier_right_z = pr.origin[1];
+        const auto& ar = c->entities_state_.arches[i];
+        if (!ar.active) continue;
+        float cr = std::cos(ar.rotation), sr = std::sin(ar.rotation);
+        archOrigins[i].pier_left_x = ar.world_x - ar.half_span * cr;
+        archOrigins[i].pier_left_z = ar.world_z - ar.half_span * sr;
+        archOrigins[i].pier_right_x = ar.world_x + ar.half_span * cr;
+        archOrigins[i].pier_right_z = ar.world_z + ar.half_span * sr;
         archOrigins[i].is_active = 1;
-        archOrigins[i].ground_y = c->entities_state_.arches[i].cached_ground_y;
+        archOrigins[i].ground_y = ar.cached_ground_y;
         archOrigins[i].pier_correction_left = 0.0f;
         archOrigins[i].pier_correction_right = 0.0f;
     }

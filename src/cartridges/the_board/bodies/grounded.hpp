@@ -90,7 +90,6 @@ struct ArchProp {
 struct ActiveArch {
     int32_t patch_gx = 0, patch_gz = 0;   // trigger patch (idempotency)
     int32_t host_gx = 0, host_gz = 0;     // actual patch covering entity position (eviction)
-    // Pier slots derived from arch slot: PIER_ARCH_BASE + slot*2, +1
     bool active = false;
     bool draw_visible = true;    // false = mesh zeroed for distance culling
 
@@ -111,7 +110,7 @@ struct ActiveArch {
     float col_r = 0.75f, col_g = 0.68f, col_b = 0.60f;
 
     // Placement (computed once at spawn, immutable)
-    float cached_ground_y = 0.0f;         // absolute pier-top Y for VS offset
+    float cached_ground_y = 0.0f;         // absolute ground Y for VS offset
 
     // Portal state
     bool is_portal = false;
@@ -223,7 +222,6 @@ struct AntennaProp {
 struct ActiveColumn {
     int32_t patch_gx = 0, patch_gz = 0;   // trigger patch (idempotency)
     int32_t host_gx = 0, host_gz = 0;     // actual patch covering entity position (eviction)
-    // Pier slot derived from column slot: PIER_COLUMN_BASE + slot
     bool active = false;
     bool draw_visible = true;    // false = mesh zeroed for distance culling
 
@@ -249,7 +247,7 @@ struct ActiveColumn {
     float drum_colors[9] = {};  // 3 drums × RGB
 
     // Placement (computed once at spawn, immutable)
-    float cached_ground_y = 0.0f;         // absolute pier-top Y for VS offset
+    float cached_ground_y = 0.0f;         // absolute ground Y for VS offset
 };
 
 // ═══ VOCABULARY: PALM ════════════════════════════════════════════
@@ -532,7 +530,7 @@ uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& 
 // bodies deref EntitiesState(own) + World/Mood/GPU via MachineCtx; no
 // Cartridge. COHORT: after contracts/spawn_services.hpp (generic_* +
 // preamble DECLS — the machine bodies ride the cohort tail) +
-// patch_system.hpp (WorldState, write_pier/find_patch) + mood.hpp.
+// patch_system.hpp (WorldState, find_patch) + mood.hpp.
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
 
@@ -623,7 +621,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     // ROSTER-GATE portal (b) — THE SECOND DOOR. Portals force-spawn arches
     // directly (bypassing FAMILY_DISPATCH — R3), so this is the
     // single choke point every portal spawner routes through (back, finite,
-    // future). Disabled: spawn nothing (no arch, no piers, no mesh-pending),
+    // future). Disabled: spawn nothing (no arch, no mesh-pending),
     // return the no-free-slot sentinel so callers treat it as "none placed".
     // HOME (K4): MIGRATED here from mood's force_spawn_portal_at —
     // the door's written retirement condition ("when mood converts and
@@ -644,40 +642,9 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     float depth = tp.profile.params[ArchIdx::DEPTH].mean;
     float thickness = tp.profile.params[ArchIdx::THICKNESS].mean;
     float pier_height = tp.profile.params[ArchIdx::PIER_HEIGHT].mean;
-    float pier_padding = tp.profile.params[ArchIdx::PIER_PADDING].mean;
-    float edge_blend = tp.profile.params[ArchIdx::EDGE_BLEND].mean;
-
-    float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
-    float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
 
     int32_t gx = static_cast<int32_t>(std::floor(cx / Dim::PATCH_EXTENT));
     int32_t gz = static_cast<int32_t>(std::floor(cz / Dim::PATCH_EXTENT));
-
-    float cos_r = std::cos(rotation);
-    float sin_r = std::sin(rotation);
-    uint32_t pier_l_slot = Dim::PIER_ARCH_BASE + slot * 2;
-    uint32_t pier_r_slot = pier_l_slot + 1;
-
-    float pl_x = cx + (-half_span) * cos_r;
-    float pl_z = cz + (-half_span) * sin_r;
-    float pr_x = cx + half_span * cos_r;
-    float pr_z = cz + half_span * sin_r;
-
-    GPUPierInstance pl{};
-    pl.origin[0] = pl_x;  pl.origin[1] = pl_z;
-    pl.half_size[0] = pier_half_x;  pl.half_size[1] = pier_half_z;
-    pl.height_near = pier_height;  pl.height_far = pier_height;
-    pl.rotation = rotation;  pl.edge_blend = edge_blend;
-    pl.is_active = 1;
-    write_pier(c, queue, pier_l_slot, pl);
-
-    GPUPierInstance pr{};
-    pr.origin[0] = pr_x;  pr.origin[1] = pr_z;
-    pr.half_size[0] = pier_half_x;  pr.half_size[1] = pier_half_z;
-    pr.height_near = pier_height;  pr.height_far = pier_height;
-    pr.rotation = rotation;  pr.edge_blend = edge_blend;
-    pr.is_active = 1;
-    write_pier(c, queue, pier_r_slot, pr);
 
     auto& aa = es.arches[slot];
     aa.patch_gx = gx;
@@ -781,8 +748,6 @@ inline void evict_arch(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     unregister_footprint_for(self, PopFamily::ARCH, slot);   // the hand that claims is the hand that frees
-    clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2);
-    clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
     self->entities_state_.arches[slot].active = false;
     self->mood_state_.portals_dirty = true;
     { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
@@ -793,7 +758,6 @@ inline void evict_column(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     unregister_footprint_for(self, PopFamily::COLUMN, slot);   // the hand that claims is the hand that frees
-    clear_pier(self, queue, Dim::PIER_COLUMN_BASE + slot);
     self->entities_state_.columns[slot].active = false;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.column_mesh_gen_pending = true;
@@ -804,7 +768,6 @@ inline void evict_antenna(MachineCtx* self,
 {
     unregister_footprint_for(self, PopFamily::ANTENNA, slot);   // the hand that claims is the hand that frees
     uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
-    clear_pier(self, queue, Dim::PIER_COLUMN_BASE + gpu_slot);
     self->entities_state_.antennas[slot].active = false;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
     self->entities_state_.column_mesh_gen_pending = true;
@@ -942,7 +905,7 @@ inline constexpr ColorPartDef BLADE_COLOR_PARTS[] = {
 inline constexpr EntityFamilyTraits BLADE_TRAITS = {
     PopFamily::BLADE,
     Dim::MAX_BLADE_INSTANCES,
-    true,                 // grounded, no piers
+    true,                 // grounded
     BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::BLADE),
     BladeClusterConfig::POSITION_JITTER,
@@ -1015,7 +978,7 @@ inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     nullptr,                  // compute_colors → use generic (Q24)
     blade_write_active,
     blade_write_gpu,
-    nullptr,                  // no post_commit (no piers, no portals)
+    nullptr,                  // no post_commit
     blade_get_tier_profile,
 };
 

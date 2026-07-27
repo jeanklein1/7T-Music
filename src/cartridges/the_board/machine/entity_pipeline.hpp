@@ -62,12 +62,12 @@ namespace the_board {
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The three-phase verbs and the welded four family blocks (column,
-// antenna, pyramid, arch — the families that weld to the pier/regen
+// antenna, pyramid, arch — the families that weld to the ground/regen
 // services). Each block keeps the same 10-element template. Reaches
 // the machine face for c->mood_state_ / c->world_state_ /
 // c->entities_state_ and the GPU wire (c->gpuState_); routes through
 // the spawn services (run_spawn_preamble / negotiate_position /
-// write_pier / mark_patches_for_regen) as free calls.
+// mark_patches_for_regen) as free calls.
 
 
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
@@ -213,7 +213,7 @@ inline void generic_commit(MachineCtx* c,
     // ── GPU mesh params (per-family struct mapping) ──
     adapter.write_gpu(c, inst, queue);
 
-    // ── Post-commit: piers, regen, portals, etc. ──
+    // ── Post-commit: the pyramid's heightfield regen (sole tenant) ──
     if (adapter.post_commit)
         adapter.post_commit(c, inst, queue);
 
@@ -388,7 +388,7 @@ inline const TierProfile& antenna_get_tier_profile(uint32_t tier_idx) {
 
 inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
     PopFamily::COLUMN, Dim::MAX_COLUMN_ONLY,
-    true,                 // grounded — creates ground, 1 pier
+    true,                 // grounded
     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::COLUMN), ColumnConfig::POSITION_JITTER,
     COLUMN_TIER_COUNT, ColumnProp::TIER,
@@ -399,7 +399,7 @@ inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
 
 inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
     PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,
-    true,                 // grounded — creates ground, 1 pier
+    true,                 // grounded
     AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::ANTENNA), AntennaConfig::POSITION_JITTER,
     ANTENNA_TIER_COUNT, AntennaProp::TIER,
@@ -498,34 +498,16 @@ inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->entities_state_.column_mesh_gen_pending = true;
 }
 
-// Pier/collision height stays CPU-authored (SOLID_HEIGHT below): the
-// pier is a full-height wall either way, so the GPU's indoor
-// ceiling-fit of the VISUAL height (the cmg kernel's COLUMN CEILING
-// FIT) deliberately does not feed back here — visual-top precision
-// is immaterial to it. Since BATCH F-B the pier is no longer the
-// body's word: the occupier rows (world.wgsl occupier_contact) push
-// walkers off the shaft directly; the pier remains the legacy wall +
-// bake solid, the control group, one batch from the grave.
-inline void column_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    uint32_t pier_slot = Dim::PIER_COLUMN_BASE + inst.slot;
-    GPUPierInstance pier{};
-    pier.origin[0] = inst.cx;
-    pier.origin[1] = inst.cz;
-    pier.half_size[0] = inst.solid_half;
-    pier.half_size[1] = inst.solid_half;
-    pier.height_near = inst.params[ColIdx::SOLID_HEIGHT];
-    pier.height_far = inst.params[ColIdx::SOLID_HEIGHT];
-    pier.rotation = 0.0f;
-    pier.edge_blend = inst.params[ColIdx::EDGE_BLEND];
-    pier.is_active = 1;
-    write_pier(c, queue, pier_slot, pier);
-}
-
+// The body's word is the occupier rows (world.wgsl occupier_contact):
+// they push walkers off the shaft directly, and since BATCH G the
+// pawn's candidate consumes them too. The pier — the legacy baked
+// wall these SOLID_* params once fed — left the program in BATCH G;
+// the params live on in the footprint (solid_half) and active state.
 inline constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
     column_run_gate,
     column_apply_indoor_rescale,
     column_compute_solid_half, column_compute_colors,
-    column_write_active, column_write_gpu, column_post_commit,
+    column_write_active, column_write_gpu, nullptr,   // no post_commit (the pier died with the bake)
     column_get_tier_profile,
 };
 
@@ -643,27 +625,11 @@ inline void antenna_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Q
     c->entities_state_.column_mesh_gen_pending = true;
 }
 
-inline void antenna_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    uint32_t gpu_slot = inst.slot + Dim::ANTENNA_SLOT_OFFSET;
-    uint32_t pier_slot = Dim::PIER_COLUMN_BASE + gpu_slot;
-    GPUPierInstance pier{};
-    pier.origin[0] = inst.cx;
-    pier.origin[1] = inst.cz;
-    pier.half_size[0] = inst.solid_half;
-    pier.half_size[1] = inst.solid_half;
-    pier.height_near = inst.params[ColIdx::SOLID_HEIGHT];
-    pier.height_far = inst.params[ColIdx::SOLID_HEIGHT];
-    pier.rotation = 0.0f;
-    pier.edge_blend = inst.params[ColIdx::EDGE_BLEND];
-    pier.is_active = 1;
-    write_pier(c, queue, pier_slot, pier);
-}
-
 inline constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
     antenna_run_gate,
     antenna_apply_indoor_rescale,
     antenna_compute_solid_half, antenna_compute_colors,
-    antenna_write_active, antenna_write_gpu, antenna_post_commit,
+    antenna_write_active, antenna_write_gpu, nullptr, // no post_commit (the pier died with the bake)
     antenna_get_tier_profile,
 };
 
@@ -758,7 +724,7 @@ inline const TierProfile& pyramid_get_tier_profile(uint32_t tier_idx) {
 
 inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES,
-    true,                 // grounded — bakes into the heightfield, no piers
+    true,                 // grounded — bakes into the heightfield
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::PYRAMID), PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
@@ -910,7 +876,7 @@ inline const TierProfile& arch_get_tier_profile(uint32_t tier_idx) {
 
 inline constexpr EntityFamilyTraits ARCH_TRAITS = {
     PopFamily::ARCH, Dim::MAX_ARCH_INSTANCES,
-    true,                 // grounded — creates ground, 2 piers
+    true,                 // grounded
     ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::ARCH), ArchConfig::POSITION_JITTER,
     static_cast<uint32_t>(ArchTier::COUNT), ArchProp::TIER,
@@ -995,8 +961,8 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
     aa.segs_v = ARCH_TIERS[inst.tier_idx].segs_v;
     aa.col_r = inst.colors[0]; aa.col_g = inst.colors[1]; aa.col_b = inst.colors[2];
 
-    // Ground Y: GPU compute shader samples the heightfield at both pier
-    // feet (which already includes pier effect) and takes the min. CPU uploads 0.
+    // Ground Y: GPU compute shader samples the heightfield at both leg
+    // positions and takes the min (slope straddle). CPU uploads 0.
     aa.cached_ground_y = 0.0f;
 
     // Portal state: recompute from seed
@@ -1044,57 +1010,12 @@ inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     c->entities_state_.arch_mesh_gen_pending = true;
 }
 
-inline void arch_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    float half_span    = inst.params[ArchIdx::SPAN];
-    float thickness    = inst.params[ArchIdx::THICKNESS];
-    float depth        = inst.params[ArchIdx::DEPTH];
-    float pier_padding = inst.params[ArchIdx::PIER_PADDING];
-    float edge_blend   = inst.params[ArchIdx::EDGE_BLEND];
-    float pier_height  = inst.params[ArchIdx::PIER_HEIGHT];
-
-    float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
-    float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
-
-    float cos_r = std::cos(inst.rotation), sin_r = std::sin(inst.rotation);
-    float pl_x = inst.cx + (-half_span) * cos_r;
-    float pl_z = inst.cz + (-half_span) * sin_r;
-    float pr_x = inst.cx + half_span * cos_r;
-    float pr_z = inst.cz + half_span * sin_r;
-
-    // Left pier
-    uint32_t pier_l_slot = Dim::PIER_ARCH_BASE + inst.slot * 2;
-    GPUPierInstance pier_l{};
-    pier_l.origin[0] = pl_x; pier_l.origin[1] = pl_z;
-    pier_l.half_size[0] = pier_half_x; pier_l.half_size[1] = pier_half_z;
-    pier_l.height_near = pier_height; pier_l.height_far = pier_height;
-    pier_l.rotation = inst.rotation;
-    pier_l.edge_blend = edge_blend;
-    pier_l.is_active = 1;
-    write_pier(c, queue, pier_l_slot, pier_l);
-
-    // Right pier
-    GPUPierInstance pier_r{};
-    pier_r.origin[0] = pr_x; pier_r.origin[1] = pr_z;
-    pier_r.half_size[0] = pier_half_x; pier_r.half_size[1] = pier_half_z;
-    pier_r.height_near = pier_height; pier_r.height_far = pier_height;
-    pier_r.rotation = inst.rotation;
-    pier_r.edge_blend = edge_blend;
-    pier_r.is_active = 1;
-    write_pier(c, queue, pier_l_slot + 1, pier_r);
-
-    // Regen AABB
-    float reach = std::max(pier_half_x, pier_half_z) + edge_blend;
-    mark_patches_for_regen(c, 
-        std::min(pl_x, pr_x) - reach, std::min(pl_z, pr_z) - reach,
-        std::max(pl_x, pr_x) + reach, std::max(pl_z, pr_z) + reach,
-        inst.host_gx, inst.host_gz);
-}
 
 inline constexpr EntityFamilyAdapter ARCH_ADAPTER = {
     arch_run_gate,
     arch_apply_indoor_rescale,
     arch_compute_solid_half, arch_compute_colors,
-    arch_write_active, arch_write_gpu, arch_post_commit,
+    arch_write_active, arch_write_gpu, nullptr,       // no post_commit (the pier pair + its regen died with the bake)
     arch_get_tier_profile,
 };
 

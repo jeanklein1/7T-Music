@@ -41,7 +41,6 @@ namespace t7 {
                 inline constexpr uint32_t patch_params               = 23;
                 inline constexpr uint32_t patch_heightfield_array_write = 24;
                 inline constexpr uint32_t tile_grid                  = 25;
-                inline constexpr uint32_t pier_instances             = 26;
                 inline constexpr uint32_t patch_cell_color_array_write = 27;
                 inline constexpr uint32_t patch_height_scratch       = 28;
                 inline constexpr uint32_t pyramid_instances          = 30;

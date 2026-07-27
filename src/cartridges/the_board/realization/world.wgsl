@@ -1554,7 +1554,8 @@ struct DesignConfig {
     fog_color: vec3<f32>,         // fog/sky color RGB
     fade_alpha: f32,              // 0.0 = no overlay, 1.0 = fully opaque
     fade_color: vec3<f32>,        // transition overlay RGB
-    pier_count: u32,              // active pier count for bounded iteration
+    // (pier_count's slot: retired in BATCH G — vec2 align re-pads here,
+    //  offsets unmoved; the C++ twin carries the explicit pad.)
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
     world_bound_max: vec2<f32>,   // XZ max clamp (0,0 = infinite)
     placement_patch_count: u32,   // active patches for entity Y-correction (decoupled from photographer)
@@ -7826,7 +7827,7 @@ fn generate_terrain_indices(@builtin(global_invocation_id) id: vec3<u32>) {
 //   Evaluates ground_formed_with_complexity() once per texel, stores the
 //   height in the scratch buffer. (The stride-2 layout is kept; the +1
 //   complexity slot is no longer written — no reader.)
-//   This is the only expensive call — terrain waves + piers + pyramids.
+//   This is the only expensive call — terrain waves + pyramids.
 //
 // Pass 2: generate_patch_gradients
 //   Reads height from 5 scratch neighbors.
@@ -8901,7 +8902,7 @@ fn compute_photographer_vp() {
 // --- Entity Placement Y-Correction
 //
 // GPU-as-single-source-of-truth for entity ground_y.
-// CPU uploads ground_y = pier_offset_only (no terrain).
+// CPU uploads ground_y = 0 (GPU owns the terrain sample).
 // This shader samples the heightfield and adds the terrain height.
 //
 // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
@@ -8916,7 +8917,7 @@ fn compute_photographer_vp() {
 // the live Y path via the baked heightfield.
 //
 // Paintings: terrain + the GoL cell lift (the card's .a).
-// Arch: 2-point min at pier feet + pier_height offset.
+// Arch: 2-point min at the leg positions + pier_height offset (the legs' visual height).
 // Pyramid: 5-point min at center + 4 rotated corners.
 // Column/antenna, palm, cactus, blade: single-point center.
 //   (The blade GPU path IS live — this compute writes GROUND_ATLAS_BLADE
@@ -8978,7 +8979,6 @@ fn compute_entity_placement() {
     }
 
     // --- Column + antenna: single-point center sampling
-    // Heightfield already includes pier contribution at entity position.
     for (var i = 0u; i < 32u; i++) {
         if (column_ground[i].is_active != 0u) {
             let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
@@ -9024,13 +9024,12 @@ fn compute_entity_placement() {
         }
     }
 
-    // --- Arch: 2-point min at pier feet
-    // Heightfield at pier feet already includes pier contribution.
+    // --- Arch: 2-point min at the leg positions (slope straddle).
     for (var i = 0u; i < 16u; i++) {
         if (arch_ground[i].is_active != 0u) {
             let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
             let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
-            // b2b: each pier foot rides its own local GoL, then min (see column).
+            // b2b: each leg rides its own local GoL, then min (see column).
             let tl = sample_terrain_y_at(left_xz) + sample_live_card_gol(left_xz);
             let tr = sample_terrain_y_at(right_xz) + sample_live_card_gol(right_xz);
             arch_ground[i].ground_y = min(tl, tr);
@@ -9109,7 +9108,7 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     let pi = fc_patches[id.x];
     if (pi.extent <= 0.0) { return; }
 
-    // Build AABB with generous XZ margin (covers wave overlay, entity heights, pier reach,
+    // Build AABB with generous XZ margin (covers wave overlay, entity heights,
     // and camera parallax between LOD boundary and actual geometry).
     let half = pi.extent * 0.5;
     let margin = pi.extent;   // 100% margin — one patch-width of slack

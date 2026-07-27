@@ -91,7 +91,7 @@ inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& input
 // sweep over sibling organs dissolved into per-owner teardown verbs
 // called by the score's TEARDOWN movement; this core keeps the
 // surface's own concerns — patches, tiles, themes, dispatch queues,
-// piers, footprints — plus the world-rebirth GPU staging lines.
+// footprints — plus the world-rebirth GPU staging lines.
 // ── The recenter door (deps-form) ─────────────────────────────────
 inline void request_recenter(WorldState& ws) {
     ws.last_center_x = INT32_MAX;
@@ -103,13 +103,6 @@ inline void request_recenter(WorldState& ws) {
 // below was already true at boot, but by in-struct default rather than by
 // call: the equality was asserted by luck and would have parted silently the
 // day any default moved. Now it is enforced by call.
-//
-// ONE line is not a no-op at boot: the clear_pier sweep sets
-// world_state_.pier_count_dirty, whose boot default is false. Frame 1's
-// flush_pier_count therefore fires and uploads pier_count = 0 over a
-// pier_count that is already 0 — one redundant 4-byte write, no behaviour
-// delta. (That write lands in the right field only because of BOOT_ONE_VOICE
-// commit A; before it, upload_pier_count wrote into terrain_time.)
 inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     TileWorldState& tile_world_state, ThemesState& themes_state) {
     // Patches + tile cache
@@ -126,11 +119,6 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     // Theme envelope — through the owner's door
     reset_theme_envelope(themes_state);
 
-    // Clear every pier.
-    for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
-        clear_pier(c, queue, i);
-    }
-
     // Footprints
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         c->spawn_engine_state_.footprints_[i] = GroundFootprint{};
@@ -146,40 +134,8 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     c->gpuState_.set_config_dynamic(false);
 }
 
-// ── The pier writers ───────────────────────────────────────────────
-//
-// PIERS ride patch_system; cpuPiers_ is module state (patch_system_state_).
-inline void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
-    c->patch_system_state_.cpuPiers_[slot] = pier;
-    c->gpuState_.upload_pier_slot(queue, slot, pier);
-    c->world_state_.pier_count_dirty = true;
-    c->world_state_.ground_entries_dirty = true;
-}
-
-inline void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot) {
-    GPUPierInstance empty{};
-    c->patch_system_state_.cpuPiers_[slot] = empty;
-    c->gpuState_.upload_pier_slot(queue, slot, empty);
-    c->world_state_.pier_count_dirty = true;
-    c->world_state_.ground_entries_dirty = true;
-}
-
-inline void recompute_and_upload_pier_count(MachineCtx* c, wgpu::Queue& queue) {
-    uint32_t highest = 0;
-    for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
-        if (c->patch_system_state_.cpuPiers_[i].is_active) highest = i + 1;
-    }
-    c->gpuState_.stage_pier_count(highest);
-    c->gpuState_.upload_pier_count(queue);
-}
-
-inline void flush_pier_count(MachineCtx* c, wgpu::Queue& queue) {
-    if (!c->world_state_.pier_count_dirty) return;
-    c->world_state_.pier_count_dirty = false;
-    recompute_and_upload_pier_count(c, queue);
-}
-
-// The pier writers' regen fan-out over the registry.
+// The regen fan-out over the registry (pyramids bake into the
+// heightfield; their post-commit is the caller).
 inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz) {
@@ -211,7 +167,6 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.all_patch_count = 0;
     c->gpuState_.stage_placement_patch_count(0);
     reset_tile_cache(tile_world_state);  // owner door
-    c->world_state_.pier_count_dirty = true;
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
     c->world_state_.placement_dirty = true;
@@ -547,8 +502,8 @@ inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCt
 // SEAM[patch:spawn-trigger] the S3-trigger calls are the declared
 //   seam face: select_entities_for_patch / place_entity_queue /
 //   commit_entity_queue (via spawn_selected_patches), plus
-//   update_entity_draw_visibility + flush_pier_count at the
-//   frame tail — the surface machine waking the occupier machine.
+//   update_entity_draw_visibility at the frame tail — the surface
+//   machine waking the occupier machine.
 inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     TileWorldState& tile_world_state, ThemesState& themes_state,
     TileWorldDeps& tile_world_deps, MoodDeps& mood_deps, const InputState& inputState) {
@@ -795,7 +750,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
 
     // ─── Deferred uploads (one per frame max) ────────────────
     if (tileGridDirty) upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
-    flush_pier_count(c, queue);
 
     // Restore radius if we capped it for finite mode
     if (c->world_state_.finite_mode) { c->world_state_.active_radius = savedRadius; }

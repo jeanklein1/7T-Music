@@ -67,12 +67,6 @@ namespace t7 {
             constexpr uint32_t RIBBON_CAP_VERTS = 12;    // 2 caps × 2 tri × 3 verts
             constexpr uint32_t RIBBON_VERTEX_COUNT = (RIBBON_MAX_RINGS - 1) * RIBBON_TUBE_VERTS_PER_SEG + RIBBON_CAP_VERTS;
 
-            // Unified pier system (deterministic slot addressing)
-            constexpr uint32_t PIER_TEST_RIG_BASE = 0;     // slots 0-2 (ramp, plateau, block)
-            constexpr uint32_t PIER_TEST_RIG_COUNT = 3;
-            constexpr uint32_t PIER_ARCH_BASE = 4;          // slots 4-35 (16 arches × 2 piers)
-            constexpr uint32_t PIER_COLUMN_BASE = 36;       // slots 36-67 (32 columns × 1 pier)
-            constexpr uint32_t PIER_TOTAL = 68;
 
             // Patch streaming system
             constexpr float    PATCH_EXTENT = 50.0f;    // world units per patch side
@@ -430,7 +424,10 @@ namespace t7 {
             float fade_color[3];              // transition overlay RGB
 
             // ─── World structure ────────────────────────────────────
-            uint32_t pier_count;              // active pier count for bounded iteration
+            uint32_t _pad_pier_retired;       // pier_count's slot (BATCH G erasure). WGSL's
+                                              //   vec2 align re-pads here implicitly; this pad is
+                                              //   the C++ mirror of that. Offsets after it are
+                                              //   UNMOVED — the 560/352 pins below are the proof.
             float world_bound_min[2];         // XZ min clamp (0,0 = infinite)
             float world_bound_max[2];         // XZ max clamp (0,0 = infinite)
             uint32_t placement_patch_count;   // active patches for entity Y-correction (decoupled from photographer)
@@ -867,46 +864,26 @@ namespace t7 {
         };
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
 
-        // Unified pier instance — terrain-raising volume with tier metadata.
-        // Deterministic slot addressing: arches at 4-35, columns at 36-67.
-        // Slots 0-3 are unassigned.
-        // Must match WGSL PierInstance exactly.
-        struct alignas(16) GPUPierInstance {
-            float origin[2];           // world XZ center of footprint
-            float half_size[2];        // half-extent in rotated local X and Z
-            float height_near;         // height delta at local −X edge
-            float height_far;          // height delta at local +X edge
-            float rotation;            // Y-axis rotation (radians, 0 = aligned with world +X)
-            float edge_blend;          // smoothstep transition width at boundaries (world units)
-            uint32_t _pad0;            // explicit padding — 44 data bytes is not
-                                       //   16-aligned, so alignas(16) requires 4
-                                       //   bytes here. Compliance, not capacity.
-            uint32_t is_active;        // 0 = inactive, contributes nothing to heightfield
-            uint32_t _pad1;
-            uint32_t _pad2;
-        };
-        static_assert(sizeof(GPUPierInstance) == 48, "GPUPierInstance must be 48 bytes");
-
         struct alignas(16) GPUArchGroundEntry {
             float pier_left_x;
             float pier_left_z;
             float pier_right_x;
             float pier_right_z;
-            float ground_y;         // written by GPU compute: min of corrected terrain at both piers
+            float ground_y;         // written by GPU compute: min of terrain at both legs
             uint32_t is_active;
-            float pier_correction_left;   // CPU: max_pier_at_left - own_pier_at_left
-            float pier_correction_right;  // CPU: max_pier_at_right - own_pier_at_right
+            float pier_correction_left;   // retired (always 0 — the pier bake is gone)
+            float pier_correction_right;  // retired (always 0 — the pier bake is gone)
         };
         static_assert(sizeof(GPUArchGroundEntry) == 32, "GPUArchGroundEntry must be 32 bytes");
 
-        // Per-column ground truth: CPU writes center XZ + active flag + pier correction,
-        // GPU compute corrects ground_y by sampling heightfield minus pier correction.
+        // Per-column ground truth: CPU writes center XZ + active flag;
+        // GPU compute writes ground_y from the heightfield.
         struct alignas(16) GPUColumnGroundEntry {
             float center_x;
             float center_z;
             float ground_y;         // written by GPU compute from heightfield - correction
             uint32_t is_active;
-            float pier_correction;  // CPU: max_pier_at_center - own_pier_at_center
+            float pier_correction;  // retired (always 0 — the pier bake is gone)
             float _pad0;
             float _pad1;
             float _pad2;
@@ -1612,7 +1589,6 @@ namespace t7 {
             wgpu::Buffer ringTransformsBuffer_;
             wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
-            wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
             wgpu::Buffer directionalLightBuffer_;
             wgpu::Buffer pointLightsBuffer_;
@@ -1923,19 +1899,11 @@ namespace t7 {
                 writeStruct(queue, configBuffer_, config_);   // Shape A, dirty-driven — the canonical cadence
             }
 
-            // Targeted 4-byte upload of pier_count only — called from write_pier/clear_pier.
-            // Bypasses the config dirty flag since pier changes happen mid-frame during spawn.
-            // THE OFFSET IS DERIVED, NEVER LITERAL: a literal drifted here once and
-            // wrote pier_count into terrain_time. offsetof cannot drift.
-            void upload_pier_count(wgpu::Queue& queue) {
-                queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, pier_count),
-                    &config_.pier_count, sizeof(uint32_t));
-            }
 
             // Targeted 4-byte upload of placement_patch_count — called from stream_patches
             // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
             // current frame's patch set (decoupled from the photographer config).
-            // THE OFFSET IS DERIVED (see upload_pier_count).
+            // THE OFFSET IS DERIVED (offsetof — it cannot drift).
             void upload_placement_patch_count(wgpu::Queue& queue) {
                 queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, placement_patch_count),
                     &config_.placement_patch_count, sizeof(uint32_t));
@@ -2057,10 +2025,6 @@ namespace t7 {
                 size_t off = offsetof(GPUFloatingEntityState, target_x);
                 float t[2] = { tx, tz };   // target_z rides target_x — pinned adjacent (200/204)
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, t, sizeof(t));
-            }
-
-            void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
-                writeSlot(queue, pierBuffer_, slot, pier);
             }
 
             // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)
@@ -2468,12 +2432,11 @@ namespace t7 {
 
             // ── Staged config writes (the poke idiom). Deliberately
             // NO configDirty_: these fields ride
-            // targeted sub-range uploads (upload_pier_count /
+            // targeted sub-range uploads (
             // upload_placement_patch_count / upload_lod_point) or the
             // next dirty/dynamic full upload (floater_coordination) —
             // exactly the raw config() pokes they replace, identical
             // in upload behavior.
-            void stage_pier_count(uint32_t n)            { config_.pier_count = n; }
             void stage_placement_patch_count(uint32_t n) { config_.placement_patch_count = n; }
             void stage_lod_point(float x, float z)       { config_.lod_point_x = x; config_.lod_point_z = z; }
 
@@ -2982,9 +2945,6 @@ namespace t7 {
                     sizeof(GPUPatchParams) * Dim::MAX_ACTIVE_PATCHES,
                     wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 tileGridBuffer_ = makeBuffer("Tile Grid", sizeof(GPUTileGrid), UU);
-                pierBuffer_ = makeBuffer("Pier Instances",
-                    Dim::PIER_TOTAL * sizeof(GPUPierInstance),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 patchInstancesBuffer_ = makeBuffer("Patch Instances",
                     sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
@@ -3031,7 +2991,7 @@ namespace t7 {
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
-                    patchStagingBuffer_ && tileGridBuffer_ && pierBuffer_ && patchInstancesBuffer_ &&
+                    patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
@@ -4133,7 +4093,7 @@ namespace t7 {
                 // Per-patch compute pass: fills one heightfield layer.
                 // Dispatched when a patch enters the active set.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — world_seed for cell color gen)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4153,23 +4113,19 @@ namespace t7 {
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[4].binding = bind::g0::pier_instances;   // pier_instances (storage, read)
+                    entries[4].binding = bind::g0::patch_cell_color_array_write;
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[4].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[4].storageTexture.format = wgpu::TextureFormat::RGBA8Unorm;
+                    entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[5].binding = bind::g0::patch_cell_color_array_write;
+                    entries[5].binding = bind::g0::pyramid_instances;  // pyramid_instances
                     entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[5].storageTexture.format = wgpu::TextureFormat::RGBA8Unorm;
-                    entries[5].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[6].binding = bind::g0::pyramid_instances;  // pyramid_instances
+                    entries[6].binding = bind::g0::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
                     entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[7].binding = bind::g0::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
-                    entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Patch Gen Layout";
@@ -4324,8 +4280,7 @@ namespace t7 {
 
                 // -- Entity placement compute layout (Group 0) -- Y-correction --
                 // Runs every frame, unconditionally. Samples the baked heightfield
-                // and subtracts CPU-computed pier_correction to isolate each entity's
-                // own pier contribution (removing foreign pier contamination).
+                // (pier_correction is retired — always 0 since the pier erasure.)
                 // 9 entries: config + painting slots + heightfield + entity grounds + ground atlas write + patch_grid.
                 // GoL rides group 1 — the card.
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
@@ -5096,20 +5051,16 @@ namespace t7 {
                     entries[3].buffer = tileGridBuffer_;
                     entries[3].size = sizeof(GPUTileGrid);
 
-                    entries[4].binding = bind::g0::pier_instances;
-                    entries[4].buffer = pierBuffer_;
-                    entries[4].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
+                    entries[4].binding = bind::g0::patch_cell_color_array_write;
+                    entries[4].textureView = patchCellColorArrayWriteView_;
 
-                    entries[5].binding = bind::g0::patch_cell_color_array_write;
-                    entries[5].textureView = patchCellColorArrayWriteView_;
+                    entries[5].binding = bind::g0::pyramid_instances;
+                    entries[5].buffer = pyramidInstancesBuffer_;
+                    entries[5].size = sizeof(GPUPyramidArray);
 
-                    entries[6].binding = bind::g0::pyramid_instances;
-                    entries[6].buffer = pyramidInstancesBuffer_;
-                    entries[6].size = sizeof(GPUPyramidArray);
-
-                    entries[7].binding = bind::g0::patch_height_scratch;  // patch_height_scratch
-                    entries[7].buffer = patchHeightScratchBuffer_;
-                    entries[7].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
+                    entries[6].binding = bind::g0::patch_height_scratch;  // patch_height_scratch
+                    entries[6].buffer = patchHeightScratchBuffer_;
+                    entries[6].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Patch Gen BindGroup";
@@ -5746,7 +5697,6 @@ namespace t7 {
                 config_.fade_color[0] = 0.0f;
                 config_.fade_color[1] = 0.0f;
                 config_.fade_color[2] = 0.0f;
-                config_.pier_count = 0;
                 config_.mode_gol_tick_scale = 1.0f;
                 config_.mode_gol_height_scale = 1.0f;
                 config_.pulse_count = 0;
@@ -5838,13 +5788,6 @@ namespace t7 {
                 ribbon.propagation_speed = 40.0f;  // placeholder (hidden ribbon, never drawn)
                 ribbon.is_visible = 0u;  // hidden until spawning system activates one
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(ribbon));
-
-                // Pier instances — all inactive.
-                {
-                    std::vector<GPUPierInstance> emptyPiers(Dim::PIER_TOTAL);
-                    queue.WriteBuffer(pierBuffer_, 0, emptyPiers.data(),
-                        sizeof(GPUPierInstance) * Dim::PIER_TOTAL);
-                }
 
                 // Painting slots — all inactive initially
                 {

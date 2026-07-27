@@ -21,7 +21,7 @@ namespace the_board {
 enum ContributorId : uint32_t {
     CONTRIB_TERRAIN_LATTICE   = 0,   // fused into contrib_static_base_at
     CONTRIB_TILE_MODIFIERS    = 1,   // fused into contrib_static_base_at
-    CONTRIB_SOLIDS            = 2,   // piers, ramps; fused into contrib_static_base_at
+    CONTRIB_SOLIDS            = 2,   // retired tag (the pier bake left in BATCH G); pyramids carry the solid ground
     CONTRIB_PYRAMIDS          = 3,
     CONTRIB_GOL_ZONES         = 4,   // slow_dynamic
     CONTRIB_TERRAIN_WAVES     = 5,   // deformation_field, global
