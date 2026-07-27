@@ -2415,10 +2415,17 @@ fn row_occupier(radius: f32) -> InfluenceProfile {
                             CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
 }
 
-// ONE shared function, called from BOTH agent kernels' gather sites —
-// the occupier push earns the single home the agent-vs-agent blocks
-// did not (those differ per kernel on possession and mass; this
-// differs on nothing).
+// ONE shared function, two consumers with different integration forms
+// (BATCH G1): update_other_agents' gather adds the Δv to persistent
+// velocity (a free agent's vel survives the frame, so the spring
+// accumulates); the possessed pawn consumes it IN THE CANDIDATE
+// (behavior_player_controlled, before pawn_ground_resolve — its vel is
+// overwritten from intent every frame, so velocity-consumption there
+// was a one-frame nudge the walk out-paced). The occupier push DOES
+// enter pawn_ground_resolve now — as a pushed candidate the slope law
+// resolves, which is the point: the body's word and the ground's word
+// compose. The push itself differs on nothing per consumer — no
+// possession case, no mass asymmetry — hence the single home.
 fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
     var dv = vec2<f32>(0.0, 0.0);
 
@@ -6352,6 +6359,24 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         }
     }
 
+    // ── THE WIRE (BATCH G1): the possessed pawn consumes the occupier
+    // push IN THE CANDIDATE — where its position is actually authored.
+    // The push lands before the boundary clamp (so the clamp clamps it)
+    // and before pawn_ground_resolve (so the slope law resolves the
+    // pushed candidate, and the body's word and the ground's word
+    // compose instead of racing). Both arms: an idle pawn is eased out
+    // of a shaft the same as a walking one. The gather's occupier call
+    // left this kernel with this wire — landing it there too would
+    // apply the push twice. Free agents are untouched: their velocity
+    // persists, so their path already consumes the rows.
+    // A VALUE change on the existing candidate — no new branches (L2).
+    {
+        let o_push = occupier_contact(
+            vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
+        agent.pos_x += o_push.x * signal.dt;
+        agent.pos_z += o_push.y * signal.dt;
+    }
+
     // --- Finite world boundary clamp
     if (config.world_bound_max.x > 0.0) {
         agent.pos_x = clamp(agent.pos_x, config.world_bound_min.x, config.world_bound_max.x);
@@ -7064,16 +7089,12 @@ fn update_player_agent() {
             agent.vel_z += sp_r.y;
         }
 
-        // ── OCCUPIERS PUSH WALKERS (BATCH F-B) ────────────────────
-        // The standing bodies' word — columns, antennas, arch legs.
-        // Immovable (yield 1.0); ONE shared fn, called from both
-        // kernels — the twin call is in update_other_agents.
-        {
-            let o_r = occupier_contact(
-                vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
-            agent.vel_x += o_r.x;
-            agent.vel_z += o_r.y;
-        }
+        // (The occupier push moved to behavior_player_controlled's
+        // CANDIDATE — BATCH G1's wire. Consuming it here as velocity
+        // was a one-frame dt² nudge the walk out-paced 8:1: the next
+        // frame's intent overwrite erased it, and it never met the
+        // resolve. update_other_agents keeps its gather call — a free
+        // agent's velocity persists, so that path was always whole.)
     }
 
     // CONTACT_3 K1b: imposed motion acts THIS frame — the imposed delta
