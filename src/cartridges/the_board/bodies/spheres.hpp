@@ -235,7 +235,6 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
         // the sole eviction path. The find_patch() lookup is retained
         // because a missing host still means "spawn was invalid"; we
         // just don't link the sphere into the patch's eviction list.
-        //
     }
     else { self->sphere_state_.activeSpheres_[pe.generic.slot].active = false; }
 }
