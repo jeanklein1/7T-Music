@@ -705,7 +705,7 @@ namespace t7 {
                 ClearInputDeltas, COUNT
             };
             enum class RPhase : uint32_t {
-                WitnessHarvest, PortalTrigger, StreamPatches, RespawnAgents, MotionCorral,
+                WitnessHarvest, PortalTrigger, StreamPatches, RespawnAgents,
                 CensusDumps, RibbonTick, EntityMeshGen, UploadPortalLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
                 GroundEntries, PlacementCorrection, FrustumCull, ShadowPass, MainPass,
@@ -1186,14 +1186,6 @@ namespace t7 {
                 respawn_evicted_agents(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed, queue);
             }
 
-            // R5 — MOTION CORRAL (S4, wall-clock; RC-2: after stream). Corral
-            // tick + patch eviction touch disjoint cube fields per frame.
-            // ROSTER-GATE cube — guarded at the call site.
-            void phase_motion_corral(RenderCtx& c) {
-                auto& queue = c.queue;
-                tick_cube_corral_animations(cube_behaviors_state_, &cube_deps_, queue);
-            }
-
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
             // proof (G3, constexpr-gated intra-movement) + entity census.
             // Autonomous stdout (constitution §5).
@@ -1516,7 +1508,6 @@ namespace t7 {
                 { RPhase::PortalTrigger,       "portal_trigger",        &Cartridge::phase_portal_trigger,        Driver::Algo,      ROSTER.transitions,                     F_WITNESS | F_TRANSITION },
                 { RPhase::StreamPatches,       "stream_patches",        &Cartridge::phase_stream_patches,        Driver::Algo,      true,                                   F_STREAM | F_COMPUTE },
                 { RPhase::RespawnAgents,       "respawn_agents",        &Cartridge::phase_respawn_agents,        Driver::Algo,      ROSTER.wanderers,                       F_NONE },
-                { RPhase::MotionCorral,        "motion_corral",         &Cartridge::phase_motion_corral,         Driver::WallClock, ROSTER.cube,                            F_NONE },
                 { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
                 { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
                 { RPhase::EntityMeshGen,       "entity_mesh_gen",       &Cartridge::phase_entity_mesh_gen,       Driver::Algo,      true,                                   F_COMPUTE },
@@ -1584,7 +1575,6 @@ namespace t7 {
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
             static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");
-            static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::MotionCorral, "RC-2: corral after the stream (S4 after S2)");
             static_assert((uint32_t)RPhase::GroundEntries < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull before the shadow pass");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");

@@ -2039,27 +2039,22 @@ namespace t7 {
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &behavior_id, sizeof(uint32_t));
             }
 
-            void upload_cube_anchor(wgpu::Queue& queue, uint32_t slot, float ax, float ay, float az) {
-                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off = offsetof(GPUFloatingEntityState, anchor);
-                float a[3] = { ax, ay, az };
-                queue.WriteBuffer(floatingEntityBuffer_, base + off, a, sizeof(a));
-            }
-
-            // Partial writes for kite-mode state (Phase 3.3). Updated
-            // independently because a typical kite-mode toggle changes
-            // both the flag and the offset, while corral-while-kited
-            // changes only the offset.
+            // Partial writes for the anchor law (ONE_ANCHOR_1). The
+            // toggle writes only the follow_pawn sentinel (the kernel
+            // captures/releases from the true present); the corral
+            // writes only the glide target (the kernel walks the live
+            // param toward it). No CPU hand ever moves anchor or
+            // offset directly.
             void upload_cube_follow_pawn(wgpu::Queue& queue, uint32_t slot, uint32_t follow) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
                 size_t off = offsetof(GPUFloatingEntityState, follow_pawn);
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &follow, sizeof(uint32_t));
             }
-            void upload_cube_pawn_offset(wgpu::Queue& queue, uint32_t slot, float ox, float oy, float oz) {
+            void upload_cube_glide_target(wgpu::Queue& queue, uint32_t slot, float tx, float tz) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off = offsetof(GPUFloatingEntityState, pawn_offset);
-                float o[3] = { ox, oy, oz };
-                queue.WriteBuffer(floatingEntityBuffer_, base + off, o, sizeof(o));
+                size_t off = offsetof(GPUFloatingEntityState, target_x);
+                float t[2] = { tx, tz };   // target_z rides target_x — pinned adjacent (200/204)
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, t, sizeof(t));
             }
 
             void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {

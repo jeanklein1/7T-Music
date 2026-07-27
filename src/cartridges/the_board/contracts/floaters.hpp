@@ -29,11 +29,6 @@
 //   allocated slots from being incorrectly marked inactive. Same intent as
 //   cube_behaviors.hpp::toggle_cube_kite_mode's GPU sentinel; different
 //   mechanism.
-// SEAM[cube:cx-cz-mirror] ActiveCube has cx, cz fields — CPU mirror of GPU
-//   anchor for cube_behaviors.hpp::corral_cubes / toggle_cube_kite_mode to
-//   read without GPU readback. Same family as agents:D2 (slot-0 reads);
-//   when the pawn module provides accessors, corral/kite could analogously
-//   have cube_anchor(slot) accessors.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -137,7 +132,6 @@ static_assert(CubeProp::SPAWN_ROLL == 130u && CubeProp::ANCHOR_X == 131u
 struct ActiveCube {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
-    float   cx = 0.0f, cz = 0.0f;
     float   last_alloc_time = -1000.0f;
     bool active = false;
 };

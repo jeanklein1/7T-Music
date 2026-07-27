@@ -18,7 +18,6 @@
 // ──────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::cos, std::sin   // (impl, merged)
-#include <algorithm>  // std::clamp   // (impl, merged)
 #include <iostream>   // diagnostics feedback   // (impl, merged)
 
 namespace t7 {
@@ -59,8 +58,7 @@ inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle d
 
 // ─ Diagnostics (corral) ─────────────────────────────────────────
 
-inline constexpr float CUBE_CORRAL_RADIUS   = 120.0f;  // ring radius around the point (world units)
-inline constexpr float CUBE_CORRAL_DURATION = 4.0f;    // glide duration (seconds)
+inline constexpr float CUBE_CORRAL_RADIUS = 120.0f;  // ring radius around the point (world units); the glide pace is CUBE_GLIDE_TAU (world.wgsl)
 
 // ─ Diagnostics (coordination cycle) ─────────────────────────────
 
@@ -145,25 +143,13 @@ static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_INDOOR_VAULT,        "row 3 mu
 static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_FINITE_OUTDOOR,      "row 4 must be MOOD_FINITE_OUTDOOR");
 static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_FINITE_OUTDOOR_REF,  "row 5 must be MOOD_FINITE_OUTDOOR_REF");
 
-// ═══ DIAGNOSTIC STATE TYPES ══════════════════════════════════════
-
-struct CubeCorralAnim {
-    bool   active;
-    float  t0;
-    float  duration;
-    float  ax_from, az_from;
-    float  ax_to,   az_to;
-};
-
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 
 struct CubeBehaviorsState {
-    uint32_t       coordination_step  = 0;
-    uint32_t       behavior_override  = CUBE_BEHAVIOR_STATIONARY;
-    CubeCorralAnim corral_anim[Dim::MAX_CUBE_INSTANCES] = {};
-    bool           kite_mode          = false;
-    float          pawn_offset[Dim::MAX_CUBE_INSTANCES][2] = {};  // xz only
-    ActiveCube     activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
+    uint32_t   coordination_step  = 0;
+    uint32_t   behavior_override  = CUBE_BEHAVIOR_STATIONARY;
+    bool       kite_mode          = false;
+    ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -186,7 +172,6 @@ void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Qu
 void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
-void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
 
 // ═══ IMPL:
@@ -233,14 +218,12 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 //
 // ─── Behavior override ──────────────────────────────────────────────
 //
-// ─── Corral animation ──────────────────────────────────────────────
+// ─── Corral / kite (the anchor law) ────────────────────────────────
 //
-// ─── Kite mode ─────────────────────────────────────────────────────
-//
-// Toggle on  — captures each cube's current xz as a point-relative
-// offset (the kite leashes to the point). Cube xz is preserved exactly; y resets to pawn.y +
-// orbit_height (small visible jump only if pawn's altitude differs
-// from where the cube was hovering).
+// The CPU authors TARGETS only; update_cube walks the live param
+// toward them (CUBE_GLIDE_TAU). Mode switches ride the follow_pawn
+// sentinels (3u kite-capture / 2u kite-release) — captured in-kernel
+// from the true present, position-preserving even under drift.
 
 // DEPS-FORM PRECEDENT: explicit GPUState& parameter —
 // the deps form's first citizen; not a MachineCtx bypass.
@@ -250,10 +233,6 @@ inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& que
         GPUFloatingEntityState empty{};
         gpu.upload_cube_entity_slot(queue, i, empty);
     }
-}
-
-inline float corral_ease_(float t) {
-    return t * t * (3.0f - 2.0f * t);  // smoothstep
 }
 
 inline void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c) {
@@ -278,7 +257,6 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 }
 
 inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
-    (void)queue;
     // THE POINT: the corral ring forms around the point —
     // readback_x/z, host-authored (pawn-host value-identical: same
     // P5 harvest snapshot as the slot mirror).
@@ -294,6 +272,9 @@ inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queu
         return;
     }
 
+    // TARGETS ONLY (the anchor law): mode 0 gets ring positions,
+    // mode 1 ring offsets. The kernel walks the live param from the
+    // true present — no from-computation, no arming, no mirror.
     uint32_t armed = 0;
     uint32_t k = 0;
     const float two_pi = 6.28318530718f;
@@ -308,114 +289,33 @@ inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queu
             target_x = px + std::cos(theta) * CUBE_CORRAL_RADIUS;
             target_z = pz + std::sin(theta) * CUBE_CORRAL_RADIUS;
         }
-
-        // Start position: current interpolated value if a previous
-        // animation is in flight, else the CPU mirror.
-        float from_x, from_z;
-        if (cbs.corral_anim[i].active) {
-            float t_norm = (c->time_state_.seconds - cbs.corral_anim[i].t0)
-                           / cbs.corral_anim[i].duration;
-            t_norm = std::clamp(t_norm, 0.0f, 1.0f);
-            float eased = corral_ease_(t_norm);
-            from_x = cbs.corral_anim[i].ax_from
-                    + (cbs.corral_anim[i].ax_to - cbs.corral_anim[i].ax_from) * eased;
-            from_z = cbs.corral_anim[i].az_from
-                    + (cbs.corral_anim[i].az_to - cbs.corral_anim[i].az_from) * eased;
-        } else if (cbs.kite_mode) {
-            from_x = cbs.pawn_offset[i][0];
-            from_z = cbs.pawn_offset[i][1];
-        } else {
-            from_x = cbs.activeCubes_[i].cx;
-            from_z = cbs.activeCubes_[i].cz;
-        }
-
-        cbs.corral_anim[i] = {
-            /*active=*/   true,
-            /*t0=*/       c->time_state_.seconds,
-            /*duration=*/ CUBE_CORRAL_DURATION,
-            from_x, from_z,
-            target_x, target_z,
-        };
-        if (cbs.kite_mode) {
-            cbs.pawn_offset[i][0] = target_x;
-            cbs.pawn_offset[i][1] = target_z;
-        } else {
-            cbs.activeCubes_[i].cx = target_x;
-            cbs.activeCubes_[i].cz = target_z;
-        }
+        c->gpuState_.upload_cube_glide_target(queue, i, target_x, target_z);
         armed++;
         k++;
     }
 
     std::cout << "[Floaters] corral: " << armed << " cube(s) gliding "
               << (cbs.kite_mode ? "to ring offset around the point" : "to ring")
-              << " radius " << CUBE_CORRAL_RADIUS
-              << " over " << CUBE_CORRAL_DURATION << "s\n";
-}
-
-inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
-    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-        auto& anim = cbs.corral_anim[i];
-        if (!anim.active) continue;
-        if (!cbs.activeCubes_[i].active) { anim.active = false; continue; }
-
-        float t_norm = (c->time_state_.seconds - anim.t0) / anim.duration;
-        bool finishing = false;
-        if (t_norm >= 1.0f) { t_norm = 1.0f; finishing = true; }
-        if (t_norm < 0.0f) t_norm = 0.0f;
-        float eased = corral_ease_(t_norm);
-        float ax = anim.ax_from + (anim.ax_to - anim.ax_from) * eased;
-        float az = anim.az_from + (anim.az_to - anim.az_from) * eased;
-        if (cbs.kite_mode) {
-            c->gpuState_.upload_cube_pawn_offset(queue, i, ax, 0.0f, az);
-        } else {
-            c->gpuState_.upload_cube_anchor(queue, i, ax, 0.0f, az);
-        }
-        if (finishing) anim.active = false;
-    }
+              << " radius " << CUBE_CORRAL_RADIUS << "\n";
 }
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
 
 inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     cbs.kite_mode = !cbs.kite_mode;
-    // THE POINT: the kite leashes to the point — the offset
-    // capture here and the GPU kite home (update_cube) moved in
-    // LOCK-STEP, so the F7 toggle still preserves world position
-    // exactly. Pawn-host value-identical (same harvest snapshot).
-    const float px = c->player_.readback_x;
-    const float pz = c->player_.readback_z;
-
+    // Flip the flag; the kernel does the rest (the anchor law).
+    //   ON  → 3u kite-capture: offset := the true present
+    //         (pos − point − drift); target := offset.
+    //   OFF → 2u kite-release: anchor := current pos; target :=
+    //         anchor; drift zeroed.
+    // Both exactly position-preserving, even under drift — the
+    // capture happens where drift lives.
+    const uint32_t sentinel = cbs.kite_mode ? 3u : 2u;
     uint32_t affected = 0;
-    if (cbs.kite_mode) {
-        for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-            if (!cbs.activeCubes_[i].active) continue;
-            float ox = cbs.activeCubes_[i].cx - px;
-            float oz = cbs.activeCubes_[i].cz - pz;
-            cbs.pawn_offset[i][0] = ox;
-            cbs.pawn_offset[i][1] = oz;
-            c->gpuState_.upload_cube_pawn_offset(queue, i, ox, 0.0f, oz);
-            c->gpuState_.upload_cube_follow_pawn(queue, i, 1u);
-            affected++;
-        }
-    } else {
-        // Toggle OFF: rather than write anchor on CPU (which can't see
-        // the cube's drift, so anchor would land at home rather than
-        // at the cube's visible position), we hand the work to the
-        // kernel. follow_pawn = 2u is a "release pending" sentinel:
-        // the next update_cube run sees it, sets anchor = current pos,
-        // zeroes drift, switches follow_pawn back to 0. Visible
-        // position is preserved exactly — no CPU drift estimation
-        // needed, no readback latency.
-        for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-            if (!cbs.activeCubes_[i].active) continue;
-            float ax = px + cbs.pawn_offset[i][0];
-            float az = pz + cbs.pawn_offset[i][1];
-            cbs.activeCubes_[i].cx = ax;
-            cbs.activeCubes_[i].cz = az;
-            c->gpuState_.upload_cube_follow_pawn(queue, i, 2u);
-            affected++;
-        }
+    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+        if (!cbs.activeCubes_[i].active) continue;
+        c->gpuState_.upload_cube_follow_pawn(queue, i, sentinel);
+        affected++;
     }
 
     std::cout << "[Floaters] kite mode: " << (cbs.kite_mode ? "ON" : "OFF")
@@ -549,7 +449,6 @@ inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ac = c->cube_behaviors_state_.activeCubes_[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
-    ac.cx = inst.cx; ac.cz = inst.cz;
     ac.last_alloc_time = c->time_state_.seconds;
     ac.active = true;
 }
