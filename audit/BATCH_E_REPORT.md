@@ -280,7 +280,201 @@ one `max`. The landed diff is stated against this in the E3 section below.
 
 ---
 
+## THE MECHANISM ACTUALLY LANDED (E1 / E2), and why
+
+**[E1] — the stamped FALLBACK, not the primary.** E0-a ruled the evictor
+route out on two structural grounds, either sufficient:
+
+1. `evict_ribbon`'s pin spares a rendered **wanderer**. At the exit edge
+   `sky.mode` is already false, but `ar.wander` may be true, so a wandering
+   sky-ribbon would *survive* the exit that exists to end it.
+2. Decisive: every anchor-patch eviction during the flight hit that same pin
+   and returned **before** the `ref_count` decrement, so `ref_count` reaches
+   the exit stale-high. The evictor would decrement it to 1 and return — the
+   ribbon never released, the block's purpose defeated.
+
+Fitting the evictor would have required pre-setting `ref_count = 1` and
+suppressing the wander pin at the call: contortion, exactly the case the
+handoff named. So the minimal owner-release landed instead — as one named
+verb, `release_sky_exit_ribbon`, because the release needs the **machine
+face** (`unregister_footprint_for` is declared on `MachineCtx*`) and
+`ribbon_frame_tick` carries only `RibbonDeps`. The block moved verbatim plus
+one line (the release) and now runs at the head of `phase_ribbon_tick`. The
+edge is unchanged: `sky.mode_prev` is the verb's private state (sole reader,
+sole writer) and `sky.mode` is written only by the input toggle — never
+inside the tick the verb precedes. `evict_ribbon`'s pin comment is
+truth-fixed to name the new releaser *and* to record why the pin makes it
+mandatory (returning there skips the decrement, so the refcount protocol can
+never finish a flown ribbon's death).
+
+**[E2] — the PRIMARY.** E0-b confirmed both preconditions: `MachineCtx`
+carries `cube_behaviors_state_` (so `kite_mode` is readable at spawn) and
+`player_` (so the point is). `cube_write_gpu` now writes the live mode
+directly — kited spawns get `follow_pawn = 1u`, `pawn_offset = (cx − px, 0,
+cz − pz)`, `target := that offset`. Because drift is exactly zero at birth
+the offset is **exact**, not algebraically-exact: no sentinel round-trip, no
+capture frame. The fallback's precondition (E0-b(iii), `fe.pos` = the spawn
+position) went unused and is recorded only as confirmed-true.
+
+## THE ADAPTED PROBE (J2) — re-derived, applies clean, compiles
+
+The dossier's preserved diff is a record of its day and no longer applies:
+the `n=` column read `activeSphereCount_` / `activeCubeCount_`, **which died
+in SPAWN_C1**. That is not a loss — the drift that column hunted (stored
+count vs. live `.active` scan) is now *structurally impossible*, because the
+stored counts no longer exist. `f=` / `gpu=` / `cb=` / `st=` remain, and
+they are exactly the bridge-alive question: does the readback callback ever
+run, and does the GPU's active set reach the CPU?
+
+**Verified against the live tree**: `git apply --check` clean at the Batch E
+head, and `glaw1` **GREEN with the instrument applied**.
+
+```diff
+diff --git a/src/cartridges/the_board/cartridge.hpp b/src/cartridges/the_board/cartridge.hpp
+--- a/src/cartridges/the_board/cartridge.hpp
++++ b/src/cartridges/the_board/cartridge.hpp
+@@ -1085,6 +1085,30 @@ namespace t7 {
+                 }
+ 
+                 //
++                // ── DIAG_FLOATER_BRIDGE (temporary) ───────────────────────
++                static uint32_t dbg_fb_cb   = 0;   // times the readback callback ran
++                static uint32_t dbg_fb_gsph = 0;   // GPU-side active spheres, last seen
++                static uint32_t dbg_fb_gcub = 0;   // GPU-side active cubes,   last seen
++                {
++                    static float dbg_fb_last = -1.0f;
++                    const float now_s = time_state_.seconds;
++                    if (now_s - dbg_fb_last >= 1.0f) {
++                        dbg_fb_last = now_s;
++                        uint32_t fs = 0, fc = 0;
++                        for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++)
++                            if (sphere_state_.activeSpheres_[i].active) fs++;
++                        for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++)
++                            if (cube_behaviors_state_.activeCubes_[i].active) fc++;
++                        std::cout << "[FLOATER] sph f=" << fs
++                                  << " gpu=" << dbg_fb_gsph
++                                  << " | cub f=" << fc
++                                  << " gpu=" << dbg_fb_gcub
++                                  << " | cb=" << dbg_fb_cb
++                                  << " st=" << static_cast<int>(floaterReadbackState_)
++                                  << "\n";
++                    }
++                }
++                // ── end DIAG_FLOATER_BRIDGE ─────────────────────────────
+                 if (floaterReadbackState_ == FloaterReadbackState::COPIED) {
+                     floaterReadbackState_ = FloaterReadbackState::MAPPING;
+                     gpuState_.floating_entity_readback_staging().MapAsync(
+@@ -1105,6 +1129,18 @@ namespace t7 {
+                                             reconcile_sphere_mirror(sphere_state_, &sphere_deps_, data);
+                                         if constexpr (ROSTER.cube)    // ROSTER-GATE cube (b)
+                                             reconcile_cube_mirror(cube_behaviors_state_, &cube_deps_, data);
++                                        // ── DIAG_FLOATER_BRIDGE (temporary) ───────────────────────
++                                        {
++                                            uint32_t gs = 0, gc = 0;
++                                            for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++)
++                                                if (data[i].is_active != 0u) gs++;
++                                            for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++)
++                                                if (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u) gc++;
++                                            dbg_fb_gsph = gs;
++                                            dbg_fb_gcub = gc;
++                                            dbg_fb_cb++;
++                                        }
++                                        // ── end DIAG_FLOATER_BRIDGE ─────────────────────────────
+                                     }
+                                 }
+                                 gpuState_.floating_entity_readback_staging().Unmap();
+```
+
+**How to read it.** `cb` rising ⇒ the readback callback runs at all. `gpu=`
+tracking `f=` ⇒ the GPU's active set reaches the CPU and the bridge is
+ALIVE — §1 of the dossier closes. `cb` stuck at 0, or `gpu=` frozen while
+`f=` moves, is the finding. Remove after reading: search
+`DIAG_FLOATER_BRIDGE`, delete both blocks. **A dead bridge is a finding, not
+a failure.**
+
 ## COMMIT TABLE
 
-*(appended as the commits land — Part 0 above was committed before the first
-edit, per the order law)*
+| commit | hash | glaw1 | encoding |
+|---|---|---|---|
+| BATCH E: the five censuses, before the first edit | `56ac819` | GREEN (base) | LF, no BOM, no CR |
+| RIDER[ribbon:sky-exit-release] — the sky-exit owes the ground back | `715633f` | **GREEN** | LF, no BOM, no CR |
+| RIDER[cube:spawn-mode-desync] — newborns join the live mode | `1c6cca6` | **GREEN** | LF, no BOM, no CR |
+| SLOPE_LAW: the dune stops being a pier | `6452794` | **GREEN** | LF, no BOM, no CR |
+| ANCHOR_E5: drift.y walks home at kite release | `015065c` | **GREEN** | LF, no BOM, no CR |
+| SPAWN_C5 **(held, rebased — NOT landed)** | `822c56e` on `claude/batch-c5-prepared` | **GREEN** | LF, no BOM, no CR |
+
+Base `05e0df1`. All five Batch E commits are **on master directly**, per the
+refined git law. Encoding verified: LF-only, no BOM, no CR byte introduced in
+any file this batch touched.
+
+## [E4] HELD-BRANCH MAINTENANCE
+
+`claude/batch-c5-prepared` was rebased onto the Batch E head and is **one
+clean commit** (`822c56e`) on top of master — `git log master..` shows
+exactly one. glaw1 **GREEN** on the rebased head. It remains **UNLANDED**.
+
+Its stop conditions are now:
+
+1. **E1 landed** — ✅ done in this batch (`715633f`). The sky-exit orphan
+   that the Batch C/D verification pass found is closed, so deleting the
+   per-patch sweep no longer strands the flown ribbon's ground.
+2. **J1 silent** — ⏳ Jean's. Both halves: `entity_ref OVERFLOW` absent from
+   every captured session log, AND one smallest-room session
+   (`finite_radius = 1`), ≥5 min wandering. Silence on both ⇒ one word merges
+   the branch and the sweep dies. Either firing ⇒ C5 stays out, and the
+   overflow finding outranks it — that condition is unchanged and unweakened
+   by E1.
+
+## GATE STATUS
+
+- **[G:glaw1]** — CC, per commit: the table above, all GREEN. The adapted
+  probe also compiles GREEN with the instrument applied.
+- **[G:shader]** — Jean's: full FXC recompile. E3 touches the sensitive
+  chain by **condition swap only** — same three test sites, same branch
+  count (`slope_passable` uses the non-short-circuiting bool `|` precisely so
+  it adds none), one divide + one `max` per comparison, plus one
+  `distance()` on the happy path. No new bindings, no new control flow,
+  nothing added to the texture path. **If FXC hangs, the divide is the first
+  suspect — and here is the pre-derived remedy, so nobody thins the
+  mechanism under pressure:**
+
+  ```wgsl
+  // Zero-divide equivalent. blocked iff dh > max(floor, slope*dxz):
+  fn slope_passable(dh: f32, dxz: f32) -> bool {
+      return dh <= max(PAWN_SLOPE_NOISE_FLOOR, PAWN_MAX_SLOPE * dxz);
+  }
+  ```
+
+  It is the same law — one comparison, no divide, no boolean combinator,
+  and identical for every `dxz ≥ 0` except sub-1e-4 moves, where the divide
+  form is marginally stricter. **Reported, not landed**: the handoff stamped
+  the divide form and E0-e asked the landed diff to honor it. This is the
+  swap to make if [G:shader] demands one.
+- **[G:runtime-J]** — Jean's, three scripted gates:
+  1. **Sky-exit census** — fly the ribbon in and out mid-world, then read
+     the entity census: `ribn` delta 0 after exit, no orphaned claim.
+     Prediction: delta 0. Before E1 the footprint outlived the body until
+     its host patch happened to evict.
+  2. **Newborn corral** — F7 ON → walk until cubes spawn → F6. Prediction:
+     newborns corral **with** the flock; no origin-bound gliders.
+  3. **The dune script** — one steep dune walked at two frame rates (vsync
+     on/off): climbs both, same feel. One pier face: blocks both. One GoL
+     zone walk: bow-wave unchanged (suppression is untouched by this batch).
+     Prediction: the two frame rates now agree, which is the whole point —
+     the old height test had `v·dt` inside the verdict.
+  Plus Batch D's four moves if not yet run — with move 1 (F7 OFF) now
+  **improved by E5**: the vertical no longer snaps, it settles.
+- **[G:visual]** — nothing else moves a pixel.
+
+## CARRIED FORWARD
+
+- **RIDER[cube:spawn-mode-desync] is CLOSED** by E2 — remove it from the
+  open-rider list.
+- **The stale tip-ref hazard** (E0-a, reported not fixed): a ribbon dying by
+  any path other than its last referencing patch's eviction leaves that patch
+  holding a ref to a freed slot, and with `MAX_RIBBON_INSTANCES == 1` the
+  slot is certainly reused — so a still-alive old tip patch evicting later
+  decrements the *successor* ribbon. Not a leak, not a crash: one premature
+  death. Pre-existing, shared by every non-patch-driven death path, and
+  untouched by this batch. A candidate for the next rider list.
+- **The pier cost numbers (E0-d)** are the erasure batch's input, above.
