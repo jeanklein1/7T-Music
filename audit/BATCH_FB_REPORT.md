@@ -160,6 +160,53 @@ binding numbers 2, 3, … in `bind::g2`, without touching the six pipelines
 that share the entity layout. The other five compute pipelines' stages are
 unchanged at 5 storage.
 
+## ANCHOR VERIFICATION (landed against)
+
+| anchor | status |
+|---|---|
+| `@group(2)` virgin in world.wgsl | **MATCHED** (zero hits pre-edit; the room's now) |
+| `amg_params` / `cmg_params` declarations (`var<storage, read>`, 193/196) | **MATCHED** byte-for-byte |
+| the "Arch Mesh Gen Layout" / "Arch Mesh Gen BindGroup" blocks (the copied model) | **MATCHED** |
+| both kernels' sphere loops (the insertion points) | **MATCHED** |
+| the C++ arch pier leg math (`center ± half_span` via cos/sin — the row's geometry twin) | **MATCHED** — the WGSL legs use the identical form |
+| `row_agent_sphere` / `row_cube_push` (the two patterns the row composes) | **MATCHED** |
+
 ## COMMIT TABLE
 
-*(filled at landing)*
+| commit | hash | glaw1 | encoding |
+|---|---|---|---|
+| BATCH F-B: Part 0 — the room is virgin, the patterns named | `48e77ce` | GREEN (base) | LF, no BOM, no CR |
+| AGENTS_ROOM: group 2 opens — the occupier windows (FB1) | `f812701` | **GREEN** | LF, no BOM, no CR |
+| OCCUPIER_ROWS: the standing bodies' word (FB2) | `6de02a8` | **GREEN** (C++ surface) | LF, no BOM, no CR |
+| BATCH F-B: the report | *(this commit)* | **GREEN** | LF, no BOM, no CR |
+
+Base `2bcba62`, master-direct throughout. The named FXC fallbacks were not
+needed at authoring and remain [G:shader]'s designed retreats: inline-dup on
+a shared-fn objection (naming its twin), loop-split into a tiny dedicated
+pass on a count objection.
+
+## GATE STATUS
+
+- **[G:glaw1]** — table above, all GREEN.
+- **[G:shader]** — Jean's full FXC recompile. The hang-risk surface is
+  exactly the two agent pipelines (Option B's dividend). The rows are
+  arithmetic + two bounded `is_active`-gated loops (32 + 16×2 = 64 tests)
+  through constructed-struct profiles — the FXC-safe shape the grammar note
+  itself certifies.
+- **[G:runtime-J]** — the four moves at a fixed seed: (1) column face-on —
+  soft radial stop at the shaft, engaging BEFORE the legacy pier wall (the
+  row's shell is `shaft_radius + 1.6`; the pier wall sits at
+  `shaft + padding` in the bake — the push meets you first); (2) strafe —
+  smooth slide, no snag (radial presence has no tangential term);
+  (3) the arch — clean through the span, refused softly at either leg;
+  (4) the Batch E dune at two frame rates — unchanged; the rows touch
+  velocities only and never enter `pawn_ground_resolve`.
+- **[G:visual]** — nothing moves a pixel; the rows move only velocities.
+
+## JEAN RUNBOOK (standing)
+
+- One click: delete remote `claude/batch-c5-prepared` (merged history; the
+  proxy refuses delete pushes from here).
+- The four moves above.
+- J2 (the adapted probe, one run) — still open, still non-blocking; the
+  verified diff is in audit/BATCH_E_REPORT.md.
