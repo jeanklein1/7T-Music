@@ -119,8 +119,10 @@ inline constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_
 static_assert(AGENT_EVICTION_RADIUS == Dim::EXIST_RADIUS,
     "VEIL CHAIN: grounded existence eviction sits ON the EXIST ring");
 
-// AGENT_CENSUS_INTERVAL — period (seconds) between automatic
-// [AGENTS] census log lines + the [Player] position emission.
+// AGENT_CENSUS_INTERVAL — wall-clock period (seconds). The periodic
+// agent census died (BATCH C); the surviving consumer is the ROSTER
+// gol-residue proof cadence (phase_census_dumps). The on-demand agent
+// census remains at "boot" and "mood-transition".
 inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
@@ -274,7 +276,6 @@ static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_
 struct AgentState {
     GPUAgentState slots[Dim::MAX_AGENTS]            = {};
     uint32_t      respawn_counters[Dim::MAX_AGENTS] = {};
-    float         last_census_dump                  = -999.0f;
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════

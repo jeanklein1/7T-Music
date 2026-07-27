@@ -1195,8 +1195,8 @@ namespace t7 {
             }
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
-            // proof (G3, constexpr-gated intra-movement) + periodic agent census
-            // + entity census. Autonomous stdout (constitution §5).
+            // proof (G3, constexpr-gated intra-movement) + entity census.
+            // Autonomous stdout (constitution §5).
             void phase_census_dumps(RenderCtx&) {
                 // ROSTER-RESIDUE gol (2e) — residue recipe. When gol is
                 // disabled it is never selected (b), so zone_count stays 0 and
@@ -1218,20 +1218,8 @@ namespace t7 {
                     }
                 }
 
-                if (time_state_.seconds - agent_state_.last_census_dump >= AGENT_CENSUS_INTERVAL) {
-                    dump_agent_census(agent_state_, &agents_deps_, "periodic");
-                    const auto& player = agent_state_.slots[0];
-                    std::cout << "[Player] pos=(" << std::fixed << std::setprecision(1)
-                        << player.pos_x << "," << player.pos_z
-                        << ") slot=" << player_.possessed_slot
-                        << " behavior=" << player.behavior_id
-                        << "\n";
-                    agent_state_.last_census_dump = time_state_.seconds;
-                }
-
-                // Periodic entity census dump. Mirrors the agent cadence above
-                // on its own interval + its own gate; both were authored with
-                // this pair and only the agent half was ever wired.
+                // Periodic entity census dump — its own interval, its own
+                // gate. THE INSTRUMENT the batch witnesses read; untouched.
                 if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
                     dump_entity_census(&machine_ctx_, "periodic");
                     spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
