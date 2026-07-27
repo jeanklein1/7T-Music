@@ -1225,6 +1225,9 @@ namespace t7 {
             // SEAM[ribbon:sky-mode]. ROSTER-GATE ribbon — guarded at the call site.
             void phase_ribbon_tick(RenderCtx& c) {
                 auto& queue = c.queue;
+                // The sky-exit death first — it releases the ground, so it
+                // takes the machine face the tick below does not carry.
+                release_sky_exit_ribbon(&machine_ctx_, queue);
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
             }
 

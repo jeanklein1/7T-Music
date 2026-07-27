@@ -462,6 +462,8 @@ void ribbon_invalidate_head(RibbonState& rs);
 bool ribbon_head_is(const RibbonState& rs, uint32_t slot);
 void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
 void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
+// Sky-exit death — machine-faced, because it releases the ground.
+void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue);
 void promote_ribbon_to_rendered(RibbonState& rs, RibbonDeps* c, uint32_t slot, wgpu::Queue& queue);
 struct ActivePatch;  // fwd (patch_system.hpp follows this header in the cohort)
 void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz);
@@ -826,22 +828,9 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         }
     }
 
-    // Sky mode just ended — release the pinned (now anchor-less)
-    // ribbon so a fresh one can spawn. SEAM[ribbon:sky-mode].
-    if (rs.sky.mode_prev && !rs.sky.mode) {
-        uint32_t s = rs.rendered_slot;
-        if (s != UINT32_MAX && rs.active[s].active) {
-            rs.active[s] = ActiveRibbon{};
-            rs.gpu[s] = GPURibbonState{};
-            if (rs.active_count > 0) rs.active_count--;
-            GPURibbonState empty{};
-            c->gpuState_.upload_ribbon(queue, empty);
-            rs.rendered_slot = UINT32_MAX;
-            // Successor ribbons reuse this slot — force re-init.
-            ribbon_invalidate_head(rs);
-        }
-    }
-    rs.sky.mode_prev = rs.sky.mode;
+    // (The sky-exit release ran at the head of this phase — it is a
+    // ribbon DEATH and owes the ground back, so it needs the machine
+    // face this tick does not carry: release_sky_exit_ribbon.)
 
     // Render one ribbon: hold the current slot until it's evicted,
     // then pick the nearest active ribbon as the new rendered slot.
@@ -1384,8 +1373,11 @@ inline void evict_ribbon(MachineCtx* self,
     // Sky mode: the flown ribbon is pinned for the flight's duration.
     // Its anchor patches stream out as the player flies away, but the
     // ribbon must persist — skip eviction entirely while it is the
-    // mounted, rendered ribbon. update() releases it on exit (the
-    // sky_mode_prev edge). A rendered WANDERER is pinned the same way:
+    // mounted, rendered ribbon. release_sky_exit_ribbon (below) frees
+    // it on exit, ground included — and it must, precisely because
+    // returning HERE skips the ref_count decrement below, so the
+    // refcount protocol cannot finish a flown ribbon's death.
+    // A rendered WANDERER is pinned the same way:
     // it drifts freely off its spawn patch, and with one slot the
     // world's ribbon persists — a contemplative object should.
     // SEAM[ribbon:sky-mode].
@@ -1417,6 +1409,50 @@ inline void evict_ribbon(MachineCtx* self,
         ribbon_invalidate_head(self->ribbon_state_);
     }
     std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
+}
+
+// ─── Sky-exit release (owner verb) ─────────────────────────────────
+// Sky mode just ended — release the pinned (now anchor-less) ribbon so
+// a fresh one can spawn. SEAM[ribbon:sky-mode].
+//
+// THE HAND THAT CLAIMS IS THE HAND THAT FREES. This is a ribbon DEATH,
+// so it owes the ground back: place_ribbon_from_selection registered a
+// footprint through negotiate_position (grounded — the anchor ribbon's
+// tips touch ground), and nothing here freed it. Sky mode is a
+// mid-world keypress, not a transition, so no reset_surface sweep
+// follows to cover the miss.
+//
+// NOT routed through evict_ribbon, and the reason is structural: the
+// evictor's pin spares a rendered WANDERER, and every anchor-patch
+// eviction during the flight returned AT that pin — before the
+// ref_count decrement — so ref_count arrives here stale-high and the
+// evictor would decrement it instead of releasing. This is the minimal
+// owner-release instead: footprint, mirror, count, render slot.
+// (Tip refs need nothing: they are patch-side and evict_ribbon does
+// not touch them either.)
+//
+// It takes the MACHINE FACE because unregister_footprint_for does, and
+// ribbon_frame_tick's RibbonDeps cannot reach it. Detecting the edge
+// here is the same edge: sky.mode_prev is this verb's private state
+// (sole reader, sole writer) and sky.mode is written only by the input
+// toggle — never inside the tick this verb precedes.
+inline void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue) {
+    auto& rs = self->ribbon_state_;
+    if (rs.sky.mode_prev && !rs.sky.mode) {
+        uint32_t s = rs.rendered_slot;
+        if (s != UINT32_MAX && rs.active[s].active) {
+            unregister_footprint_for(self, PopFamily::RIBBON, s);
+            rs.active[s] = ActiveRibbon{};
+            rs.gpu[s] = GPURibbonState{};
+            if (rs.active_count > 0) rs.active_count--;
+            GPURibbonState empty{};
+            self->gpuState_.upload_ribbon(queue, empty);
+            rs.rendered_slot = UINT32_MAX;
+            // Successor ribbons reuse this slot — force re-init.
+            ribbon_invalidate_head(rs);
+        }
+    }
+    rs.sky.mode_prev = rs.sky.mode;
 }
 
 
