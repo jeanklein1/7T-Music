@@ -23,13 +23,6 @@ const TOOLS = [
     load:  () => import("./7t_terrain_color_designer.jsx"),
   },
   {
-    id:    "theme_tool",
-    name:  "Theme Tool",
-    desc:  "Entity distribution designer — 4-pass procedural placement synced with the C++ engine",
-    color: "#d4713b",
-    load:  () => import("./7t_theme_tool.jsx"),
-  },
-  {
     id:    "stamp",
     name:  "Stamp Generator",
     desc:  "Procedural terrain patterns extracted for product design — Voronoi, color engine, SVG export",
