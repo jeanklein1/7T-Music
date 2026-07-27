@@ -984,8 +984,11 @@ struct FloatingEntityState {
     behavior_phase: u32,       // 188: per-slot phase hash for behavior diversity
     follow_pawn: u32,          // 192: 0=anchor-relative, 1=pawn-relative
     plasticity: f32,           // 196: CONTACT_2 λ (0=elastic; drift→anchor leak rate). Was _pad0.
-    _pad1: u32,                // 200
-    _pad2: u32,                // 204
+    // The anchor law (ONE_ANCHOR_1): goals may leap; values only walk.
+    // update_cube walks the live param (anchor.xz / pawn_offset.xz)
+    // toward these each frame. At rest target == param, glide term 0.
+    target_x: f32,             // 200: glide target x. Was _pad1.
+    target_z: f32,             // 204: glide target z. Was _pad2.
 }                              // 208 total
 
 struct FloatingEntityArray {
@@ -1951,6 +1954,13 @@ const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 // below to keep the cube's base (center minus half-height) at least this
 // far above local ground.
 const CUBE_TERRAIN_CLEARANCE: f32 = 3.0;
+
+// The anchor-law glide time constant (ONE_ANCHOR_1). update_cube walks
+// the live param toward its target by (1 - exp(-dt / TAU)) per frame —
+// exponential approach, no per-cube clocks, no from-fields; a retarget
+// mid-flight walks from the present by construction. 1.1 ≈ the retired
+// 4 s CPU smoothstep's settle feel. Jean-tunable.
+const CUBE_GLIDE_TAU: f32 = 1.1;
 
 // --- Cell Behavior Tag Encoding
 const CELL_ANIM_GOL:  u32 = 1u;     // bit 0: Game of Life
@@ -7430,34 +7440,64 @@ fn update_cube() {
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
 
-            // ── Kite-release transition ───────────────────────────
-            // If follow_pawn == 2u, the CPU requested kite-mode release:
-            // freeze the cube's CURRENT world xz as the new anchor,
-            // zero drift, and switch to anchor mode (follow_pawn = 0).
-            // This guarantees the cube's visible position is preserved
-            // exactly across the toggle — anchor-mode home re-derives
-            // ground at the new anchor.xz, drift = 0, so pos = home,
-            // and the cube stays where the player saw it.
+            // ── Mode-switch sentinels (the anchor law) ────────────
+            // Goals may leap; values may only walk; the walk starts
+            // from the true present — which only this kernel knows
+            // (pos.xz = home.xz + drift.xz, and drift lives only on
+            // GPU; a CPU capture would need a readback — one-frame
+            // latency, race-prone — or a drift estimate, imperfect:
+            // CurlField drifts cubes by ~3 wu, a visible jump).
             //
-            // Done in the kernel because pos.xz = home.xz + drift.xz
-            // and drift lives only on GPU. Doing it on CPU would need
-            // either a readback (one-frame latency, race-prone) or a
-            // drift estimate (imperfect; CurlField can drift cubes by
-            // ~3 units which would visibly jump on toggle).
+            // follow_pawn == 2u — kite-RELEASE: freeze the cube's
+            // CURRENT world xz as the new anchor, cancel any in-flight
+            // glide (target := the captured anchor), zero drift,
+            // switch to anchor mode. Visible position preserved
+            // exactly — anchor-mode home re-derives ground at the new
+            // anchor.xz, drift = 0, so pos = home.
             //
-            // After this fires, the rest of update_cube runs as anchor
-            // mode this frame, on the new anchor. No special-casing
-            // needed — the if/else above already picked the kite path
-            // for home, but with drift zeroed and pos overridden the
-            // result is consistent: home is computed at kite.xz this
-            // frame, pos = home + 0 = home, identical to what an
-            // anchor-mode evaluation at the same xz would give next
-            // frame.
+            // follow_pawn == 3u — kite-CAPTURE: the offset is taken
+            // from the true present WITH drift subtracted, so
+            // home.xz + drift.xz lands exactly on pos.xz — the toggle
+            // is position-preserving even mid-shove. target := the
+            // captured offset cancels any in-flight glide (stated and
+            // deliberate: a mode switch retargets to the present).
+            // drift is untouched — it carries across the switch.
+            //
+            // After either sentinel fires, the rest of update_cube
+            // runs in the new mode this frame, on consistent state.
             if (fe.follow_pawn == 2u) {
                 fe.anchor = vec3(fe.pos.x, 0.0, fe.pos.z);
+                fe.target_x = fe.pos.x;
+                fe.target_z = fe.pos.z;
                 fe.drift = vec3(0.0);
                 fe.drift_vel = vec3(0.0);
                 fe.follow_pawn = 0u;
+            }
+            if (fe.follow_pawn == 3u) {
+                let off = fe.pos.xz - point_xz - fe.drift.xz;
+                fe.pawn_offset = vec3(off.x, 0.0, off.y);
+                fe.target_x = off.x;
+                fe.target_z = off.y;
+                fe.follow_pawn = 1u;
+            }
+
+            // ── THE WALK (the anchor law) ─────────────────────────
+            // The one control law, many authors: the CPU corral (and
+            // later the music couplings) write TARGETS through the
+            // target door; this walk is the only mover of the param.
+            // Exponential approach — no per-cube clocks, no
+            // from-fields; a retarget mid-flight walks from the
+            // present by construction. At rest target == param
+            // (spawn init + both sentinels above), the delta is zero,
+            // and the walk moves nothing: rest is identity,
+            // structurally, not by tuning.
+            let glide_k = 1.0 - exp(-dt / CUBE_GLIDE_TAU);
+            if (fe.follow_pawn == 1u) {
+                fe.pawn_offset.x += (fe.target_x - fe.pawn_offset.x) * glide_k;
+                fe.pawn_offset.z += (fe.target_z - fe.pawn_offset.z) * glide_k;
+            } else {
+                fe.anchor.x += (fe.target_x - fe.anchor.x) * glide_k;
+                fe.anchor.z += (fe.target_z - fe.anchor.z) * glide_k;
             }
 
             // ── Analytical home ───────────────────────────────────
@@ -7466,10 +7506,10 @@ fn update_cube() {
             //     terrain-relative at home.xz.
             //   follow_pawn = 1 (kite mode): home.xz = POINT.xz +
             //     offset (was the pawn — the kite target is the
-            //     point, Jean's ruling; the CPU offset capture in
-            //     cube_behaviors.hpp moved in lock-step, so the F7
-            //     toggle still preserves world position exactly).
-            //     home.y still terrain-relative at home.xz.
+            //     point, Jean's ruling; the offset is captured
+            //     IN-KERNEL by the sentinel-3 block above, from the
+            //     true present). home.y still terrain-relative at
+            //     home.xz.
             //
             // Y is *always* terrain-relative in both modes, so cubes
             // feel like balloons leashed to the point — they float at
@@ -7478,25 +7518,18 @@ fn update_cube() {
             // 1 that now holds in BOTH modes; before it, the anchor arm
             // read its BIRTHPLACE's ground and the claim was kite-only.
             //
-            // F7 toggle, what is preserved and what is not. home.xz is
-            // continuous across the switch (anchor.xz == point.xz +
-            // offset.xz at the toggle moment by construction, since
-            // offset is captured as cube.cx - point.xz), and drift is
-            // carried, so pos.xz is continuous. home.y is continuous
-            // only when drift.xz is zero: the anchor arm queries ground
-            // at pos.xz (ruling 1) while the kite arm still queries at
-            // kite_xz == anchor.xz. A cube toggled mid-drift across a
-            // slope therefore steps vertically by the ground difference
-            // over drift.xz — zero for a cube at rest, visible on a
-            // pyramid face under CurlField's ~3 wu. Closing it is
-            // ruling 1 applied to the kite arm as well (kite_xz ->
-            // pos.xz); that is ANCHOR_2, not this edit.
-            //
-            // Related, and older than ruling 1: the CPU mirror the
-            // offset capture reads (activeCubes_[i].cx/cz) is never
-            // refreshed from either GPU-side anchor write — the
-            // plasticity leak below or the kite release above — so it
-            // drifts stale whenever lambda > 0.
+            // F7 toggle, what is preserved and what is not. pos.xz is
+            // continuous BOTH ways, even under drift — the sentinels
+            // capture from the true present (release: anchor := pos;
+            // capture: offset := pos − point − drift). home.y is
+            // continuous only when drift.xz is zero: the anchor arm
+            // queries ground at pos.xz (ruling 1) while the kite arm
+            // still queries at kite_xz. A cube toggled mid-drift
+            // across a slope therefore steps vertically by the ground
+            // difference over drift.xz — zero for a cube at rest,
+            // visible on a pyramid face under CurlField's ~3 wu.
+            // Closing it is ruling 1 applied to the kite arm as well
+            // (kite_xz -> pos.xz); that is ANCHOR_2, not this edit.
             //
             // POLICY_FLYER — the ground query picks up radial pulses
             // and pawn aura, same as anchor mode.
@@ -7637,6 +7670,15 @@ fn update_cube() {
                 let leak = clamp(lam * dt, 0.0, 1.0);
                 fe.anchor.x = fe.anchor.x + fe.drift.x * leak;
                 fe.anchor.z = fe.anchor.z + fe.drift.z * leak;
+                // The leak is an anchor AUTHOR, so it moves target and
+                // anchor as a PAIR (ONE_ANCHOR_1): target − anchor is
+                // invariant under it, so a resting cube stays resting
+                // (the walk above sees delta 0) and a shove RELOCATES
+                // instead of being walked back to a stale goal. A
+                // mid-glide shove translates the remaining glide.
+                // λ = 0 remains bit-exact.
+                fe.target_x = fe.target_x + fe.drift.x * leak;
+                fe.target_z = fe.target_z + fe.drift.z * leak;
                 fe.drift.x = fe.drift.x - fe.drift.x * leak;
                 fe.drift.z = fe.drift.z - fe.drift.z * leak;
             }

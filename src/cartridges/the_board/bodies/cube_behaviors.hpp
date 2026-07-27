@@ -598,6 +598,11 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // until the user explicitly toggles kite mode via toggle_cube_kite_mode (below).
     fe.follow_pawn = 0;
     fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
+    // The anchor law: target := anchor.xz at spawn — the ONE init home
+    // (the kernel never re-inits; its sentinels only RETARGET). At rest
+    // target == param, so update_cube's glide term is exactly zero.
+    fe.target_x = inst.cx;
+    fe.target_z = inst.cz;
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 }
 

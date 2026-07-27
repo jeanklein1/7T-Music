@@ -812,8 +812,14 @@ namespace t7 {
             uint32_t behavior_phase;   // 188: per-slot phase hash for behavior diversity
             uint32_t follow_pawn;      // 192: 0=anchor-relative, 1=pawn-relative
             float plasticity;          // 196 — CONTACT_2 λ (0=elastic; drift→anchor leak). Was _pad0.
-            uint32_t _pad1;            // 200
-            uint32_t _pad2;            // 204
+            // ─── The anchor law (ONE_ANCHOR_1) ────────────────────────
+            // Goals may leap; values only walk. The CPU (and later the
+            // music couplings) author these targets; update_cube walks
+            // the live param (anchor.xz in mode 0, pawn_offset.xz in
+            // mode 1) toward them each frame. At rest target == param
+            // and the glide term is exactly zero.
+            float target_x;            // 200 — glide target x. Was _pad1.
+            float target_z;            // 204 — glide target z. Was _pad2.
         };                             // 208 total (13×16)
 
         struct alignas(16) GPURibbonState {
@@ -1499,6 +1505,8 @@ namespace t7 {
         static_assert(sizeof(GPUPawnFigure) % 16 == 0, "GPUPawnFigure must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
         static_assert(sizeof(GPUFloatingEntityState) == 208, "GPUFloatingEntityState must be 208 bytes");
+        static_assert(offsetof(GPUFloatingEntityState, target_x) == 200, "target_x must sit at _pad1's retired slot (200)");
+        static_assert(offsetof(GPUFloatingEntityState, target_z) == 204, "target_z must sit at _pad2's retired slot (204)");
         static_assert(sizeof(GPURibbonState) == 112, "GPURibbonState must be 112 bytes");
         static_assert(offsetof(GPURibbonState, checker_scatter) == 28, "checker_scatter must sit at twist_amp's retired slot (28)");
         static_assert(offsetof(GPURibbonState, seed) == 60, "seed must sit at twist_freq's retired slot (60)");
