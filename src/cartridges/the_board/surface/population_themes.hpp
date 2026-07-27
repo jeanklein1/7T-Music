@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
-#include <cmath>                                                     // std::floor/std::pow (tile-population lattice, Q6b)
+#include <cstddef>                                                   // offsetof (the F-5 positional pin below)
+#include <cmath>                                                     // std::floor (theme lattice, Q6b)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (spawn_weight indexing)
 #include "cartridges/the_board/contracts/mood_constants.hpp"        // MOOD_COUNT (the mood axis of MOOD_SPAWN_MULT)
 #include "cartridges/the_board/primitives/seed_utils.hpp"    // cpu_hash_f (theme rolls)
@@ -22,15 +23,6 @@ inline constexpr float THEME_LATTICE_SPACING = 500.0f;
 inline constexpr uint32_t THEME_SEED_BAND = 170u;
 inline constexpr uint32_t THEME_COUNT = 5;
 inline constexpr float THEME_BASE_WEIGHT = 10.0f;
-
-// The spatial-density lattice (Q6b: relocated from tile_world.hpp with
-// TilePopulation — these size the coarse entity_density noise field, a
-// population-authoring input, not a terrain-shape one).
-inline constexpr float DENSITY_LATTICE_SPACING = 250.0f;
-inline constexpr uint32_t DENSITY_SEED_BAND = 160u;
-inline constexpr float DENSITY_EXPONENT = 0.6f;
-inline constexpr float DENSITY_MIN = 1.0f;
-inline constexpr float DENSITY_MAX = 1.0f;
 
 // ═══ MOOD × FAMILY SPAWN MULTIPLIERS ═══════════════════════════════
 // WHAT: the mood term of the composition law — presence × proportion
@@ -84,7 +76,6 @@ struct PopulationTheme {
     float tier_wt_sphere[2];                       // multiplier on sphere tier base weights (Sentinel, Anomaly)
     float tier_wt_ribbon[3];                       // multiplier on ribbon tier base weights (Serpentine, Helix, Streamer)
     float tier_wt_cube[4];                         // multiplier on cube tier base weights (SmCube..Monolith)
-    float density_mult;                            // multiplier on entity_density
 
     // Envelope parameters (replace lattice weight for theme selection)
     float    spike;
@@ -95,6 +86,18 @@ struct PopulationTheme {
     // Lattice node weight (spatial distribution of themes)
     float weight;
 };
+
+// F-5: the positional pin. THEMES rows below are positional aggregates;
+// density_mult was CUT from between tier_wt_cube and spike, and a field
+// silently reintroduced there would reshuffle every row's envelope
+// numbers. The neighbors are pinned adjacent, and weight is pinned as
+// the tail.
+static_assert(offsetof(PopulationTheme, spike) ==
+              offsetof(PopulationTheme, tier_wt_cube) + 4 * sizeof(float),
+    "F-5: spike must directly follow tier_wt_cube — no field between them");
+static_assert(offsetof(PopulationTheme, weight) ==
+              sizeof(PopulationTheme) - sizeof(float),
+    "F-5: weight must be PopulationTheme's tail field");
 
 // THE S2/S3 BOUNDARY FACE: THEMES is read across the boundary by the
 // theme_tier_weights accessor (the interface trio's vocabulary member —
@@ -108,12 +111,12 @@ struct PopulationTheme {
 //   GALLERY=11, pinned by the F-1 static_assert at roster.hpp); each
 //   tier_* inner axis is that family's own tier order (member names in
 //   the struct above).
-// UNITS: spawn_weight / tier_* / density = multipliers (1.0 = neutral);
+// UNITS: spawn_weight / tier_* = multipliers (1.0 = neutral);
 //   spike = envelope weight at full intensity; sustain / decay /
 //   cooldown = PATCH COUNTS (envelope lifetime; cooldown 0 =
 //   immediately re-eligible); weight = lattice-node selection weight.
-// CONSUMERS: generate_tile_population (spawn_weight → spatial_density;
-//   density_mult → entity_density); select_theme_at_node (weight);
+// CONSUMERS: generate_tile_population (spawn_weight → spatial_density);
+//   select_theme_at_node (weight);
 //   theme_envelope_weight / evaluate_theme_envelope (spike/sustain/
 //   decay/cooldown); theme_tier_weights → the generic pipeline's tier
 //   selection (ribbon reads tier_wt_ribbon directly).
@@ -132,7 +135,6 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
         { 1.0f, 1.0f },                                              // tier_sphere (neutral)
         { 1.0f, 1.0f, 1.0f },                                       // tier_ribbon (neutral)
         { 1.0f, 1.0f, 1.0f, 1.0f },                                 // tier_cube (neutral)
-        1.0f,                                                         // density
         150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
         0.21f                                                         // weight
     },
@@ -148,7 +150,6 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
-        1.0f,
         150.0f, 10u, 10u, 8u,
         0.30f
     },
@@ -164,7 +165,6 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
-        1.0f,
         150.0f, 15u, 6u, 6u,
         0.31f
     },
@@ -180,7 +180,6 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
-        1.0f,
         180.0f, 10u, 5u, 5u,
         0.18f
     },
@@ -196,7 +195,6 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
-        1.0f,
         100.0f, 12u, 3u, 4u,
         0.04f
     },
@@ -261,41 +259,18 @@ inline uint32_t select_theme_at_node(uint32_t node_seed) {
 // `pop`; population_themes precedes tile_world in the cohort, so the type
 // is complete at the TileState member.
 struct TilePopulation {
-    float entity_density = 1.0f; // spatial density multiplier for entity spawning
     // Theme: evaluated from theme lattice at tile generation time
     float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family (PopFamily order), position-locked density multiplier (applied by F3 tile_apply_spawn_mult; 1.0 = neutral default). Independent of temporal_flavor — a different axis, not a duplicate.
 };
 
 // The population-half authoring (Q6b: relocated verbatim from generate_
 // tile_state's two population blocks). BIT-IDENTITY LIVE — hash draws off
-// the density/theme seed bands, disjoint from the shape draws (tile_seed
+// the theme seed band, disjoint from the shape draws (tile_seed
 // props) that stay in tile_world; the caller passes active_seed so this
 // stays free of WorldState (later in the cohort). Dim::PATCH_EXTENT is read as
 // Dim::PATCH_EXTENT (same constexpr 50.0f; state.hpp precedes this header).
 inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx, int32_t gz) {
     TilePopulation pop;
-
-    // ── Entity density field (coarse spatial noise) ──────────
-    {
-        float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * Dim::PATCH_EXTENT;
-        float dlx = patch_cx / DENSITY_LATTICE_SPACING;
-        float dlz = patch_cz / DENSITY_LATTICE_SPACING;
-        int32_t dbx = (int32_t)std::floor(dlx);
-        int32_t dbz = (int32_t)std::floor(dlz);
-        float dfx = dlx - dbx, dfz = dlz - dbz;
-        float dwx = dfx * dfx * (3.0f - 2.0f * dfx);
-        float dwz = dfz * dfz * (3.0f - 2.0f * dfz);
-        float density = 0.0f;
-        for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-            uint32_t ns = cpu_lattice_node_seed(active_seed, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
-            float raw = cpu_hash_f(ns, 350u);
-            float shaped = std::pow(raw, DENSITY_EXPONENT);
-            float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
-            density += shaped * w;
-        }
-        pop.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
-    }
 
     // ── Theme field (coarse compositional character) ─────────
     {
@@ -311,7 +286,6 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
 
         // Blend spawn weights across 4 lattice nodes.
         float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-        float blended_density = 0.0f;
 
         for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
             uint32_t ns = cpu_lattice_node_seed(active_seed, tbx + dx, tbz + dz, THEME_SEED_BAND);
@@ -321,7 +295,6 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
             for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
                 blended_spawn[f] += theme.spawn_weight[f] * w;
             }
-            blended_density += theme.density_mult * w;
         }
 
         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
@@ -329,7 +302,6 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
         // (pop.theme_idx dead write CUT: the spatial
         //  dominant-theme was authored and read nowhere; the LIVE theme axis
         //  is the temporal one, evaluate_theme_envelope → temporal_flavor.)
-        pop.entity_density *= blended_density;  // theme density stacks with spatial density
     }
 
     return pop;

@@ -475,8 +475,7 @@ inline bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz) {
     return tw.tileCache_.find(tile_key(wx, wz)) != tw.tileCache_.end();
 }
 
-// F3: the spawn-modifier face. The two multiplies preserve the
-// consumers' original operation order exactly (density, then theme).
+// F3: the spawn-modifier face — the per-family theme multiply.
 inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
                                   uint32_t family, float& adj_mod) {
     auto it = tw.tileCache_.find({ gx, gz });
@@ -489,7 +488,6 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
                   << ") family " << family << " — ensure_tile did not precede the gate\n";
         std::abort();
     }
-    adj_mod *= it->second.pop.entity_density;
     adj_mod *= it->second.pop.spatial_density[family];
 }
 

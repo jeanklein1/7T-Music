@@ -188,8 +188,8 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
 // the caller before the call), clamp policy, proximity on/off, and
 // the mood-zero veto style. The float multiplication ORDER inside the
 // definition is the bit-identity contract:
-// mood → GLOBAL_ENTITY_DENSITY → tile (entity_density →
-// spatial_density) → [proximity] → base × adj → clamp. Seed domains
+// mood → GLOBAL_ENTITY_DENSITY → tile (spatial_density) →
+// [proximity] → base × adj → clamp. Seed domains
 // and the rolls themselves stay with the consumers.
 
 enum class SpawnClamp : uint32_t {
