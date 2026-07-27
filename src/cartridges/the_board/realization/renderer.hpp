@@ -119,6 +119,7 @@ namespace t7 {
             wgpu::Device device_;
             wgpu::BindGroupLayout computeEntityLayout_;
             wgpu::BindGroupLayout computeTextureLayout_;   // Group 1 for live-contributor compute (sphere/cube)
+            wgpu::BindGroupLayout agentOccupierLayout_;    // Group 2, agent kernels only — THE AGENTS' ROOM
             wgpu::BindGroupLayout terrainIndexGenLayout_;
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout renderEntityLayout_;
@@ -308,6 +309,7 @@ namespace t7 {
                 device_ = device;
                 computeEntityLayout_ = gpuState.compute_entity_layout();
                 computeTextureLayout_ = gpuState.compute_texture_layout();
+                agentOccupierLayout_ = gpuState.agent_occupier_layout();
                 terrainIndexGenLayout_ = gpuState.terrain_index_gen_layout();
                 patchGenLayout_ = gpuState.patch_gen_layout();
                 renderEntityLayout_ = gpuState.render_entity_layout();
@@ -367,23 +369,27 @@ namespace t7 {
             void dispatch_update_player_agent(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup
+                wgpu::BindGroup textureBindGroup,
+                wgpu::BindGroup occupierBindGroup
             ) {
                 pass.SetPipeline(updatePlayerAgentPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER)
+                pass.SetBindGroup(2, occupierBindGroup);  // THE AGENTS' ROOM (occupier windows)
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 1 thread = the possessed slot
             }
 
             void dispatch_update_other_agents(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup
+                wgpu::BindGroup textureBindGroup,
+                wgpu::BindGroup occupierBindGroup
             ) {
                 if constexpr (!(ROSTER.wanderers)) return;  // ROSTER-GATE wanderers (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateOtherAgentsPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER_AGENT aura)
+                pass.SetBindGroup(2, occupierBindGroup);  // THE AGENTS' ROOM (occupier windows)
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 32 threads = all non-player slots
             }
 
@@ -1290,21 +1296,42 @@ namespace t7 {
                     device_.CreatePipelineLayout(&liveContribLayoutDesc);
                 if (!liveContribComputeLayout) return false;
 
+                // THE AGENTS' ROOM (BATCH F-B, Option B): the two agent
+                // kernels — and ONLY they — carry group 2 on top of the
+                // shared live-contributor pair. The other four
+                // live-contributor pipelines keep the two-group layout
+                // untouched, so agent-side binding growth (this room's
+                // occupier windows now, the week's couplings next) never
+                // widens their FXC surface.
+                std::array<wgpu::BindGroupLayout, 3> agentLayouts = {
+                    computeEntityLayout_,
+                    computeTextureLayout_,
+                    agentOccupierLayout_
+                };
+                wgpu::PipelineLayoutDescriptor agentLayoutDesc{};
+                agentLayoutDesc.bindGroupLayoutCount = agentLayouts.size();
+                agentLayoutDesc.bindGroupLayouts = agentLayouts.data();
+                wgpu::PipelineLayout agentComputeLayout =
+                    device_.CreatePipelineLayout(&agentLayoutDesc);
+                if (!agentComputeLayout) return false;
+
                 // Pipeline 1b: update_player_agent (0D, 1 thread — possessed slot only)
-                // Live-contributor layout — pawn_ground_resolve, terrain_normal_at
+                // Agent layout (live-contributor pair + the room) —
+                // pawn_ground_resolve, terrain_normal_at
                 // call query_ground_walker → contrib_pawn_aura_at → sample_pawn_aura.
                 // The walker-policy heavy path inlines once, for one slot.
                 if (!makeComputePipeline("update_player_agent", "Update Player Agent (0D, 1 thread)",
-                    liveContribComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
+                    agentComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
 
                 // Pipeline 1c: update_other_agents (1D, 32 threads — non-possessed slots)
-                // Live-contributor layout — query_ground_walker_agent reads aura
+                // Agent layout (live-contributor pair + the room) —
+                // query_ground_walker_agent reads aura
                 // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
                 // The walker-policy heavy path is NOT inlined here; algorithmic
                 // behaviors only.
                 if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — FXC skipped when disabled
                 if (!makeComputePipeline("update_other_agents", "Update Other Agents (1D, 32 threads)",
-                    liveContribComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
+                    agentComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
 
                 // Pipeline 1c: update_camera (0D)

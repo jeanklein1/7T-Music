@@ -155,6 +155,21 @@ namespace t7 {
             } // namespace g1
 
             // ─────────────────────────────────────────────────────────────
+            // GROUP 2 — THE AGENTS' ROOM (BATCH F-B, Option B ruling): the
+            // agent kernels' own bind group. All future agent-side bindings
+            // (the week's musical couplings included) land HERE, without
+            // touching the six pipelines sharing the entity layout. Bound
+            // only by update_player_agent / update_other_agents.
+            // ─────────────────────────────────────────────────────────────
+            namespace g2 {
+                // Occupier windows — read-only views onto the SAME mesh-param
+                // buffers the mesh-gen groups bind (one fact, one home; only
+                // reachability topology differs).
+                inline constexpr uint32_t occupier_cmg               = 0;   // ColumnMeshParams[32] (columns 0-15, antennas 16-31)
+                inline constexpr uint32_t occupier_amg               = 1;   // ArchMeshParams[16]
+            } // namespace g2
+
+            // ─────────────────────────────────────────────────────────────
             // WITNESSES — the render = compute + 200 band. These CHECK the
             // authored literals above; they are NOT the source of any value.
             // If a future edit breaks the band, this fails the BUILD (loud),

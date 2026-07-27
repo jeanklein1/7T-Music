@@ -1683,6 +1683,7 @@ namespace t7 {
 
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
+            wgpu::BindGroupLayout agentOccupierLayout_;  // THE AGENTS' ROOM (group 2): g2:0-1
             wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
             wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
             wgpu::BindGroupLayout bladeMeshGenLayout_;   // bindings 186-188
@@ -1691,6 +1692,7 @@ namespace t7 {
             wgpu::BindGroup palmMeshGenBindGroup_;
             wgpu::BindGroup cactusMeshGenBindGroup_;
             wgpu::BindGroup bladeMeshGenBindGroup_;
+            wgpu::BindGroup agentOccupierBindGroup_;     // THE AGENTS' ROOM (group 2)
 
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
@@ -2069,6 +2071,8 @@ namespace t7 {
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
             wgpu::BindGroupLayout arch_mesh_gen_layout() const { return archMeshGenLayout_; }
             wgpu::BindGroup arch_mesh_gen_group() const { return archMeshGenBindGroup_; }
+            wgpu::BindGroupLayout agent_occupier_layout() const { return agentOccupierLayout_; }
+            wgpu::BindGroup agent_occupier_group() const { return agentOccupierBindGroup_; }
 
             void upload_painting_slots(wgpu::Queue& queue, const GPUPaintingSlot* slots, uint32_t count) {
                 writeArray(queue, paintingSlotsBuffer_, slots, count);
@@ -4651,6 +4655,32 @@ namespace t7 {
                     if (!archMeshGenLayout_) return false;
                 }
 
+                // -- THE AGENTS' ROOM (Group 2) -- bindings g2:0-1 --
+                // Option B (BATCH F-B ruling): the agent kernels' own bind
+                // group, so agent-side growth never touches the six pipelines
+                // sharing the entity layout. Exactly two ReadOnlyStorage
+                // windows onto the SAME mesh-param buffers the mesh-gen
+                // groups bind — one fact, one home. The room grows only when
+                // a named tenant arrives.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+
+                    entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (read-only storage)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[1].binding = bind::g2::occupier_amg;  // occupier_amg (read-only storage)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Agent Occupier Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    agentOccupierLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!agentOccupierLayout_) return false;
+                }
+
                 // -- Column mesh gen layout (Group 0) -- bindings 190/191 + 196-198 --
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
@@ -5540,6 +5570,28 @@ namespace t7 {
                     desc.entries = entries.data();
                     archMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!archMeshGenBindGroup_) return false;
+                }
+
+                // The agents' room bind group (group 2) — the two occupier
+                // windows, bound once at boot from the existing buffers.
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
+
+                    entries[0].binding = bind::g2::occupier_cmg;
+                    entries[0].buffer = columnMeshParamsBuffer_;
+                    entries[0].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[1].binding = bind::g2::occupier_amg;
+                    entries[1].buffer = archMeshParamsBuffer_;
+                    entries[1].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Agent Occupier BindGroup";
+                    desc.layout = agentOccupierLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    agentOccupierBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!agentOccupierBindGroup_) return false;
                 }
 
                 // Column mesh gen bind group (dedicated layout — bindings 190/191 + 196-198)

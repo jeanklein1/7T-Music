@@ -183,13 +183,15 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     c->renderer_.dispatch_update_player_agent(
         compute,
         c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER
+        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_WALKER
+        c->gpuState_.agent_occupier_group()    // the room: occupier windows
     );
 
     c->renderer_.dispatch_update_other_agents(
         compute,
         c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER_AGENT
+        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_WALKER_AGENT
+        c->gpuState_.agent_occupier_group()    // the room: occupier windows
     );
 
     c->renderer_.dispatch_update_camera(
