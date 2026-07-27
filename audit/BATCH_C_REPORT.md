@@ -187,5 +187,49 @@ instrument BATCH_A_WITNESS and Jean's gates read) is UNTOUCHED.
 
 ## COMMIT TABLE
 
-*(appended as the cuts land — Part 0 above was committed before the first
-edit, per ORDER LAW)*
+| commit | hash | glaw1 | encoding |
+|---|---|---|---|
+| BATCH C: the four censuses, before the first cut | `e3fe593` | GREEN (base) | LF, no BOM, no CR |
+| SPAWN_C1: the nine dead counters | `112dfbe` | **GREEN** | LF, no BOM, no CR |
+| SPAWN_C2: the density machine | `41727b4` | **GREEN** | LF, no BOM, no CR |
+| SPAWN_C3: retire the theme tool | `010e00c` | **GREEN** | LF, no BOM, no CR |
+| SPAWN_C4: the agent census gate — periodic trigger only | `76c6395` | **GREEN** | LF, no BOM, no CR |
+| SPAWN_C5 **(PREPARED, LAND-GATED — NOT on the trunk)** | `f9a9c76` on branch `claude/batch-c5-prepared` | **GREEN** | LF, no BOM, no CR |
+
+The batch base was `5a9fafd`; C1–C4 are landed in order on the trunk line.
+**C5 is authored and gated**: it lives only on `claude/batch-c5-prepared`
+(branched from the C4 head), and does not land until J1's paste — the
+BATCH_B stop condition is restated in its commit message. If either
+"entity_ref OVERFLOW" fires, the branch is discarded and the overflow
+finding outranks this batch.
+
+## GATE STATUS
+
+- **[G:glaw1]** — CC, per commit: table above, all GREEN.
+- **[G:census-bit]** — Jean's, runbook unchanged: the
+  `audit/BATCH_A_WITNESS.md` procedure verbatim — two boots on base
+  (`5a9fafd`) prove the witness, then base vs the C4 head (`76c6395`),
+  twelve `active` integers. **PREDICTION: identical.** Nothing in C1–C4 may
+  move a spawn — the counters were unread, entity_density was 1.0 to a ULP,
+  the theme tool never executed in the cartridge, and the census cut is
+  print-only. The witness reads the ENTITY census (`trigger=periodic`),
+  which C4 left byte-identical in format. A mismatch is reported by the
+  witness's own shape table, and the batch stops.
+- **[G:visual]** — nothing moves a pixel: no cut touches a render input.
+- **[G:runtime]** — periodic agent spam (and its `[Player]` line) gone;
+  boot/transition prints remain; entity census byte-identical in format.
+
+## JEAN GATES (the runbook stands as handed off)
+
+- **J1 — SPAWN_5 EMPIRICS**: grep `entity_ref OVERFLOW` across every
+  captured session log, then one smallest-room session (`finite_radius = 1`),
+  ≥5 min wandering, capture the censuses. Both silent ⇒ one word authorizes
+  C5 (merge `claude/batch-c5-prepared`). Either firing ⇒ C5 stays out; paste
+  the line.
+- **J2 — FLOATER-BRIDGE WITNESS**: re-apply the preserved probe from the
+  dossier appendix (verify its hunks against the live tree first — Batch D
+  has since rewired the corral/kite paths in `cube_behaviors.hpp`, so the
+  probe's surroundings HAVE moved; that diff is a record of its day). One
+  run; read the `[FLOATER]` lines; then delete both `DIAG_FLOATER_BRIDGE`
+  blocks. Paste the lines either way — a dead bridge is a finding, not a
+  failure.

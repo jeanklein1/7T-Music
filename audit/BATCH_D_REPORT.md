@@ -183,7 +183,49 @@ branches are, and the report says so rather than thinning silently.
 
 ---
 
+## [D3] SPHERE DISPOSITION (the recorded paragraph — no edits)
+
+Spheres do not carry the ninth twin's disease, because they never grew the
+organ it lives in. `ActiveSphere` has no position mirror — no cx/cz, nothing
+for a kernel write to stale-ify. The sphere anchor is written once, at spawn
+(`sphere_write_gpu`, from the `SphereProp::ANCHOR_X/Z` seed draws), and no
+CPU code reads or writes it afterward; the GPU side never re-anchors a
+sphere (no release sentinel, no plasticity leak on the sphere path — the
+leak is inside `update_cube` only). The freeze toggle (`config.freeze_sphere`,
+read kernel-side as `sphere_frozen()`) pauses motion without touching
+anchors. Spheres have no corral and no kite, so there is no author whose
+goal could leap. **Same-species verdict: clean. No rider is needed, and none
+is specced.** If spheres ever gain a corral-class author, the target door
+built in D1 is the pattern to reuse — the fields are already in the shared
+struct, zero for spheres, inert.
+
 ## COMMIT TABLE
 
-*(appended as the commits land — Part 0 above was committed before the first
-edit, per the order law)*
+| commit | hash | glaw1 | encoding |
+|---|---|---|---|
+| BATCH D: the six censuses and four rulings, before the code | `540d971` | GREEN (base) | LF, no BOM, no CR |
+| ANCHOR_D1: the walk — targets in the kernel | `327501c` | **GREEN** | LF, no BOM, no CR |
+| ANCHOR_D2: the C++ rewire — authors write targets, nothing else | `1ed6727` | **GREEN** | LF, no BOM, no CR |
+
+## GATE STATUS
+
+- **[G:glaw1]** — CC, per commit: table above, all GREEN.
+- **[G:shader]** — Jean's: full FXC recompile. D0-f's posture: the struct
+  did NOT grow (the spare-field variant IS the landed variant), so if FXC
+  hangs, suspect the new sentinel branch shape in `update_cube` — and
+  REPORT; the mechanism is not to be thinned silently.
+- **[G:runtime]** — Jean's, the four moves at a fixed seed:
+  1. F7 ON → walk 100+ wu → F7 OFF → zero jump (both sentinels capture from
+     the true present, drift included).
+  2. F6 (anchor mode) → cubes glide FROM WHERE THEY VISIBLY ARE — the walk
+     starts at the live anchor; there is no from-field to be stale.
+  3. F6 again mid-glide → smooth retarget, no restart snap — exponential
+     approach has no clock to reset.
+  4. F4 curlfield, let drift build, F7 ON → zero jump (sentinel 3 subtracts
+     drift at capture).
+  Rest: hands off ⇒ bit-still — target == param at spawn, after both
+  sentinels, and under the plasticity pair-leak; the glide term is exactly
+  zero everywhere reachable.
+- **[G:visual]** — the corral ring forms as before (CUBE_CORRAL_RADIUS
+  unchanged); the feel ≈ the old 4 s ease; CUBE_GLIDE_TAU (world.wgsl,
+  beside the cube constants) is the dial if not.
