@@ -220,7 +220,85 @@ names it.
 
 ---
 
+## [G4] THE TIER COLUMNS — the census-gated NO-CUT (the whole of G4)
+
+G0-c's census ruled before the first edit: `write_pier` was never the sole
+reader of any pier param column. `ArchIdx::PIER_HEIGHT` feeds the arch MESH
+(`mp.pier_height` — the legs' visual height), the doorway/portal vocabulary
+(mood's width math, `force_spawn_portal_arch`), and the indoor rescale;
+`PIER_PADDING`/`EDGE_BLEND` feed the arch footprint (`solid_half`);
+`ColIdx::SOLID_PADDING/SOLID_HEIGHT/EDGE_BLEND` feed
+`column_compute_solid_half` (the footprint), `ac.solid_height`, and the
+rescale lists. **The tier rows keep every column; no F-5 pins were needed
+because nothing positional moved; the JSX designer mirrors stay,
+truth-fix-free** — they mirror live parameters. G4 is this paragraph and no
+commit.
+
 ## COMMIT TABLE
 
-*(appended as the commits land — Part 0 above was committed before the
-first edit)*
+| commit | hash | glaw1 | encoding |
+|---|---|---|---|
+| BATCH G: Part 0 — the hypothesis confirmed, the census corrected | `0a33733` | GREEN (base) | LF, no BOM, no CR |
+| CONTACT_G1: the wire — the pawn's candidate consumes the body's word | `9133460` | **GREEN** | LF, no BOM, no CR |
+| ERASE_G2: the bake forgets the piers (WGSL) | `08bf586` | **GREEN** | LF, no BOM, no CR |
+| ERASE_G3: the pier machinery leaves the program (C++, lockstep pair) | `d3e8483` | **GREEN** | LF, no BOM, no CR |
+| BATCH G: the report | *(this commit — includes the registry's declaration-count bookkeeping: 96 declarations over 93 slots, verified by count)* | **GREEN** | LF, no BOM, no CR |
+
+Base `323d4ae`, master-direct. The paired-commit exception was invoked
+exactly once, as Part 0 said it would be: `config.pier_count`'s C++ struct
+edit and its WGSL mirror line left together in G3; G2 stayed pure-WGSL.
+
+## THE RECOMPILE RADIUS, actually observed
+
+The Patch Gen Layout reshape (8 → 7 entries, binding 26 retired) touches
+exactly the three pipelines Part 0 named: `generate_patch_heights`,
+`generate_patch_gradients`, `generate_patch_cells`. G1's value change
+touches the two agent pipelines. No other pipeline's layout or shader
+interface moved. glaw1 (the C++ TU) is GREEN at every commit; [G:shader]'s
+full FXC recompile is Jean's, with G1 named first suspect if it hangs.
+
+## THE RECLAIM, restated
+
+Per patch bake at a typical live pier count (~12): **~786 K `evaluate_pier`
+invocations and ~1.6 M transcendentals** (two per invocation, evaluated
+BEFORE the spatial reject), across 65,536 texels; worst case 4.46 M
+invocations at 68 slots. Plus the regen storm: every arch spawn re-baked
+every GENERATED patch inside its inflated AABB. All gone. The 3,264-byte
+buffer, binding 26, the 48-byte pin, and the FXC-sensitive bounded loop in
+the bake left with it.
+
+## GATE STATUS
+
+- **[G:glaw1]** — table above, all GREEN.
+- **[G:shader]** — Jean's full FXC recompile. G1 is the one value change
+  inside the sensitive chain's caller — first suspect on a hang, named
+  here. The erasure is deletion-direction across the measured radius.
+- **[G:runtime-J]** — the five moves, after the full batch, one end build:
+  (1) walk into a column — the pawn STOPS at the shaft by the rows alone
+  (the piers are gone; this single move proves the wire end-to-end);
+  (2) strafe — smooth slide; (3) the arch — clean through the span,
+  refused at the legs, the portal still fires (the trigger reads arch
+  state, never touched piers); (4) a column/antenna-dense area at speed —
+  no regen hitching (the storm is gone; note columns never marked regen,
+  so the hitching this move hunts was the ARCH pair's — now also gone);
+  (5) the Batch E dune at two frame rates — unchanged.
+- **[G:visual]** — ONE deliberate pixel change, named so it is seen and not
+  hunted: **the plinth bumps vanish** — columns, antennas, and arch legs
+  rise from unraised ground (their meshes are untouched; only the raised
+  ground under them is gone). G0-b's table is why some of those plinths
+  were walkable ramps anyway. Everything else is pixel-still.
+- **[G:census]** — prediction: all twelve integers unchanged. Piers were
+  never a census family and footprints never knew them (`register_
+  footprint` was never called with pier data; the footprint registry is
+  untouched by this batch).
+
+## CARRIED REGISTER (standing, report-only)
+
+- Ribbon-head occupier avoidance — net-new behavior, never served by
+  piers; its own session in the ribbon's era.
+- [point:stale-readback-after-transition] → POINT_1.
+- Forced mood-5 anchor ribbon + [ribbon:stale-tip-ref] → REQUEST_1.
+- J2 (the adapted probe) — Jean-side, standing, non-blocking (the verified
+  diff in audit/BATCH_E_REPORT.md applies to a cartridge.hpp region the
+  erasure did not touch; re-verified: `git apply --check` still clean).
+- The stale remote branch — Jean's one optional click, affects nothing.
