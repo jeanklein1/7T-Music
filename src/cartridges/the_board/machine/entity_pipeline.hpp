@@ -499,10 +499,13 @@ inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
 }
 
 // Pier/collision height stays CPU-authored (SOLID_HEIGHT below): the
-// blocker is a full-height wall either way, so the GPU's indoor
+// pier is a full-height wall either way, so the GPU's indoor
 // ceiling-fit of the VISUAL height (the cmg kernel's COLUMN CEILING
 // FIT) deliberately does not feed back here — visual-top precision
-// is immaterial to a blocker.
+// is immaterial to it. Since BATCH F-B the pier is no longer the
+// body's word: the occupier rows (world.wgsl occupier_contact) push
+// walkers off the shaft directly; the pier remains the legacy wall +
+// bake solid, the control group, one batch from the grave.
 inline void column_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     uint32_t pier_slot = Dim::PIER_COLUMN_BASE + inst.slot;
     GPUPierInstance pier{};

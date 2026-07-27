@@ -2391,6 +2391,73 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
                             CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0, 0.0);
 }
 
+// ── THE OCCUPIER ROWS (BATCH F-B) — the standing bodies' word ──────
+// Columns, antennas, and arch legs push walkers as PRESENCE bodies.
+// The windows live in THE AGENTS' ROOM (group 2), read-only onto the
+// SAME mesh-param buffers the mesh-gen kernels read — one authored
+// geometry, one home; the rows and the mesh can never disagree.
+@group(2) @binding(0) var<storage, read> occupier_cmg: array<ColumnMeshParams, 32>;
+@group(2) @binding(1) var<storage, read> occupier_amg: array<ArchMeshParams, 16>;
+
+// The body-agnostic row's stand-in for g_self.contact_radius: the
+// occupier push has zero per-kernel variation (no possession case, no
+// mass asymmetry), so the agent's body half rides this skin instead of
+// a per-tier read. Tier radii run 1.4–2.0 (worker 1.6); 1.6 is the
+// population's center. Jean-tunable.
+const OCCUPIER_CONTACT_SKIN: f32 = 1.6;
+
+fn row_occupier(radius: f32) -> InfluenceProfile {
+    // The row_agent_sphere immovable-authority pattern verbatim
+    // (yield 1.0 on the agent, zero on the occupier), with the
+    // CYLINDRICAL gate: a column is a vertical body — an agent at any
+    // height meets the shaft (the row_cube_push planar precedent).
+    return InfluenceProfile(radius, INFLUENCE_PLANAR_ONLY,
+                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
+}
+
+// ONE shared function, called from BOTH agent kernels' gather sites —
+// the occupier push earns the single home the agent-vs-agent blocks
+// did not (those differ per kernel on possession and mass; this
+// differs on nothing).
+fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
+    var dv = vec2<f32>(0.0, 0.0);
+
+    // SHAFTS — 32 slots: columns 0–15, antennas 16–31. One field,
+    // one law; is_active gates every test; the loop is bounded by the
+    // Dim:: cap the array is declared with.
+    for (var i = 0u; i < 32u; i++) {
+        let cm = occupier_cmg[i];
+        if (cm.is_active == 0u) { continue; }
+        let prof = row_occupier(cm.shaft_radius + OCCUPIER_CONTACT_SKIN);
+        let r = influence_response(self_p, vec2(0.0),
+                                   vec3(cm.center_x, 0.0, cm.center_z), vec2(0.0),
+                                   prof, dt);
+        dv += r;
+    }
+
+    // ARCH LEGS — 16 arches × 2 bodies at center ± half_span rotated;
+    // radius from the leg cross-section halves (thickness/depth) +
+    // skin. The SPAN stays open — walking through the doorway is the
+    // arch's whole meaning; only the legs push.
+    for (var i = 0u; i < 16u; i++) {
+        let am = occupier_amg[i];
+        if (am.is_active == 0u) { continue; }
+        let leg_r = max(am.thickness, am.depth) * 0.5 + OCCUPIER_CONTACT_SKIN;
+        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
+        let c0 = vec2(am.center_x, am.center_z);
+        let prof = row_occupier(leg_r);
+        let r1 = influence_response(self_p, vec2(0.0),
+                                    vec3(c0.x + leg.x, 0.0, c0.y + leg.y), vec2(0.0),
+                                    prof, dt);
+        let r2 = influence_response(self_p, vec2(0.0),
+                                    vec3(c0.x - leg.x, 0.0, c0.y - leg.y), vec2(0.0),
+                                    prof, dt);
+        dv += r1 + r2;
+    }
+
+    return dv;
+}
+
 // [TIDY_1 T1e] THE CAP LEDGER -- what each `cap` column guards, and whether the
 // guard is machine-checkable. A cap on a PRESENCE row (dt-scaled) guards against
 // a frame hitch inflating one impulse; a cap on an APPROACH row would guard a
@@ -6996,6 +7063,17 @@ fn update_player_agent() {
             agent.vel_x += sp_r.x;
             agent.vel_z += sp_r.y;
         }
+
+        // ── OCCUPIERS PUSH WALKERS (BATCH F-B) ────────────────────
+        // The standing bodies' word — columns, antennas, arch legs.
+        // Immovable (yield 1.0); ONE shared fn, called from both
+        // kernels — the twin call is in update_other_agents.
+        {
+            let o_r = occupier_contact(
+                vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
+            agent.vel_x += o_r.x;
+            agent.vel_z += o_r.y;
+        }
     }
 
     // CONTACT_3 K1b: imposed motion acts THIS frame — the imposed delta
@@ -7099,6 +7177,17 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 fe.pos, vec2(0.0), s_prof, signal.dt);
             agent.vel_x += s_r.x;
             agent.vel_z += s_r.y;
+        }
+
+        // ── OCCUPIERS PUSH WALKERS (BATCH F-B) ────────────────────
+        // The standing bodies' word — columns, antennas, arch legs.
+        // Immovable (yield 1.0); ONE shared fn, called from both
+        // kernels — the twin call is in update_player_agent.
+        {
+            let o_r = occupier_contact(
+                vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
+            agent.vel_x += o_r.x;
+            agent.vel_z += o_r.y;
         }
 
         // ── THE POINT SOURCE (CONTACT_5 P1b): flee is the point's ──
