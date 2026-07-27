@@ -2646,80 +2646,6 @@ fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
                             distance(world_xz, pawn_xz));
 }
 
-// --- [COUPLING:cells→terrain:height]
-const PIER_TOTAL: u32 = 68u;
-
-struct PierInstance {
-    origin:      vec2<f32>,   // world XZ center of footprint
-    half_size:   vec2<f32>,   // half-extent in rotated local X and Z
-    height_near: f32,         // height delta at local −X edge
-    height_far:  f32,         // height delta at local +X edge
-    rotation:    f32,         // Y-axis rotation (radians, 0 = world +X)
-    edge_blend:  f32,         // smoothstep transition width (world units)
-    _pad0:       u32,         // explicit padding (mirrors GPUPierInstance)
-    is_active:   u32,         // 0 = inactive, contributes nothing
-    _pad1:       u32,
-    _pad2:       u32,
-};
-
-@group(0) @binding(26) var<storage, read> pier_instances: array<PierInstance, 68>;
-
-// Evaluate a single pier instance at a world position.
-// Returns the height delta (0 outside footprint or inactive, blended at edges).
-fn evaluate_pier(world_xz: vec2<f32>, inst: PierInstance) -> f32 {
-    if (inst.is_active == 0u) { return 0.0; }
-
-    // Transform to local coordinates (rotate by −rotation)
-    let d = world_xz - inst.origin;
-    let c = cos(-inst.rotation);
-    let s = sin(-inst.rotation);
-    let local = vec2(d.x * c - d.y * s, d.x * s + d.y * c);
-
-    let hx = inst.half_size.x;
-    let hz = inst.half_size.y;
-
-    // Early reject: well outside footprint + blend zone
-    let blend = max(inst.edge_blend, 0.0);
-    if (abs(local.x) > hx + blend || abs(local.y) > hz + blend) {
-        return 0.0;
-    }
-
-    // Smooth footprint mask: 1.0 inside, 0.0 outside, smooth at edges
-    var mask = 1.0;
-    if (blend > 0.001) {
-        let fx_lo = smoothstep(-hx - blend, -hx + blend, local.x);
-        let fx_hi = 1.0 - smoothstep(hx - blend, hx + blend, local.x);
-        let fz_lo = smoothstep(-hz - blend, -hz + blend, local.y);
-        let fz_hi = 1.0 - smoothstep(hz - blend, hz + blend, local.y);
-        mask = fx_lo * fx_hi * fz_lo * fz_hi;
-    } else {
-        // Hard edge: boolean inside/outside
-        if (abs(local.x) > hx || abs(local.y) > hz) {
-            return 0.0;
-        }
-    }
-
-    if (mask < 0.001) { return 0.0; }
-
-    // Height interpolation along local X: near at −hx, far at +hx
-    let t = clamp((local.x + hx) / max(2.0 * hx, 0.001), 0.0, 1.0);
-    let raw_h = mix(inst.height_near, inst.height_far, t);
-
-    return raw_h * mask;
-}
-
-// Evaluate all active pier instances, return the max height delta at world_xz.
-// Loop bounded by config.pier_count (highest active slot + 1) to keep FXC happy.
-fn structure_height_at(world_xz: vec2<f32>) -> f32 {
-    var best = 0.0;
-    let count = min(config.pier_count, PIER_TOTAL);
-    for (var i = 0u; i < count; i++) {
-        let h = evaluate_pier(world_xz, pier_instances[i]);
-        best = max(best, h);
-    }
-    return best;
-}
-
 // --- [DATA-DRIVEN PYRAMID INSTANCES]
 const MAX_PYRAMID_INSTANCES: u32 = 8u;
 
@@ -2858,7 +2784,7 @@ const POLICY_WALKER_AGENT         : u32 = 4u;
 fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     let hc = terrain_height_and_complexity(world_xz, config.world_seed, 0.0);
     let mods = tile_modifiers_at(world_xz);
-    let height = hc.x * mods.x + mods.y + structure_height_at(world_xz) + contrib_pyramids_at(world_xz);
+    let height = hc.x * mods.x + mods.y + contrib_pyramids_at(world_xz);
     return vec2(height, hc.y);
 }
 
