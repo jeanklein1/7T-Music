@@ -44,7 +44,6 @@ inline void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
     free_layer(c, c->patch_system_state_.patches_[pi].layer);
     // Painting eviction now handled by evict_gallery (bodies/gallery.hpp) via entity_refs
     evict_patch_entities(c, c->patch_system_state_.patches_[pi], queue);
-    unregister_footprints_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
     c->patch_system_state_.patches_[pi].valid = false;
 }
 

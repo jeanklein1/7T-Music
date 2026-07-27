@@ -224,7 +224,6 @@ uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
 // Release by owner identity (family, slot). No index is stored anywhere — the
 // registry is scanned. See the definition for why that is the design.
 void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t slot);
-void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz);
 // The indoor bounds law (INDOOR_TREATMENT.bounds — contracts/
 // indoor_module.hpp): MARGIN clamps footprint_r inside the wall
 // margin; FULL clamps containment_r (the family's whole extent);

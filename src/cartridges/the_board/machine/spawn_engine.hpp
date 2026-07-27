@@ -634,15 +634,6 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
     }
 }
 
-inline void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz) {
-    for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-        if (c->spawn_engine_state_.footprints_[i].active &&
-            c->spawn_engine_state_.footprints_[i].patch_gx == gx && c->spawn_engine_state_.footprints_[i].patch_gz == gz) {
-            c->spawn_engine_state_.footprints_[i].active = false;
-        }
-    }
-}
-
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
