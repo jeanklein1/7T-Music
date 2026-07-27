@@ -111,15 +111,6 @@ struct ActivePatch {
         }
     }
 
-    void unregister_entity(uint32_t family, uint32_t slot) {
-        for (uint32_t i = 0; i < entity_ref_count; i++) {
-            if (entity_refs[i].family == family && entity_refs[i].slot == slot) {
-                entity_refs[i] = entity_refs[--entity_ref_count];
-                return;
-            }
-        }
-    }
-
 };
 
 // ── Dynamic budgets ────────────────────────────────────────────────
