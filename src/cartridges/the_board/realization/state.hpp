@@ -5032,9 +5032,9 @@ namespace t7 {
                     if (!terrainIndexGenBindGroup_) return false;
                 }
 
-                // Patch gen bind group (8 entries: binding 1, 23, 24, 25, 26, 27, 28, 30)
+                // Patch gen bind group (7 entries: binding 1, 23, 24, 25, 27, 28, 30)
                 {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;

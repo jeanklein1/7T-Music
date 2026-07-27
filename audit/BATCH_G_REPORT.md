@@ -292,6 +292,21 @@ the bake left with it.
   footprint` was never called with pier data; the footprint registry is
   untouched by this batch).
 
+## POST-BATCH FIX (Jean's boot log, the L6 witness firing as designed)
+
+Jean's first boot after the batch failed at `CreateBindGroup("Patch Gen
+BindGroup")`: *"In entries[7], binding index 0 not present in the bind group
+layout."* The cause was G3's reshape applied asymmetrically — the LAYOUT
+array was shrunk 8 → 7, but the BIND GROUP kept `std::array<..., 8>`, and
+its zero-initialized 8th entry (binding 0, no buffer) is exactly what Dawn
+rejected. Fixed: both arrays 7, indices dense 0–6, header comment corrected.
+
+Worth recording for the next reshape: **glaw1 structurally cannot catch
+this class** — an 8-array with 7 entries written is legal C++; the
+boot-time bind-group validation (the L6 lockstep witness) is the gate that
+exists for it, and it fired on the first boot with a message that named the
+exact entry. The witness worked; the report records the debt it caught.
+
 ## CARRIED REGISTER (standing, report-only)
 
 - Ribbon-head occupier avoidance — net-new behavior, never served by
