@@ -1,0 +1,159 @@
+═══════════════════════════════════════════════════════════════════
+CC HANDOFF — BATCH C · SPAWN_SWEEP v2 — THE CLOSURE BATCH
+Cartridge: the_board (incubator_dual). Stamped by Jean (chat, July 2026).
+Season law in force: LEANNESS IS BANDWIDTH. Delete rather than annotate.
+Deviations are REPORT, never improvisation.
+═══════════════════════════════════════════════════════════════════
+
+0. GIT LAW + PREFLIGHT
+------------------------------------------------------------------
+- git rev-parse --is-shallow-repository. If true: git fetch --unshallow
+  BEFORE any ancestry reasoning. Report both values.
+- Report base: git rev-parse HEAD and git rev-list --count HEAD.
+- Trunk law (July 2026): all lineage is master. Work on a transient
+  branch claude/batch-c-<suffix>, push it; the merge to master and the
+  branch deletion are Jean's, same day. Do not push master unasked.
+- Encoding: LF-only, no BOM. Introduce no CR byte anywhere.
+- Gate at EVERY commit: sh audit/tools/glaw1/run.sh → GREEN, or stop.
+- Citations in your report: symbols, never FILE:LINE (dossier rule).
+- ORDER LAW (the SPAWN_0 lesson): Part 0 is read-only and is written
+  WHOLE before the first edit. Audit and edits never overlap.
+
+PART 0 — READ-ONLY CENSUS (report in full before cutting)
+------------------------------------------------------------------
+[C0-a] COUNTER CENSUS. For each identifier below run
+       rg -n "<id>" src/ --glob '!src/docs/**'
+  and classify EVERY hit as exactly one of:
+       { declaration | ++ | -- | = 0 | guard-of-own-decrement }
+  (a guard is a `> 0` test whose sole purpose is protecting that same
+  identifier's decrement on the next line(s)).
+  EXPECTED DEAD (the cut list):
+       pyramid_count, arch_count, column_count, antenna_count,
+       palm_count, cactus_count, blade_count      (EntitiesState)
+       activeSphereCount_                          (spheres.hpp)
+       activeCubeCount_                            (cube_behaviors.hpp)
+  EXPECTED KEEP (do not touch, verify they are genuinely read):
+       RibbonState.active_count · GoLState.zone_count
+  Gallery: no count field exists (derived) — confirm.
+  ANY hit outside the five classes ⇒ that identifier is DIVERGED:
+  report it, SKIP its cut, continue the batch. The B4 table in
+  audit/SPAWN_0_PART_B_AUDIT.md is the expected census; disagreement
+  with it is itself a finding.
+
+[C0-b] DENSITY CENSUS (population_themes.hpp + tile_world.hpp).
+  Verify and paste evidence for:
+   (i)   DENSITY_MIN == DENSITY_MAX == 1.0f
+   (ii)  all five themes author density_mult = 1.0f
+   (iii) the complete reader set of TilePopulation.entity_density
+         (expected: its two writes + the tile_apply_spawn_mult multiply,
+          nothing else)
+   (iv)  the complete reader set of density_mult
+         (expected: the blended_density fold only)
+   (v)   whether ThemeDef rows are positional aggregates (decides the
+         pin obligation in C2).
+
+[C0-c] THEME TOOL REFERENCES. rg "7t_theme_tool" — expected: the file
+  itself plus docs only.
+
+[C0-d] AGENT CENSUS TRIGGERS. Enumerate every dump_agent_census call
+  site (expected three: "boot", "mood-transition", "periodic") and
+  every reader of AGENT_CENSUS_INTERVAL and AgentState.last_census_dump.
+
+PART A — THE CUTS (one commit each, in this order)
+------------------------------------------------------------------
+[C1] THE DEAD COUNTERS.
+  Cut every write site of the nine dead identifiers: declaration, ++,
+  --, = 0, and the guard clauses that exist only to protect their own
+  decrement (the guard dies with the decrement it guarded). Comments
+  that name them are truth-fixed or die with them.
+  Candidate anchors (VERIFY VERBATIM before use; if DIVERGED,
+  re-derive from the live tree — the C0-a grep IS the real anchor):
+      cube_behaviors.hpp state block:  "uint32_t       activeCubeCount_ = 0;"
+      clear_cubes tail:                "cbs.activeCubeCount_ = 0;"
+      grounded.hpp force-spawn:        "es.arch_count++;"
+  glaw1 → GREEN.
+
+[C2] THE DENSITY MACHINE.
+  Cut: DENSITY_MIN · DENSITY_MAX · DENSITY_LATTICE_SPACING ·
+  DENSITY_SEED_BAND · DENSITY_EXPONENT · the per-tile lattice sample
+  block (the std::pow + bilinear read) · both entity_density writes ·
+  the entity_density multiply inside tile_apply_spawn_mult · the
+  TilePopulation.entity_density field itself IFF C0-b(iii) shows zero
+  surviving readers · density_mult IFF C0-b(ii)+(iv) hold — and if
+  ThemeDef is positional (C0-b(v)), pin the neighbor fields with
+  static_asserts IN THE SAME COMMIT (the F-5 pattern).
+  Truth-fix the composition-law banner in contracts/spawn_services.hpp:
+  the stack loses "entity_density"; spatial_density stays; comments
+  describe present behavior only.
+  DELIBERATE KEEP: GLOBAL_ENTITY_DENSITY — the one global fader,
+  panel-destined. Record the keep in the commit message.
+  Candidate anchors (audit-quoted; VERIFY):
+      "pop.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);"
+      "adj_mod *= it->second.pop.entity_density;"
+  glaw1 → GREEN.
+
+[C3] THE THEME TOOL.
+  git rm src/tools/7t_theme_tool.jsx (precondition: C0-c clean).
+  Commit message records the reason (9×9 model vs the live 12×12,
+  drifted numbers) and the replacement (panel-era VIEW of the live C++
+  tables — one fact, one home). glaw1 → GREEN.
+
+[C4] THE AGENT CENSUS GATE.
+  Delete the PERIODIC trigger only: the frame-loop block calling
+  dump_agent_census(…, "periodic") and its last_census_dump update;
+  then AGENT_CENSUS_INTERVAL and AgentState.last_census_dump die IFF
+  orphaned (C0-d decides). The "boot" and "mood-transition" calls
+  STAY — boot validations are noise that earns its place.
+  THE ENTITY CENSUS IS UNTOUCHED in this batch: it is the instrument
+  C5 and Jean's gates read. glaw1 → GREEN.
+
+PART B — [C5] THE SWEEP — PREPARED, LAND-GATED
+------------------------------------------------------------------
+Spec (author the commit; DO NOT LAND until Jean's paste — J1 below):
+  Delete unregister_footprints_for_patch: definition (spawn_engine.hpp),
+  declaration (contracts/spawn_services.hpp), and its sole call site in
+  evict_patch (surface/patch_system.hpp). Everything already releases
+  by owner — evictors plus the three commit-side aborts. Truth-fix any
+  surviving "two release paths" language.
+  Predicted consequence: the ribbon orphan closes (footprints stop
+  dying with patches; ribn delta far from anchor → 0).
+  STOP CONDITION (unchanged from BATCH_B): "entity_ref OVERFLOW"
+  silent across Jean's captured logs AND one smallest-room indoor
+  session. If either fires: C5 does not land, the sweep stays, and the
+  overflow finding outranks this batch.
+
+WITNESS + GATES
+------------------------------------------------------------------
+[G:glaw1]      CC, per commit, table in the report.
+[G:census-bit] Jean — the audit/BATCH_A_WITNESS.md procedure verbatim:
+               two boots on base prove the witness, then base vs
+               C4-head, twelve `active` integers, identical.
+               PREDICTION: identical. Nothing in C1–C4 may move a
+               spawn — the counters are unread and entity_density was
+               1.0 to a ULP. A mismatch is reported by the witness's
+               own shape table, and the batch stops.
+[G:visual]     Nothing moves a pixel.
+[G:runtime]    Periodic agent spam gone; boot/transition prints remain;
+               entity census byte-identical in format.
+
+REPORT FORMAT
+------------------------------------------------------------------
+Per-anchor MATCHED / DIVERGED / ABSENT · the four C0 censuses in
+full · commit table with hashes · glaw1 table · encoding confirmation.
+
+JEAN GATES (runbook — paste-back unlocks C5 and closes DOSSIER §1)
+------------------------------------------------------------------
+J1 — SPAWN_5 EMPIRICS.
+  grep "entity_ref OVERFLOW" across every captured session log.
+  Then one session in the smallest room (finite_radius = 1), ≥5 min
+  wandering, capture the censuses. Both silent ⇒ authorize C5 with
+  one word. Either firing ⇒ C5 stays out; paste the line.
+
+J2 — FLOATER-BRIDGE WITNESS (closes SPAWN_ENGINE_DOSSIER §1).
+  Re-apply the preserved probe from the dossier's appendix — verify
+  its hunks against the live tree first; that diff is a record of its
+  day, not a promise about yours. One run. Read the [FLOATER] lines:
+  cb rising and gpu counts sane ⇒ the bridge is ALIVE and §1 closes.
+  Then search DIAG_FLOATER_BRIDGE and delete both blocks. Paste the
+  lines either way — a dead bridge is a finding, not a failure.
+═══════════════════════════════════════════════════════════════════
