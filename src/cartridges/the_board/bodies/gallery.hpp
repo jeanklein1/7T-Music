@@ -63,6 +63,7 @@ struct GalleryDeps {
     const TileWorldState& tile_world_state_;
     const RibbonState&   ribbon_state_;
     const PlayerState&   player_;
+    const PointState&    point_;    // the point's house (position mirror — wall-frame placement)
     const MoodState&     mood_state_;
     const float          (&sunDirection_)[3];
     const float          (&clearColor_)[3];
@@ -606,8 +607,8 @@ inline void fill_slot_wall_frame(
 // ═══ PHOTOGRAPHER LIFECYCLE ══════════════════════════════════════
 
 inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
-    float px = c->player_.readback_x;
-    float pz = c->player_.readback_z;
+    float px = c->point_.x;
+    float pz = c->point_.z;
 
     if (!gs.photographer.initialized) {
         gs.photographer.prev_point_x = px;

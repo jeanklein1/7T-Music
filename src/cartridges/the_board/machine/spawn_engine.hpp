@@ -489,8 +489,8 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         if (!c->entities_state_.arches[i].active) continue;
         const auto& a = c->entities_state_.arches[i];
-        float dx = a.world_x - c->player_.readback_x;
-        float dz = a.world_z - c->player_.readback_z;
+        float dx = a.world_x - c->point_.x;
+        float dz = a.world_z - c->point_.z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
         float nearest = dist - a.half_span;            // the arch's closest reach (center − extent)
@@ -517,8 +517,8 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
     for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
         if (!c->entities_state_.columns[i].active) continue;
         const auto& col = c->entities_state_.columns[i];
-        float dx = col.world_x - c->player_.readback_x;
-        float dz = col.world_z - c->player_.readback_z;
+        float dx = col.world_x - c->point_.x;
+        float dz = col.world_z - c->point_.z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
         float nearest = dist - std::max(col.shaft_radius, ENTITY_THIN_EXTENT);
@@ -545,8 +545,8 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
     for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
         if (!c->entities_state_.antennas[i].active) continue;
         const auto& ant = c->entities_state_.antennas[i];
-        float dx = ant.world_x - c->player_.readback_x;
-        float dz = ant.world_z - c->player_.readback_z;
+        float dx = ant.world_x - c->point_.x;
+        float dz = ant.world_z - c->point_.z;
         float dist = std::sqrt(dx * dx + dz * dz);
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
 

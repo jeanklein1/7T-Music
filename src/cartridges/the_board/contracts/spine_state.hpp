@@ -39,20 +39,12 @@ struct TimeState {
 //
 // THE WITNESS CONTRACT, declared and census-checked (the score
 // census, Direction W):
-//   · readback_x/z — THE POINT's position (the point contract,
-//     contracts/point.hpp): HOST-AUTHORED by the spine's
-//     P5 HARVEST — the possessed body's pos when the pawn hosts, the
-//     camera's pos.xz when the camera hosts (the point readback,
-//     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
-//     the spine's only other touches are the TEARDOWN reset and the
-//     portal door's consume. No module writes them, ever.
-//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR:
-//     the probe is host-sourced (the body's own crossing in
-//     pawn-host, byte-identical; the camera + the bubble's vertical
-//     gate in free-fly). The trigger RIDES the possessed slot's wire
-//     and the same P5 harvest — the wire is the realization, the
-//     bubble (contracts/point.hpp) is the semantics. Same sole-author
-//     law.
+//   · THE POINT'S RECORD LEFT THIS STRUCT at POINT_1 — the position
+//     mirror (x/z) and the bubble sensor (portal_trigger) live in
+//     their semantic home, PointState (contracts/point.hpp), which
+//     carries the full authoring law (P5 HARVEST sole author; the
+//     TEARDOWN reset and the portal door's consume are the spine's
+//     only other touches).
 //   · possessed_slot — possession is RE-ANCHORING (v3 §9 Act III:
 //     the anchor is a role; the camera is what we control). The
 //     writes live behind the agents door (try_possess_nearest,
@@ -62,9 +54,9 @@ struct TimeState {
 //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
 //     config.possessed_slot. The ONE sanctioned window: in
 //     CAMERA-HOST the P5 harvest reads camera pos.xz back as the
-//     point's position — a two-float harvest into the trio above,
-//     not a mirror. There is still NO readback_y (the witness
-//     altitude is GPU-only); it is not to be invented.
+//     point's position (PointState.x/z) — a two-float harvest, not a
+//     mirror. There is still NO point y (the witness altitude is
+//     GPU-only); it is not to be invented.
 //   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
 //     per Option A — it lives in RibbonState.sky, with its
 //     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
@@ -76,11 +68,10 @@ struct TimeState {
 struct PlayerState {
     uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
 
-    // ── Camera + readback ──
+    // ── Camera ──
     bool    fpv_mode = false;                // first-person view toggle
-    float   readback_x = 0.0f;               // THE POINT's world X (host-authored)
-    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored)
-    int32_t readback_portal_trigger = -1;    // the point's bubble sensor, on the possessed slot's wire
+    // (The point's position mirror + bubble sensor moved HOME at
+    //  POINT_1: PointState.x/z/portal_trigger — contracts/point.hpp.)
 
     // ── Aura presence (closes SEAM[spine:P8]) ──
     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)

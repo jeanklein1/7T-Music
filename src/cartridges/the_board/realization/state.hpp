@@ -486,7 +486,7 @@ namespace t7 {
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn → lod_point: the value has been THE POINT
             // — the name was a fossil.) The CPU bands patches
-            // into LOD0/LOD1 in stream_patches from player_.readback_x/z
+            // into LOD0/LOD1 in stream_patches from point_.x/z
             // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
             // shader applies the same lod0_radius gate; if it read the
             // LIVE point instead, CPU banding and GPU gate would disagree

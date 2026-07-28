@@ -64,6 +64,7 @@ struct RibbonDeps {
     const TimeState&     time_state_;
     const TileWorldState& tile_world_state_;
     const PlayerState&   player_;
+    const PointState&    point_;    // the point's house (position mirror — nearest-active adoption)
     const InputState&    inputState_;
     const WorldState&    world_state_;
     const MoodState&     mood_state_;
@@ -924,8 +925,8 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         float nearest_d2 = FLT_MAX;
         for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
             if (!rs.active[i].active) continue;
-            float dx = rs.active[i].anchor_x - c->player_.readback_x;
-            float dz = rs.active[i].anchor_z - c->player_.readback_z;
+            float dx = rs.active[i].anchor_x - c->point_.x;
+            float dz = rs.active[i].anchor_z - c->point_.z;
             float d2 = dx * dx + dz * dz;
             if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
         }
@@ -1158,8 +1159,8 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     {
         float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
         float patch_cz = (gz + 0.5f) * Dim::PATCH_EXTENT;
-        float away_angle = std::atan2(patch_cz - c->player_.readback_z,
-            patch_cx - c->player_.readback_x);
+        float away_angle = std::atan2(patch_cz - c->point_.z,
+            patch_cx - c->point_.x);
         float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
         sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * ORIENTATION_SPREAD;
     }

@@ -25,12 +25,13 @@ namespace the_board {
 
 // ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The cube commands' requirements face: corral/kite center on THE
-// POINT through the witness record (readback_x/z — the agent
+// POINT through the point's own record (point_.x/z — the agent
 // slot reach retired with it); all reads except the GPU wire.
 struct CubeDeps {
     GPUState&        gpuState_;
     const TimeState& time_state_;
     const PlayerState& player_;
+    const PointState&  point_;   // the point's house (position mirror — the corral ring's center)
     const MoodState& mood_state_;
 };
 
@@ -258,10 +259,10 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 
 inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     // THE POINT: the corral ring forms around the point —
-    // readback_x/z, host-authored (pawn-host value-identical: same
+    // point_.x/z, host-authored (pawn-host value-identical: same
     // P5 harvest snapshot as the slot mirror).
-    const float px = c->player_.readback_x;
-    const float pz = c->player_.readback_z;
+    const float px = c->point_.x;
+    const float pz = c->point_.z;
 
     uint32_t active_count = 0;
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
@@ -510,12 +511,12 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // so update_cube's glide term is exactly zero either way.
     if (c->cube_behaviors_state_.kite_mode) {
         // Kite arm: the param is the OFFSET from the point, and the
-        // point is player_.readback_x/z — the same host-authored
+        // point is point_.x/z — the same host-authored
         // snapshot corral_cubes rings around.
         fe.follow_pawn = 1u;
-        fe.pawn_offset[0] = inst.cx - c->player_.readback_x;
+        fe.pawn_offset[0] = inst.cx - c->point_.x;
         fe.pawn_offset[1] = 0.0f;
-        fe.pawn_offset[2] = inst.cz - c->player_.readback_z;
+        fe.pawn_offset[2] = inst.cz - c->point_.z;
         fe.target_x = fe.pawn_offset[0];
         fe.target_z = fe.pawn_offset[2];
     } else {

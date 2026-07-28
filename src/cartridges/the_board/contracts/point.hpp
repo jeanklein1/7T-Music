@@ -33,9 +33,11 @@
 // storage — the agent slot when the pawn hosts
 // (agent_state[possessed_slot]), the camera state when the camera
 // hosts — read through point_pos() (world.wgsl) on the GPU and the
-// host-routed P5 harvest (readback_x/z) on the CPU; no separate
-// point buffer was needed (the point readback, option A, Jean's
-// stamp). The host flag (config.point_host) routes reads and the
+// host-routed P5 harvest on the CPU, whose mirror lives HERE
+// (PointState.x/z + the bubble sensor — POINT_1 moved it home from
+// the pawn-era PlayerState); no separate point BUFFER was needed
+// (the point readback, option A, Jean's stamp) — the GPU half of
+// that ruling stands. The host flag (config.point_host) routes reads and the
 // input intent channel. PRESENCE FOLLOWS THE POINT (the ratified
 // rule): streaming, LOD/cull, the shadow box, the orb dome, the
 // living population's existence (agent + floater spawn/evict/
@@ -104,7 +106,15 @@ struct PointBubble {
 
 struct PointState {
     PointHost   host = PointHost::PAWN;   // the default host — the kite
-    PointBubble bubble{};                 // declared whole; dormant
+
+    // ── The position mirror (POINT_1: re-homed from the pawn-era
+    //    PlayerState — the point's CPU face, in the point's house) ──
+    float   x = 0.0f;                     // THE POINT's world X (host-authored)
+    float   z = 0.0f;                     // THE POINT's world Z (host-authored)
+    // ── The bubble sensor, on the possessed slot's wire in both hosts ──
+    int32_t portal_trigger = -1;
+
+    PointBubble bubble{};                 // declared whole; first sensor above
 };
 
 } // namespace the_board

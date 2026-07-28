@@ -374,8 +374,8 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES]{};
     GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES]{};
 
-    float point_wx = c->player_.readback_x;   // THE POINT (1-frame stale by law E-4)
-    float point_wz = c->player_.readback_z;
+    float point_wx = c->point_.x;   // THE POINT (1-frame stale by law E-4)
+    float point_wz = c->point_.z;
     float half = Dim::PATCH_EXTENT * 0.5f;
 
     // THE VEIL CHAIN, live: THE RING is the draw authority (nothing draws
@@ -517,8 +517,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         centerZ = 0;
     }
     else {
-        centerX = (int32_t)std::floor(c->player_.readback_x / Dim::PATCH_EXTENT);
-        centerZ = (int32_t)std::floor(c->player_.readback_z / Dim::PATCH_EXTENT);
+        centerX = (int32_t)std::floor(c->point_.x / Dim::PATCH_EXTENT);
+        centerZ = (int32_t)std::floor(c->point_.z / Dim::PATCH_EXTENT);
     }
 
     // In finite mode, cap the effective radius
@@ -590,7 +590,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             // Spawn inner patches
             PatchCandidate spawnCands[Dim::MAX_ACTIVE_PATCHES];
             uint32_t spawnCount = collect_sorted_patches(c, spawnCands,
-                c->player_.readback_x, c->player_.readback_z,
+                c->point_.x, c->point_.z,
                 [&](const ActivePatch& p) {
                     return p.phase == PatchPhase::ALLOCATED &&
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
@@ -600,7 +600,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             // Generate inner patches
             PatchCandidate genCands[Dim::MAX_ACTIVE_PATCHES];
             uint32_t genCount = collect_sorted_patches(c, genCands,
-                c->player_.readback_x, c->player_.readback_z,
+                c->point_.x, c->point_.z,
                 [&](const ActivePatch& p) {
                     return p.phase == PatchPhase::SPAWNED &&
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
@@ -615,7 +615,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
-            c->player_.readback_x, c->player_.readback_z,
+            c->point_.x, c->point_.z,
             [&](const ActivePatch& p) {
                 return !in_render_window(c, p.grid_x, p.grid_z,
                     c->world_state_.last_center_x, c->world_state_.last_center_z);
@@ -639,11 +639,11 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
     //
     {
-        int32_t pawnGX = (int32_t)std::floor(c->player_.readback_x / Dim::PATCH_EXTENT);
-        int32_t pawnGZ = (int32_t)std::floor(c->player_.readback_z / Dim::PATCH_EXTENT);
+        int32_t pawnGX = (int32_t)std::floor(c->point_.x / Dim::PATCH_EXTENT);
+        int32_t pawnGZ = (int32_t)std::floor(c->point_.z / Dim::PATCH_EXTENT);
         int32_t rr = (int32_t)c->world_state_.active_radius;
-        float point_wx = c->player_.readback_x;
-        float point_wz = c->player_.readback_z;
+        float point_wx = c->point_.x;
+        float point_wz = c->point_.z;
         float half = Dim::PATCH_EXTENT * 0.5f;
 
         // O(1) patch existence lookup (replaces O(N) inner scan)
@@ -712,7 +712,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
-            c->player_.readback_x, c->player_.readback_z,
+            c->point_.x, c->point_.z,
             [](const ActivePatch& p) {
                 return p.phase == PatchPhase::ALLOCATED;
             }, true);
@@ -725,7 +725,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
-            c->player_.readback_x, c->player_.readback_z,
+            c->point_.x, c->point_.z,
             [](const ActivePatch& p) {
                 return p.phase == PatchPhase::SPAWNED ||
                     p.phase == PatchPhase::NEEDS_REGEN;

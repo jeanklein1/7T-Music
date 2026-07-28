@@ -33,6 +33,7 @@ class GPUState;
 struct AgentsDeps {
     GPUState&              gpuState_;
     PlayerState&           player_;         // non-const: possession door
+    const PointState&      point_;          // the point's house (position mirror — respawn ring, possession search)
     const TransitionPhase& transitionPhase_;
     const WorldState&      world_state_;
     const TimeState&       time_state_;
@@ -495,13 +496,13 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
     const uint32_t possessed = c->player_.possessed_slot;
     // THE POINT: fresh agents cluster around the point —
-    // readback_x/z, host-authored. Pawn-host value-identical (the
-    // slot mirror and the readback come from the same P5 harvest
+    // point_.x/z, host-authored. Pawn-host value-identical (the
+    // slot mirror and the point come from the same P5 harvest
     // snapshot); in free-fly the population spawns in the xz plane
     // around wherever you flew (Jean's ruling — presence follows
     // the point; behaviors unchanged).
-    const float px = c->player_.readback_x;
-    const float pz = c->player_.readback_z;
+    const float px = c->point_.x;
+    const float pz = c->point_.z;
 
     const uint32_t n = std::min(pop.count, Dim::MAX_AGENTS - 1u);
     uint32_t respawned = 0;
@@ -545,8 +546,8 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
     // harvest snapshot as the slot mirror); in free-fly Caps Lock
     // grabs a body wherever you flew (xz-plane reach, per the spawn
     // ruling — the population lives there now, so there is one).
-    const float px = c->player_.readback_x;
-    const float pz = c->player_.readback_z;
+    const float px = c->point_.x;
+    const float pz = c->point_.z;
 
     int best_slot = -1;
     float best_d2 = POSSESSION_RADIUS_SQ;

@@ -48,6 +48,7 @@ struct EntitiesState;         struct SphereState;
 struct CubeBehaviorsState;    struct RibbonState;
 struct GoLState;              struct GalleryState;
 struct TimeState;             struct PlayerState;
+struct PointState;
 class GPUState;               class Renderer;
 
 struct MachineCtx {
@@ -68,6 +69,7 @@ struct MachineCtx {
     // clock + witness (read-only by census)
     const TimeState&         time_state_;
     const PlayerState&       player_;
+    const PointState&        point_;         // THE POINT's house (POINT_1): position mirror + bubble sensor
     // realization
     GPUState&                gpuState_;
     Renderer&                renderer_;

@@ -384,16 +384,16 @@ namespace t7 {
                                 mood_state_, patch_system_state_, spawn_engine_state_,
                                 entities_state_, sphere_state_, cube_behaviors_state_,
                                 ribbon_state_, gol_state_, gallery_state_,
-                                time_state_, player_, gpuState_, renderer_ }
+                                time_state_, player_, point_, gpuState_, renderer_ }
                 , tile_world_deps_{ world_state_, mood_state_, gpuState_ }
                 , sphere_deps_{ time_state_ }
                 , pawn_deps_{ player_, time_state_, gpuState_, renderer_ }
                 , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
-                , agents_deps_{ gpuState_, player_, transitionPhase_, world_state_, time_state_ }
-                , cube_deps_{ gpuState_, time_state_, player_, mood_state_ }
+                , agents_deps_{ gpuState_, player_, point_, transitionPhase_, world_state_, time_state_ }
+                , cube_deps_{ gpuState_, time_state_, player_, point_, mood_state_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
-                , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
-                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ }
+                , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
+                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, sunDirection_, clearColor_ }
                 , input_deps_{ inputState_, keys_, mouse_, player_, world_state_, ribbon_state_, gpuState_, device_, point_ }
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
@@ -935,7 +935,7 @@ namespace t7 {
                         if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
                             teardown_orbs(orbs_state_, &orbs_deps_);
 
-                        player_.readback_portal_trigger = -1;
+                        point_.portal_trigger = -1;
                         // THE AUTHORED PRESENT (POINT_1): at a teleport the
                         // CPU is the author of the new present — the same
                         // position reset_player_agent / reseed_player_body
@@ -944,8 +944,8 @@ namespace t7 {
                         // makes the equality enforced (the reset_surface
                         // precedent), and every streaming consumer that runs
                         // before the first fresh harvest reads the true point.
-                        player_.readback_x = Idle::PAWN_POS_X;
-                        player_.readback_z = Idle::PAWN_POS_Z;
+                        point_.x = Idle::PAWN_POS_X;
+                        point_.z = Idle::PAWN_POS_Z;
                         uint32_t preserved_tier = agent_state_.slots[player_.possessed_slot].tier_idx;
                         float preserved_color_r = agent_state_.slots[player_.possessed_slot].color_r;
                         float preserved_color_g = agent_state_.slots[player_.possessed_slot].color_g;
@@ -1096,7 +1096,7 @@ namespace t7 {
                                         std::memcpy(agent_state_.slots, data,
                                             GPUState::agent_state_buffer_size());
                                         const auto& p = agent_state_.slots[player_.possessed_slot];
-                                        // THE POINT: readback_x/z is the
+                                        // THE POINT: point_.x/z is the
                                         // POINT's position — the body authors it
                                         // only when the pawn hosts; the camera
                                         // harvest below authors it in camera-host.
@@ -1104,10 +1104,10 @@ namespace t7 {
                                         // sensor, riding the possessed
                                         // slot's wire in both hosts.
                                         if (point_.host == PointHost::PAWN) {
-                                            player_.readback_x = p.pos_x;
-                                            player_.readback_z = p.pos_z;
+                                            point_.x = p.pos_x;
+                                            point_.z = p.pos_z;
                                         }
-                                        player_.readback_portal_trigger = p.portal_trigger;
+                                        point_.portal_trigger = p.portal_trigger;
                                     }
                                 }
                                 gpuState_.agent_state_readback_staging().Unmap();
@@ -1169,8 +1169,8 @@ namespace t7 {
                                     // stale camera pos overwrite the pawn's
                                     // authorship.
                                     if (cam && point_.host == PointHost::CAMERA) {
-                                        player_.readback_x = cam->pos[0];
-                                        player_.readback_z = cam->pos[2];
+                                        point_.x = cam->pos[0];
+                                        point_.z = cam->pos[2];
                                     }
                                 }
                                 gpuState_.camera_state_readback_staging().Unmap();
@@ -1184,9 +1184,9 @@ namespace t7 {
             // reported trigger arms a transition (consumed next frame by U7 —
             // recon E-9). ROSTER-GATE transitions — guarded at the call site.
             void phase_portal_trigger(RenderCtx&) {
-                if (player_.readback_portal_trigger >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
-                    uint32_t arch_idx = static_cast<uint32_t>(player_.readback_portal_trigger);
-                    player_.readback_portal_trigger = -1;
+                if (point_.portal_trigger >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
+                    uint32_t arch_idx = static_cast<uint32_t>(point_.portal_trigger);
+                    point_.portal_trigger = -1;
                     if (arch_idx < Dim::MAX_ARCH_INSTANCES &&
                         entities_state_.arches[arch_idx].active &&
                         entities_state_.arches[arch_idx].is_portal) {
@@ -1217,7 +1217,7 @@ namespace t7 {
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
             // the GPU evicted last frame; slots 1+ only (slot 0 never evicted),
-            // and the stream's bubble center reads readback_x/z refreshed at
+            // and the stream's bubble center reads point_.x/z refreshed at
             // HARVEST — no data edge. ROSTER-GATE wanderers — call site.
             void phase_respawn_agents(RenderCtx& c) {
                 auto& queue = c.queue;
