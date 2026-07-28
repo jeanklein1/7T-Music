@@ -109,6 +109,22 @@ struct ActivePatch {
         }
     }
 
+    // Release-by-owner for RECORDS (REQUEST_1 rider): an owner that dies
+    // while this patch still lives takes its record back, so no stale
+    // {family, slot} can ever misdirect a later eviction at a successor
+    // in the reused slot. Swap-with-last; one record per (family, slot)
+    // per patch. NOT to be called from inside evict_patch_entities' own
+    // iteration (it would skip the swapped-in record's evictor) — the
+    // callers are owner-side death verbs outside any patch loop.
+    void unrecord_entity(uint32_t family, uint32_t slot) {
+        for (uint32_t i = 0; i < entity_ref_count; i++) {
+            if (entity_refs[i].family == family && entity_refs[i].slot == slot) {
+                entity_refs[i] = entity_refs[--entity_ref_count];
+                return;
+            }
+        }
+    }
+
 };
 
 // ── Dynamic budgets ────────────────────────────────────────────────

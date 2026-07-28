@@ -623,11 +623,16 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     // single choke point every portal spawner routes through (back, finite,
     // future). Disabled: spawn nothing (no arch, no mesh-pending),
     // return the no-free-slot sentinel so callers treat it as "none placed".
-    // HOME (K4): MIGRATED here from mood's force_spawn_portal_at —
-    // the door's written retirement condition ("when mood converts and
-    // force-spawn becomes a request channel, this door MIGRATES INTO that
-    // channel"), fulfilled. The arch's owner holds the door to the arch's
-    // storage; mood computes values upstream.
+    // HOME (K4): MIGRATED here from mood's force_spawn_portal_at. The
+    // door's written retirement condition ("when mood converts and
+    // force-spawn becomes a request channel, this door MIGRATES INTO
+    // that channel") RESOLVED at REQUEST_1: the request channel exists —
+    // for the RIBBON, the author the prophecy was really about. This
+    // door deliberately does NOT migrate: a portal is the transition's
+    // own machinery (the way in and the way out), not a patient request,
+    // and it already claims lawfully (register_footprint below). The
+    // arch's owner holds the door to the arch's storage; mood computes
+    // values upstream.
     if constexpr (!ROSTER.portal) { (void)queue; (void)cx; (void)cz; (void)rotation; (void)dest; (void)is_back_portal; (void)portal_color; return UINT32_MAX; }
 
     uint32_t slot = UINT32_MAX;

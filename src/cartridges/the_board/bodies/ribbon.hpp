@@ -1459,6 +1459,24 @@ inline void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue) {
         uint32_t s = rs.rendered_slot;
         if (s != UINT32_MAX && rs.active[s].active) {
             unregister_footprint_for(self, PopFamily::RIBBON, s);
+            // Release-by-owner completes for RECORDS (REQUEST_1 rider):
+            // this death can leave tip records on still-alive patches —
+            // the ONE path that can (patch-driven eviction wipes its own
+            // records; REJECT records nothing; release_finite follows
+            // the registry wipe). A stale {RIBBON, slot} record would
+            // later misdirect an eviction at the successor in this slot
+            // — one death, one patch-eviction early. Scrub both tips;
+            // a dead patch took its record with it. Safe here: this
+            // verb runs at phase_ribbon_tick, outside any patch loop.
+            auto& ar = rs.active[s];
+            if (ar.near_tip_registered) {
+                if (auto* p = find_patch(self, ar.near_tip_gx, ar.near_tip_gz))
+                    p->unrecord_entity(PopFamily::RIBBON, s);
+            }
+            if (ar.far_tip_registered) {
+                if (auto* p = find_patch(self, ar.far_tip_gx, ar.far_tip_gz))
+                    p->unrecord_entity(PopFamily::RIBBON, s);
+            }
             rs.active[s] = ActiveRibbon{};
             rs.gpu[s] = GPURibbonState{};
             if (rs.active_count > 0) rs.active_count--;
