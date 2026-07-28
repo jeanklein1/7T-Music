@@ -956,7 +956,15 @@ namespace t7 {
                         // ROSTER-GATE ribbon (c) — finite-mode release, owner
                         // verb. Zero effect
                         // when ribbon is off (active_count stays 0). ORDER
-                        // (O-3): after apply_mood set mood_state_.active.
+                        // (O-3, adjusted REQUEST_1): after apply_mood set
+                        // mood_state_.active — and apply_mood now only
+                        // DECLARES the anchor (the request flag). This
+                        // release touches actives, never the request, so
+                        // the flag SURVIVES to its fulfillment at the
+                        // streaming conductor's cadence (the first
+                        // StreamPatches of the new world); the
+                        // has_anchor_ribbon exemption still protects a
+                        // standing fulfilled anchor.
                         if constexpr (ROSTER.ribbon)
                             release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
                         // Schedule guaranteed back-portal in finite worlds
@@ -1174,6 +1182,12 @@ namespace t7 {
             void phase_stream_patches(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
+                // REQUEST_1: the mood's declared anchor request is
+                // fulfilled at the conductor's cadence — before
+                // patch-driven selection, after the world exists.
+                // ROSTER-GATE ribbon — guarded at the call site.
+                if constexpr (ROSTER.ribbon)
+                    fulfill_anchor_ribbon_request(ribbon_state_, &machine_ctx_, &ribbon_deps_, queue);
                 stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_, inputState_);
             }
 

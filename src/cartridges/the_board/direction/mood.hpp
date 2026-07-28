@@ -63,11 +63,13 @@
 //   activate-mood bookkeeping; the substantive work splits across
 //   four named sub-functions (apply_mood_lighting, _spot_lights,
 //   _indoor_shell, _anchor_ribbon).
-// SEAM[mood:K4] apply_mood_anchor_ribbon is the second entry
-//   point to commit_ribbon (the dual-entry pattern noted at
-//   ribbon.hpp::SEAM[ribbon:dual-entry]). Mood-5 forces a ribbon
-//   spawn through fill_ribbon_selection_geometry + commit_ribbon
-//   without going through the patch-streaming dispatch.
+// SEAM[mood:K4] RESTATED (REQUEST_1): apply_mood_anchor_ribbon only
+//   DECLARES — it records the pending anchor request on RibbonState.
+//   Execution lives with the machine: fulfill_anchor_ribbon_request
+//   (bodies/ribbon.hpp) runs at the streaming conductor's cadence and
+//   claims ground through the same acts as every streamed ribbon.
+//   commit_ribbon's second entry is now the machine's own verb, not
+//   mood's hand.
 // SEAM[mood:L1] MoodProfile.has_anchor_ribbon is the per-mood flag
 //   that gates apply_mood_anchor_ribbon's execution. Default false
 //   for moods 0-4; true for mood 5 (FINITE_OUTDOOR_REF). Read there
@@ -200,8 +202,7 @@ void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
-void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
-    RibbonState& ribbon_state, MachineCtx& machine_ctx, RibbonDeps& ribbon_deps);
+void apply_mood_anchor_ribbon(RibbonState& ribbon_state, uint32_t mood);
 // Indoor support
 void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT);
@@ -661,66 +662,16 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
     }
 }
 
-// 5) Anchor ribbon spawn — only fires when MoodProfile.has_anchor_ribbon.
-//    Seed-derived position centered on the finite world; goes through
-//    fill_ribbon_selection_geometry + commit_ribbon (the dual-entry
-//    site — SEAM[ribbon:dual-entry]).
-inline void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
-    RibbonState& ribbon_state, MachineCtx& machine_ctx, RibbonDeps& ribbon_deps) {
-    if (!MOOD_TABLE[mood].has_anchor_ribbon) return;
-
-    const uint32_t rseed = tile_seed(c->world_state_.active_seed, 0, 0);
-
-    // Anchor: seed-derived position spread across the finite world + margin
-    const float spread   = ((float)c->world_state_.finite_radius + 1.5f) * Dim::PATCH_EXTENT;
-    const float world_cx = 0.5f * Dim::PATCH_EXTENT;
-    const float world_cz = 0.5f * Dim::PATCH_EXTENT;
-    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + ribbon_state.mood_offset[0];
-    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + ribbon_state.mood_offset[1];
-
-    // Tier selection (neutral weights — no theme bias in mood)
-    const uint32_t tier_idx = select_tier(rseed, RibbonProp::TIER,
-        RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT);
-
-    // Sample geometry through the shared helper (pure from seed; the ground
-    // joins once, at head init in state.hpp)
-    RibbonSelection sel{};
-    sel.seed       = rseed;
-    sel.trigger_gx = 0;
-    sel.trigger_gz = 0;
-    sel.slot       = 0;
-    sel.tier_idx   = tier_idx;
-    fill_ribbon_selection_geometry(rseed, tier_idx, sel);
-
-    // Build placement (forced position — no negotiation)
-    RibbonPlacement plan{};
-    plan.slot           = 0;
-    plan.seed           = sel.seed;   // wander channels sample this — without it every mood-forced ribbon draws from seed 0
-    plan.trigger_gx     = 0;
-    plan.trigger_gz     = 0;
-    plan.host_gx        = (int32_t)std::floor(ax / Dim::PATCH_EXTENT);
-    plan.host_gz        = (int32_t)std::floor(az / Dim::PATCH_EXTENT);
-    plan.tier_idx       = tier_idx;
-    plan.cx             = ax;
-    plan.cz             = az;
-    plan.cube_count     = sel.cube_count;
-    plan.cube_size      = sel.cube_size;
-    plan.height         = sel.height;
-    plan.orientation    = sel.orientation;
-    plan.lateral_amp    = sel.lateral_amp;
-    plan.lateral_cycles = sel.lateral_cycles;
-    plan.vertical_amp   = sel.vertical_amp;
-    plan.color_mode     = sel.color_mode;
-    std::memcpy(plan.color, sel.color, sizeof(plan.color));
-    std::memcpy(plan.color_b, sel.color_b, sizeof(plan.color_b));
-    plan.checker_scatter = sel.checker_scatter;
-    plan.checker_hue_spread = sel.checker_hue_spread;
-
-    // Commit through the standard path
-    commit_ribbon(ribbon_state, &machine_ctx, plan, 0, 0, queue);
-
-    // Immediate promotion through the owner's door.
-    promote_ribbon_to_rendered(ribbon_state, &ribbon_deps, 0, queue);
+// 5) Anchor ribbon — THE DECLARATION'S ACT and nothing else (REQUEST_1).
+//    The mood records the pending request; the machine fulfills it
+//    lawfully at the streaming conductor's cadence
+//    (fulfill_anchor_ribbon_request, bodies/ribbon.hpp) — fill → forced
+//    place WITH the standard footprint claim → commit → promote. Written
+//    every transition, true only for anchor moods, so back-to-back
+//    transitions self-correct. Seed context needs no copy: the machine
+//    reads world_state_.active_seed at fulfillment, same world.
+inline void apply_mood_anchor_ribbon(RibbonState& ribbon_state, uint32_t mood) {
+    ribbon_state.anchor_request = MOOD_TABLE[mood].has_anchor_ribbon;
 }
 
 // ── apply_mood (orchestrator) ──
@@ -748,7 +699,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
         apply_mood_spot_lights(c, m, queue);   // indoor only
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
         apply_mood_indoor_shell(c, m, queue, gallery_state, gallery_deps);  // shell + camera ceiling clamp
-    apply_mood_anchor_ribbon(c, mood, queue, ribbon_state, machine_ctx, ribbon_deps);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only (ribbon-gated inside)
+    apply_mood_anchor_ribbon(ribbon_state, mood);  // SEAM[mood:K4]/[mood:L1] anchor — DECLARES only; the machine fulfills (REQUEST_1)
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
         configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_TABLE[mood], queue);
 

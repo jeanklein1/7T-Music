@@ -424,6 +424,17 @@ struct RibbonState {
         float yaw_eased = 0.0f;    // player's eased yaw
     };
     SkyFlight      sky{};
+
+    // ── The anchor request (REQUEST_1): the mood DECLARES, the machine
+    //    EXECUTES. apply_mood writes it every transition (true only for
+    //    has_anchor_ribbon moods — back-to-back transitions self-correct);
+    //    fulfill_anchor_ribbon_request consumes it at the streaming
+    //    conductor's cadence. No payload: mood and seed live in the organs
+    //    the machine reads at fulfillment (mood_state_.active /
+    //    world_state_.active_seed) — a copy here would be a second home.
+    //    Survives release_finite_ribbons by construction (the release
+    //    touches actives, never the request). ──
+    bool           anchor_request = false;
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -464,6 +475,10 @@ void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
 void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
 // Sky-exit death — machine-faced, because it releases the ground.
 void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue);
+// The anchor request's fulfillment (REQUEST_1) — machine-faced,
+// because it claims the ground the mood only declares.
+void fulfill_anchor_ribbon_request(RibbonState& rs, MachineCtx* c,
+    RibbonDeps* deps, wgpu::Queue& queue);
 void promote_ribbon_to_rendered(RibbonState& rs, RibbonDeps* c, uint32_t slot, wgpu::Queue& queue);
 struct ActivePatch;  // fwd (patch_system.hpp follows this header in the cohort)
 void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz);
@@ -1121,8 +1136,8 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     // law — belt and braces; the cap never bites at 0.15. The
     // sampler's floors (MIN_CUBE_SIZE / MIN_ADDED_HEIGHT / 0.1 amps)
     // still hold. The ANCHOR ribbon (fin_ref) enters through
-    // apply_mood_anchor_ribbon → fill_ribbon_selection_geometry and
-    // never crosses this block — untouched by construction.
+    // fulfill_anchor_ribbon_request → fill_ribbon_selection_geometry
+    // and never crosses this block — untouched by construction.
     if (MOOD_TABLE[c->mood_state_.active].indoor) {
         sel.cube_size    = std::max(MIN_CUBE_SIZE,    sel.cube_size    * RIBBON_INDOOR_SCALE);
         sel.height       = std::max(MIN_ADDED_HEIGHT, sel.height       * RIBBON_INDOOR_SCALE);
@@ -1200,8 +1215,10 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
 
 // ─── commit_ribbon ───────────────────────────────────────────
 //
-// Dual entry: also called from mood.hpp::apply_mood for mood-5
-// forced spawn (SEAM[ribbon:dual-entry]).
+// Dual entry (SEAM[ribbon:dual-entry], RESTATED REQUEST_1): also
+// called from fulfill_anchor_ribbon_request below — the machine's own
+// fulfillment verb for the mood-declared anchor. Both entries are
+// machine-side now; mood's hand left with REQUEST_1.
 inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
@@ -1499,6 +1516,89 @@ inline void promote_ribbon_to_rendered(RibbonState& rs, RibbonDeps* c, uint32_t 
     rs.rendered_slot = slot;
 }
 
+
+// ─── The anchor request's fulfillment (owner verb — REQUEST_1) ─────
+// The mood DECLARED (apply_mood_anchor_ribbon); the machine EXECUTES
+// here, at the streaming conductor's cadence — before patch-driven
+// selection, after the world exists. The placement body that lived in
+// mood's hand, now claiming ground through the same acts as every
+// streamed ribbon: fill → forced place WITH the standard footprint
+// claim → commit_ribbon → promote. Forced position, no negotiation —
+// the world is empty at fulfillment; the CLAIM is the point. Seed-
+// stateless holds: the position stays seed-derived and forced. Tip
+// records self-heal lazily (ribbon_register_tips_at) as patches
+// arrive, exactly as they always did for this ribbon.
+inline void fulfill_anchor_ribbon_request(RibbonState& rs, MachineCtx* c,
+    RibbonDeps* deps, wgpu::Queue& queue) {
+    if (!rs.anchor_request) return;
+    rs.anchor_request = false;
+
+    const uint32_t rseed = tile_seed(c->world_state_.active_seed, 0, 0);
+
+    // Anchor: seed-derived position spread across the finite world + margin
+    const float spread   = ((float)c->world_state_.finite_radius + 1.5f) * Dim::PATCH_EXTENT;
+    const float world_cx = 0.5f * Dim::PATCH_EXTENT;
+    const float world_cz = 0.5f * Dim::PATCH_EXTENT;
+    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + rs.mood_offset[0];
+    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + rs.mood_offset[1];
+
+    // Tier selection (neutral weights — no theme bias in mood requests)
+    const uint32_t tier_idx = select_tier(rseed, RibbonProp::TIER,
+        RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT);
+
+    // Sample geometry through the shared helper (pure from seed; the ground
+    // joins once, at head init in state.hpp)
+    RibbonSelection sel{};
+    sel.seed       = rseed;
+    sel.trigger_gx = 0;
+    sel.trigger_gz = 0;
+    sel.slot       = 0;
+    sel.tier_idx   = tier_idx;
+    fill_ribbon_selection_geometry(rseed, tier_idx, sel);
+
+    const int32_t host_gx = (int32_t)std::floor(ax / Dim::PATCH_EXTENT);
+    const int32_t host_gz = (int32_t)std::floor(az / Dim::PATCH_EXTENT);
+
+    // THE CLAIM — the act the mood's hand always skipped. The streamed
+    // path claims inside negotiate_position's grounded arm; the position
+    // here is forced, so the claim is made directly: same key (host),
+    // same owner (RIBBON, slot), same radius the geometry fill authored.
+    // A full registry cannot deny the anchor — the loud line inside
+    // register_footprint reports it and the anchor stands anyway (the
+    // portal precedent, the one trade for a world-defining family).
+    (void)register_footprint(c, ax, az, sel.footprint_r,
+        host_gx, host_gz, PopFamily::RIBBON, /*slot*/ 0, tier_idx);
+
+    // Build placement (forced position — no negotiation)
+    RibbonPlacement plan{};
+    plan.slot           = 0;
+    plan.seed           = sel.seed;   // wander channels sample this — without it every mood-forced ribbon draws from seed 0
+    plan.trigger_gx     = 0;
+    plan.trigger_gz     = 0;
+    plan.host_gx        = host_gx;
+    plan.host_gz        = host_gz;
+    plan.tier_idx       = tier_idx;
+    plan.cx             = ax;
+    plan.cz             = az;
+    plan.cube_count     = sel.cube_count;
+    plan.cube_size      = sel.cube_size;
+    plan.height         = sel.height;
+    plan.orientation    = sel.orientation;
+    plan.lateral_amp    = sel.lateral_amp;
+    plan.lateral_cycles = sel.lateral_cycles;
+    plan.vertical_amp   = sel.vertical_amp;
+    plan.color_mode     = sel.color_mode;
+    std::memcpy(plan.color, sel.color, sizeof(plan.color));
+    std::memcpy(plan.color_b, sel.color_b, sizeof(plan.color_b));
+    plan.checker_scatter = sel.checker_scatter;
+    plan.checker_hue_spread = sel.checker_hue_spread;
+
+    // Commit through the standard path
+    commit_ribbon(rs, c, plan, 0, 0, queue);
+
+    // Immediate promotion through the owner's door.
+    promote_ribbon_to_rendered(rs, deps, 0, queue);
+}
 
 // ─── Tip registration (owner verb): called by the
 // streaming conductor when a patch spawns — registers whichever of a
