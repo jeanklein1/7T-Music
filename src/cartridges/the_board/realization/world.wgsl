@@ -7193,6 +7193,31 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     agent_state[slot] = agent;
 }
 
+// ─── Indoor bounds resolve — THE ONE LAW (walls + ceiling) ───────
+// The exact clamp math extracted from update_camera's indoor
+// boundary block, margins unchanged (wall 2.0, ceiling 3.0 — the
+// camera's own; per-body margins wait for a percept to ask). The
+// has-bounds / ceiling > 0 gates live INSIDE, so the function is
+// identity outdoors and every caller stays one line. Readers:
+// update_camera, update_sphere, update_cube.
+fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
+    var p = pos;
+    let bmin = config.world_bound_min;
+    let bmax = config.world_bound_max;
+    let has_bounds = (bmin.x != 0.0 || bmin.y != 0.0 || bmax.x != 0.0 || bmax.y != 0.0);
+    if (has_bounds) {
+        let wall_margin = 2.0;       // don't let the body press into walls
+        p.x = clamp(p.x, bmin.x + wall_margin, bmax.x - wall_margin);
+        p.z = clamp(p.z, bmin.y + wall_margin, bmax.y - wall_margin);
+    }
+    // Ceiling clamp (works for any mood with a ceiling_height > 0)
+    if (config.ceiling_height > 0.0) {
+        let ceiling_margin = 3.0;
+        p.y = min(p.y, config.ceiling_height - ceiling_margin);
+    }
+    return p;
+}
+
 @compute @workgroup_size(1)
 fn update_camera() {
     if (!dynamics_0d_active()) { return; }
@@ -7310,21 +7335,8 @@ fn update_camera() {
     }
 
     // ─── Indoor boundary clamp: stay within walls and below ceiling ──
-    {
-        let bmin = config.world_bound_min;
-        let bmax = config.world_bound_max;
-        let has_bounds = (bmin.x != 0.0 || bmin.y != 0.0 || bmax.x != 0.0 || bmax.y != 0.0);
-        if (has_bounds) {
-            let wall_margin = 2.0;       // don't let camera press into walls
-            camera.pos.x = clamp(camera.pos.x, bmin.x + wall_margin, bmax.x - wall_margin);
-            camera.pos.z = clamp(camera.pos.z, bmin.y + wall_margin, bmax.y - wall_margin);
-        }
-        // Ceiling clamp (works for any mood with a ceiling_height > 0)
-        if (config.ceiling_height > 0.0) {
-            let ceiling_margin = 3.0;
-            camera.pos.y = min(camera.pos.y, config.ceiling_height - ceiling_margin);
-        }
-    }
+    // (extracted to indoor_bounds_resolve — the one law, behavior-identical)
+    camera.pos = indoor_bounds_resolve(camera.pos);
 
     camera_state = camera;
 }
