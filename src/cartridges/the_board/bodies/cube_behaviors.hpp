@@ -101,12 +101,17 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
-// Mood ordering matches MOOD_TABLE in cartridge.hpp. Cubes are gated
-// by mood_mult_for(PopFamily::CUBE) (in floaters.hpp) which is
-// {1, 1, 0, 0, 1, 0} — cubes don't spawn in indoor moods or in
-// MOOD_FINITE_OUTDOOR_REF, so those rows here are never consulted in
-// practice. We declare them anyway for hygiene; if the spawn gate
-// ever changes, the populations will already exist.
+// Mood ordering matches MOOD_TABLE (contracts/spine_state.hpp).
+//
+// Cubes carry a mood term, mood_mult_for(PopFamily::CUBE) from
+// MOOD_SPAWN_MULT (surface/population_themes.hpp). That column is
+// {1, 1, 1, 1} — all identity. This banner used to claim
+// {1, 1, 0, 0, 1, 0} and conclude that cubes "don't spawn in indoor
+// moods"; the indoor zeros never existed in the live table, and the
+// per-row "exists for hygiene" notes inherited the error. The mood
+// term suppresses no row today, so every row here IS consulted.
+// Indoor cube spawning is shaped by indoor_bounds_clamp
+// (machine/spawn_engine.hpp), not by this multiplier.
 
 struct CubePopulationDef {
     uint32_t mood_id;
@@ -114,35 +119,27 @@ struct CubePopulationDef {
 };
 
 inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
-    /* MOOD_OPEN_DEFAULT */
-    { MOOD_OPEN_DEFAULT,
-      //                    stat curl  wave
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
     /* MOOD_OPEN_SUNSET */
     { MOOD_OPEN_SUNSET,
+      //                    stat curl  wave
       /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_FLAT — cubes don't spawn here; row exists for hygiene */
+    /* MOOD_INDOOR_FLAT */
     { MOOD_INDOOR_FLAT,
       /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_VAULT — cubes don't spawn here; row exists for hygiene */
+    /* MOOD_INDOOR_VAULT */
     { MOOD_INDOOR_VAULT,
       /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
     /* MOOD_FINITE_OUTDOOR */
     { MOOD_FINITE_OUTDOOR,
       /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_FINITE_OUTDOOR_REF — cubes don't spawn here; row exists for hygiene */
-    { MOOD_FINITE_OUTDOOR_REF,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
 };
 
 static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
               "CUBE_POPULATIONS must declare one row per mood");
-static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_DEFAULT,        "row 0 must be MOOD_OPEN_DEFAULT");
-static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_OPEN_SUNSET,         "row 1 must be MOOD_OPEN_SUNSET");
-static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_FLAT,         "row 2 must be MOOD_INDOOR_FLAT");
-static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_INDOOR_VAULT,        "row 3 must be MOOD_INDOOR_VAULT");
-static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_FINITE_OUTDOOR,      "row 4 must be MOOD_FINITE_OUTDOOR");
-static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_FINITE_OUTDOOR_REF,  "row 5 must be MOOD_FINITE_OUTDOOR_REF");
+static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_SUNSET,    "row 0 must be MOOD_OPEN_SUNSET");
+static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_INDOOR_FLAT,    "row 1 must be MOOD_INDOOR_FLAT");
+static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_VAULT,   "row 2 must be MOOD_INDOOR_VAULT");
+static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be MOOD_FINITE_OUTDOOR");
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 

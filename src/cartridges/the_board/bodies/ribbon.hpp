@@ -75,10 +75,12 @@ struct RibbonDeps {
 // ── Spawn ────────────────────────────────────────────────────────
 struct RibbonConfig {
     static constexpr float SPAWN_CHANCE = 0.900f;   // authored value (control-panel constant; the distributions pass revisits it)
-    // SEAM[ribbon:P4] hygiene rows pattern — { open, sunset,
-    //   [indoor_flat=0], [indoor_vault=0], [finite_outdoor=1],
-    //   [finite_outdoor_ref=0] }. Same family as gol_zones:P4
-    //   and floaters:P4.
+    // SEAM[ribbon:P4] hygiene rows pattern — the ribbon column of
+    //   MOOD_SPAWN_MULT (surface/population_themes.hpp) is
+    //   { 1, 1, 1, 1 }, all identity: the mood term suppresses no
+    //   row today. (It previously read as carrying indoor zeros; the
+    //   live table never had them.) Same family as gol_zones:P4 and
+    //   the cube populations' hygiene rows.
     static constexpr float POSITION_JITTER = 0.3f;
 };
 

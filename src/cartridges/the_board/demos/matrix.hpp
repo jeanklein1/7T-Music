@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/contracts/demo_config.hpp"       // DemoConfig, Roster
-#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_DEFAULT
+#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET
 
 // ─── matrix.hpp (THE DEMO MATRIX: pieces × demos, cells booleans) ──
 // History: audit/LADDER.md
@@ -103,8 +103,8 @@ inline constexpr uint32_t DEMO_SEED[static_cast<uint32_t>(DemoCol::COUNT)] = {
     /* minimal */ 42,
 };
 inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] = {
-    /* full    */ MOOD_OPEN_DEFAULT,
-    /* minimal */ MOOD_OPEN_DEFAULT,
+    /* full    */ MOOD_OPEN_SUNSET,
+    /* minimal */ MOOD_OPEN_SUNSET,
 };
 
 // ═══ THE COLUMN READ (a demo column → a constexpr Roster) ══════════
@@ -144,16 +144,20 @@ static_assert(Piece::COUNT == 19,
 //     so the retirement is provably lossless — now and forever (the
 //     old full.hpp / minimal.hpp are gone; these asserts are what keep
 //     their sentences honest).
+//     ONE field is deliberately no longer byte-equal: boot_mood. The
+//     old headers booted into open_default, and the mood cut retired
+//     that mood. Both columns boot into open_sunset — the surviving
+//     open outdoor world — and the golden pins the new value.
 static_assert(demo_config(DemoCol::full).roster.all_enabled(),
     "GOLDEN: demo=full must equal old full.hpp — all 19 tickable bits ON");
 static_assert(demo_config(DemoCol::full).seed == 42 &&
-              demo_config(DemoCol::full).boot_mood == MOOD_OPEN_DEFAULT,
-    "GOLDEN: demo=full seed/boot_mood must equal old full.hpp");
+              demo_config(DemoCol::full).boot_mood == MOOD_OPEN_SUNSET,
+    "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the post-cut open outdoor");
 static_assert(demo_config(DemoCol::minimal).roster.none_enabled(),
     "GOLDEN: demo=minimal must equal old minimal.hpp — all 19 tickable bits OFF");
 static_assert(demo_config(DemoCol::minimal).seed == 42 &&
-              demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_DEFAULT,
-    "GOLDEN: demo=minimal seed/boot_mood must equal old minimal.hpp");
+              demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_SUNSET,
+    "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the post-cut open outdoor");
 
 } // namespace the_board
 } // namespace t7

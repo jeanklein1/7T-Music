@@ -14,16 +14,14 @@
 namespace t7 {
 namespace the_board {
 
-inline constexpr uint32_t MOOD_COUNT = 6;
+inline constexpr uint32_t MOOD_COUNT = 4;
 
 // ─── Mood IDs ───────────────────────────────────────────────────
-//
-inline constexpr uint32_t MOOD_OPEN_DEFAULT = 0;
-inline constexpr uint32_t MOOD_OPEN_SUNSET = 1;
-inline constexpr uint32_t MOOD_INDOOR_FLAT = 2;
-inline constexpr uint32_t MOOD_INDOOR_VAULT = 3;
-inline constexpr uint32_t MOOD_FINITE_OUTDOOR = 4;
-inline constexpr uint32_t MOOD_FINITE_OUTDOOR_REF = 5;
+// One outdoor world open, one outdoor world walled, two rooms.
+inline constexpr uint32_t MOOD_OPEN_SUNSET = 0;
+inline constexpr uint32_t MOOD_INDOOR_FLAT = 1;
+inline constexpr uint32_t MOOD_INDOOR_VAULT = 2;
+inline constexpr uint32_t MOOD_FINITE_OUTDOOR = 3;
 
 struct PortalDestination {
     uint32_t seed = 0;

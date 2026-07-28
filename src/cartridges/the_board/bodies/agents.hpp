@@ -207,15 +207,6 @@ struct AgentPopulationDef {
 
 //
 inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
-    /* MOOD_OPEN_DEFAULT — desert travelers (BiasedWalk) */
-    { /*mood_id=*/ MOOD_OPEN_DEFAULT, /*count=*/ 10,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  2.0f, 2.0f, 1.0f, 0.0f },
-      /*spawn_inner_radius=*/ 200.0f,
-      /*spawn_radius=*/       340.0f,
-      /*home_seeding_radius=*/ 5.0f },
     /* MOOD_OPEN_SUNSET — Scout-heavy travelers (BiasedWalk) */
     { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 10,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
@@ -250,13 +241,6 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_inner_radius=*/ 0.0f,
       /*spawn_radius=*/       0.0f,
       /*home_seeding_radius=*/ 0.0f },
-    /* MOOD_FINITE_OUTDOOR_REF — unpopulated */
-    { /*mood_id=*/ MOOD_FINITE_OUTDOOR_REF, /*count=*/ 0,
-      /*behavior_weights=*/ {},
-      /*tier_weights=*/     {},
-      /*spawn_inner_radius=*/ 0.0f,
-      /*spawn_radius=*/       0.0f,
-      /*home_seeding_radius=*/ 0.0f },
 };
 
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
@@ -265,12 +249,10 @@ static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_C
 // Row order must match the mood ids in MOOD_TABLE (mood.hpp).
 // Unfolded rather than a constexpr loop — the restyle is a named
 // later stage.
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_DEFAULT      ].mood_id == MOOD_OPEN_DEFAULT,       "AGENT_POPULATIONS row 0 must be MOOD_OPEN_DEFAULT");
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET       ].mood_id == MOOD_OPEN_SUNSET,        "AGENT_POPULATIONS row 1 must be MOOD_OPEN_SUNSET");
-static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT       ].mood_id == MOOD_INDOOR_FLAT,        "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_FLAT");
-static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT      ].mood_id == MOOD_INDOOR_VAULT,       "AGENT_POPULATIONS row 3 must be MOOD_INDOOR_VAULT");
-static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR    ].mood_id == MOOD_FINITE_OUTDOOR,     "AGENT_POPULATIONS row 4 must be MOOD_FINITE_OUTDOOR");
-static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_OUTDOOR_REF, "AGENT_POPULATIONS row 5 must be MOOD_FINITE_OUTDOOR_REF");
+static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET   ].mood_id == MOOD_OPEN_SUNSET,    "AGENT_POPULATIONS row 0 must be MOOD_OPEN_SUNSET");
+static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT   ].mood_id == MOOD_INDOOR_FLAT,    "AGENT_POPULATIONS row 1 must be MOOD_INDOOR_FLAT");
+static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT  ].mood_id == MOOD_INDOOR_VAULT,   "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_VAULT");
+static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR].mood_id == MOOD_FINITE_OUTDOOR, "AGENT_POPULATIONS row 3 must be MOOD_FINITE_OUTDOOR");
 
 // ═══ AGENT MODULE STATE ══════════════════════════════════════════
 

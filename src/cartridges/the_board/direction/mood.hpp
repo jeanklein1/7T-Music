@@ -99,13 +99,11 @@ struct PawnState;
 inline constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals
 
 // Portal color by mood (indexed by destination.mood)
-inline constexpr float PORTAL_COLORS[6][3] = {
-    { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
-    { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
-    { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
-    { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
-    { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
-    { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
+inline constexpr float PORTAL_COLORS[MOOD_COUNT][3] = {
+    { 0.72f, 0.45f, 0.85f },  // mood 0  open_sunset     — lilac
+    { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
+    { 0.95f, 0.80f, 0.20f },  // mood 2  indoor_vault    — yellow
+    { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
 };
 inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
 
@@ -1180,8 +1178,7 @@ inline const char* mood_name(uint32_t mood) {
     // Sized array: the compiler catches an EXTRA entry past
     // MOOD_COUNT, but not a missing one — it zero-fills to nullptr.
     static const char* NAMES[MOOD_COUNT] = {
-        "open_default", "open_sunset", "indoor_flat",
-        "indoor_vault", "finite_outdoor", "finite_outdoor_ref"
+        "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor"
     };
     return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
 }
@@ -1196,12 +1193,10 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
 inline uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop) {
     float roll = cpu_hash_f(seed, prop);
     if (c->world_state_.finite_mode) {
-        if (roll < 0.20f) return 0;
-        if (roll < 0.40f) return 1;
-        if (roll < 0.55f) return 2;
-        if (roll < 0.70f) return 3;
-        if (roll < 0.85f) return 4;
-        return 5;
+        if (roll < 0.40f) return 0;   // open_sunset    — the way out
+        if (roll < 0.55f) return 1;   // indoor_flat
+        if (roll < 0.70f) return 2;   // indoor_vault
+        return 3;                     // finite_outdoor
     }
     return cpu_hash(seed, prop) % MOOD_COUNT;
 }

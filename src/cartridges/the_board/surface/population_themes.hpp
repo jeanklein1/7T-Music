@@ -26,18 +26,20 @@ inline constexpr float THEME_BASE_WEIGHT = 10.0f;
 
 // ═══ MOOD × FAMILY SPAWN MULTIPLIERS ═══════════════════════════════
 // WHAT: the mood term of the composition law — presence × proportion
-//   per family per mood. 0 = absent (the gol/gallery-class veto).
+//   per family per mood. The table currently rests at IDENTITY: the
+//   one row that carried zeros was the reference mood, and it was
+//   cut. It stays as a live control surface — 0 would still mean
+//   absent, and the veto path (veto_on_zero_mood) is live, just
+//   unexercised.
 // AXES: row = mood id (mood_constants order, F-3 kin); column =
 //   PopFamily order, PINNED by F-1 (roster.hpp).
 // Frozen biography: values feed the spawn gates.
 //                              pyr   arch  col   ant   palm  cact  blade sph   rib   cube  gol   gal
 inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
-    /* MOOD_OPEN_DEFAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    /* MOOD_FIN_OUTDOOR_REF */ { 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // The per-family column view, contiguous for the const float* funnels

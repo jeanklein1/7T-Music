@@ -190,27 +190,25 @@ struct MoodProfile {
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
 //
 // SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
-//   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
-//   the binary doesn't survive contact — the encoding is correct
-//   for today but worth re-examining when finite_outdoor design lands.
+//   bool `indoor` flags. finite_outdoor is walled AND outdoor, so it
+//   sits astride the binary and the encoding doesn't survive contact —
+//   correct for today but worth re-examining when finite_outdoor
+//   design lands.
 //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
     /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
     /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
     /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
     /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
-    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
 // mood-id order and carry no id field (the CUBE_POPULATIONS-style
 // per-row assert is impossible here) — so pin the ids AT the table:
 // drift in mood_constants.hpp fails HERE, where the rows live.
-static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
-           && MOOD_INDOOR_FLAT        == 2 && MOOD_INDOOR_VAULT       == 3
-           && MOOD_FINITE_OUTDOOR     == 4 && MOOD_FINITE_OUTDOOR_REF == 5
-           && MOOD_COUNT == 6,
+static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
+           && MOOD_INDOOR_VAULT == 2 && MOOD_FINITE_OUTDOOR == 3
+           && MOOD_COUNT == 4,
     "MOOD_TABLE rows are positional in mood-id order (F-3): "
     "reorder the table together with the ids");
 
@@ -218,7 +216,7 @@ static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
 // rows are positionally brace-initialised, so a column added or cut
 // mid-row shifts every field after it with no diagnostic. One probe per
 // region of the row — head, middle, tail — so a shift anywhere trips.
-static_assert(MOOD_TABLE[MOOD_OPEN_DEFAULT].finite        == false, "MOOD_TABLE column drift: finite (head)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].finite         == false, "MOOD_TABLE column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].finite      == true,  "MOOD_TABLE column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].indoor         == false, "MOOD_TABLE column drift: indoor (middle)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].indoor        == true,  "MOOD_TABLE column drift: indoor (middle)");

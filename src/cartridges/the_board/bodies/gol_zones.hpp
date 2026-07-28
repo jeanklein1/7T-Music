@@ -122,9 +122,11 @@ struct GoLZoneSpawnConfig {
     static constexpr float LENS_TARGET_RANGE = 0.6f;
     // SEAM[gol_zones:P4] hygiene rows pattern (P4): the gol mood row
     //   lives in MOOD_SPAWN_MULT (population_themes.hpp — the GOL
-    //   column). Zero entries are reachable via mood IDs but the gate
-    //   intentionally suppresses them. Same family as floaters:P4
-    //   (cube populations). Defensive declaration.
+    //   column). That column is all 1.0 — the mood term rests at
+    //   identity and suppresses nothing today; the veto path
+    //   (veto_on_zero_mood) is the live mechanism awaiting a value.
+    //   Same family as the cube populations' hygiene rows
+    //   (cube_behaviors.hpp). Defensive declaration.
 };
 
 // ── Color Modes ──────────────────────────────────────────────────
