@@ -57,9 +57,10 @@ struct TimeState {
 //     point's position (PointState.x/z) — a two-float harvest, not a
 //     mirror. There is still NO point y (the witness altitude is
 //     GPU-only); it is not to be invented.
-//   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
-//     per Option A — it lives in RibbonState.sky, with its
-//     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
+//   · the rider state LEFT this record per Option A — it lives in
+//     RibbonState.sky (yaw_eased + the possess()-staged release
+//     request); riding ROUTES on the host machine (point_.host ==
+//     RIBBON — RESIDUE_3, closed player-side).
 //
 // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
 //   are explicit latent infrastructure: aura_presence is live here;

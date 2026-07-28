@@ -11,7 +11,7 @@
 
 // ─── input.hpp (MERGED: state + deps + decls + impl) ──────────────
 // History: audit/LADDER.md
-// COHORT: after ribbon.hpp (toggle_sky_mode derefs RibbonState.sky) +
+// COHORT: after ribbon.hpp (possess stages the release on RibbonState.sky) +
 // the door owners (pawn/orbs/agents/cube 66-71); InputState graduated
 // to contracts/spine_state.hpp (it precedes ribbon in the cohort).
 //
@@ -78,7 +78,7 @@ struct CameraControls {
 // POINT consumes it, under that host's own constraint AND mapping —
 // the constraint-and-mapping IS the host's behavioral identity (pawn:
 // camera-relative full-directional, snap; camera: camera-relative
-// full-directional, rule none; ribbon in sky mode: its own
+// full-directional, rule none; ribbon when it hosts: its own
 // forward-biased grammar — a ribbon that could reverse and strafe
 // wouldn't be a ribbon). update_movement_intent folds these into
 // inputState.move_x/move_z.

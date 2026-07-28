@@ -1330,7 +1330,7 @@ namespace t7 {
             // in bodies/ribbon.hpp. Its tail is the sky resync — the SOLE author of
             // the sky_* block (E-3 mechanized: the drain skips those 32 bytes,
             // and initialize() boot-neutrals them for the ribbon-off case).
-            // SEAM[ribbon:sky-mode]. ROSTER-GATE ribbon — guarded at the call site.
+            // ROSTER-GATE ribbon — guarded at the call site.
             void phase_ribbon_tick(RenderCtx& c) {
                 auto& queue = c.queue;
                 // The sky-exit death first — it releases the ground, so it

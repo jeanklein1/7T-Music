@@ -364,7 +364,7 @@ struct ActiveRibbon {
 
     // ── Wander (autonomous drift) ── rolled at commit; a wanderer authors the
     // same yaw/throttle inputs the player does, through the same steering
-    // integrator. SEAM[ribbon:sky-mode].
+    // integrator.
     bool     wander = false;
     float    wander_cruise = 0.0f;      // throttle fraction of RIBBON_MAX_SPEED
     float    wander_tx = 0.0f;          // current waypoint (world XZ)
@@ -434,7 +434,7 @@ void commit_ribbon(RibbonState& rs, MachineCtx* c,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class);
-// carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
+// carries the flown-ribbon pin (host == RIBBON) and ref-count law
 void evict_ribbon(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
 bool dispatch_select_ribbon(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
@@ -475,8 +475,8 @@ void fill_ribbon_selection_geometry(uint32_t seed, uint32_t tier_idx,
 //
 // The steering integrator has three seats, all writing the same two
 // inputs (yaw_in, throttle_in): the PLAYER (cartridge frame block,
-// sky mode), the WANDERER below (the idle script), and one EMPTY
-// SEAT reserved for the musical canvas. One control law, many
+// the RIBBON host), the WANDERER below (the idle script), and one
+// EMPTY SEAT reserved for the musical canvas. One control law, many
 // authors.
 
 inline float wander_rand01(uint32_t& s) {
@@ -613,7 +613,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
     // a still-cold tile — indistinguishable from flat ground by value —
     // so the bake re-runs each frame until the call site reports a WARM
     // sample, then latches. Parked ribbons hold this number forever.
-    // SEAM[ribbon:sky-mode].
     if (!hd.alt_baked) {
         hd.origin[1]  = ground_y + ribbon.height;   // first truth, once
         hd.pos[1]     = hd.origin[1];
@@ -630,7 +629,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // straight seed (laid +heading from the anchor) trails behind it.
         // Pitch is deferred (the frame is horizontal-only by
         // construction); altitude is managed by the pen below. Constants
-        // live in the tuning console (head control law). SEAM[ribbon:sky-mode].
+        // live in the tuning console (head control law).
         // Steering model: yaw is STEERING, not free aim. The available
         // yaw rate is min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN): the
         // heading can only change while moving, and the flown path can
@@ -640,7 +639,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // against the body, and heading-vs-path divergence stays at a
         // few degrees. Reverse is forbidden (a snake does not burrow
         // into its own body): S (reverse intent) is no thrust — the ribbon's forward grammar.
-        // SEAM[ribbon:sky-mode].
         const float speed = std::max(throttle_in, 0.0f) * RIBBON_MAX_SPEED;
         const float yaw_avail = std::min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN);
         hd.heading += yaw_in * yaw_avail * dt;
@@ -687,7 +685,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         head_z = hd.pos[2];
     }
 
-    // Pawn mount point (sky mode): the SEAT — centerline + the wave in
+    // Pawn mount point (the RIBBON host): the SEAT — centerline + the wave in
     // the ring frame, sampled at the SADDLE's arc age (s_age), lifted
     // half a tube along the seat frame's up (seat polish) so the pawn's
     // feet ride the top face through roll and pitch. Mirrors
@@ -695,7 +693,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
     // the live heading (head_poses[0].w), so right = (-sin h, 0, cos h),
     // wave vertical on world-up. The pawn, its frame, and the tube
     // beneath the seat share one wave at one age — the saddle's —
-    // exactly. SEAM[ribbon:sky-mode].
+    // exactly.
     {
         const float p_spd = std::max(ribbon.propagation_speed, 1e-3f);
         const float s_age = ribbon.time - RIBBON_MOUNT_SETBACK / p_spd;
@@ -759,7 +757,7 @@ inline bool ribbon_head_is(const RibbonState& rs, uint32_t slot) {
 }
 
 // Last computed ribbon head pose — the SADDLE (mount): pen + wave +
-// setback. Read by the pawn mount and camera (sky mode).
+// setback. Read by the pawn mount and camera (the RIBBON host).
 inline void ribbon_head_pose(const RibbonState& rs, float& x, float& y, float& z, float& heading) {
     x = rs.head.mount[0];
     y = rs.head.mount[1];
@@ -941,7 +939,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
     // sky_* signal block so the pawn and the ribbon are sampled at
     // the same frame — the one-frame mount lag disappears, leaving
     // MOUNT_SETBACK as the sole seat offset. update() ships neutral
-    // zeros; THIS is the authoritative author. SEAM[ribbon:sky-mode].
+    // zeros; THIS is the authoritative author.
     {
         float hx, hy, hz, hh;
         ribbon_head_pose(rs, hx, hy, hz, hh);
@@ -1363,17 +1361,16 @@ inline void evict_ribbon(MachineCtx* self,
     auto& ar = self->ribbon_state_.active[slot];
     if (!ar.active) return;
 
-    // Sky mode: the flown ribbon is pinned for the flight's duration.
-    // Its anchor patches stream out as the player flies away, but the
-    // ribbon must persist — skip eviction entirely while it is the
-    // mounted, rendered ribbon. release_sky_exit_ribbon (below) frees
-    // it on exit, ground included — and it must, precisely because
-    // returning HERE skips the ref_count decrement below, so the
-    // refcount protocol cannot finish a flown ribbon's death.
+    // The RIBBON host: the flown ribbon is pinned for the flight's
+    // duration. Its anchor patches stream out as the player flies away,
+    // but the ribbon must persist — skip eviction entirely while it is
+    // the mounted, rendered ribbon. release_sky_exit_ribbon (below)
+    // frees it on dismount, ground included — and it must, precisely
+    // because returning HERE skips the ref_count decrement below, so
+    // the refcount protocol cannot finish a flown ribbon's death.
     // A rendered WANDERER is pinned the same way:
     // it drifts freely off its spawn patch, and with one slot the
     // world's ribbon persists — a contemplative object should.
-    // SEAM[ribbon:sky-mode].
     if (slot == self->ribbon_state_.rendered_slot
         && (self->point_.host == PointHost::RIBBON || ar.wander)) {
         return;
@@ -1387,7 +1384,7 @@ inline void evict_ribbon(MachineCtx* self,
     }
 
     // Final reference gone — full eviction. The release belongs HERE and not
-    // at the top: the two early returns above are a live ribbon (sky-mode /
+    // at the top: the two early returns above are a live ribbon (the host /
     // wanderer pin, and the refcount still holding). Releasing there would
     // free the ground of a ribbon that is still standing on it.
     unregister_footprint_for(self, PopFamily::RIBBON, slot);
@@ -1411,7 +1408,7 @@ inline void evict_ribbon(MachineCtx* self,
 // THE HAND THAT CLAIMS IS THE HAND THAT FREES. This is a ribbon DEATH,
 // so it owes the ground back: place_ribbon_from_selection registered a
 // footprint through negotiate_position (grounded — the anchor ribbon's
-// tips touch ground), and nothing here freed it. Sky mode is a
+// tips touch ground), and nothing here freed it. A dismount is a
 // mid-world keypress, not a transition, so no reset_surface sweep
 // follows to cover the miss.
 //

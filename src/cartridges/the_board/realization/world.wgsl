@@ -766,7 +766,7 @@ struct FrameSignal {
     pan_x_delta: f32,
     pan_y_delta: f32,
     dt_beats: f32,        // beat-time delta (currentBeats_ - prevBeats_)
-    sky_mode: u32,        // 0 = grounded, 1 = pawn mounted on the ribbon head
+    sky_mode: u32,        // consumer-free (RESIDUE_3): mount gates read config.point_host; kept as the pose block's leading word
     sky_head_x: f32,
     sky_head_y: f32,
     sky_head_z: f32,
@@ -6236,7 +6236,6 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         // in the sky block (bodies/ribbon.hpp MOUNT_* mirrors); composed here in
         // ribbon_ring_motor's verified order — roll first, then pitch,
         // then yaw (quat_multiply applies its SECOND argument first).
-        // SEAM[ribbon:sky-mode].
         // Negated: quat_rotate maps +X to (cos θ, −sin θ); the heading speaks
         // dir(θ) = (cos θ, +sin θ). Same mirror as the ring motor, same fix.
         let q_yaw   = quat_from_axis_angle(vec3(0.0, 1.0, 0.0),
