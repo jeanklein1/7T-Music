@@ -166,7 +166,7 @@ struct PhotographerCaptureConfig {
 struct GalleryConfig {
     // Spawn probability per terrain archetype id — galleries favor calm
     // ground:                                     mountain varied basin  pool
-    static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.03f, 0.06f, 0.30f, 0.40f };
+    static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.12f, 0.24f, 0.70f, 0.85f };
 
     // Painting count per gallery: gaussian, median 5, σ 2
     // Max varies by archetype — basin gets the largest galleries
@@ -205,8 +205,10 @@ struct GalleryConfig {
     // Minimum snapshots before galleries start appearing
     static constexpr uint32_t MIN_POOL_SIZE = 3;
 
-    // Minimum distance between gallery centers (world units)
-    static constexpr float MIN_GALLERY_DISTANCE = 150.0f;
+    // Minimum distance between gallery centers (world units). Clearance
+    // beyond the median fan (~50 wu half-span); the footprint registry is
+    // the actual overlap guard, this is the spacing taste.
+    static constexpr float MIN_GALLERY_DISTANCE = 110.0f;
 
     // ─── Content×Form Mixing ─────────────────────────────────
     //
