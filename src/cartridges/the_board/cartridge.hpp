@@ -883,6 +883,22 @@ namespace t7 {
                         //   spine-owned.
 
                         world_state_.world_gen++;
+                        // THE FIRST-CAPTURE GATE (POINT_1, the measured seam):
+                        // the harvest closures bind their gen at MAP time, so a
+                        // copy STAGED in the old world (state COPIED) and
+                        // mapped after this ++ would deliver old bytes under
+                        // the fresh gen, passing the guard — the far first
+                        // arrivals in Jean's log. Cancel stale staged copies
+                        // here; a MAPPING machine is left alone: its callback
+                        // bound the OLD gen and drops itself, and forcing it
+                        // IDLE would let the poll double-map an in-flight
+                        // buffer.
+                        if (pawnReadbackState_ == PawnReadbackState::COPIED)
+                            pawnReadbackState_ = PawnReadbackState::IDLE;
+                        if (floaterReadbackState_ == FloaterReadbackState::COPIED)
+                            floaterReadbackState_ = FloaterReadbackState::IDLE;
+                        if (cameraReadbackState_ == CameraReadbackState::COPIED)
+                            cameraReadbackState_ = CameraReadbackState::IDLE;
 
                         // Capture return seed + mood + radius before overwrite
                         mood_state_.back_portal_return_seed = world_state_.active_seed;
@@ -920,8 +936,16 @@ namespace t7 {
                             teardown_orbs(orbs_state_, &orbs_deps_);
 
                         player_.readback_portal_trigger = -1;
-                        player_.readback_x = 0.0f;
-                        player_.readback_z = 0.0f;
+                        // THE AUTHORED PRESENT (POINT_1): at a teleport the
+                        // CPU is the author of the new present — the same
+                        // position reset_player_agent / reseed_player_body
+                        // write below. Idle::PAWN_POS is (0,0) today, so the
+                        // old zero reset was this value BY LUCK; naming it
+                        // makes the equality enforced (the reset_surface
+                        // precedent), and every streaming consumer that runs
+                        // before the first fresh harvest reads the true point.
+                        player_.readback_x = Idle::PAWN_POS_X;
+                        player_.readback_z = Idle::PAWN_POS_Z;
                         uint32_t preserved_tier = agent_state_.slots[player_.possessed_slot].tier_idx;
                         float preserved_color_r = agent_state_.slots[player_.possessed_slot].color_r;
                         float preserved_color_g = agent_state_.slots[player_.possessed_slot].color_g;
