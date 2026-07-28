@@ -1,0 +1,520 @@
+================================================================================
+CC HANDOFF — MOOD_CUT_2 / B
+Six moods become four. The anchor-ribbon machinery dies with its only user.
+================================================================================
+
+GIT LAW
+  Work directly ON master. Commit and push to master when the task is done.
+  No claude/* branch — this is ordinary handoff work.
+
+THE RULING (Jean, stamped)
+  One infinite outdoor mood, one finite outdoor mood.
+    KEEP  MOOD_OPEN_SUNSET        (key 5) — the infinite outdoor
+    KEEP  MOOD_FINITE_OUTDOOR             — the finite outdoor
+    CUT   MOOD_OPEN_DEFAULT       (id 0)
+    CUT   MOOD_FINITE_OUTDOOR_REF (id 5) — "the one that forces the ribbon"
+  The two indoor moods are untouched.
+
+  New ids, after the cut:
+    0  MOOD_OPEN_SUNSET      key 5
+    1  MOOD_INDOOR_FLAT      key 6
+    2  MOOD_INDOOR_VAULT     key 7
+    3  MOOD_FINITE_OUTDOOR   key 8      (key 9 is freed)
+
+THE DIVIDEND
+  MoodProfile.has_anchor_ribbon had exactly one true row, and that row is
+  cut. By YAGNI the flag does not survive as an always-false column — the
+  flag, its applier, its request field, its fulfilment verb and its seed
+  props all go. Delete rather than annotate.
+
+VERIFICATION LAW
+  This is a RENUMBERING. Every per-mood table is positionally brace-
+  initialised and several are pinned by static_assert — that is the safety
+  net, and it only works if every table moves together. Every FIND below is
+  verbatim from the live tree; if one does not match EXACTLY ONCE, STOP and
+  report rather than adapting. Where a step names a site WITHOUT a verbatim
+  FIND, quote the live text back in your report BEFORE editing it.
+  Encoding: LF-only, no BOM.
+
+
+================================================================================
+STEP 0 — THE CENSUS (report before any edit)
+================================================================================
+Run and report, from repo root:
+
+  grep -rn 'MOOD_COUNT' .
+  grep -rn 'MOOD_OPEN_DEFAULT\|MOOD_OPEN_SUNSET\|MOOD_INDOOR_FLAT\|MOOD_INDOOR_VAULT\|MOOD_FINITE_OUTDOOR_REF\|MOOD_FINITE_OUTDOOR' .
+  grep -rn 'has_anchor_ribbon\|anchor_request\|fulfill_anchor_ribbon\|apply_mood_anchor_ribbon\|promote_ribbon_to_rendered\|ANCHOR_X\|ANCHOR_Z\|mood_offset' .
+  grep -rn 'MOOD_TABLE\[\|ORB_MOOD_TABLE\|MOOD_SPAWN_MULT\|CUBE_POPULATIONS\|PORTAL_COLORS' .
+  grep -rn 'mood == 5\|mood == 0\|\[6\]\[3\]\|mood_name' .
+
+Expected homes (this handoff covers exactly these):
+  contracts/mood_constants.hpp · contracts/spine_state.hpp ·
+  direction/mood.hpp · direction/input.hpp ·
+  surface/population_themes.hpp · bodies/orbs.hpp ·
+  bodies/cube_behaviors.hpp · bodies/ribbon.hpp · demos/matrix.hpp
+  plus ONE call site of fulfill_anchor_ribbon_request in the machine
+  (the streaming conductor) — find and name it.
+
+ANY hit outside that list: STOP and report before touching anything.
+
+
+================================================================================
+COMMIT 1 — RETIRE THE ANCHOR RIBBON
+================================================================================
+MOOD_COUNT stays 6 through this commit. The tree compiles at its end; mood 5
+simply becomes a duplicate of mood 4, which commit 2 then deletes.
+
+--- 1.1  the flag leaves the profile -------------------------------
+FILE: src/cartridges/the_board/contracts/spine_state.hpp
+
+FIND:
+    bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
+    bool   has_anchor_ribbon;      // mood spawns a fixed reference ribbon at the world center
+
+REPLACE:
+    bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
+
+--- 1.2  the column leaves every row -------------------------------
+FILE: src/cartridges/the_board/contracts/spine_state.hpp
+
+Remove the trailing `ribbon` column from the header comment and the trailing
+boolean from all SIX MOOD_TABLE rows. Full replacement block, verbatim:
+
+FIND:
+// has_anchor_ribbon flag (last column): mood 5 (FINITE_OUTDOOR_REF)
+//   is the only row that sets it true. The mood ID is an identifier,
+//   not a discriminator — atmospheric data is profile-driven. See
+//   SEAM[mood:L1] above for the gating call site.
+//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull   ribbon
+inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  false },
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true,  false },
+    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false, false },
+    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false, false },
+    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  false },
+    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  true  },
+};
+
+REPLACE:
+//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull
+inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
+    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+};
+
+--- 1.3  the column witnesses --------------------------------------
+FILE: src/cartridges/the_board/contracts/spine_state.hpp
+SITE: the "COLUMN WITNESSES" static_assert block immediately below the
+      F-3 assert.
+
+The tail probe pins the LAST field of the row, which was has_anchor_ribbon
+and is now allow_frustum_cull. Quote the live block in your report, then
+re-aim any probe that names the removed field. Do NOT weaken a probe —
+if the tail probe has nothing left to name that the middle probe does not
+already cover, say so and leave the assert covering the new tail.
+
+--- 1.4  the applier dies ------------------------------------------
+FILE: src/cartridges/the_board/direction/mood.hpp
+
+Delete `apply_mood_anchor_ribbon` (the whole function, with its comment
+block above it), and delete its call line inside apply_mood:
+
+FIND:
+    apply_mood_anchor_ribbon(ribbon_state, mood);  // SEAM[mood:K4]/[mood:L1] anchor — DECLARES only; the machine fulfills (REQUEST_1)
+
+REPLACE:
+(delete this line entirely)
+
+Then: `ribbon_state` and `ribbon_deps` may become unused parameters of
+apply_mood. Report whether any OTHER statement in apply_mood still uses
+them. If not, cut them from the signature and from every call site — an
+unused parameter is a line the next reader must re-decide.
+
+--- 1.5  the SEAM comments ------------------------------------------
+FILE: src/cartridges/the_board/direction/mood.hpp
+SITES: the header banner's SEAM[mood:K4] and SEAM[mood:L1] paragraphs, and
+       the apply_mood orchestrator note that lists "four named
+       sub-functions (apply_mood_lighting, _spot_lights, _indoor_shell,
+       _anchor_ribbon)".
+
+Delete the K4 and L1 paragraphs whole. Correct the orchestrator note to
+THREE named sub-functions. Quote both live texts in your report first.
+
+--- 1.6  the request field + the fulfilment verb ---------------------
+FILE: src/cartridges/the_board/bodies/ribbon.hpp
+
+Delete, in this order:
+  a) `fulfill_anchor_ribbon_request` — the definition AND the declaration
+     in the MODULE FUNCTIONS block AND its comment blocks.
+  b) `RibbonState::anchor_request` — the field and the long comment above
+     it (the REQUEST_1 paragraph).
+  c) `RibbonProp::ANCHOR_X` and `ANCHOR_Z` — report their prop indices;
+     they leave the registry with their only reader.
+  d) `promote_ribbon_to_rendered` — ONLY IF the census shows
+     fulfill_anchor_ribbon_request was its sole caller. Report the caller
+     list; if another caller exists, keep it and say so.
+  e) `RibbonState::mood_offset` — same test. Report every reader. If
+     fulfill was the only one, it goes; if not, it stays.
+
+--- 1.7  release_finite_ribbons loses its condition ------------------
+FILE: src/cartridges/the_board/bodies/ribbon.hpp
+
+FIND:
+    if (c->world_state_.finite_mode && rs.active_count > 0 && !MOOD_TABLE[c->mood_state_.active].has_anchor_ribbon) {
+
+REPLACE:
+    if (c->world_state_.finite_mode && rs.active_count > 0) {
+
+Also correct the ORDER note above this function if it still explains itself
+by reference to the anchor spawn ("and possibly spawned the anchor").
+
+--- 1.8  the dual-entry comments become single-entry -----------------
+FILE: src/cartridges/the_board/bodies/ribbon.hpp
+SITES: commit_ribbon's "Dual entry (SEAM[ribbon:dual-entry], RESTATED
+       REQUEST_1)" note, and fill_ribbon_selection_geometry's declaration
+       comment "Shared geometry helper (dual-entry: dispatch + mood-5
+       forced spawn)".
+
+Both are now single-entry. Quote and correct. If SEAM[ribbon:dual-entry]
+is referenced anywhere else, report it.
+
+--- 1.9  the conductor's call ----------------------------------------
+FILE: the machine's streaming conductor (find it — STEP 0 names it)
+
+Delete the `fulfill_anchor_ribbon_request(...)` call and any comment that
+explains the ordering constraint it created.
+
+--- 1.10  the orbs cross-reference -----------------------------------
+FILE: src/cartridges/the_board/bodies/orbs.hpp
+SITE: the ORB_MOOD_TABLE banner comment that says it "Resolves with the
+      has_anchor_ribbon flag (mood:L1)".
+
+Quote and correct — the flag no longer exists.
+
+--- 1.11  the mood.hpp include ---------------------------------------
+FILE: src/cartridges/the_board/direction/mood.hpp
+
+`#include <cstring>` is justified in place as "std::memcpy (anchor-ribbon
+placement copy)". Report whether any std::memcpy remains in this file. If
+none, the include goes with its reason.
+
+COMMIT 1 MESSAGE:
+  mood: retire the anchor ribbon — the flag, the applier, the request,
+  the fulfilment verb and its seed props
+
+
+================================================================================
+COMMIT 2 — CUT THE TWO ROWS
+================================================================================
+
+--- 2.1  the ids ----------------------------------------------------
+FILE: src/cartridges/the_board/contracts/mood_constants.hpp
+
+FIND:
+inline constexpr uint32_t MOOD_COUNT = 6;
+
+// ─── Mood IDs ───────────────────────────────────────────────────
+//
+inline constexpr uint32_t MOOD_OPEN_DEFAULT = 0;
+inline constexpr uint32_t MOOD_OPEN_SUNSET = 1;
+inline constexpr uint32_t MOOD_INDOOR_FLAT = 2;
+inline constexpr uint32_t MOOD_INDOOR_VAULT = 3;
+inline constexpr uint32_t MOOD_FINITE_OUTDOOR = 4;
+inline constexpr uint32_t MOOD_FINITE_OUTDOOR_REF = 5;
+
+REPLACE:
+inline constexpr uint32_t MOOD_COUNT = 4;
+
+// ─── Mood IDs ───────────────────────────────────────────────────
+// One outdoor world open, one outdoor world walled, two rooms.
+inline constexpr uint32_t MOOD_OPEN_SUNSET = 0;
+inline constexpr uint32_t MOOD_INDOOR_FLAT = 1;
+inline constexpr uint32_t MOOD_INDOOR_VAULT = 2;
+inline constexpr uint32_t MOOD_FINITE_OUTDOOR = 3;
+
+--- 2.2  MOOD_TABLE + the F-3 pin ------------------------------------
+FILE: src/cartridges/the_board/contracts/spine_state.hpp
+
+FIND:
+inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
+    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+};
+
+REPLACE:
+inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
+    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+};
+
+FIND:
+static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
+           && MOOD_INDOOR_FLAT        == 2 && MOOD_INDOOR_VAULT       == 3
+           && MOOD_FINITE_OUTDOOR     == 4 && MOOD_FINITE_OUTDOOR_REF == 5
+           && MOOD_COUNT == 6,
+
+REPLACE:
+static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
+           && MOOD_INDOOR_VAULT == 2 && MOOD_FINITE_OUTDOOR == 3
+           && MOOD_COUNT == 4,
+
+--- 2.3  the K1 seam note --------------------------------------------
+FILE: src/cartridges/the_board/contracts/spine_state.hpp
+SITE: SEAM[mood:K1], which reads "With finite_outdoor and
+      finite_outdoor_ref, the binary doesn't survive contact".
+
+finite_outdoor_ref no longer exists. The knot is still real — one finite
+OUTDOOR mood still sits astride the indoor/outdoor binary — so restate it
+without the dead name. Quote the live text first.
+
+--- 2.4  portal colours ----------------------------------------------
+FILE: src/cartridges/the_board/direction/mood.hpp
+
+FIND:
+inline constexpr float PORTAL_COLORS[6][3] = {
+    { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
+    { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
+    { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
+    { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
+    { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
+    { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
+};
+
+REPLACE:
+inline constexpr float PORTAL_COLORS[MOOD_COUNT][3] = {
+    { 0.72f, 0.45f, 0.85f },  // mood 0  open_sunset     — lilac
+    { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
+    { 0.95f, 0.80f, 0.20f },  // mood 2  indoor_vault    — yellow
+    { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
+};
+
+(The literal 6 becomes MOOD_COUNT: the array is a per-mood table and the
+count has one home.)
+
+--- 2.5  mood_name ---------------------------------------------------
+FILE: src/cartridges/the_board/direction/mood.hpp
+
+FIND:
+    static const char* NAMES[MOOD_COUNT] = {
+        "open_default", "open_sunset", "indoor_flat",
+        "indoor_vault", "finite_outdoor", "finite_outdoor_ref"
+    };
+
+REPLACE:
+    static const char* NAMES[MOOD_COUNT] = {
+        "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor"
+    };
+
+--- 2.6  the portal raffle -------------------------------------------
+FILE: src/cartridges/the_board/direction/mood.hpp
+
+Each survivor inherits its cut sibling's share exactly: open_sunset takes
+open_default's 0.20 (→ 0.40), finite_outdoor takes finite_outdoor_ref's
+0.15 (→ 0.30). The indoor pair is unchanged. Sums to 1.
+
+FIND:
+    if (c->world_state_.finite_mode) {
+        if (roll < 0.20f) return 0;
+        if (roll < 0.40f) return 1;
+        if (roll < 0.55f) return 2;
+        if (roll < 0.70f) return 3;
+        if (roll < 0.85f) return 4;
+        return 5;
+    }
+
+REPLACE:
+    if (c->world_state_.finite_mode) {
+        if (roll < 0.40f) return 0;   // open_sunset    — the way out
+        if (roll < 0.55f) return 1;   // indoor_flat
+        if (roll < 0.70f) return 2;   // indoor_vault
+        return 3;                     // finite_outdoor
+    }
+
+--- 2.7  mood x family spawn multipliers -------------------------------
+FILE: src/cartridges/the_board/surface/population_themes.hpp
+
+The cut row was the only row in this matrix carrying anything but 1.0 —
+the "reference" mood suppressed every family but arch. With it gone the
+table is identity. It STAYS: it is a live control surface resting at
+identity, not dead code, and it is the panel row the indoor moods will
+use. But the comment must stop claiming zeros exist.
+
+FIND:
+inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
+    /* MOOD_OPEN_DEFAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_FIN_OUTDOOR_REF */ { 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+};
+
+REPLACE:
+inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
+    /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+};
+
+--- [anchor-2.7] ----------------------------------------------------
+Three comments elsewhere describe zeros that no longer exist:
+  · the "0 = absent (the gol/gallery-class veto)" line in this table's
+    own WHAT block,
+  · SEAM[gol_zones:P4] in bodies/gol_zones.hpp ("Zero entries are
+    reachable via mood IDs but the gate intentionally suppresses them"),
+  · the floaters:P4 sibling it names.
+Quote all three and correct them to describe the present table: the mood
+term rests at identity; the veto path (veto_on_zero_mood) is live and
+unexercised. Do NOT delete the veto path — it is the mechanism, not the
+value.
+
+ALSO report, no edit: whether compose_spawn_chance / T7_GATE_PIN /
+mood_mult_for compile unchanged against a 4-row matrix.
+
+--- 2.8  orb mood table ----------------------------------------------
+FILE: src/cartridges/the_board/bodies/orbs.hpp
+
+Delete the /* 0 open_default */ row and the /* 5 finite_outdoor_ref */ row
+from ORB_MOOD_TABLE, and renumber the four survivors' leading comments to
+0..3. The surviving rows' VALUES do not change. Quote the live block back
+before editing — this table is wide and positional.
+
+--- 2.9  cube populations --------------------------------------------
+FILE: src/cartridges/the_board/bodies/cube_behaviors.hpp
+
+FIND:
+inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
+    /* MOOD_OPEN_DEFAULT */
+    { MOOD_OPEN_DEFAULT,
+      //                    stat curl  wave
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_OPEN_SUNSET */
+    { MOOD_OPEN_SUNSET,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_INDOOR_FLAT — cubes don't spawn here; row exists for hygiene */
+    { MOOD_INDOOR_FLAT,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_INDOOR_VAULT — cubes don't spawn here; row exists for hygiene */
+    { MOOD_INDOOR_VAULT,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_FINITE_OUTDOOR */
+    { MOOD_FINITE_OUTDOOR,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_FINITE_OUTDOOR_REF — cubes don't spawn here; row exists for hygiene */
+    { MOOD_FINITE_OUTDOOR_REF,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+};
+
+static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
+              "CUBE_POPULATIONS must declare one row per mood");
+static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_DEFAULT,        "row 0 must be MOOD_OPEN_DEFAULT");
+static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_OPEN_SUNSET,         "row 1 must be MOOD_OPEN_SUNSET");
+static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_FLAT,         "row 2 must be MOOD_INDOOR_FLAT");
+static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_INDOOR_VAULT,        "row 3 must be MOOD_INDOOR_VAULT");
+static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_FINITE_OUTDOOR,      "row 4 must be MOOD_FINITE_OUTDOOR");
+static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_FINITE_OUTDOOR_REF,  "row 5 must be MOOD_FINITE_OUTDOOR_REF");
+
+REPLACE:
+inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
+    /* MOOD_OPEN_SUNSET */
+    { MOOD_OPEN_SUNSET,
+      //                    stat curl  wave
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_INDOOR_FLAT */
+    { MOOD_INDOOR_FLAT,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_INDOOR_VAULT */
+    { MOOD_INDOOR_VAULT,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_FINITE_OUTDOOR */
+    { MOOD_FINITE_OUTDOOR,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+};
+
+static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
+              "CUBE_POPULATIONS must declare one row per mood");
+static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_SUNSET,    "row 0 must be MOOD_OPEN_SUNSET");
+static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_INDOOR_FLAT,    "row 1 must be MOOD_INDOOR_FLAT");
+static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_VAULT,   "row 2 must be MOOD_INDOOR_VAULT");
+static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be MOOD_FINITE_OUTDOOR");
+
+--- [anchor-2.9] — A LIVE DEFECT, FOUND IN THE AUDIT ------------------
+The banner comment above this table claims cubes are gated by
+`mood_mult_for(PopFamily::CUBE)` = `{1, 1, 0, 0, 1, 0}` and therefore
+"don't spawn in indoor moods". The live MOOD_SPAWN_MULT cube column is
+`{1, 1, 1, 1, 1, 0}` — the indoor zeros do NOT exist. The comment has been
+wrong, and the two "row exists for hygiene" notes cut above inherited the
+error.
+
+Verify this against the live tree and report. Then correct the banner to
+describe the present gate. Do NOT change the table's values to match the
+comment — the comment is the thing that drifted.
+
+--- 2.10  the keys ---------------------------------------------------
+FILE: src/cartridges/the_board/direction/input.hpp
+
+FIND:
+    case GLFW_KEY_5: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_SUNSET);        break;
+    case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);        break;
+    case GLFW_KEY_7: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_VAULT);       break;
+    case GLFW_KEY_8: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_FINITE_OUTDOOR);     break;
+    case GLFW_KEY_9: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_FINITE_OUTDOOR_REF); break;
+
+REPLACE:
+    case GLFW_KEY_5: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_SUNSET);    break;
+    case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);    break;
+    case GLFW_KEY_7: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_VAULT);   break;
+    case GLFW_KEY_8: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_FINITE_OUTDOOR); break;
+
+Key 9 is freed. Do not annotate it as reserved — say nothing.
+
+Report any header comment in this file that documents the 5..9 range.
+
+--- 2.11  the boot mood ----------------------------------------------
+FILE: src/cartridges/the_board/demos/matrix.hpp
+
+FIND:
+inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] = {
+    /* full    */ MOOD_OPEN_DEFAULT,
+    /* minimal */ MOOD_OPEN_DEFAULT,
+};
+
+REPLACE:
+inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] = {
+    /* full    */ MOOD_OPEN_SUNSET,
+    /* minimal */ MOOD_OPEN_SUNSET,
+};
+
+--- [anchor-2.11] ---------------------------------------------------
+Report, no edit: the rest value of `PortalDestination::mood` and of
+`MoodState::back_portal_return_mood`. Both default to 0, which was
+open_default and is now open_sunset — confirm that is still the intended
+"nowhere in particular" destination and say so explicitly.
+
+COMMIT 2 MESSAGE:
+  mood: six moods become four — one open outdoor, one walled outdoor,
+  two rooms
+
+
+================================================================================
+GATE
+================================================================================
+Two commits, in order. ONE end build after commit 2 — the tree does not
+compile mid-renumber by design, and each commit compiles at its own end.
+Jean runs glaw1 and the visual gate.
+
+Report at the end: the STEP 0 census, every quoted-back site, the
+[anchor-2.7] / [anchor-2.9] / [anchor-2.11] findings, and any FIND that
+needed a second look.
