@@ -100,19 +100,28 @@ each doing the half it can):**
 Zero behavior change outside the transition window; the harvest remains
 the sole steady-state author.
 
-### [P0-c] The reader census — **34 sites, 6 modules, classified**
+### [P0-c] The reader census — **40 read expressions (35 code lines), six modules + the spine's door, classified**
+
+*(CORRECTED by the adversarial verification — the census as first
+committed said "34 sites, 6 modules" with patch_system at 12; the
+recount at the census base `331b34e` finds patch_system holds **18**
+read expressions on 13 code lines, and the row misattributed
+`update_entity_draw_visibility` — a spawn_engine symbol whose six reads
+are the spawn_engine row — and named a symbol `update_center` that does
+not exist in the tree. The rename itself converted **all 40**
+correctly; this was a report defect, never a code defect.)*
 
 | role | sites | face |
 |---|---|---|
-| streaming center + recenter + LOD banding/stage + patch sorts + visibility cylinder | 12 (patch_system: the bubble center, `update_center`, the LOD/band/sort calls, `update_entity_draw_visibility`'s cylinder) | MachineCtx |
-| entity distance cull (arch/column/antenna reupload culls) | 6 (spawn_engine ×3 pairs) | MachineCtx |
+| streaming center + banding + patch sorts + continuous allocation | 18 (patch_system, all inside `band_patches` and `stream_patches`: band's point pair; the bubble-center floor pair; three continuous-section `collect_sorted_patches` calls ×2; the continuous-allocation pawn-cell pair; the world-coord point pair; the distance-driven-spawn and heightfield-gen `collect_sorted_patches` calls ×2) | MachineCtx |
+| entity distance cull (arch/column/antenna reupload culls) | 6 (spawn_engine: `update_entity_draw_visibility`'s ×3 pairs) | MachineCtx |
 | agent respawn ring + possession search | 4 (agents ×2 pairs — `respawn_evicted_agents`, the possession-nearest scan) | AgentsDeps |
 | corral ring + birth-into-mode (E2's offset capture) | 4 (cube_behaviors: `corral_cubes` pair, `cube_write_gpu` pair) | CubeDeps ­/ MachineCtx |
 | ribbon: nearest-active adoption + away-orientation at select | 4 (ribbon_frame_tick pair, `select_ribbon_for_patch` pair) | RibbonDeps / MachineCtx |
 | gallery wall-frame placement | 2 (`fill_slot_wall_frame`) | GalleryDeps |
 | the portal door (bubble sensor read + consume) | 2 (cartridge, spine-resident) | direct member |
 
-*(count: 34 read expressions of `readback_x/z/portal_trigger`; the REQUEST_1
+*(count: 40 read expressions of `readback_x/z/portal_trigger`; the REQUEST_1
 fulfillment verb does NOT read the point — the anchor position is
 seed-derived — so it adds nothing to this census.)*
 
@@ -160,7 +169,7 @@ CPU mirror now lives HERE, and the banner must say so.
 |---|---|---|
 | `4ae7635` | P0 | Part 0 — the four censuses + the P0-b verdict (map-time gen is the hole), committed before any edit |
 | `261e908` | P1 | the seam — three `COPIED → IDLE` cancels at teardown (`world_gen++` side) + the authored reset (`point x/z = 0`); MAPPING left alone (its callback bound the OLD gen and self-rejects) |
-| `4a47ee5` | P2 | the funnel — the trio moves home to `PointState`; five faces gain `const PointState& point_`; nine-file rename; every touched comment truth-fixed |
+| `4a47ee5` | P2 | the funnel — the trio moves home to `PointState`; five faces gain `const PointState& point_`; the scripted rename swept nine files, and the commit as a whole touched 11 (the nine plus point.hpp's banner truth-fix and entity_types.hpp's new face); every touched comment truth-fixed |
 
 ## GATES
 
@@ -202,9 +211,10 @@ batches and are not readers.
 > ordered before any new-world streaming, with the first-capture gate
 > canceling any stale COPIED capture from the old world), and the portal
 > door's consume (`portal_trigger = -1` after acting). Nothing else
-> writes it, ever. **Consumers** (the P0-c census, 34 read sites in six
-> modules): the streaming bubble (center, recenter, LOD banding, patch
-> sorts, visibility cylinder), the entity distance culls, the agent
+> writes it, ever. **Consumers** (the P0-c census as corrected: 40 read
+> expressions across six modules plus the spine's own door): the
+> streaming bubble (center, banding, patch sorts, continuous
+> allocation), the entity distance culls, the agent
 > respawn ring and possession search, the corral and kite rings and E2's
 > birth-into-mode offset capture, the ribbon's nearest-active adoption
 > and away-orientation, the gallery's wall-frame placement, and the
@@ -220,3 +230,58 @@ POINT_1 complete: the seam is closed at the first-capture gate (P1), the
 record lives in its semantic home behind one face (P2), and the charter
 paragraph awaits Jean's stamp (P3). Behavior contract: byte-identical
 outside the transition window; the funnel moved names, not behavior.
+
+## ADVERSARIAL VERIFICATION — six skeptics over REQUEST_1 + POINT_1
+
+Six independent skeptics, one load-bearing claim each, every one
+prompted to REFUTE (the Batch C/D pattern; ~651k tokens, all six
+reported). Verdicts:
+
+| claim attacked | verdict |
+|---|---|
+| the request channel's one-shot lifecycle (set → consume-once, no re-fire, no loss across teardown, no stale-mood fulfillment) | **HELD** — the flag clears as fulfill's second statement, no downstream act can fail out, TEARDOWN orders teardown_ribbon/reset_surface before apply_mood, the pending window is intra-frame, both transition-arming doors are IDLE-gated |
+| the deferral's ordering equivalence (mood-apply → head of stream_patches) | **HELD in every reachable configuration** — declaration and fulfillment land in the same frame; the only gap reader is the mood-transition census, whose written zero-expectation the OLD code was violating; all rendered_slot/active consumers run after R3 |
+| the footprint claim + the R2 tip scrub | **HELD** — argument order matches the portal precedent, slot 0 is the only slot (MAX_RIBBON_INSTANCES=1), unrecord_entity's exact (family,slot) match + no-op-on-absent makes the two-unrecord scrub complete and harmless in all constructible states |
+| the P1 seam closure | **REFUTED at one edge** — the staging seam IS closed (three machines only, gen bound at map-issue, update-phase teardown strictly precedes render-phase capture, R11's IDLE gate protects map-pending buffers, portal_trigger covered), but the camera-host lane survives: see below |
+| the P2 funnel's byte-identity | **HELD** — zero old-name survivors in compiled code, all six aggregate initializers field-aligned, every trio write goes through the spine's non-const member, declaration order sound, F-5 respected, reset values identical by constexpr |
+| house laws + report truth | **REFUTED at the census** — encoding/WGSL/bindings/hashes/eight spot-checked facts all held; the P0-c figure did not (corrected above, in place) |
+
+### The camera-host lane (the seam skeptic's finding — REPORT, not improvised)
+
+In camera-host (reachable: the host toggle, and the bubble's own portal
+firing in free-fly), the teardown authors `point_.x/z = Idle::PAWN_POS`
+and cancels COPIED — but `cameraBuffer_` is authored exactly once, at
+boot, and the WGSL free-fly integrator has no teleport logic. So the
+teardown frame's capture stages a FRESH copy of the un-teleported
+camera, and the next frame's harvest — legitimately, under the NEW gen —
+restores the old world's flight coordinates over the authored reset:
+origin recenter, then far snap-back, a double restream. **This is
+pre-existing at the base `0475dd1`** (the same authored reset and the
+same never-re-authored camera existed before the batch); P1 changed
+nothing in this lane, and the staging seam it targeted is closed. What
+remains is a DESIGN question the handoff did not rule on: two authors
+disagree at a camera-host transition — either the camera should teleport
+(re-author the camera buffer at teardown) or the point should follow the
+persistent camera (host-route the authored reset). **Jean rules; carried
+to the fresh session's docket.**
+
+### The latent register (non-refuting, recorded)
+
+- `anchor_request`'s declaration (apply_mood_anchor_ribbon) is not
+  ROSTER.ribbon-gated while its sole consumer is. In a hypothetical
+  ribbon-off/transitions-on roster column the request would pend forever
+  — inert (no other reader exists). The OLD code in that column was
+  worse: it committed a phantom ribbon and made dispatch_compute fire
+  against a pipeline the roster never created. Unreachable in both
+  shipped demo columns; the deferral FIXES a latent defect.
+- Pre-existing at base, outside both handoffs: `active_count` inflation
+  when a ribbon survives the has_anchor_ribbon exemption into a new
+  anchor world; stale tip flags can suppress lazy tip re-registration
+  after a pinned patch is evicted and respawned.
+
+### Caveat
+
+The funnel verification is a source census: this environment compiles
+glaw1's syntax gate only (the Dawn build is a Windows preset). glaw1 is
+GREEN and Jean's two [G:runtime-J] checks remain the designed runtime
+gate.

@@ -237,3 +237,14 @@ no third commit was forced. [G:shader] n/a — CPU-side, stated.
      prophecy's resolution.
 - **[G:census]** — prediction: all integers unchanged everywhere except
   the mood-5 ribn claimed 0→1, delta −1→0.
+
+## ADVERSARIAL VERIFICATION
+
+REQUEST_1's three claims (the request lifecycle, the deferral's
+ordering equivalence, the footprint claim + the R2 scrub) were attacked
+by three of the six skeptics in the joint REQUEST_1 + POINT_1
+verification run and **all held** — no code defect found. Full verdict
+table, the latent register (the roster-gate asymmetry on
+`anchor_request`, the pre-existing `active_count`/tip-flag items), and
+the one camera-host finding (POINT_1-side, pre-existing, for Jean's
+ruling) live in `audit/POINT_1_REPORT.md`.
