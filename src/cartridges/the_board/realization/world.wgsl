@@ -1960,6 +1960,14 @@ const CUBE_SLOT_COUNT: u32 = 256u;
 const SPHERE_COLOR_RELEASE_RATE: f32 = 2.0;
 const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 
+// RESIDUE_2 [3b]: the sphere's floor over the LIVE ground (flyer
+// policy — raw GoL, one card fetch). update_sphere walks pos.y toward
+// max(authored orbit y, floor + SPHERE_CLEARANCE) — the walk, not this
+// floor, is the operative change while COUPLING_TERRAIN_TO_SPHERE_HEIGHT
+// (its snapped +5 sibling above) is unmuted; this floor binds when that
+// coupling is muted. Jean's dial, panel-legible.
+const SPHERE_CLEARANCE: f32 = 2.0;
+
 // Cubes bob and now drift via Phase-3 behaviors; the drift integrator
 // can pull pos below ground if a behavior pushes drift.y negative
 // faster than the spring restores it. update_cube clamps drift.y from
@@ -7369,8 +7377,22 @@ fn update_sphere() {
 
             // Orbit: PGA motor around anchor
             let updated = compose_sphere_from_orbit_pga(fe.t, fe);
+            let prev_y = fe.pos.y;   // the walking value's present (last frame's settled y)
             fe.pos = updated.pos;
             fe.orientation = updated.orientation;
+
+            // RESIDUE_2 [3b]: the sphere rides the live ground. The goal
+            // may leap (authored orbit y, live floor + clearance); the
+            // value walks — continuity law, no snap. The sphere lifts
+            // over live cells and settles back beyond the zone. The
+            // existing flyer evaluator does the fetch (raw GoL, no
+            // self-suppression); ease 4.0 is a starting stamp — Jean's
+            // dial at the gate.
+            let authored_orbit_y = fe.pos.y;
+            let floor_qi = QueryInputs(fe.pos, signal.t_seconds);
+            let floor_y = manifold_position(fe.pos, POLICY_FLYER, floor_qi).y;
+            let y_target = max(authored_orbit_y, floor_y + SPHERE_CLEARANCE);
+            fe.pos.y = prev_y + (y_target - prev_y) * (1.0 - exp(-4.0 * dt));
 
             // RESIDUE_2 [2]: runtime walls — the sphere reads the indoor
             // bounds through the one law (margins v1 are the camera's
