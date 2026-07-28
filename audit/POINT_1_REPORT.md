@@ -155,3 +155,68 @@ CPU mirror now lives HERE, and the banner must say so.
 ## COMMIT TABLE
 
 *(appended as the commits land)*
+
+| hash | step | content |
+|---|---|---|
+| `b8bab65` | P0 | Part 0 — the four censuses + the P0-b verdict (map-time gen is the hole), committed before any edit |
+| `77915e9` | P1 | the seam — three `COPIED → IDLE` cancels at teardown (`world_gen++` side) + the authored reset (`point x/z = 0`); MAPPING left alone (its callback bound the OLD gen and self-rejects) |
+| `bf5e35f` | P2 | the funnel — the trio moves home to `PointState`; five faces gain `const PointState& point_`; nine-file rename; every touched comment truth-fixed |
+
+## GATES
+
+| gate | status |
+|---|---|
+| [G:glaw1] | **GREEN at every commit** (b8bab65 report-only; 77915e9 GREEN; bf5e35f GREEN) |
+| [G:shader] | **n/a — CPU-side batch**, stated explicitly per the handoff: no WGSL file touched, no binding change, L6 registry untouched |
+| [G:runtime-J] | Jean's two checks at a fixed seed: (1) the log's scenario re-run — walk far, portal-cross, first arrivals all near the true point, none at the old coordinates; (2) ten minutes across hosts — streaming, corral, kite, respawn, portals byte-identical. |
+| [G:census] | **Prediction: all integers unchanged, all deltas zero everywhere** (REQUEST_1 already retired the last −1). |
+
+## ENCODING
+
+All touched files LF-only, no BOM, no CR (verified by the house sweep
+before each commit).
+
+## THE RG PROOF — zero readers of the old names
+
+```
+$ rg -n "readback_x|readback_z|readback_portal_trigger" src/ --glob '!src/docs/**'
+(no matches — exit 1)
+```
+
+Docs (`src/docs/**`) keep the old names as history — they narrate past
+batches and are not readers.
+
+## [P3] THE CHARTER PARAGRAPH — drafted for Jean's stamp
+
+*(report-only; not committed to the charter document without Jean)*
+
+> **THE POINT.** The point is the program's reference position — one
+> place on the board that means "where the witness is," host-arbitrated:
+> when the pawn hosts, the point is the possessed body's position; when
+> the camera hosts, it is the camera's ground shadow (pos.xz — the
+> witness altitude stays GPU-only and is not to be invented). Its record
+> is `PointState` (contracts/point.hpp): the position mirror `x/z`, the
+> bubble sensor `portal_trigger`, the host, and the bubble — one home,
+> one face. **Authors**: the P5 HARVEST (sole steady-state author,
+> host-routed), the TEARDOWN reset (the authored present at world birth,
+> ordered before any new-world streaming, with the first-capture gate
+> canceling any stale COPIED capture from the old world), and the portal
+> door's consume (`portal_trigger = -1` after acting). Nothing else
+> writes it, ever. **Consumers** (the P0-c census, 34 read sites in six
+> modules): the streaming bubble (center, recenter, LOD banding, patch
+> sorts, visibility cylinder), the entity distance culls, the agent
+> respawn ring and possession search, the corral and kite rings and E2's
+> birth-into-mode offset capture, the ribbon's nearest-active adoption
+> and away-orientation, the gallery's wall-frame placement, and the
+> portal door. **The standing rule, now structural**: PRESENCE FOLLOWS
+> THE POINT — anything that spawns, streams, culls, or gathers "near the
+> player" reads the point through its module face, never a body's
+> position directly; the type system now enforces what the comment law
+> used to ask politely.
+
+## CLOSING
+
+POINT_1 complete: the seam is closed at the first-capture gate (P1), the
+record lives in its semantic home behind one face (P2), and the charter
+paragraph awaits Jean's stamp (P3). Behavior contract: byte-identical
+outside the transition window; the funnel moved names, not behavior.
