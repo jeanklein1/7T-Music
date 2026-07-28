@@ -1,0 +1,132 @@
+═══════════════════════════════════════════════════════════════════
+CC HANDOFF — POINT_1 · THE POINT GETS ITS HOUSE
+Cartridge: the_board (incubator_dual). BASE: the REQUEST_1 head — land
+this second. The point already exists in the tree (point_.host, the
+P5 harvest as sole author, the documented consumer set); this batch
+closes its one measured seam and moves its mirror out of the pawn-era
+PlayerState into the point's own record, making the standing rule —
+new wiring targets the point — structural. Deviations are REPORT,
+never improvisation.
+═══════════════════════════════════════════════════════════════════
+
+0. GIT LAW + PREFLIGHT
+------------------------------------------------------------------
+Master-direct · unshallow check · base hash + rev-list count (must be
+the REQUEST_1 head; if not, STOP and say so) · LF-only, no BOM ·
+glaw1 GREEN at base and every commit · symbols, never FILE:LINE ·
+Part 0 written WHOLE before the first edit.
+
+THE MEASURED SEAM (from Jean's log, registered as
+[point:stale-readback-after-transition]): after an open-world portal
+crossing at distance, the first arrivals — gallery (868,−873), ribbon
+(925,−981) — spawned ~1300 wu from the true point before streaming
+corrected to origin. The gen-guard on harvest callbacks is known
+present ("Drop stale callbacks from a previous world"), so the
+HYPOTHESIS is an ordering hole one level down: either the teardown
+reset of the mirror is missing/mis-ordered on this path, or the NEW
+world's first capture copies the agent buffer BEFORE the pawn's new
+position is authored GPU-side — old data under a fresh gen, passing
+the guard. Part 0 decides which; the fix must match the paste.
+
+PART 0 — READ-ONLY (report in full, then edit)
+------------------------------------------------------------------
+[P0-a] THE WRITER CENSUS, pasted: every author of player_.readback_x
+  / readback_z / readback_portal_trigger. Documented expectation
+  (quote it from the tree): SOLE AUTHOR is the P5 harvest; the
+  spine's only other touches are the TEARDOWN reset and the portal
+  door's consume. Paste the teardown reset — does it exist on the
+  open-world transition path, what value does it write, and WHERE in
+  the teardown order relative to the first stream_patches of the new
+  world?
+[P0-b] THE FIRST-CAPTURE ORDER, pasted: where the pawn's new-world
+  position is authored GPU-side (the placement upload at world
+  build), versus where the R11 capture copies the agent buffer, in
+  frame order across the transition. VERDICT: name the exact hole
+  that produced the log's far spawns. If NEITHER hypothesis survives
+  the paste — the reset is present, ordered, and the capture is
+  clean — STOP: the seam has a third cause and the fix is not to be
+  guessed.
+[P0-c] THE READER CENSUS: every reader of the trio, tree-wide,
+  classified by role (streaming center, recenter, LOD banding/stage,
+  entity cull, orb anchor, corral/kite, respawn, possession search,
+  portal door, sorts, the REQUEST_1 executor if it reads the point,
+  anything else found). Count reported — this is P2's mechanical
+  scope and the point's documented consumer set made exhaustive.
+[P0-d] THE POINT RECORD TODAY: paste point_'s type and home
+  (PointHost and kin) — P2 moves the trio in beside it; name any
+  naming collision or ordering constraint the move must respect.
+
+PART A — THE COMMITS
+------------------------------------------------------------------
+[P1] THE SEAM (one commit, gated on P0-b's verdict).
+  The continuity law applied to the point: the present is the
+  initial condition of the next configuration, and at a teleport the
+  CPU is the author of the new present. Realize the fix P0-b's paste
+  dictates — expected shape, one or both of:
+   · the teardown/build path writes the point mirror synchronously
+     to the authored spawn position (the new world's placement)
+     BEFORE any streaming consumer can run — the reset becomes an
+     authored write, not a zero;
+   · the first capture of a new world is gated until after the
+     pawn's position upload, so no old-buffer harvest can pass a
+     fresh gen.
+  Zero behavior change outside the transition window; the harvest
+  remains the sole steady-state author.
+  Gate prediction, in the commit message: repeat the log's scenario —
+  distant open-world crossing — and the first arrivals are all near
+  the true point; far-coordinate spawns are gone.
+
+[P2] THE FUNNEL (one commit, mechanical, census-bounded by P0-c).
+  The trio re-homes from PlayerState into the point's record —
+  point_.x / point_.z / the bubble sensor beside point_.host — and
+  every reader P0-c counted moves to the point's face. PlayerState
+  sheds the pawn-era residue; its comment block ("THE POINT's world
+  X…") moves home with the data. Byte-identical behavior; the diff
+  is names and one struct move. Truth-fix every touched comment to
+  the present tense of the new home. If the census count makes a
+  single commit unwieldy, split by consumer role and say so — but
+  the END state is one home, one face, zero readers of the old
+  names (rg confirms, pasted).
+
+[P3] REPORT-ONLY: the point's charter paragraph, drafted for the
+  charter document (not committed to it without Jean): what the
+  point IS (the program's reference, host-arbitrated), who authors
+  it (harvest; teleport; nothing else), who consumes it (P0-c's
+  list), and the standing rule now structural. Jean stamps the
+  charter text in the fresh session.
+
+GATES
+------------------------------------------------------------------
+[G:glaw1]     CC, per commit.
+[G:shader]    n/a — CPU-side; state it explicitly.
+[G:runtime-J] Jean, two checks at a fixed seed:
+              1. The log's scenario re-run: walk far in an open
+                 world, portal-cross, watch the first arrivals —
+                 all near the true point, none at the old
+                 coordinates.
+              2. Ten minutes of ordinary play across hosts (pawn,
+                 camera-fly, a sky flight): streaming, corral, kite,
+                 respawn, portals all behave exactly as before —
+                 the funnel moved names, not behavior.
+[G:census]    Prediction: all integers unchanged, all deltas zero
+              everywhere (REQUEST_1 already retired the last −1).
+
+CARRIED TO THE FRESH SESSION (the finish line's docket)
+------------------------------------------------------------------
+- Performance reading of the pier reclaim (expect smoother
+  spawn/streaming moments, not steady-state fps).
+- The antenna penetration-then-pushback observation — dial class
+  (spring/cap vs walk speed) and possible aesthetic keeper.
+- The consolidated witness list: G's five moves, REQUEST_1's three,
+  POINT_1's two, J2's one probe run, the optional branch click, the
+  slope dial.
+- Ribbon-head occupier avoidance — the ribbon era's own session.
+- The point's charter paragraph (P3) for Jean's stamp.
+
+REPORT FORMAT
+------------------------------------------------------------------
+Per-anchor MATCHED / DIVERGED / ABSENT · the four P0 pastes and the
+P0-b verdict · the P0-c count and classification · commit table with
+hashes · glaw1 table · encoding confirmation · the rg proof of zero
+old-name readers · the P3 charter draft.
+═══════════════════════════════════════════════════════════════════

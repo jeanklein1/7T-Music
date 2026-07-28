@@ -1,0 +1,120 @@
+═══════════════════════════════════════════════════════════════════
+CC HANDOFF — REQUEST_1 · THE MOOD DECLARES, THE MACHINE EXECUTES
+Cartridge: the_board (incubator_dual). The last unruled author — the
+mood-5 anchor ribbon that spawns claiming nothing — dissolves into a
+request the spawn machine fulfills lawfully. Rider: the successor
+ribbon's premature death. Deviations are REPORT, never improvisation.
+═══════════════════════════════════════════════════════════════════
+
+0. GIT LAW + PREFLIGHT
+------------------------------------------------------------------
+Master-direct · unshallow check · base hash + rev-list count · LF-only,
+no BOM · glaw1 GREEN at base and every commit · symbols, never
+FILE:LINE · Part 0 written WHOLE before the first edit.
+
+THE STAMPED INTENT (Jean, ruling 3 of the spawn campaign): mood-
+specific spawns move to their own definitions via a request channel.
+The DECLARATION already lives where it belongs (MoodProfile.has_
+anchor_ribbon, SEAM[mood:L1]); what moves is EXECUTION — out of
+apply_mood_anchor_ribbon's 70-line placement body and into the spawn
+machine, so the anchor ribbon claims ground through the same acts as
+every streamed ribbon. Seed-stateless holds: the position stays
+seed-derived and forced; what changes is that the claim happens.
+
+PART 0 — READ-ONLY (report in full, then edit)
+------------------------------------------------------------------
+[R0-a] THE DUAL ENTRY, pasted whole: apply_mood_anchor_ribbon (the
+  known text: fill_ribbon_selection_geometry → forced RibbonPlacement
+  → commit_ribbon → promote_ribbon_to_rendered). Then commit_ribbon
+  itself: enumerate exactly which lawful acts the STREAMED path
+  performs that this entry skips — expected: the host-patch FOOTPRINT
+  claim (register_footprint_for at the place stage) and the host
+  record; tips are already lazy (ribbon_register_tips_at fires as
+  patches arrive) and self-heal. Name the streamed path's claim site.
+[R0-b] THE MACHINE'S DOOR. Where a pending request is naturally
+  fulfilled: the spawn pass / streaming conductor's cadence
+  (SEAM[patch:spawn-trigger]) — paste the entry and state where a
+  once-per-transition request check belongs (before patch-driven
+  selection, after the world exists).
+[R0-c] ORDERING LAW O-3. Paste release_finite_ribbons and its order
+  note ("must run AFTER apply_mood… possibly spawned the anchor").
+  With execution deferred to the machine, restate the ordering the
+  new shape needs: the request flag must SURVIVE the release, and the
+  release's has_anchor_ribbon exemption must still protect the
+  fulfilled anchor. Report the adjusted law before writing it.
+[R0-d] THE PORTAL VERB IS NOT THIS PATIENT. force_spawn_portal_arch:
+  confirm from the tree (and the census logs already show arch
+  claimed == active in finite rooms) that portal arches register
+  lawfully. Expected verdict: KEEP, untouched — the prophecy in
+  force_spawn's retirement comment was about the ribbon. Paste the
+  comment; it is fulfilled or truth-fixed by this batch.
+[R0-e] THE RIDER'S MECHANISM, re-derived. Paste: ribbon_register_
+  tips_at (have it — record_entity(RIBBON, r) + registered flags +
+  ref_count++), evict_ribbon's decrement side, and the patch-eviction
+  ribbon release hook. HYPOTHESIS to confirm or refute: patch-side
+  records store the SLOT index only; a predecessor's record on a
+  still-alive tip patch outlives the predecessor, and when that patch
+  later evicts, its release hook decrements the ref_count of the
+  SUCCESSOR now occupying the slot — one death, one patch-eviction
+  early. If the paste refutes this, STOP the rider and report; R2
+  must not land on a refuted diagnosis.
+
+PART A — THE COMMITS
+------------------------------------------------------------------
+[R1] THE REQUEST CHANNEL (one commit; lockstep pair with a second
+  only if the state's home forces it — say so).
+  - apply_mood_anchor_ribbon shrinks to the declaration's act:
+    record the pending request (mood, seed context) and nothing else.
+    The placement body — selection, geometry, forced position,
+    commit, promotion — MOVES to the machine side as the request's
+    fulfillment verb, executed at R0-b's site when the request is
+    set: fill → place WITH the standard footprint claim at the
+    streamed path's own claim site (R0-a) → commit_ribbon → promote →
+    clear the request. Forced position, no negotiation — the world is
+    empty at fulfillment; the CLAIM is the point.
+  - SEAM[mood:K4]'s dual-entry prose retires or restates truthfully
+    (commit_ribbon's second entry is now the machine's own verb, not
+    mood's hand).
+  - O-3 adjusted per R0-c, stated in the order note.
+  Gate prediction, recorded in the commit message: the mood-5
+  census line becomes ribn 1/1/0 — and with it, ribn delta −1 is
+  now IMPOSSIBLE EVERYWHERE. Any −1 in any future census is a new
+  finding, full stop. (C5's commit-message prophecy completes.)
+
+[R2] THE RIDER (one commit, gated on R0-e CONFIRMED).
+  Release-by-owner completes for records: evict_ribbon scrubs its
+  OWN records from still-alive tip-host patches (it knows both tip
+  gx/gz and both registered flags — locate live patch, erase the
+  (RIBBON, slot) record; a dead patch took its record with it), so
+  no stale record can ever misdirect a decrement at a successor.
+  Minimal per the paste; if the tree's shape offers a cheaper exact
+  fix (e.g., unrecord at the existing decrement site), take it and
+  say so.
+
+[R3] TRUTH-FIXES (rides R1 or R2, no third commit unless forced):
+  the force_spawn retirement prophecy marked fulfilled; any prose
+  claiming the anchor ribbon "registers nothing" dies with the fact.
+
+GATES
+------------------------------------------------------------------
+[G:glaw1]     CC, per commit.
+[G:shader]    n/a — this batch is CPU-side; state it explicitly.
+[G:runtime-J] Jean, three checks at a fixed seed:
+              1. Visit a mood-5 world (finite_outdoor_ref): the
+                 census reads ribn 1/1/0. The last −1 is dead.
+              2. The successor test: in an open world, walk until the
+                 ribbon evicts and a successor spawns; keep walking
+                 until a predecessor-era patch evicts. The successor
+                 SURVIVES to its own lawful death (pre-R2 it died one
+                 eviction early).
+              3. Portal rooms unchanged: arches claimed == active,
+                 back-portal functions.
+[G:census]    Prediction: all integers unchanged everywhere except
+              the mood-5 ribn claimed 0→1, delta −1→0.
+
+REPORT FORMAT
+------------------------------------------------------------------
+Per-anchor MATCHED / DIVERGED / ABSENT · the five R0 pastes and the
+R0-e verdict · commit table with hashes · glaw1 table · encoding
+confirmation · the adjusted O-3 note, quoted.
+═══════════════════════════════════════════════════════════════════
