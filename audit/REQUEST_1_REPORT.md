@@ -193,4 +193,47 @@ clause, taken and said.
 
 ## COMMIT TABLE
 
-*(appended as the commits land)*
+| commit | hash | glaw1 | encoding |
+|---|---|---|---|
+| REQUEST_1: Part 0 — the dual entry, the door, and the rider confirmed | `e212dda` | GREEN (base) | LF, no BOM, no CR |
+| REQUEST_1a: the mood declares, the machine executes (R1 + R3's seam restatements) | `33b9a78` | **GREEN** | LF, no BOM, no CR |
+| REQUEST_1b: release-by-owner completes for records (R2 + R3's prophecy resolution) | `f494ba8` | **GREEN** | LF, no BOM, no CR |
+
+Base `0475dd1`, master-direct. R3 rode R1 and R2 as the handoff preferred —
+no third commit was forced. [G:shader] n/a — CPU-side, stated.
+
+## THE ADJUSTED O-3 NOTE, quoted as landed
+
+```cpp
+                        // ROSTER-GATE ribbon (c) — finite-mode release, owner
+                        // verb. Zero effect
+                        // when ribbon is off (active_count stays 0). ORDER
+                        // (O-3, adjusted REQUEST_1): after apply_mood set
+                        // mood_state_.active — and apply_mood now only
+                        // DECLARES the anchor (the request flag). This
+                        // release touches actives, never the request, so
+                        // the flag SURVIVES to its fulfillment at the
+                        // streaming conductor's cadence (the first
+                        // StreamPatches of the new world); the
+                        // has_anchor_ribbon exemption still protects a
+                        // standing fulfilled anchor.
+```
+
+## GATE STATUS
+
+- **[G:glaw1]** — table above, all GREEN.
+- **[G:shader]** — n/a: this batch never touches WGSL, a binding, or a
+  layout. Stated explicitly.
+- **[G:runtime-J]** — the three checks at a fixed seed:
+  1. Mood-5 world: the steady-state census reads **ribn 1/1/0** — the last
+     −1 is dead. (And the mood-transition census now reads ribn 0/0 — a
+     cleaner teardown assertion; the anchor arrives claimed, at the
+     conductor's cadence, right after.)
+  2. The successor test: pre-R2 the successor died one patch-eviction
+     early via the sky-exit's stale record; now it survives to its own
+     lawful death.
+  3. Portal rooms unchanged: arches claimed == active, back-portal
+     functions — the portal door was KEEP, untouched but for its
+     prophecy's resolution.
+- **[G:census]** — prediction: all integers unchanged everywhere except
+  the mood-5 ribn claimed 0→1, delta −1→0.
