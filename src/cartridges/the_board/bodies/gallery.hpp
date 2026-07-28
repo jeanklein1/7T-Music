@@ -1234,6 +1234,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     {
         wgpu::ComputePassDescriptor cpd{};
         cpd.label = "Photographer VP Compute";
+        cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::SnapshotPass);
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
         c->renderer_.dispatch_compute_photographer_vp(
             compute, c->gpuState_.photographer_compute_group()
@@ -1264,6 +1265,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     desc.colorAttachmentCount = 1;
     desc.colorAttachments = &colorAtt;
     desc.depthStencilAttachment = &depthAtt;
+    desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::SnapshotPass);
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 

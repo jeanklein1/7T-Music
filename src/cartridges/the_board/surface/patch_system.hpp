@@ -193,6 +193,7 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
         {
             wgpu::ComputePassDescriptor cpd{};
             cpd.label = "Patch Heights (pass 1)";
+            cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
             wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
             c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
             cp.End();
@@ -202,6 +203,7 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
         {
             wgpu::ComputePassDescriptor cpd{};
             cpd.label = "Patch Gradients + Cells (pass 2)";
+            cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
             wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
             c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
             c->renderer_.dispatch_generate_patch_cells(cp, c->gpuState_.patch_gen_group(), GPUState::patch_cell_workgroups());

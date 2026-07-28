@@ -38,6 +38,7 @@
 #include <array>
 #include <vector>
 #include <cmath>
+#include <type_traits>   // the frame meter's timestamp-writes name binding
 
 namespace t7 {
     namespace the_board {
@@ -1562,6 +1563,48 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPhotographerConfig) == 48, "GPUPhotographerConfig must be 48 bytes");
 
+        // ═══ THE FRAME METER — GPU HALF (timestamp queries) ═══════════════
+        // The spine's FrameMeter (cartridge.hpp) owns the census; the GPU
+        // half lives here because every pass-encode site already reaches
+        // gpuState_ through its face (MachineCtx / the per-module deps) —
+        // the tree's one reachability grammar; no contract grows a member.
+        //
+        // NAME BINDING: the timestamp-writes struct types are DERIVED from
+        // the pass descriptors themselves, so this binds to the header's
+        // exact spelling under both Dawn generations (split ComputePass/
+        // RenderPass structs, or the newer merged PassTimestampWrites) —
+        // the descriptor member IS the binding. Field spellings
+        // { querySet, beginningOfPassWriteIndex, endOfPassWriteIndex }
+        // are common to both.
+        using MeterComputeTsW = std::remove_const_t<std::remove_pointer_t<
+            decltype(wgpu::ComputePassDescriptor::timestampWrites)>>;
+        using MeterRenderTsW = std::remove_const_t<std::remove_pointer_t<
+            decltype(wgpu::RenderPassDescriptor::timestampWrites)>>;
+
+        // One armed pass = one { row, begin } pair; end index is begin+1.
+        struct MeterPair { uint32_t row = 0; uint32_t begin_idx = 0; };
+
+        // The meter's row registry: RENDER_SPINE row indices as raw ids,
+        // visible to every pass-encode module (RPhase's home is
+        // cartridge.hpp, included last in the cohort). Every value is
+        // pinned to its RPhase by a static_assert beside the enum —
+        // drift fails glaw1.
+        namespace meter_row {
+            inline constexpr uint32_t StreamPatches       = 2;
+            inline constexpr uint32_t EntityMeshGen       = 6;
+            inline constexpr uint32_t LiveCardWrite       = 8;
+            inline constexpr uint32_t DispatchCompute     = 9;
+            inline constexpr uint32_t GolDeriveFlush      = 11;
+            inline constexpr uint32_t GolZoneCompute      = 12;
+            inline constexpr uint32_t PawnAura            = 13;
+            inline constexpr uint32_t OrbSky              = 14;
+            inline constexpr uint32_t PlacementCorrection = 16;
+            inline constexpr uint32_t FrustumCull         = 17;
+            inline constexpr uint32_t ShadowPass          = 18;
+            inline constexpr uint32_t MainPass            = 19;
+            inline constexpr uint32_t SnapshotPass        = 20;
+        }
+
         class GPUState {
 
             wgpu::Device device_;
@@ -1596,6 +1639,23 @@ namespace t7 {
             wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
             wgpu::Buffer portalArrayBuffer_;
             wgpu::Buffer ribbonReadbackStaging_; // ring transform readback (diagnostic)
+
+            // THE FRAME METER — GPU half. Query set + resolve/readback pair
+            // (created only when the device carries timestamp-query) and the
+            // per-frame arming state. The pass descriptors store a POINTER
+            // to a writes struct — member storage keeps addresses stable
+            // through encoding; rebuilt each frame (meter_frame_begin).
+            static constexpr uint32_t METER_QUERY_COUNT = 64;   // 20 pass sites × 2 → next pow2, min 64
+            static constexpr uint32_t METER_MAX_PAIRS = METER_QUERY_COUNT / 2;
+            bool meterEnabled_ = false;
+            wgpu::QuerySet meterQuerySet_;
+            wgpu::Buffer meterResolveBuffer_;
+            wgpu::Buffer meterReadbackStaging_;
+            MeterComputeTsW meterComputeWrites_[METER_MAX_PAIRS] = {};
+            MeterRenderTsW meterRenderWrites_[METER_MAX_PAIRS] = {};
+            MeterPair meterPairs_[METER_MAX_PAIRS] = {};
+            uint32_t meterPairCount_ = 0;
+            uint32_t meterNextIndex_ = 0;
 
             wgpu::Buffer patchParamsBuffer_;
             wgpu::Buffer patchStagingBuffer_;    // N×GPUPatchParams for batched generation
@@ -2624,6 +2684,51 @@ namespace t7 {
             wgpu::Buffer ring_transforms_buffer() const { return ringTransformsBuffer_; }
             static constexpr size_t ribbon_ring_readback_size() { return sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS; }
 
+            // ─── THE FRAME METER — GPU half (arming + resolve plumbing) ───
+            // arm fills the next writes struct { querySet, i, i+1 }, records
+            // the { row, i } pair, advances by 2. Returns nullptr when the
+            // meter is off or indices are exhausted — later passes simply go
+            // unmetered that frame, never a fault. Two spellings, one
+            // allocator: compute + render descriptors may carry distinct
+            // writes types (older Dawn) or the same merged one (newer).
+            // Index reuse across frames is safe: queue order puts last
+            // frame's resolve before this frame's writes.
+            bool meter_gpu_supported() const { return meterEnabled_; }
+            void meter_frame_begin() { meterPairCount_ = 0; meterNextIndex_ = 0; }
+            uint32_t meter_arm_alloc(uint32_t row) {   // shared allocator: begin index or UINT32_MAX
+                if (!meterEnabled_ || meterNextIndex_ + 2 > METER_QUERY_COUNT) return UINT32_MAX;
+                const uint32_t i = meterNextIndex_;
+                meterPairs_[meterPairCount_] = { row, i };
+                meterPairCount_++;
+                meterNextIndex_ += 2;
+                return i;
+            }
+            const MeterComputeTsW* meter_arm_compute(uint32_t row) {
+                const uint32_t i = meter_arm_alloc(row);
+                if (i == UINT32_MAX) return nullptr;
+                auto& w = meterComputeWrites_[i / 2];
+                w.querySet = meterQuerySet_;
+                w.beginningOfPassWriteIndex = i;
+                w.endOfPassWriteIndex = i + 1;
+                return &w;
+            }
+            const MeterRenderTsW* meter_arm_render(uint32_t row) {
+                const uint32_t i = meter_arm_alloc(row);
+                if (i == UINT32_MAX) return nullptr;
+                auto& w = meterRenderWrites_[i / 2];
+                w.querySet = meterQuerySet_;
+                w.beginningOfPassWriteIndex = i;
+                w.endOfPassWriteIndex = i + 1;
+                return &w;
+            }
+            uint32_t meter_pair_count() const { return meterPairCount_; }
+            const MeterPair* meter_pairs() const { return meterPairs_; }
+            wgpu::QuerySet meter_query_set() const { return meterQuerySet_; }
+            wgpu::Buffer meter_resolve_buffer() const { return meterResolveBuffer_; }
+            wgpu::Buffer meter_readback_staging() const { return meterReadbackStaging_; }
+            static constexpr uint32_t meter_max_pairs() { return METER_MAX_PAIRS; }
+            static constexpr size_t meter_readback_size() { return METER_QUERY_COUNT * sizeof(uint64_t); }
+
             // --- Gallery system ---
             wgpu::BindGroup gallery_entity_group() const { return galleryEntityBindGroup_; }
             wgpu::BindGroupLayout gallery_entity_layout() const { return galleryEntityBindGroupLayout_; }
@@ -2939,6 +3044,25 @@ namespace t7 {
                     sd.size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     ribbonReadbackStaging_ = device_.CreateBuffer(&sd);
+                }
+                // THE FRAME METER — GPU half. Created only when the device
+                // carries timestamp-query (the cartridge prints the loud
+                // boot line when absent); CPU rows are unaffected either way.
+                meterEnabled_ = device_.HasFeature(wgpu::FeatureName::TimestampQuery);
+                if (meterEnabled_) {
+                    wgpu::QuerySetDescriptor qd{};
+                    qd.label = "Frame Meter Timestamps";
+                    qd.type = wgpu::QueryType::Timestamp;
+                    qd.count = METER_QUERY_COUNT;
+                    meterQuerySet_ = device_.CreateQuerySet(&qd);
+                    meterResolveBuffer_ = makeBuffer("Frame Meter Resolve",
+                        METER_QUERY_COUNT * sizeof(uint64_t),
+                        wgpu::BufferUsage::QueryResolve | wgpu::BufferUsage::CopySrc);
+                    wgpu::BufferDescriptor sd{};
+                    sd.label = "Frame Meter Readback Staging";
+                    sd.size = METER_QUERY_COUNT * sizeof(uint64_t);
+                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
+                    meterReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
                 patchParamsBuffer_ = makeBuffer("Patch Params", sizeof(GPUPatchParams), UU);
                 patchStagingBuffer_ = makeBuffer("Patch Params Staging",

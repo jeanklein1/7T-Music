@@ -145,6 +145,7 @@ inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
 inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Entity Placement Y Correction";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::PlacementCorrection);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
     // Group 1: compute textures — the card's cell-exact GoL fetch (H5).
     // Bound before the dispatch inside; bind-group state is sticky.
@@ -160,6 +161,7 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
 inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Live Card Write";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::LiveCardWrite);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
     c->renderer_.dispatch_live_card_write(
         compute, c->gpuState_.live_card_writer_group()
@@ -173,6 +175,7 @@ inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encode
 inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Compute Phase";
+    desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::DispatchCompute);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
 
     if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
@@ -233,6 +236,7 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
     {
         wgpu::ComputePassDescriptor cpd{};
         cpd.label = "Frustum Cull Patches";
+        cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::FrustumCull);
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
         c->renderer_.dispatch_frustum_cull(
             compute, c->gpuState_.frustum_cull_group()
@@ -280,6 +284,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             desc.label = "Shadow Atlas Tile";
             desc.colorAttachmentCount = 0;
             desc.depthStencilAttachment = &depthAttachment;
+            desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
 
             wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
@@ -303,6 +308,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         desc.label = "Shadow Pass";
         desc.colorAttachmentCount = 0;
         desc.depthStencilAttachment = &depthAttachment;
+        desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
@@ -360,6 +366,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     desc.colorAttachmentCount = 1;
     desc.colorAttachments = &colorAttachment;
     desc.depthStencilAttachment = &depthAttachment;
+    desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::MainPass);
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 

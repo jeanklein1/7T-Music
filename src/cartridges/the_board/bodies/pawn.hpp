@@ -181,6 +181,7 @@ inline void dispatch_pawn_aura(PawnState& ps, PawnDeps* c,
 
         wgpu::ComputePassDescriptor cpd{};
         cpd.label = "Pawn Aura";
+        cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::PawnAura);
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
         c->renderer_.dispatch_compute_pawn_aura(pass,
             c->gpuState_.pawn_aura_compute_group(),

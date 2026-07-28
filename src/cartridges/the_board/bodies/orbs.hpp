@@ -744,6 +744,7 @@ inline void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& 
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Init";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     uint32_t wgs = (os.count + 63u) / 64u;
     c->renderer_.dispatch_orb_init(pass, c->gpuState_.orb_compute_group(), wgs);
@@ -761,6 +762,7 @@ inline void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncode
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Recolor";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     uint32_t wgs = (os.count + 63u) / 64u;
     c->renderer_.dispatch_orb_recolor(pass, c->gpuState_.orb_compute_group(), wgs);
@@ -772,6 +774,7 @@ inline void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEnco
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Copy Prev";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     uint32_t wgs = (os.count + 63u) / 64u;
     c->renderer_.dispatch_orb_copy_prev(pass, c->gpuState_.orb_copy_group(), wgs);
@@ -787,6 +790,7 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Dynamics";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     uint32_t wgs = (os.count + 63u) / 64u;
     c->renderer_.dispatch_orb_dynamics(pass, c->gpuState_.orb_compute_group(), wgs);

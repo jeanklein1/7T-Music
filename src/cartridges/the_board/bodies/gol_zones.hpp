@@ -645,6 +645,10 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
     wgpu::CommandEncoder encoder = c->device_.CreateCommandEncoder();
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Zone Derive Params";
+    // The hidden submit's own pass still meters: this encoder submits
+    // BEFORE the host encoder, so its writes land ahead of the frame-close
+    // resolve in queue order.
+    desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolDeriveFlush);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
     c->renderer_.dispatch_zone_derive_params(
         pass,
@@ -729,6 +733,7 @@ inline void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
 inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "GoL Zone Sync";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     c->renderer_.dispatch_zone_gol_sync(pass,
         c->gpuState_.zone_gol_compute_group(), gs.active_slot_count);
@@ -738,6 +743,7 @@ inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& e
 inline void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "GoL Zone Evolve";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     c->renderer_.dispatch_zone_gol_evolve(pass,
         c->gpuState_.zone_gol_compute_group(), gs.active_slot_count);

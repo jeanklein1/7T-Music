@@ -284,6 +284,13 @@ namespace t7 {
             // LOD, cull, orb). Pawn-host never arms this machine.
             enum class CameraReadbackState { IDLE, COPIED, MAPPING };
             CameraReadbackState cameraReadbackState_ = CameraReadbackState::IDLE;
+            // THE FRAME METER's timestamp readback rides the same P5
+            // grammar (skip-if-busy: at most one in flight; unsampled
+            // frames still write timestamps, they just aren't resolved).
+            // Timing is world-agnostic — no world_gen capture needed.
+            enum class MeterReadbackState { IDLE, COPIED, MAPPING };
+            MeterReadbackState meterReadbackState_ = MeterReadbackState::IDLE;
+            bool meter_gpu_ = false;   // device carries timestamp-query (set at initialize)
 
             // ROSTER-RESIDUE gol (2e) instrumentation: count of frames the GoL
             // zone-compute block ran (the sole writer of the zone GPU buffers),
@@ -413,6 +420,13 @@ namespace t7 {
                 std::cout << "[Cartridge] GPUState init:    "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
                     << " ms\n";
+
+                // THE FRAME METER — GPU half arms only on timestamp-query
+                // (the console requests it when the adapter has it).
+                // Absent → degrade loudly; CPU rows are unaffected.
+                meter_gpu_ = device_.HasFeature(wgpu::FeatureName::TimestampQuery);
+                if (!meter_gpu_)
+                    std::cout << "[METER] timestamp-query unavailable on this adapter — CPU rows only\n";
 
                 {
                     // The surface voice's terrain rows read THE
@@ -1261,9 +1275,15 @@ namespace t7 {
                             std::chrono::steady_clock::now() - meter_.window_start).count();
                         const float fps = wall_s > 0.0f
                             ? (float)meter_.window_frames / wall_s : 0.0f;
-                        std::snprintf(line, sizeof line,
-                            "[METER] window %uf  fps %.1f | budget %.1f ms\n",
-                            meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS);
+                        if (meter_gpu_)
+                            std::snprintf(line, sizeof line,
+                                "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms\n",
+                                meter_.window_frames, fps, meter_.gpu_sampled_frames,
+                                FrameMeter::FRAME_BUDGET_MS);
+                        else
+                            std::snprintf(line, sizeof line,
+                                "[METER] window %uf  fps %.1f | budget %.1f ms\n",
+                                meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS);
                         std::cout << line;
                         double u_sum = 0.0, r_sum = 0.0;
                         for (const URow& row : UPDATE_SPINE) {
@@ -1281,9 +1301,20 @@ namespace t7 {
                             const auto& s = meter_.r_rows[(size_t)row.id];
                             const double mean = s.sum_ms / meter_.window_frames;
                             r_sum += mean;
-                            std::snprintf(line, sizeof line,
-                                "[METER] R %-22s  mean %.2f  max %.2f\n",
-                                row.name, mean, (double)s.max_ms);
+                            // A row line gains GPU columns when samples exist.
+                            const auto& g = meter_.r_gpu[(size_t)row.id];
+                            if (meter_.gpu_sampled_frames > 0 &&
+                                (g.sum_ms > 0.0 || g.max_ms > 0.0f)) {
+                                const double gmean = g.sum_ms / meter_.gpu_sampled_frames;
+                                std::snprintf(line, sizeof line,
+                                    "[METER] R %-22s  cpu %.2f/%.2f  gpu %.2f/%.2f\n",
+                                    row.name, mean, (double)s.max_ms, gmean, (double)g.max_ms);
+                            }
+                            else {
+                                std::snprintf(line, sizeof line,
+                                    "[METER] R %-22s  mean %.2f  max %.2f\n",
+                                    row.name, mean, (double)s.max_ms);
+                            }
                             std::cout << line;
                         }
                         std::snprintf(line, sizeof line,
@@ -1373,6 +1404,7 @@ namespace t7 {
                 if (anyDirty) {
                     wgpu::ComputePassDescriptor cpd{};
                     cpd.label = "Entity Mesh Gen";
+                    cpd.timestampWrites = gpuState_.meter_arm_compute((uint32_t)RPhase::EntityMeshGen);
                     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
                     // dispatch skips disabled families structurally:
                     // dirty[f] stays false for a disabled family (never
@@ -1621,14 +1653,42 @@ namespace t7 {
                 uint32_t window_frames = 0;
                 std::chrono::steady_clock::time_point window_start =
                     std::chrono::steady_clock::now();   // for fps
+                // GPU half (M2): per-row pass ms from timestamp queries,
+                // merged into the census when samples exist.
+                RowStat r_gpu[(size_t)RPhase::COUNT];
+                uint32_t gpu_sampled_frames = 0;
+                // Snapshot of the armed pair table, taken at frame close
+                // and consumed by the mapped callback. NOT zeroed by
+                // reset() — a readback may be in flight across a window.
+                MeterPair snap_pairs[GPUState::meter_max_pairs()] = {};
+                uint32_t snap_pair_count = 0;
                 void reset() {   // zero rows + frames, restamp window_start
                     for (auto& s : u_rows) s = RowStat{};
                     for (auto& s : r_rows) s = RowStat{};
+                    for (auto& s : r_gpu) s = RowStat{};
                     window_frames = 0;
+                    gpu_sampled_frames = 0;
                     window_start = std::chrono::steady_clock::now();
                 }
             };
             FrameMeter meter_;
+
+            // The meter_row registry (state.hpp — the GPU half's raw row
+            // ids) is pinned to RPhase HERE, at the enum's home. Drift
+            // fails glaw1.
+            static_assert(meter_row::StreamPatches       == (uint32_t)RPhase::StreamPatches,       "meter_row drift: StreamPatches");
+            static_assert(meter_row::EntityMeshGen       == (uint32_t)RPhase::EntityMeshGen,       "meter_row drift: EntityMeshGen");
+            static_assert(meter_row::LiveCardWrite       == (uint32_t)RPhase::LiveCardWrite,       "meter_row drift: LiveCardWrite");
+            static_assert(meter_row::DispatchCompute     == (uint32_t)RPhase::DispatchCompute,     "meter_row drift: DispatchCompute");
+            static_assert(meter_row::GolDeriveFlush      == (uint32_t)RPhase::GolDeriveFlush,      "meter_row drift: GolDeriveFlush");
+            static_assert(meter_row::GolZoneCompute      == (uint32_t)RPhase::GolZoneCompute,      "meter_row drift: GolZoneCompute");
+            static_assert(meter_row::PawnAura            == (uint32_t)RPhase::PawnAura,            "meter_row drift: PawnAura");
+            static_assert(meter_row::OrbSky              == (uint32_t)RPhase::OrbSky,              "meter_row drift: OrbSky");
+            static_assert(meter_row::PlacementCorrection == (uint32_t)RPhase::PlacementCorrection, "meter_row drift: PlacementCorrection");
+            static_assert(meter_row::FrustumCull         == (uint32_t)RPhase::FrustumCull,         "meter_row drift: FrustumCull");
+            static_assert(meter_row::ShadowPass          == (uint32_t)RPhase::ShadowPass,          "meter_row drift: ShadowPass");
+            static_assert(meter_row::MainPass            == (uint32_t)RPhase::MainPass,            "meter_row drift: MainPass");
+            static_assert(meter_row::SnapshotPass        == (uint32_t)RPhase::SnapshotPass,        "meter_row drift: SnapshotPass");
 
             // ═══ SPINE VALIDATION ═══════════════════════
             // Every CROSS-PHASE O-# / RC law the recon named is a static_assert
@@ -1732,6 +1792,43 @@ namespace t7 {
                 wgpu::Queue queue = device_.GetQueue();
                 RenderCtx ctx{ encoder, queue, backbuffer, depth };
                 meter_.window_frames++;
+
+                // THE FRAME METER — GPU half, harvest side. Mirrors the
+                // floater readback grammar exactly (COPIED → MapAsync →
+                // MAPPING; callback accumulates, Unmaps, → IDLE;
+                // AllowSpontaneous). No world_gen capture: timing rows are
+                // world-agnostic. dt discards per the spec's counter-reset
+                // note: end ≤ begin, or dt > 100 ms.
+                if (meterReadbackState_ == MeterReadbackState::COPIED) {
+                    meterReadbackState_ = MeterReadbackState::MAPPING;
+                    gpuState_.meter_readback_staging().MapAsync(
+                        wgpu::MapMode::Read, 0, GPUState::meter_readback_size(),
+                        wgpu::CallbackMode::AllowSpontaneous,
+                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                            if (status == wgpu::MapAsyncStatus::Success) {
+                                const auto* ts = static_cast<const uint64_t*>(
+                                    gpuState_.meter_readback_staging().GetConstMappedRange(
+                                        0, GPUState::meter_readback_size()));
+                                if (ts) {
+                                    for (uint32_t p = 0; p < meter_.snap_pair_count; p++) {
+                                        const uint64_t t0 = ts[meter_.snap_pairs[p].begin_idx];
+                                        const uint64_t t1 = ts[meter_.snap_pairs[p].begin_idx + 1];
+                                        if (t1 <= t0) continue;               // counter-reset garbage
+                                        const double ms = (double)(t1 - t0) * 1e-6;   // u64 ns per index
+                                        if (ms > 100.0) continue;             // same discard law
+                                        auto& s = meter_.r_gpu[meter_.snap_pairs[p].row];
+                                        s.sum_ms += ms;
+                                        if ((float)ms > s.max_ms) s.max_ms = (float)ms;
+                                    }
+                                    meter_.gpu_sampled_frames++;
+                                }
+                                gpuState_.meter_readback_staging().Unmap();
+                            }
+                            meterReadbackState_ = MeterReadbackState::IDLE;
+                        });
+                }
+                gpuState_.meter_frame_begin();   // rebuild this frame's arming table
+
                 for (const RRow& row : RENDER_SPINE) {
                     if (!row.enabled) continue;   // gated-off rows are never timed
                     auto t0 = std::chrono::steady_clock::now();
@@ -1740,6 +1837,25 @@ namespace t7 {
                     float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
                     auto& s = meter_.r_rows[(size_t)row.id];
                     s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                }
+
+                // Frame close (after the last spine row, before the host's
+                // Finish/Submit): resolve this frame's armed pairs, stage
+                // the copy, snapshot the pair table. SKIP-IF-BUSY is the
+                // law — at most one readback in flight.
+                if (meter_gpu_ && gpuState_.meter_pair_count() > 0 &&
+                    meterReadbackState_ == MeterReadbackState::IDLE) {
+                    const uint32_t n = 2 * gpuState_.meter_pair_count();
+                    encoder.ResolveQuerySet(gpuState_.meter_query_set(), 0, n,
+                        gpuState_.meter_resolve_buffer(), 0);
+                    encoder.CopyBufferToBuffer(
+                        gpuState_.meter_resolve_buffer(), 0,
+                        gpuState_.meter_readback_staging(), 0,
+                        n * sizeof(uint64_t));
+                    meter_.snap_pair_count = gpuState_.meter_pair_count();
+                    for (uint32_t p = 0; p < meter_.snap_pair_count; p++)
+                        meter_.snap_pairs[p] = gpuState_.meter_pairs()[p];
+                    meterReadbackState_ = MeterReadbackState::COPIED;
                 }
             }
 

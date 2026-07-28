@@ -174,6 +174,16 @@ namespace t7 {
 
             deviceDesc.requiredLimits = &adapterLimits;
 
+            // THE FRAME METER (timestamp-query): request the feature when
+            // the adapter carries it; consumers check device.HasFeature.
+            // Absent → no unsafe-API chasing; downstream degrades loudly
+            // to CPU rows only.
+            wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
+            if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
+                deviceDesc.requiredFeatures = requiredFeatures;
+                deviceDesc.requiredFeatureCount = 1;
+            }
+
             std::cout << "[Console] Adapter limits:"
                 << " storageBuffers/stage=" << adapterLimits.maxStorageBuffersPerShaderStage
                 << " uniformBuffers/stage=" << adapterLimits.maxUniformBuffersPerShaderStage
