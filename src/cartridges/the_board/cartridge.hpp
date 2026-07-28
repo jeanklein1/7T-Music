@@ -599,6 +599,10 @@ namespace t7 {
                         << " | pipelines skipped: " << Renderer::pipelines_skipped() << "\n";
                 }
 
+                // THE FRAME METER: boot ends here — restamp the window so
+                // the first census fps excludes init wall-time.
+                meter_.reset();
+
                 return true;
             }
 
@@ -1040,8 +1044,15 @@ namespace t7 {
                 wgpu::Queue& queue) override {
                 GPUFrameSignal gpuSignal{};   // sky_* stay zero — upload_signal skips them (E-3); resync_sky_head owns the block
                 UpdateCtx ctx{ signal, aspect_ratio, queue, gpuSignal };
-                for (const URow& row : UPDATE_SPINE)
-                    if (row.enabled) (this->*row.fn)(ctx);
+                for (const URow& row : UPDATE_SPINE) {
+                    if (!row.enabled) continue;   // gated-off rows are never timed
+                    auto t0 = std::chrono::steady_clock::now();
+                    (this->*row.fn)(ctx);
+                    auto t1 = std::chrono::steady_clock::now();
+                    float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
+                    auto& s = meter_.u_rows[(size_t)row.id];
+                    s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                }
             }
 
             // SEAM[spine:owns] render() is genuinely spine work: readback state
@@ -1239,6 +1250,47 @@ namespace t7 {
                 if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
                     dump_entity_census(&machine_ctx_, "periodic");
                     spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
+
+                    // THE FRAME METER — the timing census rides the same
+                    // cadence. Print ALL enabled rows (completeness feeds
+                    // the suspect table; Jean pastes this block back
+                    // verbatim). mean = sum/frames; fps = frames/wall.
+                    if (meter_.window_frames > 0) {
+                        char line[160];
+                        const float wall_s = std::chrono::duration<float>(
+                            std::chrono::steady_clock::now() - meter_.window_start).count();
+                        const float fps = wall_s > 0.0f
+                            ? (float)meter_.window_frames / wall_s : 0.0f;
+                        std::snprintf(line, sizeof line,
+                            "[METER] window %uf  fps %.1f | budget %.1f ms\n",
+                            meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS);
+                        std::cout << line;
+                        double u_sum = 0.0, r_sum = 0.0;
+                        for (const URow& row : UPDATE_SPINE) {
+                            if (!row.enabled) continue;
+                            const auto& s = meter_.u_rows[(size_t)row.id];
+                            const double mean = s.sum_ms / meter_.window_frames;
+                            u_sum += mean;
+                            std::snprintf(line, sizeof line,
+                                "[METER] U %-22s  mean %.2f  max %.2f\n",
+                                row.name, mean, (double)s.max_ms);
+                            std::cout << line;
+                        }
+                        for (const RRow& row : RENDER_SPINE) {
+                            if (!row.enabled) continue;
+                            const auto& s = meter_.r_rows[(size_t)row.id];
+                            const double mean = s.sum_ms / meter_.window_frames;
+                            r_sum += mean;
+                            std::snprintf(line, sizeof line,
+                                "[METER] R %-22s  mean %.2f  max %.2f\n",
+                                row.name, mean, (double)s.max_ms);
+                            std::cout << line;
+                        }
+                        std::snprintf(line, sizeof line,
+                            "[METER] U_SUM %.2f   R_SUM %.2f\n", u_sum, r_sum);
+                        std::cout << line;
+                        meter_.reset();
+                    }
                 }
             }
 
@@ -1555,6 +1607,29 @@ namespace t7 {
                 { RPhase::PromotionDrain,      "promotion_drain",       &Cartridge::phase_promotion_drain,       Driver::Algo,      (ROSTER.gallery || ROSTER.indoor_shell), F_NONE },
             };
 
+            // ═══ THE FRAME METER ════════════════════════════════════════════
+            // A view of the spine — it lives beside the tables it reads (a
+            // module home waits for a second consumer). CPU ms per executed
+            // row (sum+max) over a census window; census_dumps prints the
+            // table against FRAME_BUDGET_MS, then reset(). Gated-off rows
+            // are never timed.
+            struct FrameMeter {
+                static constexpr float FRAME_BUDGET_MS = 16.6f;   // the named budget
+                struct RowStat { double sum_ms = 0.0; float max_ms = 0.0f; };
+                RowStat u_rows[(size_t)UPhase::COUNT];
+                RowStat r_rows[(size_t)RPhase::COUNT];
+                uint32_t window_frames = 0;
+                std::chrono::steady_clock::time_point window_start =
+                    std::chrono::steady_clock::now();   // for fps
+                void reset() {   // zero rows + frames, restamp window_start
+                    for (auto& s : u_rows) s = RowStat{};
+                    for (auto& s : r_rows) s = RowStat{};
+                    window_frames = 0;
+                    window_start = std::chrono::steady_clock::now();
+                }
+            };
+            FrameMeter meter_;
+
             // ═══ SPINE VALIDATION ═══════════════════════
             // Every CROSS-PHASE O-# / RC law the recon named is a static_assert
             // over the row indices: the frame CANNOT be authored out of its
@@ -1656,8 +1731,16 @@ namespace t7 {
                 wgpu::TextureView depth) override {
                 wgpu::Queue queue = device_.GetQueue();
                 RenderCtx ctx{ encoder, queue, backbuffer, depth };
-                for (const RRow& row : RENDER_SPINE)
-                    if (row.enabled) (this->*row.fn)(ctx);
+                meter_.window_frames++;
+                for (const RRow& row : RENDER_SPINE) {
+                    if (!row.enabled) continue;   // gated-off rows are never timed
+                    auto t0 = std::chrono::steady_clock::now();
+                    (this->*row.fn)(ctx);
+                    auto t1 = std::chrono::steady_clock::now();
+                    float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
+                    auto& s = meter_.r_rows[(size_t)row.id];
+                    s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                }
             }
 
             // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /
