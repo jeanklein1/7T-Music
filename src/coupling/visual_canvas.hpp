@@ -79,16 +79,21 @@ namespace t7 {
 
     // Fog — the held field selects an absolute density. The field is a held source:
     // once a scale is established it persists through silence, so fog never returns
-    // to a rest — it moves from one field's density to the next. Fields 1/5/6 sit
-    // in the dense band, 2/3/4 in the light, with small differences within each.
+    // to a rest — it moves from one field's density to the next. FIELD 1 IS THE
+    // ANCHOR: the atmosphere the open outdoor world wears, which is also the value
+    // index 0 carries. Music is continuous, so that atmosphere is not a rest the
+    // world visits between fields — it is field 1's own look, and every other field
+    // is a deviation from it. Fields 5/6 sit in the dense band, 2/3/4 in the light.
     // Index 0 is "no field yet" — the value at boot, before any scale is held, not
-    // an idle. Tunable; matched to the mood table's outdoor fog scale (0.0003
-    // indoor … 0.0050 sunset, ~0.0030 open).
+    // an idle. Tunable.
     inline constexpr int   FOG_FIELD_COUNT = 7;          // index 0 = none, 1..6 fields
-    inline constexpr float FOG_DENSITY_NONE = 0.0030f;    // index 0 — no field yet (boot)
+    // THE ANCHOR — one home for both rows that wear it. Twinned by the boot
+    // config in realization/state.hpp (config_.fog_density / fog_color).
+    inline constexpr float FOG_DENSITY_NONE  = 0.0030f;
+    inline constexpr float FOG_COLOR_NONE[3] = { 0.85f, 0.78f, 0.72f };
     inline constexpr float FOG_BY_FIELD[FOG_FIELD_COUNT] = {
-        FOG_DENSITY_NONE,   // 0  none — no field yet (boot)
-        0.0055f,            // 1  dense
+        FOG_DENSITY_NONE,   // 0  none   — no field yet (boot)
+        FOG_DENSITY_NONE,   // 1  anchor — the open outdoor atmosphere
         0.0022f,            // 2  light
         0.0026f,            // 3  light
         0.0020f,            // 4  light
@@ -97,14 +102,13 @@ namespace t7 {
     };
 
     // Fog color — the same held field selects an atmospheric tint, carried per
-    // channel so the hue drifts with the density. Tier 1 is golden hour, kept
-    // exactly as the open_sunset look; index 0 is the neutral no-field beige; the
-    // rest are gentle shifts away from golden. Same held source, so the same
+    // channel so the hue drifts with the density. Tiers 0 and 1 both wear the
+    // anchor; the rest are shifts away from it. Same held source, so the same
     // value-to-value behavior — no idle. Tunable.
     //                                                  R       G       B
     inline constexpr float FOG_COLOR_BY_FIELD[FOG_FIELD_COUNT][3] = {
-        { 0.85f, 0.78f, 0.72f },   // 0  none        — neutral beige (no field yet)
-        { 0.95f, 0.70f, 0.45f },   // 1  golden hour — open_sunset, kept
+        { FOG_COLOR_NONE[0], FOG_COLOR_NONE[1], FOG_COLOR_NONE[2] },   // 0  none   — no field yet
+        { FOG_COLOR_NONE[0], FOG_COLOR_NONE[1], FOG_COLOR_NONE[2] },   // 1  anchor — the open outdoor atmosphere
         { 0.78f, 0.80f, 0.82f },   // 2  cool pale
         { 0.80f, 0.82f, 0.76f },   // 3  faint sage
         { 0.74f, 0.78f, 0.86f },   // 4  soft blue
