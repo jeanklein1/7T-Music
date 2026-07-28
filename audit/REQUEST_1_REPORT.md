@@ -195,9 +195,9 @@ clause, taken and said.
 
 | commit | hash | glaw1 | encoding |
 |---|---|---|---|
-| REQUEST_1: Part 0 — the dual entry, the door, and the rider confirmed | `e212dda` | GREEN (base) | LF, no BOM, no CR |
-| REQUEST_1a: the mood declares, the machine executes (R1 + R3's seam restatements) | `33b9a78` | **GREEN** | LF, no BOM, no CR |
-| REQUEST_1b: release-by-owner completes for records (R2 + R3's prophecy resolution) | `f494ba8` | **GREEN** | LF, no BOM, no CR |
+| REQUEST_1: Part 0 — the dual entry, the door, and the rider confirmed | `bf1c459` | GREEN (base) | LF, no BOM, no CR |
+| REQUEST_1a: the mood declares, the machine executes (R1 + R3's seam restatements) | `c69e3e4` | **GREEN** | LF, no BOM, no CR |
+| REQUEST_1b: release-by-owner completes for records (R2 + R3's prophecy resolution) | `c718f47` | **GREEN** | LF, no BOM, no CR |
 
 Base `0475dd1`, master-direct. R3 rode R1 and R2 as the handoff preferred —
 no third commit was forced. [G:shader] n/a — CPU-side, stated.

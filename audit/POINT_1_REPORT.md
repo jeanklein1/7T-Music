@@ -3,9 +3,9 @@
 Cartridge: `the_board` (`incubator_dual`). Master-direct. Deviations are
 REPORT, never improvisation.
 
-**Preflight.** Not shallow. Base: `ea1e18d` — **the REQUEST_1 head, as the
-handoff requires** (REQUEST_1 landed first: `e212dda` → `33b9a78` →
-`f494ba8` → `ea1e18d`). LF-only, no BOM, no CR introduced. glaw1 GREEN at
+**Preflight.** Not shallow. Base: `331b34e` — **the REQUEST_1 head, as the
+handoff requires** (REQUEST_1 landed first: `bf1c459` → `c69e3e4` →
+`c718f47` → `331b34e`). LF-only, no BOM, no CR introduced. glaw1 GREEN at
 base and every commit. Symbols, never FILE:LINE. Part 0 written whole
 before the first edit. **[G:shader] is n/a — CPU-side entirely; stated
 explicitly.**
@@ -158,15 +158,15 @@ CPU mirror now lives HERE, and the banner must say so.
 
 | hash | step | content |
 |---|---|---|
-| `b8bab65` | P0 | Part 0 — the four censuses + the P0-b verdict (map-time gen is the hole), committed before any edit |
-| `77915e9` | P1 | the seam — three `COPIED → IDLE` cancels at teardown (`world_gen++` side) + the authored reset (`point x/z = 0`); MAPPING left alone (its callback bound the OLD gen and self-rejects) |
-| `bf5e35f` | P2 | the funnel — the trio moves home to `PointState`; five faces gain `const PointState& point_`; nine-file rename; every touched comment truth-fixed |
+| `4ae7635` | P0 | Part 0 — the four censuses + the P0-b verdict (map-time gen is the hole), committed before any edit |
+| `261e908` | P1 | the seam — three `COPIED → IDLE` cancels at teardown (`world_gen++` side) + the authored reset (`point x/z = 0`); MAPPING left alone (its callback bound the OLD gen and self-rejects) |
+| `4a47ee5` | P2 | the funnel — the trio moves home to `PointState`; five faces gain `const PointState& point_`; nine-file rename; every touched comment truth-fixed |
 
 ## GATES
 
 | gate | status |
 |---|---|
-| [G:glaw1] | **GREEN at every commit** (b8bab65 report-only; 77915e9 GREEN; bf5e35f GREEN) |
+| [G:glaw1] | **GREEN at every commit** (4ae7635 report-only; 261e908 GREEN; 4a47ee5 GREEN) |
 | [G:shader] | **n/a — CPU-side batch**, stated explicitly per the handoff: no WGSL file touched, no binding change, L6 registry untouched |
 | [G:runtime-J] | Jean's two checks at a fixed seed: (1) the log's scenario re-run — walk far, portal-cross, first arrivals all near the true point, none at the old coordinates; (2) ten minutes across hosts — streaming, corral, kite, respawn, portals byte-identical. |
 | [G:census] | **Prediction: all integers unchanged, all deltas zero everywhere** (REQUEST_1 already retired the last −1). |
