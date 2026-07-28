@@ -2545,10 +2545,17 @@ fn fpv_mode_active() -> bool {
 }
 
 // The point's host flag (contracts/point.hpp mirror):
-// true = the CAMERA hosts the point (free-fly); false = the pawn
-// hosts (the kite — every body-path read below is unchanged).
+// true = the CAMERA hosts the point (free-fly); false = a BODY hosts
+// (PAWN kite, or RIBBON seat — every body-path read below is
+// unchanged: the possessed slot rides the seat when the ribbon hosts).
 fn point_camera_hosted() -> bool {
     return config.point_host == 1u;
+}
+
+// RESIDUE_3: riding is a host. The mount gate reads the ONE host
+// value — the signal's sky block carries POSE only.
+fn point_ribbon_hosted() -> bool {
+    return config.point_host == 2u;
 }
 
 
@@ -6211,10 +6218,11 @@ fn agent_settle(agent_in: AgentState) -> AgentState {
 fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     var agent = agent_in;
 
-    // Sky mode: the pawn is mounted on the ribbon head. Snap to the head pose
-    // (delivered per-frame in the signal) and skip walking, ground-resolve, and
-    // terrain tilt entirely. SEAM[ribbon:sky-mode].
-    if (signal.sky_mode != 0u) {
+    // RIBBON host: the pawn is mounted on the ribbon head. Snap to the head
+    // pose (delivered per-frame in the signal) and skip walking, ground-resolve,
+    // and terrain tilt entirely. The gate reads the host machine (RESIDUE_3);
+    // the signal's sky block carries the pose.
+    if (point_ribbon_hosted()) {
         agent.pos_x = signal.sky_head_x;
         agent.pos_y = signal.sky_head_y;
         agent.pos_z = signal.sky_head_z;

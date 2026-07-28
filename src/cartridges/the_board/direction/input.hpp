@@ -112,7 +112,7 @@ struct InputDeps {
     MouseState&   mouse_;
     PlayerState&  player_;        // fpv — the anchor toggle (v3 §9 Act III)
     WorldState&   world_state_;   // active_radius — the radius command
-    RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (Option A)
+    RibbonState&  ribbon_state_;  // the rider fixture (Option A): possess() stages the RIBBON release here
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
     PointState&   point_;         // the point — the host toggle (key 4)
@@ -139,8 +139,7 @@ void update_movement_intent(InputDeps* c);
 void clear_input_deltas(InputDeps* c);
 // Camera / view commands
 void toggle_fpv_mode(InputDeps* c);
-void toggle_sky_mode(InputDeps* c);
-void toggle_point_host(InputDeps* c);
+void possess(InputDeps* c, PointHost next);   // THE ONE TRANSACTION — release(current) then bind(next); nothing else writes the host
 void set_render_radius(InputDeps* c, uint32_t r);
 void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
 
@@ -228,7 +227,9 @@ inline void on_key_down(InputDeps* c, int key,
     // ── World / aura toggles ─────────────────────────────────────
     case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door
     case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door
-    case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly)
+    case GLFW_KEY_4:   // the point's host: camera (free-fly) <-> pawn; from RIBBON it composes — dismount first, then camera
+        possess(c, c->point_.host == PointHost::CAMERA ? PointHost::PAWN : PointHost::CAMERA);
+        break;
     case GLFW_KEY_5: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_SUNSET);    break;
     case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);    break;
     case GLFW_KEY_7: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_VAULT);   break;
@@ -260,9 +261,10 @@ inline void on_key_down(InputDeps* c, int key,
         // ROSTER-GATE ribbon (b): sky-flight's entry
         // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
         // the pawn to origin (the fail-LOUD zeros turned player-facing —
-        // earlier recon). The sky machinery re-homed (Option A); this closes the
-        // trap early.
-        if constexpr (ROSTER.ribbon) toggle_sky_mode(c);
+        // earlier recon). RIBBON is a host (RESIDUE_3); from camera host
+        // possess() composes: release camera, mount.
+        if constexpr (ROSTER.ribbon)
+            possess(c, c->point_.host == PointHost::RIBBON ? PointHost::PAWN : PointHost::RIBBON);
         break;
     }
     update_movement_intent(c);
@@ -341,30 +343,38 @@ inline void toggle_fpv_mode(InputDeps* c) {
         << (c->player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
 }
 
-// Sky-flight toggle. While ON, the move channel (W/S = throttle,
-// A/D = yaw) steers the rendered ribbon's head — the ribbon consumes
-// the ONE channel under its own forward-biased grammar (the
-// host owns its mapping; sky mode's arrow special case retired into
-// the general rule); the sky altitude
-// is held by a critically damped pen, not fixed. While OFF, the ribbon
-// holds its stationary arc. The pawn snap and camera follow have landed;
-// only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
-inline void toggle_sky_mode(InputDeps* c) {
-    c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (Option A)
-    std::cout << "[the_board] Sky mode: "
-        << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with W/S/A/D)" : "OFF") << std::endl;
-}
-
-// The point's host toggle — the driver's iteration
-// tool, key 4: PAWN (the kite — today's follow, byte-untouched) <->
-// CAMERA (free-fly: W/A/S/D + mouse, terrain rule NONE, bubble
-// sensors dormant). Not roster-gated: the camera always exists.
-inline void toggle_point_host(InputDeps* c) {
-    c->point_.host = (c->point_.host == PointHost::PAWN)
-        ? PointHost::CAMERA : PointHost::PAWN;
-    c->gpuState_.set_point_host(static_cast<uint32_t>(c->point_.host));
+// THE ONE TRANSACTION (RESIDUE_3): release(current) then bind(next),
+// always, in that order — no frame with two live hosts, none with
+// none. Both keys call possess(); nothing else writes the host.
+//
+//   PAWN   — the kite: the body walks (W/A/S/D), the camera follows.
+//   CAMERA — free-fly: input moves only the camera; the body idles.
+//   RIBBON — sky-flight: the move channel (W/S = throttle, A/D = yaw)
+//     steers the rendered ribbon's head under its own forward-biased
+//     grammar; the altitude is held by a critically damped pen, not
+//     fixed; the possessed body rides the seat (the pawn kernel's
+//     mount gate) and the camera kites onto it.
+//
+// release(RIBBON) = today's sky-OFF outcome for the flown ribbon: the
+// death needs the machine face this transaction does not carry, so the
+// transaction STAGES it (sky.release_pending) and the one owning verb
+// (release_sky_exit_ribbon, R7's head) consumes it this coming tick —
+// the mount/dismount EDGE lives here now, not in a mode_prev mirror.
+// release(CAMERA) = the host set below, whole. release(PAWN) = nothing:
+// the body idles when not hosting, by construction.
+// bind(next) = the host set + the GPU mirror; binding RIBBON is today's
+// mount path (the kernels read the host next dispatch).
+inline void possess(InputDeps* c, PointHost next) {
+    const PointHost cur = c->point_.host;
+    if (cur == next) return;
+    if (cur == PointHost::RIBBON)
+        c->ribbon_state_.sky.release_pending = true;
+    c->point_.host = next;
+    c->gpuState_.set_point_host(static_cast<uint32_t>(next));
     std::cout << "[Point] Host: "
-        << (c->point_.host == PointHost::CAMERA ? "CAMERA (free-fly)" : "PAWN (the kite)") << "\n";
+        << (next == PointHost::RIBBON ? "RIBBON (fly with W/S/A/D)"
+            : next == PointHost::CAMERA ? "CAMERA (free-fly)"
+            : "PAWN (the kite)") << "\n";
 }
 
 inline void set_render_radius(InputDeps* c, uint32_t r) {

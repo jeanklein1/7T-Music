@@ -1115,12 +1115,13 @@ namespace t7 {
                                         const auto& p = agent_state_.slots[player_.possessed_slot];
                                         // THE POINT: point_.x/z is the
                                         // POINT's position — the body authors it
-                                        // only when the pawn hosts; the camera
-                                        // harvest below authors it in camera-host.
-                                        // The portal trigger is the point's BUBBLE
-                                        // sensor, riding the possessed
-                                        // slot's wire in both hosts.
-                                        if (point_.host == PointHost::PAWN) {
+                                        // whenever the body hosts (PAWN, or
+                                        // RIBBON — the possessed body rides the
+                                        // seat); the camera harvest below authors
+                                        // it in camera-host. The portal trigger is
+                                        // the point's BUBBLE sensor, riding the
+                                        // possessed slot's wire in every host.
+                                        if (point_.host != PointHost::CAMERA) {
                                             point_.x = p.pos_x;
                                             point_.z = p.pos_z;
                                         }

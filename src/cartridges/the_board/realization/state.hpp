@@ -377,9 +377,13 @@ namespace t7 {
             float dt_beats;       // beats elapsed since last frame; mirrors
                                   // world.wgsl GPUFrameSignal.dt_beats,
                                   // consumed by step_trigger.
-            // Sky mode: ribbon head pose handed to the GPU pawn update so the
-            // possessed pawn snaps onto the flown head. SEAM[ribbon:sky-mode].
-            uint32_t sky_mode;       // 0 = grounded, 1 = mounted on the ribbon head
+            // Sky block: ribbon head POSE handed to the GPU pawn update so the
+            // possessed pawn snaps onto the flown head. MODE routing lives on
+            // the host machine (config.point_host, RESIDUE_3) — the sky_mode
+            // word below has no GPU reader; it survives as the block's leading
+            // word (the drain/resync boundary) under this batch's layout law,
+            // written from the host fact.
+            uint32_t sky_mode;       // consumer-free; 1 while the RIBBON hosts (debug mirror of the host)
             float    sky_head_x;
             float    sky_head_y;
             float    sky_head_z;

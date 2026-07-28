@@ -58,6 +58,11 @@ namespace the_board {
 enum class PointHost : uint32_t {
     PAWN   = 0,   // the default — the body hosts; the camera kites
     CAMERA = 1,   // free-fly — the witness hosts; input flies the point
+    RIBBON = 2,   // sky-flight — the ribbon hosts; the possessed body
+                  // rides the seat (the pawn kernel's mount gate), the
+                  // camera kites onto it; input steers the head
+                  // (RESIDUE_3: riding landed as a host — the contract
+                  // above made real)
 };
 
 // ═══ THE TERRAIN RULE ══════════════════════════════════════════════
@@ -74,9 +79,14 @@ enum class PointTerrainRule : uint32_t {
 };
 
 // The host table — each host's cast, compile-time.
-inline constexpr PointTerrainRule POINT_HOST_TERRAIN_RULE[2] = {
-    PointTerrainRule::SNAP,   // PAWN — the body snaps; the kite follows
-    PointTerrainRule::NONE,   // CAMERA — pure fly; every clamp skipped
+inline constexpr PointTerrainRule POINT_HOST_TERRAIN_RULE[3] = {
+    PointTerrainRule::SNAP,       // PAWN — the body snaps; the kite follows
+    PointTerrainRule::NONE,       // CAMERA — pure fly; every clamp skipped
+    PointTerrainRule::SOFT_FLOOR, // RIBBON — the seat rides the head, whose
+                                  // altitude is the critically damped pen
+                                  // over terrain (bodies/ribbon.hpp head
+                                  // control law) — a name for what already
+                                  // happens, no new physics
 };
 
 // ═══ THE BUBBLE (first field + first sensor live) ══════════

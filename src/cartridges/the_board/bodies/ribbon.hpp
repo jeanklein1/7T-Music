@@ -410,14 +410,14 @@ struct RibbonState {
     RibbonHead     head{};
 
     // ── Sky-flight fixture (Option A): the rider state,
-    //    re-homed from PlayerState — the mount was always ribbon-owned;
-    //    this completes the ownership. F8 (D9-gated on ROSTER.ribbon)
-    //    flips mode; the exit edge reads mode_prev; yaw_eased is the
-    //    player's eased pen (curvature continuity). ──
+    //    re-homed from PlayerState — the mount was always ribbon-owned.
+    //    ROUTING left this record (RESIDUE_3): the host machine
+    //    (point_.host == PointHost::RIBBON) routes all consumption;
+    //    what stays is the player's eased pen and the one-shot release
+    //    request possess() stages for the owning verb. ──
     struct SkyFlight {
-        bool  mode = false;        // sky-flight: the move channel (W/S/A/D) drives the rendered ribbon's head
-        bool  mode_prev = false;   // previous-frame mode — drives the exit edge (ribbon release)
-        float yaw_eased = 0.0f;    // player's eased yaw
+        bool  release_pending = false; // possess() staged a RIBBON release; release_sky_exit_ribbon consumes it
+        float yaw_eased = 0.0f;        // player's eased yaw
     };
     SkyFlight      sky{};
 };
@@ -832,17 +832,17 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
     bool current_alive = rs.rendered_slot != UINT32_MAX
         && rs.active[rs.rendered_slot].active;
 
-    // Flight input for the head mover: the player when sky mode is
-    // on; the wander policy when the rendered ribbon is a wanderer;
-    // parked otherwise. One control law, many authors.
-    // SEAM[ribbon:sky-mode].
-    bool  ribbon_flown  = rs.sky.mode;
+    // Flight input for the head mover: the player when the RIBBON
+    // hosts the point; the wander policy when the rendered ribbon is a
+    // wanderer; parked otherwise. One control law, many authors — the
+    // gate reads the ONE host value (RESIDUE_3).
+    bool  ribbon_flown  = (c->point_.host == PointHost::RIBBON);
     float ribbon_yaw_in = ribbon_flown ?  c->inputState_.move_x : 0.0f;
     float ribbon_thr_in = ribbon_flown ? -c->inputState_.move_z : 0.0f;
     // The player's pen, eased like the wanderer's (RIBBON_SKY_YAW_TAU
     // in the tuning console).
     {
-        if (rs.sky.mode) {
+        if (ribbon_flown) {
             const float a = 1.0f - std::exp(-c->time_state_.dt / RIBBON_SKY_YAW_TAU);
             rs.sky.yaw_eased += (ribbon_yaw_in - rs.sky.yaw_eased) * a;
             ribbon_yaw_in = rs.sky.yaw_eased;
@@ -947,7 +947,8 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         ribbon_head_pose(rs, hx, hy, hz, hh);
         float fyaw, fpitch, froll;
         ribbon_head_frame(rs, fyaw, fpitch, froll);
-        c->gpuState_.resync_sky_head(queue, rs.sky.mode ? 1u : 0u,
+        c->gpuState_.resync_sky_head(queue,
+                                     c->point_.host == PointHost::RIBBON ? 1u : 0u,
                                      hx, hy, hz, hh, fyaw, fpitch, froll);
     }
 }
@@ -1374,7 +1375,7 @@ inline void evict_ribbon(MachineCtx* self,
     // world's ribbon persists — a contemplative object should.
     // SEAM[ribbon:sky-mode].
     if (slot == self->ribbon_state_.rendered_slot
-        && (self->ribbon_state_.sky.mode || ar.wander)) {
+        && (self->point_.host == PointHost::RIBBON || ar.wander)) {
         return;
     }
 
@@ -1404,8 +1405,8 @@ inline void evict_ribbon(MachineCtx* self,
 }
 
 // ─── Sky-exit release (owner verb) ─────────────────────────────────
-// Sky mode just ended — release the pinned (now anchor-less) ribbon so
-// a fresh one can spawn. SEAM[ribbon:sky-mode].
+// The RIBBON host was released — free the pinned (now anchor-less)
+// ribbon so a fresh one can spawn.
 //
 // THE HAND THAT CLAIMS IS THE HAND THAT FREES. This is a ribbon DEATH,
 // so it owes the ground back: place_ribbon_from_selection registered a
@@ -1424,13 +1425,14 @@ inline void evict_ribbon(MachineCtx* self,
 // not touch them either.)
 //
 // It takes the MACHINE FACE because unregister_footprint_for does, and
-// ribbon_frame_tick's RibbonDeps cannot reach it. Detecting the edge
-// here is the same edge: sky.mode_prev is this verb's private state
-// (sole reader, sole writer) and sky.mode is written only by the input
-// toggle — never inside the tick this verb precedes.
+// ribbon_frame_tick's RibbonDeps cannot reach it. The dismount EDGE
+// lives in possess() (RESIDUE_3): the transaction stages
+// sky.release_pending when the RIBBON host is released; this verb —
+// the request's sole consumer — executes today's outcome unchanged.
 inline void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue) {
     auto& rs = self->ribbon_state_;
-    if (rs.sky.mode_prev && !rs.sky.mode) {
+    if (rs.sky.release_pending) {
+        rs.sky.release_pending = false;
         uint32_t s = rs.rendered_slot;
         if (s != UINT32_MAX && rs.active[s].active) {
             unregister_footprint_for(self, PopFamily::RIBBON, s);
@@ -1462,7 +1464,6 @@ inline void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue) {
             ribbon_invalidate_head(rs);
         }
     }
-    rs.sky.mode_prev = rs.sky.mode;
 }
 
 
