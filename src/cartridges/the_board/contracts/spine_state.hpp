@@ -184,7 +184,6 @@ struct MoodProfile {
     bool   allow_gol_zones;        // GoL zone spawning + visualization
     bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
     bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
-    bool   has_anchor_ribbon;      // mood spawns a fixed reference ribbon at the world center
 
 };
 
@@ -194,18 +193,14 @@ struct MoodProfile {
 //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
 //   the binary doesn't survive contact — the encoding is correct
 //   for today but worth re-examining when finite_outdoor design lands.
-// has_anchor_ribbon flag (last column): mood 5 (FINITE_OUTDOOR_REF)
-//   is the only row that sets it true. The mood ID is an identifier,
-//   not a discriminator — atmospheric data is profile-driven. See
-//   SEAM[mood:L1] above for the gating call site.
-//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull   ribbon
+//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  false },
-    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true,  false },
-    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false, false },
-    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false, false },
-    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  false },
-    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  true  },
+    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
+    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
+    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
@@ -229,8 +224,11 @@ static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].indoor         == false, "MOOD_TABLE 
 static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].indoor        == true,  "MOOD_TABLE column drift: indoor (middle)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].ceiling_height  == 20.0f, "MOOD_TABLE column drift: ceiling_height");
 static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].ceiling_height == 25.0f, "MOOD_TABLE column drift: ceiling_height");
-static_assert(MOOD_TABLE[MOOD_OPEN_DEFAULT].has_anchor_ribbon       == false, "MOOD_TABLE column drift: has_anchor_ribbon (tail)");
-static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR_REF].has_anchor_ribbon == true,  "MOOD_TABLE column drift: has_anchor_ribbon (tail)");
+// The tail probe followed has_anchor_ribbon out; allow_frustum_cull is the
+// last field now and takes it. Both values differ from `indoor` at the same
+// rows, so the tail probe still names something the middle probe does not.
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].allow_frustum_cull == true,  "MOOD_TABLE column drift: allow_frustum_cull (tail)");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].allow_frustum_cull == false, "MOOD_TABLE column drift: allow_frustum_cull (tail)");
 
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.

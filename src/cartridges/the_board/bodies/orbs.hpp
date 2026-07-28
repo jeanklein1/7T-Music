@@ -350,8 +350,9 @@ void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass);
 //
 // SEAM[mood:K4] mood-5 row is bit-identical to mood-0 (open_default)
 //   except for the implicit context that mood-5 is finite_outdoor_ref.
-//   Mirrors the same MOOD_TABLE pattern. Resolves with the
-//   has_anchor_ribbon flag (mood:L1).
+//   Mirrors the same MOOD_TABLE pattern. Nothing else distinguishes
+//   the two rows — the flag that once did retired with the anchor
+//   ribbon.
 //
 //                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
 inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {

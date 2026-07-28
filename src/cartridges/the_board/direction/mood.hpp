@@ -6,7 +6,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
-#include <cstring>     // std::memcpy (anchor-ribbon placement copy)   // (impl, merged)
 #include <iostream>    // mood / lighting / shell / portal logs   // (impl, merged)
 #include <vector>      // shell mesh staging   // (impl, merged)
 
@@ -40,7 +39,7 @@
 // config tables read them early);
 // this file keeps the portal + palette vocabulary, MoodDeps, the
 // decls, and every definition. COHORT: after ribbon/gallery/input
-// (the fan's door owners + RibbonProp/ORB_MOOD_TABLE), before the
+// (the fan's door owners + ORB_MOOD_TABLE), before the
 // machine natives (they call pick_portal_mood / derive_finite_radius
 // and read PORTAL_COLORS).
 //
@@ -48,8 +47,8 @@
 // (mood_state / transitionPhase / pendingDestination /
 // backPortalPosition_ / cpuSpotLights_ / cpuPortalArray_ / sun + clear
 // colors / world_state_ and the feature-gate flags), the converted
-// modules' surfaces (entities' force_spawn_portal_arch, ribbon's
-// fill/commit, gallery's wall paintings, orbs' configure,
+// modules' surfaces (entities' force_spawn_portal_arch, gallery's
+// wall paintings, orbs' configure,
 // render_passes' compute_spot_light_vp), TransitionPhase
 // (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
 // (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
@@ -61,20 +60,8 @@
 //   pendingDestination / transitionPhase; the actual mood activation
 //   happens here. The orchestrator owns only ordering and the
 //   activate-mood bookkeeping; the substantive work splits across
-//   four named sub-functions (apply_mood_lighting, _spot_lights,
-//   _indoor_shell, _anchor_ribbon).
-// SEAM[mood:K4] RESTATED (REQUEST_1): apply_mood_anchor_ribbon only
-//   DECLARES — it records the pending anchor request on RibbonState.
-//   Execution lives with the machine: fulfill_anchor_ribbon_request
-//   (bodies/ribbon.hpp) runs at the streaming conductor's cadence and
-//   claims ground through the same acts as every streamed ribbon.
-//   commit_ribbon's second entry is now the machine's own verb, not
-//   mood's hand.
-// SEAM[mood:L1] MoodProfile.has_anchor_ribbon is the per-mood flag
-//   that gates apply_mood_anchor_ribbon's execution. Default false
-//   for moods 0-4; true for mood 5 (FINITE_OUTDOOR_REF). Read there
-//   and referenced from orbs as mood:L1 in the anchor-ribbon
-//   gating logic.
+//   three named sub-functions (apply_mood_lighting, _spot_lights,
+//   _indoor_shell).
 // apply_mood orchestrates the named applier helpers; the appliers
 //   match the natural seams in the flow, and their per-mood-transition
 //   call order is load-bearing.
@@ -97,7 +84,6 @@ struct WorldState;   // patch_system.hpp — the doors read seeds/bounds (refere
 // from state.hpp (included above).
 class Renderer;
 struct GoLState;   struct EntitiesState; struct MachineCtx;
-struct RibbonState; struct RibbonDeps;
 struct OrbsState;   struct OrbsDeps;
 struct GalleryState; struct GalleryDeps;
 struct PawnState;
@@ -166,7 +152,7 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // THE FLAG CHANNEL [mood -> gol]), and a const view of entities (the
 // portal-array upload reads arch positions). The fan's TARGET organs
 // are deliberately NOT members (the B ruling, input's precedent):
-// ribbon/orbs/gallery/pawn pairs + the machine face ride apply_mood's
+// orbs/gallery/pawn pairs + the machine face ride apply_mood's
 // parameters — the spine addresses the fan's bodies at the call site,
 // through the owner command doors.
 struct MoodDeps {
@@ -190,19 +176,17 @@ struct MoodDeps {
 // parameters — organ-named, addressed by the spine at the call site.
 void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
-    RibbonState& ribbon_state, RibbonDeps& ribbon_deps,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     GalleryState& gallery_state, GalleryDeps& gallery_deps,
     PawnState& pawn_state);
 // request_mood_transition decl GRADUATED to spine_state.hpp (input
 // calls it before this file in the cohort); the definition is below.
-// Appliers (apply_mood's four named sub-functions; each takes only
+// Appliers (apply_mood's three named sub-functions; each takes only
 // the targets its own fan drives)
 void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
-void apply_mood_anchor_ribbon(RibbonState& ribbon_state, uint32_t mood);
 // Indoor support
 void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT);
@@ -229,7 +213,7 @@ uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop);
 // (c->mood_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
 // c->gol_state_ / c->entities_state_ / the sun + clear channel / the
 // CPU light + portal arrays / the back-portal anchor), the fan's
-// TARGET organs (parameters — ribbon/orbs/gallery/pawn + the machine
+// TARGET organs (parameters — orbs/gallery/pawn + the machine
 // face), TransitionPhase (contracts/spine_state.hpp), ARCH_TIERS /
 // ArchIdx (contracts/spawn_services.hpp), solve_catenary_a
 // (seed_utils.hpp), and Dim::PATCH_EXTENT (patch_system.hpp).
@@ -662,23 +646,10 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
     }
 }
 
-// 5) Anchor ribbon — THE DECLARATION'S ACT and nothing else (REQUEST_1).
-//    The mood records the pending request; the machine fulfills it
-//    lawfully at the streaming conductor's cadence
-//    (fulfill_anchor_ribbon_request, bodies/ribbon.hpp) — fill → forced
-//    place WITH the standard footprint claim → commit → promote. Written
-//    every transition, true only for anchor moods, so back-to-back
-//    transitions self-correct. Seed context needs no copy: the machine
-//    reads world_state_.active_seed at fulfillment, same world.
-inline void apply_mood_anchor_ribbon(RibbonState& ribbon_state, uint32_t mood) {
-    ribbon_state.anchor_request = MOOD_TABLE[mood].has_anchor_ribbon;
-}
-
 // ── apply_mood (orchestrator) ──
 //
 inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
-    RibbonState& ribbon_state, RibbonDeps& ribbon_deps,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     GalleryState& gallery_state, GalleryDeps& gallery_deps,
     PawnState& pawn_state) {
@@ -699,7 +670,6 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
         apply_mood_spot_lights(c, m, queue);   // indoor only
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
         apply_mood_indoor_shell(c, m, queue, gallery_state, gallery_deps);  // shell + camera ceiling clamp
-    apply_mood_anchor_ribbon(ribbon_state, mood);  // SEAM[mood:K4]/[mood:L1] anchor — DECLARES only; the machine fulfills (REQUEST_1)
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
         configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_TABLE[mood], queue);
 
