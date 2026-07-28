@@ -1810,15 +1810,26 @@ namespace t7 {
                                     gpuState_.meter_readback_staging().GetConstMappedRange(
                                         0, GPUState::meter_readback_size()));
                                 if (ts) {
+                                    // METER_1.1: group pair dts by row into a
+                                    // frame-local total FIRST, then fold sum/max
+                                    // from the per-frame totals — multi-pass rows
+                                    // (orb quartet, shadow atlas, patch batches)
+                                    // otherwise printed a per-pass max below their
+                                    // per-frame mean.
+                                    double frame_ms[(size_t)RPhase::COUNT] = {};
                                     for (uint32_t p = 0; p < meter_.snap_pair_count; p++) {
                                         const uint64_t t0 = ts[meter_.snap_pairs[p].begin_idx];
                                         const uint64_t t1 = ts[meter_.snap_pairs[p].begin_idx + 1];
                                         if (t1 <= t0) continue;               // counter-reset garbage
                                         const double ms = (double)(t1 - t0) * 1e-6;   // u64 ns per index
                                         if (ms > 100.0) continue;             // same discard law
-                                        auto& s = meter_.r_gpu[meter_.snap_pairs[p].row];
-                                        s.sum_ms += ms;
-                                        if ((float)ms > s.max_ms) s.max_ms = (float)ms;
+                                        frame_ms[meter_.snap_pairs[p].row] += ms;
+                                    }
+                                    for (size_t r = 0; r < (size_t)RPhase::COUNT; r++) {
+                                        if (frame_ms[r] <= 0.0) continue;
+                                        auto& s = meter_.r_gpu[r];
+                                        s.sum_ms += frame_ms[r];
+                                        if ((float)frame_ms[r] > s.max_ms) s.max_ms = (float)frame_ms[r];
                                     }
                                     meter_.gpu_sampled_frames++;
                                 }
