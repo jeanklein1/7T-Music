@@ -67,8 +67,8 @@
 // ── GoL Zones (§2.2, §7.0b) ──────────────────────────────────────
 //   GOL_TIERS[7]                  Tier params (density, tick, spring)
 //   GOL_PULSE_TIERS[3]                Pulse algorithm params
-//   GOL_ZONE_SPAWN_CHANCE         0.15 — fraction of discrete zones
-//   GOL_ZONE_HEIGHT_CHANCE        0.30 — fraction with extrusion
+//   GOL_ZONE_SPAWN_CHANCE         0.60 — fraction of discrete zones
+//   GOL_ZONE_HEIGHT_CHANCE        1.00 — fraction with extrusion
 //   GOL_COLOR_WEIGHTS             Color mode probabilities
 //
 // ── Pawn (§2.2) ──────────────────────────────────────────────────
@@ -1995,8 +1995,8 @@ const GOL_ZONE_PROP_SPAWN: u32     = 920u;      // spawn roll
 const GOL_ZONE_PROP_TIER: u32      = 921u;      // tier selection roll
 const GOL_ZONE_PROP_HEIGHT: u32    = 922u;      // height factor roll
 
-const GOL_ZONE_SPAWN_CHANCE: f32   = 0.15;      // 15% of checkerboard zones
-const GOL_ZONE_HEIGHT_CHANCE: f32  = 0.30;      // 30% of GoL zones get height
+const GOL_ZONE_SPAWN_CHANCE: f32   = 0.60;      // 60% of checkerboard zones
+const GOL_ZONE_HEIGHT_CHANCE: f32  = 1.00;      // every zone the roll sees gets height
 const GOL_ZONE_MODE_THRESHOLD: f32 = 0.50;      // min interpolated mode for eligibility
                                                   // (above scatter_edge, well into discrete)
 struct GoLTierParams {

@@ -99,11 +99,15 @@ struct GoLZoneProp {
 
 // ── Spawn Configuration ──────────────────────────────────────────
 struct GoLZoneSpawnConfig {
-    static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones
-    // Fraction of zones that get extrusion — but two tiers (Conway
-    // Flash, Pulse Sparkle) set force_no_height, so the delivered rate
-    // is 0.2353, not 0.30. See the tier tables below.
-    static constexpr float HEIGHT_CHANCE = 0.30f;
+    static constexpr float SPAWN_CHANCE = 0.60f;  // fraction of checkerboard zones
+    // Fraction of zones that get extrusion. The roll refuses no zone; the
+    // only flat zones left are the two tiers whose identity is flatness
+    // (Conway Flash, Pulse Sparkle set force_no_height), so the delivered
+    // rate is 0.7845. Recipe: each family's weights sum to 1, and
+    // GOL_PULSE_ALGORITHM_CHANCE = 0.35 splits them, so the flat weight is
+    // 0.65 x Flash 0.17 + 0.35 x Sparkle 0.30 = 0.2155, and 1.0 - 0.2155
+    // = 0.7845. See the tier tables below.
+    static constexpr float HEIGHT_CHANCE = 1.00f;
     static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
     // Per-cell height factor seeding (Gaussian draw per cell)
     static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
