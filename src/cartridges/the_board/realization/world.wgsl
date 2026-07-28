@@ -7372,6 +7372,12 @@ fn update_sphere() {
             fe.pos = updated.pos;
             fe.orientation = updated.orientation;
 
+            // RESIDUE_2 [2]: runtime walls — the sphere reads the indoor
+            // bounds through the one law (margins v1 are the camera's
+            // own). An orbit that crosses a wall slides along it —
+            // accepted percept v1. Identity outdoors.
+            fe.pos = indoor_bounds_resolve(fe.pos);
+
             floating_entities.entities[slot] = fe;
         }
 
@@ -7737,6 +7743,13 @@ fn update_cube() {
 
             // ── Compose final position ────────────────────────────
             fe.pos = home + fe.drift;
+
+            // RESIDUE_2 [2]: runtime walls — the cube reads the indoor
+            // bounds through the one law (margins v1 are the camera's
+            // own). Drift that presses into a wall slides along it;
+            // home + drift stay untouched, so the clamp re-resolves
+            // each frame. Identity outdoors.
+            fe.pos = indoor_bounds_resolve(fe.pos);
 
             // ── PLASTICITY (CONTACT_2 C1b) ─────────────────────────
             // Displacement leaks from drift (temporary) into anchor
