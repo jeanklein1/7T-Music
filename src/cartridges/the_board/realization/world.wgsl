@@ -210,11 +210,6 @@ fn sw_motor_point(m: Motor, p: Point) -> Point {
 
 // §1.3 COORDINATE SYSTEMS
 
-// Terrain mesh — grid subdivisions along each axis.
-// Vertex shader receives deduplicated vertex ID via index buffer (GPU-generated once).
-const TERRAIN_MESH_N: u32 = 256u;
-const TERRAIN_MESH_STRIDE: u32 = TERRAIN_MESH_N + 1u;  // vertices per row (fence posts)
-
 // Patch system — streaming terrain
 const PATCH_HEIGHTFIELD_N: u32 = 256u;  // texels per patch heightfield side
 const PATCH_CELL_N: u32 = 16u;          // cell color texture side per patch
@@ -5455,11 +5450,6 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // §7.0a PATCH GENERATION BINDINGS
 
 
-// --- Terrain index generation (Group 0: binding 22, one-shot)
-// Separate pipeline layout with a single storage buffer.
-// Used once at initialization, never again.
-@group(0) @binding(22) var<storage, read_write> terrain_mesh_indices: array<u32>;
-
 // --- Patch heightfield generation (Group 0: bindings 23-24)
 // Separate pipeline layout. Dispatched per-patch when a new patch enters
 // the active set. Writes to one layer of the patch heightfield array.
@@ -7860,26 +7850,6 @@ fn compute_vp() {
             config.sun_direction
         );
     }
-}
-
-// Fills the terrain index buffer with the standard quad triangulation pattern.
-@compute @workgroup_size(8, 8)
-fn generate_terrain_indices(@builtin(global_invocation_id) id: vec3<u32>) {
-    if (id.x >= TERRAIN_MESH_N || id.y >= TERRAIN_MESH_N) { return; }
-
-    let base = (id.y * TERRAIN_MESH_N + id.x) * 6u;
-    let i00 = id.y * TERRAIN_MESH_STRIDE + id.x;
-    let i10 = i00 + 1u;
-    let i01 = i00 + TERRAIN_MESH_STRIDE;
-    let i11 = i01 + 1u;
-
-    // Same winding as the original CPU builder: (i00,i01,i10), (i10,i01,i11)
-    terrain_mesh_indices[base + 0u] = i00;
-    terrain_mesh_indices[base + 1u] = i01;
-    terrain_mesh_indices[base + 2u] = i10;
-    terrain_mesh_indices[base + 3u] = i10;
-    terrain_mesh_indices[base + 4u] = i01;
-    terrain_mesh_indices[base + 5u] = i11;
 }
 
 // --- Patch heightfield generation (two-pass, uses patchGen bind group layout)

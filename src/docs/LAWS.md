@@ -110,8 +110,8 @@ binding numbers, and it is the only record of them that is maintained.
 1. Every bind-group layout entry and its matching group entry reference the
    **same named constant**. The "binding integer typed twice" hazard becomes an
    undefined symbol glaw1 catches, not a runtime crash.
-2. Numbers are **group-scoped**, not global: `22` is `terrain_mesh_indices` in
-   group 0 and `bilinear_sampler` in group 1. `g0::` and `g1::` are separate
+2. Numbers are **group-scoped**, not global: `25` is `tile_grid` in
+   group 0 and `shadow_map` in group 1. `g0::` and `g1::` are separate
    namespaces because a flat list would fuse distinct slots.
 3. Numbers are **authored, not computed**. The `render = compute + 200` band is
    a `static_assert` witness at the foot of the registry: it CHECKS the

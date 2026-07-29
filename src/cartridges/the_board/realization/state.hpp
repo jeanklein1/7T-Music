@@ -46,11 +46,6 @@ namespace t7 {
         namespace Dim {
             // Grid dimensions
 
-            // Terrain mesh — GPU-derived grid, GPU-generated index buffer
-            constexpr uint32_t TERRAIN_MESH_N = 256;
-            constexpr uint32_t TERRAIN_MESH_VERTS = (TERRAIN_MESH_N + 1) * (TERRAIN_MESH_N + 1);
-            constexpr uint32_t TERRAIN_INDEX_COUNT = TERRAIN_MESH_N * TERRAIN_MESH_N * 6;
-
             // Entity meshes — pawn
             constexpr int      PAWN_SEGMENTS = 48;
             constexpr int      PAWN_RINGS = 16;
@@ -1689,7 +1684,6 @@ namespace t7 {
             wgpu::TextureView patchCellColorArrayWriteView_;
             wgpu::TextureView patchCellColorArrayReadView_;
 
-            wgpu::Buffer terrainIndexBuffer_;
             wgpu::Buffer sphereVertexBuffer_, sphereIndexBuffer_;
             uint32_t sphereIndexCount_ = 0;
             wgpu::Buffer monolithVertexBuffer_, monolithIndexBuffer_;
@@ -1801,7 +1795,6 @@ namespace t7 {
             // heightfield (camera clamps) do not bind this group.
             wgpu::BindGroupLayout computeTextureBindGroupLayout_;
             wgpu::BindGroupLayout meshGenEntityBindGroupLayout_;  // binding 1 only — still used by fade overlay
-            wgpu::BindGroupLayout terrainIndexGenLayout_;
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout ribbonComputeLayout_;
 
@@ -1809,7 +1802,6 @@ namespace t7 {
             wgpu::BindGroup renderTextureBindGroup_, shadowTextureBindGroup_;
             wgpu::BindGroup computeTextureBindGroup_;  // live-contributor textures for flyer/walker compute
             wgpu::BindGroup meshGenEntityBindGroup_;  // still used by fade overlay
-            wgpu::BindGroup terrainIndexGenBindGroup_;
             wgpu::BindGroup patchGenBindGroup_;
             wgpu::BindGroup ribbonComputeBindGroup_;
 
@@ -2533,8 +2525,6 @@ namespace t7 {
             // evaluate query_ground_flyer / query_ground_walker.
             wgpu::BindGroup compute_texture_group() const { return computeTextureBindGroup_; }
             wgpu::BindGroupLayout compute_texture_layout() const { return computeTextureBindGroupLayout_; }
-            wgpu::BindGroup terrain_index_gen_group() const { return terrainIndexGenBindGroup_; }
-            wgpu::BindGroupLayout terrain_index_gen_layout() const { return terrainIndexGenLayout_; }
             wgpu::BindGroup patch_gen_group() const { return patchGenBindGroup_; }
             wgpu::BindGroupLayout patch_gen_layout() const { return patchGenLayout_; }
             wgpu::BindGroup ribbon_compute_group() const { return ribbonComputeBindGroup_; }
@@ -2555,8 +2545,6 @@ namespace t7 {
             wgpu::TextureView spot_shadow_map_view() const { return spotShadowMapView_; }
 
             // --- Mesh buffers ---
-            wgpu::Buffer terrain_index_buffer() const { return terrainIndexBuffer_; }
-            static constexpr uint32_t terrain_index_count() { return Dim::TERRAIN_INDEX_COUNT; }
             wgpu::Buffer patch_index_buffer() const { return patchIndexBuffer_; }
             uint32_t patch_index_count() const { return patchIndexCount_; }
             wgpu::Buffer patch_index_buffer_lod1() const { return patchIndexBufferLOD1_; }
@@ -2955,7 +2943,6 @@ namespace t7 {
             }
 
             // --- Dispatch dimensions ---
-            static constexpr uint32_t terrain_mesh_workgroups() { return Dim::TERRAIN_MESH_N / 8; }
             static constexpr uint32_t patch_heightfield_workgroups() { return Dim::PATCH_HEIGHTFIELD_N / 16; }
             static constexpr uint32_t patch_cell_workgroups() { return Dim::PATCH_CELL_N / 8; }
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
@@ -3135,12 +3122,6 @@ namespace t7 {
             }
 
             bool createMeshBuffers() {
-                // Terrain index buffer -- filled once by compute shader, read every frame
-                terrainIndexBuffer_ = makeBuffer("Terrain IB",
-                    Dim::TERRAIN_INDEX_COUNT * 4,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Index);
-                if (!terrainIndexBuffer_) return false;
-
                 // Patch index buffer -- CPU-generated, shared by all patch instances
                 // SKIRTS (weld #2): each LOD appends a full-perimeter skirt — the
                 // edge ring duplicated as verts [SKIRT_GRID_VERTS + k], which the
@@ -4205,24 +4186,6 @@ namespace t7 {
                     if (!computeTextureBindGroupLayout_) return false;
                 }
 
-                // -- Terrain index gen layout (Group 0) -- binding 22 --------
-                // One-shot compute pass: fills terrain index buffer at init.
-                // Lives in terrain range (20-39).
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 1> entries{};
-
-                    entries[0].binding = bind::g0::terrain_mesh_indices;
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Terrain Index Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    terrainIndexGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!terrainIndexGenLayout_) return false;
-                }
-
                 // -- Patch heightfield gen layout (Group 0) -- bindings 23-24 -
                 // Per-patch compute pass: fills one heightfield layer.
                 // Dispatched when a patch enters the active set.
@@ -5147,23 +5110,6 @@ namespace t7 {
                     desc.entries = entries.data();
                     computeTextureBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!computeTextureBindGroup_) return false;
-                }
-
-                // Terrain index gen bind group (1 entry: binding 22)
-                {
-                    std::array<wgpu::BindGroupEntry, 1> entries{};
-
-                    entries[0].binding = bind::g0::terrain_mesh_indices;
-                    entries[0].buffer = terrainIndexBuffer_;
-                    entries[0].size = Dim::TERRAIN_INDEX_COUNT * 4;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Terrain Index Gen BindGroup";
-                    desc.layout = terrainIndexGenLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    terrainIndexGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!terrainIndexGenBindGroup_) return false;
                 }
 
                 // Patch gen bind group (7 entries: binding 1, 23, 24, 25, 27, 28, 30)

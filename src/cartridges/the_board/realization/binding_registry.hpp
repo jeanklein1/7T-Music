@@ -5,15 +5,15 @@
 // moving, or reusing a number.
 //
 // The shape of the table, so it reads correctly: numbers are GROUP-SCOPED
-// (g0:: and g1:: are separate namespaces — 22 is terrain_mesh_indices in
-// group 0 and bilinear_sampler in group 1), AUTHORED (the render = compute
+// (g0:: and g1:: are separate namespaces — 25 is tile_grid in group 0
+// and shadow_map in group 1), AUTHORED (the render = compute
 // + 200 band at the bottom is a witness over the literals, never their
 // source), and ONE CONSTANT PER SITE rather than per buffer — the same
 // buffer wears several names because each name is one (group, slot):
 // patch_instances(340) / fc_patches(340); orb_state(410) /
 // render_orb_state(400) / orb_state_ro(413).
 //
-// The WGSL @binding literals in world.wgsl (96 declarations over 93 slots;
+// The WGSL @binding literals in world.wgsl (95 declarations over 92 slots;
 // three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
 // MIRROR of this file, kept in lockstep by the boot-time bind-group and
 // pipeline validation, not by the compiler. The names here deliberately
@@ -37,7 +37,6 @@ namespace t7 {
                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
 
                 // terrain / patch lattice (20–30)
-                inline constexpr uint32_t terrain_mesh_indices       = 22;
                 inline constexpr uint32_t patch_params               = 23;
                 inline constexpr uint32_t patch_heightfield_array_write = 24;
                 inline constexpr uint32_t tile_grid                  = 25;

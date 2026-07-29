@@ -28,9 +28,6 @@ namespace t7 {
             constexpr const char* UPDATE_CUBE = "update_cube";                      // 0D
             constexpr const char* COMPUTE_VP = "compute_vp";                    // 0D
 
-            // Init-only
-            constexpr const char* GENERATE_TERRAIN_INDICES = "generate_terrain_indices";  // 2D -- one-shot
-
             // On-demand compute
             constexpr const char* GENERATE_PATCH_HEIGHTS = "generate_patch_heights";          // 2D -- per-patch, pass 1
             constexpr const char* GENERATE_PATCH_GRADIENTS = "generate_patch_gradients";      // 2D -- per-patch, pass 2
@@ -120,7 +117,6 @@ namespace t7 {
             wgpu::BindGroupLayout computeEntityLayout_;
             wgpu::BindGroupLayout computeTextureLayout_;   // Group 1 for live-contributor compute (sphere/cube)
             wgpu::BindGroupLayout agentOccupierLayout_;    // Group 2, agent kernels only — THE AGENTS' ROOM
-            wgpu::BindGroupLayout terrainIndexGenLayout_;
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout renderEntityLayout_;
             wgpu::BindGroupLayout renderTextureLayout_;
@@ -198,9 +194,6 @@ namespace t7 {
             wgpu::ComputePipeline updateSpherePipeline_;         // 0D
             wgpu::ComputePipeline updateCubePipeline_;           // 0D
             wgpu::ComputePipeline computeVPPipeline_;         // 0D
-
-            // Compute pipelines -- terrain index generation (one-shot at init)
-            wgpu::ComputePipeline generateTerrainIndicesPipeline_;  // 2D
 
             // Compute pipelines -- patch heightfield generation (per-patch, two-pass)
             wgpu::ComputePipeline generatePatchHeightsPipeline_;     // 2D -- pass 1: heights only
@@ -310,7 +303,6 @@ namespace t7 {
                 computeEntityLayout_ = gpuState.compute_entity_layout();
                 computeTextureLayout_ = gpuState.compute_texture_layout();
                 agentOccupierLayout_ = gpuState.agent_occupier_layout();
-                terrainIndexGenLayout_ = gpuState.terrain_index_gen_layout();
                 patchGenLayout_ = gpuState.patch_gen_layout();
                 renderEntityLayout_ = gpuState.render_entity_layout();
                 renderTextureLayout_ = gpuState.render_texture_layout();
@@ -435,19 +427,6 @@ namespace t7 {
                 pass.SetPipeline(computeVPPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
-            }
-
-            // Terrain index generation -- one-shot at init.
-            // Fills the terrain index buffer on the GPU. Called once, never again.
-
-            void dispatch_generate_terrain_indices(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup terrainIndexGenBindGroup,
-                uint32_t workgroups
-            ) {
-                pass.SetPipeline(generateTerrainIndicesPipeline_);
-                pass.SetBindGroup(0, terrainIndexGenBindGroup);
-                pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             // Pass 1: evaluate ground_formed() per texel, store height only.
@@ -1359,14 +1338,6 @@ namespace t7 {
                 // Pipeline 2: compute_vp (0D)
                 if (!makeComputePipeline("compute_vp", "Compute VP Matrix (0D)",
                     computeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
-
-                // Pipeline 10: generate_terrain_indices (2D, one-shot)
-                {
-                    wgpu::PipelineLayout pl = computeLayoutFor(terrainIndexGenLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("gen_terrain_indices", "Generate Terrain Indices (2D, one-shot)",
-                        pl, Entry::GENERATE_TERRAIN_INDICES, generateTerrainIndicesPipeline_)) return false;
-                }
 
                 // Pipeline 11a: generate_patch_heights (2D, pass 1 — heights only)
                 {

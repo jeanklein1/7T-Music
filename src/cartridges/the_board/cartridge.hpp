@@ -497,24 +497,6 @@ namespace t7 {
 
                 auto t1 = std::chrono::high_resolution_clock::now();
 
-                // ═══ MOVEMENT: BOOT — REALIZATION (the stage exists first) ══
-                // --- One-shot: generate terrain index buffer on GPU -----------------
-                {
-                    wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
-                    wgpu::ComputePassDescriptor desc{};
-                    desc.label = "Terrain Index Gen (one-shot)";
-                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
-                    renderer_.dispatch_generate_terrain_indices(
-                        pass,
-                        gpuState_.terrain_index_gen_group(),
-                        GPUState::terrain_mesh_workgroups()
-                    );
-                    pass.End();
-                    wgpu::CommandBuffer cmd = encoder.Finish();
-                    device_.GetQueue().Submit(1, &cmd);
-                }
-                auto t2 = std::chrono::high_resolution_clock::now();
-
                 // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
                 // The same door the transition machine uses. reset_surface opens
                 // with init_patch_system, so boot's order is unchanged; what boot
@@ -580,10 +562,8 @@ namespace t7 {
 
                 std::cout << "[Cartridge] Renderer init:    "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
-                std::cout << "[Cartridge] Terrain gen:      "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
                 std::cout << "[Cartridge] Patch system:     "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() << " ms\n";
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t1).count() << " ms\n";
                 std::cout << "[Cartridge] Total init:       "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
 
