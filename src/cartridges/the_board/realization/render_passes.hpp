@@ -47,8 +47,6 @@ void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
 // Light matrix helpers (pure math — no MachineCtx)
 void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
-void compute_sun_matrices(const float* direction, float* view_proj_out,
-    float center_x = 0.0f, float center_z = 0.0f);
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
@@ -514,78 +512,6 @@ inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_ou
 }
 
 
-inline void compute_sun_matrices(const float* direction, float* view_proj_out,
-    float center_x, float center_z) {   // defaults live on the header declaration
-    //
-    const float altitude = 300.0f;
-    float light_pos[3] = {
-        center_x - direction[0] * altitude,
-        -direction[1] * altitude,
-        center_z - direction[2] * altitude
-    };
-
-    // Up vector (choose one that's not parallel to direction)
-    float up[3];
-    if (std::abs(direction[1]) > 0.99f) {
-        up[0] = 0.0f; up[1] = 0.0f; up[2] = 1.0f;
-    }
-    else {
-        up[0] = 0.0f; up[1] = 1.0f; up[2] = 0.0f;
-    }
-
-    // View matrix (look-at from light_pos toward origin)
-    float fwd[3] = { direction[0], direction[1], direction[2] };
-
-    // right = normalize(cross(fwd, up))
-    float right[3] = {
-        fwd[1] * up[2] - fwd[2] * up[1],
-        fwd[2] * up[0] - fwd[0] * up[2],
-        fwd[0] * up[1] - fwd[1] * up[0]
-    };
-    float rlen = std::sqrt(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
-    right[0] /= rlen; right[1] /= rlen; right[2] /= rlen;
-
-    // true_up = cross(right, fwd) — note: not cross(fwd, right)
-    float true_up[3] = {
-        right[1] * fwd[2] - right[2] * fwd[1],
-        right[2] * fwd[0] - right[0] * fwd[2],
-        right[0] * fwd[1] - right[1] * fwd[0]
-    };
-
-    float tx = -(right[0] * light_pos[0] + right[1] * light_pos[1] + right[2] * light_pos[2]);
-    float ty = -(true_up[0] * light_pos[0] + true_up[1] * light_pos[1] + true_up[2] * light_pos[2]);
-    float tz = fwd[0] * light_pos[0] + fwd[1] * light_pos[1] + fwd[2] * light_pos[2];
-
-    // Column-major view matrix
-    float view[16] = {
-        right[0],    right[1],    right[2],    0.0f,
-        true_up[0],  true_up[1],  true_up[2],  0.0f,
-        -fwd[0],     -fwd[1],     -fwd[2],     0.0f,
-        tx,          ty,           tz,          1.0f
-    };
-
-    const float half_extent = 350.0f;
-    const float near_plane = 0.1f;
-    const float far_plane = 800.0f;
-
-    float proj[16] = {
-        1.0f / half_extent, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f / half_extent, 0.0f, 0.0f,
-        0.0f, 0.0f, -1.0f / (far_plane - near_plane), 0.0f,
-        0.0f, 0.0f, -near_plane / (far_plane - near_plane), 1.0f
-    };
-
-    // Multiply proj * view (column-major)
-    for (int col = 0; col < 4; col++) {
-        for (int row = 0; row < 4; row++) {
-            float sum = 0.0f;
-            for (int k = 0; k < 4; k++) {
-                sum += proj[k * 4 + row] * view[col * 4 + k];
-            }
-            view_proj_out[col * 4 + row] = sum;
-        }
-    }
-}
 
 } // namespace the_board
 } // namespace t7
