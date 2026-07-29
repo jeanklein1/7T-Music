@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # DEP-1 — THE REACH GRAPH + KIND MAP (read-only)
 
 the_board, branch `FINAL_TOUCH`, anchored at HEAD `84bc96a` (post-RAD-2;

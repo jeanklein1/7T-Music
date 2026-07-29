@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # INVESTIGATION — mood-transition patch seam / discontinuity
 
 Read-only diagnostic, non-blocking. **This revision supersedes the earlier

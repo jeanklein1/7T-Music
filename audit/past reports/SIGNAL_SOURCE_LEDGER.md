@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # RECON A — THE SIGNAL SOURCE LEDGER (the music half's first survey)
 
 The SOURCE wall of the patch bay: what the analyzer computes, what it ships,

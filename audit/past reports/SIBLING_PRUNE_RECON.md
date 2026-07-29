@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # SIBLING PRUNE — RECON (read-only; report + STOP; Jean rules which die)
 
 Scope: the CMake target census, the_chord, backup_board, + the level-2 keyhole

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # THE DEMO CONTRACT — v0 (for Jean's ratification)
 Derived from Jean's ruling, 2026-07-12. Companion to theory v2;
 becomes its §11 when ratified. Repo home: src/docs/.

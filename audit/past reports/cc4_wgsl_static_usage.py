@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# **ARCHIVAL** — this document describes the tree as of its own
+# date and is superseded. Do not cite as current. Live facts live
+# in the code; adjudications live in `audit/` and
+# `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 """[CC-2c / CC-3 / CC-4] WGSL static-usage analyzer for world.wgsl.
 
 Computes, for every entry point, the set of module-scope resource bindings it

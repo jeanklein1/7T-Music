@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # ANCHOR_1 — PART A RECON
 
 Base: `9c46ff63707052b46c8af081f72c6f544a7ce823` (master @ HEAD, clean tree)

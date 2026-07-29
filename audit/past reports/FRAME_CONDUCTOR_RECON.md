@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # THE FRAME CONDUCTOR — RECON (read-only; the per-frame sentence mapped)
 
 Campaign: render/update organizational cleanup. This is the LAST organ — the

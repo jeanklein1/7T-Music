@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # COMPACT-2 — THE PROTOTYPE COMMENT LAW (close-out)
 
 One sweep, as stamped. Per-file structural prose is retired until the

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # TERRAIN COUPLING LEDGER (minimal-demo workbench; consolidation, deltas verified at HEAD `950607f`)
 
 Method: the LADDER already holds the design history (the coupling strip, the

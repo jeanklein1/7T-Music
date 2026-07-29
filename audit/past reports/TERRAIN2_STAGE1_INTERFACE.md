@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # TERRAIN-2 (STAGE 1) — THE MANIFOLD INTERFACE, SPHERE-DIRECTED
 ## Phase A — the interface on paper (design; ONE report; STOP for the stamp)
 

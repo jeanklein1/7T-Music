@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # THE 7T ENTITY CONTRACT — v0
 Repo home: src/docs/ · Ratification: the ribbon must PASS §7 against this
 text; any failure means the contract or the ribbon is lying — fix the liar.

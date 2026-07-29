@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# **ARCHIVAL** — this document describes the tree as of its own
+# date and is superseded. Do not cite as current. Live facts live
+# in the code; adjudications live in `audit/` and
+# `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 """[A5-2 / A5-8] Reader census — reproduces the possessed_slot, neighbor_radius,
 and personal_radius read counts from the live tree (grep-driven; no edits).
 

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # COMPACT-0 — THE GROWTH CENSUS (read-only; no cuts)
 
 Head measured: `98dc748` (LADDER-4). Pre-MOD base: `3aac3db` ("campaign:

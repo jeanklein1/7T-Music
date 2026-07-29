@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # C6 — THE BINDING REGISTRY — RECON (read-only; the single-source-of-truth plan)
 
 Campaign: RENDER/UPDATE API cleanup, Tier-3 item **C6** (RENDER_UPDATE_API_RECON

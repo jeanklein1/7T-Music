@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# **ARCHIVAL** — this document describes the tree as of its own
+# date and is superseded. Do not cite as current. Live facts live
+# in the code; adjudications live in `audit/` and
+# `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 """[CC-7] WGSL @group/@binding literal census for world.wgsl.
 
 Extracts every module-scope resource declaration `@group(G) @binding(B) var... name : type`,

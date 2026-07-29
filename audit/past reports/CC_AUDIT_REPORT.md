@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # CC AUDIT REPORT — the_board, INDEPENDENT STRUCTURAL AUDIT
 Auditor: Claude Code (second, independent). Read-only; the only write is this file.
 Method: fingerprint first; three passes (structure, depth, cross-file) executed as

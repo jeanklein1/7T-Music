@@ -1,3 +1,8 @@
+// **ARCHIVAL** — this document describes the tree as of its own
+// date and is superseded. Do not cite as current. Live facts live
+// in the code; adjudications live in `audit/` and
+// `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 // TIDY_1 T1 GATE — dump Tint SPIR-V for the 5 live/contact kernels of a given
 // world.wgsl via Dawn dump_shaders (--in-process-gpu). Associates each of the 5
 // SPIR-V blocks by its `OpEntryPoint GLCompute %<kernel>` name. Writes one

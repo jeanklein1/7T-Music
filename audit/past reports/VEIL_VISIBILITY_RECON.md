@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # THE VEIL — VISIBILITY RECON (read-only; the design map for a single-authority veil)
 
 Campaign: the veil — collapse the many visibility authorities into ONE point-

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # RIBBON CERTIFICATION TRANSCRIPT — entity contract §7
 The reference instance's bench run, accompanying entity_contract_v0.md
 as its ratification (per the contract's appendix). Two halves: the

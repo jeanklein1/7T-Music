@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # REBUILD-0 m3 — THE RECIPE (proposal; awaiting Jean's stamp)
 
 m1 and m2 are landed and green. Deriving m3's cut from the censuses

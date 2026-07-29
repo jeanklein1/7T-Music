@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # PANEL-0 — THE AUTHORING-SURFACE RECON (report-first; ONE STOP)
 
 Read-only campaign product. Nothing moved, nothing gated, nothing merged.

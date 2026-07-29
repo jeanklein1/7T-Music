@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # ROSTER-1b — PHASE R' — GATE-(a) CLASSIFICATION (read-only)
 
 the_board only. Branch **MOD_1_ROSTER**, on top of Phase I (`3774c56`) +

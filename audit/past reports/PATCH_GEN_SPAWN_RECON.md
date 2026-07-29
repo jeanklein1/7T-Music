@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # PATCH GENERATION + SPAWNING — THE CANDIDATE API (read-only recon)
 
 Read-only recon. Nothing moved; no cut order, no sequencing, no commits.

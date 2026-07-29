@@ -1,3 +1,8 @@
+// **ARCHIVAL** — this document describes the tree as of its own
+// date and is superseded. Do not cite as current. Live facts live
+// in the code; adjudications live in `audit/` and
+// `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 // [GROUND_CARD_1 H6] Dawn validation witness — POST-BATCH variant.
 //
 // Same method as probe_dawn_witness.mjs (headless Chromium = real Dawn), but

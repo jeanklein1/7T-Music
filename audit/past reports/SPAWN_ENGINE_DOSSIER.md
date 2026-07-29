@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # SPAWN ENGINE DOSSIER — what the next campaign inherits
 
 Written at the close of BOOT_ONE_VOICE, anchored at master `f403ab8`.

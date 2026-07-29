@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# **ARCHIVAL** — this document describes the tree as of its own
+# date and is superseded. Do not cite as current. Live facts live
+# in the code; adjudications live in `audit/` and
+# `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 """[A5-3] THE FEASIBILITY LEDGER, extended past radii to every profile column.
 
 The GATE-FEASIBILITY RULE banner covered radii (a 3D gate at altitude H fires

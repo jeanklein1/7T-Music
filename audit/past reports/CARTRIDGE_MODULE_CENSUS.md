@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # the_board — MODULE CENSUS (census-only; no bodies, no exposition)
 
 Scope: `cartridge.hpp` + all 34 `*.hpp` + `world.wgsl` (no `*.inl` exist). Vocabulary anchored to `src/docs/7t_program_theory_v3.md` (§2 strata L0–L5; §9 terrain strata S1–S4) + `audit/LADDER.md` (M6 disposition).

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # PANEL-0 p2 — THE MATRIX RECON (read-only; report; ONE STOP)
 
 Read-only. Nothing touched. Goal (ratified): replace the hand-written

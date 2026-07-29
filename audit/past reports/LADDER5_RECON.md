@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # LADDER-5 RECON — THE HUBS (read-only)
 
 Scope: spawn_engine.inl (1,054 L / 550 code), entity_pipeline.inl

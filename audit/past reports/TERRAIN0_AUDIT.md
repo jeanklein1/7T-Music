@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # TERRAIN-0 — THE "WHAT IS TERRAIN?" AUDIT (read-only; ONE report; the map)
 
 Definitional recon, not an inventory. The question, answered from the code

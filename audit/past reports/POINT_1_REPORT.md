@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # POINT_1 — THE POINT GETS ITS HOUSE — report
 
 Cartridge: `the_board` (`incubator_dual`). Master-direct. Deviations are

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # TERRAIN-1 — THE MANIFOLD RECON (read-only; ONE map; two targets)
 
 The reframe this serves (Jean, ratified — the terrain's point-model): **terrain

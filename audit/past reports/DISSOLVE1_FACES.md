@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # DISSOLVE-1 — PHASE R: THE FACE CENSUS (report-first; ONE STOP)
 
 Read-only. Puller on record: THE COVENANT (comprehension), Jean's

@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # LADDER-6 PHASE R — THE GROUPING CENSUS (report-first; nothing moved)
 
 Scope: the world-engine block (post-C2 chapter map, cartridge.hpp now

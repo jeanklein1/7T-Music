@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # SPAWN_1c — the prediction, recorded before the instrument exists
 
 Campaign: SPAWN_SWEEP v2. Handoff: `cc_handoff_spawn_1.txt`.

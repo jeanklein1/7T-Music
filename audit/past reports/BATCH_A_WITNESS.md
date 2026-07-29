@@ -1,3 +1,8 @@
+> **ARCHIVAL** — this document describes the tree as of its own
+> date and is superseded. Do not cite as current. Live facts live
+> in the code; adjudications live in `audit/` and
+> `docs/HANDOFFS/OPTIMIZATION 1/`.
+
 # [G:witness] — the bit-identity witness for BATCH A
 
 Defined by CC, **run by Jean**. Batch A @ `d5ea36e`, base `a9fe3aa`.
