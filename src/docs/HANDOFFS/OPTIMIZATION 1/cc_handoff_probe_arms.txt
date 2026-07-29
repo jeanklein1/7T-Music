@@ -1,0 +1,127 @@
+════════════════════════════════════════════════════════════════════
+7T — PROBE_1 — THE ARMS
+One merge to master + three held branches, cut AFTER CENSUS_2 lands.
+No design work. No opportunistic edits.
+════════════════════════════════════════════════════════════════════
+
+ORDERING LAW: execute this handoff ONLY after cc_handoff_census_2 has
+fully landed on master. Every held branch below is cut FROM that
+master, so Jean's baseline boot and every probe boot differ from
+master by exactly the named edits and nothing else.
+
+GIT LAW: trunk-based, master. A0 merges to master. A1-A3 each live on
+their own held `claude/*` branch (or, if the harness binds the
+session to one branch, as clearly separated commits Jean retargets —
+say which). The proxy blocks branch deletion; Jean prunes after
+ruling. Do not squash anything.
+
+REGISTER: verify every anchor verbatim; report anchor + count before
+each edit; STOP on mismatch except where named expected. REPORT;
+never improvise.
+
+────────────────────────────────────────────────────────────────────
+A0 — MERGE C1b (the chosen machine) INTO MASTER
+────────────────────────────────────────────────────────────────────
+Jean has ruled the merge. Merge `claude/probe1-c1b` into master
+(plain merge; keep history). Verify post-merge that the selection
+loop + `"[Console] Adapter selected: index="` line are present on
+master. Leave the branch for Jean to prune.
+
+Expected behavior on Jean's machine (for the record, not for CC to
+test): index=2, NVIDIA GeForce 920M, D3D12.
+
+────────────────────────────────────────────────────────────────────
+A1 — RECREATE claude/probe1-c2 FROM THE NEW MASTER (held)
+────────────────────────────────────────────────────────────────────
+The old probe1-c2 predates C1b + CENSUS_2. Recreate it from current
+master and re-apply the two-rooms edit. CENSUS_2a's mirror notes are
+NUMBER-FREE by design, so both FINDs must still count exactly 1:
+
+FIND (state.hpp), expected count 1:
+constexpr uint32_t SHADOW_MAP_SIZE = 4096;
+REPLACE:
+constexpr uint32_t SHADOW_MAP_SIZE = 2048;
+
+FIND (world.wgsl), expected count 1:
+const SHADOW_MAP_SIZE: f32 = 4096.0;
+REPLACE:
+const SHADOW_MAP_SIZE: f32 = 2048.0;
+
+STOP if either count is not 1 (a numbered mirror note would mean
+CENSUS_2a drifted from its handoff — report, do not adapt).
+
+COMMIT (on claude/probe1-c2): "PROBE_1: shadow map 4096 -> 2048,
+both rooms (HELD — discriminator; rebased on census master)"
+The old branch: leave for Jean to prune; note its head hash.
+
+────────────────────────────────────────────────────────────────────
+A2 — claude/probe1-c3-two-indirect (held): THE STERILE ADJUDICATOR
+────────────────────────────────────────────────────────────────────
+Purpose: adjudicate L2.4 ("one indirect draw per pass") empirically.
+A SECOND plain DrawIndexedIndirect in the main pass, reading a
+zero-initialized args buffer — indexCount 0, instanceCount 0 —
+behaviorally null, validation-visible within seconds of boot.
+
+STEP 1 — RECON. Quote the body of
+`draw_patch_terrain_lod0_indirect` (renderer.hpp) in the report and
+confirm it leaves BOTH a pipeline and an index buffer bound on the
+pass when it returns. If it does not bind the index buffer, the
+probe call below must be preceded by
+`pass.SetIndexBuffer(c->gpuState_.patch_index_buffer(), wgpu::IndexFormat::Uint32);`
+— say which form you used.
+
+STEP 2 — the buffer (state.hpp, beside the frustum indirect buffers;
+WebGPU zero-initializes buffers, so no write is needed — a 5×u32 of
+zeros is a valid null draw):
+  probeNullIndirectBuffer_ = makeBuffer("PROBE C3 Null Indirect",
+      5 * sizeof(uint32_t),
+      wgpu::BufferUsage::Indirect);
+Add it to the createBuffers() success conjunction and a one-line
+accessor `probe_null_indirect()` beside the frustum accessors.
+
+STEP 3 — the call (render_passes.hpp, render_main_pass, INSIDE the
+`use_indirect_terrain()` branch, immediately after the existing
+`draw_patch_terrain_lod0_indirect(...)` call):
+  // PROBE C3 (HELD) — adjudicates L2.4: a SECOND plain
+  // DrawIndexedIndirect in one pass, zero-count args. If Dawn D3D12
+  // rejects it, the UncapturedErrorCallback prints; if it is silent,
+  // seven homes of the one-indirect claim retire.
+  pass.DrawIndexedIndirect(c->gpuState_.probe_null_indirect(), 0);
+
+Nothing else. No METER row, no config, no shader motion (zero FXC
+exposure).
+
+COMMIT (on claude/probe1-c3-two-indirect): "PROBE_1: C3 sterile
+second indirect draw (HELD — L2.4 adjudicator)"
+
+────────────────────────────────────────────────────────────────────
+A3 — claude/probe1-c4-vulkan (held): THE BACKEND CURIOSITY
+────────────────────────────────────────────────────────────────────
+One line on top of master (post-A0). Flips the C1b tiebreaker so the
+pick becomes adapter 3 (discrete + Vulkan) instead of adapter 2
+(discrete + D3D12). Log-only experiment; no rulings ride on it.
+
+FIND (console.hpp, the C1b score), expected count 1:
+                    int score =
+                        (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
+                      + (info.backendType == wgpu::BackendType::D3D12       ? 1 : 0);
+REPLACE:
+                    int score =
+                        (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
+                      + (info.backendType == wgpu::BackendType::Vulkan      ? 1 : 0);
+
+(Whitespace may drift from this rendering — match content; report the
+in-tree form.)
+
+COMMIT (on claude/probe1-c4-vulkan): "PROBE_1: C4 prefer Vulkan
+backend (HELD — boot-time curiosity; FXC bypass measurement)"
+
+────────────────────────────────────────────────────────────────────
+REPORT BACK
+────────────────────────────────────────────────────────────────────
+- A0 merge result; master head hash.
+- The four branch heads (old probe1-c2, new probe1-c2, c3, c4) with
+  hashes so Jean's runbook checkouts are unambiguous.
+- The STEP 1 recon quote and which probe-call form landed.
+- Anchor counts for every FIND.
+The one thing this handoff must not do: touch master beyond A0.
