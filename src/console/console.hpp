@@ -30,6 +30,7 @@
 #include <webgpu/webgpu_cpp.h>
 #include <dawn/native/DawnNative.h>
 #include <dawn/dawn_proc.h>
+#include "dawn/common/Version_autogen.h"
 #include <GLFW/glfw3.h>
 
 #if defined(_WIN32)
@@ -44,6 +45,7 @@
 #include <vector>
 #include <chrono>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <optional>
 
@@ -153,6 +155,17 @@ namespace t7 {
             if (adapters.empty()) {
                 std::cerr << "No WebGPU adapters found\n";
                 return false;
+            }
+
+            // The platform line: Dawn's own 20-byte SHA1
+            // (all-zero when the build is unhashed).
+            {
+                static constexpr char hexd[] = "0123456789abcdef";
+                std::string dawnRev; dawnRev.reserve(40);
+                for (uint8_t b : dawn::kDawnVersion) {
+                    dawnRev += hexd[b >> 4]; dawnRev += hexd[b & 0x0F];
+                }
+                std::cout << "[Console] Dawn revision: " << dawnRev << "\n";
             }
 
             // PROBE_1 C1 — the adapter log: every adapter Dawn
