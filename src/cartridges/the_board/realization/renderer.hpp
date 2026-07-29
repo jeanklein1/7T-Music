@@ -701,18 +701,22 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
             }
 
-            void draw_patch_terrain_lod0_indirect(
+            // THE DRAW PLAN: one helper, three invocations — the entity
+            // group carries the list window, the args slot rides the
+            // offset (0 / 20 / 40 bytes into the 3 x 5-u32 args buffer).
+            void draw_patch_terrain_plan_slot(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
                 wgpu::BindGroup textureBindGroup,
-                wgpu::Buffer indexBufferLOD0,
-                wgpu::Buffer indirectLOD0
+                wgpu::Buffer indexBuffer,
+                wgpu::Buffer indirectArgs,
+                uint64_t indirectOffset
             ) {
                 pass.SetPipeline(patchTerrainIndirectPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
-                pass.SetIndexBuffer(indexBufferLOD0, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexedIndirect(indirectLOD0, 0);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
             // Direct terrain draw — uses non-indirect pipeline (outdoor or indoor variant).

@@ -225,9 +225,32 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
 }
 
 inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
-    if (!c->renderer_.use_indirect_terrain()) { return; }   // indoor: skip
+    // THE DRAW PLAN: the kernel runs in EVERY mood now — the finite/
+    // indoor path draws through the plan too, so the old indoor skip
+    // is retired with the direct path it fed.
 
-    // 1. Reset compute buffer (constant args + zero instanceCount)
+    // 0. The plan's inputs: band counts + the active zone rects
+    // (world footprints persisted at commit_gol — E1 rev2's four
+    // floats), packed dense. Uploaded beside the frustum reset.
+    {
+        GPUDrawPlanParams plan{};
+        plan.lod0_count   = c->world_state_.lod0_patch_count;
+        plan.render_count = c->world_state_.render_patch_count;
+        uint32_t n = 0;
+        for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES && n < 8; i++) {
+            const auto& z = c->gol_state_.zones[i];
+            if (!z.active) continue;
+            plan.rects[n][0] = z.corner_x;
+            plan.rects[n][1] = z.corner_z;
+            plan.rects[n][2] = z.extent_x;
+            plan.rects[n][3] = z.extent_z;
+            n++;
+        }
+        plan.rect_count = n;
+        c->gpuState_.upload_draw_plan(queue, plan);
+    }
+
+    // 1. Reset compute buffer (constant args + zero instanceCounts)
     c->gpuState_.reset_frustum_indirect(queue);
 
     // 2. Compute pass — frustum cull writes atomics + visible indices
@@ -246,7 +269,7 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
     encoder.CopyBufferToBuffer(
         c->gpuState_.frustum_compute_buffer(), 0,
         c->gpuState_.frustum_indirect_lod0(), 0,
-        5 * sizeof(uint32_t)
+        FC_ARGS_BYTES
     );
 }
 
@@ -372,40 +395,28 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-    // Terrain LOD0
-    if (c->renderer_.use_indirect_terrain()) {
-        // Outdoor: GPU-frustum-culled LOD0 via DrawIndexedIndirect
-        c->renderer_.draw_patch_terrain_lod0_indirect(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            c->gpuState_.patch_index_buffer_lod0_live(),
-            c->gpuState_.frustum_indirect_lod0()
-        );
-    } else {
-        // Indoor: direct draw with CPU count
-        c->renderer_.draw_patch_terrain_direct(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            c->gpuState_.patch_index_buffer_lod0_live(),
-            c->gpuState_.patch_index_count_lod0_live(),
-            c->world_state_.lod0_patch_count
-        );
-    }
-
-    // Terrain LOD1 — direct draw, not frustum-culled.
-    if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
-        c->renderer_.draw_patch_terrain_direct(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            c->gpuState_.patch_index_buffer_lod1(),
-            c->gpuState_.patch_index_count_lod1(),
-            c->world_state_.render_patch_count - c->world_state_.lod0_patch_count,
-            c->world_state_.lod0_patch_count
-        );
-    }
+    // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel
+    // authored three lists; the pass executes them as three indirect
+    // draws. Outdoor AND finite/indoor go through the same plan (the
+    // kernel sees all bands everywhere). The E1 global-flag selection
+    // is RETIRED here — the plan is per-patch; the flag survives only
+    // for the snapshot pass (R6), which culls against the
+    // photographer's frustum and cannot read this plan.
+    c->renderer_.draw_patch_terrain_plan_slot(pass,
+        c->gpuState_.render_entity_group(),          // plan A window
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.patch_index_buffer(),           // full IB (zone-overlapped)
+        c->gpuState_.frustum_indirect_lod0(), 0);
+    c->renderer_.draw_patch_terrain_plan_slot(pass,
+        c->gpuState_.render_entity_group_plan_b(),   // plan B window
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.patch_index_buffer_cap_only(),  // cap-only IB (clean LOD0)
+        c->gpuState_.frustum_indirect_lod0(), 20);
+    c->renderer_.draw_patch_terrain_plan_slot(pass,
+        c->gpuState_.render_entity_group_plan_c(),   // plan C window
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.patch_index_buffer_lod1(),      // LOD1 IB (culled at last)
+        c->gpuState_.frustum_indirect_lod0(), 40);
 
     // The drawable table — main members, canonical order. All opaque and
     // depth-tested, so order among them is immaterial; this is where the
