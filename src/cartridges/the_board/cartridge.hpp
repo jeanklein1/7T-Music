@@ -1541,6 +1541,8 @@ namespace t7 {
                 }
             }
 
+            uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
+
             // R17 — FRUSTUM CULL (algo; O-7 tail). Cull before the draw passes —
             // the indirect draws consume the cull output (recon E-5).
             void phase_frustum_cull(RenderCtx& c) {
@@ -1579,15 +1581,18 @@ namespace t7 {
                         const float dz = std::max(0.0f, std::max(minz - pz, pz - maxz));
                         if (dx * dx + dz * dz <= r * r) in_core++;
                     }
-                    const bool engage = (in_core > 0);
-                    // PROCESS P6 — every switch has a witness. Transitions
-                    // only; a gate cannot gate what it cannot see.
-                    if (engage != gpuState_.curtains_active()) {
-                        if (engage) std::cout << "[Ground] curtains engaged (zones in core: "
-                                              << in_core << ")\n";
-                        else        std::cout << "[Ground] curtains released\n";
+                    // PROCESS P6 — every switch has a witness. The draw
+                    // plan made the selection per-patch, so the witness
+                    // reports the INPUT that drives it: the rect count in
+                    // the core, on change of N only, never per frame.
+                    if (in_core != zoneRectsInCorePrev_) {
+                        std::cout << "[Ground] zone rects in core: " << in_core << "\n";
+                        zoneRectsInCorePrev_ = in_core;
                     }
-                    gpuState_.set_curtains_active(engage);
+                    // The flag survives for the SNAPSHOT pass only (R6):
+                    // the photographer culls against its own frustum and
+                    // cannot read the plan; it keeps the flag-locked pair.
+                    gpuState_.set_curtains_active(in_core > 0);
                 }
                 dispatch_frustum_cull(&machine_ctx_, encoder, queue);
             }

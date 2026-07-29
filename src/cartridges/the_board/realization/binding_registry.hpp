@@ -37,6 +37,7 @@ namespace t7 {
                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
 
                 // terrain / patch lattice (20–30)
+                inline constexpr uint32_t fc_draw_plan               = 22;  // ECONOMY_1 draw plan: counts + zone rects (uniform, cull kernel only). Reuses the slot the retired terrain_mesh_indices freed — L6 item 5, the cmg precedent.
                 inline constexpr uint32_t patch_params               = 23;
                 inline constexpr uint32_t patch_heightfield_array_write = 24;
                 inline constexpr uint32_t tile_grid                  = 25;

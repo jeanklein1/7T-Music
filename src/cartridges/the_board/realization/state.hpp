@@ -1388,6 +1388,29 @@ namespace t7 {
         static_assert(sizeof(GPUSpotLightArray) == 16 + MAX_SPOT_LIGHTS * 128,
             "GPUSpotLightArray layout check");
 
+        // THE DRAW PLAN (ECONOMY_1 closing arm) — CPU face of the cull
+        // kernel's classification input. TWIN: world.wgsl DrawPlanParams
+        // (L3 MIRROR — same fields, same order, both rooms together).
+        struct GPUDrawPlanParams {
+            uint32_t lod0_count;
+            uint32_t render_count;
+            uint32_t rect_count;
+            uint32_t _pad0;
+            float    rects[8][4];   // corner.xy, extent.xy per active zone
+        };
+        static_assert(sizeof(GPUDrawPlanParams) == 16 + 8 * 16,
+            "draw plan: header + 8 vec4 rects — mirror of WGSL DrawPlanParams");
+
+        // FC list/args geometry — TWIN: world.wgsl FC_SEG_* consts.
+        inline constexpr uint32_t FC_SEG_A_OFF   = 0;     // bytes
+        inline constexpr uint32_t FC_SEG_A_BYTES = 512;   // 128 entries
+        inline constexpr uint32_t FC_SEG_B_OFF   = 512;
+        inline constexpr uint32_t FC_SEG_B_BYTES = 512;
+        inline constexpr uint32_t FC_SEG_C_OFF   = 1024;
+        inline constexpr uint32_t FC_SEG_C_BYTES = 1024;  // 256 entries
+        inline constexpr uint32_t FC_LIST_BYTES  = 2048;
+        inline constexpr uint32_t FC_ARGS_BYTES  = 15 * sizeof(uint32_t);  // 3 x 5-u32 draw-args slots
+
         struct MeshVertex {
             float pos[3];
             float normal[3];
@@ -1806,6 +1829,8 @@ namespace t7 {
             wgpu::BindGroupLayout ribbonComputeLayout_;
 
             wgpu::BindGroup computeEntityBindGroup_, renderEntityBindGroup_;
+            wgpu::BindGroup renderEntityBindGroupPlanB_;   // plan B window (cap-only IB)
+            wgpu::BindGroup renderEntityBindGroupPlanC_;   // plan C window (LOD1 IB)
             wgpu::BindGroup renderTextureBindGroup_, shadowTextureBindGroup_;
             wgpu::BindGroup computeTextureBindGroup_;  // live-contributor textures for flyer/walker compute
             wgpu::BindGroup meshGenEntityBindGroup_;  // still used by fade overlay
@@ -1842,8 +1867,9 @@ namespace t7 {
 
             // GPU frustum culling — LOD0 only.
             // LOD1 always uses direct DrawIndexed; CPU computes its count.
-            wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — DrawIndexedIndirect target
+            wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — 3 x 5-u32 draw-args (the plan)
             wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
+            wgpu::Buffer drawPlanBuffer_;                 // Uniform — counts + zone rects for the cull kernel
             wgpu::Buffer visiblePatchIndicesBuffer_;      // MAX_ACTIVE_PATCHES × u32 — LOD0 visible list
             wgpu::BindGroupLayout frustumCullLayout_;
             wgpu::BindGroup frustumCullBindGroup_;
@@ -2541,6 +2567,8 @@ namespace t7 {
 
             // --- Render pass ---
             wgpu::BindGroup render_entity_group() const { return renderEntityBindGroup_; }
+            wgpu::BindGroup render_entity_group_plan_b() const { return renderEntityBindGroupPlanB_; }
+            wgpu::BindGroup render_entity_group_plan_c() const { return renderEntityBindGroupPlanC_; }
             wgpu::BindGroupLayout render_entity_layout() const { return renderEntityBindGroupLayout_; }
             wgpu::BindGroup render_texture_group() const { return renderTextureBindGroup_; }
             wgpu::BindGroupLayout render_texture_layout() const { return renderTextureBindGroupLayout_; }
@@ -2578,10 +2606,19 @@ namespace t7 {
             wgpu::BindGroup frustum_cull_group() const { return frustumCullBindGroup_; }
 
             void reset_frustum_indirect(wgpu::Queue& queue) {
-                // ECONOMY_1 E1: the indirect indexCount rides the switch —
-                // it must match the IB the draw binds.
-                uint32_t args[5] = { patch_index_count_lod0_live(), 0, 0, 0, 0 };
+                // THE DRAW PLAN: three 5-u32 arg slots — A full IB, B
+                // cap-only IB, C LOD1 IB. indexCounts are constants of the
+                // buffers; instanceCounts are the kernel's three atomics
+                // (indices 1 / 6 / 11).
+                uint32_t args[15] = {
+                    patchIndexCount_,        0, 0, 0, 0,
+                    patchIndexCountCapOnly_, 0, 0, 0, 0,
+                    patchIndexCountLOD1_,    0, 0, 0, 0,
+                };
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
+            }
+            void upload_draw_plan(wgpu::Queue& queue, const GPUDrawPlanParams& p) {
+                queue.WriteBuffer(drawPlanBuffer_, 0, &p, sizeof(p));
             }
 
             static constexpr uint32_t pawn_vertex_count() { return Dim::PAWN_VERTEX_COUNT; }
@@ -3120,15 +3157,29 @@ namespace t7 {
 
                 // GPU frustum culling — LOD0 only.
                 // Compute writes args+atomic to frustumComputeBuffer_, then CopyBufferToBuffer to indirect.
+                // THE DRAW PLAN segments (ECONOMY_1 closing arm) — one list
+                // buffer, three 256-aligned segments, read by three sibling
+                // bind groups at static offsets. TWIN: world.wgsl FC_SEG_*
+                // (L3 MIRROR — change both rooms together). Capacities are
+                // A/B 128 (the handoff said 64; finite_radius 4 puts 81
+                // LOD0 patches in the plan — 64 would overflow its own
+                // indoor clause), C 256.
+                //   A [   0,  512): LOD0 zone-overlapped -> full IB
+                //   B [ 512, 1024): LOD0 clean           -> cap-only IB
+                //   C [1024, 2048): LOD1 frustum-visible -> LOD1 IB
                 frustumIndirectLOD0_ = makeBuffer("Frustum Indirect LOD0",
-                    5 * sizeof(uint32_t),
+                    FC_ARGS_BYTES,
                     wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst);
                 frustumComputeBuffer_ = makeBuffer("Frustum Compute Staging",
-                    5 * sizeof(uint32_t),
+                    FC_ARGS_BYTES,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
                 visiblePatchIndicesBuffer_ = makeBuffer("Visible Patch Indices",
-                    Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t),
+                    FC_LIST_BYTES,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                drawPlanBuffer_ = makeBuffer("Draw Plan Params",
+                    sizeof(GPUDrawPlanParams),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                if (!drawPlanBuffer_) return false;
 
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
@@ -4486,9 +4537,10 @@ namespace t7 {
                 }
 
                 // -- Frustum cull compute layout (Group 0) -- GPU patch visibility --
-                // Reads VP + config + patch instances, writes visible indices + indirect draw args.
+                // Reads VP + config + patch instances + the draw plan,
+                // writes the three visible lists + indirect draw args.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g0::config;     // config (uniform — render_patch_count)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4509,6 +4561,10 @@ namespace t7 {
                     entries[4].binding = bind::g0::fc_indirect;   // frustum_indirect (storage, rw — atomic draw args)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[5].binding = bind::g0::fc_draw_plan;   // draw plan (uniform — counts + zone rects)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frustum Cull Compute Layout";
@@ -4953,7 +5009,13 @@ namespace t7 {
                 }
 
                 // Render entity bind group (18 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
-                {
+                // THE DRAW PLAN: built THREE times — same layout, same
+                // entries, differing ONLY in the visible-list window
+                // (entries[13] offset/size): A full-IB, B cap-only, C LOD1.
+                // One builder, one parameter (the E1 builder precedent).
+                auto build_render_entity_group = [&](const char* label,
+                                                     uint32_t listOff,
+                                                     uint32_t listBytes) -> wgpu::BindGroup {
                     std::array<wgpu::BindGroupEntry, 18> entries{};
 
                     entries[0].binding = bind::g0::config;
@@ -5012,7 +5074,8 @@ namespace t7 {
                     // Visible patch indices (GPU frustum cull output)
                     entries[13].binding = bind::g0::visible_patch_indices;
                     entries[13].buffer = visiblePatchIndicesBuffer_;
-                    entries[13].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+                    entries[13].offset = listOff;
+                    entries[13].size = listBytes;
 
                     // Orb state (VS reads per-instance)
                     entries[14].binding = bind::g0::render_orb_state;
@@ -5039,13 +5102,16 @@ namespace t7 {
                     entries[17].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Render Entity BindGroup";
+                    desc.label = label;
                     desc.layout = renderEntityBindGroupLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    renderEntityBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!renderEntityBindGroup_) return false;
-                }
+                    return device_.CreateBindGroup(&desc);
+                };
+                renderEntityBindGroup_      = build_render_entity_group("Render Entity BindGroup (plan A: full IB)",     FC_SEG_A_OFF, FC_SEG_A_BYTES);
+                renderEntityBindGroupPlanB_ = build_render_entity_group("Render Entity BindGroup (plan B: cap-only IB)", FC_SEG_B_OFF, FC_SEG_B_BYTES);
+                renderEntityBindGroupPlanC_ = build_render_entity_group("Render Entity BindGroup (plan C: LOD1 IB)",     FC_SEG_C_OFF, FC_SEG_C_BYTES);
+                if (!renderEntityBindGroup_ || !renderEntityBindGroupPlanB_ || !renderEntityBindGroupPlanC_) return false;
 
                 // Mesh gen entity bind group (1 entry: binding 1 = config)
                 {
@@ -5409,9 +5475,9 @@ namespace t7 {
                     if (!entityPlacementComputeBindGroup_) return false;
                 }
 
-                // Frustum cull compute bind group (5 entries)
+                // Frustum cull compute bind group (6 entries)
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5423,10 +5489,13 @@ namespace t7 {
                     entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
                     entries[3].binding = bind::g0::fc_visible;
                     entries[3].buffer = visiblePatchIndicesBuffer_;
-                    entries[3].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+                    entries[3].size = FC_LIST_BYTES;
                     entries[4].binding = bind::g0::fc_indirect;
                     entries[4].buffer = frustumComputeBuffer_;
-                    entries[4].size = 5 * sizeof(uint32_t);
+                    entries[4].size = FC_ARGS_BYTES;
+                    entries[5].binding = bind::g0::fc_draw_plan;
+                    entries[5].buffer = drawPlanBuffer_;
+                    entries[5].size = sizeof(GPUDrawPlanParams);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frustum Cull Compute BindGroup";

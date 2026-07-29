@@ -9103,7 +9103,35 @@ const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, ant
 @group(0) @binding(2)   var<storage, read>       fc_vp: VPMatrix;
 @group(0) @binding(340) var<storage, read>       fc_patches: array<PatchInstance>;
 @group(0) @binding(500) var<storage, read_write> fc_visible: array<u32>;
-@group(0) @binding(501) var<storage, read_write> fc_indirect: array<atomic<u32>, 5>;
+@group(0) @binding(501) var<storage, read_write> fc_indirect: array<atomic<u32>, 15>;
+
+// THE DRAW PLAN (ECONOMY_1 closing arm) — the kernel authors three
+// lists; the main pass executes them as three indirect draws.
+//   A: LOD0, zone-overlapped -> full IB    (fc_visible[  0..128))
+//   B: LOD0, clean           -> cap-only IB (fc_visible[128..256))
+//   C: LOD1, frustum-visible -> LOD1 IB    (fc_visible[256..512))
+// Segment BYTE offsets 0/512/1024 — 256-aligned for the render side's
+// offset bind groups. TWIN: state.hpp FC segment constants (L3 MIRROR
+// — change both rooms together). fc_indirect: 3 x 5 draw-args slots;
+// instance counters at indices 1 / 6 / 11.
+struct DrawPlanParams {
+    lod0_count: u32,     // CPU band boundary — instances [0, lod0) are LOD0
+    render_count: u32,   // draw set end — [lod0, render) LOD1; beyond: pregen
+    rect_count: u32,     // active zone rects, packed dense
+    _pad0: u32,
+    rects: array<vec4<f32>, 8>,   // corner.xy, extent.xy (world)
+}
+@group(0) @binding(22) var<uniform> fc_draw_plan: DrawPlanParams;
+
+const FC_SEG_A_BASE: u32 = 0u;    const FC_SEG_A_CAP: u32 = 128u;
+const FC_SEG_B_BASE: u32 = 128u;  const FC_SEG_B_CAP: u32 = 128u;
+const FC_SEG_C_BASE: u32 = 256u;  const FC_SEG_C_CAP: u32 = 256u;
+
+// THE HONEST MARGIN (R1): every terrain displacement is Y-ONLY —
+// baked heightfield, live-card delta, cell lift, aura, skirt drop all
+// add to world_pos.y; XZ is pure lattice. So the planar margin is
+// SAFETY, not physics. Hot-tunable; the pop hunt at the gate rules it.
+const CULL_MARGIN_WU: f32 = 5.0;
 
 // Extract frustum plane from VP matrix row combination.
 // Row i of column-major M: (M[0][i], M[1][i], M[2][i], M[3][i])
@@ -9143,10 +9171,15 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     let pi = fc_patches[id.x];
     if (pi.extent <= 0.0) { return; }
 
-    // Build AABB with generous XZ margin (covers wave overlay, entity heights,
-    // and camera parallax between LOD boundary and actual geometry).
+    // THE PLAN GATE: only the draw set is classified — instances are
+    // packed [LOD0][LOD1][pregen] by the CPU band, so the band is read
+    // off the INDEX against the plan's counts (the CPU's own banding;
+    // no distance re-derivation, no boundary disagreement).
+    if (id.x >= fc_draw_plan.render_count) { return; }
+
+    // AABB with the honest planar margin (R1: displacement is Y-only).
     let half = pi.extent * 0.5;
-    let margin = pi.extent;   // 100% margin — one patch-width of slack
+    let margin = CULL_MARGIN_WU;
     let bmin = vec3(pi.origin.x - half - margin, FRUSTUM_PATCH_Y_MIN, pi.origin.y - half - margin);
     let bmax = vec3(pi.origin.x + half + margin, FRUSTUM_PATCH_Y_MAX, pi.origin.y + half + margin);
 
@@ -9167,26 +9200,39 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
         planes[4] = select(vec4(0.0, 1.0, 0.0, 1000.0), p / len, len >= EPSILON);
     }
 
-    // Re-enabled: frustum test rejects out-of-view patches
+    // Frustum test rejects out-of-view patches — ALL bands now; this
+    // is the first frustum test LOD1 ever had.
     if (!aabb_in_frustum(planes, bmin, bmax)) { return; }
 
-    // LOD0 only: nearest-edge distance² from the POINT XZ to patch edge.
-    // Reads the CPU-banded point (lod_point_*) — NOT the live point —
-    // so the GPU's LOD0 gate uses the same position the CPU used to
-    // band patches into LOD0/LOD1 (else the two disagree at the
-    // boundary annulus and patches flicker/z-fight). The radius is the
-    // LIVE chain value lod0_radius — the same config value the CPU band
-    // reads (one yardstick, both sides, by construction).
-    let dx = max(0.0, abs(fc_config.lod_point_x - pi.origin.x) - half);
-    let dz = max(0.0, abs(fc_config.lod_point_z - pi.origin.y) - half);
-    let dist2 = dx * dx + dz * dz;
-
-    if (dist2 <= fc_config.lod0_radius * fc_config.lod0_radius) {
-        // Append to LOD0 visible list, atomicAdd indirect[1] (instanceCount)
-        let slot = atomicAdd(&fc_indirect[1], 1u);
-        fc_visible[slot] = id.x;
+    if (id.x < fc_draw_plan.lod0_count) {
+        // LOD0 — split by zone overlap: a curtain can only be
+        // non-degenerate where a zone rect reaches the patch, so the
+        // clean majority draws the cap-only IB. Patch rect vs zone
+        // rect, <=8 rects, early-out on the first hit.
+        var zoned = false;
+        for (var z = 0u; z < fc_draw_plan.rect_count; z++) {
+            let r = fc_draw_plan.rects[z];
+            if (pi.origin.x + half >= r.x && pi.origin.x - half <= r.x + r.z &&
+                pi.origin.y + half >= r.y && pi.origin.y - half <= r.y + r.w) {
+                zoned = true;
+                break;
+            }
+        }
+        if (zoned) {
+            let slot = atomicAdd(&fc_indirect[1], 1u);
+            if (slot < FC_SEG_A_CAP) { fc_visible[FC_SEG_A_BASE + slot] = id.x; }
+            else { atomicSub(&fc_indirect[1], 1u); }
+        } else {
+            let slot = atomicAdd(&fc_indirect[6], 1u);
+            if (slot < FC_SEG_B_CAP) { fc_visible[FC_SEG_B_BASE + slot] = id.x; }
+            else { atomicSub(&fc_indirect[6], 1u); }
+        }
+    } else {
+        // LOD1 — culled at last.
+        let slot = atomicAdd(&fc_indirect[11], 1u);
+        if (slot < FC_SEG_C_CAP) { fc_visible[FC_SEG_C_BASE + slot] = id.x; }
+        else { atomicSub(&fc_indirect[11], 1u); }
     }
-    // else: LOD1 distance — not emitted; CPU handles via direct draw.
 }
 
 
