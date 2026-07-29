@@ -25,19 +25,22 @@ Enforced mechanically by `.gitattributes` (`*.wgsl text eol=lf`), which is the
 authority; this rule exists so the reason survives the enforcement. A CRLF
 checkout churns every line of a 12,000-line shader diff and buries the real
 change. (The original reason — a sha256 sidecar on the deleted web mirror —
-is gone; see `audit/WEB_PORT_LEDGER.md`. The pin stands on its own merit.)
+is gone; see `audit/past reports/WEB_PORT_LEDGER.md`. The pin stands on its own merit.)
 
 ## L2 — THE FXC LAW
 
 The Windows D3D12 backend compiles through FXC, which has hard limits the
 Vulkan/Metal backends do not. The shader honors them **by structure**, so
-nothing in it looks like a workaround and everything is one:
+nothing in it looks like a workaround and everything is one. The law states
+the principle; the operational home of the specifics is the world.wgsl FXC
+banner — the banner owns the constraints, this law owns why they bind.
 
-1. Instance structs in hot loops stay lean and byte-pinned — `GPUPierInstance`
-   is 48 B with a `static_assert` in `state.hpp` (successor of the retired
-   32-byte `SolidInstance` rule).
-2. The collision/ground chain admits **no new runtime branching**.
-   `evaluate_pier`'s caller bounds its loop by a uniform (`config.pier_count`)
+1. Instance structs in hot loops stay lean and byte-pinned — the pattern's
+   live exemplar is the `GPUSpotLightArray` pin (`static_assert` in
+   `state.hpp`: `16 + MAX_SPOT_LIGHTS * 128`).
+2. The collision/ground chain admits **no new runtime branching**. The live
+   exemplar: the pyramid loop bounds itself by a uniform —
+   `min(pyramid_instances.count, MAX_PYRAMID_INSTANCES)` in world.wgsl —
    and dispatch is by uniform function choice, never by branch.
 3. Texture-array stamps in the collision chain **hang FXC**. Do not add one.
 4. Storage buffers per stage = 10. Uniform buffers per stage = 12.
@@ -145,7 +148,7 @@ boot.
 
 Proven the expensive way by the deleted web port, which would have shipped a
 module its layout could not satisfy while both entry points existed the whole
-time — `audit/WEB_PORT_LEDGER.md`. `audit/cc4_wgsl_static_usage.py` computes
+time — `audit/past reports/WEB_PORT_LEDGER.md`. `audit/past reports/cc4_wgsl_static_usage.py` computes
 the closure. Any future port wants **generated** layouts, not transcribed ones.
 
 ## L8 — THE TOMBSTONE LAW (PRUNING_1)
