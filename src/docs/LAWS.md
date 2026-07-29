@@ -40,8 +40,7 @@ nothing in it looks like a workaround and everything is one:
    `evaluate_pier`'s caller bounds its loop by a uniform (`config.pier_count`)
    and dispatch is by uniform function choice, never by branch.
 3. Texture-array stamps in the collision chain **hang FXC**. Do not add one.
-4. One `DrawIndexedIndirect` per render pass, maximum.
-5. Storage buffers per stage = 10. Uniform buffers per stage = 12.
+4. Storage buffers per stage = 10. Uniform buffers per stage = 12.
 
 A violation does not fail on the developer's machine. It fails on Windows, at
 pipeline creation, in someone else's hands.

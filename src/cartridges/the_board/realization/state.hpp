@@ -1833,7 +1833,7 @@ namespace t7 {
             wgpu::BindGroup photographerComputeBindGroup_;
             wgpu::BindGroup entityPlacementComputeBindGroup_;
 
-            // GPU frustum culling — LOD0 only (Dawn D3D12 limit: one indirect draw per pass).
+            // GPU frustum culling — LOD0 only.
             // LOD1 always uses direct DrawIndexed; CPU computes its count.
             wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — DrawIndexedIndirect target
             wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
@@ -3096,7 +3096,7 @@ namespace t7 {
                     sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
-                // GPU frustum culling — LOD0 only (Dawn D3D12 limitation: one indirect draw per pass).
+                // GPU frustum culling — LOD0 only.
                 // Compute writes args+atomic to frustumComputeBuffer_, then CopyBufferToBuffer to indirect.
                 frustumIndirectLOD0_ = makeBuffer("Frustum Indirect LOD0",
                     5 * sizeof(uint32_t),

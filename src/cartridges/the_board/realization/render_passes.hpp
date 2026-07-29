@@ -339,7 +339,6 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
     DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.shadow_texture_group(),
                 /*shadow=*/true,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
-    // One DrawIndexedIndirect budget line free in this pass (L2.4).
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 }
 
@@ -392,7 +391,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         );
     }
 
-    // Terrain LOD1 — always direct (Dawn D3D12 limit: only one indirect per pass)
+    // Terrain LOD1 — direct draw, not frustum-culled.
     if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
         c->renderer_.draw_patch_terrain_direct(
             pass,
@@ -411,8 +410,6 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.render_texture_group(),
                 /*shadow=*/false,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
-    // Indirect budget (L2.4): consumed outdoors by the LOD0 terrain
-    // draw; free indoors.
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
     // FORKS — the specials, kept explicit. Wall paintings + gallery frames use

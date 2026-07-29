@@ -13,8 +13,7 @@
 //   L1  encoding — BOM-free LF.
 //   L2  FXC — the Windows D3D12 backend's hard limits, honored by
 //       structure. READ L2 BEFORE adding a branch to the collision/
-//       ground chain, a texture-array stamp anywhere near it, or a
-//       second indirect draw in one pass.
+//       ground chain or a texture-array stamp anywhere near it.
 //   L3  mirror — §2.1 structs ↔ state.hpp byte-for-byte; §3.4
 //       POLICY_*_MASK ↔ POLICIES[] in contracts/
 //       ground_architecture.hpp; §1.5 randomness ↔ primitives/
