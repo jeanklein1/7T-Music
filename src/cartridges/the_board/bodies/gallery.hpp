@@ -1272,8 +1272,8 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     c->renderer_.draw_patch_terrain_direct(pass,
         c->gpuState_.photographer_render_entity_group(),
         c->gpuState_.render_texture_group(),
-        c->gpuState_.patch_index_buffer(),
-        c->gpuState_.patch_index_count(),
+        c->gpuState_.patch_index_buffer_lod0_live(),
+        c->gpuState_.patch_index_count_lod0_live(),
         c->world_state_.render_patch_count);
 
     // The drawable table — snapshot members, canonical order (the photographer's

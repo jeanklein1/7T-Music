@@ -1546,6 +1546,19 @@ namespace t7 {
             void phase_frustum_cull(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
+                // ECONOMY_1 E1 — the lift-conservative switch, staged once
+                // per frame before every LOD0 carrier (R17 precedes the
+                // shadow, main and snapshot passes). Conservative by
+                // construction: any active zone slot ⇒ the full IB; the
+                // card's .a has no writer outside the zone system (recon R1),
+                // so no-zones ⇒ every curtain is degenerate ⇒ cap-only.
+                {
+                    bool any_zone = false;
+                    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
+                        if (gol_state_.zones[i].active) { any_zone = true; break; }
+                    }
+                    gpuState_.set_curtains_active(any_zone);
+                }
                 dispatch_frustum_cull(&machine_ctx_, encoder, queue);
             }
 
