@@ -193,8 +193,9 @@ namespace t7 {
                     << ") vendor=" << sv(info.vendor) << "\n";
             }
 
-            // C1b (HELD) — choose the machine: DiscreteGPU outranks
-            // integrated; D3D12 breaks ties. Falls back to index 0.
+            // Adapter selection (landed, PROBE_1): DiscreteGPU
+            // outranks integrated; D3D12 breaks ties. Falls back to
+            // index 0.
             size_t adapterPick = 0;
             {
                 int best = -1;
