@@ -3564,8 +3564,11 @@ struct SpotLightArray {
 // two depth textures and the atlas tiles. Change BOTH rooms
 // together. (L3 MIRROR.)
 const SHADOW_MAP_SIZE: f32 = 2048.0;
-const SHADOW_BIAS_MIN: f32 = 0.0001;
-const SHADOW_BIAS_MAX: f32 = 0.002;
+// Bias is a function of texel size. Tuned at the 4096-era values
+// (0.0001 / 0.002), expressed per-texel so any resolution ruling
+// carries its bias for free. (ECONOMY_1 E6.)
+const SHADOW_BIAS_MIN: f32 = 0.4096 / SHADOW_MAP_SIZE;
+const SHADOW_BIAS_MAX: f32 = 8.192 / SHADOW_MAP_SIZE;
 
 // --- Shadow Sampling with 4x4 PCF
 
@@ -3669,8 +3672,10 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 // No normal offset — it breaks contact shadows (disconnects pawn shadow
 // from feet by lifting the comparison point above the occluder depth).
 
-const SPOT_DEPTH_BIAS: f32 = 0.0015;        // base bias, scaled by 1/clip.w
-const SPOT_SLOPE_BIAS_MAX: f32 = 0.005;     // extra bias at grazing angles
+// Per-texel form, tuned at the 4096-era values (0.0015 / 0.005) —
+// the same bias-as-ratio rewrite as the sun pair. (ECONOMY_1 E6.)
+const SPOT_DEPTH_BIAS: f32 = 6.144 / SHADOW_MAP_SIZE;    // base bias, scaled by 1/clip.w
+const SPOT_SLOPE_BIAS_MAX: f32 = 20.48 / SHADOW_MAP_SIZE;  // extra bias at grazing angles
 
 fn sample_spot_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>, light_index: u32) -> f32 {
     let light = render_spot_lights.lights[light_index];
