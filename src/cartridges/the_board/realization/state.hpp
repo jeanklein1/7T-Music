@@ -205,7 +205,7 @@ namespace t7 {
             // rescales while the texture resizes. (L3 MIRROR — the
             // TILE_GRID_CAPACITY pattern; no compile-time bridge spans the
             // runtime-loaded seam.)
-            constexpr uint32_t SHADOW_MAP_SIZE = 4096;
+            constexpr uint32_t SHADOW_MAP_SIZE = 2048;
             constexpr uint32_t MAX_POINT_LIGHTS = 8;
 
             // Indoor shell (ceiling + walls for finite indoor scenes)
