@@ -155,8 +155,47 @@ namespace t7 {
                 return false;
             }
 
+            // PROBE_1 C1 — the adapter log: every adapter Dawn
+            // enumerates, then the pick. The tree records what it
+            // runs on; every METER number is uninterpretable
+            // without this line.
+            auto sv = [](wgpu::StringView s) {
+                return std::string_view(s.data, s.length);
+            };
+            auto backend_name = [](wgpu::BackendType b) {
+                switch (b) {
+                case wgpu::BackendType::D3D12:    return "D3D12";
+                case wgpu::BackendType::D3D11:    return "D3D11";
+                case wgpu::BackendType::Vulkan:   return "Vulkan";
+                case wgpu::BackendType::Metal:    return "Metal";
+                case wgpu::BackendType::OpenGL:   return "OpenGL";
+                case wgpu::BackendType::OpenGLES: return "OpenGLES";
+                case wgpu::BackendType::Null:     return "Null";
+                default:                          return "?";
+                }
+            };
+            auto type_name = [](wgpu::AdapterType t) {
+                switch (t) {
+                case wgpu::AdapterType::DiscreteGPU:   return "discrete";
+                case wgpu::AdapterType::IntegratedGPU: return "integrated";
+                case wgpu::AdapterType::CPU:           return "CPU";
+                default:                               return "unknown";
+                }
+            };
+            for (size_t i = 0; i < adapters.size(); i++) {
+                wgpu::Adapter a = wgpu::Adapter(adapters[i].Get());
+                wgpu::AdapterInfo info{};
+                a.GetInfo(&info);
+                std::cout << "[Console] Adapter " << i << ": "
+                    << type_name(info.adapterType) << " / "
+                    << backend_name(info.backendType) << " | "
+                    << sv(info.device) << " (" << sv(info.description)
+                    << ") vendor=" << sv(info.vendor) << "\n";
+            }
+
             dawn::native::Adapter& nativeAdapter = adapters[0];
             wgpu::Adapter adapter = wgpu::Adapter(nativeAdapter.Get());
+            std::cout << "[Console] Adapter selected: index=0\n";
 
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
@@ -189,6 +228,24 @@ namespace t7 {
                 << " uniformBuffers/stage=" << adapterLimits.maxUniformBuffersPerShaderStage
                 << " bindingsPerGroup=" << adapterLimits.maxBindingsPerBindGroup
                 << "\n";
+
+            // PROBE_1 C1 — the full enumerated feature list (numeric;
+            // settles LEDGER_1 F4-2 at zero cost). Nothing is
+            // requested here beyond what the tree already requests.
+            {
+                wgpu::SupportedFeatures feats{};
+                adapter.GetFeatures(&feats);
+                std::cout << "[Console] Adapter features (" << feats.featureCount << "):";
+                for (size_t i = 0; i < feats.featureCount; i++) {
+                    std::cout << " " << static_cast<uint32_t>(feats.features[i]);
+                }
+                std::cout << "\n";
+                std::cout << "[Console] feature multi-draw-indirect="
+                    << (adapter.HasFeature(wgpu::FeatureName::MultiDrawIndirect) ? "YES" : "no")
+                    << " timestamp-query="
+                    << (adapter.HasFeature(wgpu::FeatureName::TimestampQuery) ? "YES" : "no")
+                    << "\n";
+            }
 
             device_ = adapter.CreateDevice(&deviceDesc);
             if (!device_) {
