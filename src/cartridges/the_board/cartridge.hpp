@@ -1546,18 +1546,48 @@ namespace t7 {
             void phase_frustum_cull(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
-                // ECONOMY_1 E1 — the lift-conservative switch, staged once
-                // per frame before every LOD0 carrier (R17 precedes the
-                // shadow, main and snapshot passes). Conservative by
-                // construction: any active zone slot ⇒ the full IB; the
-                // card's .a has no writer outside the zone system (recon R1),
-                // so no-zones ⇒ every curtain is degenerate ⇒ cap-only.
+                // ECONOMY_1 E1 rev2 — the LOD0-SCOPED curtain switch, staged
+                // once per frame before every LOD0 carrier (R17 precedes the
+                // main and snapshot passes; the shadow pass draws LOD1 since
+                // E2 and has no curtains to switch).
+                //
+                // SCOPE, exact by construction: curtains exist ONLY in the
+                // LOD0 index buffer — LOD1 never had them — so a zone in the
+                // LOD1 ring lifts cells that own no curtain, and cap-only
+                // stays correct there. The rev1 flag asked "any zone
+                // anywhere" and was therefore inert: zones are alive globally
+                // almost always, so it never released.
+                //
+                // Conservative by one patch: each zone's world AABB is
+                // inflated by PATCH_EXTENT before the disc test, and the
+                // radius is the LIVE lod0_radius — the same value
+                // patch_system.hpp uses to sort patches into the LOD0 band,
+                // so the flag and the band can never disagree.
                 {
-                    bool any_zone = false;
+                    const float px = point_.x, pz = point_.z;
+                    const float r  = gpuState_.lod0_radius();
+                    uint32_t in_core = 0;
                     for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                        if (gol_state_.zones[i].active) { any_zone = true; break; }
+                        const auto& z = gol_state_.zones[i];
+                        if (!z.active) continue;
+                        const float minx = z.corner_x - Dim::PATCH_EXTENT;
+                        const float minz = z.corner_z - Dim::PATCH_EXTENT;
+                        const float maxx = z.corner_x + z.extent_x + Dim::PATCH_EXTENT;
+                        const float maxz = z.corner_z + z.extent_z + Dim::PATCH_EXTENT;
+                        // nearest point of the inflated AABB to the point
+                        const float dx = std::max(0.0f, std::max(minx - px, px - maxx));
+                        const float dz = std::max(0.0f, std::max(minz - pz, pz - maxz));
+                        if (dx * dx + dz * dz <= r * r) in_core++;
                     }
-                    gpuState_.set_curtains_active(any_zone);
+                    const bool engage = (in_core > 0);
+                    // PROCESS P6 — every switch has a witness. Transitions
+                    // only; a gate cannot gate what it cannot see.
+                    if (engage != gpuState_.curtains_active()) {
+                        if (engage) std::cout << "[Ground] curtains engaged (zones in core: "
+                                              << in_core << ")\n";
+                        else        std::cout << "[Ground] curtains released\n";
+                    }
+                    gpuState_.set_curtains_active(engage);
                 }
                 dispatch_frustum_cull(&machine_ctx_, encoder, queue);
             }

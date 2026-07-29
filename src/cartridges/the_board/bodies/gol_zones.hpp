@@ -290,6 +290,13 @@ inline void gol_tier_extent(uint32_t tier_idx, float& extent_x, float& extent_z)
 struct GoLZoneState {
     int32_t zone_nx = 0, zone_nz = 0;
     int32_t host_gx = 0, host_gz = 0;   // host patch (for entity_refs eviction)
+    // ECONOMY_1 E1 rev2 — the zone's WORLD FOOTPRINT, persisted at
+    // commit so the CPU can answer "does this zone reach the LOD0
+    // core?" without the GPU. Authored once from the same corner +
+    // tier extent the derive request carries; the GPU's
+    // zone_derive_params re-derives the identical rectangle.
+    float corner_x = 0.0f, corner_z = 0.0f;
+    float extent_x = 0.0f, extent_z = 0.0f;
     bool active = false;
     uint32_t algorithm = AlgorithmType::CONWAY;
     float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
@@ -548,6 +555,9 @@ inline void commit_gol(GoLState& gs, MachineCtx* c,
     zone.zone_nz = plan.zone_nz;
     zone.host_gx = plan.host_gx;
     zone.host_gz = plan.host_gz;
+    zone.corner_x = plan.corner_x;
+    zone.corner_z = plan.corner_z;
+    gol_tier_extent(plan.tier_idx, zone.extent_x, zone.extent_z);
     zone.active = true;
     zone.algorithm = plan.algorithm;
     zone.tick_period = plan.tick_period;
