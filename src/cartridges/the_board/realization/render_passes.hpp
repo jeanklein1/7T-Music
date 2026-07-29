@@ -379,7 +379,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             pass,
             c->gpuState_.render_entity_group(),
             c->gpuState_.render_texture_group(),
-            c->gpuState_.patch_index_buffer(),
+            c->gpuState_.patch_index_buffer_lod0_live(),
             c->gpuState_.frustum_indirect_lod0()
         );
     } else {
@@ -388,8 +388,8 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             pass,
             c->gpuState_.render_entity_group(),
             c->gpuState_.render_texture_group(),
-            c->gpuState_.patch_index_buffer(),
-            c->gpuState_.patch_index_count(),
+            c->gpuState_.patch_index_buffer_lod0_live(),
+            c->gpuState_.patch_index_count_lod0_live(),
             c->world_state_.lod0_patch_count
         );
     }

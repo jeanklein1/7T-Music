@@ -1669,9 +1669,16 @@ namespace t7 {
             wgpu::Buffer patchHeightScratchBuffer_;  // 256×256×2 floats (height+complexity) for two-pass heightfield gen
             wgpu::Buffer patchIndexBuffer_;
             wgpu::Buffer patchIndexBufferLOD1_;   // half-res index buffer for distant patches
+            wgpu::Buffer patchIndexBufferCapOnly_; // ECONOMY_1 E1 — caps + skirt, no curtain band
             wgpu::Buffer tileGridBuffer_;
             uint32_t patchIndexCount_ = 0;
             uint32_t patchIndexCountLOD1_ = 0;
+            uint32_t patchIndexCountCapOnly_ = 0;
+            // ECONOMY_1 E1 — the lift-conservative switch: true whenever a
+            // zone lift COULD be nonzero (any zone slot active). The full IB
+            // is always correct; the cap-only IB is correct exactly when all
+            // lifts are zero, so either flip timing is safe.
+            bool curtainsActive_ = true;
 
             // Patch heightfield texture array (289 layers × 256×256, RGBA16Float)
             wgpu::Texture patchHeightfieldArrayTexture_;
@@ -2547,6 +2554,19 @@ namespace t7 {
             // --- Mesh buffers ---
             wgpu::Buffer patch_index_buffer() const { return patchIndexBuffer_; }
             uint32_t patch_index_count() const { return patchIndexCount_; }
+            wgpu::Buffer patch_index_buffer_cap_only() const { return patchIndexBufferCapOnly_; }
+            uint32_t patch_index_count_cap_only() const { return patchIndexCountCapOnly_; }
+            // ECONOMY_1 E1 — flag + the flag-selected LOD0 pair. Every LOD0
+            // carrier (indirect reset, indoor direct, shadow band 0, snapshot)
+            // draws through these two so buffer and count can never split.
+            void set_curtains_active(bool a) { curtainsActive_ = a; }
+            bool curtains_active() const { return curtainsActive_; }
+            wgpu::Buffer patch_index_buffer_lod0_live() const {
+                return curtainsActive_ ? patchIndexBuffer_ : patchIndexBufferCapOnly_;
+            }
+            uint32_t patch_index_count_lod0_live() const {
+                return curtainsActive_ ? patchIndexCount_ : patchIndexCountCapOnly_;
+            }
             wgpu::Buffer patch_index_buffer_lod1() const { return patchIndexBufferLOD1_; }
             uint32_t patch_index_count_lod1() const { return patchIndexCountLOD1_; }
 
@@ -2558,7 +2578,9 @@ namespace t7 {
             wgpu::BindGroup frustum_cull_group() const { return frustumCullBindGroup_; }
 
             void reset_frustum_indirect(wgpu::Queue& queue) {
-                uint32_t args[5] = { patchIndexCount_, 0, 0, 0, 0 };
+                // ECONOMY_1 E1: the indirect indexCount rides the switch —
+                // it must match the IB the draw binds.
+                uint32_t args[5] = { patch_index_count_lod0_live(), 0, 0, 0, 0 };
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
             }
 
@@ -3150,7 +3172,12 @@ namespace t7 {
                 //  cap outer verts. The legacy grid+skirt decode space [0, 4481)
                 //  remains the LOD-1/soft space — the LOD-1 IB below is
                 //  byte-untouched.)
-                {
+                // ECONOMY_1 E1: one builder, one parameter. The curtain block
+                // is the only conditional emission — cap + skirt are identical
+                // in both buffers, so the cap-only IB is the full IB with the
+                // curtain band absent (indices shift down; bands stay in cap,
+                // [curtain,] skirt order).
+                auto build_lod0_ib = [](bool with_curtains) {
                     std::vector<uint32_t> idx;
                     idx.reserve(Dim::UG_CELLS_PER_PATCH * (16 + 16) * 6 + 4 * Dim::PATCH_MESH_N * 6);
                     // The n=4 perimeter walk of a cell's 5×5 cap grid — the same
@@ -3178,7 +3205,10 @@ namespace t7 {
                     }
                     // CURTAIN QUADS — 256 cells × 16 quads: cap perimeter verts
                     // welded to their curtain-bottom twins (the skirt-quad shape,
-                    // same winding as the ring below).
+                    // same winding as the ring below). Curtains seal DISCONTINUOUS
+                    // per-cell lift; with no zone lift active every one is
+                    // degenerate — the cap-only build omits the band.
+                    if (with_curtains)
                     for (uint32_t cell = 0; cell < Dim::UG_CELLS_PER_PATCH; cell++) {
                         const uint32_t cap0  = Dim::UG_CAP_BASE  + cell * Dim::UG_CAP_VERTS_PER_CELL;
                         const uint32_t base0 = Dim::UG_BASE_BASE + cell * Dim::UG_BASE_VERTS_PER_CELL;
@@ -3211,15 +3241,21 @@ namespace t7 {
                         return Dim::UG_CAP_BASE + (cz * Dim::PATCH_CELL_N + cx) * Dim::UG_CAP_VERTS_PER_CELL
                              + lz * Dim::UG_CAP_STRIDE_C + lx;
                     };
-                    for (uint32_t k = 0; k < SKIRT_RING; k++) {
-                        uint32_t k1 = (k + 1) % SKIRT_RING;
+                    constexpr uint32_t SKIRT_RING_N = 4 * Dim::PATCH_MESH_N;
+                    constexpr uint32_t SKIRT_GRID_V = (Dim::PATCH_MESH_N + 1) * (Dim::PATCH_MESH_N + 1);
+                    for (uint32_t k = 0; k < SKIRT_RING_N; k++) {
+                        uint32_t k1 = (k + 1) % SKIRT_RING_N;
                         uint32_t a  = skirt_cap_index(k);
                         uint32_t b  = skirt_cap_index(k1);
-                        uint32_t sa = SKIRT_GRID_VERTS + k;
-                        uint32_t sb = SKIRT_GRID_VERTS + k1;
+                        uint32_t sa = SKIRT_GRID_V + k;
+                        uint32_t sb = SKIRT_GRID_V + k1;
                         idx.push_back(a); idx.push_back(b); idx.push_back(sa);
                         idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
                     }
+                    return idx;
+                };
+                {
+                    std::vector<uint32_t> idx = build_lod0_ib(true);
                     patchIndexCount_ = (uint32_t)idx.size();
                     patchIndexBuffer_ = makeBuffer("Patch IB",
                         patchIndexCount_ * 4,
@@ -3227,6 +3263,19 @@ namespace t7 {
                     if (!patchIndexBuffer_) return false;
                     auto q = device_.GetQueue();
                     q.WriteBuffer(patchIndexBuffer_, 0, idx.data(), idx.size() * 4);
+                }
+                {
+                    // ECONOMY_1 E1: the cap-only twin — caps + skirt, no curtain
+                    // band. Selected by the lift-conservative switch when no
+                    // zone lift can be nonzero.
+                    std::vector<uint32_t> idx = build_lod0_ib(false);
+                    patchIndexCountCapOnly_ = (uint32_t)idx.size();
+                    patchIndexBufferCapOnly_ = makeBuffer("Patch IB Cap-Only",
+                        patchIndexCountCapOnly_ * 4,
+                        wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
+                    if (!patchIndexBufferCapOnly_) return false;
+                    auto q = device_.GetQueue();
+                    q.WriteBuffer(patchIndexBufferCapOnly_, 0, idx.data(), idx.size() * 4);
                 }
 
                 {

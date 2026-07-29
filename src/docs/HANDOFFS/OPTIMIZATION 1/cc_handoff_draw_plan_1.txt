@@ -1,0 +1,107 @@
+════════════════════════════════════════════════════════════════════
+7T — ECONOMY_1 CLOSING ARM — THE DRAW PLAN
+One merge + one held branch. The cull kernel becomes the author of
+the terrain draw: three lists, three indirect draws, one honest
+margin. E3 + E5 + E1-made-surgical, in one arm.
+════════════════════════════════════════════════════════════════════
+
+GIT LAW: U1 to master; U2 on held branch `claude/economy-e3-draw-plan`
+cut from post-U1 master. PROCESS_LAWS P1–P6 govern throughout.
+
+────────────────────────────────────────────────────────────────────
+U1 — MERGE E1 rev2 (claude/economy-e1-curtain-switch, 1d0e32a)
+────────────────────────────────────────────────────────────────────
+Adjudication for the message: witness lines observed live
+("released" at rest, "engaged (zones in core: 1)" on approach), no
+pops either direction; main GPU 16.3 -> 14.3 at rest as footnote.
+Gate PASSED (Jean). Merged branch prunable.
+
+────────────────────────────────────────────────────────────────────
+U2 — THE DRAW PLAN (held)
+────────────────────────────────────────────────────────────────────
+TODAY: the kernel culls LOD0 into one list and discards its LOD1
+verdicts; LOD1 draws its full annulus uncullled; curtains are all-or-
+nothing per frame; the cull margin is 100% of a patch in the plane.
+AFTER: the kernel classifies every instance into three lists —
+  A: LOD0, zone-overlapped  -> full IB (caps+curtains+skirt)
+  B: LOD0, clean            -> cap-only IB
+  C: LOD1, frustum-visible  -> LOD1 IB
+— and the main pass executes the plan as three DrawIndexedIndirect
+calls. Identity: A/B split is exact by E1's own argument, per patch;
+C is Class I culling; the margin ruling is R1's.
+
+RECON (report all before editing; STOP semantics per register):
+R1  THE MARGIN AUDIT. Enumerate every contributor to a terrain
+    vertex's final position and confirm each displaces Y ONLY (baked
+    heightfield, live-card delta, cell lift, aura, skirt drop).
+    If ALL are Y-only: the planar margin becomes a hot-tunable
+    kernel const `CULL_MARGIN_WU = 5.0` (safety, not physics), Y
+    range untouched this arm. If ANY XZ displacement exists: STOP,
+    report it, margin stays derived from that bound.
+R2  THE LIST BINDING. Locate the bind group entry carrying
+    `visible_patch_indices` for the indirect VS. The plan uses ONE
+    list buffer with three 256-aligned segments and THREE bind
+    groups of the SAME layout at static offsets (offset+size on the
+    buffer binding entry) — zero shader motion, zero feature
+    dependency (firstInstance stays 0 everywhere; do NOT rely on
+    indirect-first-instance). Quote the current bind group creation
+    and confirm offset/size binding is available in this Dawn.
+R3  THE FREED SLOTS. Inventory the group-0 slots freed by the
+    reallocation campaign; the zone-rect block (8 x vec4: corner.xy,
+    extent, active) lands in one. Name the slot in the report — this
+    arm spends what that campaign freed.
+R4  THE RECTS. Quote the CPU home of the persisted zone footprints
+    (commit_gol's corner+extent from E1 rev2) and the upload site of
+    the existing frustum params; the rect block uploads beside them.
+R5  THE COUNTS. Quote the fc compute-block reset and the
+    copy-to-indirect step; it extends from one arg slot to three
+    (indexCounts: full IB / cap-only IB / LOD1 IB from the existing
+    accessors; instanceCounts are the kernel's three atomics).
+R6  THE SNAPSHOT CARVE-OUT. The snapshot pass culls against the
+    photographer's frustum, not the main camera's — it CANNOT read
+    the plan. It keeps the direct pipeline and the global flag-locked
+    IB pair exactly as E1 rev2 left them. Verify and state the two
+    sites that therefore do not change.
+
+EDITS (after recon):
+  1. Kernel `frustum_cull_patches`: classify all bands (LOD1 gains
+     the frustum test it never had); zone-AABB overlap test for LOD0
+     (<=8 rects, early-out on inactive); planar margin per R1; three
+     atomic appends into the segmented list; three instanceCounts.
+     FXC note: kernel-only recompile, no collision-chain motion, no
+     VS/FS edits anywhere.
+  2. Buffers: list buffer sized 3 x 256-aligned segments (A,B <= 64;
+     C <= 224 entries); compute block 3 counters; indirect args
+     3 x 5 u32; reset + copy extended per R5.
+  3. Bind groups: two siblings of the existing one, offsets per R2.
+  4. render_main_pass: the outdoor path issues three draws —
+     SetIndexBuffer(full) + draw(args slot 0),
+     SetIndexBuffer(cap_only) + draw(slot 1),
+     SetIndexBuffer(lod1) + draw(slot 2) —
+     binding the matching list bind group before each. The finite/
+     indoor path goes through the same plan (the kernel sees all
+     bands there too). The E1 global-flag selection RETIRES from the
+     main pass (the plan supersedes it); it remains ONLY for the
+     snapshot pass per R6.
+  5. Witness (P6): the transition line becomes
+     "[Ground] zone rects in core: N" on change of N; unchanged
+     otherwise.
+
+COMMIT (branch): "ECONOMY_1: the draw plan — cull kernel authors
+three lists; LOD1 culled at last; curtains surgical per patch;
+planar margin honest. Spends the slots the reallocation campaign
+freed."
+
+JEAN'S GATE (one boot, binding):
+  - rest scene looks untouched; one METER window (footnote — expect
+    the main row to fall again);
+  - walk to a zone: cost localizes ("zone rects in core: 1" with the
+    frame barely moving is the whole point);
+  - the pop hunt: full 360 spins and a ribbon flight watching the
+    screen edges for terrain popping in late — the margin's failure
+    signature. If seen: raise CULL_MARGIN_WU by hot reload until
+    clean, report the settled value; CC pins it.
+
+REPORT BACK: R1 contributor table (the margin verdict), R2/R3 slot
+and binding quotes, branch head, and the two snapshot sites left
+untouched. Nothing beyond what is named.
