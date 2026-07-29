@@ -158,3 +158,43 @@ anything else. Machine-clean discipline holds for recorded numbers;
 where a true A/B is ever needed, arms alternate (A,B,A,B) so thermal
 drift cancels. A gate that fails on identity ends the arm regardless
 of any number.
+
+---
+
+## THE CLOSING LEDGER
+*Closed 2026-07-29. Every entry ruled; nothing left open but the record.*
+
+| Entry | Verdict | Reason |
+|---|---|---|
+| E1 curtain switch | LANDED (rev2, `3dde888`), then SUPERSEDED into the draw plan | global flag -> per-patch selection; snapshot keeps the flag |
+| E2 shadow at half mesh | LANDED (`8804f0c`) | shadow GPU 6.37 -> 3.40 at rest; identity held |
+| E3 LOD1 through the cull | LANDED (as the draw plan, `370ee94`) | first frustum test LOD1 ever had |
+| E3b shadow vs sun box | DEAD | post-E2 the whole pass is ~3.4 ms; the machinery exceeds the prize |
+| E4 indoor light economy | PARKED | CPU witness was Debug-inflated; re-rank after the Release record, owner: a future indoor pass |
+| E5 margin as ratio | LANDED (inside the plan, `370ee94`) | the planar margin guarded XZ motion that does not exist (R1) |
+| E6 ratios | LANDED (SWEEP_1) | bias constants born again as ratios |
+| E7 heightfield at reader rate | MOVED | to the memory pass, still gated by audit A1 |
+| E8 shadow at change rate | DEAD | 16 MB/frame copy vs a 3.4 ms pass; economy honesty |
+| E9 the ring | HORIZON | unchanged; gated behind this record |
+| E10 painting residency | MOVED | to the memory pass; Class III absolute stands |
+
+**The aesthetics chapter's opening pieces**, held and untouched by this
+campaign: **SHADOW_QUALITY_1** (`b3648f3` — settled bias pinned as ratios,
+normal-offset sampling on the sun path, texel-aligned snap; gate binding on
+Jean's eyes) and **the Vulkan fast-boot** (`b09885e` — the C4 backend
+curiosity, the 44-second tuning loop; final verdicts stay on D3D12).
+
+**Diagnostics remain as-is** by Jean's ruling. For whoever quiets them later,
+the cadence's home is named here and NOT touched:
+`CENSUS_DUMP_INTERVAL = 30.0f` (`machine/spawn_engine.hpp:65`) — the periodic
+entity census dump, and the FRAME METER window rides the same cadence
+(`cartridge.hpp:1245`). Its sibling is `AGENT_CENSUS_INTERVAL = 30.0f`
+(`bodies/agents.hpp:127`).
+
+### THE RECORD
+*Awaiting the single Release boot on final master (`370ee94` or later). To be
+filled from that log: the platform block verbatim (adapter, Dawn revision,
+Build: Release); outdoor rest fps + main/shadow GPU mean; one traveling
+window; one indoor window. Beside them, the campaign's opening numbers for
+contrast — HD 5500, Debug, unchosen adapter: **19.2 fps, main 22.3, shadow
+10.3**.*
