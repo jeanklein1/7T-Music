@@ -3249,8 +3249,9 @@ const SHADOW_SNAP_SIZE: f32 = 2.0;   // world units — shadow VP snaps to this 
 
 fn coupling_pawn_to_sun_vp(pawn_pos: vec3<f32>, direction: vec3<f32>) -> mat4x4<f32> {
     // Snap pawn XZ to shadow grid for temporal stability.
-    // Shadow map content is pixel-perfect between grid crossings,
-    // enabling the CPU to skip the shadow pass on idle frames.
+    // Between grid crossings the light VP is bit-stable, which WOULD let
+    // the CPU reuse static shadow content — no skip is implemented; the
+    // pass runs unconditionally every frame (the lever: GEOMETRY_2).
     var snapped = pawn_pos;
     snapped.x = round(pawn_pos.x / SHADOW_SNAP_SIZE) * SHADOW_SNAP_SIZE;
     snapped.z = round(pawn_pos.z / SHADOW_SNAP_SIZE) * SHADOW_SNAP_SIZE;
@@ -3564,6 +3565,9 @@ struct SpotLightArray {
 
 // --- Shadow constants
 
+// TWIN: state.hpp Dim::SHADOW_MAP_SIZE (// Lighting) — sizes the
+// two depth textures and the atlas tiles. Change BOTH rooms
+// together. (L3 MIRROR.)
 const SHADOW_MAP_SIZE: f32 = 4096.0;
 const SHADOW_BIAS_MIN: f32 = 0.0001;
 const SHADOW_BIAS_MAX: f32 = 0.002;
@@ -3654,7 +3658,7 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 
 // --- Spot Light Shadow Sampling (perspective, two-texture atlas)
 //
-// Two 4096×4096 depth textures, each split left/right into 2048×4096 tiles:
+// Two full-size depth textures, each split left/right into half-width tiles:
 //   shadow_map      (repurposed sun map) → lights 0, 1
 //   spot_shadow_map                      → lights 2, 3
 // Doubles per-tile resolution vs the old single-texture 2×2 grid,

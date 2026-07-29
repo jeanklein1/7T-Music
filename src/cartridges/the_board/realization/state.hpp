@@ -204,6 +204,12 @@ namespace t7 {
             constexpr float    FOG_COLOR_B = 0.72f;
 
             // Lighting
+            // TWIN: world.wgsl `const SHADOW_MAP_SIZE: f32` (— Shadow
+            // constants). The WGSL twin feeds BOTH PCF texel_size reads.
+            // Change it in BOTH rooms or the PCF world-footprint silently
+            // rescales while the texture resizes. (L3 MIRROR — the
+            // TILE_GRID_CAPACITY pattern; no compile-time bridge spans the
+            // runtime-loaded seam.)
             constexpr uint32_t SHADOW_MAP_SIZE = 4096;
             constexpr uint32_t MAX_POINT_LIGHTS = 8;
 

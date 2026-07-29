@@ -258,8 +258,8 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     const GPUSpotLightArray& cpuSpotLights_) {
     if (c->mood_state_.spot_light_active && cpuSpotLights_.count > 0) {
         // ─── Two-texture atlas shadow pass (indoor) ──────────
-        static constexpr uint32_t TILE_W = Dim::SHADOW_MAP_SIZE / 2;  // 2048
-        static constexpr uint32_t TILE_H = Dim::SHADOW_MAP_SIZE;      // 4096
+        static constexpr uint32_t TILE_W = Dim::SHADOW_MAP_SIZE / 2;  // half width
+        static constexpr uint32_t TILE_H = Dim::SHADOW_MAP_SIZE;      // full height
 
         for (uint32_t li = 0; li < cpuSpotLights_.count && li < MAX_SPOT_LIGHTS; li++) {
             // Copy this light's VP from staging → VP buffer's light_vp slot
@@ -411,7 +411,8 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.render_texture_group(),
                 /*shadow=*/false,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
-    // One DrawIndexedIndirect budget line free in this pass (L2.4).
+    // Indirect budget (L2.4): consumed outdoors by the LOD0 terrain
+    // draw; free indoors.
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
     // FORKS — the specials, kept explicit. Wall paintings + gallery frames use
