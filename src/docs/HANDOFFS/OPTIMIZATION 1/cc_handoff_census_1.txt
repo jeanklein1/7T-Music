@@ -1,0 +1,158 @@
+════════════════════════════════════════════════════════════════════
+7T — CAMPAIGN CENSUS_1 — THE CLAIM CENSUS
+READING ONLY. No edits, no deletions, no builds. One document, one
+commit. The tree's account of itself, audited against the tree.
+════════════════════════════════════════════════════════════════════
+
+WHY: LEDGER_1's first draft took the sun's ortho half-extent from
+`compute_sun_matrices` — a function with zero callers. The archived
+seam map cites the same dead function as fact, and its L1 ruling
+explicitly blessed keeping it as "latent, not dead". Three independent
+readings, one wrong number, and the tree corroborated it at every step.
+
+That is not divergence. That is CONVERGENCE ON A FALSEHOOD, and it is
+a different disease. Divergence means the tree was silent and readers
+guessed. Convergence on a falsehood means the tree SPOKE, and lied.
+
+The executable came out of LEDGER_1 looking better than expected. What
+is rotten is the layer that talks about the machine. In most programs
+that layer is decoration. In this one it is load-bearing: the method is
+design-in-chat → handoff → execution, and prose is the medium of the
+whole triangulation. Every wrong number in LEDGER_1 arrived through it.
+
+THE LAW THIS CAMPAIGN INSTALLS: ONE FACT, ONE HOME — APPLIED TO CLAIMS.
+A claim about the program is itself a fact. Its one home is the code.
+Every comment, label string, banner, contract line and doc is a COPY,
+and copies rot silently because nothing compiles them.
+
+Corollary: DEAD CODE IS NOT LATENT. IT IS A LIAR. It does not merely
+occupy space; it ANSWERS QUESTIONS. An exemption is a structure, and
+structures are what campaigns delete.
+
+GIT LAW: trunk-based, master. If this session is harness-bound to a
+`claude/*` branch, say which; Jean retargets. ONE commit. Deliverable:
+`audit/CENSUS_1_REPORT.md` (matching the home LEDGER_1 established).
+
+METHOD — MANDATORY: one reader, one refuter. Do the primary reading
+yourself, then run ONE adversarial pass instructed to refute it. That
+shape caught the `compute_sun_matrices` error; a seventeen-agent
+fan-out did not, and on a four-core box it was wasted motion. Two
+passes. Show corrections in place; do not silently fold them in.
+
+────────────────────────────────────────────────────────────────────
+[1] THE UNIT — define it before counting
+────────────────────────────────────────────────────────────────────
+A CLAIM is any assertion in prose about what the code does, is, or
+must be. Instances:
+  - a comment describing present behavior
+  - a `desc.label` or debug string stating a dimension, format or count
+  - a banner block stating a constraint, law or invariant
+  - a line in `contracts/**` describing a realization
+  - a statement in a doc presented as current
+  - a `static_assert` message (verify the message, not just the assert)
+
+NOT a claim: a name; a TODO with no assertion; a doc explicitly dated
+and marked archival AND filed as such.
+
+State your counting boundary explicitly. A bare substring count is not
+evidence — the count law applies to this census as much as any other.
+
+────────────────────────────────────────────────────────────────────
+[2] SCOPE — and what silence in this report will mean
+────────────────────────────────────────────────────────────────────
+IN:   `src/cartridges/the_board/**`, `src/incubator_dual.cpp`,
+      `src/docs/**`, `audit/**`, `src/docs/old docs/**`
+OUT:  `src/tools/*.jsx` (the sketch program — generated C++ text is
+      not a live call site; the standing census exclusion)
+
+Report the corpus you examined FILE BY FILE, with a per-file claim
+count. A file's absence from the findings must mean "checked, clean",
+not "not reached". If you do not finish a file, say so by name — an
+incomplete census that admits its edge is worth more than a complete
+one that cannot be trusted. LEDGER_1's E4 gap was handled correctly;
+handle gaps the same way here.
+
+`old docs/` is IN SCOPE but classified separately: an archival doc may
+legitimately describe a past state. The question is not whether it is
+outdated — it is whether it is PRESENTED AS CURRENT and reachable by a
+reader who does not know it is archival. If a future auditor could
+grep it and believe it, it is a live claim.
+
+────────────────────────────────────────────────────────────────────
+[3] CLASSIFICATION — every claim gets one
+────────────────────────────────────────────────────────────────────
+  A — PROSE ONLY. Comment, label, doc, banner. Zero behavioral risk.
+  B — DEAD CODE. A function, constant, binding, struct member, enum
+      arm or shader entry with zero readers. Existence is itself a
+      claim: "this is how the program does X."
+  C — TRUE BUT DRIFTED. The claim holds in kind, wrong in degree — a
+      number that moved, a set that grew, a constraint that softened.
+  D — SOUND. Verified true today. Counted, not listed individually
+      except where the verification was hard-won.
+
+Every A, B and C carries: file + line; the claim verbatim; the code
+that settles it; the DISPOSITION.
+
+DISPOSITION — the default is DELETE. `KEEP` and `CORRECT` must each
+carry a reason, and for Class B the reason must name a DATED intent
+with an owner. "Latent" is not a reason; that word is what produced
+this campaign. Delete rather than annotate.
+
+────────────────────────────────────────────────────────────────────
+[4] RANKING — by the harm the claim can do, not by its size
+────────────────────────────────────────────────────────────────────
+Rank findings at the TOP of the document by ONE criterion:
+
+    WOULD THIS CLAIM HAVE PRODUCED A WRONG RULING?
+
+A stale label is cosmetic. A contract file asserting a retired
+architecture is load-bearing, because it is the document a future
+auditor would trust. Rank accordingly: contracts and laws first, then
+banners stating constraints, then comments, then labels, then docs.
+
+For each top-ranked finding, state the wrong ruling it WOULD have
+produced. Where it already did, name the campaign it misled.
+
+────────────────────────────────────────────────────────────────────
+[5] SEEDS — found incidentally by LEDGER_1; verify and extend
+────────────────────────────────────────────────────────────────────
+These are the entries a single performance audit tripped over without
+looking. That a non-census found this many is the argument for CENSUS_1.
+
+  1. `compute_sun_matrices` — zero callers, wrong extent (350 vs the
+     live SUN_HALF_EXTENT 300). CLASS B. Also audit the RULING that
+     preserved it: `the_board_seam_map.md` L1, "latent, not dead".
+     The exemption is in scope. Verify whether it was a fact or a
+     structure.
+  2. `contracts/ground_architecture.hpp:161-162` — asserts an
+     "analytic wave gradient" in `patch_terrain_vs` that the Ground
+     Card retired. The written form of the exact belief LEDGER_1 was
+     built to test. CLASS A, top of the ranking.
+  3. The five `512` sites against `LIVE_CARD_SIZE = 640`, including
+     the live `desc.label` at `state.hpp:3732`.
+  4. "Dawn D3D12 limitation: only one indirect draw per pass" — a
+     constraint encoded as fact and never queried. PROBE_1 C1 settles
+     the feature question; this census settles whether the comment
+     was ever true.
+  5. `the_board_seam_map.md`'s draw-count and pass-structure claims
+     against `render_passes.hpp` as it stands today.
+  6. `src/docs/old docs/ground_card_campaign_v2.md` — two stale
+     numbers (512², 800 wu vs the live 640, 1000).
+
+Do not stop at six. These are seeds, not the crop.
+
+────────────────────────────────────────────────────────────────────
+[6] THE ONE THING THIS CENSUS MUST NOT DO
+────────────────────────────────────────────────────────────────────
+Change nothing. Not a comment, not a label, not a dead function — not
+even where the correction is obvious and the risk is zero. The reader
+set is uncertain until this document exists; that is precisely when a
+hard census gate precedes edits. CENSUS_2 lands the dispositions:
+Class A wholesale in one commit, Class B per item, each on Jean's
+ruling.
+
+If you find something that is not a stale claim but a live BUG, report
+it in its own section and keep your hands off it.
+
+COMMIT: "CENSUS_1: the claim census — the tree's account of itself,
+audited against the tree"
