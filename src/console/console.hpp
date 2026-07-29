@@ -193,9 +193,24 @@ namespace t7 {
                     << ") vendor=" << sv(info.vendor) << "\n";
             }
 
-            dawn::native::Adapter& nativeAdapter = adapters[0];
+            // C1b (HELD) — choose the machine: DiscreteGPU outranks
+            // integrated; D3D12 breaks ties. Falls back to index 0.
+            size_t adapterPick = 0;
+            {
+                int best = -1;
+                for (size_t i = 0; i < adapters.size(); i++) {
+                    wgpu::Adapter a = wgpu::Adapter(adapters[i].Get());
+                    wgpu::AdapterInfo info{};
+                    a.GetInfo(&info);
+                    int score =
+                        (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
+                      + (info.backendType == wgpu::BackendType::D3D12       ? 1 : 0);
+                    if (score > best) { best = score; adapterPick = i; }
+                }
+            }
+            dawn::native::Adapter& nativeAdapter = adapters[adapterPick];
             wgpu::Adapter adapter = wgpu::Adapter(nativeAdapter.Get());
-            std::cout << "[Console] Adapter selected: index=0\n";
+            std::cout << "[Console] Adapter selected: index=" << adapterPick << "\n";
 
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
