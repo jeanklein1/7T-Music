@@ -78,17 +78,6 @@ enum class PointTerrainRule : uint32_t {
     SNAP       = 2,
 };
 
-// The host table — each host's cast, compile-time.
-inline constexpr PointTerrainRule POINT_HOST_TERRAIN_RULE[3] = {
-    PointTerrainRule::SNAP,       // PAWN — the body snaps; the kite follows
-    PointTerrainRule::NONE,       // CAMERA — pure fly; every clamp skipped
-    PointTerrainRule::SOFT_FLOOR, // RIBBON — the seat rides the head, whose
-                                  // altitude is the critically damped pen
-                                  // over terrain (bodies/ribbon.hpp head
-                                  // control law) — a name for what already
-                                  // happens, no new physics
-};
-
 // ═══ THE BUBBLE (first field + first sensor live) ══════════
 // The bounded awareness region around the point (v3 §11): proximity,
 // the portal trigger, the coming event source. Its FIRST FIELD is the
