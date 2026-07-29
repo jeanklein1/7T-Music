@@ -24,6 +24,7 @@ set(DAWN_INCLUDES
     ${DAWN_DIR}/include
     ${DAWN_DIR}/src
     ${DAWN_BUILD}/gen/include
+    ${DAWN_BUILD}/gen/src
     ${DAWN_DIR}/third_party/glfw/include
 )
 

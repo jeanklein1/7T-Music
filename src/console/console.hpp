@@ -30,7 +30,12 @@
 #include <webgpu/webgpu_cpp.h>
 #include <dawn/native/DawnNative.h>
 #include <dawn/dawn_proc.h>
+#if __has_include("dawn/common/Version_autogen.h")
 #include "dawn/common/Version_autogen.h"
+#define T7_DAWN_VERSION 1
+#else
+#define T7_DAWN_VERSION 0
+#endif
 #include <GLFW/glfw3.h>
 
 #if defined(_WIN32)
@@ -159,6 +164,7 @@ namespace t7 {
 
             // The platform line: Dawn's own 20-byte SHA1
             // (all-zero when the build is unhashed).
+#if T7_DAWN_VERSION
             {
                 static constexpr char hexd[] = "0123456789abcdef";
                 std::string dawnRev; dawnRev.reserve(40);
@@ -167,6 +173,15 @@ namespace t7 {
                 }
                 std::cout << "[Console] Dawn revision: " << dawnRev << "\n";
             }
+#else
+            std::cout << "[Console] Dawn revision: unavailable "
+                         "(Version_autogen.h not on the include path)\n";
+#endif
+#ifdef NDEBUG
+            std::cout << "[Console] Build: Release\n";
+#else
+            std::cout << "[Console] Build: Debug\n";
+#endif
 
             // PROBE_1 C1 — the adapter log: every adapter Dawn
             // enumerates, then the pick. The tree records what it
