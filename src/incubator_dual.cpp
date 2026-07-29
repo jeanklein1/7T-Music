@@ -5,8 +5,8 @@
  * Minimal runtime for developing cartridge pairs.
  * Cartridge selection is controlled from CMakeLists.txt:
  *
- *   set(ACTIVE_RENDER_CARTRIDGE "the_board")
- *   set(ACTIVE_ANALYSIS_CARTRIDGE "canvas_1")
+ *   set(INCUBATOR_DUAL_RENDER_CARTRIDGE "the_board")
+ *   set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1")
  *
  * CMake passes these as compile definitions (INCUBATE_RENDER, INCUBATE_ANALYSIS).
  * No need to edit this file to switch cartridges.
@@ -184,7 +184,7 @@ int main(int argc, char* argv[]) {
     FileWatcher watcher;
     watcher.watch(render.shader_path());
     std::cout << "[Incubator] Hot reload enabled: " << render.shader_path() << "\n\n";
-    std::cout << "Controls: Arrows=move, Mouse=camera, A-Z=piano keys\n\n";
+    std::cout << "Controls: WASD=move, Mouse=camera, 4=host, F8=ribbon, 5-8=moods, Esc=quit\n\n";
 
     int reload_frame_counter = 0;
     wgpu::Queue queue = console.queue();

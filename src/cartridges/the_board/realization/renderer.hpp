@@ -1294,7 +1294,7 @@ namespace t7 {
                     device_.CreatePipelineLayout(&agentLayoutDesc);
                 if (!agentComputeLayout) return false;
 
-                // Pipeline 1b: update_player_agent (0D, 1 thread — possessed slot only)
+                // Pipeline: update_player_agent (0D, 1 thread — possessed slot only)
                 // Agent layout (live-contributor pair + the room) —
                 // pawn_ground_resolve, terrain_normal_at
                 // call query_ground_walker → contrib_pawn_aura_at → sample_pawn_aura.
@@ -1302,7 +1302,7 @@ namespace t7 {
                 if (!makeComputePipeline("update_player_agent", "Update Player Agent (0D, 1 thread)",
                     agentComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
 
-                // Pipeline 1c: update_other_agents (1D, 32 threads — non-possessed slots)
+                // Pipeline: update_other_agents (1D, 32 threads — non-possessed slots)
                 // Agent layout (live-contributor pair + the room) —
                 // query_ground_walker_agent reads aura
                 // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
@@ -1313,13 +1313,13 @@ namespace t7 {
                     agentComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
 
-                // Pipeline 1c: update_camera (0D)
+                // Pipeline: update_camera (0D)
                 // Live-contributor layout — the camera clamp uses a walker-style
                 // policy that reads the aura texture (sample_pawn_aura).
                 if (!makeComputePipeline("update_camera", "Update Camera (0D)",
                     liveContribComputeLayout, Entry::UPDATE_CAMERA, updateCameraPipeline_)) return false;
 
-                // Pipeline 1d: update_sphere (0D)
+                // Pipeline: update_sphere (0D)
                 // Uses the live-contributor layout so coupling_terrain_to_sphere_orbit_height
                 // can call query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura).
                 if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled
@@ -1327,7 +1327,7 @@ namespace t7 {
                     liveContribComputeLayout, Entry::UPDATE_SPHERE, updateSpherePipeline_)) return false;
                 }
 
-                // Pipeline 1e: update_cube (0D)
+                // Pipeline: update_cube (0D)
                 // Same live-contributor layout — update_cube calls
                 // query_ground_flyer directly for hover-base clearance.
                 if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled
@@ -1335,11 +1335,11 @@ namespace t7 {
                     liveContribComputeLayout, Entry::UPDATE_CUBE, updateCubePipeline_)) return false;
                 }
 
-                // Pipeline 2: compute_vp (0D)
+                // Pipeline: compute_vp (0D)
                 if (!makeComputePipeline("compute_vp", "Compute VP Matrix (0D)",
                     computeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
 
-                // Pipeline 11a: generate_patch_heights (2D, pass 1 — heights only)
+                // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {
                     wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
                     if (!pl) return false;
@@ -1347,7 +1347,7 @@ namespace t7 {
                         pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
                 }
 
-                // Pipeline 11b: generate_patch_gradients (2D, pass 2 — gradients + complexity)
+                // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
                 {
                     wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
                     if (!pl) return false;
@@ -1355,7 +1355,7 @@ namespace t7 {
                         pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
                 }
 
-                // Pipeline 12: generate_patch_cells (2D, on demand)
+                // Pipeline: generate_patch_cells (2D, on demand)
                 {
                     wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
                     if (!pl) return false;
@@ -1363,7 +1363,7 @@ namespace t7 {
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
                 }
 
-                // Pipeline 13: compute_ribbon_rings (1D, per frame when ribbon active)
+                // Pipeline: compute_ribbon_rings (1D, per frame when ribbon active)
                 if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(ribbonComputeLayout_);
                     if (!pl) return false;

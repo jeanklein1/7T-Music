@@ -8484,7 +8484,7 @@ fn write_live_card_heights(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 // Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo
-// for the 3-point edge stencils) — the bake's pass-2 clone at res 512.
+// for the 3-point edge stencils) — the bake's pass-2 clone at card size.
 var<workgroup> sh_card_h: array<f32, 400>;
 
 @compute @workgroup_size(16, 16)

@@ -101,7 +101,7 @@ inline constexpr PointTerrainRule POINT_HOST_TERRAIN_RULE[3] = {
 // same P5 harvest — the wire is the realization, the bubble is the
 // semantics.
 
-inline constexpr float POINT_BUBBLE_RADIUS = 20.0f;   // world units; MUST match world.wgsl POINT_BUBBLE_RADIUS
+inline constexpr float POINT_BUBBLE_RADIUS = 20.0f;   // world units; boot-pinned into config.point_bubble_radius (the WGSL side reads the config field)
 
 struct PointBubble {
     float radius = POINT_BUBBLE_RADIUS;   // the awareness bound (the portal's vertical gate today)

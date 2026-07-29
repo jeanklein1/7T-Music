@@ -608,7 +608,7 @@ inline void seed_gol_zone(GoLState& gs, MachineCtx* c,
             std::min(GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_HI, hf));
     }
 
-    // Upload all 7 slots
+    // Upload all life slots
     c->gpuState_.upload_zone_life(queue, slot, life.data(), height_factors.data(), Dim::GOL_ZONE_CELLS);
 }
 

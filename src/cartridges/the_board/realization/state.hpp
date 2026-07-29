@@ -506,7 +506,7 @@ namespace t7 {
             // Host flag + fly speed — piggybacked on the lod-point pad
             // pair (the possessed_slot precedent). Mirror order matches
             // world.wgsl's Config.
-            uint32_t point_host;              // 0 = pawn (the kite), 1 = camera (free-fly)
+            uint32_t point_host;              // 0 = pawn (the kite), 1 = camera (free-fly), 2 = ribbon
             float point_fly_speed;            // W/S/A/D velocity; 0 → WGSL PAWN_SPEED fallback
 
             // ─── THE VEIL (re-ruled: RING = draw authority, fog = icing) ──
@@ -1751,7 +1751,7 @@ namespace t7 {
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroup pawnAuraComputeGroup_;
 
-            // Live card (GROUND_CARD_1) — 512×512 RGBA16Float deformation field
+            // Live card (GROUND_CARD_1) — RGBA16Float deformation field, LIVE_CARD_SIZE²
             wgpu::Texture liveCardTexture_;         // compute writes, VS/FS/compute read
             wgpu::TextureView liveCardWriteView_;   // storage texture write (writer kernel)
             wgpu::TextureView liveCardView_;        // sampled read (render + compute)
@@ -3712,11 +3712,11 @@ namespace t7 {
                     pawnAuraReadView_ = pawnAuraTexture_.CreateView();
                 }
 
-                // Live card (512×512 RGBA16Float — GROUND_CARD_1; writer kernel
+                // Live card (RGBA16Float, LIVE_CARD_SIZE² — GROUND_CARD_1; writer kernel
                 // rewrites it per frame, render + compute sample it)
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Live Card (512x512, RGBA16Float — GROUND_CARD_1)";
+                    desc.label = "Live Card (RGBA16Float — GROUND_CARD_1)";
                     desc.size = { Dim::LIVE_CARD_SIZE, Dim::LIVE_CARD_SIZE, 1 };
                     desc.format = wgpu::TextureFormat::RGBA16Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
@@ -5456,7 +5456,7 @@ namespace t7 {
                     if (!pawnAuraComputeGroup_) return false;
                 }
 
-                // Live card writer bind group (5 entries: 0, 1, 160, 161, 31)
+                // Live card writer bind group (6 entries: 0, 1, 160, 161, 31, 32)
                 {
                     std::array<wgpu::BindGroupEntry, 6> entries{};
 
