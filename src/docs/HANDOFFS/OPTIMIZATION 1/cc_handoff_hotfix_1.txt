@@ -1,0 +1,88 @@
+════════════════════════════════════════════════════════════════════
+7T — HOTFIX_1 — THE UNREACHABLE HEADER
+One commit to master + two branch rebases. Unblocks every build.
+════════════════════════════════════════════════════════════════════
+
+THE FAULT, for the record: SWEEP_1 U4 asserted the include was
+reachable via ${DAWN_BUILD}/gen/include. Existence was verified;
+reachability was not. MSVC: C1083 at console.hpp:33 on every
+configuration, master and both arms.
+
+WORKING HYPOTHESIS (state it in the commit message as hypothesis):
+Dawn separates PUBLIC generated headers (gen/include, already on the
+path) from INTERNAL ones (gen/src, not on the path);
+`dawn/common/Version_autogen.h` is internal. The tree already
+consumes Dawn's internal SOURCE root (-I C:/dev/dawn/src), so adding
+the internal GEN root is symmetric, not a new dependency class.
+
+The fix is DOUBLY safe: the include is guarded, so the build is green
+even if the hypothesis is wrong — the log line then says so honestly
+and Jean's diagnostic (in his instructions) locates the real path.
+
+GIT LAW: one commit to master; then rebase BOTH arm branches onto the
+new head (same branch names, per the probe1-c2 precedent). Report
+old -> new heads for all three.
+
+REGISTER: verify anchors verbatim; counts before edits; STOP on
+mismatch; proposed repairs unapplied.
+
+────────────────────────────────────────────────────────────────────
+E1 — console.hpp: guard the include
+────────────────────────────────────────────────────────────────────
+FIND (the U4 include, expected once):
+#include "dawn/common/Version_autogen.h"
+
+REPLACE:
+#if __has_include("dawn/common/Version_autogen.h")
+#include "dawn/common/Version_autogen.h"
+#define T7_DAWN_VERSION 1
+#else
+#define T7_DAWN_VERSION 0
+#endif
+
+────────────────────────────────────────────────────────────────────
+E2 — console.hpp: guard the print block, add the build line
+────────────────────────────────────────────────────────────────────
+Wrap the U4 revision block (quote it verbatim first):
+
+#if T7_DAWN_VERSION
+            <the existing hex-print block, unchanged>
+#else
+            std::cout << "[Console] Dawn revision: unavailable "
+                         "(Version_autogen.h not on the include path)\n";
+#endif
+
+Directly below it (either branch), the configuration line — every
+future log self-describes its build:
+
+#ifdef NDEBUG
+            std::cout << "[Console] Build: Release\n";
+#else
+            std::cout << "[Console] Build: Debug\n";
+#endif
+
+────────────────────────────────────────────────────────────────────
+E3 — CMakeLists.txt: the internal gen root
+────────────────────────────────────────────────────────────────────
+Quote line ~26 (the ${DAWN_BUILD}/gen/include entry) verbatim, then
+add its sibling in the same form, same list, directly after:
+
+    <same variable form>/gen/src
+
+Expected count of the gen/include anchor: 1. Do not touch any other
+include entry.
+
+COMMIT: "HOTFIX_1: guard Dawn version include (__has_include), add
+internal gen root, log build configuration"
+
+────────────────────────────────────────────────────────────────────
+E4 — rebase the arms
+────────────────────────────────────────────────────────────────────
+Rebase `claude/economy-e1-curtain-switch` and
+`claude/economy-e2-shadow-lod1` onto the fixed master head. Expected:
+clean (the arms touch state/render_passes/renderer; the hotfix
+touches console/CMakeLists). STOP and report on any conflict.
+
+REPORT BACK: the three new heads (master, e1, e2); the quoted CMake
+line and its new sibling; confirmation the guard compiles down to the
+same U4 behavior when the header resolves.

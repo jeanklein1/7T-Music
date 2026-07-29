@@ -1,0 +1,141 @@
+════════════════════════════════════════════════════════════════════
+7T — CENSUS_3 — THE RULED DISPOSITIONS OF THE PARENT CENSUS
+Greenlit by Jean. Execute AFTER HOTFIX_1 lands. Four strata: one
+prose commit, one LAWS commit, three per-item deletions, one charter
+amendment. Nothing beyond what is named.
+════════════════════════════════════════════════════════════════════
+
+GIT LAW: master, commits in the numbered order, do not squash.
+Branch motion: none (the arm branches are untouched by this handoff).
+
+REGISTER: verify every anchor verbatim at head (the census line
+numbers are trusted but the tree moved at HOTFIX_1); counts with
+boundaries BEFORE edits; STOP on mismatch except where named; a
+tripped gate yields a PROPOSED repair, unapplied. Archival docs
+(`old docs/**`, `audit/past reports/**`) are never edited.
+
+STYLE LAW (standing, from CENSUS_2a): where a number in prose merely
+restates an adjacent constant or array, DE-NUMBER rather than
+re-number. Where the tree's witness-count culture is doing real work
+(the bind-group registry counts, 16/17 exact), CORRECT the number.
+
+────────────────────────────────────────────────────────────────────
+COMMIT 1 — CENSUS_3a: THE PROSE (wholesale, zero behavior)
+────────────────────────────────────────────────────────────────────
+R4  contracts/ground_architecture.hpp:161-162 — drop "the analytic
+    wave gradient" from the sentence; the shadow-subset description
+    stays untouched. Quote before/after.
+R5  state.hpp:5459 — "(5 entries: 0, 1, 160, 161, 31)" ->
+    "(6 entries: 0, 1, 160, 161, 31, 32)". Check the layout-side twin
+    at :4329 and correct if it carries the same count.
+R6  the 512 sites, DE-NUMBERED: state.hpp:1754 and :3715 comments;
+    the desc.label at :3719 -> "Live Card (RGBA16Float —
+    GROUND_CARD_1)"; the world.wgsl "pass-2 clone at res 512" comment
+    reworded without the number (present behavior only).
+R8  cartridge.hpp:1722 O-7 assert MESSAGE -> "O-7: frustum cull
+    precedes the shadow pass (ordering pin)" — the pin itself stays.
+    renderer.hpp pipeline comments: DE-NUMBER the sequence ("Pipeline:
+    update_camera" form) — it was broken before the hole.
+R9  gol_zones.hpp:611 -> "Upload all life slots" (de-numbered).
+R10a incubator_dual.cpp:187 — the controls banner. RECON FIRST:
+    enumerate every key input.hpp actually binds (movement W/S/A/D at
+    :222-225, mouse camera, and the rest — mood/host keys included).
+    Propose the banner string FROM that enumeration in the report,
+    stating only what the code binds; Jean confirms the wording with
+    one line. Land the proposal; his correction, if any, is a
+    follow-up one-liner.
+R10b incubator_dual.cpp:6-9 — the CMake variable names -> the real
+    ones (INCUBATOR_DUAL_RENDER_CARTRIDGE /
+    INCUBATOR_DUAL_ANALYSIS_CARTRIDGE / INCUBATOR_ANALYSIS_CARTRIDGE).
+R11 contracts/point.hpp:104 — reword to name the live mechanism: the
+    `config.point_bubble_radius` field, boot-pinned from this
+    contract. No WGSL constant is cited.
+R12 state.hpp:509 -> "// 0 = pawn (the kite), 1 = camera (free-fly),
+    2 = ribbon".
+R13 (non-LAWS half) — sweep sibling doc-path drift from the b96074f
+    move: grep the moved filenames across live docs and code comments
+    (boundary stated); correct every live pointer; archival hits
+    listed, untouched.
+
+COMMIT 1: "CENSUS_3a: prose dispositions — R4-R6, R8-R13 (de-number
+where the number restates, correct where the count witnesses)"
+
+────────────────────────────────────────────────────────────────────
+COMMIT 2 — CENSUS_3-LAWS (charter stratum; diff at TOP of report)
+────────────────────────────────────────────────────────────────────
+R1  LAWS.md L2 items 1 and 2 — re-exemplify with LIVE anchors:
+    item 1: the byte-pinned struct pattern via the GPUSpotLightArray
+    static_assert (state.hpp:1388-1389 — verify at head);
+    item 2: the uniform-bounded loop pattern via
+    `min(pyramid_instances.count, MAX_PYRAMID_INSTANCES)`
+    (world.wgsl:2732 — verify).
+    PLUS one pointer line under the L2 head: the operational home of
+    the FXC constraints is the world.wgsl FXC banner — the law states
+    the principle, the banner owns the specifics.
+R13 (LAWS half) L1 (:28) and L7 (:148) — correct both paths to the
+    `audit/past reports/…` locations.
+Jean stamps the wording; the diff leads the report.
+
+COMMIT 2: "CENSUS_3: LAWS — L2 re-exemplified with live anchors,
+banner named as the operational home, L1/L7 paths repaired"
+
+────────────────────────────────────────────────────────────────────
+COMMITS 3-5 — CENSUS_3b: THE DELETIONS (one commit each)
+────────────────────────────────────────────────────────────────────
+3b-i  `compute_sun_matrices` — declaration render_passes.hpp:50 (:50-51
+    if the census's range holds at head — verify), definition
+    :517-:588 (the REFUTER's range; :567 carries the wrong 350).
+    Post-delete straggler grep `compute_sun_matrices` — expected
+    residue: archival only; list it. Commit message records the
+    verdict AND retires the precedent: the seam map's
+    default-to-latent rule converted "unverified" into "keep" without
+    a dated owner, produced LEDGER_1's wrong extent, and is dead as
+    precedent from this commit forward.
+
+3b-ii the dead painting pair — DELETE `src/render/painting_system.hpp`
+    and `src/render/painting_types.hpp` whole. GATE FIRST: verify the
+    LIVE authored loader's stb chain (`src/external/stb_image.cpp`
+    stays — confirm its live includer path so nothing stb-adjacent is
+    orphaned), and grep CMakeLists for any reference to the pair
+    (headers are usually unlisted; report). Post-delete residue grep:
+    expected zero live hits.
+
+3b-iii `POINT_HOST_TERRAIN_RULE` (contracts/point.hpp:82-90) — verify
+    the reader set with word boundaries at head. If zero consumers
+    outside the file: DELETE, and note in the commit message that
+    this closes the standing SOFT_FLOOR horizon question. If any
+    consumer exists: STOP, report it, no edit.
+
+────────────────────────────────────────────────────────────────────
+COMMIT 6 — THE CHARTER AMENDMENT (Jean stamps; diff in report)
+────────────────────────────────────────────────────────────────────
+In `src/docs/HANDOFFS/OPTIMIZATION 1/ECONOMY_1_CHARTER.md`, insert
+after E9, verbatim:
+
+**E10 — PAINTING RESIDENCY (audit-gated; ranked above E7).** The live
+painting system holds 264 MiB resident — Snapshot Staging 16 +
+Authored Staging 16 + Exhibition 32 layers at 1024², 4 B/texel, plus
+the offscreen pair — the largest single memory holder in the program
+(census A2 ledger). The audit: how many layers per array ever hold a
+distinct image at once across a session; then the levers (staging
+lifecycle, exhibition sizing, format/mip choices). Every lever here
+is **Class III ABSOLUTE**: the paintings are the artwork; no byte is
+saved at their expense without Jean's eyes.
+
+And in THE AUDITS section, extend A2's entry with one sentence: "The
+resident ledger is delivered (264 MiB); the layers-in-use question is
+E10's opening audit."
+
+COMMIT 6: "ECONOMY_1: charter amendment — E10 painting residency
+enters above E7 (A2 ledger)"
+
+────────────────────────────────────────────────────────────────────
+REPORT BACK
+────────────────────────────────────────────────────────────────────
+- The LAWS diff and the charter diff at the top, for the stamps.
+- R10a: the enumerated key bindings + the proposed banner string.
+- Every anchor's in-tree form + count; the three straggler tables;
+  3b-iii's reader-set verdict.
+- Master head after commit 6.
+The one thing this handoff must not do: touch the arm branches or
+anything the rulings did not name.
