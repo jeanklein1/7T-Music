@@ -3563,7 +3563,7 @@ struct SpotLightArray {
 // TWIN: state.hpp Dim::SHADOW_MAP_SIZE (// Lighting) — sizes the
 // two depth textures and the atlas tiles. Change BOTH rooms
 // together. (L3 MIRROR.)
-const SHADOW_MAP_SIZE: f32 = 4096.0;
+const SHADOW_MAP_SIZE: f32 = 2048.0;
 const SHADOW_BIAS_MIN: f32 = 0.0001;
 const SHADOW_BIAS_MAX: f32 = 0.002;
 
