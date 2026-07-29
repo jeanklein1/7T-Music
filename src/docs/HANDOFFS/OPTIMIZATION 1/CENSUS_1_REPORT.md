@@ -1,16 +1,367 @@
-# CENSUS_1 — SEED ADDENDUM DISPOSITIONS (seeds 7–10)
+# CENSUS_1 — THE CLAIM CENSUS
 
-Verify, classify, dispose **on paper**. Hands off the tree — no code was touched
-by this census. Every claim carries file + line + verbatim quote; inferences are
-marked `[INFERRED]`.
+**The tree's account of itself, audited against the tree.** Reading only; no
+code was touched by this census. Every claim carries file + line + verbatim
+quote; inferences are marked `[INFERRED]`. Method: one reader, one refuter —
+the primary reading below, then one adversarial pass instructed to refute it;
+corrections are shown in place.
 
-**PARENT NOTE.** The addendum (`src/docs/HANDOFFS/OPTIMIZATION 1/
-cc_handoff_census_1_addendum.txt`) says "append to [5]". The parent CENSUS_1
-handoff — and therefore seeds 1–6 and the parent's section numbering — is **not
-in this tree** (searched: `grep -rn "CENSUS_1"` over the repo; only the addendum
-and unrelated older censuses match). This file therefore carries the addendum's
-four seeds standalone, numbered 7–10 as given, for Jean to fold into the parent
-census wherever it lives. Classification scheme used, reconstructed from the
+Scope, as ruled: `src/cartridges/the_board/**`, `src/incubator_dual.cpp`,
+`src/docs/**`, `audit/**`, `src/docs/old docs/**` (classified separately),
+**plus amendment 1 `src/console/**`** and **amendment 2 `src/render/**`**.
+OUT: `src/tools/*.jsx` (the standing exclusion).
+
+Classification: **A** prose only · **B** dead code · **C** true but drifted ·
+**D** sound (counted, not listed). Default disposition is DELETE; KEEP and
+CORRECT carry reasons; for Class B the reason must name a dated intent with an
+owner — "latent" is not a reason.
+
+This census ran AFTER SWEEP_1 (U1–U5), so seed-4's seven homes were already
+adjudicated and swept; findings below state what remains true of the
+post-sweep tree at its head.
+
+---
+
+## [0] FINDINGS — RANKED BY THE WRONG RULING THE CLAIM WOULD PRODUCE
+
+### R1 — THE LAW WITH TWO GHOST EXEMPLARS (Class C, charter stratum — top)
+
+`LAWS.md` L2 (THE FXC LAW) items 1 and 2, verbatim:
+
+```
+1. Instance structs in hot loops stay lean and byte-pinned — `GPUPierInstance`
+   is 48 B with a `static_assert` in `state.hpp` (successor of the retired
+   32-byte `SolidInstance` rule).
+2. The collision/ground chain admits **no new runtime branching**.
+   `evaluate_pier`'s caller bounds its loop by a uniform (`config.pier_count`)
+   and dispatch is by uniform function choice, never by branch.
+```
+
+**Both worked examples are ghosts.** `GPUPierInstance`: zero hits **in code**
+— [REFUTER CORRECTION: not "tree-wide"; archival copies survive at
+`old docs/entity_contract_v0.md:170`, `old docs/terrain_program_charter.md:96`,
+and `audit/tools/glaw2/baseline.json:592`]. `evaluate_pier`: zero hits in
+code. `config.pier_count`: retired in BATCH G — its slot survives only as
+`uint32_t _pad_pier_retired;` (`state.hpp:433`, WGSL twin comment
+`world.wgsl:1554`). The law's *principles* still bind (the collision
+chain and byte-pinned instance structs are real and live); its *evidence* is
+fiction. **The wrong ruling it invites:** a reader who greps either exemplar,
+finds nothing twice, and discounts the FXC law wholesale — on the one law that
+fails only on other people's machines, at pipeline creation. This is the same
+disease the L6 example had (g0:22, re-aimed in CENSUS_2b), one stratum up.
+**DISPOSITION: CORRECT — re-exemplify both items with live anchors** (item 1:
+a live byte-pinned struct with its static_assert, e.g. the GPUSpotLightArray
+pin at `state.hpp:1388-1389` [REFUTER CORRECTION: was ":1387", the struct's
+closing brace] or a hot-loop instance struct; item 2: the live
+uniform-bounded loop pattern — `pyramid_instances.count`, live at
+`world.wgsl:2732` `min(pyramid_instances.count, MAX_PYRAMID_INSTANCES)`).
+Charter text: Jean's stamp, CENSUS_2-style commit.
+
+### R2 — THE "LATENT" EXEMPTION WAS A STRUCTURE, AND IT ALREADY MISLED A CAMPAIGN (Class B + the ruling that shielded it)
+
+Seed 1, extended — see [seeds] below for the full record. The wrong ruling is
+not hypothetical: **LEDGER_1's first draft took the sun ortho from the dead
+`compute_sun_matrices` (350) instead of the live GPU-side
+`coupling_pawn_to_sun_vp` (300).** The archival seam map's L1 ruling blessed
+the function as "latent, not dead," prescribed an intent comment that was
+NEVER added, and installed a default — *"When in doubt … Default to
+'latent'"* — that is an exemption STRUCTURE, not a fact. Under the seam map's
+own taxonomy the function is **Dead** (its feature arrived and settled on the
+GPU; this is "written for a feature that came and went"), not Latent.
+**DISPOSITION: DELETE `compute_sun_matrices` (declaration
+`render_passes.hpp:50-51`, definition `:517-588` [REFUTER CORRECTION: the
+first draft said ":517-553" — line 553 is mid-body; the wrong-350 line sits
+at **:567**, which the wrong range would have LEFT IN THE TREE while breaking
+compilation — the exact class of error this census exists to catch, caught by
+its own refuter]), and retire the default-to-latent rule as precedent** — a
+future sun-expressivity feature starts from the live GPU coupling, not from a
+stale CPU twin. The dead function's body is the only carrier of the wrong 350
+**in live code** [REFUTER CORRECTION: the archival seam map carries it twice,
+`:2630` and `:4595` — consistent with seed 5, which this draft contradicted].
+Note also `:520`: the body pairs the *live* altitude (300) with the *dead*
+extent (350) — half-right, which is how it fooled three readings.
+
+### R3 — A DEAD SECOND PAINTING ARCHITECTURE, AND THE A2 MEMORY LEDGER (Class B pair)
+
+`src/render/painting_system.hpp` (class `PaintingTextureManager`,
+`CANVAS_SIZE = 2048`) and `src/render/painting_types.hpp`
+(`PAINTING_CANVAS_SIZE = 2048`): **zero includers, zero instantiations**
+(they do not even include each other). [REFUTER CORRECTION: the first draft
+added "and no STB_IMAGE_IMPLEMENTATION fulfiller anywhere" — false;
+`src/external/stb_image.cpp` is exactly that fulfiller and is in the build
+(`CMakeLists.txt:506, :740`). The pair is dead **for want of includers
+only**; its stb dependency contract is satisfied.] The 16 MB/layer canvas
+manager never runs; as a claim it asserts a second painting architecture
+that does not exist, in a directory that had sat outside every census scope
+until amendment 2. **DISPOSITION: DELETE the pair** (whole files), pending
+Jean.
+
+**THE A2 LEDGER — the LIVE painting system's resident memory**
+(`state.hpp:2185-2252`, `initOffscreenResources`; all at
+`PAINTING_RESOLUTION = 1024`, swapchain color format, 4 B/texel, mip 1):
+
+| Texture | Layers | Bytes |
+|---|---|---|
+| Snapshot Staging | 16 | 64 MiB |
+| Authored Staging | 16 | 64 MiB |
+| Exhibition | 32 | 128 MiB |
+| Offscreen Snapshot Color | 1 | 4 MiB |
+| Offscreen Snapshot Depth (Depth24Plus) | 1 | 4 MiB |
+| **Total resident** | | **264 MiB** |
+
+For ECONOMY_1's ranking: this is **larger than the patch heightfield array
+(151.5 MB, E7)** and dwarfs the −96 MB the C2 merge just recovered. How many
+of the 64 staging + exhibition layers ever hold a distinct image at once is
+the follow-up audit the campaign should ask for.
+
+### R4 — THE CONTRACT THAT ASSERTS THE RETIRED FORK (Class A, contracts stratum)
+
+Seed 2, re-verified at head: `contracts/ground_architecture.hpp:161-162`
+still reads *"gradients realized there via texture .yz + the analytic wave
+gradient"*. `patch_terrain_vs` has no analytic gradient
+(`world.wgsl`: `out.gradients = height_data.yz + live.yz` — two texture
+channels). The written form of the exact belief LEDGER_1 was built to test,
+in the stratum a future auditor trusts first. **DISPOSITION: CORRECT the
+sentence** (drop "the analytic wave gradient"; the adjacent
+shadow-subset description is accurate and stays).
+
+### R5 — THE COUNT COMMENT THAT DIDN'T GROW WITH ITS ARRAY (Class C, new find)
+
+`state.hpp:5459`: `// Live card writer bind group (5 entries: 0, 1, 160,
+161, 31)` — the block declares `std::array<wgpu::BindGroupEntry, 6>` and
+binds six: signal(0), config(1), zone_config(160), zone_life(161),
+live_card_write(31), **live_card_scratch(32)** — the sixth appended by
+TRUEBAND_CONTACT_1's two-pass writer without the comment moving. Every
+sibling bind-group count comment was verified against its array — **16 of 17
+count-bearing blocks exact; this is the only mismatch** [REFUTER CORRECTION:
+the first draft said "15 blocks"; the refuter's recount found 17, including
+the layout-side twin at `:4329`]. The wrong ruling: any binding-budget audit
+that counts by header comments (the tree's own registry recount culture).
+**DISPOSITION: CORRECT** to "(6 entries: 0, 1, 160, 161, 31, 32)" —
+`bind::g0::live_card_scratch = 32` (`binding_registry.hpp:47`) [REFUTER
+CORRECTION: the first draft guessed 30].
+
+### R6 — THE 512 LABELS STAND UNFIXED (Class C, seed 3 carried forward)
+
+Still live at head: `state.hpp:1754` (comment), `:3715` (comment), `:3719`
+(**the `desc.label` itself**: `"Live Card (512x512, RGBA16Float —
+GROUND_CARD_1)"`) against `LIVE_CARD_SIZE = 640`; plus `world.wgsl`'s
+"the bake's pass-2 clone at res 512" comment. CENSUS_2 executed rulings on
+seeds 7–10 only; **nothing has yet corrected seed 3.** **DISPOSITION:
+CORRECT wholesale** in the next Class-A prose commit — the label string is
+the one a debugger shows.
+
+### R7 — VERDICTS ALREADY DELIVERED BY THE CAMPAIGN (closed here for the record)
+
+- **Seed 4** (the one-indirect claim): adjudicated **false today** by Boot 1
+  (PERMISSIVE, Dawn f0bf8ab5…, D3D12) and swept in U2 — zero live homes
+  remain. Whether it was *ever* true is **unsettleable in-tree**: the Dawn
+  checkout is unpinned (`CMakeLists.txt:13`) and no measurement before the
+  U4 revision line carries its platform.
+- **Seed 7–10**: dispositions executed by CENSUS_2a/2b; the record stands in
+  the section preserved below.
+
+### R8 — SMALLER TRUE-BUT-DRIFTED, LISTED (Class C, low harm)
+
+- `cartridge.hpp:1722` — `static_assert(FrustumCull < ShadowPass, "O-7:
+  frustum cull before the shadow pass")`: the shadow pass consumes no cull
+  output (the shadow VS indexes `patch_instances` directly), so the message
+  implies a data dependency that does not exist; its sibling `:1723`
+  (< MainPass, "indirect draws consume the cull") is exactly true. KEEP the
+  ordering pin, CORRECT the message when next touched — it becomes
+  load-bearing only if a shadow-side indirect path lands (ECONOMY_1 E3b).
+- `renderer.hpp` pipeline comment numbering: `1c` appears twice
+  (`:1305`, `:1316`) and CENSUS_2b's deletion left a hole at 10 — the
+  sequence reads 1b, 1c, 1c, 1d, 1e, 2, 11a… **The numbering was already
+  broken before the hole.** DISPOSITION: de-number ("Pipeline:
+  update_camera") rather than renumber, next touch.
+- `state.hpp:1754`/`:3715` are counted under R6, not double-counted here.
+
+### R9–R13 — FOUND BY THE REFUTER, NOT THE READER
+
+The census method exists because one reading converges on its own blind
+spots; these five entered the report only through the adversarial pass, and
+three of them overturn "clean" verdicts the primary reading had issued.
+
+**R9 (Class C, bodies — overturns "clean on detectors" for `bodies/*`).**
+`gol_zones.hpp:611` — `// Upload all 7 slots` — is false: there are **5**.
+`upload_zone_life` (`state.hpp:2926-2944`) writes slots 0–4; the stride is
+`GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 5; // 5 slots` (`state.hpp:296`);
+`world.wgsl:8298` says "(5 slots × 1024 cells)". "7" matches nothing at
+HEAD. An in-class miss — an "N slots" comment inside a swept directory —
+so the detector edge is weaker than declared. DISPOSITION: CORRECT.
+
+**R10 (Class A ×3, `incubator_dual.cpp` — overturns its "clean" full read).**
+(a) `:187` prints `"Controls: Arrows=move, Mouse=camera, A-Z=piano keys"` —
+arrow keys are bound **nowhere** (movement is W/S/A/D, `input.hpp:222-225`),
+and "A-Z=piano keys" is contradicted by the same file: `is_music_key` returns
+false unconditionally (`:132-135`) and `:126-128` says every key falls to the
+world. A runtime banner asserting behavior the code directly contradicts —
+the census's exact detection target, in the smallest file in scope.
+(b) `:6-9` names CMake variables `ACTIVE_RENDER_CARTRIDGE` /
+`ACTIVE_ANALYSIS_CARTRIDGE` that do not exist — the real ones are
+`INCUBATOR_DUAL_RENDER_CARTRIDGE` / `INCUBATOR_DUAL_ANALYSIS_CARTRIDGE` /
+`INCUBATOR_ANALYSIS_CARTRIDGE` (`CMakeLists.txt:253ff, :523-524`).
+DISPOSITION: CORRECT both.
+
+**R11 (Class C, contracts — overturns `point.hpp`'s "clean").**
+`contracts/point.hpp:104`: "world units; MUST match world.wgsl
+POINT_BUBBLE_RADIUS" — **no such WGSL constant exists**; the live mechanism
+is the `config.point_bubble_radius` field (`world.wgsl:1638`) boot-pinned
+from the contract (`state.hpp:553, :5740`) — nothing in WGSL to "match". A
+ghost mirror-twin: R1's disease one stratum down. Weaker sibling:
+`POINT_HOST_TERRAIN_RULE` (`:82-90`) has zero consumers outside the file.
+DISPOSITION: CORRECT the comment to name the config field.
+
+**R12 (Class C, `state.hpp:509` — R5's disease, in R5's own file, missed by
+the same sweep).** `// 0 = pawn (the kite), 1 = camera (free-fly)` — the
+enumeration omits **2 = ribbon**, live at `world.wgsl:2552`
+(`config.point_host == 2u`), `point.hpp:61` (`RIBBON = 2`), `input.hpp:267`.
+DISPOSITION: CORRECT.
+
+**R13 (Class C, charter stratum — missed by the same full read that produced
+R1).** LAWS.md **L1 (`:28`) and L7 (`:148`) cite ghost paths**:
+`audit/WEB_PORT_LEDGER.md` and `audit/cc4_wgsl_static_usage.py` both moved
+to `audit/past reports/…` in commit b96074f. A reader following L7's pointer
+to "the closure tool" gets a dead path. Also for the record: L6's
+"render = compute + 200" band carries one self-documented exception —
+`g0::render_vp == g0::vp_data + 199` (`binding_registry.hpp:176`) — a
+wrinkle the primary reading's "L6 verified live" flattened.
+DISPOSITION: CORRECT the two paths (and any sibling doc-path drift from the
+b96074f move) in the next Class-A commit.
+
+---
+
+## [REFUTATION] THE SECOND PASS, FOR THE RECORD
+
+One adversarial pass, instructed to refute, ran against the primary reading
+at head `7cd47d3`. Verdicts: **R4, R6, R7, R8, seeds 5–6 and the A2
+arithmetic survived exactly as written. R1, R2, R3, R5 survived in substance
+but each carried at least one falsifiable defect** — every one is now marked
+`[REFUTER CORRECTION]` in place above. The one that mattered: R2's deletion
+range would have left the wrong-350 line in the tree while breaking the
+build. Three corpus verdicts (incubator_dual.cpp, point.hpp,
+bodies-on-detectors) and the LAWS.md row were overturned and now read
+accordingly; R9–R13 are the refuter's findings. The method held: the shape
+that caught `compute_sun_matrices` in LEDGER_1 caught this census's own
+errors here.
+
+---
+
+## [CORPUS] FILE BY FILE
+
+Counting boundary, stated: a CLAIM here is a comment line, label string,
+banner, or doc sentence asserting present behavior, a dimension/count, or a
+constraint — detected by (a) full read for files ≤ ~350 lines, (b) for the
+four realization giants, detector sweeps (all `desc.label` strings; all
+"N entries"/dimension/count comments; all "every frame / once / never /
+only" behavioral assertions; all banner blocks) plus full verification of
+every campaign-adjacent band this optimization arc touched. Detector-swept
+is NOT a line-by-line read; the edge is declared per file. "clean" =
+every detected claim verified true today.
+
+| File | Lines | Method | Verdict |
+|---|---|---|---|
+| contracts/demo_config.hpp | 35 | full read | clean |
+| contracts/entity_types.hpp | 375 | detector + targeted | clean on detectors |
+| contracts/floaters.hpp | 140 | full read | clean |
+| contracts/ground_architecture.hpp | 218 | full read | **R4** |
+| contracts/indoor_module.hpp | 109 | full read | clean |
+| contracts/mood_constants.hpp | 34 | full read | clean |
+| contracts/point.hpp | 131 | full read | **R11** (ghost mirror-twin — found by the refuter) |
+| contracts/roster.hpp | 197 | detector + targeted | clean on detectors |
+| contracts/spawn_services.hpp | 303 | detector + targeted | clean on detectors |
+| contracts/spine_state.hpp | 240 | detector + targeted | clean on detectors |
+| contracts/surface_services.hpp | 235 | full read (census history) | clean |
+| contracts/wgpu_fwd.hpp | 16 | full read | clean |
+| realization/state.hpp | ~5,800 | detectors + campaign bands | **R5, R6, R12**; 16/17 bind-group counts exact; 4 dimension labels: 3 true, 1 = R6 |
+| realization/world.wgsl | ~12,300 | detectors + campaign bands | **R6** (res-512 comment); banner verified post-U2 |
+| realization/renderer.hpp | ~2,300 | detectors + campaign bands | **R8** (numbering) |
+| realization/render_passes.hpp | ~620 | full read (campaign) | clean post-U2; R2's dead function lives here |
+| realization/binding_registry.hpp | ~200 | full read (campaign) | clean post-CENSUS_2b (95/92 verified live) |
+| realization/drawable_table.hpp | 125 | detector | clean on detectors |
+| machine/entity_pipeline.hpp | 1,106 | detector | clean on detectors |
+| machine/spawn_engine.hpp | ~1,050 | detector | clean on detectors |
+| surface/patch_system.hpp | ~840 | detector + campaign bands | clean |
+| surface/population_themes.hpp | ~470 | detector | clean on detectors |
+| surface/terrain_looks.hpp | 152 | full read (campaign) | clean (REST pin verified) |
+| surface/tile_world.hpp | ~580 | detector | clean on detectors |
+| direction/input.hpp, mood.hpp | ~1,700 | detector + campaign bands | clean on detectors |
+| bodies/* (10 files) | ~9,000 | detector | **R9** (gol_zones 7-vs-5 — an in-class detector miss, found by the refuter); gallery.hpp snapshot-draw band fully read (campaign) |
+| cartridge.hpp | 2,066 | detector + campaign bands | **R8** (O-7 message); boot-timing chain verified post-CENSUS_2b |
+| incubator_dual.cpp | 251 | full read | **R10** — the primary read passed it; the refuter overturned it three times over |
+| console/console.hpp (amendment 1) | ~560 | full read (campaign) | clean at head — every claim in it was placed or verified by PROBE_1/SWEEP_1 |
+| render/painting_system.hpp (amendment 2) | ~300 | full read | **R3** (whole file is Class B) |
+| render/painting_types.hpp (amendment 2) | ~230 | full read | **R3** (Class B pair) |
+| render/render_cartridge.hpp (amendment 2) | ~200 | full read | interface-only; clean |
+| docs/LAWS.md | ~250 | full read | **R1, R13**; L3/L4/L6 anchors verified live (L6 carries one self-documented +199 wrinkle) |
+| docs/7t_program_theory_v3.md | ~250 | full read | lens-stratum by its own declaration; no behavioral claims found presented as code-fact |
+| docs/HANDOFFS/** | — | classification only | campaign documents, dated by construction; not claims |
+| docs/old docs/** | — | targeted (seeds 1, 5, 6) | archival AND filed as such; **reachable** — see seeds |
+| audit/LEDGER_1_REPORT.md | 1,075 | authorship + targeted | dated audit; quotes-as-evidence, not restatements |
+| audit/past reports/** | — | classification only | archival, filed as such |
+
+**The declared edge:** the four realization giants and the ten bodies files
+were not line-by-line read; their verdicts are detector-scoped. A future
+CENSUS_1b owns the residue if Jean wants the exhaustive walk.
+
+---
+
+## [SEEDS 1–6] VERIFIED AND EXTENDED
+
+**SEED 1 — `compute_sun_matrices`.** CONFIRMED Class B, elevated to R2.
+Callers at head: declaration `render_passes.hpp:50` and definition `:517`
+only. The seam map's OWN record shows the exemption at work three times:
+`:2692` ("currently unreferenced — but latent, not dead"), `:2774` (D1:
+deletion struck through, "reframed as latent," action reduced to an intent
+comment), and the Ch.10 note (":52-:90") that installs *"When in doubt …
+Default to 'latent'"*. The prescribed intent comment **does not exist** in
+render_passes.hpp. The verdict the census owes: **the exemption was a
+STRUCTURE** — a default that converts "unverified" into "keep" without a
+dated owner — and its cost is not hypothetical: it produced LEDGER_1's wrong
+sun-extent, caught only by the adversarial pass.
+
+**SEED 2 — the analytic-wave-gradient sentence.** CONFIRMED Class A at head;
+ranked R4.
+
+**SEED 3 — the 512 sites.** CONFIRMED still live (3 code sites + 1 wgsl
+comment); ranked R6. The archival `ground_card_campaign_v2.md:38` copy is
+counted under seed 6.
+
+**SEED 4 — the one-indirect claim.** Adjudicated and swept; closed as R7.
+The census's assigned question — "settle whether any Dawn version this tree
+ever ran had the limitation" — is formally **unsettleable in-tree**: no Dawn
+pin existed before U4's revision line. The claim's provenance is comments
+only.
+
+**SEED 5 — the seam map vs today's render_passes.hpp.** Three claims tested,
+three drifted (all archival-filed): the "single 4096×4096 pass" is 2048² at
+head (C2, U1); the "2048×4096 left/right tiles" are 1024×2048; the
+"10 distinct shadow draws" list predates the drawable table —
+`draw_shadow_all` today is the terrain fork + `draw_table(DRAW_SHADOW)`
+(+ its own two-draw terrain split). **No live text restates any of the
+three.** Archival stays archival; the file is reachable by grep, which is
+precisely how it corroborated LEDGER_1's wrong 350 — the R2 disposition
+(delete the dead function) removes the live half of that trap.
+
+**SEED 6 — `ground_card_campaign_v2.md:38`.** CONFIRMED: "512² RGBA16F over
+800 wu" vs the live 640² over 1000 wu — two stale numbers in one archival
+line, filed under `old docs/`. Archival stays; noted here so the grep trail
+ends at this report.
+
+---
+
+# PART II — SEED ADDENDUM DISPOSITIONS (seeds 7–10)
+
+*(The section below is the addendum report as originally delivered —
+preserved verbatim; its parent-absence note is superseded by the parent
+handoff having since landed in-tree, and its dispositions have since been
+EXECUTED by CENSUS_2a/2b.)*
+
+**PARENT NOTE (historical).** The addendum (`src/docs/HANDOFFS/OPTIMIZATION 1/
+cc_handoff_census_1_addendum.txt`) says "append to [5]". At the time of the
+addendum run the parent CENSUS_1 handoff was not yet in this tree; it has
+since landed beside it. Classification scheme used, reconstructed from the
 addendum's own usage: **CLASS A** = prose asserting something the code does not
 do; **CLASS B** = dead code (buffer/kernel/pipeline with no live consumer);
 **CLASS C** = one fact with two+ homes kept true only by manual lockstep.
