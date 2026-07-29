@@ -1,0 +1,161 @@
+════════════════════════════════════════════════════════════════════
+7T — SWEEP_1 — THE OWED COMMITS
+Six commits to master + the parent census run. Everything Jean has
+ruled since the four boots. No design work. No opportunistic edits.
+════════════════════════════════════════════════════════════════════
+
+GIT LAW: trunk-based, master (or the harness's `claude/*` session
+branch — say which; Jean retargets). Commits in the numbered order;
+do not squash. Held branches probe1-c3 and probe1-c4 are NOT merged —
+C3's verdict is recorded below; C4 stays alive as the fast-boot
+aesthetics option. Jean prunes what he prunes.
+
+REGISTER: verify every anchor VERBATIM before editing (line numbers
+are from the census/probe corpus and trusted, not assumed). Report
+anchor + count with boundary BEFORE each edit. STOP on mismatch except
+where named expected. REPORT; never improvise. A tripped gate yields a
+PROPOSED repair in the report, unapplied, unless pre-authorized here.
+
+FXC NOTE: U1 touches WGSL constants only (no new entry points, no
+collision-chain motion). Jean's next boot is glaw1 for all of this.
+
+────────────────────────────────────────────────────────────────────
+U1 — MERGE C2, THEN THE BIAS-AS-RATIO COMPANION (two commits)
+────────────────────────────────────────────────────────────────────
+COMMIT 1: merge `claude/probe1-c2` (head 7ce082c) into master.
+Adjudication for the record (commit message): shadow pass measured
+GEOMETRY-BOUND (~72/28 at 4× texel cut); C2 lands on the sub-
+resolvable argument (0.293 wu/texel vs 0.78 wu mesh), −96 MB VRAM,
+and Jean's gate (softness passed).
+
+COMMIT 2 — the acne's root. In world.wgsl, shadow-constants block,
+directly below the SHADOW_MAP_SIZE twin. Verify verbatim:
+
+FIND (expected once each, adjacent):
+const SHADOW_BIAS_MIN: f32 = 0.0001;
+const SHADOW_BIAS_MAX: f32 = 0.002;
+
+REPLACE:
+// Bias is a function of texel size. Tuned at the 4096-era values
+// (0.0001 / 0.002), expressed per-texel so any resolution ruling
+// carries its bias for free. (ECONOMY_1 E6.)
+const SHADOW_BIAS_MIN: f32 = 0.4096 / SHADOW_MAP_SIZE;
+const SHADOW_BIAS_MAX: f32 = 8.192 / SHADOW_MAP_SIZE;
+
+Then locate SPOT_DEPTH_BIAS and SPOT_SLOPE_BIAS_MAX (census sites,
+same region). Report their current values and apply the SAME rewrite:
+constant × 4096 as the numerator over SHADOW_MAP_SIZE, preserving
+4096-era behavior exactly and doubling at 2048. Quote before/after.
+Jean's gate for this commit is the acne itself: it should read clean
+at the next boot; peter-panning watch rides the same look.
+
+────────────────────────────────────────────────────────────────────
+U2 — THE ADJUDICATION SWEEP (one commit)
+────────────────────────────────────────────────────────────────────
+Verdict for the record: Boot 1 (branch e3a4c27, 920M, D3D12, Dawn rev
+f0bf8ab5…), a second plain DrawIndexedIndirect in the main pass —
+PERMISSIVE. Zero validation errors, world rendered. L2.4 is dead.
+
+The seven homes, dispositions:
+  1. LAWS.md:43 — L2 item 4 ("One `DrawIndexedIndirect` per render
+     pass, maximum."): STRIKE the item; renumber the remaining L2
+     items. The commit message carries the adjudication record. This
+     is charter text — show the LAWS.md diff at the top of the report
+     for Jean's stamp.
+  2. render_passes.hpp:395 — "// Terrain LOD1 — always direct (Dawn
+     D3D12 limit: only one indirect per pass)" -> "// Terrain LOD1 —
+     direct draw, not frustum-culled."
+  3. state.hpp:1838 and 4. state.hpp:3106 — the two "GPU frustum
+     culling — LOD0 only (Dawn D3D12 limit…)" comments -> "// GPU
+     frustum culling — LOD0 only." (drop the false reason).
+  5. render_passes.hpp:342 — the shadow "budget line free (L2.4)"
+     comment: DELETE the line (the bookkeeping died with the law).
+  6. render_passes.hpp:~414 — the CENSUS_2a wording ("Indirect budget
+     (L2.4): consumed outdoors…"): DELETE the line, same reason.
+  7. world.wgsl:17 — the banner clause "READ L2 BEFORE adding … a
+     second indirect draw in one pass": remove the second-indirect
+     clause surgically; quote the full banner line before and after.
+
+Then a straggler sweep: grep `L2.4` and `one indirect` (state the
+boundary, include backtick-broken forms) over src/** minus src/tools
+and over src/docs/**; report every remaining hit with disposition
+(archival docs stay archival; live text must not restate the dead
+law). Expected residue after this commit: zero live homes.
+
+────────────────────────────────────────────────────────────────────
+U3 — THE C1b LABEL (one commit)
+────────────────────────────────────────────────────────────────────
+console.hpp. FIND (expected once):
+            // C1b (HELD) — choose the machine: DiscreteGPU outranks
+            // integrated; D3D12 breaks ties. Falls back to index 0.
+REPLACE:
+            // Adapter selection (landed, PROBE_1): DiscreteGPU
+            // outranks integrated; D3D12 breaks ties. Falls back to
+            // index 0.
+
+────────────────────────────────────────────────────────────────────
+U4 — THE DAWN REVISION LINE (one commit)
+────────────────────────────────────────────────────────────────────
+The header is verified on Jean's machine: `dawn::kDawnVersion`,
+`std::array<uint8_t, 20>`, in `dawn/common/Version_autogen.h`, on the
+include path via ${DAWN_BUILD}/gen/include (CMakeLists.txt:26).
+
+Add `#include "dawn/common/Version_autogen.h"` beside the existing
+Dawn includes in console.hpp (verify `<string>` is present; add if
+not). Insert at the TOP of the C1 log block, before the enumeration
+loop:
+
+            // The platform line: Dawn's own 20-byte SHA1
+            // (all-zero when the build is unhashed).
+            {
+                static constexpr char hexd[] = "0123456789abcdef";
+                std::string dawnRev; dawnRev.reserve(40);
+                for (uint8_t b : dawn::kDawnVersion) {
+                    dawnRev += hexd[b >> 4]; dawnRev += hexd[b & 0x0F];
+                }
+                std::cout << "[Console] Dawn revision: " << dawnRev << "\n";
+            }
+
+Expected first output on Jean's machine:
+f0bf8ab547a9a23b8b78ff67d8085d4a26600a7d — he eyeball-verifies.
+
+────────────────────────────────────────────────────────────────────
+U5 — COMMIT THE CHARTER (one commit)
+────────────────────────────────────────────────────────────────────
+Jean places `ECONOMY_1_CHARTER.md` in
+`src/docs/HANDOFFS/OPTIMIZATION 1/`. Commit it verbatim:
+"ECONOMY_1: the charter — same picture, fewer instructions".
+
+────────────────────────────────────────────────────────────────────
+U6 — RUN 4 RELEASED: THE PARENT CENSUS (read-only + report commits)
+────────────────────────────────────────────────────────────────────
+`cc_handoff_census_1.txt` now sits in
+`src/docs/HANDOFFS/OPTIMIZATION 1/` (Jean committed it). EXECUTE it
+per its own instructions — seeds 1–6 plus the full [1]–[4] corpus
+walk, one reader one refuter — with TWO scope amendments, both ruled:
+
+  [2] AMENDMENT 1: `src/console/**` is IN.
+  [2] AMENDMENT 2: `src/render/**` is IN — shared infrastructure the
+      cartridge compiles against; the second painting manager
+      (painting_system.hpp, CANVAS 2048) and its liveness are
+      explicitly in scope, and its verdict feeds ECONOMY_1 audit A2:
+      report the full resident-memory ledger of the painting arrays
+      (three arrays + offscreen pair, layer counts × resolution ×
+      format, plus the 2048-canvas manager if instantiated anywhere).
+
+Extend `src/docs/HANDOFFS/OPTIMIZATION 1/CENSUS_1_REPORT.md` at its
+established home: [corpus, file-by-file] + [seeds 1–6] + [the
+existing seeds 7–10 section], preserving existing text. Report
+commit(s) as the parent handoff specifies.
+
+────────────────────────────────────────────────────────────────────
+REPORT BACK
+────────────────────────────────────────────────────────────────────
+- LAWS.md diff at the top (U2 stamp), then every anchor's in-tree
+  form + count, the U2 straggler table, the U1 spot-bias before/after.
+- Master head hash after U1–U5, so ECONOMY_1a branches cut from it
+  are unambiguous.
+- The parent-census report per its own format, A2's memory ledger
+  called out.
+The one thing this handoff must not do: touch anything these rulings
+did not name.
