@@ -107,6 +107,16 @@ post-E2 numbers.
 amortizes to entering-texel rate and unifies field homes. It remains
 the horizon design, gated behind this campaign's re-baseline.
 
+**E10 — PAINTING RESIDENCY (audit-gated; ranked above E7).** The live
+painting system holds 264 MiB resident — Snapshot Staging 16 +
+Authored Staging 16 + Exhibition 32 layers at 1024², 4 B/texel, plus
+the offscreen pair — the largest single memory holder in the program
+(census A2 ledger). The audit: how many layers per array ever hold a
+distinct image at once across a session; then the levers (staging
+lifecycle, exhibition sizing, format/mip choices). Every lever here
+is **Class III ABSOLUTE**: the paintings are the artwork; no byte is
+saved at their expense without Jean's eyes.
+
 ---
 
 ## THE AUDITS
@@ -123,7 +133,9 @@ parent census via its scope amendment). `src/render/painting_system.hpp`
 declares a second painting manager at a 2048 canvas (16 MB/layer);
 its liveness is unknown, and `src/render/**` has sat outside every
 census scope. The parent census now covers it; the resident-memory
-ledger of the three-array system + offscreen pair is reported there.
+ledger of the three-array system + offscreen pair is reported there. The
+resident ledger is delivered (264 MiB); the layers-in-use question is
+E10's opening audit.
 
 ---
 
