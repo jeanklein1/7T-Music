@@ -65,19 +65,6 @@ enum class PointHost : uint32_t {
                   // above made real)
 };
 
-// ═══ THE TERRAIN RULE ══════════════════════════════════════════════
-// The constraint lives on the HOST'S CAST, not on the camera and not
-// on the body. All three values have existing realizations: SNAP is
-// the walker ground resolve (the body's own chain); SOFT_FLOOR is the
-// flyer min-clearance clamp (update_camera carries it today); NONE
-// skips both (clips freely).
-
-enum class PointTerrainRule : uint32_t {
-    NONE       = 0,
-    SOFT_FLOOR = 1,
-    SNAP       = 2,
-};
-
 // ═══ THE BUBBLE (first field + first sensor live) ══════════
 // The bounded awareness region around the point (v3 §11): proximity,
 // the portal trigger, the coming event source. Its FIRST FIELD is the
