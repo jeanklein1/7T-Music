@@ -175,8 +175,6 @@ dawn_lib(LIB_TINT_LANG_HLSL_WRITER_COMMON "src/tint/$<CONFIG>/tint_lang_hlsl_wri
 dawn_lib(LIB_TINT_LANG_HLSL_WRITER_PRINTER "src/tint/$<CONFIG>/tint_lang_hlsl_writer_printer.lib")
 dawn_lib(LIB_TINT_LANG_HLSL_WRITER_RAISE "src/tint/$<CONFIG>/tint_lang_hlsl_writer_raise.lib")
 
-# Optional HLSL validation
-
 # Tint SPIRV (Vulkan backend)
 dawn_lib(LIB_TINT_LANG_SPIRV            "src/tint/$<CONFIG>/tint_lang_spirv.lib")
 dawn_lib(LIB_TINT_LANG_SPIRV_IR         "src/tint/$<CONFIG>/tint_lang_spirv_ir.lib")
@@ -252,8 +250,6 @@ dawn_lib(LIB_ABSEIL_CITY            "third_party/abseil/absl/hash/$<CONFIG>/absl
 # Container support
 dawn_lib_optional(LIB_ABSEIL_RAW_HASH_SET   "third_party/abseil/absl/container/$<CONFIG>/absl_raw_hash_set.lib")
 dawn_lib_optional(LIB_ABSEIL_HASHTABLEZ     "third_party/abseil/absl/container/$<CONFIG>/absl_hashtablez_sampler.lib")
-
-# Status (often needed)
 
 # Profiling
 dawn_lib_optional(LIB_ABSEIL_EXPONENTIAL "third_party/abseil/absl/profiling/$<CONFIG>/absl_exponential_biased.lib")
