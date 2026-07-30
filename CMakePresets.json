@@ -22,6 +22,14 @@
       }
     },
     {
+      "name": "the-board-full-release",
+      "displayName": "the_board — full (Release)",
+      "inherits": "the-board-full",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "the-board-minimal",
       "displayName": "the_board — minimal",
       "inherits": "base",
@@ -32,7 +40,20 @@
     }
   ],
   "buildPresets": [
-    { "name": "the-board-full",    "configurePreset": "the-board-full",    "targets": ["incubator_dual"] },
-    { "name": "the-board-minimal", "configurePreset": "the-board-minimal", "targets": ["incubator_dual"] }
+    {
+      "name": "the-board-full",
+      "configurePreset": "the-board-full",
+      "targets": [ "incubator_dual" ]
+    },
+    {
+      "name": "the-board-full-release",
+      "configurePreset": "the-board-full-release",
+      "targets": [ "incubator_dual" ]
+    },
+    {
+      "name": "the-board-minimal",
+      "configurePreset": "the-board-minimal",
+      "targets": [ "incubator_dual" ]
+    }
   ]
 }
