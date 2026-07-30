@@ -200,12 +200,22 @@ namespace t7 {
 
             // Lighting
             // TWIN: world.wgsl `const SHADOW_MAP_SIZE: f32` (— Shadow
-            // constants). The WGSL twin feeds BOTH PCF texel_size reads.
-            // Change it in BOTH rooms or the PCF world-footprint silently
-            // rescales while the texture resizes. (L3 MIRROR — the
-            // TILE_GRID_CAPACITY pattern; no compile-time bridge spans the
-            // runtime-loaded seam.)
-            constexpr uint32_t SHADOW_MAP_SIZE = 2048;
+            // constants). The WGSL twin feeds both PCF texel_size reads AND
+            // SHADOW_TEXEL_WORLD, which is the unit of the sun frustum's
+            // snap and of the receiver normal offset. Change it in BOTH
+            // rooms or the sample grid, the snap lattice and the normal
+            // offset all silently rescale while the texture resizes.
+            // (L3 MIRROR — the TILE_GRID_CAPACITY pattern; no compile-time
+            // bridge spans the runtime-loaded seam.)
+            //
+            // ONE FACT, ONE HOME, deliberately: this sizes the spot atlas
+            // as well as the sun map, because the sun map IS the spot
+            // atlas's first texture during indoor moods (it is idle then).
+            // Splitting the constant would give the two halves of one
+            // atlas different tile widths. At 4096 the pair costs 134.2 MB
+            // of VRAM, up from 33.6 MB — the spot half of that spend buys
+            // 2048x4096 indoor tiles, which is not waste, but it is real.
+            constexpr uint32_t SHADOW_MAP_SIZE = 4096;
             constexpr uint32_t MAX_POINT_LIGHTS = 8;
 
             // Indoor shell (ceiling + walls for finite indoor scenes)

@@ -3241,7 +3241,14 @@ fn coupling_pawn_to_camera_target(pawn_pos: vec3<f32>, cam: CameraState) -> vec3
 
 // --- [COUPLING:pawn→sun:view_proj]
 const SUN_ALTITUDE: f32 = 250.0;
-const SUN_HALF_EXTENT: f32 = 300.0;
+// UMBRA_5 bought 4x the texels and split the yield evenly: 1.4x coverage
+// here (the composing boundary moves out) and 1.4x crispness at the map
+// (SHADOW_TEXEL_WORLD falls to 0.7x its old value). The map centers on
+// THE POINT and the camera orbits it, so the uniform sharpness lands
+// exactly where the player is looking. Crispness is bought from this
+// number, never from tap count — the tuning ladder claws it back at -10%
+// per step if the penumbra reads mushy near the camera.
+const SUN_HALF_EXTENT: f32 = 420.0;
 const SUN_NEAR: f32 = 0.1;
 const SUN_FAR: f32 = 600.0;
 
@@ -3592,7 +3599,7 @@ struct SpotLightArray {
 // TWIN: state.hpp Dim::SHADOW_MAP_SIZE (// Lighting) — sizes the
 // two depth textures and the atlas tiles. Change BOTH rooms
 // together. (L3 MIRROR.)
-const SHADOW_MAP_SIZE: f32 = 2048.0;
+const SHADOW_MAP_SIZE: f32 = 4096.0;
 // Bias is a function of texel size. Tuned at the 4096-era values
 // (0.0001 / 0.002), expressed per-texel so any resolution ruling
 // carries its bias for free. (ECONOMY_1 E6.)
