@@ -593,6 +593,21 @@ namespace t7 {
                         << " | pipelines skipped: " << Renderer::pipelines_skipped() << "\n";
                 }
 
+                // P6 COROLLARY — a transition witness prints its state ONCE
+                // at boot, so that silence afterwards means "no transition",
+                // not "no witness". The Release boot carried no [Ground]
+                // line at all and the two causes were indistinguishable;
+                // this is that defect's cure. Same form as the transition,
+                // marked (boot). Placed as the cartridge's LAST init line —
+                // after the timings and the ROSTER block, before the meter
+                // restamp — so it reports the state the first frame will
+                // actually see.
+                {
+                    zoneRectsInCorePrev_ = zone_rects_in_core();
+                    std::cout << "[Ground] zone rects in core: "
+                              << zoneRectsInCorePrev_ << " (boot)\n";
+                }
+
                 // THE FRAME METER: boot ends here — restamp the window so
                 // the first census fps excludes init wall-time.
                 meter_.reset();
@@ -1543,6 +1558,30 @@ namespace t7 {
 
             uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
 
+            // THE COUNT, one home — the draw plan's classifier input and the
+            // P6 witness read the SAME function, so the log can never
+            // disagree with the plan. Each active zone's world AABB
+            // (persisted at commit_gol) inflated by one patch, tested
+            // against the disc of the LIVE lod0_radius around the point —
+            // the same radius patch_system.hpp bands patches by.
+            uint32_t zone_rects_in_core() const {
+                const float px = point_.x, pz = point_.z;
+                const float r  = gpuState_.lod0_radius();
+                uint32_t n = 0;
+                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
+                    const auto& z = gol_state_.zones[i];
+                    if (!z.active) continue;
+                    const float minx = z.corner_x - Dim::PATCH_EXTENT;
+                    const float minz = z.corner_z - Dim::PATCH_EXTENT;
+                    const float maxx = z.corner_x + z.extent_x + Dim::PATCH_EXTENT;
+                    const float maxz = z.corner_z + z.extent_z + Dim::PATCH_EXTENT;
+                    const float dx = std::max(0.0f, std::max(minx - px, px - maxx));
+                    const float dz = std::max(0.0f, std::max(minz - pz, pz - maxz));
+                    if (dx * dx + dz * dz <= r * r) n++;
+                }
+                return n;
+            }
+
             // R17 — FRUSTUM CULL (algo; O-7 tail). Cull before the draw passes —
             // the indirect draws consume the cull output (recon E-5).
             void phase_frustum_cull(RenderCtx& c) {
@@ -1566,25 +1605,13 @@ namespace t7 {
                 // patch_system.hpp uses to sort patches into the LOD0 band,
                 // so the flag and the band can never disagree.
                 {
-                    const float px = point_.x, pz = point_.z;
-                    const float r  = gpuState_.lod0_radius();
-                    uint32_t in_core = 0;
-                    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                        const auto& z = gol_state_.zones[i];
-                        if (!z.active) continue;
-                        const float minx = z.corner_x - Dim::PATCH_EXTENT;
-                        const float minz = z.corner_z - Dim::PATCH_EXTENT;
-                        const float maxx = z.corner_x + z.extent_x + Dim::PATCH_EXTENT;
-                        const float maxz = z.corner_z + z.extent_z + Dim::PATCH_EXTENT;
-                        // nearest point of the inflated AABB to the point
-                        const float dx = std::max(0.0f, std::max(minx - px, px - maxx));
-                        const float dz = std::max(0.0f, std::max(minz - pz, pz - maxz));
-                        if (dx * dx + dz * dz <= r * r) in_core++;
-                    }
+                    const uint32_t in_core = zone_rects_in_core();
                     // PROCESS P6 — every switch has a witness. The draw
                     // plan made the selection per-patch, so the witness
                     // reports the INPUT that drives it: the rect count in
-                    // the core, on change of N only, never per frame.
+                    // the core, on change of N only, never per frame. The
+                    // boot state is printed once at init (P6 corollary), so
+                    // silence here means "no transition", not "no witness".
                     if (in_core != zoneRectsInCorePrev_) {
                         std::cout << "[Ground] zone rects in core: " << in_core << "\n";
                         zoneRectsInCorePrev_ = in_core;

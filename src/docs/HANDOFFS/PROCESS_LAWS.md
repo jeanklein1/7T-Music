@@ -98,6 +98,12 @@ so "any zone anywhere" never released the curtains. Nothing in the log said so;
 the boot looked like a pass. A silent switch is indistinguishable from a switch
 that never fires, and the difference is the entire arm.
 
+**Corollary (paid for by the Release boot):** a transition witness must also
+print its state ONCE at boot, so that silence afterwards means "no transition",
+not "no witness". The draw plan's Release log carried no `[Ground]` line at
+all, and the two causes — no zone reached the core, or the witness never
+shipped — were indistinguishable from the log.
+
 ---
 
 ## SCHEDULING RECORD
