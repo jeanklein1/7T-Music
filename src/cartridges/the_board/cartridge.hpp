@@ -1592,12 +1592,14 @@ namespace t7 {
                 // main and snapshot passes; the shadow pass draws LOD1 since
                 // E2 and has no curtains to switch).
                 //
-                // SCOPE, exact by construction: curtains exist ONLY in the
-                // LOD0 index buffer — LOD1 never had them — so a zone in the
-                // LOD1 ring lifts cells that own no curtain, and cap-only
-                // stays correct there. The rev1 flag asked "any zone
-                // anywhere" and was therefore inert: zones are alive globally
-                // almost always, so it never released.
+                // SCOPE: curtains exist ONLY in the LOD0 index buffer. The
+                // cap-only choice is correct on a clean LOD0 patch because no
+                // cell there lifts — not because a lift without a curtain is
+                // harmless. In the LOD1 ring cells lift and own no curtain;
+                // what seals those seams is the rim curtain (WALL_1 — skirt
+                // ring copies stand on unlifted ground). The rev1 flag asked
+                // "any zone anywhere" and was therefore inert: zones are alive
+                // globally almost always, so it never released.
                 //
                 // Conservative by one patch: each zone's world AABB is
                 // inflated by PATCH_EXTENT before the disc test, and the
