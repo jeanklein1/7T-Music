@@ -6,6 +6,29 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# ── CONFIG AXIS ──────────────────────────────────────────────────────────────
+# 7t links Dawn's prebuilt static libraries, which exist in exactly two
+# configurations: Debug and Release. The config set here mirrors that fact.
+# Multi-config generators (Visual Studio) choose per build via --config;
+# single-config generators (Ninja trees) choose per tree via CMAKE_BUILD_TYPE.
+# DAWN_CHECK_CONFIGS is the list the library guards verify at configure time.
+get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(IS_MULTI_CONFIG)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING
+        "Configs provided by the Dawn build" FORCE)
+    set(DAWN_CHECK_CONFIGS Debug Release)
+else()
+    if(NOT CMAKE_BUILD_TYPE)
+        set(CMAKE_BUILD_TYPE "Debug" CACHE STRING
+            "Build type: Debug or Release (the configs Dawn provides)" FORCE)
+    endif()
+    if(NOT CMAKE_BUILD_TYPE MATCHES "^(Debug|Release)$")
+        message(FATAL_ERROR
+            "CMAKE_BUILD_TYPE '${CMAKE_BUILD_TYPE}' — Dawn provides only Debug and Release")
+    endif()
+    set(DAWN_CHECK_CONFIGS ${CMAKE_BUILD_TYPE})
+endif()
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DAWN CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -32,21 +55,37 @@ set(DAWN_INCLUDES
 # LIBRARY DISCOVERY FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Function to find a required Dawn library
+# Verifies the library exists for every config in DAWN_CHECK_CONFIGS at
+# configure time; the $<CONFIG> in PATH resolves per build.
 function(dawn_lib VAR PATH)
-    set(FULL "${DAWN_BUILD}/${PATH}")
-    if(NOT EXISTS "${FULL}")
-        message(FATAL_ERROR "Missing Dawn library: ${FULL}")
-    endif()
-    set(${VAR} "${FULL}" PARENT_SCOPE)
+    foreach(CFG ${DAWN_CHECK_CONFIGS})
+        string(REPLACE "$<CONFIG>" "${CFG}" CONCRETE "${DAWN_BUILD}/${PATH}")
+        if(NOT EXISTS "${CONCRETE}")
+            message(FATAL_ERROR "Missing Dawn library: ${CONCRETE}")
+        endif()
+    endforeach()
+    set(${VAR} "${DAWN_BUILD}/${PATH}" PARENT_SCOPE)
 endfunction()
 
-# Function to find an optional Dawn library (won't fail if missing)
+# An optional present in some configs but not all is an error: the optional
+# set must be identical across configs, or the link truth differs per config.
 function(dawn_lib_optional VAR PATH)
-    set(FULL "${DAWN_BUILD}/${PATH}")
-    if(EXISTS "${FULL}")
-        set(${VAR} "${FULL}" PARENT_SCOPE)
+    set(FOUND_ALL TRUE)
+    set(FOUND_ANY FALSE)
+    foreach(CFG ${DAWN_CHECK_CONFIGS})
+        string(REPLACE "$<CONFIG>" "${CFG}" CONCRETE "${DAWN_BUILD}/${PATH}")
+        if(EXISTS "${CONCRETE}")
+            set(FOUND_ANY TRUE)
+        else()
+            set(FOUND_ALL FALSE)
+        endif()
+    endforeach()
+    if(FOUND_ALL)
+        set(${VAR} "${DAWN_BUILD}/${PATH}" PARENT_SCOPE)
         message(STATUS "  Found optional: ${PATH}")
+    elseif(FOUND_ANY)
+        message(FATAL_ERROR
+            "Optional Dawn library exists in some configs but not all: ${PATH}")
     else()
         set(${VAR} "" PARENT_SCOPE)
     endif()
@@ -59,177 +98,177 @@ message(STATUS "Discovering Dawn libraries...")
 # Per DAWN_REFERENCE.md - these are the required core libraries
 # ═══════════════════════════════════════════════════════════════════════════════
 
-dawn_lib(LIB_DAWN_NATIVE      "src/dawn/native/Debug/dawn_native.lib")
-dawn_lib(LIB_DAWN_PROC        "src/dawn/Debug/dawn_proc.lib")
-dawn_lib(LIB_DAWN_GLFW        "src/dawn/glfw/Debug/dawn_glfw.lib")
-dawn_lib(LIB_DAWN_COMMON      "src/dawn/common/Debug/dawn_common.lib")
-dawn_lib(LIB_DAWN_PLATFORM    "src/dawn/platform/Debug/dawn_platform.lib")
+dawn_lib(LIB_DAWN_NATIVE      "src/dawn/native/$<CONFIG>/dawn_native.lib")
+dawn_lib(LIB_DAWN_PROC        "src/dawn/$<CONFIG>/dawn_proc.lib")
+dawn_lib(LIB_DAWN_GLFW        "src/dawn/glfw/$<CONFIG>/dawn_glfw.lib")
+dawn_lib(LIB_DAWN_COMMON      "src/dawn/common/$<CONFIG>/dawn_common.lib")
+dawn_lib(LIB_DAWN_PLATFORM    "src/dawn/platform/$<CONFIG>/dawn_platform.lib")
 
 # Dawn utils (contains SystemHandle)
-dawn_lib(LIB_DAWN_SYSTEM_UTILS "src/dawn/utils/Debug/dawn_system_utils.lib")
+dawn_lib(LIB_DAWN_SYSTEM_UTILS "src/dawn/utils/$<CONFIG>/dawn_system_utils.lib")
 
 # GLFW from Dawn's third_party
-dawn_lib(LIB_GLFW             "third_party/glfw/src/Debug/glfw3.lib")
+dawn_lib(LIB_GLFW             "third_party/glfw/src/$<CONFIG>/glfw3.lib")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TINT LIBRARIES (Shader Compiler)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Tint API
-dawn_lib(LIB_TINT_API                   "src/tint/Debug/tint_api.lib")
-dawn_lib(LIB_TINT_API_COMMON            "src/tint/Debug/tint_api_common.lib")
+dawn_lib(LIB_TINT_API                   "src/tint/$<CONFIG>/tint_api.lib")
+dawn_lib(LIB_TINT_API_COMMON            "src/tint/$<CONFIG>/tint_api_common.lib")
 
 # Tint utils (foundational)
-dawn_lib(LIB_TINT_UTILS                 "src/tint/Debug/tint_utils.lib")
-dawn_lib(LIB_TINT_UTILS_ICE             "src/tint/Debug/tint_utils_ice.lib")
-dawn_lib(LIB_TINT_UTILS_DIAGNOSTIC      "src/tint/Debug/tint_utils_diagnostic.lib")
-dawn_lib(LIB_TINT_UTILS_SYMBOL          "src/tint/Debug/tint_utils_symbol.lib")
-dawn_lib(LIB_TINT_UTILS_STRCONV         "src/tint/Debug/tint_utils_strconv.lib")
-dawn_lib(LIB_TINT_UTILS_CONTAINERS      "src/tint/Debug/tint_utils_containers.lib")
-dawn_lib(LIB_TINT_UTILS_MACROS          "src/tint/Debug/tint_utils_macros.lib")
-dawn_lib(LIB_TINT_UTILS_MATH            "src/tint/Debug/tint_utils_math.lib")
-dawn_lib(LIB_TINT_UTILS_MEMORY          "src/tint/Debug/tint_utils_memory.lib")
-dawn_lib(LIB_TINT_UTILS_TEXT            "src/tint/Debug/tint_utils_text.lib")
-dawn_lib(LIB_TINT_UTILS_TEXT_GENERATOR  "src/tint/Debug/tint_utils_text_generator.lib")
-dawn_lib(LIB_TINT_UTILS_RTTI            "src/tint/Debug/tint_utils_rtti.lib")
-dawn_lib(LIB_TINT_UTILS_BYTES           "src/tint/Debug/tint_utils_bytes.lib")
-dawn_lib(LIB_TINT_UTILS_SYSTEM          "src/tint/Debug/tint_utils_system.lib")
+dawn_lib(LIB_TINT_UTILS                 "src/tint/$<CONFIG>/tint_utils.lib")
+dawn_lib(LIB_TINT_UTILS_ICE             "src/tint/$<CONFIG>/tint_utils_ice.lib")
+dawn_lib(LIB_TINT_UTILS_DIAGNOSTIC      "src/tint/$<CONFIG>/tint_utils_diagnostic.lib")
+dawn_lib(LIB_TINT_UTILS_SYMBOL          "src/tint/$<CONFIG>/tint_utils_symbol.lib")
+dawn_lib(LIB_TINT_UTILS_STRCONV         "src/tint/$<CONFIG>/tint_utils_strconv.lib")
+dawn_lib(LIB_TINT_UTILS_CONTAINERS      "src/tint/$<CONFIG>/tint_utils_containers.lib")
+dawn_lib(LIB_TINT_UTILS_MACROS          "src/tint/$<CONFIG>/tint_utils_macros.lib")
+dawn_lib(LIB_TINT_UTILS_MATH            "src/tint/$<CONFIG>/tint_utils_math.lib")
+dawn_lib(LIB_TINT_UTILS_MEMORY          "src/tint/$<CONFIG>/tint_utils_memory.lib")
+dawn_lib(LIB_TINT_UTILS_TEXT            "src/tint/$<CONFIG>/tint_utils_text.lib")
+dawn_lib(LIB_TINT_UTILS_TEXT_GENERATOR  "src/tint/$<CONFIG>/tint_utils_text_generator.lib")
+dawn_lib(LIB_TINT_UTILS_RTTI            "src/tint/$<CONFIG>/tint_utils_rtti.lib")
+dawn_lib(LIB_TINT_UTILS_BYTES           "src/tint/$<CONFIG>/tint_utils_bytes.lib")
+dawn_lib(LIB_TINT_UTILS_SYSTEM          "src/tint/$<CONFIG>/tint_utils_system.lib")
 
 # Tint core language
-dawn_lib(LIB_TINT_LANG_CORE             "src/tint/Debug/tint_lang_core.lib")
-dawn_lib(LIB_TINT_LANG_CORE_CONSTANT    "src/tint/Debug/tint_lang_core_constant.lib")
-dawn_lib(LIB_TINT_LANG_CORE_TYPE        "src/tint/Debug/tint_lang_core_type.lib")
-dawn_lib(LIB_TINT_LANG_CORE_INTRINSIC   "src/tint/Debug/tint_lang_core_intrinsic.lib")
-dawn_lib(LIB_TINT_LANG_CORE_IR          "src/tint/Debug/tint_lang_core_ir.lib")
-dawn_lib(LIB_TINT_LANG_CORE_IR_TRANSFORM "src/tint/Debug/tint_lang_core_ir_transform.lib")
+dawn_lib(LIB_TINT_LANG_CORE             "src/tint/$<CONFIG>/tint_lang_core.lib")
+dawn_lib(LIB_TINT_LANG_CORE_CONSTANT    "src/tint/$<CONFIG>/tint_lang_core_constant.lib")
+dawn_lib(LIB_TINT_LANG_CORE_TYPE        "src/tint/$<CONFIG>/tint_lang_core_type.lib")
+dawn_lib(LIB_TINT_LANG_CORE_INTRINSIC   "src/tint/$<CONFIG>/tint_lang_core_intrinsic.lib")
+dawn_lib(LIB_TINT_LANG_CORE_IR          "src/tint/$<CONFIG>/tint_lang_core_ir.lib")
+dawn_lib(LIB_TINT_LANG_CORE_IR_TRANSFORM "src/tint/$<CONFIG>/tint_lang_core_ir_transform.lib")
 
 # Additional Tint core IR libs (may be needed)
-dawn_lib_optional(LIB_TINT_LANG_CORE_IR_ANALYSIS "src/tint/Debug/tint_lang_core_ir_analysis.lib")
-dawn_lib_optional(LIB_TINT_LANG_CORE_IR_BINARY   "src/tint/Debug/tint_lang_core_ir_binary.lib")
-dawn_lib_optional(LIB_TINT_LANG_CORE_IR_TYPE     "src/tint/Debug/tint_lang_core_ir_type.lib")
+dawn_lib_optional(LIB_TINT_LANG_CORE_IR_ANALYSIS "src/tint/$<CONFIG>/tint_lang_core_ir_analysis.lib")
+dawn_lib_optional(LIB_TINT_LANG_CORE_IR_BINARY   "src/tint/$<CONFIG>/tint_lang_core_ir_binary.lib")
+dawn_lib_optional(LIB_TINT_LANG_CORE_IR_TYPE     "src/tint/$<CONFIG>/tint_lang_core_ir_type.lib")
 
 # Tint WGSL (source language)
-dawn_lib(LIB_TINT_LANG_WGSL             "src/tint/Debug/tint_lang_wgsl.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_AST         "src/tint/Debug/tint_lang_wgsl_ast.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_PROGRAM     "src/tint/Debug/tint_lang_wgsl_program.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_SEM         "src/tint/Debug/tint_lang_wgsl_sem.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_READER      "src/tint/Debug/tint_lang_wgsl_reader.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_READER_PARSER "src/tint/Debug/tint_lang_wgsl_reader_parser.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_READER_LOWER "src/tint/Debug/tint_lang_wgsl_reader_lower.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_READER_PROGRAM_TO_IR "src/tint/Debug/tint_lang_wgsl_reader_program_to_ir.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_RESOLVER    "src/tint/Debug/tint_lang_wgsl_resolver.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_INSPECTOR   "src/tint/Debug/tint_lang_wgsl_inspector.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_IR          "src/tint/Debug/tint_lang_wgsl_ir.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_INTRINSIC   "src/tint/Debug/tint_lang_wgsl_intrinsic.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_WRITER      "src/tint/Debug/tint_lang_wgsl_writer.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_WRITER_AST_PRINTER "src/tint/Debug/tint_lang_wgsl_writer_ast_printer.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_WRITER_COMMON "src/tint/Debug/tint_lang_wgsl_writer_common.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_WRITER_IR_TO_PROGRAM "src/tint/Debug/tint_lang_wgsl_writer_ir_to_program.lib")
-dawn_lib(LIB_TINT_LANG_WGSL_WRITER_RAISE "src/tint/Debug/tint_lang_wgsl_writer_raise.lib")
+dawn_lib(LIB_TINT_LANG_WGSL             "src/tint/$<CONFIG>/tint_lang_wgsl.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_AST         "src/tint/$<CONFIG>/tint_lang_wgsl_ast.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_PROGRAM     "src/tint/$<CONFIG>/tint_lang_wgsl_program.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_SEM         "src/tint/$<CONFIG>/tint_lang_wgsl_sem.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_READER      "src/tint/$<CONFIG>/tint_lang_wgsl_reader.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_READER_PARSER "src/tint/$<CONFIG>/tint_lang_wgsl_reader_parser.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_READER_LOWER "src/tint/$<CONFIG>/tint_lang_wgsl_reader_lower.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_READER_PROGRAM_TO_IR "src/tint/$<CONFIG>/tint_lang_wgsl_reader_program_to_ir.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_RESOLVER    "src/tint/$<CONFIG>/tint_lang_wgsl_resolver.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_INSPECTOR   "src/tint/$<CONFIG>/tint_lang_wgsl_inspector.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_IR          "src/tint/$<CONFIG>/tint_lang_wgsl_ir.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_INTRINSIC   "src/tint/$<CONFIG>/tint_lang_wgsl_intrinsic.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_WRITER      "src/tint/$<CONFIG>/tint_lang_wgsl_writer.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_WRITER_AST_PRINTER "src/tint/$<CONFIG>/tint_lang_wgsl_writer_ast_printer.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_WRITER_COMMON "src/tint/$<CONFIG>/tint_lang_wgsl_writer_common.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_WRITER_IR_TO_PROGRAM "src/tint/$<CONFIG>/tint_lang_wgsl_writer_ir_to_program.lib")
+dawn_lib(LIB_TINT_LANG_WGSL_WRITER_RAISE "src/tint/$<CONFIG>/tint_lang_wgsl_writer_raise.lib")
 
 # Tint HLSL (D3D12 backend - required on Windows)
-dawn_lib(LIB_TINT_LANG_HLSL             "src/tint/Debug/tint_lang_hlsl.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_IR          "src/tint/Debug/tint_lang_hlsl_ir.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_TYPE        "src/tint/Debug/tint_lang_hlsl_type.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_INTRINSIC   "src/tint/Debug/tint_lang_hlsl_intrinsic.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_WRITER      "src/tint/Debug/tint_lang_hlsl_writer.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_WRITER_COMMON "src/tint/Debug/tint_lang_hlsl_writer_common.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_WRITER_PRINTER "src/tint/Debug/tint_lang_hlsl_writer_printer.lib")
-dawn_lib(LIB_TINT_LANG_HLSL_WRITER_RAISE "src/tint/Debug/tint_lang_hlsl_writer_raise.lib")
+dawn_lib(LIB_TINT_LANG_HLSL             "src/tint/$<CONFIG>/tint_lang_hlsl.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_IR          "src/tint/$<CONFIG>/tint_lang_hlsl_ir.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_TYPE        "src/tint/$<CONFIG>/tint_lang_hlsl_type.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_INTRINSIC   "src/tint/$<CONFIG>/tint_lang_hlsl_intrinsic.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_WRITER      "src/tint/$<CONFIG>/tint_lang_hlsl_writer.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_WRITER_COMMON "src/tint/$<CONFIG>/tint_lang_hlsl_writer_common.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_WRITER_PRINTER "src/tint/$<CONFIG>/tint_lang_hlsl_writer_printer.lib")
+dawn_lib(LIB_TINT_LANG_HLSL_WRITER_RAISE "src/tint/$<CONFIG>/tint_lang_hlsl_writer_raise.lib")
 
 # Optional HLSL validation
-dawn_lib_optional(LIB_TINT_LANG_HLSL_VALIDATE "src/tint/Debug/tint_lang_hlsl_validate.lib")
+dawn_lib_optional(LIB_TINT_LANG_HLSL_VALIDATE "src/tint/$<CONFIG>/tint_lang_hlsl_validate.lib")
 
 # Tint SPIRV (Vulkan backend)
-dawn_lib(LIB_TINT_LANG_SPIRV            "src/tint/Debug/tint_lang_spirv.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_IR         "src/tint/Debug/tint_lang_spirv_ir.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_TYPE       "src/tint/Debug/tint_lang_spirv_type.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_INTRINSIC  "src/tint/Debug/tint_lang_spirv_intrinsic.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_WRITER     "src/tint/Debug/tint_lang_spirv_writer.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_COMMON "src/tint/Debug/tint_lang_spirv_writer_common.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_PRINTER "src/tint/Debug/tint_lang_spirv_writer_printer.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_RAISE "src/tint/Debug/tint_lang_spirv_writer_raise.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_READER     "src/tint/Debug/tint_lang_spirv_reader.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_READER_COMMON "src/tint/Debug/tint_lang_spirv_reader_common.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_READER_LOWER "src/tint/Debug/tint_lang_spirv_reader_lower.lib")
-dawn_lib(LIB_TINT_LANG_SPIRV_READER_PARSER "src/tint/Debug/tint_lang_spirv_reader_parser.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV            "src/tint/$<CONFIG>/tint_lang_spirv.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_IR         "src/tint/$<CONFIG>/tint_lang_spirv_ir.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_TYPE       "src/tint/$<CONFIG>/tint_lang_spirv_type.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_INTRINSIC  "src/tint/$<CONFIG>/tint_lang_spirv_intrinsic.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_WRITER     "src/tint/$<CONFIG>/tint_lang_spirv_writer.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_COMMON "src/tint/$<CONFIG>/tint_lang_spirv_writer_common.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_PRINTER "src/tint/$<CONFIG>/tint_lang_spirv_writer_printer.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_RAISE "src/tint/$<CONFIG>/tint_lang_spirv_writer_raise.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_READER     "src/tint/$<CONFIG>/tint_lang_spirv_reader.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_READER_COMMON "src/tint/$<CONFIG>/tint_lang_spirv_reader_common.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_READER_LOWER "src/tint/$<CONFIG>/tint_lang_spirv_reader_lower.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_READER_PARSER "src/tint/$<CONFIG>/tint_lang_spirv_reader_parser.lib")
 
 # Optional SPIRV validation
-dawn_lib_optional(LIB_TINT_LANG_SPIRV_VALIDATE "src/tint/Debug/tint_lang_spirv_validate.lib")
+dawn_lib_optional(LIB_TINT_LANG_SPIRV_VALIDATE "src/tint/$<CONFIG>/tint_lang_spirv_validate.lib")
 
 # Tint null backend (required for Dawn)
-dawn_lib(LIB_TINT_LANG_NULL_WRITER        "src/tint/Debug/tint_lang_null_writer.lib")
-dawn_lib(LIB_TINT_LANG_NULL_WRITER_COMMON "src/tint/Debug/tint_lang_null_writer_common.lib")
-dawn_lib(LIB_TINT_LANG_NULL_WRITER_RAISE  "src/tint/Debug/tint_lang_null_writer_raise.lib")
+dawn_lib(LIB_TINT_LANG_NULL_WRITER        "src/tint/$<CONFIG>/tint_lang_null_writer.lib")
+dawn_lib(LIB_TINT_LANG_NULL_WRITER_COMMON "src/tint/$<CONFIG>/tint_lang_null_writer_common.lib")
+dawn_lib(LIB_TINT_LANG_NULL_WRITER_RAISE  "src/tint/$<CONFIG>/tint_lang_null_writer_raise.lib")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ABSEIL LIBRARIES (Google C++ utilities - Dawn dependency)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Core abseil
-dawn_lib(LIB_ABSEIL_BASE            "third_party/abseil/absl/base/Debug/absl_base.lib")
-dawn_lib(LIB_ABSEIL_THROW           "third_party/abseil/absl/base/Debug/absl_throw_delegate.lib")
-dawn_lib(LIB_ABSEIL_SPINLOCK        "third_party/abseil/absl/base/Debug/absl_spinlock_wait.lib")
-dawn_lib(LIB_ABSEIL_RAW_LOG         "third_party/abseil/absl/base/Debug/absl_raw_logging_internal.lib")
-dawn_lib(LIB_ABSEIL_LOG_SEVERITY    "third_party/abseil/absl/base/Debug/absl_log_severity.lib")
+dawn_lib(LIB_ABSEIL_BASE            "third_party/abseil/absl/base/$<CONFIG>/absl_base.lib")
+dawn_lib(LIB_ABSEIL_THROW           "third_party/abseil/absl/base/$<CONFIG>/absl_throw_delegate.lib")
+dawn_lib(LIB_ABSEIL_SPINLOCK        "third_party/abseil/absl/base/$<CONFIG>/absl_spinlock_wait.lib")
+dawn_lib(LIB_ABSEIL_RAW_LOG         "third_party/abseil/absl/base/$<CONFIG>/absl_raw_logging_internal.lib")
+dawn_lib(LIB_ABSEIL_LOG_SEVERITY    "third_party/abseil/absl/base/$<CONFIG>/absl_log_severity.lib")
 
 # Optional but often needed
-dawn_lib_optional(LIB_ABSEIL_MALLOC "third_party/abseil/absl/base/Debug/absl_malloc_internal.lib")
+dawn_lib_optional(LIB_ABSEIL_MALLOC "third_party/abseil/absl/base/$<CONFIG>/absl_malloc_internal.lib")
 
 # Strings
-dawn_lib(LIB_ABSEIL_STRINGS         "third_party/abseil/absl/strings/Debug/absl_strings.lib")
-dawn_lib(LIB_ABSEIL_STR_INTERNAL    "third_party/abseil/absl/strings/Debug/absl_strings_internal.lib")
-dawn_lib(LIB_ABSEIL_STRING_VIEW     "third_party/abseil/absl/strings/Debug/absl_string_view.lib")
+dawn_lib(LIB_ABSEIL_STRINGS         "third_party/abseil/absl/strings/$<CONFIG>/absl_strings.lib")
+dawn_lib(LIB_ABSEIL_STR_INTERNAL    "third_party/abseil/absl/strings/$<CONFIG>/absl_strings_internal.lib")
+dawn_lib(LIB_ABSEIL_STRING_VIEW     "third_party/abseil/absl/strings/$<CONFIG>/absl_string_view.lib")
 
 # Optional string libs
-dawn_lib_optional(LIB_ABSEIL_CORD           "third_party/abseil/absl/strings/Debug/absl_cord.lib")
-dawn_lib_optional(LIB_ABSEIL_CORD_INTERNAL  "third_party/abseil/absl/strings/Debug/absl_cord_internal.lib")
-dawn_lib_optional(LIB_ABSEIL_STR_FORMAT     "third_party/abseil/absl/strings/Debug/absl_str_format_internal.lib")
+dawn_lib_optional(LIB_ABSEIL_CORD           "third_party/abseil/absl/strings/$<CONFIG>/absl_cord.lib")
+dawn_lib_optional(LIB_ABSEIL_CORD_INTERNAL  "third_party/abseil/absl/strings/$<CONFIG>/absl_cord_internal.lib")
+dawn_lib_optional(LIB_ABSEIL_STR_FORMAT     "third_party/abseil/absl/strings/$<CONFIG>/absl_str_format_internal.lib")
 
 # Numeric
-dawn_lib(LIB_ABSEIL_INT128          "third_party/abseil/absl/numeric/Debug/absl_int128.lib")
+dawn_lib(LIB_ABSEIL_INT128          "third_party/abseil/absl/numeric/$<CONFIG>/absl_int128.lib")
 
 # Synchronization
-dawn_lib(LIB_ABSEIL_SYNCHRONIZATION "third_party/abseil/absl/synchronization/Debug/absl_synchronization.lib")
-dawn_lib(LIB_ABSEIL_GRAPHCYCLES     "third_party/abseil/absl/synchronization/Debug/absl_graphcycles_internal.lib")
-dawn_lib(LIB_ABSEIL_KERNEL_TIMEOUT  "third_party/abseil/absl/synchronization/Debug/absl_kernel_timeout_internal.lib")
+dawn_lib(LIB_ABSEIL_SYNCHRONIZATION "third_party/abseil/absl/synchronization/$<CONFIG>/absl_synchronization.lib")
+dawn_lib(LIB_ABSEIL_GRAPHCYCLES     "third_party/abseil/absl/synchronization/$<CONFIG>/absl_graphcycles_internal.lib")
+dawn_lib(LIB_ABSEIL_KERNEL_TIMEOUT  "third_party/abseil/absl/synchronization/$<CONFIG>/absl_kernel_timeout_internal.lib")
 
 # Time
-dawn_lib(LIB_ABSEIL_TIME            "third_party/abseil/absl/time/Debug/absl_time.lib")
-dawn_lib(LIB_ABSEIL_TIME_ZONE       "third_party/abseil/absl/time/Debug/absl_time_zone.lib")
-dawn_lib(LIB_ABSEIL_CIVIL_TIME      "third_party/abseil/absl/time/Debug/absl_civil_time.lib")
+dawn_lib(LIB_ABSEIL_TIME            "third_party/abseil/absl/time/$<CONFIG>/absl_time.lib")
+dawn_lib(LIB_ABSEIL_TIME_ZONE       "third_party/abseil/absl/time/$<CONFIG>/absl_time_zone.lib")
+dawn_lib(LIB_ABSEIL_CIVIL_TIME      "third_party/abseil/absl/time/$<CONFIG>/absl_civil_time.lib")
 
 # Debugging
-dawn_lib(LIB_ABSEIL_STACKTRACE      "third_party/abseil/absl/debugging/Debug/absl_stacktrace.lib")
-dawn_lib(LIB_ABSEIL_SYMBOLIZE       "third_party/abseil/absl/debugging/Debug/absl_symbolize.lib")
-dawn_lib(LIB_ABSEIL_DEMANGLE        "third_party/abseil/absl/debugging/Debug/absl_demangle_internal.lib")
-dawn_lib(LIB_ABSEIL_DEBUGGING       "third_party/abseil/absl/debugging/Debug/absl_debugging_internal.lib")
+dawn_lib(LIB_ABSEIL_STACKTRACE      "third_party/abseil/absl/debugging/$<CONFIG>/absl_stacktrace.lib")
+dawn_lib(LIB_ABSEIL_SYMBOLIZE       "third_party/abseil/absl/debugging/$<CONFIG>/absl_symbolize.lib")
+dawn_lib(LIB_ABSEIL_DEMANGLE        "third_party/abseil/absl/debugging/$<CONFIG>/absl_demangle_internal.lib")
+dawn_lib(LIB_ABSEIL_DEBUGGING       "third_party/abseil/absl/debugging/$<CONFIG>/absl_debugging_internal.lib")
 
 # Additional debugging support (for BorrowedFixupBuffer)
-dawn_lib(LIB_ABSEIL_BORROWED_FIXUP "third_party/abseil/absl/debugging/Debug/absl_borrowed_fixup_buffer.lib")
+dawn_lib(LIB_ABSEIL_BORROWED_FIXUP "third_party/abseil/absl/debugging/$<CONFIG>/absl_borrowed_fixup_buffer.lib")
 
 # Hash
-dawn_lib(LIB_ABSEIL_HASH            "third_party/abseil/absl/hash/Debug/absl_hash.lib")
-dawn_lib(LIB_ABSEIL_CITY            "third_party/abseil/absl/hash/Debug/absl_city.lib")
-dawn_lib_optional(LIB_ABSEIL_LOW_LEVEL_HASH "third_party/abseil/absl/hash/Debug/absl_low_level_hash.lib")
+dawn_lib(LIB_ABSEIL_HASH            "third_party/abseil/absl/hash/$<CONFIG>/absl_hash.lib")
+dawn_lib(LIB_ABSEIL_CITY            "third_party/abseil/absl/hash/$<CONFIG>/absl_city.lib")
+dawn_lib_optional(LIB_ABSEIL_LOW_LEVEL_HASH "third_party/abseil/absl/hash/$<CONFIG>/absl_low_level_hash.lib")
 
 # Container support
-dawn_lib_optional(LIB_ABSEIL_RAW_HASH_SET   "third_party/abseil/absl/container/Debug/absl_raw_hash_set.lib")
-dawn_lib_optional(LIB_ABSEIL_HASHTABLEZ     "third_party/abseil/absl/container/Debug/absl_hashtablez_sampler.lib")
+dawn_lib_optional(LIB_ABSEIL_RAW_HASH_SET   "third_party/abseil/absl/container/$<CONFIG>/absl_raw_hash_set.lib")
+dawn_lib_optional(LIB_ABSEIL_HASHTABLEZ     "third_party/abseil/absl/container/$<CONFIG>/absl_hashtablez_sampler.lib")
 
 # Status (often needed)
-dawn_lib_optional(LIB_ABSEIL_STATUS     "third_party/abseil/absl/status/Debug/absl_status.lib")
-dawn_lib_optional(LIB_ABSEIL_STATUSOR   "third_party/abseil/absl/status/Debug/absl_statusor.lib")
+dawn_lib_optional(LIB_ABSEIL_STATUS     "third_party/abseil/absl/status/$<CONFIG>/absl_status.lib")
+dawn_lib_optional(LIB_ABSEIL_STATUSOR   "third_party/abseil/absl/status/$<CONFIG>/absl_statusor.lib")
 
 # Profiling
-dawn_lib_optional(LIB_ABSEIL_EXPONENTIAL "third_party/abseil/absl/profiling/Debug/absl_exponential_biased.lib")
+dawn_lib_optional(LIB_ABSEIL_EXPONENTIAL "third_party/abseil/absl/profiling/$<CONFIG>/absl_exponential_biased.lib")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SPIRV-TOOLS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-dawn_lib(LIB_SPIRV_TOOLS        "third_party/spirv-tools/source/Debug/SPIRV-Tools.lib")
-dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-Tools-opt.lib")
+dawn_lib(LIB_SPIRV_TOOLS        "third_party/spirv-tools/source/$<CONFIG>/SPIRV-Tools.lib")
+dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/$<CONFIG>/SPIRV-Tools-opt.lib")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
