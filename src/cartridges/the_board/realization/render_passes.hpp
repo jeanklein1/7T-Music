@@ -41,7 +41,7 @@ void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
 // Render passes (the extras outside the machine face ride the call site)
 void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     const GPUSpotLightArray& cpuSpotLights_);
-void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass);
+void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool cast_terrain);
 void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     wgpu::TextureView backbuffer, wgpu::TextureView depth,
     const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
@@ -313,7 +313,10 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
             pass.SetScissorRect(within * TILE_W, 0, TILE_W, TILE_H);
 
-            draw_shadow_all(c, pass);
+            // THE SPOT CASTER CUT (UMBRA_4) — terrain does not cast into a
+            // spot tile. This is the whole of the edit: one argument, one
+            // site, and the revert is this word.
+            draw_shadow_all(c, pass, /*cast_terrain=*/false);
             pass.End();
         }
     }
@@ -333,14 +336,23 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-        draw_shadow_all(c, pass);
+        draw_shadow_all(c, pass, /*cast_terrain=*/true);
         pass.End();
     }
 }
 
 // All shadow draws: terrain (FORK) + the drawable table (shadow filter).
 // A shadow pass is DEPTH-ONLY, so draw order is doubly immaterial here.
-inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
+//
+// cast_terrain — true for the sun pass, false for every spot atlas tile
+// (UMBRA_4). An indoor spot sits under a shell with a cone that never
+// reaches the horizon, and the pass ran ONCE PER LIGHT: up to
+// MAX_SPOT_LIGHTS full terrain redraws per frame, inside the known
+// bottleneck, to shadow a surface the cone cannot light. No light-volume
+// bounding mechanism is built to decide this — no mechanism until a
+// measurement asks. The drawable table is untouched: the indoor scene's
+// actual occluders all still cast.
+inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool cast_terrain) {
     // FORK — terrain, both bands at LOD1 density (ECONOMY_1 E2): the
     // shadow target resolves coarser than even the half mesh, and the
     // decode is patch-agnostic, so band 0 draws the LOD0 patches with
@@ -360,19 +372,21 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
     // unconditional, so caster silhouettes cannot change as the camera
     // approaches. That acquits the second of the two suspects the campaign
     // named for the "shadows compose as we approach" artifact.
-    c->renderer_.draw_shadow_patch_terrain(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.patch_index_buffer_lod1(),
-        c->gpuState_.patch_index_count_lod1(),
-        c->world_state_.lod0_patch_count
-    );
-    if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
-        // Band 1 — same IB, already bound by the band-0 helper; the
-        // redundant re-bind collapsed (trivially adjacent).
-        pass.DrawIndexed(c->gpuState_.patch_index_count_lod1(),
-            c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
+    if (cast_terrain) {
+        c->renderer_.draw_shadow_patch_terrain(
+            pass,
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.shadow_texture_group(),
+            c->gpuState_.patch_index_buffer_lod1(),
+            c->gpuState_.patch_index_count_lod1(),
+            c->world_state_.lod0_patch_count
+        );
+        if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
+            // Band 1 — same IB, already bound by the band-0 helper; the
+            // redundant re-bind collapsed (trivially adjacent).
+            pass.DrawIndexed(c->gpuState_.patch_index_count_lod1(),
+                c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
+        }
     }
 
     // The drawable table — shadow members, canonical order.
