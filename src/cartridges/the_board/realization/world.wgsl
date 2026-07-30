@@ -294,13 +294,12 @@ struct UgVert {
     cellx: u32,        // owning cell, patch-local. Cap and base decode it
     cellz: u32,        // directly; legacy and skirt derive it from the
                        // min-corner grid vert, which names their quad's cell.
-    lift_scale: f32,   // 1 cap/legacy/skirt, 0 base (no lift — the gap IS the curtain)
+    lift_scale: f32,   // derived: 1 - wall. Walls do not lift (WALL_1).
     drop: f32,         // PATCH_SKIRT_DEPTH on skirt ring copies
     wall: f32,         // 1 on curtain-bottom + skirt copies
 }
 fn ug_decode(vi: u32) -> UgVert {
     var d: UgVert;
-    d.lift_scale = 1.0;
     d.drop = 0.0;
     d.wall = 0.0;
     if (vi < PATCH_GRID_VERT_COUNT) {
@@ -338,9 +337,15 @@ fn ug_decode(vi: u32) -> UgVert {
         d.vz = (cell / PATCH_CELL_N) * UG_QUADS + g.y;
         d.cellx = cell % PATCH_CELL_N;
         d.cellz = cell / PATCH_CELL_N;
-        d.lift_scale = 0.0;
         d.wall = 1.0;
     }
+    // WALLS DO NOT LIFT (WALL_1). `wall` names a wall BOTTOM — skirt
+    // ring copy or curtain-bottom twin — and a wall bottom stands on the
+    // unlifted ground, so the face above it spans the whole discontinuity
+    // whatever its size. The skirt row carried lift_scale = 1 while
+    // carrying wall = 1: one fact with two homes, and the copies
+    // disagreed. Derived once, here.
+    d.lift_scale = 1.0 - d.wall;
     return d;
 }
 
