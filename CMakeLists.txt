@@ -316,7 +316,7 @@ endforeach()
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
-message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} analysis: ${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}")
+message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} analysis: ${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
 message(STATUS "  the_lab        -> analysis: ${INCUBATOR_ANALYSIS_CARTRIDGE}")
 message(STATUS "  Incubator only: ${INCUBATOR_ONLY}")
 message(STATUS "")
