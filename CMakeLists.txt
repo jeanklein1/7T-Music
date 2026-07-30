@@ -95,7 +95,7 @@ message(STATUS "Discovering Dawn libraries...")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CORE DAWN LIBRARIES (Required)
-# Per DAWN_REFERENCE.md - these are the required core libraries
+# Per src/docs/DAWN_REFERENCE.md - these are the required core libraries
 # ═══════════════════════════════════════════════════════════════════════════════
 
 dawn_lib(LIB_DAWN_NATIVE      "src/dawn/native/$<CONFIG>/dawn_native.lib")
