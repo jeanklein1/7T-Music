@@ -3244,19 +3244,17 @@ const SUN_ALTITUDE: f32 = 250.0;
 const SUN_HALF_EXTENT: f32 = 300.0;
 const SUN_NEAR: f32 = 0.1;
 const SUN_FAR: f32 = 600.0;
-const SHADOW_SNAP_SIZE: f32 = 2.0;   // world units — shadow VP snaps to this grid
+
+// One shadow-map texel, in world units, on the sun map. Derived — never
+// authored: it is the frustum's width divided by the map's, so it cannot
+// drift from either. THE UNIT OF THE SNAP below, and of the normal offset
+// in sample_shadow_pcf. (Const-expression, so no uniform reaches for it
+// and no bind-group layout grows.)
+const SHADOW_TEXEL_WORLD: f32 = 2.0 * SUN_HALF_EXTENT / SHADOW_MAP_SIZE;
 
 fn coupling_pawn_to_sun_vp(pawn_pos: vec3<f32>, direction: vec3<f32>) -> mat4x4<f32> {
-    // Snap pawn XZ to shadow grid for temporal stability.
-    // Between grid crossings the light VP is bit-stable, which WOULD let
-    // the CPU reuse static shadow content — no skip is implemented; the
-    // pass runs unconditionally every frame (the lever: GEOMETRY_2).
-    var snapped = pawn_pos;
-    snapped.x = round(pawn_pos.x / SHADOW_SNAP_SIZE) * SHADOW_SNAP_SIZE;
-    snapped.z = round(pawn_pos.z / SHADOW_SNAP_SIZE) * SHADOW_SNAP_SIZE;
-
-    // Sun position: offset from snapped pawn opposite to light direction
-    let sun_pos = snapped - direction * SUN_ALTITUDE;
+    // Sun position: offset from the frustum center opposite to light direction
+    let sun_pos = pawn_pos - direction * SUN_ALTITUDE;
 
     // Forward = light direction (into the scene)
     let fwd = direction;
@@ -3277,8 +3275,35 @@ fn coupling_pawn_to_sun_vp(pawn_pos: vec3<f32>, direction: vec3<f32>) -> mat4x4<
 
     // View matrix: world → light space
     // Column-major: each vec4 is a column
-    let tx = -dot(right, sun_pos);
-    let ty = -dot(true_up, sun_pos);
+    //
+    // THE SNAP (UMBRA_2). The frustum center is quantized to whole shadow-
+    // map texels IN LIGHT SPACE — the only space where the sample grid is
+    // axis-aligned. The old snap rounded world XZ to a 2.0-unit grid, which
+    // coincides with the light's lattice only when the sun points straight
+    // down, and is 7x coarser than a texel even then; between grid lines
+    // the sample grid slid freely and every static edge re-rasterized at a
+    // shifted threshold each frame. That was the fire.
+    //
+    // Both {right, true_up} are orthogonal to `direction`, so the center's
+    // light-space x/y are dot(right, pawn_pos) and dot(true_up, pawn_pos) —
+    // the SUN_ALTITUDE offset contributes nothing to either. Flooring those
+    // to texel multiples quantizes the grid exactly: SUN_HALF_EXTENT is
+    // SHADOW_MAP_SIZE/2 texels, an integer, so the ortho's own half-extent
+    // shift lands on a texel boundary too.
+    //
+    // z is NOT snapped. Depth is not the sample grid, and caster and
+    // receiver ride the same matrix, so a shift there cancels in the
+    // compare — leaving it unsnapped keeps SUN_NEAR/SUN_FAR centered on
+    // where the point actually is.
+    //
+    // The GEOMETRY_2 lever, carried forward and re-priced: between texel
+    // crossings the light VP is still bit-stable, which WOULD let the CPU
+    // reuse static shadow content — no skip is implemented; the pass runs
+    // unconditionally every frame. But a texel is now the quantum, not the
+    // old 2.0-unit grid, so crossings are ~7x more frequent and the skip
+    // buys correspondingly less. Cheaper prize than when it was written.
+    let tx = -floor(dot(right,   pawn_pos) / SHADOW_TEXEL_WORLD) * SHADOW_TEXEL_WORLD;
+    let ty = -floor(dot(true_up, pawn_pos) / SHADOW_TEXEL_WORLD) * SHADOW_TEXEL_WORLD;
     let tz = dot(fwd, sun_pos);
 
     let view = mat4x4<f32>(
