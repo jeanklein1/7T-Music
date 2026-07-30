@@ -507,7 +507,16 @@ set(DAWN_LIBS
 )
 
 # Shared MSVC options (applied per-target below)
-set(MSVC_COMPILE_OPTS /W3 /wd4251 /wd4275 /wd4244 /wd4267 /EHsc)
+set(MSVC_COMPILE_OPTS /W3 /wd4251 /wd4275 /wd4244 /wd4267 /EHsc
+    "$<$<CONFIG:Release>:/Z7>")
+# Release links produce a full PDB with codegen unchanged: /OPT:REF and
+# /OPT:ICF are the plain-Release defaults that /DEBUG would otherwise
+# disable. The PDB never ships; it is archived beside the tagged exe.
+set(MSVC_LINK_OPTS
+    "$<$<CONFIG:Release>:/DEBUG:FULL>"
+    "$<$<CONFIG:Release>:/OPT:REF>"
+    "$<$<CONFIG:Release>:/OPT:ICF>"
+    "$<$<CONFIG:Release>:/INCREMENTAL:NO>")
 set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS __WINDOWS_MM__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -558,6 +567,7 @@ target_link_libraries(incubator_dual PRIVATE ${DAWN_LIBS})
 
 if(MSVC)
     target_compile_options(incubator_dual PRIVATE ${MSVC_COMPILE_OPTS})
+    target_link_options(incubator_dual PRIVATE ${MSVC_LINK_OPTS})
     target_compile_definitions(incubator_dual PRIVATE
         ${MSVC_COMPILE_DEFS}
         INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
@@ -646,6 +656,7 @@ target_link_libraries(the_lab PRIVATE ${DAWN_LIBS})
 
 if(MSVC)
     target_compile_options(the_lab PRIVATE ${MSVC_COMPILE_OPTS})
+    target_link_options(the_lab PRIVATE ${MSVC_LINK_OPTS})
     target_compile_definitions(the_lab PRIVATE
         ${MSVC_COMPILE_DEFS}
         LAB_ANALYSIS=${INCUBATOR_ANALYSIS_CARTRIDGE}
@@ -790,6 +801,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${DAWN_LIBS})
 
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE ${MSVC_COMPILE_OPTS})
+    target_link_options(${PROJECT_NAME} PRIVATE ${MSVC_LINK_OPTS})
     target_compile_definitions(${PROJECT_NAME} PRIVATE ${MSVC_COMPILE_DEFS})
 endif()
 
