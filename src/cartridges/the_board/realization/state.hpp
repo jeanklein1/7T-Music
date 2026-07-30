@@ -200,11 +200,13 @@ namespace t7 {
 
             // Lighting
             // TWIN: world.wgsl `const SHADOW_MAP_SIZE: f32` (— Shadow
-            // constants). The WGSL twin feeds both PCF texel_size reads AND
+            // constants). The WGSL twin feeds the SPOT PCF's texel_size and
             // SHADOW_TEXEL_WORLD, which is the unit of the sun frustum's
-            // snap and of the receiver normal offset. Change it in BOTH
-            // rooms or the sample grid, the snap lattice and the normal
-            // offset all silently rescale while the texture resizes.
+            // snap and of the receiver normal offset. (The sun PCF no
+            // longer reads it: its taps are const texel offsets the
+            // hardware resolves.) Change it in BOTH rooms or the spot
+            // sample grid, the snap lattice and the normal offset all
+            // silently rescale while the texture resizes.
             // (L3 MIRROR — the TILE_GRID_CAPACITY pattern; no compile-time
             // bridge spans the runtime-loaded seam.)
             //

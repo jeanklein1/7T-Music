@@ -3656,22 +3656,49 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
 
     let clamped_uv = clamp(shadow_uv, vec2(0.001), vec2(0.999));
 
-    // 4x4 PCF kernel — always execute (uniform control flow)
-    let texel_size = 1.0 / SHADOW_MAP_SIZE;
-    var shadow: f32 = 0.0;
-    for (var y: i32 = -2; y <= 1; y++) {
-        for (var x: i32 = -2; x <= 1; x++) {
-            shadow += textureSampleCompare(
-                shadow_map,
-                shadow_sampler,
-                clamped_uv + vec2(f32(x), f32(y)) * texel_size,
-                current_depth
-            );
-        }
-    }
-    let pcf_result = shadow / 16.0;
+    // 3x3 PCF — nine taps, fully unrolled, const offsets, hardware
+    // bilinear per tap through the comparison sampler. FXC-clean by
+    // construction: no array, no loop for it to unroll, no dynamic index.
+    //
+    // textureSampleCompareLevel, NOT textureSampleCompare: it takes no
+    // implicit derivatives, so no uniformity diagnostic can fire and the
+    // call is legal in any stage.
+    //
+    // The offsets are the LAST parameter and are in level-0 TEXELS, which
+    // is why the old `* texel_size` arithmetic is gone with the loop —
+    // the hardware does that conversion now, and cannot get it wrong.
+    //
+    // NINE CENTRED TAPS BEAT SIXTEEN OFF-CENTRE ONES. The old kernel ran
+    // -2..=1 on each axis, giving offsets {-2,-1,0,1} with no half-texel
+    // correction: its centroid sat half a texel up-left of the fragment,
+    // so every sun shadow in the program was displaced by that much,
+    // permanently. (The spot kernel corrected it with a +0.5 term; this
+    // one never had it.) Symmetry here is not only cheaper, it is the fix.
+    var s = 0.0;
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-1, -1));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 0, -1));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 1, -1));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-1,  0));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 0,  0));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 1,  0));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-1,  1));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 0,  1));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 1,  1));
+    let shadow = s * (1.0 / 9.0);
 
-    return select(pcf_result, 1.0, out_of_bounds);
+    // EDGE FADE. Distant shadows used to materialize at the frustum
+    // boundary instead of assembling — a hard line where the map ran out.
+    // Pure arithmetic over the outer 12%, no taps, no branch: measure the
+    // Chebyshev distance to the edge in NDC and lerp the whole term back
+    // to unshadowed. Uses shadow_uv, not clamped_uv, so it measures true
+    // distance to the edge rather than saturating at the clamp.
+    let d    = max(abs(shadow_uv.x * 2.0 - 1.0), abs(shadow_uv.y * 2.0 - 1.0));
+    let fade = clamp((1.0 - d) / 0.12, 0.0, 1.0);
+    let lit  = mix(1.0, shadow, fade);
+
+    // out_of_bounds still guards the DEPTH range and anything past the
+    // frustum outright; the fade smooths the uv approach to it.
+    return select(lit, 1.0, out_of_bounds);
 }
 
 // --- Directional Light
@@ -5504,7 +5531,7 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 @group(0) @binding(321) var<storage, read> render_point_lights: PointLightArray;
 @group(0) @binding(322) var<storage, read> render_spot_lights: SpotLightArray;
 
-// --- Render textures (Group 1: bindings 22-23, 25-26)
+// --- Render textures (Group 1: bindings 22-23, 25-27)
 @group(1) @binding(22) var bilinear_sampler: sampler;
 @group(1) @binding(23) var nearest_sampler: sampler;
 @group(1) @binding(25) var shadow_map: texture_depth_2d;           // sun shadows (outdoor) / spot atlas lights 0-1 (indoor)

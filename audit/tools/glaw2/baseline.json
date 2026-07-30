@@ -45,6 +45,7 @@
   "textureLoad",
   "textureSample",
   "textureSampleCompare",
+  "textureSampleCompareLevel",
   "textureSampleLevel",
   "textureStore",
   "u32",
