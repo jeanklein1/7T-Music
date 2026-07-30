@@ -223,18 +223,28 @@ the spot-side shader bias in the same commit.
 
 **The float-format flag UMBRA_6 asked for.** Under `Depth32Float`, WebGPU computes
 the constant bias as `r = 2^(exp(max depth in primitive) − mantissa bits)`, i.e. in
-**ULP**, not in fixed depth units. Near `z = 1.0`, one ULP ≈ 6e-8, so `depthBias = 2`
-buys roughly **1.2e-7** of NDC depth. The shader constants it replaces are
-`SHADOW_BIAS_MIN` = 2.0e-4 and `SHADOW_BIAS_MAX` = 4.0e-3 — **three to four orders of
-magnitude larger.**
+**ULP**, not in fixed depth units. The shader constants it replaces are
+`SHADOW_BIAS_MIN` = 2.0e-4 and `SHADOW_BIAS_MAX` = 4.0e-3 *at the pre-campaign
+RES = 2048* — **three to four orders of magnitude larger** than the constant.
 
-The slope term is where the work actually lands. The sun ortho maps 600 world units
-of depth onto [0,1], so `dz/dw = 1/600`. At post-UMBRA_5 texel size 0.2051 wu, a 45°
+> **Corrected after the P3 pass — see finding 6 in the ledger.** The figures I first
+> gave here were wrong in two ways, and both are worth keeping visible rather than
+> quietly overwriting. (a) I read the ULP at `z ≈ 1`, giving 1.2e-7. This scene's
+> sun-map geometry sits near **z = 0.417** (the light is `SUN_ALTITUDE` = 250 above
+> ground in a 599.9-deep frustum), where one ULP is 2^-25 = 2.98e-8 — so
+> `depthBias = 2` buys **6.0e-8 NDC**, four times less. (b) The slope term matches
+> the old `mix()` at 45° and *only* near there: new/old runs 0.00 at normal
+> incidence, ≈1.1 through 30–60°, then 2.3 / 4.3 / 10.1 at 80 / 85 / 88° and
+> unbounded beyond, since `depthBiasClamp = 0.0` means **no clamp**. Reporting the
+> 45° agreement as general would have been this campaign's own failure mode.
+
+The slope term is where the work lands in the mid-range. The sun ortho maps 599.9
+world units of depth onto [0,1], so at post-UMBRA_5 texel size 0.2051 wu a 45°
 receiver gives `dz/dtexel = 3.4e-4`; times `depthBiasSlopeScale = 2.0` that is
-**6.8e-4** — the same order as the `SHADOW_BIAS_MAX` it replaces, and correctly zero
-on surfaces facing the light. This is exactly the handoff's stated intent ("the
-constant shrinks toward zero"), and the arithmetic confirms it rather than assuming
-it. **`depthBias = 2` is kept as the start, flagged here as the handoff instructed.**
+**6.8e-4**, against the old term's 6.6e-4 there. It is correctly zero on surfaces
+facing the light — which is the intended shape *except* where caster and receiver are
+different tessellations, and that exception is real here (finding 2).
+**`depthBias = 2` is kept as the start, flagged as the handoff instructed.**
 
 ---
 
@@ -693,19 +703,105 @@ Flagged at the top of the tuning ladder.
 
 # CAMPAIGN LEDGER
 
-Filled at the end of the campaign and appended, per the handoff. At UMBRA_1's commit
-only this row exists; the rest are written when their edits land or die.
-
-| Handoff | Commit | State (landed / held / dead) | Notes |
+| Handoff | Commit | State | Notes |
 |---|---|---|---|
-| UMBRA_1 | `umbra: recon report` | landed | This document. No STOP fired. Sun VP is WGSL-side, not CPU-side — UMBRA_2's site corrected, UMBRA_7's growth risk dissolved. |
-| UMBRA_2 | | | |
-| UMBRA_3 | | | |
-| UMBRA_4 | | | |
-| UMBRA_5 | | | |
-| UMBRA_6 | | | |
-| UMBRA_7 | | | |
-| UMBRA_8 | | | |
+| UMBRA_1 | `umbra: recon report` | **landed** | This document. No STOP fired. Sun VP is WGSL-side, not CPU-side — UMBRA_2's site corrected, UMBRA_7's growth risk dissolved. |
+| UMBRA_2 | `umbra: freeze and snap sun frustum` | **landed** | Freeze already true (named constants, no refit) — nothing to delete. Snap **replaced**, not added: world-XZ → light-space texels. `SHADOW_SNAP_SIZE` deleted, `SHADOW_TEXEL_WORLD` introduced. No animated-sun caveat (R3). |
+| UMBRA_3 | `umbra: pin shadow caster LOD; curtains out of sun casters` | **dead by prior work** | Both halves already landed by ECONOMY_1 E2, proven at the vertex-index level. No boolean added — the exclusion is structural, not conditional. Ladder + arithmetic committed to the tree at `draw_shadow_all`, per the handoff's STOP-and-report. Label corrections only. |
+| UMBRA_4 | `umbra: terrain out of spot caster lists` | **landed** | One `cast_terrain` argument, two call sites. Up to 4 full terrain redraws per frame removed indoors. Spot lists keep the ten drawable-table rows. |
+| UMBRA_5 | `umbra: sun map RES→2x per side, radius 1.4x` | **landed** | 2048→4096 (at the cap), 300→420. Both twin rooms, one commit. +100.7 MB VRAM, named in advance. Constant deliberately **not** split — the sun map *is* the spot atlas's first texture. |
+| UMBRA_6 | `umbra: bias to rasterizer state; shader nudges deleted` | **landed, with four flagged risks** | One depth-stencil site reaches all 11 shadow pipelines. Float-format flag raised with arithmetic: `depthBias = 2` = 6.0e-8 NDC vs the 1.0e-4…2.0e-3 it replaces. No `CullMode::Front` anywhere — step 3 a no-op. The P3 refuters caught the most in this commit: see findings 1, 2 and 6 below. |
+| UMBRA_7 | `umbra: normal-offset receiver sampling` | **landed** | `TEXEL_WORLD` as a const-expression — no uniform, no growth, no STOP, and better than the handoff's preferred rung. Receiver normal was already a parameter at the site; verified unit at every caller. |
+| UMBRA_8 | `umbra: 3x3 PCF + edge fade` | **landed** | Comparison sampler already correct — nothing to retype. Nine unrolled `textureSampleCompareLevel` taps at const offsets. Fixes the half-texel kernel offset found at R6. Edge fade is insurance at today's radius (see below). |
+| — | `umbra: campaign close` | **landed** | This ledger, plus three P5 corrections the campaign's own refuters found — two of them in the campaign's own output. |
+
+## WHAT THE ADVERSARIAL PASSES CHANGED
+
+The P3 pass on UMBRA_6 and the recon refuters were not ceremony. Five findings
+survived verification, three of them against work this campaign had just written.
+
+1. **A stale number in my own comment.** The UMBRA_6 comment quoted the deleted
+   constants as `2e-4..4e-3` — their values at RES=2048, before UMBRA_5 doubled it.
+   At 4096 they are `1.0e-4..2.0e-3`, exactly half. This is precisely the failure mode
+   the campaign exists to fix (a label restating a number that moved), committed *by*
+   the campaign. Caught before it landed.
+
+2. **The caster/receiver tessellation gap.** The shadow pass draws terrain at LOD1
+   while the main pass draws near terrain at LOD0 — a chord over 1.5625 wu against a
+   surface sampled at 0.78125. In a concave dip the chord rides above the true
+   surface and the receiver reads as self-shadowed. **Slope-scale cannot compensate
+   this**: it corrects a primitive's own gradient, not a difference between two
+   meshes, and the error peaks exactly where slope, and therefore the slope term,
+   goes to zero. The deleted `SHADOW_BIAS_MIN` was the only term covering it. Named
+   at the site, with its own ladder rung.
+
+3. **An over-claim in UMBRA_3's ruling.** I wrote that nothing in `draw_shadow_all`
+   reads eye distance, so caster silhouettes cannot change as the camera approaches.
+   True of **density**; false of the **set**. The instance counts come from
+   `band_patches`, which partitions against `lod0_radius` and the veil ring measured
+   from THE POINT — and in camera-host mode the point is the eye. Corrected in the
+   tree: *which* patches cast tracks the viewer, even though *how finely* they cast
+   does not. The acquittal stands, but only at the density level.
+
+4. **Binding-registry drift.** `binding_registry.hpp` claimed "95 declarations over 92
+   slots"; the tree has **96 over 93**. Verified pre-existing (the same counts hold at
+   `0466346`), so not campaign-caused — but it is the file that calls itself the single
+   source of truth for binding numbers, and the count does registry work. Corrected
+   under P5, not de-numbered.
+
+5. **A stale tap-count label**, `"Shadow Sampling with 4x4 PCF"`, left standing by
+   UMBRA_8 over the kernel it had just made 3×3. Corrected, and scoped — the *spot*
+   kernel below it is still 4×4 and its label is right.
+
+6. **The bias arithmetic was computed at the wrong depth**, and the tuning ladder's
+   remedy for the campaign's own highest-risk deletion **pointed the wrong way.**
+   Both are corrected; both mattered.
+
+   *The depth:* `depthBias` on a float format is a ULP multiple of the primitive's
+   max depth, so the exponent decides the answer. I computed it at z ≈ 1. This
+   scene's sun-map geometry sits near **z = 0.417** — the light is `SUN_ALTITUDE` =
+   250 above the ground in a 599.9-deep frustum. One ULP there is 2^-25 = 2.98e-8,
+   not 2^-23, so `depthBias = 2` buys **6.0e-8 NDC, not 2.4e-7**. The dial's
+   landmarks move with it: restoring the old floor is **~3355**, not ~840.
+
+   *The direction:* bias pushes the **stored caster** depth away from the light, so
+   more bias means more lit means a **weaker** shadow. The ladder told Jean to
+   *raise* `depthBiasSlopeScale` when the pawn's shadow detaches indoors — which
+   would have made detachment worse, on the exact symptom the campaign flagged as
+   its most likely regression. Detachment is *too much* bias. Corrected, and the
+   ladder now opens with the direction table rather than assuming it.
+
+   *And the equivalence was scoped.* "Slope-scale replaces the old mix()" is true in
+   the mid-range and false at both ends. Measured, new/old by incidence:
+   0° **0.00** · 30° 1.11 · 45° **1.04** · 60° 1.13 · 80° 2.32 · 85° 4.26 · 88°
+   **10.13** · → ∞. It is *zero* where the old term had a floor, and *unbounded*
+   where the old term had a ceiling — because `depthBiasClamp = 0.0` means **no
+   clamp**, not *clamp at zero*. Quoting the 45° agreement as general would have been
+   the campaign's own failure mode a third time. Both ends are now named at the site,
+   with the `CullMode::None` thin-sheet case that the unbounded end can actually
+   break.
+
+## THE RESULT UMBRA_5 ACTUALLY BOUGHT, which the handoff did not predict
+
+The veil ring — the draw authority, past which no terrain is drawn at all — is
+`6.5 × PATCH_EXTENT` = **325 wu**.
+
+- **Before:** sun half-extent 300 wu. The shadow map ran out **25 wu inside the drawn
+  world**. There was a ring of visible terrain that received no sun shadow, and its
+  edge was a hard line. That is the "composing at the far edge" artifact, and it was
+  not a subtlety — it was geometric.
+- **After:** 420 wu. Coverage now extends **95 wu past** the last drawn thing.
+
+The far-edge artifact is **structurally eliminated, not merely pushed out**. Radius was
+the whole of it, and 1.4× happened to be more than enough.
+
+One honest consequence: **UMBRA_8's edge fade is insurance at these numbers, not an
+active effect.** Its band begins at `0.88 × 420` = 369.6 wu, well beyond the 325 wu
+ring, so it never touches drawn ground. It becomes live only if the tuning ladder
+claws radius back below 369.3 — the first −10% step (→378) is still clear, the second
+(→340) is where it starts working. Recorded at the site so nobody tunes against an
+effect that is currently dormant, and kept because it is what makes that ladder step
+safe.
 
 # HORIZON
 
@@ -728,17 +824,45 @@ Untouched, deliberately.
 
 # TUNING LADDER (Jean's dial, at the visual gate)
 
-- Acne survives on slopes → `depthBiasSlopeScale` +0.5 per step (`renderer.hpp`,
-  the shared shadow builder — one site, all pipelines).
-- **Pawn shadow detaches from its feet in INDOOR moods** → this is the
-  `shadow_pos.y += 0.3` deletion, and normal-offset does not cover the spot path.
-  Raise `depthBiasSlopeScale` first; if that reads wrong, restore the lift.
-- Shadow detaches at the pawn's feet outdoors → normal-offset scale 2.0 → 1.5 first,
-  then `depthBias` 2 → 1.
-- Penumbra reads mushy near the camera → claw radius back: `SUN_HALF_EXTENT` −10% per
-  step (crispness is bought from radius, never from taps). This also claws back VRAM.
-- Light leaks at terrain silhouettes under low sun → the UMBRA_3 curtain boolean does
-  not exist to revert; curtains were already out. Next lever is
+**Read the direction first.** Depth bias pushes the **stored caster** depth *away
+from the light*. More bias → more lit → **weaker** shadow. So:
+
+| symptom | meaning | direction |
+|---|---|---|
+| acne, self-shadow stippling | too little bias | bias **UP** |
+| peter-panning, shadow off contact | too much bias | bias **DOWN** |
+
+All bias levers live at one site: `renderer.hpp`, `shadowDepth` in the shared shadow
+builder — one edit reaches all eleven shadow pipelines.
+
+- **Acne survives on slopes** → `depthBiasSlopeScale` +0.5 per step.
+- **Acne on FLAT, SUN-FACING ground** → a different fault, and slope-scale will not
+  touch it: this is the LOD1-caster / LOD0-receiver gap (see finding 2 above). The
+  slope term is zero exactly there. Lever is `depthBias` **up**, and the arithmetic is
+  done: one unit is 2.98e-8 NDC at this scene's depths, so ~3355 restores the floor
+  the campaign deleted. Move in decades (2 → 20 → 200 → 2000), not by ones.
+- **Pawn shadow detaches from its feet, INDOOR** → this is the `shadow_pos.y += 0.3`
+  deletion, and UMBRA_7's normal offset does not cover the spot path by ruling. Too
+  much bias, so bias comes **DOWN**: `depthBiasSlopeScale` 2.0 → 1.5 first (the spot
+  path was never independently sized — it inherits 2.0 through a different
+  projection, where it lands stronger than the term it replaced). If that is not
+  enough, restore the lift.
+- **Pawn shadow detaches from its feet, OUTDOOR** → normal-offset scale 2.0 → 1.5
+  first, then `depthBias` 2 → 1.
+- **A thin caster's shadow VANISHES at a low sun** (ribbon, blade, palm, shell — the
+  `CullMode::None` sheets) → the grazing slope term is unbounded, because
+  `depthBiasClamp = 0.0` means *no clamp*, not *clamp at zero*. Set
+  `depthBiasClamp` to a real ceiling (start at the old `SHADOW_BIAS_MAX`-equivalent,
+  ~2.0e-3 NDC) rather than dropping `depthBiasSlopeScale` and losing the slope
+  correction everywhere else.
+- **Penumbra reads mushy near the camera** → claw radius back: `SUN_HALF_EXTENT` −10%
+  per step (crispness is bought from radius, never from taps). This also claws back
+  VRAM. Note the second step (→340) is where UMBRA_8's edge fade starts doing visible
+  work; the first (→378) is still clear of the draw ring.
+- **Light leaks at terrain silhouettes under low sun** → the UMBRA_3 curtain boolean
+  does not exist to revert; curtains were already out. Next lever is
   `depthBiasSlopeScale` down, then `depthBias` down.
-- Composing still visible at the far edge → widen the fade band 0.12 → 0.20 before
-  anything structural.
+- **Composing still visible at the far edge** → widen the fade band 0.12 → 0.20 before
+  anything structural. But check the radius first: at 420 wu the map already covers
+  95 wu past the draw ring, so a far-edge artifact is more likely the *ring* than the
+  shadow map.

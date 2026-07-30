@@ -13,7 +13,7 @@
 // patch_instances(340) / fc_patches(340); orb_state(410) /
 // render_orb_state(400) / orb_state_ro(413).
 //
-// The WGSL @binding literals in world.wgsl (95 declarations over 92 slots;
+// The WGSL @binding literals in world.wgsl (96 declarations over 93 slots;
 // three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
 // MIRROR of this file, kept in lockstep by the boot-time bind-group and
 // pipeline validation, not by the compiler. The names here deliberately

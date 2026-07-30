@@ -1993,31 +1993,57 @@ namespace t7 {
                     // lines are the whole of the program's shadow bias — the
                     // shader-side nudges that used to carry it are deleted.
                     //
-                    // Slope-scale does the work. It multiplies the ACTUAL
-                    // window-space depth gradient of the primitive, which is
-                    // the quantity acne comes from, and it is exactly zero on
-                    // surfaces facing the light — where a constant bias only
-                    // ever buys peter-panning. Applied at write time, so it
-                    // costs no fragment work at all.
+                    // Slope-scale does most of the work. It multiplies the
+                    // ACTUAL window-space depth gradient of the primitive —
+                    // applied after the perspective divide, so it is exact for
+                    // the spot path's projection too, not an approximation of
+                    // it — and it costs no fragment work at all.
                     //
-                    // The constant is small ON PURPOSE, and far smaller than it
-                    // looks: the format is Depth32Float, so per spec the unit
-                    // of depthBias is ULP of the primitive's max depth, not a
-                    // fixed fraction. Near z = 1 one ULP is 2^-23 = 1.19e-7,
-                    // so depthBias = 2 buys 2.4e-7 NDC — against a 599.9 wu
-                    // depth range, 1.4e-4 world units. The shader constants it
-                    // replaces spanned 1.0e-4 .. 2.0e-3 NDC (0.06 .. 1.20 wu).
-                    // That is the intended shape — the constant shrinks toward
-                    // zero and slope-scale takes over — but the gap is four
-                    // orders, so the number is flagged rather than left to
-                    // read as if it were equivalent.
+                    // WHERE THE TWO CURVES AGREE AND WHERE THEY DO NOT. Against
+                    // the mix(MAX, MIN, cos) this replaces, the slope term
+                    // tracks well through the mid-range and diverges at both
+                    // ends (incidence: new/old):
+                    //     0deg 0.00 · 30deg 1.11 · 45deg 1.04 · 60deg 1.13
+                    //          80deg 2.32 · 85deg 4.26 · 88deg 10.13 · ->inf
+                    // At NORMAL incidence the new bias is exactly zero where
+                    // the old had a 1.0e-4 floor. At GRAZING it is unbounded
+                    // where the old was capped at SHADOW_BIAS_MAX by
+                    // construction — depthBiasClamp = 0.0 means NO CLAMP in
+                    // WebGPU, not a clamp at zero. Both ends are named because
+                    // "45 degrees matches" is true and is not the same claim as
+                    // "this is equivalent".
                     //
-                    // THE DIAL, with its arithmetic done in advance: one unit
-                    // of depthBias is 1.19e-7 NDC here, so restoring the old
-                    // floor (SHADOW_BIAS_MIN, 1.0e-4) means depthBias ~= 840,
-                    // and the old grazing ceiling (2.0e-3) means ~16800.
-                    // Those are the two landmarks between which this dial
-                    // moves; 2 is deliberately at the bottom of that range.
+                    // THE CONSTANT, sized correctly for THIS scene. Depth32Float
+                    // makes depthBias a ULP multiple of the primitive's max
+                    // depth, so the exponent matters: the sun frustum is 599.9
+                    // deep and the light sits SUN_ALTITUDE = 250 above the
+                    // ground, so stored depths cluster near z = 0.417, not near
+                    // 1. One ULP there is 2^-25 = 2.98e-8, so depthBias = 2
+                    // buys 6.0e-8 NDC = 3.6e-5 world units. (Reading the ULP at
+                    // z = 1 would overstate it 4x — the easy error here.)
+                    //
+                    // THE DIAL, with its arithmetic done in advance: restoring
+                    // the old floor (1.0e-4 NDC) means depthBias ~= 3355; the
+                    // old grazing ceiling (2.0e-3) means ~67100. Those are the
+                    // landmarks; 2 sits deliberately at the bottom.
+                    //
+                    // DIRECTION, because it is easy to get backwards: bias
+                    // pushes the STORED caster depth away from the light, so
+                    // more bias = more lit = weaker shadow. ACNE wants it UP.
+                    // DETACHMENT (peter-panning, shadow pulling off contact)
+                    // wants it DOWN.
+                    //
+                    // WATCH THE CullMode::None SHEETS. pawn, ribbon, shell,
+                    // column, palm, cactus and blade are single-sided or
+                    // bufferless and cull nothing. For such a sheet turned
+                    // near-parallel to the light the window-space gradient
+                    // diverges, and with no clamp the biased depth can run past
+                    // the viewport range and stop occluding at all — the caster
+                    // vanishes rather than merely softening. The deleted shader
+                    // bias could not do this: it was a function of the
+                    // RECEIVER's normal and never touched a caster. If a thin
+                    // caster's shadow disappears at a low sun, depthBiasClamp
+                    // is the lever, not depthBias.
                     //
                     // WHERE SLOPE-SCALE CANNOT REACH, named because the
                     // campaign's own caster diet created it: the shadow pass
@@ -2033,7 +2059,7 @@ namespace t7 {
                     // exactly where the slope, and therefore the slope term,
                     // goes to zero. If terrain acne appears on FLAT,
                     // SUN-FACING ground, that is this gap, and the lever is
-                    // depthBias UP toward 840, not slope-scale.
+                    // depthBias UP toward ~3355, not slope-scale.
                     shadowDepth.depthBias           = 2;
                     shadowDepth.depthBiasSlopeScale = 2.0f;
                     shadowDepth.depthBiasClamp      = 0.0f;

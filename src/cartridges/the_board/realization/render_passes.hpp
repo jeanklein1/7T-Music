@@ -367,11 +367,29 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // resolve, so pure cost — and LOD1 is 7.6, already coarser than the
     // target. Neither rung satisfies "edge <= 2 x texelWorld", so that
     // rule selects nothing; the pin is nonetheless already at the ladder's
-    // COARSEST rung and there is nothing coarser to move to. Nothing here
-    // reads eye distance or pawn distance — the selection is
-    // unconditional, so caster silhouettes cannot change as the camera
-    // approaches. That acquits the second of the two suspects the campaign
-    // named for the "shadows compose as we approach" artifact.
+    // COARSEST rung and there is nothing coarser to move to.
+    //
+    // SCOPE THAT CLAIM CAREFULLY — it is about DENSITY, not about the SET.
+    // Nothing here selects a mesh density by distance: both bands take the
+    // LOD1 buffer unconditionally, so a caster's silhouette never
+    // re-tessellates as the camera nears it. That is what acquits the
+    // second of the two suspects the campaign named for the "shadows
+    // compose as we approach" artifact.
+    //
+    // The instance COUNTS below are a different matter and do move with
+    // the eye: band_patches (surface/patch_system.hpp) partitions patches
+    // against lod0_radius and the veil ring measured from THE POINT, and
+    // in camera-host mode the point IS the eye. So WHICH patches cast
+    // tracks the viewer even though HOW FINELY they cast does not.
+    //
+    // That set boundary is the veil ring (325 wu), and post-UMBRA_5 the
+    // sun frustum's half-extent is 420 wu — so the cast set now ends
+    // strictly INSIDE the shadow map's coverage, where nothing is drawn to
+    // receive anyway (the ring is the draw authority). Before UMBRA_5 the
+    // radius was 300 and the relation was inverted: the shadow map ran out
+    // 25 wu BEFORE the drawn world did, and that visible edge is what the
+    // campaign was chasing. It is now structurally gone, not merely
+    // pushed.
     if (cast_terrain) {
         c->renderer_.draw_shadow_patch_terrain(
             pass,

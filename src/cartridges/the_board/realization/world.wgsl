@@ -3606,7 +3606,7 @@ const SHADOW_MAP_SIZE: f32 = 4096.0;
 // ECONOMY_1 E6 per-texel form these carried did its job: it let UMBRA_5's
 // resolution ruling land without a bias edit, and then it retired.
 
-// --- Shadow Sampling with 4x4 PCF
+// --- Shadow Sampling with 3x3 PCF (the spot kernel below is still 4x4)
 
 fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // THE NORMAL OFFSET (UMBRA_7) — what glues the pawn's shadow to its
@@ -3692,6 +3692,16 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // Chebyshev distance to the edge in NDC and lerp the whole term back
     // to unshadowed. Uses shadow_uv, not clamped_uv, so it measures true
     // distance to the edge rather than saturating at the clamp.
+    //
+    // AT TODAY'S NUMBERS THIS IS INSURANCE, NOT AN ACTIVE EFFECT, and it
+    // is worth knowing which: the band begins at 0.88 * SUN_HALF_EXTENT =
+    // 369.6 wu, while the veil ring — the draw authority, past which no
+    // terrain exists to receive — is 325 wu. The band never reaches drawn
+    // ground. It becomes live if the tuning ladder claws the radius back:
+    // 0.88 * R < 325 means R < 369.3, so the FIRST -10% step (420 -> 378)
+    // is still clear and the SECOND (-> 340) is where the fade starts
+    // doing visible work. Keep it either way — it is a few instructions,
+    // and it is what makes that ladder step safe to take.
     let d    = max(abs(shadow_uv.x * 2.0 - 1.0), abs(shadow_uv.y * 2.0 - 1.0));
     let fade = clamp((1.0 - d) / 0.12, 0.0, 1.0);
     let lit  = mix(1.0, shadow, fade);
@@ -3752,10 +3762,18 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 // Bias strategy: NONE HERE (UMBRA_6). The hand-rolled pair that used to
 // live here — a base bias divided by clip.w to compensate for hyperbolic
 // 1/z depth, plus a per-pixel slope term from the radial light direction —
-// is deleted. The rasterizer's slope-scaled bias subsumes both: it is
-// computed from the primitive's real window-space depth gradient, and
-// window space is already post-projection, so the 1/z distribution is
-// handled by construction rather than by dividing it back out.
+// is deleted. The rasterizer's slope-scaled bias replaces both, and on the
+// perspective question it is strictly better: bias is applied to
+// window-space z, AFTER the divide and viewport transform, so the
+// hyperbolic 1/z distribution is handled exactly where the old /clip.w was
+// a hand-rolled approximation of the same thing.
+//
+// What is NOT replaced is the old term's CEILING. slope_bias was capped by
+// SPOT_SLOPE_BIAS_MAX; depthBiasClamp = 0.0 means no clamp at all, so the
+// rasterizer's grazing-angle term is unbounded. And the spot path was
+// never independently sized — it inherits slopeScale = 2.0 from the sun
+// pipelines through a completely different projection. Both are Jean's at
+// the indoor gate; depthBiasClamp is the lever if grazing bias runs away.
 //
 // The spot pass reuses the SAME pipelines as the sun pass, so it inherits
 // that bias without a second home.
