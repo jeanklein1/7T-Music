@@ -170,7 +170,7 @@ of any number.
 | E2 shadow at half mesh | LANDED (`8804f0c`) | shadow GPU 6.37 -> 3.40 at rest; identity held |
 | E3 LOD1 through the cull | LANDED (as the draw plan, `370ee94`) | first frustum test LOD1 ever had |
 | E3b shadow vs sun box | DEAD | post-E2 the whole pass is ~3.4 ms; the machinery exceeds the prize |
-| E4 indoor light economy | PARKED | CPU witness was Debug-inflated; re-rank after the Release record, owner: a future indoor pass |
+| E4 indoor light economy | DEAD (premise retired by measurement) | E4's motivating witness was 14–18 ms of CPU caster-list encoding indoors. That number was Debug inflation. The record's indoor window (Gallery, 2 lights) reads `shadow_pass cpu 0.15 / 2.99`. The invariant — N full-list walks where one culled walk suffices — survives as structure and costs nothing measurable. No mechanism until a measurement asks; the measurement withdrew the question. Reopens only for a many-light indoor mood, on fresh numbers; the GPU half (terrain into every spot tile, a FLAT floor in every caster list) goes to the aesthetics chapter's watch list rather than to a campaign. |
 | E5 margin as ratio | LANDED (inside the plan, `370ee94`) | the planar margin guarded XZ motion that does not exist (R1) |
 | E6 ratios | LANDED (SWEEP_1) | bias constants born again as ratios |
 | E7 heightfield at reader rate | MOVED | to the memory pass, still gated by audit A1 |
@@ -227,20 +227,30 @@ drawing what no eye and no texel could use.
 
 With the mean frame at ~18 ms, the frontier moved from the mean to the **MAX**
 column — and a two-hour recording is judged by its worst frames, not its
-average. Named from the record boot, each worth 1–6 dropped frames:
+average. Ranked from the record boot's max column, by dropped frames at a
+~18.5 ms frame:
 
-| row | max | ≈ frames dropped |
-|---|---|---|
-| `census_dumps` | 114 ms | ~6 |
-| `stream_patches` GPU | ~40 ms | ~2 |
-| `respawn_agents` | 25 ms | ~1 |
-| `snapshot_pass` | ~19 ms | ~1 |
-| `gol_derive_flush` | 17 ms | ~1 |
+| row | max | ~frames | note |
+|---|---|---|---|
+| U `transition_machine` | 1127.96 / 1083.09 ms | 60+ | world/portal transition; fired TWICE in one session; the most visible defect in any recorded pass through a portal |
+| R `census_dumps` | 336.48 ms | ~18 | grows with entity count; worse than the 114 ms first named |
+| R `stream_patches` (GPU) | 146.01 ms | ~8 | the burst E9 (the ring) exists to amortize |
+| R `main_pass` (CPU) | 174.27 ms | ~9 | **SUSPECT, not a finding** — probably present/acquire wait attributed to the row. Needs its own recon before it is ranked as work |
+| R `main_pass` (GPU) | 88.67 ms | ~5 | indoor window |
+| R `snapshot_pass` (GPU) | 28.05 ms | ~2 | photographer |
+| U `witness_photographer` | 22.50 ms | ~1 | |
+| R `respawn_agents` | 12.89 ms | ~1 | |
 
 The instrument already exists (METER_1's max column); the campaign does not.
 **SPIKE_1 — the variance ledger** — is the successor, ranked after the
 aesthetics chapter, and **E9 (the ring)** is its largest known entry. Its law
 is the economy law's twin: *cost delivered in a lump is cost paid twice.*
+
+**THE ACCOUNTING GAP.** In the record's cleanest window the rows do not sum to
+the frame: GPU ~15.4 ms of timestamped passes, CPU ~1.9 ms of spine rows,
+against an 18.5 ms frame. Roughly 3 ms is owned by nobody. SPIKE_1's opening
+law: *the rows must approach the frame, or a row is missing.* Find the missing
+row before ranking anything inside the ones we have.
 
 ### THE RECORD
 *Awaiting the single Release boot on final master. To be filled from that log:
