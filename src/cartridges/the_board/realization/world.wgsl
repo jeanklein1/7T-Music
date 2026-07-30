@@ -3609,8 +3609,33 @@ const SHADOW_MAP_SIZE: f32 = 4096.0;
 // --- Shadow Sampling with 4x4 PCF
 
 fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+    // THE NORMAL OFFSET (UMBRA_7) — what glues the pawn's shadow to its
+    // feet. It moves the SAMPLE POSITION along the receiver normal, not
+    // the depth: it walks the lookup out of the occluder's own texel
+    // instead of lifting the comparison above it, so slope acne goes
+    // without contact separation going with it. That is the whole reason
+    // it can exist here while the depth nudges could not.
+    //
+    // Scale is in TEXELS, so UMBRA_5's resize carried it for free and any
+    // future one will too: SHADOW_TEXEL_WORLD is derived from the frustum
+    // and the map. Two texels is sized for the 3x3 footprint UMBRA_8
+    // installs — the kernel reaches one texel, the offset clears it.
+    //
+    // (1 - ndotl) puts the offset where the error is. Acne is a grazing-
+    // angle artifact: a texel spans more depth the more oblique the
+    // surface is to the light. Facing the light the term is zero, so
+    // sun-facing ground is sampled exactly where it stands.
+    //
+    // `normal` is unit at every caller — the terrain FS normalizes its
+    // gradient normal (and re-normalizes after the aura perturbs it) and
+    // both entity FS pass normalize(in.normal) — so this scale is exact
+    // rather than approximately exact.
+    let light_dir = -render_light.direction;   // toward the light
+    let ndotl     = clamp(dot(normal, light_dir), 0.0, 1.0);
+    let offset_w  = normal * (SHADOW_TEXEL_WORLD * 2.0 * (1.0 - ndotl));
+
     // Transform to light clip space
-    let light_clip = render_vp.light_vp * vec4(world_pos, 1.0);
+    let light_clip = render_vp.light_vp * vec4(world_pos + offset_w, 1.0);
     let light_ndc = light_clip.xyz / light_clip.w;
 
     let shadow_uv = vec2(
