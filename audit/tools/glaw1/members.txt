@@ -8,6 +8,7 @@ CreateBuffer
 CreateCommandEncoder
 CreateComputePipeline
 CreatePipelineLayout
+CreateQuerySet
 CreateRenderPipeline
 CreateSampler
 CreateShaderModule
@@ -21,7 +22,9 @@ End
 Finish
 GetConstMappedRange
 GetQueue
+HasFeature
 MapAsync
+ResolveQuerySet
 SetBindGroup
 SetIndexBuffer
 SetPipeline
@@ -41,6 +44,7 @@ arrayStride
 aspect
 attributeCount
 attributes
+beginningOfPassWriteIndex
 bindGroupLayoutCount
 bindGroupLayouts
 binding
@@ -58,7 +62,11 @@ compare
 compute
 constantCount
 constants
+count
 cullMode
+depthBias
+depthBiasClamp
+depthBiasSlopeScale
 depthClearValue
 depthCompare
 depthLoadOp
@@ -68,6 +76,7 @@ depthStoreOp
 depthWriteEnabled
 dimension
 dstFactor
+endOfPassWriteIndex
 entityQueue_
 entries
 entryCount
@@ -91,6 +100,7 @@ operation
 origin
 placementResults_
 primitive
+querySet
 rowsPerImage
 sampleCount
 sampleType

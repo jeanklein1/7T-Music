@@ -62,6 +62,7 @@
 
 #include "coupling/visual_params.hpp"
 #include "coupling/trajectory.hpp"
+#include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.checker_witness gates the [CHECKER] line
 #include "musical/signal_layout.hpp"
 #include "analysis/analysis_signal.hpp"
 #include <string>    // casting-sheet name composition ("<voice>.present_count")
@@ -462,11 +463,17 @@ namespace t7 {
                     checker_amount_goal_ = present ? 1.0f : 0.0f;
                     checker_var_goal_ = present ? (float)std::max(0, n - 1) : 0.0f;
                     // THE WITNESS: one line per read, upstream of the GPU.
-                    std::fprintf(stderr,
-                        "[CHECKER] n=%d total=%.2f resultant=(%.2f %.2f %.2f) distinct-1=%.0f\n",
-                        n, total,
-                        checker_res_goal_[0], checker_res_goal_[1], checker_res_goal_[2],
-                        checker_var_goal_);
+                    // On the instruments dial (core/instruments.hpp): a read
+                    // lands every CHECKER_READ_SPAN beats — at 120 BPM that
+                    // is an UNBUFFERED stderr write every two seconds, on the
+                    // beat, which is exactly where a hitch is most visible.
+                    if constexpr (INSTRUMENTS.checker_witness) {
+                        std::fprintf(stderr,
+                            "[CHECKER] n=%d total=%.2f resultant=(%.2f %.2f %.2f) distinct-1=%.0f\n",
+                            n, total,
+                            checker_res_goal_[0], checker_res_goal_[1], checker_res_goal_[2],
+                            checker_var_goal_);
+                    }
                     checker_next_read_ =
                         (std::floor(beat / CHECKER_READ_SPAN) + 1.0f) * CHECKER_READ_SPAN;
                 }

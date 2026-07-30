@@ -285,6 +285,7 @@ set(INCUBATOR_ANALYSIS_CARTRIDGE      "canvas_1"         CACHE STRING "Analysis 
 
 set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
+set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
 set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
 option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
 
@@ -308,6 +309,7 @@ endforeach()
 message(STATUS "")
 message(STATUS "Active cartridges:")
 message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} analysis: ${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
+message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
 message(STATUS "  the_lab        -> analysis: ${INCUBATOR_ANALYSIS_CARTRIDGE}")
 message(STATUS "  Incubator only: ${INCUBATOR_ONLY}")
 message(STATUS "")
@@ -559,6 +561,7 @@ if(MSVC)
         INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
         INCUBATE_ANALYSIS=${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
+        T7_INSTRUMENTS=${T7_INSTRUMENTS}
     )
 endif()
 
@@ -788,7 +791,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${DAWN_LIBS})
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE ${MSVC_COMPILE_OPTS})
     target_link_options(${PROJECT_NAME} PRIVATE ${MSVC_LINK_OPTS})
-    target_compile_definitions(${PROJECT_NAME} PRIVATE ${MSVC_COMPILE_DEFS})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        ${MSVC_COMPILE_DEFS}
+        T7_INSTRUMENTS=${T7_INSTRUMENTS}
+    )
 endif()
 
 # Post-build: copy assets and cartridges

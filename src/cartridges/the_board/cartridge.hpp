@@ -48,6 +48,7 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
+#include "core/instruments.hpp"                                    // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter / .periodic_census gate the recurring self-measurement (compile-time, T7_INSTRUMENTS; default off)
 #include "cartridges/the_board/contracts/roster.hpp"
 #include "cartridges/the_board/demos/demo.hpp"             // THE SELECTED SENTENCE: DEMO + ROSTER (compile-time, INCUBATE_DEMO; default full)
 #include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
@@ -424,9 +425,14 @@ namespace t7 {
                 // THE FRAME METER — GPU half arms only on timestamp-query
                 // (the console requests it when the adapter has it).
                 // Absent → degrade loudly; CPU rows are unaffected.
-                meter_gpu_ = device_.HasFeature(wgpu::FeatureName::TimestampQuery);
-                if (!meter_gpu_)
-                    std::cout << "[METER] timestamp-query unavailable on this adapter — CPU rows only\n";
+                // Behind the instruments dial: off, the probe never runs and
+                // meter_gpu_ stays false, so the harvest/resolve block folds
+                // out with it (core/instruments.hpp).
+                if constexpr (INSTRUMENTS.frame_meter) {
+                    meter_gpu_ = device_.HasFeature(wgpu::FeatureName::TimestampQuery);
+                    if (!meter_gpu_)
+                        std::cout << "[METER] timestamp-query unavailable on this adapter — CPU rows only\n";
+                }
 
                 {
                     // The surface voice's terrain rows read THE
@@ -610,7 +616,7 @@ namespace t7 {
 
                 // THE FRAME METER: boot ends here — restamp the window so
                 // the first census fps excludes init wall-time.
-                meter_.reset();
+                if constexpr (INSTRUMENTS.frame_meter) meter_.reset();
 
                 return true;
             }
@@ -1055,12 +1061,20 @@ namespace t7 {
                 UpdateCtx ctx{ signal, aspect_ratio, queue, gpuSignal };
                 for (const URow& row : UPDATE_SPINE) {
                     if (!row.enabled) continue;   // gated-off rows are never timed
-                    auto t0 = std::chrono::steady_clock::now();
-                    (this->*row.fn)(ctx);
-                    auto t1 = std::chrono::steady_clock::now();
-                    float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
-                    auto& s = meter_.u_rows[(size_t)row.id];
-                    s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                    // The clock pair is the METER's, not the conductor's: with
+                    // the instrument off the loop is the bare dispatch it was
+                    // before the meter existed (core/instruments.hpp).
+                    if constexpr (INSTRUMENTS.frame_meter) {
+                        auto t0 = std::chrono::steady_clock::now();
+                        (this->*row.fn)(ctx);
+                        auto t1 = std::chrono::steady_clock::now();
+                        float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
+                        auto& s = meter_.u_rows[(size_t)row.id];
+                        s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                    }
+                    else {
+                        (this->*row.fn)(ctx);
+                    }
                 }
             }
 
@@ -1255,6 +1269,17 @@ namespace t7 {
                     }
                 }
 
+                // THE DIAL (core/instruments.hpp). Everything below this line
+                // is the PERIODIC instrument — the recurring dump and the
+                // meter table that rides its cadence — and a print is a
+                // blocking console write on the render thread, so ~50 lines
+                // every 30 s IS the long frame every 30 s. Off, the row above
+                // (the residue proof, a correctness witness) still runs and
+                // this returns. The "boot" and "mood-transition" dumps are
+                // NOT on the dial: those are P6 transition witnesses, and
+                // their frames are already long.
+                if constexpr (!INSTRUMENTS.periodic_census) return;
+
                 // Periodic entity census dump — its own interval, its own
                 // gate. THE INSTRUMENT the batch witnesses read; untouched.
                 if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
@@ -1265,7 +1290,11 @@ namespace t7 {
                     // cadence. Print ALL enabled rows (completeness feeds
                     // the suspect table; Jean pastes this block back
                     // verbatim). mean = sum/frames; fps = frames/wall.
-                    if (meter_.window_frames > 0) {
+                    // The dial conjunct is for ELIMINATION, not correctness:
+                    // with the meter off nothing increments window_frames, so
+                    // the block is already inert — the constant lets the
+                    // compiler drop the formatting with it.
+                    if (INSTRUMENTS.frame_meter && meter_.window_frames > 0) {
                         char line[160];
                         const float wall_s = std::chrono::duration<float>(
                             std::chrono::steady_clock::now() - meter_.window_start).count();
@@ -1703,6 +1732,14 @@ namespace t7 {
             // row (sum+max) over a census window; census_dumps prints the
             // table against FRAME_BUDGET_MS, then reset(). Gated-off rows
             // are never timed.
+            //
+            // THE DIAL: the whole instrument answers to INSTRUMENTS.frame_meter
+            // (core/instruments.hpp), OFF by default. The state below still
+            // EXISTS in the off build — a few hundred bytes of zeroed rows —
+            // but nothing reads or writes it: no clock pair around a row, no
+            // armed timestamp pair, no resolve, no readback, no table. The
+            // structure is kept whole so a measurement session is one define
+            // (T7_INSTRUMENTS=meter) and a rebuild, never a re-authoring.
             struct FrameMeter {
                 static constexpr float FRAME_BUDGET_MS = 16.6f;   // the named budget
                 struct RowStat { double sum_ms = 0.0; float max_ms = 0.0f; };
@@ -1849,7 +1886,7 @@ namespace t7 {
                 wgpu::TextureView depth) override {
                 wgpu::Queue queue = device_.GetQueue();
                 RenderCtx ctx{ encoder, queue, backbuffer, depth };
-                meter_.window_frames++;
+                if constexpr (INSTRUMENTS.frame_meter) meter_.window_frames++;
 
                 // THE FRAME METER — GPU half, harvest side. Mirrors the
                 // floater readback grammar exactly (COPIED → MapAsync →
@@ -1857,74 +1894,87 @@ namespace t7 {
                 // AllowSpontaneous). No world_gen capture: timing rows are
                 // world-agnostic. dt discards per the spec's counter-reset
                 // note: end ≤ begin, or dt > 100 ms.
-                if (meterReadbackState_ == MeterReadbackState::COPIED) {
-                    meterReadbackState_ = MeterReadbackState::MAPPING;
-                    gpuState_.meter_readback_staging().MapAsync(
-                        wgpu::MapMode::Read, 0, GPUState::meter_readback_size(),
-                        wgpu::CallbackMode::AllowSpontaneous,
-                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
-                            if (status == wgpu::MapAsyncStatus::Success) {
-                                const auto* ts = static_cast<const uint64_t*>(
-                                    gpuState_.meter_readback_staging().GetConstMappedRange(
-                                        0, GPUState::meter_readback_size()));
-                                if (ts) {
-                                    // METER_1.1: group pair dts by row into a
-                                    // frame-local total FIRST, then fold sum/max
-                                    // from the per-frame totals — multi-pass rows
-                                    // (orb quartet, shadow atlas, patch batches)
-                                    // otherwise printed a per-pass max below their
-                                    // per-frame mean.
-                                    double frame_ms[(size_t)RPhase::COUNT] = {};
-                                    for (uint32_t p = 0; p < meter_.snap_pair_count; p++) {
-                                        const uint64_t t0 = ts[meter_.snap_pairs[p].begin_idx];
-                                        const uint64_t t1 = ts[meter_.snap_pairs[p].begin_idx + 1];
-                                        if (t1 <= t0) continue;               // counter-reset garbage
-                                        const double ms = (double)(t1 - t0) * 1e-6;   // u64 ns per index
-                                        if (ms > 100.0) continue;             // same discard law
-                                        frame_ms[meter_.snap_pairs[p].row] += ms;
+                // The whole GPU half — harvest, arming table, frame-close
+                // resolve — rides the instruments dial. Off, the frame issues
+                // no ResolveQuerySet, no staging copy, and no MapAsync, and
+                // keeps no readback in flight (core/instruments.hpp).
+                if constexpr (INSTRUMENTS.frame_meter) {
+                    if (meterReadbackState_ == MeterReadbackState::COPIED) {
+                        meterReadbackState_ = MeterReadbackState::MAPPING;
+                        gpuState_.meter_readback_staging().MapAsync(
+                            wgpu::MapMode::Read, 0, GPUState::meter_readback_size(),
+                            wgpu::CallbackMode::AllowSpontaneous,
+                            [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                                if (status == wgpu::MapAsyncStatus::Success) {
+                                    const auto* ts = static_cast<const uint64_t*>(
+                                        gpuState_.meter_readback_staging().GetConstMappedRange(
+                                            0, GPUState::meter_readback_size()));
+                                    if (ts) {
+                                        // METER_1.1: group pair dts by row into a
+                                        // frame-local total FIRST, then fold sum/max
+                                        // from the per-frame totals — multi-pass rows
+                                        // (orb quartet, shadow atlas, patch batches)
+                                        // otherwise printed a per-pass max below their
+                                        // per-frame mean.
+                                        double frame_ms[(size_t)RPhase::COUNT] = {};
+                                        for (uint32_t p = 0; p < meter_.snap_pair_count; p++) {
+                                            const uint64_t t0 = ts[meter_.snap_pairs[p].begin_idx];
+                                            const uint64_t t1 = ts[meter_.snap_pairs[p].begin_idx + 1];
+                                            if (t1 <= t0) continue;               // counter-reset garbage
+                                            const double ms = (double)(t1 - t0) * 1e-6;   // u64 ns per index
+                                            if (ms > 100.0) continue;             // same discard law
+                                            frame_ms[meter_.snap_pairs[p].row] += ms;
+                                        }
+                                        for (size_t r = 0; r < (size_t)RPhase::COUNT; r++) {
+                                            if (frame_ms[r] <= 0.0) continue;
+                                            auto& s = meter_.r_gpu[r];
+                                            s.sum_ms += frame_ms[r];
+                                            if ((float)frame_ms[r] > s.max_ms) s.max_ms = (float)frame_ms[r];
+                                        }
+                                        meter_.gpu_sampled_frames++;
                                     }
-                                    for (size_t r = 0; r < (size_t)RPhase::COUNT; r++) {
-                                        if (frame_ms[r] <= 0.0) continue;
-                                        auto& s = meter_.r_gpu[r];
-                                        s.sum_ms += frame_ms[r];
-                                        if ((float)frame_ms[r] > s.max_ms) s.max_ms = (float)frame_ms[r];
-                                    }
-                                    meter_.gpu_sampled_frames++;
+                                    gpuState_.meter_readback_staging().Unmap();
                                 }
-                                gpuState_.meter_readback_staging().Unmap();
-                            }
-                            meterReadbackState_ = MeterReadbackState::IDLE;
-                        });
+                                meterReadbackState_ = MeterReadbackState::IDLE;
+                            });
+                    }
+                    gpuState_.meter_frame_begin();   // rebuild this frame's arming table
                 }
-                gpuState_.meter_frame_begin();   // rebuild this frame's arming table
 
                 for (const RRow& row : RENDER_SPINE) {
                     if (!row.enabled) continue;   // gated-off rows are never timed
-                    auto t0 = std::chrono::steady_clock::now();
-                    (this->*row.fn)(ctx);
-                    auto t1 = std::chrono::steady_clock::now();
-                    float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
-                    auto& s = meter_.r_rows[(size_t)row.id];
-                    s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                    if constexpr (INSTRUMENTS.frame_meter) {
+                        auto t0 = std::chrono::steady_clock::now();
+                        (this->*row.fn)(ctx);
+                        auto t1 = std::chrono::steady_clock::now();
+                        float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
+                        auto& s = meter_.r_rows[(size_t)row.id];
+                        s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+                    }
+                    else {
+                        (this->*row.fn)(ctx);
+                    }
                 }
 
                 // Frame close (after the last spine row, before the host's
                 // Finish/Submit): resolve this frame's armed pairs, stage
                 // the copy, snapshot the pair table. SKIP-IF-BUSY is the
                 // law — at most one readback in flight.
-                if (meter_gpu_ && gpuState_.meter_pair_count() > 0 &&
-                    meterReadbackState_ == MeterReadbackState::IDLE) {
-                    const uint32_t n = 2 * gpuState_.meter_pair_count();
-                    encoder.ResolveQuerySet(gpuState_.meter_query_set(), 0, n,
-                        gpuState_.meter_resolve_buffer(), 0);
-                    encoder.CopyBufferToBuffer(
-                        gpuState_.meter_resolve_buffer(), 0,
-                        gpuState_.meter_readback_staging(), 0,
-                        n * sizeof(uint64_t));
-                    meter_.snap_pair_count = gpuState_.meter_pair_count();
-                    for (uint32_t p = 0; p < meter_.snap_pair_count; p++)
-                        meter_.snap_pairs[p] = gpuState_.meter_pairs()[p];
-                    meterReadbackState_ = MeterReadbackState::COPIED;
+                if constexpr (INSTRUMENTS.frame_meter) {
+                    if (meter_gpu_ && gpuState_.meter_pair_count() > 0 &&
+                        meterReadbackState_ == MeterReadbackState::IDLE) {
+                        const uint32_t n = 2 * gpuState_.meter_pair_count();
+                        encoder.ResolveQuerySet(gpuState_.meter_query_set(), 0, n,
+                            gpuState_.meter_resolve_buffer(), 0);
+                        encoder.CopyBufferToBuffer(
+                            gpuState_.meter_resolve_buffer(), 0,
+                            gpuState_.meter_readback_staging(), 0,
+                            n * sizeof(uint64_t));
+                        meter_.snap_pair_count = gpuState_.meter_pair_count();
+                        for (uint32_t p = 0; p < meter_.snap_pair_count; p++)
+                            meter_.snap_pairs[p] = gpuState_.meter_pairs()[p];
+                        meterReadbackState_ = MeterReadbackState::COPIED;
+                    }
                 }
             }
 

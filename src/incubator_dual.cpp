@@ -69,9 +69,11 @@
 #include RENDER_HEADER(INCUBATE_RENDER)
 #endif
 
+#include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.watcher_ticks gates the hot-reload progress dot
 #include <iostream>
 #include <GLFW/glfw3.h>
 #include <filesystem>
+#include <system_error>   // std::error_code — the watcher's non-throwing stat
 #include <chrono>
 
 // =========================================================================
@@ -87,12 +89,21 @@ public:
         }
     }
 
+    // ONE stat per check, not two. exists() + last_write_time() was two
+    // filesystem round-trips on the render thread, both of the throwing
+    // overload, ~2×/s forever; the error_code overload answers "gone" and
+    // "unchanged" from the same call. Same behaviour, half the syscalls,
+    // and no exception path in the frame loop.
     bool check() {
-        if (path_.empty() || !std::filesystem::exists(path_)) {
+        if (path_.empty()) {
             return false;
         }
 
-        auto currentTime = std::filesystem::last_write_time(path_);
+        std::error_code ec;
+        auto currentTime = std::filesystem::last_write_time(path_, ec);
+        if (ec) {
+            return false;   // absent or unreadable — nothing to reload
+        }
         if (currentTime != lastWriteTime_) {
             lastWriteTime_ = currentTime;
             return true;
@@ -196,7 +207,13 @@ int main(int argc, char* argv[]) {
         // --- Hot Reload Check (every ~30 frames) ----------------------------
         if (++reload_frame_counter >= 30) {
             reload_frame_counter = 0;
-            std::cout << "." << std::flush;  // Print dot every check
+            // The progress dot is on the instruments dial: it is an explicit
+            // FLUSH — a blocking console write — twice a second, forever, and
+            // it reports only that the loop is still looping. The reload
+            // itself still announces itself, loudly, when it happens.
+            if constexpr (t7::INSTRUMENTS.watcher_ticks) {
+                std::cout << "." << std::flush;
+            }
             if (watcher.check()) {
                 std::cout << "\n[FileWatcher] Change detected!\n";
                 render.reload_shaders();

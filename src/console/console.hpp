@@ -261,6 +261,13 @@ namespace t7 {
             // the adapter carries it; consumers check device.HasFeature.
             // Absent → no unsafe-API chasing; downstream degrades loudly
             // to CPU rows only.
+            //
+            // The REQUEST stays unconditional on purpose. Whether the meter
+            // arms is a cartridge decision (INSTRUMENTS.frame_meter,
+            // core/instruments.hpp) and this is the host — a granted feature
+            // costs nothing until a pass writes a timestamp, and keeping the
+            // request here means turning the instrument back on is one define
+            // in the cartridge, with no host edit and no second door to find.
             wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
             if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
                 deviceDesc.requiredFeatures = requiredFeatures;

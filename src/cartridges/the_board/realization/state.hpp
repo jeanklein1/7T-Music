@@ -28,6 +28,7 @@
 //     bind groups        bind::g0/g1 only — the registry is the map
 
 #include "analysis/analysis_signal.hpp"
+#include "core/instruments.hpp"                  // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter gates the GPU half's creation + arming (compile-time, T7_INSTRUMENTS; default off)
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
@@ -2774,6 +2775,10 @@ namespace t7 {
             bool meter_gpu_supported() const { return meterEnabled_; }
             void meter_frame_begin() { meterPairCount_ = 0; meterNextIndex_ = 0; }
             uint32_t meter_arm_alloc(uint32_t row) {   // shared allocator: begin index or UINT32_MAX
+                // THE DIAL first: a compile-time refusal, so every one of the
+                // twenty arm sites folds to `descriptor.timestampWrites =
+                // nullptr` and the driver never sees a pass-boundary write.
+                if constexpr (!INSTRUMENTS.frame_meter) return UINT32_MAX;
                 if (!meterEnabled_ || meterNextIndex_ + 2 > METER_QUERY_COUNT) return UINT32_MAX;
                 const uint32_t i = meterNextIndex_;
                 meterPairs_[meterPairCount_] = { row, i };
@@ -3122,10 +3127,15 @@ namespace t7 {
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     ribbonReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
-                // THE FRAME METER — GPU half. Created only when the device
-                // carries timestamp-query (the cartridge prints the loud
-                // boot line when absent); CPU rows are unaffected either way.
-                meterEnabled_ = device_.HasFeature(wgpu::FeatureName::TimestampQuery);
+                // THE FRAME METER — GPU half. Created only when the
+                // instruments dial arms the meter AND the device carries
+                // timestamp-query (the cartridge prints the loud boot line
+                // when the device is the reason); CPU rows are unaffected
+                // either way. Dial off → no query set, no resolve buffer, no
+                // readback staging, and meter_arm_* returns nullptr at every
+                // pass site (core/instruments.hpp).
+                meterEnabled_ = INSTRUMENTS.frame_meter
+                    && device_.HasFeature(wgpu::FeatureName::TimestampQuery);
                 if (meterEnabled_) {
                     wgpu::QuerySetDescriptor qd{};
                     qd.label = "Frame Meter Timestamps";

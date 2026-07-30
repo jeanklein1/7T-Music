@@ -37,6 +37,14 @@
         "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
         "THE_BOARD_DEMO": "minimal"
       }
+    },
+    {
+      "name": "the-board-full-release-meter",
+      "displayName": "the_board — full (Release, frame meter armed)",
+      "inherits": "the-board-full-release",
+      "cacheVariables": {
+        "T7_INSTRUMENTS": "meter"
+      }
     }
   ],
   "buildPresets": [
@@ -53,6 +61,11 @@
     {
       "name": "the-board-minimal",
       "configurePreset": "the-board-minimal",
+      "targets": [ "incubator_dual" ]
+    },
+    {
+      "name": "the-board-full-release-meter",
+      "configurePreset": "the-board-full-release-meter",
       "targets": [ "incubator_dual" ]
     }
   ]
