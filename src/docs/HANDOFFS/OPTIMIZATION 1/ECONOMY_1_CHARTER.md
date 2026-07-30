@@ -212,12 +212,14 @@ chosen):
 
 | | opening | record |
 |---|---|---|
-| rest fps | 19.2 | `<record>` |
-| main_pass GPU | 22.3 ms | `<record>` |
-| shadow_pass GPU | 10.3 ms | `<record>` |
-| CPU frame budget | ~15 ms | `<record>` |
-| pipeline compile | ~230 s | 55 s |
+| frame rate | ~19 fps | 46.6–54.1 (~2.5×) |
+| main_pass GPU | 22.3 ms | 11.3–13.6 (~1.7×) |
+| shadow_pass GPU | 10.3 ms | 2.35–3.44 (~3.5×) |
+| CPU frame (U+R) | ~15 ms | 1.9–2.5 (~7×) |
+| pipeline compile | ~230 s | 55 s (~4×) |
 | VRAM | — | 96 MB returned |
+
+*Source: THE RECORD below — these cells restate it, they do not hold it.*
 
 Not one of these came from a faster machine choosing itself: the machine was
 chosen, a false law was shot, the prose was made true, and the frame stopped
@@ -252,13 +254,44 @@ against an 18.5 ms frame. Roughly 3 ms is owned by nobody. SPIKE_1's opening
 law: *the rows must approach the frame, or a row is missing.* Find the missing
 row before ranking anything inside the ones we have.
 
-### THE RECORD
-*Awaiting the single Release boot on final master. To be filled from that log:
-the platform block verbatim (Dawn revision, `Build: Release`,
-`Adapter selected: index=2`, the feature line); the
-`[Ground] zone rects in core: N (boot)` line and any transitions during the
-run; S1 outdoor rest (fps, main/shadow GPU mean, U_SUM + R_SUM); one traveling
-window and one indoor window, same fields; and the max column for the five
-SPIKE_1 rows above, so the successor campaign opens with numbers instead of
-suspicions. The `<record>` cells in* WHAT THE CAMPAIGN BOUGHT *fill from the
-same table.*
+## THE RECORD
+
+Release, NVIDIA GeForce 920M (discrete / D3D12, driver 25.21.14.2531),
+Dawn `f0bf8ab547a9a23b8b78ff67d8085d4a26600a7d`, master `af311e9`, 2026-07-29.
+`Build: Release`, `Adapter selected: index=2`, `timestamp-query=YES`,
+`multi-draw-indirect=no`, adapter limits storageBuffers/stage=10
+uniformBuffers/stage=12 bindingsPerGroup=1000. Boot: shader compile 297 ms;
+pipelines 56 569 ms (compute 22 374 / render 34 194); total init 58 257 ms.
+Witnesses present: `[SPINE] validated: 9 update + 22 render + 12 dispatch`,
+`[Ground] zone rects in core: 0 (boot)`.
+
+| window | scene | fps | main GPU mean/max | shadow GPU mean/max | CPU U+R |
+|---|---|---|---|---|---|
+| t=88 | outdoor, ribbon flight | 47.3 | 13.15 / 17.96 | 3.36 / 3.47 | 1.90 |
+| t=118 | outdoor, flight | 46.6 | 13.62 / 21.30 | 3.44 / 14.29 | 1.99 |
+| t=149 | indoor gallery, 2 lights | 50.5 | 11.34 / 88.67 | 3.44 / 14.48 | 2.48 |
+| t=179 | outdoor, fresh world | 54.1 | 11.56 / 15.53 | 2.35 / 3.47 | 1.90 |
+
+**DECLARED EDGE:** this session contains no isolated hands-off rest window —
+the ribbon was taken early. The comparison below is therefore travel-to-travel
+against comparably mixed opening windows, which if anything understates the
+gain. An incomplete record that admits its edge is worth more than a complete
+one that cannot be trusted.
+
+**OPENING → RECORD** (HD 5500, Debug, unchosen adapter → 920M, D3D12, Release,
+chosen):
+
+```
+frame rate       ~19 fps   ->  46.6-54.1   (~2.5x)
+main_pass GPU     22.3 ms  ->  11.3-13.6   (~1.7x)
+shadow_pass GPU   10.3 ms  ->  2.35-3.44   (~3.5x)
+CPU frame (U+R)   ~15 ms   ->  1.9-2.5     (~7x)
+pipeline compile  ~230 s   ->  55 s        (~4x)
+VRAM                       ->  96 MB returned
+```
+
+**THE FINDING, CONFIRMED A THIRD TIME:** `shadow_pass` GPU held 2.35–3.44 ms
+across a ribbon flight, a two-light interior, and a freshly seeded world —
+after already holding still across an 11–20× change in host cost, and after the
+4× texel discriminator. Three unrelated experiments, one verdict: the pass
+belongs to geometry.
