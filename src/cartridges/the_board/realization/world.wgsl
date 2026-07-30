@@ -4222,8 +4222,12 @@ fn shadow_patch_terrain_vs(
 ) -> ShadowVarying {
     let pi = patch_instances[patch_id];
 
-    // Same unified decode as patch_terrain_vs — the shadow pass shares
-    // the patch index buffers (cap + curtain + skirt bands).
+    // Same unified decode as patch_terrain_vs — but NOT the same index
+    // buffer. The shadow pass binds the LOD1 IB only (ECONOMY_1 E2), whose
+    // indices land in the legacy-grid band [0, PATCH_GRID_VERT_COUNT) and
+    // the skirt ring [.., UG_CAP_BASE) and nowhere else. The cap band and
+    // the curtain-bottom band are unreachable from it, so no curtain
+    // geometry casts. (UMBRA_3: the caster diet was already served here.)
     let d = ug_decode(vi);
 
     let uv = vec2(

@@ -346,6 +346,20 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
     // decode is patch-agnostic, so band 0 draws the LOD0 patches with
     // the existing LOD1 index buffer. The legacy-band decode applies
     // the cell lift (lift_scale = 1), so lifted zones still cast.
+    //
+    // THE CASTER LOD PIN (UMBRA_3, ruled here rather than re-cut). The
+    // ladder is two rungs, both terrain-mesh densities of a 50 wu patch:
+    // LOD0 at PATCH_MESH_N = 64 (0.781 wu per quad edge) and LOD1 at
+    // PATCH_MESH_N_LOD1 = 32 (1.5625 wu). Against a post-UMBRA_5 texel of
+    // 0.2051 wu, LOD0 is 3.8 texels per edge — finer than the map can
+    // resolve, so pure cost — and LOD1 is 7.6, already coarser than the
+    // target. Neither rung satisfies "edge <= 2 x texelWorld", so that
+    // rule selects nothing; the pin is nonetheless already at the ladder's
+    // COARSEST rung and there is nothing coarser to move to. Nothing here
+    // reads eye distance or pawn distance — the selection is
+    // unconditional, so caster silhouettes cannot change as the camera
+    // approaches. That acquits the second of the two suspects the campaign
+    // named for the "shadows compose as we approach" artifact.
     c->renderer_.draw_shadow_patch_terrain(
         pass,
         c->gpuState_.render_entity_group(),
