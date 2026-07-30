@@ -191,10 +191,64 @@ entity census dump, and the FRAME METER window rides the same cadence
 (`cartridge.hpp:1245`). Its sibling is `AGENT_CENSUS_INTERVAL = 30.0f`
 (`bodies/agents.hpp:127`).
 
+## THE FINDING, CONFIRMED TWICE
+
+The shadow pass was ruled geometry-bound by the C2 resolution discriminator
+(4× texel cut, 8.03 → 6.34 ms: ~72/28 geometry/fill). The Release platform
+confirmed it independently and by a different route: across an **11–20×
+improvement in CPU frame cost**, `shadow_pass` GPU moved **3.38 → 3.33 ms** —
+immovable. A pass whose cost ignores the entire host is GPU-bound by
+construction. Two unrelated experiments, one verdict.
+
+**Not attributed:** `main_pass` GPU 13.1 → 9.84 ms across the same transition.
+The scenes were not matched (different census, camera path, and a mid-run
+possession), so the delta is recorded and **not credited**. Debug is retired;
+it will not be chased.
+
+## WHAT THE CAMPAIGN BOUGHT (opening → record)
+
+Opening (HD 5500, Debug, unchosen adapter) → record (920M, D3D12, Release,
+chosen):
+
+| | opening | record |
+|---|---|---|
+| rest fps | 19.2 | `<record>` |
+| main_pass GPU | 22.3 ms | `<record>` |
+| shadow_pass GPU | 10.3 ms | `<record>` |
+| CPU frame budget | ~15 ms | `<record>` |
+| pipeline compile | ~230 s | 55 s |
+| VRAM | — | 96 MB returned |
+
+Not one of these came from a faster machine choosing itself: the machine was
+chosen, a false law was shot, the prose was made true, and the frame stopped
+drawing what no eye and no texel could use.
+
+## THE SUCCESSOR: MEAN IS DONE, VARIANCE IS NOT
+
+With the mean frame at ~18 ms, the frontier moved from the mean to the **MAX**
+column — and a two-hour recording is judged by its worst frames, not its
+average. Named from the record boot, each worth 1–6 dropped frames:
+
+| row | max | ≈ frames dropped |
+|---|---|---|
+| `census_dumps` | 114 ms | ~6 |
+| `stream_patches` GPU | ~40 ms | ~2 |
+| `respawn_agents` | 25 ms | ~1 |
+| `snapshot_pass` | ~19 ms | ~1 |
+| `gol_derive_flush` | 17 ms | ~1 |
+
+The instrument already exists (METER_1's max column); the campaign does not.
+**SPIKE_1 — the variance ledger** — is the successor, ranked after the
+aesthetics chapter, and **E9 (the ring)** is its largest known entry. Its law
+is the economy law's twin: *cost delivered in a lump is cost paid twice.*
+
 ### THE RECORD
-*Awaiting the single Release boot on final master (`370ee94` or later). To be
-filled from that log: the platform block verbatim (adapter, Dawn revision,
-Build: Release); outdoor rest fps + main/shadow GPU mean; one traveling
-window; one indoor window. Beside them, the campaign's opening numbers for
-contrast — HD 5500, Debug, unchosen adapter: **19.2 fps, main 22.3, shadow
-10.3**.*
+*Awaiting the single Release boot on final master. To be filled from that log:
+the platform block verbatim (Dawn revision, `Build: Release`,
+`Adapter selected: index=2`, the feature line); the
+`[Ground] zone rects in core: N (boot)` line and any transitions during the
+run; S1 outdoor rest (fps, main/shadow GPU mean, U_SUM + R_SUM); one traveling
+window and one indoor window, same fields; and the max column for the five
+SPIKE_1 rows above, so the successor campaign opens with numbers instead of
+suspicions. The `<record>` cells in* WHAT THE CAMPAIGN BOUGHT *fill from the
+same table.*
