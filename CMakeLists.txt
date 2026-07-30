@@ -144,7 +144,6 @@ dawn_lib(LIB_TINT_LANG_CORE_IR_TRANSFORM "src/tint/$<CONFIG>/tint_lang_core_ir_t
 
 # Additional Tint core IR libs (may be needed)
 dawn_lib_optional(LIB_TINT_LANG_CORE_IR_ANALYSIS "src/tint/$<CONFIG>/tint_lang_core_ir_analysis.lib")
-dawn_lib_optional(LIB_TINT_LANG_CORE_IR_BINARY   "src/tint/$<CONFIG>/tint_lang_core_ir_binary.lib")
 dawn_lib_optional(LIB_TINT_LANG_CORE_IR_TYPE     "src/tint/$<CONFIG>/tint_lang_core_ir_type.lib")
 
 # Tint WGSL (source language)
@@ -177,7 +176,6 @@ dawn_lib(LIB_TINT_LANG_HLSL_WRITER_PRINTER "src/tint/$<CONFIG>/tint_lang_hlsl_wr
 dawn_lib(LIB_TINT_LANG_HLSL_WRITER_RAISE "src/tint/$<CONFIG>/tint_lang_hlsl_writer_raise.lib")
 
 # Optional HLSL validation
-dawn_lib_optional(LIB_TINT_LANG_HLSL_VALIDATE "src/tint/$<CONFIG>/tint_lang_hlsl_validate.lib")
 
 # Tint SPIRV (Vulkan backend)
 dawn_lib(LIB_TINT_LANG_SPIRV            "src/tint/$<CONFIG>/tint_lang_spirv.lib")
@@ -250,15 +248,12 @@ dawn_lib(LIB_ABSEIL_BORROWED_FIXUP "third_party/abseil/absl/debugging/$<CONFIG>/
 # Hash
 dawn_lib(LIB_ABSEIL_HASH            "third_party/abseil/absl/hash/$<CONFIG>/absl_hash.lib")
 dawn_lib(LIB_ABSEIL_CITY            "third_party/abseil/absl/hash/$<CONFIG>/absl_city.lib")
-dawn_lib_optional(LIB_ABSEIL_LOW_LEVEL_HASH "third_party/abseil/absl/hash/$<CONFIG>/absl_low_level_hash.lib")
 
 # Container support
 dawn_lib_optional(LIB_ABSEIL_RAW_HASH_SET   "third_party/abseil/absl/container/$<CONFIG>/absl_raw_hash_set.lib")
 dawn_lib_optional(LIB_ABSEIL_HASHTABLEZ     "third_party/abseil/absl/container/$<CONFIG>/absl_hashtablez_sampler.lib")
 
 # Status (often needed)
-dawn_lib_optional(LIB_ABSEIL_STATUS     "third_party/abseil/absl/status/$<CONFIG>/absl_status.lib")
-dawn_lib_optional(LIB_ABSEIL_STATUSOR   "third_party/abseil/absl/status/$<CONFIG>/absl_statusor.lib")
 
 # Profiling
 dawn_lib_optional(LIB_ABSEIL_EXPONENTIAL "third_party/abseil/absl/profiling/$<CONFIG>/absl_exponential_biased.lib")
@@ -335,19 +330,14 @@ message(STATUS "")
 set(OPTIONAL_LIBS)
 foreach(lib
     LIB_TINT_LANG_CORE_IR_ANALYSIS
-    LIB_TINT_LANG_CORE_IR_BINARY
     LIB_TINT_LANG_CORE_IR_TYPE
-    LIB_TINT_LANG_HLSL_VALIDATE
     LIB_TINT_LANG_SPIRV_VALIDATE
     LIB_ABSEIL_MALLOC
     LIB_ABSEIL_CORD
     LIB_ABSEIL_CORD_INTERNAL
     LIB_ABSEIL_STR_FORMAT
-    LIB_ABSEIL_LOW_LEVEL_HASH
     LIB_ABSEIL_RAW_HASH_SET
     LIB_ABSEIL_HASHTABLEZ
-    LIB_ABSEIL_STATUS
-    LIB_ABSEIL_STATUSOR
     LIB_ABSEIL_EXPONENTIAL
 )
     if(${lib})
