@@ -104,6 +104,28 @@ not "no witness". The draw plan's Release log carried no `[Ground]` line at
 all, and the two causes — no zone reached the core, or the witness never
 shipped — were indistinguishable from the log.
 
+## P7 — STRUCTURAL CHOICES INSIDE A NAMED EDIT
+
+When a named edit cannot be executed without a structural decision — a fact
+with no home, an anchor that would have to be duplicated — **the decision is
+part of the edit**. Take the MINIMAL form and report it; do not stop, and do
+not duplicate.
+
+*Paid for by:* U1. Printing the zone-rect count at boot required either a
+second copy of the arithmetic or one extraction. A handoff that names a print
+has, without saying so, named the home of the thing printed.
+
+## P8 — A HANDOFF IS NOT THE TREE
+
+A law, horizon item or scheduling entry **exists only once it is committed**.
+Text that lives in a handoff or in chat may be superseded silently and leave no
+trace.
+
+*Paid for by:* U2's instruction to "replace the DAWN RELEASE BUILD horizon
+entry" — an entry that had never landed. The error was upstream of the
+executor, and the only reason it surfaced is that the anchor was checked before
+the edit rather than after.
+
 ---
 
 ## SCHEDULING RECORD
