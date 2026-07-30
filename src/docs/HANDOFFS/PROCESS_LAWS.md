@@ -120,3 +120,22 @@ enumerate those same files regardless. The walk rides that enumeration rather
 than paying for it twice. This is a dated intent with an owner, which is what
 P3's sibling rule in `LAWS.md` requires of anything kept — the deferral is
 itself filed, not merely postponed.
+
+**DAWN RELEASE BUILD — DONE (2026-07-29).** Dawn/Tint built `--config Release`
+in the existing multi-config tree at the pinned revision `f0bf8ab5…`; the
+eighty hardcoded `Debug` path segments in `CMakeLists.txt` were parameterized
+to a single derived config, so the `--config`/preset choice is the one knob.
+Measured effects: pipeline compile **230 s → 55 s** (most of the old boot was
+Dawn's own unoptimized work, **not** FXC); Tint's own step **2548 → 281 ms**;
+the CPU frame budget **15 → ~2 ms**.
+
+*Standing consequence:* every CPU number recorded before this date is
+Debug-inflated and is **retired**.
+*Live consequence:* `NDEBUG` is now defined — asserts are gone in the shipped
+configuration, and the assert/witness census is the gate on that.
+
+*The FXC reframe, beside it:* FXC's cost is now visible rather than buried —
+`patch_terrain` 4.9 s, `patch_terrain_indirect` 4.8 s, `monolith` 3.7 s,
+`pawn` 3.5 s of a 55 s boot. FXC's **behavior** (the `world.wgsl` banner's hang
+cliff) is unchanged by build configuration; only its **price** is now
+measurable.
