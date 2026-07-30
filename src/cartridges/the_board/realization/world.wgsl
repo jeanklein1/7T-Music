@@ -3600,11 +3600,11 @@ struct SpotLightArray {
 // two depth textures and the atlas tiles. Change BOTH rooms
 // together. (L3 MIRROR.)
 const SHADOW_MAP_SIZE: f32 = 4096.0;
-// Bias is a function of texel size. Tuned at the 4096-era values
-// (0.0001 / 0.002), expressed per-texel so any resolution ruling
-// carries its bias for free. (ECONOMY_1 E6.)
-const SHADOW_BIAS_MIN: f32 = 0.4096 / SHADOW_MAP_SIZE;
-const SHADOW_BIAS_MAX: f32 = 8.192 / SHADOW_MAP_SIZE;
+
+// SHADOW_BIAS_MIN/MAX deleted (UMBRA_6) — depth bias now lives once, in
+// the shared shadow pipeline's depth-stencil state (renderer.hpp). The
+// ECONOMY_1 E6 per-texel form these carried did its job: it let UMBRA_5's
+// resolution ruling land without a bias edit, and then it retired.
 
 // --- Shadow Sampling with 4x4 PCF
 
@@ -3618,12 +3618,11 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
         -light_ndc.y * 0.5 + 0.5
     );
 
-    // Slope-scaled bias: more bias when surface is at grazing angle to light
-    let light_dir = -render_light.direction;
-    let cos_theta = max(dot(normal, light_dir), 0.0);
-    let bias = mix(SHADOW_BIAS_MAX, SHADOW_BIAS_MIN, cos_theta);
-
-    let current_depth = light_ndc.z - bias;
+    // No bias term. It moved to the rasterizer (UMBRA_6) — the shadow
+    // pipelines carry depthBiasSlopeScale, which biases against the real
+    // depth gradient at write time instead of guessing it here from the
+    // receiver normal.
+    let current_depth = light_ndc.z;
 
     // Safety: if somehow outside shadow map, return fully lit
     let out_of_bounds = shadow_uv.x < 0.0 || shadow_uv.x > 1.0 ||
@@ -3698,22 +3697,28 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 // Doubles per-tile resolution vs the old single-texture 2×2 grid,
 // with zero extra VRAM — the sun map is idle during indoor moods.
 //
-// Bias strategy for terrain under perspective:
-//   1. Distance-scaled depth bias — divided by clip.w so it compensates
-//      for hyperbolic 1/z depth distribution. Near surfaces get larger
-//      bias (high precision), far surfaces get less.
-//   2. Per-pixel slope bias — computed from radial light direction
-//      (rays fan from point source). Steep slopes get more bias.
+// Bias strategy: NONE HERE (UMBRA_6). The hand-rolled pair that used to
+// live here — a base bias divided by clip.w to compensate for hyperbolic
+// 1/z depth, plus a per-pixel slope term from the radial light direction —
+// is deleted. The rasterizer's slope-scaled bias subsumes both: it is
+// computed from the primitive's real window-space depth gradient, and
+// window space is already post-projection, so the 1/z distribution is
+// handled by construction rather than by dividing it back out.
+//
+// The spot pass reuses the SAME pipelines as the sun pass, so it inherits
+// that bias without a second home.
 //
 // No normal offset — it breaks contact shadows (disconnects pawn shadow
 // from feet by lifting the comparison point above the occluder depth).
+// This still holds, and it is why UMBRA_7's offset is sun-only: there is
+// no normal-offset backstop on this path, so rasterizer bias carries the
+// pawn's separation from terrain alone here.
 
-// Per-texel form, tuned at the 4096-era values (0.0015 / 0.005) —
-// the same bias-as-ratio rewrite as the sun pair. (ECONOMY_1 E6.)
-const SPOT_DEPTH_BIAS: f32 = 6.144 / SHADOW_MAP_SIZE;    // base bias, scaled by 1/clip.w
-const SPOT_SLOPE_BIAS_MAX: f32 = 20.48 / SHADOW_MAP_SIZE;  // extra bias at grazing angles
-
-fn sample_spot_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>, light_index: u32) -> f32 {
+// `normal` dropped from the signature with the slope term that was its
+// only reader (UMBRA_6). A parameter no body reads is a claimed
+// dependency that does not exist; the spot path is normal-offset-free by
+// ruling, so this one is not coming back.
+fn sample_spot_shadow_pcf(world_pos: vec3<f32>, light_index: u32) -> f32 {
     let light = render_spot_lights.lights[light_index];
 
     // Transform to light clip space (perspective)
@@ -3731,16 +3736,8 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>, light_index: 
     let tile_offset = vec2(f32(within) * 0.5, 0.0);
     let shadow_uv = raw_uv * vec2(0.5, 1.0) + tile_offset;
 
-    // Distance-scaled depth bias + per-pixel slope bias.
-    // clip.w floor = 1.0 matches the projection near plane — no visible
-    // fragment should have clip.w below this, so clamping prevents runaway
-    // bias from numerical edge cases near the frustum boundary.
-    let light_dir = normalize(light.position - world_pos);
-    let cos_theta = max(dot(normal, light_dir), 0.001);
-    let slope_bias = SPOT_SLOPE_BIAS_MAX * (1.0 - cos_theta) / cos_theta;
-    let total_bias = (SPOT_DEPTH_BIAS + slope_bias) / max(light_clip.w, 1.0);
-
-    let current_depth = light_ndc.z - total_bias;
+    // No bias term — it moved to the rasterizer (UMBRA_6).
+    let current_depth = light_ndc.z;
 
     let out_of_bounds = raw_uv.x < 0.0 || raw_uv.x > 1.0 ||
                         raw_uv.y < 0.0 || raw_uv.y > 1.0 ||
@@ -3808,7 +3805,7 @@ fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
         let ndotl = max(dot(normal, light_dir), 0.0);
 
         // Per-light shadow from atlas tile
-        let shadow = sample_spot_shadow_pcf(world_pos, normal, i);
+        let shadow = sample_spot_shadow_pcf(world_pos, i);
 
         total += light.color * light.intensity * attenuation_sq * cone_falloff * ndotl * shadow;
     }
@@ -4747,15 +4744,12 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
     let pawn_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
     let world_pos = quat_rotate(pawn_q, local_pos * active_f) + pawn_p;
 
-    // Lift pawn above terrain in shadow map. With perspective projection
-    // from a ceiling light, 0.01 is invisible in the depth buffer at 19+
-    // units distance. 0.3 gives enough depth separation to clear the
-    // terrain without visibly displacing the shadow shape from overhead.
-    var shadow_pos = world_pos;
-    shadow_pos.y += 0.3;
-
+    // The 0.3 world-unit lift is deleted (UMBRA_6). It was depth bias
+    // wearing a geometry disguise: it displaced the caster rather than the
+    // comparison, so it lifted the pawn's shadow off its own feet to buy
+    // separation from terrain. Bias now has one home, in the pipeline.
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(shadow_pos, 1.0);
+    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;
 }
 

@@ -1988,6 +1988,56 @@ namespace t7 {
                     shadowDepth.depthWriteEnabled = true;
                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
 
+                    // BIAS HAS ONE HOME, AND IT IS HERE (UMBRA_6). Every
+                    // shadow pipeline below shares this state, so these three
+                    // lines are the whole of the program's shadow bias — the
+                    // shader-side nudges that used to carry it are deleted.
+                    //
+                    // Slope-scale does the work. It multiplies the ACTUAL
+                    // window-space depth gradient of the primitive, which is
+                    // the quantity acne comes from, and it is exactly zero on
+                    // surfaces facing the light — where a constant bias only
+                    // ever buys peter-panning. Applied at write time, so it
+                    // costs no fragment work at all.
+                    //
+                    // The constant is small ON PURPOSE, and far smaller than it
+                    // looks: the format is Depth32Float, so per spec the unit
+                    // of depthBias is ULP of the primitive's max depth, not a
+                    // fixed fraction. Near z = 1 one ULP is 2^-23 = 1.19e-7,
+                    // so depthBias = 2 buys 2.4e-7 NDC — against a 599.9 wu
+                    // depth range, 1.4e-4 world units. The shader constants it
+                    // replaces spanned 1.0e-4 .. 2.0e-3 NDC (0.06 .. 1.20 wu).
+                    // That is the intended shape — the constant shrinks toward
+                    // zero and slope-scale takes over — but the gap is four
+                    // orders, so the number is flagged rather than left to
+                    // read as if it were equivalent.
+                    //
+                    // THE DIAL, with its arithmetic done in advance: one unit
+                    // of depthBias is 1.19e-7 NDC here, so restoring the old
+                    // floor (SHADOW_BIAS_MIN, 1.0e-4) means depthBias ~= 840,
+                    // and the old grazing ceiling (2.0e-3) means ~16800.
+                    // Those are the two landmarks between which this dial
+                    // moves; 2 is deliberately at the bottom of that range.
+                    //
+                    // WHERE SLOPE-SCALE CANNOT REACH, named because the
+                    // campaign's own caster diet created it: the shadow pass
+                    // draws terrain with the LOD1 index buffer while the main
+                    // pass draws near terrain with a LOD0 one, so caster and
+                    // receiver are DIFFERENT tessellations of the same
+                    // heightfield — the LOD1 mesh is a chord over a 1.5625 wu
+                    // span of a surface sampled at 0.78125. In a concave dip
+                    // the chord rides above the true surface and the receiver
+                    // reads as self-shadowed. Slope-scale cannot compensate
+                    // it: it corrects a primitive's own depth gradient, not a
+                    // difference between two meshes — and the error is largest
+                    // exactly where the slope, and therefore the slope term,
+                    // goes to zero. If terrain acne appears on FLAT,
+                    // SUN-FACING ground, that is this gap, and the lever is
+                    // depthBias UP toward 840, not slope-scale.
+                    shadowDepth.depthBias           = 2;
+                    shadowDepth.depthBiasSlopeScale = 2.0f;
+                    shadowDepth.depthBiasClamp      = 0.0f;
+
                     // THE SHARED BUILDER (shadow/depth category): the builder every shadow pipeline
                     // shares — shadowRenderLayout + shadowDepth (Depth32Float shadow map) +
                     // NO fragment (depth-only) + TriangleList + CCW. It is a SEPARATE builder
