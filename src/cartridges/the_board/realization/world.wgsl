@@ -7950,7 +7950,7 @@ fn compute_vp() {
     );
 
     // Sun VP: kite coupling — the sun orbits THE POINT at fixed
-    // offset (was the pawn; the 300-unit shadow box must cover
+    // offset (was the pawn; the shadow box must cover
     // what the eye sees, so it follows the point's host — identical
     // when the pawn hosts, tracks the camera in free-fly).
     if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {

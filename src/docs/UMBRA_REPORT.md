@@ -803,6 +803,67 @@ claws radius back below 369.3 — the first −10% step (→378) is still clear,
 effect that is currently dormant, and kept because it is what makes that ladder step
 safe.
 
+## R11, SECOND PASS — four stale labels the first pass missed
+
+The full recon fan-out landed after the campaign did, and its refuters found four
+label defects in the shadow chain that my own R11 pass had not caught. All four are
+live at HEAD, all four are corrected. Recording the miss as well as the fix, because
+"the report found nothing there" and "the report did not look" are different claims
+and only one of them was true.
+
+1. **`world.wgsl`, `compute_vp`** — *"the 300-unit shadow box must cover what the eye
+   sees"*. I quoted this comment in R2 and called it correct. It **was** correct about
+   the centering, and it carried a number that UMBRA_5 then falsified three commits
+   later. De-numbered (P5: it merely restates `SUN_HALF_EXTENT`).
+
+2. **`state.hpp`, the spot atlas descriptor** — *"2×2 tiled for up to 4 spot lights"*.
+   **False.** The tiling is **1×2 per texture across two textures**: lights 0–1 in the
+   sun map, 2–3 here, each a half-width full-height tile. Three witnesses —
+   `use_sun_map = (li < 2)`, `within = li % 2` driving a half-width viewport, and the
+   `light_index < 2u` branch in the shader. R1 got the *shape* right by reading the
+   pass; it failed to then turn round and convict the label. The 2×2 grid is the
+   retired scheme, which the WGSL banner correctly calls "the old single-texture 2×2
+   grid" — so the tree contained its own refutation the whole time.
+
+3. **`state.hpp`, the sun map descriptor** — *"directional light depth"*. Incomplete
+   in a way that matters: this texture is also the spot atlas's **first** texture
+   indoors. A reader pruning "directional" work could delete half the spot atlas.
+   Widened.
+
+4. **`state.hpp`, the ECONOMY_1 E1 flag pair** — *"Every LOD0 carrier (indirect reset,
+   indoor direct, shadow band 0, snapshot) draws through these two"*. **Three of the
+   four are false.** The only remaining caller of `patch_index_buffer_lod0_live()` is
+   the snapshot pass; `reset_frustum_indirect` writes the two counts as separate plan
+   slots, and the shadow pass draws both bands through the LOD1 buffer — so "shadow
+   band 0" never read these at all. Not campaign-caused: it is drift from ECONOMY_1's
+   own closing arm, and `render_main_pass` already documents the truth. Two rooms,
+   one fact, and they had disagreed since before UMBRA opened.
+
+## TWO LIVE CONSEQUENCES, RECORDED NOT FIXED
+
+- **The pawn aura now moves the shadow sample, not just the shading.** The terrain FS
+  perturbs its normal by up to ~17° where the aura is active
+  (`normal = normalize(normal + vec3(0.0, aura.r * 0.3, 0.0))`), and after UMBRA_7
+  that normal steers the offset as well as the lighting. The effect is sub-texel and
+  arguably correct — a normal that claims the ground is raised should sample as if it
+  were — but it is a coupling that did not exist before this campaign, and it is not
+  in the handoff. Named so it is not rediscovered as a mystery.
+
+- **`sample_spot_shadow_pcf`'s depth clamp is now dead code.** `clamped_depth =
+  clamp(current_depth, 0.0, 1.0)` was there to contain the bias UMBRA_6 deleted; with
+  raw `light_ndc.z` going in, and `out_of_bounds` already rejecting outside [0,1], it
+  is the identity on every surviving fragment. Residue of my own edit. Left standing
+  rather than cut, because removing it is shader logic outside any named handoff and
+  it costs nothing — but it is residue, and it should go with the next edit that opens
+  that function.
+
+**One refuter claim checked and rejected:** that the spot kernel's horizontal tap
+spacing is 2 tile-texels against 1 vertical, because it scales offsets by
+`1.0 / SHADOW_MAP_SIZE` while sampling a half-width tile. It does not. The tile is a
+*sub-rectangle* of the texture, not a scaled copy, so a texel there is a texel; a step
+of `1/SHADOW_MAP_SIZE` in `uv.x` is exactly one texel inside the tile. The kernel is
+correct as written and was not touched.
+
 # HORIZON
 
 **The `SHADOW_MAP_SIZE` twin.** Two rooms, no compile-time bridge, held only by L3

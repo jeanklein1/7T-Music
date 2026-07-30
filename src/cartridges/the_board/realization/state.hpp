@@ -2596,9 +2596,18 @@ namespace t7 {
             uint32_t patch_index_count() const { return patchIndexCount_; }
             wgpu::Buffer patch_index_buffer_cap_only() const { return patchIndexBufferCapOnly_; }
             uint32_t patch_index_count_cap_only() const { return patchIndexCountCapOnly_; }
-            // ECONOMY_1 E1 — flag + the flag-selected LOD0 pair. Every LOD0
-            // carrier (indirect reset, indoor direct, shadow band 0, snapshot)
-            // draws through these two so buffer and count can never split.
+            // ECONOMY_1 E1 — flag + the flag-selected LOD0 pair: buffer and
+            // count move together so they can never split.
+            //
+            // ONE CARRIER remains, the snapshot pass (bodies/gallery.hpp).
+            // The other three the list used to name are gone: the draw plan
+            // retired the global-flag selection for the main pass and the
+            // indirect reset (reset_frustum_indirect writes patchIndexCount_
+            // and patchIndexCountCapOnly_ as separate plan slots, not through
+            // this pair), and the shadow pass draws BOTH bands through
+            // patch_index_buffer_lod1(), so "shadow band 0" never read these
+            // at all. render_main_pass already says as much; this room had
+            // not caught up.
             void set_curtains_active(bool a) { curtainsActive_ = a; }
             bool curtains_active() const { return curtainsActive_; }
             wgpu::Buffer patch_index_buffer_lod0_live() const {
@@ -3892,7 +3901,10 @@ namespace t7 {
                     patchCellColorArrayReadView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
                 }
 
-                // Shadow map (Depth32Float: directional light depth)
+                // Shadow map (Depth32Float). Sun depth outdoors — and the
+                // spot atlas's FIRST texture indoors, holding lights 0-1 in
+                // two half-width tiles while the sun is idle. Not
+                // directional-only; render_shadow_pass picks it for li < 2.
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "Shadow Map";
@@ -3904,7 +3916,12 @@ namespace t7 {
                     shadowMapView_ = shadowMapTexture_.CreateView();
                 }
 
-                // Spot shadow atlas (Depth32Float: 2×2 tiled for up to 4 spot lights)
+                // Spot shadow atlas, SECOND texture (Depth32Float): lights
+                // 2-3, one half-width full-height tile each. The tiling is
+                // 1x2 per texture across TWO textures — this one and the sun
+                // map — for 4 spot slots, NOT a 2x2 grid in one texture. (The
+                // 2x2 grid is the retired scheme sample_spot_shadow_pcf's
+                // banner names as "the old single-texture 2×2 grid".)
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "Spot Shadow Atlas";
