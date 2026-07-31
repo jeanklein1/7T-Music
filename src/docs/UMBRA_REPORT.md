@@ -245,6 +245,9 @@ receiver gives `dz/dtexel = 3.4e-4`; times `depthBiasSlopeScale = 2.0` that is
 facing the light — which is the intended shape *except* where caster and receiver are
 different tessellations, and that exception is real here (finding 2).
 **`depthBias = 2` is kept as the start, flagged as the handoff instructed.**
+*(Superseded: PENUMBRA_1 P2 deleted `depthBias` outright. On a float depth format it
+is a ULP multiple, so 2 bought 6.0e-8 NDC — not a dial in steps of one. This line is
+a decision statement inside a dated recon, so it is struck rather than edited.)*
 
 ---
 
@@ -699,6 +702,12 @@ the **spot** path — and the spot path is deliberately normal-offset-free
 there. Outdoors UMBRA_7 covers it; indoors, rasterizer slope bias covers it alone.
 Flagged at the top of the tuning ladder.
 
+> **Closed by PENUMBRA_1 P5.** The spot path now has its own normal offset, derived
+> per fragment because a perspective frustum has no constant texel size. The quoted
+> "No normal offset" ruling was true of a *depth* lift, which is what that path had
+> when it was written; a normal offset moves the sample position instead. The comment
+> it quotes no longer exists.
+
 ---
 
 # CAMPAIGN LEDGER
@@ -839,7 +848,7 @@ and only one of them was true.
    own closing arm, and `render_main_pass` already documents the truth. Two rooms,
    one fact, and they had disagreed since before UMBRA opened.
 
-## TWO LIVE CONSEQUENCES, RECORDED NOT FIXED
+## TWO CONSEQUENCES RECORDED HERE — BOTH SINCE RESOLVED BY PENUMBRA_1
 
 - **The pawn aura now moves the shadow sample, not just the shading.** The terrain FS
   perturbs its normal by up to ~17° where the aura is active
@@ -849,6 +858,13 @@ and only one of them was true.
   were — but it is a coupling that did not exist before this campaign, and it is not
   in the handoff. Named so it is not rediscovered as a mystery.
 
+  > **Closed by PENUMBRA_1 P4**, and the reasoning above was too generous. The aura
+  > lookup snaps to an exact texel centre, so its bilinear filter degenerates to
+  > nearest and the value *steps* at every cell boundary. It was not a smooth
+  > "arguably correct" nudge; it was the one per-cell discontinuity in the whole
+  > terrain normal chain, and it was steering the shadow sample. The shadow path now
+  > reads the pre-aura geometric normal.
+
 - **`sample_spot_shadow_pcf`'s depth clamp is now dead code.** `clamped_depth =
   clamp(current_depth, 0.0, 1.0)` was there to contain the bias UMBRA_6 deleted; with
   raw `light_ndc.z` going in, and `out_of_bounds` already rejecting outside [0,1], it
@@ -856,6 +872,15 @@ and only one of them was true.
   rather than cut, because removing it is shader logic outside any named handoff and
   it costs nothing — but it is residue, and it should go with the next edit that opens
   that function.
+
+  > **Wrong, and PENUMBRA_1 P6 was written to act on it before the error surfaced.**
+  > The clamp is not residue. It is the manual clamp a *floating-point* depth
+  > resource requires — `SampleCmp` does not auto-clamp the reference on
+  > `Depth32Float`, only on unorm formats — and it is the only NaN scrubber on the
+  > path, because every ordered comparison against NaN is false and `out_of_bounds`
+  > therefore *passes* NaN through. Without the clamp a NaN fragment reads fully
+  > black instead of fully lit. The word "surviving" in the sentence above is exactly
+  > where the reasoning failed. P6 kept it and documented it.
 
 **One refuter claim checked and rejected:** that the spot kernel's horizontal tap
 spacing is 2 tile-texels against 1 vertical, because it scales offsets by
@@ -885,6 +910,11 @@ Untouched, deliberately.
 
 # TUNING LADDER (Jean's dial, at the visual gate)
 
+*Rewritten at PENUMBRA_1 P7 against the instruments that now exist. The previous
+version sent Jean to `depthBias` three times — a field P2 deleted — and told him to
+raise bias to cure detachment, which deepens it. Both were caught by adversarial
+passes, not by review.*
+
 **Read the direction first.** Depth bias pushes the **stored caster** depth *away
 from the light*. More bias → more lit → **weaker** shadow. So:
 
@@ -893,40 +923,71 @@ from the light*. More bias → more lit → **weaker** shadow. So:
 | acne, self-shadow stippling | too little bias | bias **UP** |
 | peter-panning, shadow off contact | too much bias | bias **DOWN** |
 
-All bias levers live at one site: `renderer.hpp`, `shadowDepth` in the shared shadow
-builder — one edit reaches all eleven shadow pipelines.
+**The levers no longer live at one site.** Two rooms now, and knowing which is which
+is half the diagnosis:
 
-- **Acne survives on slopes** → `depthBiasSlopeScale` +0.5 per step.
-- **Acne on FLAT, SUN-FACING ground** → a different fault, and slope-scale will not
-  touch it: this is the LOD1-caster / LOD0-receiver gap (see finding 2 above). The
-  slope term is zero exactly there. Lever is `depthBias` **up**, and the arithmetic is
-  done: one unit is 2.98e-8 NDC at this scene's depths, so ~3355 restores the floor
-  the campaign deleted. Move in decades (2 → 20 → 200 → 2000), not by ones.
-- **Pawn shadow detaches from its feet, INDOOR** → this is the `shadow_pos.y += 0.3`
-  deletion, and UMBRA_7's normal offset does not cover the spot path by ruling. Too
-  much bias, so bias comes **DOWN**: `depthBiasSlopeScale` 2.0 → 1.5 first (the spot
-  path was never independently sized — it inherits 2.0 through a different
-  projection, where it lands stronger than the term it replaced). If that is not
-  enough, restore the lift.
-- **Pawn shadow detaches from its feet, OUTDOOR** → normal-offset scale 2.0 → 1.5
-  first, then `depthBias` 2 → 1.
-- **A thin caster's shadow VANISHES at a low sun** (ribbon, blade, palm, shell — the
-  `CullMode::None` sheets) → the grazing slope term is unbounded, because
-  `depthBiasClamp = 0.0` means *no clamp*, not *clamp at zero*. Set
-  `depthBiasClamp` to a real ceiling (start at the old `SHADOW_BIAS_MAX`-equivalent,
-  ~2.0e-3 NDC) rather than dropping `depthBiasSlopeScale` and losing the slope
-  correction everywhere else.
-- **Penumbra reads mushy near the camera** → claw radius back: `SUN_HALF_EXTENT` −10%
-  per step (crispness is bought from radius, never from taps). This also claws back
-  VRAM. Note the second step (→340) is where UMBRA_8's edge fade starts doing visible
-  work; the first (→378) is still clear of the draw ring.
-- **Light leaks at terrain silhouettes under low sun** → the UMBRA_3 curtain boolean
-  does not exist to revert; curtains were already out. Next lever is
-  `depthBiasSlopeScale` down, then `depthBias` down.
-- **Composing still visible at the far edge** → widen the fade band 0.12 → 0.20 before
-  anything structural. But check the radius first: at 420 wu the map already covers
-  95 wu past the draw ring, so a far-edge artifact is more likely the *ring* than the
-  shadow map.
+- `renderer.hpp`, `shadowDepth` in the shared shadow builder — **depth** bias
+  (`depthBiasSlopeScale`, `depthBiasClamp`). One edit reaches all eleven shadow
+  pipelines, sun and spot alike.
+- `world.wgsl` — **the normal offset** and **the filter footprint**
+  (`PCF_SPACING`, `PCF_RADIUS_TEXELS`, `SPOT_PCF_RADIUS_TEXELS`, and the `0.33`/`0.67`
+  blend in each sampler). Sun and spot have separate footprint constants on purpose.
+
+**`depthBias` is not on this ladder and must not be put back.** Under `Depth32Float`
+it is a ULP multiple of the primitive's max depth; at this scene's z ≈ 0.417 a value
+of 2 bought 6.0e-8 NDC, ~3,355× short of the floor it was nominally covering. It is
+not a dial in steps of one. P2 deleted it.
+
+| symptom | instrument | direction |
+|---|---|---|
+| acne on slopes | `depthBiasSlopeScale` | **up**, +0.5 per step |
+| acne on flat sun-facing ground | the offset **floor** (the `0.33` term) | **up**, +0.15 per step |
+| shadow off contact at the pawn's feet | the offset **ceiling** (the `0.67` term) | **down** |
+| shadow detaches on thin sheets only | `depthBiasClamp` | **down** from 2.8e-3 |
+| penumbra too hard, caster steps visible | `PCF_SPACING` | already at the gapless max — see below |
+| penumbra too soft near the camera | `SUN_HALF_EXTENT` | **down** — see the reserve below |
+| indoor pawn shadow off its feet | the **spot** offset (same `0.33`/`0.67`, in `sample_spot_shadow_pcf`) | **down** |
+
+Two rungs need their reasons, because both look like simple knobs and are not.
+
+**`PCF_SPACING` is already at its maximum and raising it alone makes things worse.**
+Each tap carries a 2×2 hardware-bilinear footprint, so taps at −2/0/+2 cover
+[−3,−1] [−1,1] [1,3] contiguously. At spacing 3 the footprints stop touching and blur
+becomes *banding* — the artifact gets worse, not softer. The next real step is more
+taps: 5×5 at spacing 2 (25 taps) is the honest next rung and it is not free.
+
+**The crispness reserve — a control-panel fact, not a tuning tip.**
+`SUN_HALF_EXTENT` is a single WGSL const from which texel world-size, both normal
+offsets' magnitude, the frustum snap lattice and the edge-fade radius all derive.
+Lowering it buys sharpness everywhere at once. There are two regimes:
+
+| range | what happens | cost |
+|---|---|---|
+| **420 → 369 wu** | up to ~12% finer texels | none — the fade stays dormant and no shadow horizon is ever visible |
+| **369 → 325 wu** | up to ~23% finer texels | the fade goes live and softens a horizon that now falls inside the 325 wu veil ring |
+
+**Therefore UMBRA_8's edge fade is not dormant-and-deletable.** It is precisely what
+makes the reserve *spendable* below 369 wu. Recorded here because a reader who
+measured it at today's radius would find it never firing and conclude it was dead
+code. It is a purchased option, not residue.
+
+# CONTROL-PANEL RECORD
+
+**One dial, two jobs — the pattern this campaign family exists to break, still
+standing.** `Dim::SHADOW_MAP_SIZE` is a single fact serving two roles: the sun map's
+resolution *and* the spot atlas's. UMBRA_5 paid +100.7 MB of VRAM to double it, and
+half that spend went to the spot atlas as an unavoidable side effect. Splitting the
+constant would let the sun go finer for less VRAM than UMBRA_5 paid.
+
+It is not split, and the reason is the reason it is hard: the sun map **is** the spot
+atlas's first texture during indoor moods, so a split gives the two halves of one
+atlas different tile widths and forces per-branch texel arithmetic in
+`sample_spot_shadow_pcf`. **HORIZON, dated 2026-07-31, not chased here.**
+
+**The spot tile is 1:2 and its projection is 1:1.** `compute_spot_light_vp` has no
+aspect term (`proj[0] == proj[5] == f`) while the tile is 2048 × 4096, so spot shadow
+texels are non-square by exactly 2×. P5 works around it by taking the coarser axis;
+the projection itself is untouched. **HORIZON, dated 2026-07-31.**
 
 ---
 ---
