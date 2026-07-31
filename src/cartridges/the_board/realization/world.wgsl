@@ -3266,20 +3266,39 @@ const SHADOW_TEXEL_WORLD: f32 = 2.0 * SUN_HALF_EXTENT / SHADOW_MAP_SIZE;
 // at least half the filter's reach or the filter reaches back in and the
 // offset was pointless. Give the footprint one home and derive both from it.
 //
-// SPACING 2 IS THE GAPLESS MAXIMUM at three taps per axis. Each
-// textureSampleCompareLevel tap carries a 2x2 hardware-bilinear footprint, so
-// taps at -2 / 0 / +2 cover [-3,-1] [-1,1] [1,3] contiguously. At spacing 3
-// the footprints stop touching and blur becomes banding. Do not raise this
-// without also raising the tap count.
+// TAP SPACING ABOVE 1 TEXEL IS NEVER AVAILABLE WITH A BILINEAR COMPARISON
+// SAMPLER. Width comes from TAP COUNT alone. This is a standing law of the
+// hardware, not a tuning preference, and PENUMBRA_1 P3 shipped a regression
+// by not knowing it:
 //
-// WHY IT IS 2 AND NOT 1, in world units — the measure that actually matters:
-// pre-UMBRA the 4x4 kernel at a 0.29297 wu texel spanned ~1.47 wu of blur;
-// UMBRA_8's 3x3 at 0.20508 spans ~0.82. Nothing new appeared in the terrain —
-// the caster's own tessellation was always stepping and 1.47 wu of blur was
-// covering it. Spacing 2 restores ~1.23 wu, 84% of the original, on the
-// fragment side, which the resize experiment proved is the cheap side.
-const PCF_SPACING: i32 = 2;                             // texels between taps
-const PCF_RADIUS_TEXELS: f32 = f32(PCF_SPACING) + 1.0;  // 3.0 — half the footprint
+//   A linear-filtered sampler_comparison tap is A TENT, NOT A BOX. The
+//   hardware compares the four texels around the sample point and blends the
+//   0/1 results bilinearly, so the tap's weight is 1 at its centre and falls
+//   linearly to ZERO at +-1 texel. A sum of tents is flat — a partition of
+//   unity — if and only if they are spaced <= 1 texel apart.
+//
+//   At spacing 2 the tents land on one another's zeros. Summed weight at
+//   successive integer texels:   1  0  1  0  1
+//   Half the map is never read, on a regular alternation, and a comb of
+//   period 2 texels projected down a grazing shadow reads as parallel lines.
+//
+// P3's warrant checked that the taps' SUPPORT INTERVALS touched — [-3,-1],
+// [-1,1], [1,3]. They do touch, at points where both tents are zero.
+// Touching supports is not coverage: the condition is on the WEIGHTS.
+//
+// THE WIDTH LADDER, spacing fixed at 1. N taps per axis gives N+1 texels of
+// support; at TEXEL_WORLD = 0.20508 wu:
+//     3 taps  -1,0,1            4 texels  0.820 wu   ( 9 total)
+//     4 taps  -1.5..1.5         5 texels  1.026 wu   (16 total)  <- here
+//     5 taps  -2..2             6 texels  1.231 wu   (25 total)  <- N4, held
+// Four is the pre-campaign tap count, so its cost is known-shipped rather
+// than estimated, and the offsets stay symmetric so UMBRA_8's centring fix
+// survives.
+//
+// Half-texel offsets cannot ride the `offset` parameter — it takes
+// const-expression INTEGERS — so they go into the uv, via TEXEL_UV.
+const TEXEL_UV: f32 = 1.0 / SHADOW_MAP_SIZE;
+const PCF_RADIUS_TEXELS: f32 = 2.5;   // half the 5-texel support; drives the normal offset
 
 fn coupling_pawn_to_sun_vp(pawn_pos: vec3<f32>, direction: vec3<f32>) -> mat4x4<f32> {
     // Sun position: offset from the frustum center opposite to light direction
@@ -3641,11 +3660,15 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // without contact separation going with it. That is the whole reason
     // it can exist here while the depth nudges could not.
     //
-    // Magnitude DERIVES from the filter footprint (PENUMBRA_1 P3): it is
-    // PCF_RADIUS_TEXELS — half the footprint, i.e. the kernel's full reach
-    // of 3 texels out of a 6-texel span — so the offset always
-    // clears the filter whatever the spacing becomes. Scale is in TEXELS,
-    // so UMBRA_5's resize carried it for free and any future one will too.
+    // Magnitude DERIVES from the filter footprint: it is PCF_RADIUS_TEXELS,
+    // half the kernel's 5-texel support, so the offset clears the filter's
+    // reach whatever the tap count becomes. Scale is in TEXELS, so UMBRA_5's
+    // resize carried it for free and any future one will too.
+    //
+    // THAT THE STRUCTURE SURVIVED AN ERROR IN ITS CONSTANT IS THE ARGUMENT
+    // FOR THE STRUCTURE. PENUMBRA_1 P3 set the radius from a spacing rule
+    // that turned out to be wrong; PENUMBRA_2 N1 fixed the kernel and the
+    // radius followed as one number, because there is one home for it.
     //
     // THE FLOOR IS THE POINT OF THIS REVISION. UMBRA_7 scaled by
     // (1 - ndotl) alone, which is ZERO on ground facing the sun — and
@@ -3656,8 +3679,8 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // closes that gap, and it closes it in texel units, which is the unit
     // the mismatch actually scales with.
     //
-    //   ndotl = 1 (facing sun): 0.99 texels = 0.2030 wu
-    //   ndotl = 0 (grazing)   : 3.00 texels = 0.6152 wu
+    //   ndotl = 1 (facing sun): 0.83 texels = 0.1692 wu
+    //   ndotl = 0 (grazing)   : 2.50 texels = 0.5127 wu
     //
     // `normal` is unit at every caller — the terrain FS normalizes its
     // gradient normal and both entity FS pass normalize(in.normal) — so
@@ -3689,35 +3712,45 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
 
     let clamped_uv = clamp(shadow_uv, vec2(0.001), vec2(0.999));
 
-    // 3x3 PCF — nine taps, fully unrolled, const offsets, hardware
-    // bilinear per tap through the comparison sampler. FXC-clean by
-    // construction: no array, no loop for it to unroll, no dynamic index.
+    // 4x4 PCF — sixteen taps, fully unrolled, hardware bilinear per tap
+    // through the comparison sampler. FXC-clean by construction: no array,
+    // no loop for it to unroll, no dynamic index.
     //
     // textureSampleCompareLevel, NOT textureSampleCompare: it takes no
     // implicit derivatives, so no uniformity diagnostic can fire and the
     // call is legal in any stage.
     //
-    // The offsets are the LAST parameter and are in level-0 TEXELS, which
-    // is why the old `* texel_size` arithmetic is gone with the loop —
-    // the hardware does that conversion now, and cannot get it wrong.
+    // OFFSETS RIDE THE UV, NOT THE `offset` PARAMETER. That parameter takes
+    // const-expression INTEGERS, and these centres are half-texel — which is
+    // the whole point. Centres at +-0.5 and +-1.5 are spaced exactly 1 texel
+    // apart, so the tents sum flat (see TEXEL_UV's banner), and they are
+    // symmetric about the fragment, so UMBRA_8's centring fix survives: the
+    // centroid sits on the fragment, not half a texel up-light of it.
     //
-    // NINE CENTRED TAPS BEAT SIXTEEN OFF-CENTRE ONES. The old kernel ran
-    // -2..=1 on each axis, giving offsets {-2,-1,0,1} with no half-texel
-    // correction: its centroid sat half a texel up-left of the fragment,
-    // so every sun shadow in the program was displaced by that much,
-    // permanently. (The spot kernel corrected it with a +0.5 term; this
-    // one never had it.) Symmetry here is not only cheaper, it is the fix.
+    // Support is 5 texels = 1.026 wu. Sixteen taps is the pre-campaign
+    // count, so this cost is known-shipped rather than estimated.
+    //
+    // This is now the SAME arrangement sample_spot_shadow_pcf has always
+    // used (its `f32(x) + 0.5` term over -2..=1 gives the identical centres).
+    // The spot kernel never combed; only the sun kernel did.
     var s = 0.0;
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-PCF_SPACING, -PCF_SPACING));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(           0, -PCF_SPACING));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( PCF_SPACING, -PCF_SPACING));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-PCF_SPACING,            0));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(           0,            0));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( PCF_SPACING,            0));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-PCF_SPACING,  PCF_SPACING));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(           0,  PCF_SPACING));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( PCF_SPACING,  PCF_SPACING));
-    let shadow = s * (1.0 / 9.0);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-1.5, -1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5, -1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 0.5, -1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 1.5, -1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-1.5, -0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5, -0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 0.5, -0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 1.5, -0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-1.5,  0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5,  0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 0.5,  0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 1.5,  0.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-1.5,  1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5,  1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 0.5,  1.5) * TEXEL_UV, current_depth);
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 1.5,  1.5) * TEXEL_UV, current_depth);
+    let shadow = s * (1.0 / 16.0);
 
     // EDGE FADE. Distant shadows used to materialize at the frustum
     // boundary instead of assembling — a hard line where the map ran out.
