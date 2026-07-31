@@ -1332,3 +1332,48 @@ Every one of these was in work this campaign had just written:
 The pattern is consistent and worth naming: the errors are not in the code, which is
 small and was checked. They are in the *prose about* the code, which is large, and
 which no compiler reads.
+
+### AMENDMENT A — P1-E was under-verified, and the correction inverts half of it
+
+Two errors in the P1-E section above, both mine, both found by its refuter.
+
+**1. The caster reach is 395.71 wu, not "~375".** The supremum is exact, not
+approximate: maximising a patch's far corner subject to
+`(|cx|−25)² + (|cz|−25)² ≤ 325²` gives `325 + 50√2 = 395.71` wu. I estimated "about
+one patch beyond" as +50; the diagonal costs +50√2. That leaves only **24.29 wu** of
+lateral margin against `SUN_HALF_EXTENT` = 420, not the comfortable 45 I implied.
+
+**2. I tested the frustum's lateral extent and never its depth range — and the depth
+range is the tighter bound in every mood.** The sun eye sits `SUN_ALTITUDE` = 250 wu
+up-light of the centre and the ortho keeps only `[SUN_NEAR, SUN_FAR]` = [0.1, 600]
+along the light axis. A caster's axial coordinate is `dot(d, P − C) + 250`, so the
+horizontal component of the sun direction converts lateral distance into depth:
+
+| mood | \|horizontal(d)\| | FAR clips up-sun beyond | NEAR clips down-sun beyond | binds at |
+|---|---|---|---|---|
+| `MOOD_FINITE_OUTDOOR` | 0.704 | 497.1 wu | **354.9 wu** | 354.9 |
+| `MOOD_OPEN_SUNSET` | 0.966 | 362.4 wu | **258.7 wu** | 258.7 |
+
+Both are below the 395.71 wu lateral reach. **The near plane, not the map's width, is
+what actually ends the sun's caster set** — and `SUN_ALTITUDE` is what sets it.
+
+**The consequence inverts half of my finding.** I reported one defect: an invisible
+overhang that casts. There are two, and they point opposite ways:
+
+- **Beyond the rim, inside the depth range** — terrain that is invisible and *does*
+  cast, square-cornered at 50 wu granularity. As reported.
+- **Inside the rim, outside the depth range** — at `MOOD_OPEN_SUNSET` everything more
+  than ~259 wu down-sun of the point is clipped by the near plane while the visible
+  rim runs to 325 wu. That is a band of **visible terrain that casts nothing at all**,
+  ~66 wu wide, and it moves with the sun's azimuth.
+
+For the sphere-square discriminator this matters: a shadow that *ends* along a
+straight line partway across visible ground is the near-plane clip, not a caster
+silhouette and not bias. Distinguish it from the overhang by which side of the point
+it lies on — the clip is **down-sun**, the overhang is all around.
+
+**Not fixed here.** The lever would be `SUN_ALTITUDE` (raise it to push the near plane
+back) or `SUN_NEAR`/`SUN_FAR`, and no PENUMBRA handoff authorises touching the sun
+frustum's depth. Raising `SUN_ALTITUDE` alone is not free either — it moves the whole
+`[near, far]` window along the light axis and can clip the *far* side instead.
+**HORIZON, dated 2026-07-31.**
