@@ -4204,6 +4204,48 @@ fn mosaic_shard(p: vec3<f32>) -> u32 {
     return best;
 }
 
+struct MosaicSample {
+    color: vec3<f32>,
+    facet: vec3<f32>,   // per-shard plate lean, unscaled — the FS scales it
+}
+
+fn mosaic_sample(paint_pos: vec3<f32>, entity_seed: u32) -> MosaicSample {
+    // Per-entity batch: shards from one workshop vary ±30% in size.
+    let batch = 0.85 + 0.30 * hash_property(entity_seed, 913u);
+    let shard = mosaic_shard(paint_pos / max(config.mosaic_shard_size * batch, 1e-4));
+
+    // THE PASSAGE — the coarse lattice choosing this region's small
+    // palette (the bench's green/yellow/white runs). One scale up.
+    let pcell = vec3<i32>(floor(paint_pos / max(config.mosaic_passage_scale, 1e-3)));
+    let ps = mosaic_cell_seed(pcell, 7u);
+
+    // K ∈ {2,3,4} members: the near-white binder + (K−1) decorrelated
+    // picks from the median table (the antenna-drum pattern).
+    let k = 2u + u32(hash_property(ps, 903u) * 2.999);
+    // Raffle with the binder at double weight (Güell's white share):
+    // roll 0..k; 0 and 1 are both the binder.
+    let roll = u32(hash_property(shard, 904u) * f32(k + 1u));
+    var med = MOSAIC_WHITE;
+    if (roll >= 2u) {
+        let pick = hash_property(ps, 903u + roll);   // bands 905..907
+        med = MOSAIC_MEDIANS[u32(pick * 7.999)];
+    }
+
+    // Per-shard jitter scaled by the passage's own variance — the
+    // terrain's variance-law shape at the mosaic's numbers.
+    let vari = MOSAIC_VAR_BASE + hash_property(ps, 908u) * MOSAIC_VAR_SPAN;
+    let jit = (vec3(hash_property(shard, 910u),
+                    hash_property(shard, 911u),
+                    hash_property(shard, 912u)) - 0.5) * 2.0;
+
+    var s: MosaicSample;
+    s.color = clamp(med + jit * vari, vec3(0.0), vec3(1.0));
+    s.facet = (vec3(hash_property(shard, 914u),
+                    hash_property(shard, 915u),
+                    hash_property(shard, 916u)) - 0.5) * 2.0;
+    return s;
+}
+
 
 // §6.2 PATCH TERRAIN RENDERING
 // Instanced rendering of streaming terrain patches. Each instance is one
@@ -4975,17 +5017,27 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
 @fragment
 fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
     var albedo = in.entity_color;
-    // MOSAIC_0 PROBE — the FXC witness for the campaign's two compile
-    // risks in this nine-pipeline FS: the 27-cell walk and a runtime-
-    // indexed const array. Runtime-gated on a uniform (unfoldable), so
-    // the COMPILED cost is present while the frame rests byte-identical
-    // (mosaic_enable = 0). MOSAIC_1b replaces this consumption with the
-    // painter; the walk and the table stay as landed here.
-    if (config.mosaic_enable > 0.5) {
-        let s = mosaic_shard(in.world_pos / max(config.mosaic_shard_size, 1e-4));
-        albedo = mix(albedo, MOSAIC_MEDIANS[u32(hash_property(s, 910u) * 7.999)], 0.7);
+    let geo_n = normalize(in.normal);
+    var n = geo_n;
+    // THE MOSAIC (MOSAIC_1) — trencadís cladding, gated per-entity by
+    // the seed and globally by the master dial. Eye-anchored dissolve
+    // first: past the band the body IS its base color and the walk
+    // never runs (the fade is the cost cap). Inside it, the painter;
+    // the plate lean rides the SHADING normal only — geo_n stays
+    // geometric (the terrain's pre-aura pattern; shadow and backface
+    // math unmoved).
+    if (in.mosaic_seed != 0u && config.mosaic_enable > 0.5) {
+        let fade = 1.0 - smoothstep(config.mosaic_radius - config.mosaic_icing,
+                                    config.mosaic_radius,
+                                    distance(in.world_pos, render_camera.pos));
+        if (fade > 0.001) {
+            let paint_pos = vec3(in.world_pos.x, in.paint_y, in.world_pos.z);
+            let s = mosaic_sample(paint_pos, in.mosaic_seed);
+            albedo = mix(albedo, s.color, fade);
+            n = normalize(geo_n + s.facet * (config.mosaic_facet * fade));
+        }
     }
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), albedo, 1.0), 1.0);
+    return vec4(shade_lit(in.world_pos, n, geo_n, albedo, 1.0), 1.0);
 }
 
 // Ribbon FS — same shading as entity_fs but veil-EXEMPT (ruled fork): the
