@@ -168,8 +168,6 @@ namespace t7 {
                 "VEIL CHAIN: the icing band sits wholly outside the LOD0 core");
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
             constexpr uint32_t PATCH_INDEX_COUNT = PATCH_MESH_N * PATCH_MESH_N * 6;
-            constexpr uint32_t PATCH_MESH_N_LOD1 = 32;  // LOD-1: half resolution
-            constexpr uint32_t PATCH_INDEX_COUNT_LOD1 = PATCH_MESH_N_LOD1 * PATCH_MESH_N_LOD1 * 6;
 
             // ── THE UNIFIED GROUND (UNIFIED_GROUND_1) ──
             // Vertex-index bands. Legacy space [0, UG_CAP_BASE) keeps its
