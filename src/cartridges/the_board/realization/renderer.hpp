@@ -2073,7 +2073,7 @@ namespace t7 {
                     // draws terrain with the LOD1 index buffer while the main
                     // pass draws near terrain with a LOD0 one, so caster and
                     // receiver are DIFFERENT tessellations of the same
-                    // heightfield — the LOD1 mesh is a chord over a 1.5625 wu
+                    // heightfield — the LOD1 mesh is a chord over a 3.125 wu
                     // span of a surface sampled at 0.78125. In a concave dip
                     // the chord rides above the true surface and the receiver
                     // reads as self-shadowed. Slope-scale cannot compensate

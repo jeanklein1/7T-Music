@@ -303,7 +303,8 @@ fn ug_decode(vi: u32) -> UgVert {
     d.drop = 0.0;
     d.wall = 0.0;
     if (vi < PATCH_GRID_VERT_COUNT) {
-        // legacy grid (the LOD1/soft space)
+        // legacy grid (the LOD1/soft space) — zero-reader since CELL_1;
+        // retained as the address-space floor.
         d.vx = vi % PATCH_MESH_STRIDE;
         d.vz = vi / PATCH_MESH_STRIDE;
         d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
@@ -4485,11 +4486,11 @@ fn shadow_patch_terrain_vs(
     let pi = patch_instances[patch_id];
 
     // Same unified decode as patch_terrain_vs — but NOT the same index
-    // buffer. The shadow pass binds the LOD1 IB only (ECONOMY_1 E2), whose
-    // indices land in the legacy-grid band [0, PATCH_GRID_VERT_COUNT) and
-    // the skirt ring [.., UG_CAP_BASE) and nowhere else. The cap band and
-    // the curtain-bottom band are unreachable from it, so no curtain
-    // geometry casts. (UMBRA_3: the caster diet was already served here.)
+    // buffer. The shadow pass binds the LOD1 cell IB only (ECONOMY_1 E2,
+    // CELL_1), whose indices land on cap corners, base-band corners and
+    // skirt copies. Caps cast as slabs and their corner curtains cast
+    // with them. (UMBRA_3's caster diet survives as density: one quad
+    // per cell.)
     let d = ug_decode(vi);
 
     let uv = vec2(

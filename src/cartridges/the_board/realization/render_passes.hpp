@@ -356,18 +356,19 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // FORK — terrain, both bands at LOD1 density (ECONOMY_1 E2): the
     // shadow target resolves coarser than even the half mesh, and the
     // decode is patch-agnostic, so band 0 draws the LOD0 patches with
-    // the existing LOD1 index buffer. The legacy-band decode applies
-    // the cell lift (lift_scale = 1), so lifted zones still cast.
+    // the LOD1 cell IB (CELL_1). The cell IB lifts caps as slabs and
+    // its curtains cast, so lifted zones cast slab-and-wall shadows.
     //
     // THE CASTER LOD PIN (UMBRA_3, ruled here rather than re-cut). The
     // ladder is two rungs, both terrain-mesh densities of a 50 wu patch:
-    // LOD0 at PATCH_MESH_N = 64 (0.781 wu per quad edge) and LOD1 at
-    // PATCH_MESH_N_LOD1 = 32 (1.5625 wu). Against a post-UMBRA_5 texel of
-    // 0.2051 wu, LOD0 is 3.8 texels per edge — finer than the map can
-    // resolve, so pure cost — and LOD1 is 7.6, already coarser than the
-    // target. Neither rung satisfies "edge <= 2 x texelWorld", so that
-    // rule selects nothing; the pin is nonetheless already at the ladder's
-    // COARSEST rung and there is nothing coarser to move to.
+    // LOD0 at PATCH_MESH_N = 64 (0.781 wu per quad edge) and the LOD1
+    // cell mesh at 3.125 wu (one quad per cell, CELL_1). Against a
+    // post-UMBRA_5 texel of 0.2051 wu, LOD0 is 3.8 texels per edge —
+    // finer than the map can resolve, so pure cost — and the cell mesh
+    // is 15.2, already coarser than the target. Neither rung satisfies
+    // "edge <= 2 x texelWorld", so that rule selects nothing; the pin is
+    // nonetheless already at the ladder's COARSEST rung and there is
+    // nothing coarser to move to.
     //
     // SCOPE THAT CLAIM CAREFULLY — it is about DENSITY, not about the SET.
     // Nothing here selects a mesh density by distance: both bands take the

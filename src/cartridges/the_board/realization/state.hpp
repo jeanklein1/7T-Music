@@ -3281,9 +3281,9 @@ namespace t7 {
                 // (UNIFIED_GROUND_1: the legacy 64×64 grid quads are replaced by
                 //  per-cell cap tiles [16 quads/cell] + curtain quads [16/cell];
                 //  the skirt ring keeps its legacy slots, top edge re-aimed at
-                //  cap outer verts. The legacy grid+skirt decode space [0, 4481)
-                //  remains the LOD-1/soft space — the LOD-1 IB below is
-                //  byte-untouched.)
+                //  cap outer verts. The LOD-1 IB below indexes cap corners,
+                //  base corners and skirt copies (CELL_1); the legacy grid
+                //  [0, PATCH_GRID_VERT_COUNT) is zero-reader.)
                 // ECONOMY_1 E1: one builder, one parameter. The curtain block
                 // is the only conditional emission — cap + skirt are identical
                 // in both buffers, so the cap-only IB is the full IB with the
