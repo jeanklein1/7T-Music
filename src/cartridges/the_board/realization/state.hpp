@@ -2600,30 +2600,6 @@ namespace t7 {
             void set_veil_dither(float d) {   // THE RIM knob: 0 tint / >0.5 dither-dissolve
                 if (config_.veil_dither != d) { config_.veil_dither = d; configDirty_ = true; }
             }
-            // ── THE MOSAIC dials (MOSAIC_0/1) ──
-            // The A/B switch the visual gate asks for. enable is the master
-            // gate the probe measures against (a uniform, never folded); the
-            // rest are the live tuning surface — no rebuild between readings.
-            // The two MOSAIC_FRACTIONs stay compile-time (frozen biography).
-            void set_mosaic_enable(float e) {
-                if (config_.mosaic_enable != e) { config_.mosaic_enable = e; configDirty_ = true; }
-            }
-            void set_mosaic_shard_size(float s) {
-                if (config_.mosaic_shard_size != s) { config_.mosaic_shard_size = s; configDirty_ = true; }
-            }
-            void set_mosaic_passage_scale(float p) {
-                if (config_.mosaic_passage_scale != p) { config_.mosaic_passage_scale = p; configDirty_ = true; }
-            }
-            void set_mosaic_band(float radius, float icing) {
-                if (config_.mosaic_radius != radius || config_.mosaic_icing != icing) {
-                    config_.mosaic_radius = radius;
-                    config_.mosaic_icing  = icing;
-                    configDirty_ = true;
-                }
-            }
-            void set_mosaic_facet(float f) {
-                if (config_.mosaic_facet != f) { config_.mosaic_facet = f; configDirty_ = true; }
-            }
             float veil_ring()   const { return config_.veil_ring; }
             float lod0_radius() const { return config_.lod0_radius; }
             void stage_floater_coordination(float v)     { config_.floater_coordination = v; }
