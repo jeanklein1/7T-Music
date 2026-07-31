@@ -3259,6 +3259,28 @@ const SUN_FAR: f32 = 600.0;
 // and no bind-group layout grows.)
 const SHADOW_TEXEL_WORLD: f32 = 2.0 * SUN_HALF_EXTENT / SHADOW_MAP_SIZE;
 
+// THE FILTER FOOTPRINT — ONE FACT, TWO EXPRESSIONS (PENUMBRA_1 P3).
+//
+// Tap spacing and normal-offset magnitude are not two decisions. The offset
+// exists to walk the sample out of the caster's own surface, so it must cover
+// at least half the filter's reach or the filter reaches back in and the
+// offset was pointless. Give the footprint one home and derive both from it.
+//
+// SPACING 2 IS THE GAPLESS MAXIMUM at three taps per axis. Each
+// textureSampleCompareLevel tap carries a 2x2 hardware-bilinear footprint, so
+// taps at -2 / 0 / +2 cover [-3,-1] [-1,1] [1,3] contiguously. At spacing 3
+// the footprints stop touching and blur becomes banding. Do not raise this
+// without also raising the tap count.
+//
+// WHY IT IS 2 AND NOT 1, in world units — the measure that actually matters:
+// pre-UMBRA the 4x4 kernel at a 0.29297 wu texel spanned ~1.47 wu of blur;
+// UMBRA_8's 3x3 at 0.20508 spans ~0.82. Nothing new appeared in the terrain —
+// the caster's own tessellation was always stepping and 1.47 wu of blur was
+// covering it. Spacing 2 restores ~1.23 wu, 84% of the original, on the
+// fragment side, which the resize experiment proved is the cheap side.
+const PCF_SPACING: i32 = 2;                             // texels between taps
+const PCF_RADIUS_TEXELS: f32 = f32(PCF_SPACING) + 1.0;  // 3.0 — half the footprint
+
 fn coupling_pawn_to_sun_vp(pawn_pos: vec3<f32>, direction: vec3<f32>) -> mat4x4<f32> {
     // Sun position: offset from the frustum center opposite to light direction
     let sun_pos = pawn_pos - direction * SUN_ALTITUDE;
@@ -3616,23 +3638,30 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // without contact separation going with it. That is the whole reason
     // it can exist here while the depth nudges could not.
     //
-    // Scale is in TEXELS, so UMBRA_5's resize carried it for free and any
-    // future one will too: SHADOW_TEXEL_WORLD is derived from the frustum
-    // and the map. Two texels is sized for the 3x3 footprint UMBRA_8
-    // installs — the kernel reaches one texel, the offset clears it.
+    // Magnitude DERIVES from the filter footprint (PENUMBRA_1 P3): it is
+    // PCF_RADIUS_TEXELS — half the kernel's reach — so the offset always
+    // clears the filter whatever the spacing becomes. Scale is in TEXELS,
+    // so UMBRA_5's resize carried it for free and any future one will too.
     //
-    // (1 - ndotl) puts the offset where the error is. Acne is a grazing-
-    // angle artifact: a texel spans more depth the more oblique the
-    // surface is to the light. Facing the light the term is zero, so
-    // sun-facing ground is sampled exactly where it stands.
+    // THE FLOOR IS THE POINT OF THIS REVISION. UMBRA_7 scaled by
+    // (1 - ndotl) alone, which is ZERO on ground facing the sun — and
+    // slope-scale is also zero there, so on flat sun-facing ground NOTHING
+    // covered the caster/receiver tessellation mismatch (the shadow pass
+    // draws terrain at LOD1, the main pass at LOD0, and in a concave dip
+    // the coarser chord rides above the finer surface). The 0.33 floor
+    // closes that gap, and it closes it in texel units, which is the unit
+    // the mismatch actually scales with.
+    //
+    //   ndotl = 1 (facing sun): 0.99 texels = 0.2030 wu
+    //   ndotl = 0 (grazing)   : 3.00 texels = 0.6152 wu
     //
     // `normal` is unit at every caller — the terrain FS normalizes its
-    // gradient normal (and re-normalizes after the aura perturbs it) and
-    // both entity FS pass normalize(in.normal) — so this scale is exact
-    // rather than approximately exact.
+    // gradient normal and both entity FS pass normalize(in.normal) — so
+    // this scale is exact rather than approximately exact.
     let light_dir = -render_light.direction;   // toward the light
     let ndotl     = clamp(dot(normal, light_dir), 0.0, 1.0);
-    let offset_w  = normal * (SHADOW_TEXEL_WORLD * 2.0 * (1.0 - ndotl));
+    let offset_w  = normal * (SHADOW_TEXEL_WORLD * PCF_RADIUS_TEXELS
+                              * (0.33 + 0.67 * (1.0 - ndotl)));
 
     // Transform to light clip space
     let light_clip = render_vp.light_vp * vec4(world_pos + offset_w, 1.0);
@@ -3675,15 +3704,15 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // permanently. (The spot kernel corrected it with a +0.5 term; this
     // one never had it.) Symmetry here is not only cheaper, it is the fix.
     var s = 0.0;
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-1, -1));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 0, -1));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 1, -1));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-1,  0));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 0,  0));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 1,  0));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-1,  1));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 0,  1));
-    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( 1,  1));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-PCF_SPACING, -PCF_SPACING));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(           0, -PCF_SPACING));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( PCF_SPACING, -PCF_SPACING));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-PCF_SPACING,            0));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(           0,            0));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( PCF_SPACING,            0));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(-PCF_SPACING,  PCF_SPACING));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>(           0,  PCF_SPACING));
+    s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv, current_depth, vec2<i32>( PCF_SPACING,  PCF_SPACING));
     let shadow = s * (1.0 / 9.0);
 
     // EDGE FADE. Distant shadows used to materialize at the frustum
