@@ -142,6 +142,7 @@ void toggle_fpv_mode(InputDeps* c);
 void possess(InputDeps* c, PointHost next);   // THE ONE TRANSACTION — release(current) then bind(next); nothing else writes the host
 void set_render_radius(InputDeps* c, uint32_t r);
 void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
+void toggle_mosaic(InputDeps* c);        // THE MOSAIC A/B (key M): trencadís cladding on <-> off
 
 
 // ═══ MODULE IMPLEMENTATION ═══════════════════════════════════════
@@ -185,6 +186,9 @@ void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <->
 #endif
 #ifndef GLFW_KEY_V
 #define GLFW_KEY_V  86
+#endif
+#ifndef GLFW_KEY_M
+#define GLFW_KEY_M  77
 #endif
 #ifndef GLFW_KEY_F4
 #define GLFW_KEY_F4  293
@@ -238,6 +242,7 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;
     case GLFW_KEY_V:              toggle_veil_dither(c);                                   break;  // THE RIM: icing tint <-> dither-dissolve
+    case GLFW_KEY_M:              toggle_mosaic(c);                                        break;  // THE MOSAIC: trencadís cladding on <-> off
 
     // ── Orb utilities (numpad) ───────────────────────────────────
     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state, &orbs_deps, q);            break;
@@ -397,6 +402,18 @@ inline void toggle_veil_dither(InputDeps* c) {
     bool on = c->gpuState_.config().veil_dither > 0.5f;
     c->gpuState_.set_veil_dither(on ? 0.0f : 1.0f);
     std::cout << "[the_board] Veil rim: " << (on ? "TINT (fade to fog)" : "DITHER-DISSOLVE") << std::endl;
+}
+
+// THE MOSAIC A/B (MOSAIC_0/1). The master gate stays a uniform — the walk
+// is compiled either way, so this flips pixels, never pipelines. Only
+// seeded bodies (arch, column) answer; the dissolve band still rules, so
+// stand inside mosaic_radius to read the difference.
+inline void toggle_mosaic(InputDeps* c) {
+    bool on = c->gpuState_.config().mosaic_enable > 0.5f;
+    c->gpuState_.set_mosaic_enable(on ? 0.0f : 1.0f);
+    std::cout << "[the_board] Mosaic: " << (on ? "OFF (flat base color)" : "ON (trencadis)")
+              << " — band [" << (c->gpuState_.config().mosaic_radius - c->gpuState_.config().mosaic_icing)
+              << ", " << c->gpuState_.config().mosaic_radius << "] wu" << std::endl;
 }
 
 } // namespace the_board
