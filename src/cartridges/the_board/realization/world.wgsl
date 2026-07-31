@@ -4624,6 +4624,14 @@ struct EntityVarying {
     @location(0) world_pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) entity_color: vec3<f32>,
+    // THE PAINT ANCHOR (MOSAIC_1): pigment coordinates. paint_y is the
+    // mesh-authored body Y (in.pos.y) — immune to ground_y + the live
+    // card; XZ reuses world_pos (the grounded mesh-gen lift is Y-only).
+    // The FS assembles paint_pos = (world_pos.x, paint_y, world_pos.z).
+    // mosaic_seed 0 = unpainted — every zero-init VS opts out for free;
+    // only arch_vs / column_vs write these today.
+    @location(3) paint_y: f32,
+    @location(4) @interpolate(flat) mosaic_seed: u32,
 }
 
 
@@ -5144,13 +5152,26 @@ struct ArchVertexInput {
     @location(0) pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) color: vec3<f32>,
-    @location(3) arch_index: f32,   // slot index as float (avoids GPU denorm flush on bitcast<f32>(u32))
+    // THE INDEX CHANNEL (MOSAIC_1): enc = mosaic_seed·64 + slot, as a
+    // float (small-int exact; avoids GPU denorm flush on
+    // bitcast<f32>(u32)). slot < 64 (census C-12); seed < 65536 →
+    // enc < 2^22, f32-exact. Families that never paint write seed 0 —
+    // their bytes are unchanged and their VSes keep the plain u32()
+    // read (identity on a bare slot: palm/cactus/blade untouched).
+    // Painted families (arch, column) and their shadow twins decode
+    // via entity_index_decode below.
+    @location(3) arch_index: f32,
 };
+
+fn entity_index_decode(v: f32) -> vec2<u32> {
+    let enc = u32(v);
+    return vec2<u32>(enc & 63u, enc >> 6u);   // (slot, mosaic_seed)
+}
 
 @vertex
 fn arch_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
+    let dec = entity_index_decode(in.arch_index);
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
 
@@ -5159,13 +5180,15 @@ fn arch_vs(in: ArchVertexInput) -> EntityVarying {
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
+    out.paint_y = in.pos.y;
+    out.mosaic_seed = dec.y;
     return out;
 }
 
 @vertex
 fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
+    let dec = entity_index_decode(in.arch_index);
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
 
@@ -5177,8 +5200,8 @@ fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
 // --- Generative Columns
 @vertex
 fn column_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
+    let dec = entity_index_decode(in.arch_index);
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
 
@@ -5187,13 +5210,15 @@ fn column_vs(in: ArchVertexInput) -> EntityVarying {
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
+    out.paint_y = in.pos.y;
+    out.mosaic_seed = dec.y;
     return out;
 }
 
 @vertex
 fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
+    let dec = entity_index_decode(in.arch_index);
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
 
