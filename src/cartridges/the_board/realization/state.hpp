@@ -3255,6 +3255,29 @@ namespace t7 {
                     else                { vx = 0;             vz = N - (k - 3 * N); }
                     return vz * S + vx;
                 };
+                    // The n=4 perimeter walk of a cell's 5×5 cap grid — the same
+                    // CW bottom/right/top/left shape as skirt_grid_index (n=64).
+                    auto cell_perimeter = [](uint32_t k, uint32_t& lx, uint32_t& lz) {
+                        const uint32_t n = Dim::UG_QUADS_PER_CELL;   // 4
+                        if      (k < n)     { lx = k;               lz = 0; }
+                        else if (k < 2 * n) { lx = n;               lz = k - n; }
+                        else if (k < 3 * n) { lx = n - (k - 2 * n); lz = n; }
+                        else                { lx = 0;               lz = n - (k - 3 * n); }
+                    };
+                    auto skirt_cap_index = [](uint32_t k) {
+                        const uint32_t N = Dim::PATCH_MESH_N;
+                        uint32_t vx, vz;
+                        if      (k < N)     { vx = k;               vz = 0; }
+                        else if (k < 2 * N) { vx = N;               vz = k - N; }
+                        else if (k < 3 * N) { vx = N - (k - 2 * N); vz = N; }
+                        else                { vx = 0;               vz = N - (k - 3 * N); }
+                        uint32_t cx = vx / Dim::UG_QUADS_PER_CELL; if (cx > 15) cx = 15;
+                        uint32_t cz = vz / Dim::UG_QUADS_PER_CELL; if (cz > 15) cz = 15;
+                        uint32_t lx = vx - Dim::UG_QUADS_PER_CELL * cx;
+                        uint32_t lz = vz - Dim::UG_QUADS_PER_CELL * cz;
+                        return Dim::UG_CAP_BASE + (cz * Dim::PATCH_CELL_N + cx) * Dim::UG_CAP_VERTS_PER_CELL
+                             + lz * Dim::UG_CAP_STRIDE_C + lx;
+                    };
 
                 // LOD-0: cap tiles + curtains + skirt — ~50,688 indices
                 // (UNIFIED_GROUND_1: the legacy 64×64 grid quads are replaced by
@@ -3268,18 +3291,9 @@ namespace t7 {
                 // in both buffers, so the cap-only IB is the full IB with the
                 // curtain band absent (indices shift down; bands stay in cap,
                 // [curtain,] skirt order).
-                auto build_lod0_ib = [](bool with_curtains) {
+                auto build_lod0_ib = [&](bool with_curtains) {
                     std::vector<uint32_t> idx;
                     idx.reserve(Dim::UG_CELLS_PER_PATCH * (16 + 16) * 6 + 4 * Dim::PATCH_MESH_N * 6);
-                    // The n=4 perimeter walk of a cell's 5×5 cap grid — the same
-                    // CW bottom/right/top/left shape as skirt_grid_index (n=64).
-                    auto cell_perimeter = [](uint32_t k, uint32_t& lx, uint32_t& lz) {
-                        const uint32_t n = Dim::UG_QUADS_PER_CELL;   // 4
-                        if      (k < n)     { lx = k;               lz = 0; }
-                        else if (k < 2 * n) { lx = n;               lz = k - n; }
-                        else if (k < 3 * n) { lx = n - (k - 2 * n); lz = n; }
-                        else                { lx = 0;               lz = n - (k - 3 * n); }
-                    };
                     // CAP QUADS — 256 cells × 16 quads (the house winding).
                     for (uint32_t cell = 0; cell < Dim::UG_CELLS_PER_PATCH; cell++) {
                         const uint32_t cap0 = Dim::UG_CAP_BASE + cell * Dim::UG_CAP_VERTS_PER_CELL;
@@ -3318,20 +3332,6 @@ namespace t7 {
                     }
                     // SKIRT RING — the legacy loop; top edge = cap outer verts;
                     // copies keep the legacy ring slots (their decode changes in U3).
-                    auto skirt_cap_index = [](uint32_t k) {
-                        const uint32_t N = Dim::PATCH_MESH_N;
-                        uint32_t vx, vz;
-                        if      (k < N)     { vx = k;               vz = 0; }
-                        else if (k < 2 * N) { vx = N;               vz = k - N; }
-                        else if (k < 3 * N) { vx = N - (k - 2 * N); vz = N; }
-                        else                { vx = 0;               vz = N - (k - 3 * N); }
-                        uint32_t cx = vx / Dim::UG_QUADS_PER_CELL; if (cx > 15) cx = 15;
-                        uint32_t cz = vz / Dim::UG_QUADS_PER_CELL; if (cz > 15) cz = 15;
-                        uint32_t lx = vx - Dim::UG_QUADS_PER_CELL * cx;
-                        uint32_t lz = vz - Dim::UG_QUADS_PER_CELL * cz;
-                        return Dim::UG_CAP_BASE + (cz * Dim::PATCH_CELL_N + cx) * Dim::UG_CAP_VERTS_PER_CELL
-                             + lz * Dim::UG_CAP_STRIDE_C + lx;
-                    };
                     constexpr uint32_t SKIRT_RING_N = 4 * Dim::PATCH_MESH_N;
                     constexpr uint32_t SKIRT_GRID_V = (Dim::PATCH_MESH_N + 1) * (Dim::PATCH_MESH_N + 1);
                     for (uint32_t k = 0; k < SKIRT_RING_N; k++) {
@@ -3370,26 +3370,47 @@ namespace t7 {
                 }
 
                 {
-                    constexpr uint32_t step = Dim::PATCH_MESH_N / Dim::PATCH_MESH_N_LOD1;  // = 2
-                    constexpr uint32_t stride = Dim::PATCH_MESH_N + 1;  // 65 verts per row
+                    // LOD-1: CELL SLABS (CELL_1). A cell is a slab at every
+                    // distance — the representation no longer changes across
+                    // the LOD boundary, only the density does. Per cell: one
+                    // cap-corner quad (the house winding at corner stride) +
+                    // four corner curtains (the LOD-0 curtain loop at k += 4)
+                    // + the corner skirt. Indices land in the cap band
+                    // (corners), base band (corners) and skirt copies; the
+                    // legacy grid [0, PATCH_GRID_VERT_COUNT) has no reader.
                     std::vector<uint32_t> idx;
-                    idx.reserve(Dim::PATCH_INDEX_COUNT_LOD1);
-                    for (uint32_t z = 0; z < Dim::PATCH_MESH_N_LOD1; z++) {
-                        for (uint32_t x = 0; x < Dim::PATCH_MESH_N_LOD1; x++) {
-                            uint32_t i00 = (z * step) * stride + (x * step);
-                            uint32_t i10 = i00 + step;
-                            uint32_t i01 = i00 + step * stride;
-                            uint32_t i11 = i01 + step;
-                            idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
-                            idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
+                    idx.reserve(Dim::UG_CELLS_PER_PATCH * (1 + 4) * 6
+                              + (4 * Dim::PATCH_MESH_N / Dim::UG_QUADS_PER_CELL) * 6);  // 8064
+                    for (uint32_t cell = 0; cell < Dim::UG_CELLS_PER_PATCH; cell++) {
+                        const uint32_t cap0  = Dim::UG_CAP_BASE  + cell * Dim::UG_CAP_VERTS_PER_CELL;
+                        const uint32_t base0 = Dim::UG_BASE_BASE + cell * Dim::UG_BASE_VERTS_PER_CELL;
+                        // cap: the four tile corners
+                        uint32_t i00 = cap0;
+                        uint32_t i10 = i00 + Dim::UG_QUADS_PER_CELL;
+                        uint32_t i01 = i00 + Dim::UG_QUADS_PER_CELL * Dim::UG_CAP_STRIDE_C;
+                        uint32_t i11 = i01 + Dim::UG_QUADS_PER_CELL;
+                        idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
+                        idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
+                        // curtains: the corner walk (k on cell corners)
+                        for (uint32_t k = 0; k < Dim::UG_BASE_VERTS_PER_CELL; k += Dim::UG_QUADS_PER_CELL) {
+                            uint32_t k1 = (k + Dim::UG_QUADS_PER_CELL) % Dim::UG_BASE_VERTS_PER_CELL;
+                            uint32_t lx, lz, lx1, lz1;
+                            cell_perimeter(k, lx, lz);
+                            cell_perimeter(k1, lx1, lz1);
+                            uint32_t a  = cap0 + lz * Dim::UG_CAP_STRIDE_C + lx;
+                            uint32_t b  = cap0 + lz1 * Dim::UG_CAP_STRIDE_C + lx1;
+                            uint32_t sa = base0 + k;
+                            uint32_t sb = base0 + k1;
+                            idx.push_back(a); idx.push_back(b); idx.push_back(sa);
+                            idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
                         }
                     }
-                    // Skirt: coarse ring — LOD-1 uses every `step`th perimeter vert
-                    // so the skirt top matches the LOD-1 interior edge exactly.
-                    for (uint32_t k = 0; k < SKIRT_RING; k += step) {
-                        uint32_t k1 = (k + step) % SKIRT_RING;
-                        uint32_t a  = skirt_grid_index(k);
-                        uint32_t b  = skirt_grid_index(k1);
+                    // Skirt: corner ring — top edge on cap corners, copies on
+                    // the matching legacy ring slots.
+                    for (uint32_t k = 0; k < SKIRT_RING; k += Dim::UG_QUADS_PER_CELL) {
+                        uint32_t k1 = (k + Dim::UG_QUADS_PER_CELL) % SKIRT_RING;
+                        uint32_t a  = skirt_cap_index(k);
+                        uint32_t b  = skirt_cap_index(k1);
                         uint32_t sa = SKIRT_GRID_VERTS + k;
                         uint32_t sb = SKIRT_GRID_VERTS + k1;
                         idx.push_back(a); idx.push_back(b); idx.push_back(sa);
