@@ -2033,17 +2033,28 @@ namespace t7 {
                     // DETACHMENT (peter-panning, shadow pulling off contact)
                     // wants it DOWN.
                     //
-                    // WATCH THE CullMode::None SHEETS. pawn, ribbon, shell,
-                    // column, palm, cactus and blade are single-sided or
-                    // bufferless and cull nothing. For such a sheet turned
-                    // near-parallel to the light the window-space gradient
-                    // diverges, and with no clamp the biased depth can run past
-                    // the viewport range and stop occluding at all — the caster
-                    // vanishes rather than merely softening. The deleted shader
-                    // bias could not do this: it was a function of the
-                    // RECEIVER's normal and never touched a caster. If a thin
-                    // caster's shadow disappears at a low sun, depthBiasClamp
-                    // is the lever, not depthBias.
+                    // THE CEILING (PENUMBRA_1 P2). The old shader term did TWO
+                    // jobs — a floor AND a ceiling — and UMBRA_6 replaced only
+                    // the floor. mix(MAX, MIN, cos) could never exceed
+                    // SHADOW_BIAS_MAX by construction; slope-scale with no
+                    // clamp is unbounded, running 4.3x the old term at 85 deg
+                    // and 10.1x at 88 deg. Seven of the eleven shadow
+                    // pipelines are CullMode::None zero-thickness sheets —
+                    // pawn, column, palm, cactus, blade, shell, ribbon — whose
+                    // faces reach grazing at every twist, and an unbounded
+                    // bias there can push a caster clean out of the depth
+                    // range so it stops occluding at all. That is the ribbon
+                    // chainsaw's leading candidate.
+                    //
+                    // 2.8e-3 is the old SHADOW_BIAS_MAX carried across
+                    // UMBRA_5 CORRECTLY: 8.192/2048 = 4.0e-3 NDC at the old
+                    // 0.29297 wu texel is 0.013653 NDC per wu of texel, and
+                    // 0.013653 x 0.20508 = 2.8e-3 at today's texel. Note this
+                    // is NOT what the retired per-texel form would have given:
+                    // 8.192/4096 = 2.0e-3, which is 1.40x short, because that
+                    // form tracked RESOLUTION and UMBRA_5 also changed RADIUS.
+                    // ECONOMY_1 E6's "carries its bias for free" held for a
+                    // resolution ruling alone; UMBRA_5 was not one.
                     //
                     // WHERE SLOPE-SCALE CANNOT REACH, named because the
                     // campaign's own caster diet created it: the shadow pass
@@ -2057,12 +2068,20 @@ namespace t7 {
                     // it: it corrects a primitive's own depth gradient, not a
                     // difference between two meshes — and the error is largest
                     // exactly where the slope, and therefore the slope term,
-                    // goes to zero. If terrain acne appears on FLAT,
-                    // SUN-FACING ground, that is this gap, and the lever is
-                    // depthBias UP toward ~3355, not slope-scale.
-                    shadowDepth.depthBias           = 2;
+                    // goes to zero. That gap is now covered by the normal
+                    // offset's FLOOR (sample_shadow_pcf, PENUMBRA_1 P3), in
+                    // texel units, which is the correct unit for it.
+                    //
+                    // depthBias is DELETED, not set to zero. Under
+                    // Depth32Float it is a ULP multiple of the primitive's max
+                    // depth: at this scene's z = 0.417 one ULP is 2^-25, so
+                    // the old value of 2 bought 6.0e-8 NDC — about 3,355x
+                    // short of the floor it was nominally replacing. It is not
+                    // a dial in steps of one, and a line that reads like a dial
+                    // and is not one costs more than it buys. THE TWO LIVE
+                    // INSTRUMENTS ARE slopeScale AND the normal offset.
                     shadowDepth.depthBiasSlopeScale = 2.0f;
-                    shadowDepth.depthBiasClamp      = 0.0f;
+                    shadowDepth.depthBiasClamp      = 2.8e-3f;
 
                     // THE SHARED BUILDER (shadow/depth category): the builder every shadow pipeline
                     // shares — shadowRenderLayout + shadowDepth (Depth32Float shadow map) +
