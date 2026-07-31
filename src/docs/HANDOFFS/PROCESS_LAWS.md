@@ -126,6 +126,40 @@ entry" — an entry that had never landed. The error was upstream of the
 executor, and the only reason it surfaced is that the anchor was checked before
 the edit rather than after.
 
+## P9 — FETCH BEFORE YOU CLAIM
+
+No ancestry, topology, or divergence claim without a `git fetch` in the **same
+command sequence**. A remote-tracking ref is a cached label, and this campaign
+family exists because cached labels lie.
+
+*Paid for by:* the UMBRA close. Asked to merge to `master`, the executor read
+`origin/master` from the clone-time remote-tracking ref, found `60818b0`, and
+reported — with a table, a file count and a diffstat — that `master` and the
+campaign line had **no common ancestor**, 313 files apart, and that merging was
+structurally impossible. Every number in that report was correct about
+`60818b0` and irrelevant to the question. A single `git fetch origin master`
+returned `0466346`: the campaign's own base. The remote had moved; the ref had
+not. The real operation was a fast-forward — no conflict, no force, nothing to
+decide.
+
+The tell is precise and worth memorizing: **`git log` / `git diff` /
+`git merge-base` against `origin/*` read local cache, not the remote.**
+`git fetch` and `git ls-remote` are the only commands in that list that talk to
+the server. `--force-with-lease` is the safety net for exactly this failure and
+it did fire — the one dry-run push was rejected as `stale info` rather than
+executing — but a lease that fires means the analysis upstream of it was
+already wrong.
+
+Scope note: this binds *claims*, not every command. Reading `origin/master` to
+answer "what did I last see?" is fine. Reading it to answer "what IS master?"
+is the violation.
+
+It is the 640-pixel card wearing a "512×512" label (P5) one layer out: there
+the label was a comment, here it was a ref. A campaign family built on *read
+the descriptor, not the label* produced, in its own closing act, a report
+sourced entirely from a label. The rule is written down because the instinct
+did not generalize on its own.
+
 ---
 
 ## SCHEDULING RECORD

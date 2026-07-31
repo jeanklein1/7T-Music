@@ -927,3 +927,266 @@ builder — one edit reaches all eleven shadow pipelines.
   anything structural. But check the radius first: at 420 wu the map already covers
   95 wu past the draw ring, so a far-edge artifact is more likely the *ring* than the
   shadow map.
+
+---
+---
+
+# PENUMBRA_1 — RECON
+
+Read 2026-07-31 against `32a2ccd`. Five gated questions. Same register as UMBRA_1:
+descriptors and call sites, never labels. Where an answer contradicts the handoff's
+premise, the contradiction is the finding and it is stated first.
+
+An adversarial fan-out was launched over the same five questions and had not returned
+when this section was written; its findings will land as an amendment, the way UMBRA's
+R11 second pass did. Every claim below is from a direct read of the source, cited.
+
+## P1-A — `depthBiasClamp` legality → **P2 IS CLEARED TO LAND**
+
+**No compatibility mode is requested anywhere in the tree.** Adapters come from
+`instance_->EnumerateAdapters()` (`console.hpp`) called with **no
+`RequestAdapterOptions` at all** — so no `featureLevel`, no `compatibilityMode`, no
+`FeatureLevel::Compatibility`. Dawn's native default is core.
+
+The device asks for exactly one feature, conditionally:
+
+```cpp
+wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
+if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
+    deviceDesc.requiredFeatures = requiredFeatures;
+    deviceDesc.requiredFeatureCount = 1;
+}
+```
+
+`core-features-and-limits` is **never named** in the repo. Under the current WebGPU
+spec that is the expected shape: a non-compat device carries it implicitly; it is
+something you *check*, not something you request. Limits are requested at full adapter
+capacity (`deviceDesc.requiredLimits = &adapterLimits`).
+
+**P1 (ASSERT-AND-GUARD) discipline on this answer.** What the repo *requests* is a repo
+fact and is settled above. What the device *grants* is a runtime fact beyond the repo
+boundary, and this report does not assert it. **The guard already exists and needs no
+new code** — `console.hpp` prints the adapter's full enumerated feature list at boot:
+
+```cpp
+std::cout << "[Console] Adapter features (" << feats.featureCount << "):";
+```
+
+So the hypothesis is falsifiable from any boot log Jean already has. **P2 lands**; if a
+boot ever shows a compat adapter, `depthBiasClamp` is the first thing to revert and the
+fallback is capping `depthBiasSlopeScale` instead, which is Jean's ruling.
+
+## P1-B — terrain normal derivation → **the handoff's checker mechanism is REFUTED**
+
+**The shading normal is continuous, not per-cell and not faceted.** One line builds it,
+in the terrain FS:
+
+```wgsl
+    var normal = normalize(vec3(-in.gradients.x, 1.0, -in.gradients.y));
+```
+
+`gradients` is `@location(1) gradients: vec2<f32>` — **no `@interpolate(flat)`**, so it
+is smoothly interpolated across every triangle. The VS writes it as
+
+```wgsl
+    out.gradients = height_data.yz + live.yz;
+```
+
+where `height_data` is a **bilinear-filtered** heightfield fetch
+(`textureSampleLevel(patch_heightfield_array_read, bilinear_sampler, …)`) and `live.yz`
+is the live card's full-Δ gradient. Both terms are continuous. Nothing per-cell reaches
+the normal: `cell_local` *is* `@interpolate(flat)`, but it feeds cell colour, not
+shading normals.
+
+**So "per-cell flat normal ⇒ per-cell offset jump" is not the mechanism.** Per the
+handoff's own checker discriminator, that pushes the ruling to Jean's glance — and if
+the checker is equally strong on open lit ground far from any shadow, it is the
+cell-colour aesthetic and never was ours.
+
+**But a different discontinuity is real, and it is the one that matters here.** The cell
+lift moves **position** and contributes **nothing** to the gradient:
+
+```wgsl
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+             * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
+    world_pos.y += lift * d.lift_scale - d.drop;
+```
+```wgsl
+    out.gradients = height_data.yz + live.yz;     // no lift term
+```
+
+A lifted GoL cell is a slab whose top face **and vertical curtain walls** carry the
+*unlifted* terrain's normal. On a curtain wall the shading normal points **up** while
+the surface faces sideways. Post-UMBRA_7 that normal also steers the shadow sample, so
+the offset on a curtain wall pushes along a normal that is geometrically wrong by ~90°.
+
+This is a position/normal mismatch, not a faceted-normal one — a different fault from
+the one the handoff hypothesised, at the same site. **P4 does not fix it** (P4 is about
+the aura). Filed as a HORIZON item below; no edit is authorised for it here.
+
+## P1-C — sun sampler bounds rejection → **yes, and the clip/NDC distinction is moot**
+
+`sample_shadow_pcf` rejects out-of-range depth, testing the post-divide value:
+
+```wgsl
+    let out_of_bounds = shadow_uv.x < 0.0 || shadow_uv.x > 1.0 ||
+                        shadow_uv.y < 0.0 || shadow_uv.y > 1.0 ||
+                        light_ndc.z < 0.0 || light_ndc.z > 1.0;
+```
+
+**For the sun the divide is the identity.** Every column of the ortho carries `.w = 0`
+except the last, which carries `1.0`:
+
+```wgsl
+        vec4(1.0 / he,  0.0,       0.0,                   0.0),
+        vec4(0.0,        1.0 / he,  0.0,                   0.0),
+        vec4(0.0,        0.0,      -r_depth,               0.0),
+        vec4(0.0,        0.0,      -SUN_NEAR * r_depth,    1.0)
+```
+
+so `light_clip.w == 1.0` identically and `light_ndc.z == light_clip.z`. Testing NDC z is
+testing clip z. **The second sphere-square hypothesis — a spuriously in-range sample —
+cannot occur on the sun path.** That leaves P1-E's mechanism as the live one.
+
+**Two findings the question asked for.**
+
+1. **The two samplers disagree on what out-of-bounds means.** Sun returns `1.0` —
+   *fully lit*: `return select(lit, 1.0, out_of_bounds);`. Spot returns `0.0` — *fully
+   shadowed*: `return select(shadow / 16.0, 0.0, out_of_bounds);`. Opposite conventions
+   for the same condition, in the same file, ten lines of scroll apart. The spot's
+   choice is masked in practice because `cone_falloff` multiplies its result to ~0
+   outside the cone, but it is a genuine inconsistency and nothing documents it.
+
+2. **The spot path has a latent sign hazard the sun path cannot have.** Its projection
+   row 3 is `(0, 0, -1, 0)`, so `light_clip.w = −view_z`: for a fragment *behind* the
+   light `w < 0`, the divide flips every sign, and an out-of-frustum fragment can land
+   inside [0,1] and be sampled. Masked by the same `cone_falloff`. Reported, not fixed —
+   no handoff authorises it.
+
+## P1-D — spot projection aspect → **uncompensated; spot texels are non-square by exactly 2×**
+
+`compute_spot_light_vp` builds a **perspective** projection with **no aspect term at
+all**. Verbatim:
+
+```cpp
+    const float outer_half = std::acos(std::max(light.outer_cone, -0.95f));
+    const float fov = std::min(2.0f * outer_half + 0.2f, 2.8f);
+    const float near_plane = 1.0f;
+    const float far_plane = light.range + 5.0f;
+    float f = 1.0f / std::tan(fov * 0.5f);
+    float nf = 1.0f / (near_plane - far_plane);
+
+    float proj[16] = {
+        f, 0.0f, 0.0f, 0.0f,
+        0.0f, f, 0.0f, 0.0f,
+        0.0f, 0.0f, far_plane * nf, -1.0f,
+        0.0f, 0.0f, far_plane * near_plane * nf, 0.0f
+    };
+```
+
+`proj[0] == proj[5] == f`. Equal angular half-extent on both axes — rendered into a
+tile of `TILE_W = SHADOW_MAP_SIZE / 2 = 2048` by `TILE_H = SHADOW_MAP_SIZE = 4096`.
+
+**So the same angle maps onto 2048 texels horizontally and 4096 vertically: a spot
+shadow texel is exactly 2× wider in angle than it is tall.** A 1:2 tile with a 1:1
+projection. This is a finding in its own right, as the handoff anticipated; it is
+reported and **not** fixed here.
+
+**What P5 needs, and the problem with how the handoff asked for it.** The handoff wants
+`SPOT_TAN_HALF_FOV` and `SPOT_TILE_TEXELS` taken "from P1-D verbatim; do not invent
+them." Verbatim, they do not exist:
+
+- The FOV is **per-light**, derived on the CPU from `light.outer_cone`, and is **never
+  uploaded** — the shader receives only the finished `view_proj` matrix. There is no
+  constant to quote.
+- The tile size is C++-side (`TILE_W`/`TILE_H` are `static constexpr` locals inside
+  `render_shadow_pass`), but both derive from `Dim::SHADOW_MAP_SIZE`, whose WGSL twin
+  `SHADOW_MAP_SIZE` is already in the shader.
+
+Rather than invent a constant or mirror the CPU formula into WGSL (a new L3 mirror, and
+exactly the two-rooms-one-fact pattern this campaign family exists to break), both fall
+out of data the shader already holds:
+
+- `f = length(vec3(m[0][0], m[1][0], m[2][0]))` where `m = light.view_proj` — the first
+  matrix *row* is `f × right`, and `right` is unit, so its length is `f`. Then
+  `tan(halfFOV) = 1 / f`.
+- axial distance to the fragment is `light_clip.w` directly, which is what the
+  handoff's formula calls `light_dist`.
+- tile texels: `SHADOW_MAP_SIZE * 0.5` on x, `SHADOW_MAP_SIZE` on y.
+
+**P5 will therefore use the X axis** — the coarser one, 2048 texels — which is the
+handoff's own instruction for the uncompensated-aspect case ("land the offset using the
+**larger** of the two texel world-sizes"). Recorded here under P7 of the process laws as
+a structural choice taken inside a named edit: the minimal form, reported.
+
+## P1-E — terrain rim → **the sphere-square's first hypothesis is quantitatively supported**
+
+**The visible rim is smooth and round.** `shade_lit`:
+
+```wgsl
+    let point_d = distance(world_pos.xz, render_point_pos().xz);
+    let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
+             * config.veil_strength * veil_scale;
+    if (config.veil_dither > 0.5) {
+        if (veil_dither_noise(world_pos.xz) < veil) { discard; }
+        return fogged;
+    }
+    return mix(fogged, config.fog_color, veil);
+```
+
+Radius source: `config.veil_ring`, defaulted from `Dim::VEIL_RING_DEFAULT = 6.5f *
+PATCH_EXTENT` = **325 wu**, with `Dim::VEIL_ICING_DEFAULT = 40.0f` — a 40 wu fade band
+from 285 to 325 — measured from **THE POINT**, and `veil_strength` is 0 in
+finite/indoor.
+
+**The shadow caster boundary is square-cornered and larger.** `shadow_patch_terrain_vs`
+has **no rim path at all**, and cannot: the shadow pass is depth-only, `desc.fragment =
+nullptr`, so there is no fragment stage in which to `discard`. The tree already says so
+and is correct.
+
+What selects the caster set is `band_patches`:
+
+```cpp
+        float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
+        if (c->world_state_.finite_mode || d2 <= ring_sq) {
+```
+
+and `patch_distance_sq` is a **point-to-AABB** distance, not point-to-centre:
+
+```cpp
+    float dx = std::max(0.0f, std::abs(px - origin_x) - half);
+    float dz = std::max(0.0f, std::abs(pz - origin_z) - half);
+    return dx * dx + dz * dz;
+```
+
+A patch is therefore included when its **nearest edge** is within `veil_ring`. With
+`Dim::PATCH_EXTENT = 50.0f`, cast geometry extends up to roughly **one patch beyond the
+visible rim**, along a boundary that is **quantised to the 50 wu patch grid** — square
+corners, not a circle. And `point_wx/point_wz` are `c->point_`, THE POINT, so the whole
+boundary **translates with the viewer** (and in camera-host mode the point is the eye).
+
+`SUN_HALF_EXTENT` is 420 wu, so that entire caster set sits **inside** the shadow
+frustum and all of it casts.
+
+| boundary | shape | radius from THE POINT |
+|---|---|---|
+| visible terrain (rim) | smooth circle, 40 wu fade | 325 wu |
+| shadow-casting terrain | **square-cornered, 50 wu granular** | ~325 → ~375 wu |
+| sun shadow frustum | square, snapped to texels | 420 wu |
+
+**Conclusion.** There is a band of terrain, up to ~50 wu wide, that is invisible and
+still casts, bounded by right angles, tracking the viewer. That is precisely a
+square-edged shadow of a caster with no visible geometry. It makes the handoff's *first*
+sphere-square hypothesis the strongly favoured one before Jean's discriminator is even
+run — and P1-C has independently removed the *second* (a spuriously in-range sample
+cannot happen under an orthographic w ≡ 1). **No edit here; this campaign does not
+authorise one.**
+
+## P1 STOP CONDITIONS — none fired
+
+| condition | status |
+|---|---|
+| named anchor absent / different count | **Clear**, with two premise corrections reported above: P1-B's faceted-normal mechanism does not exist, and P1-D's `SPOT_TAN_HALF_FOV` / `SPOT_TILE_TEXELS` do not exist as constants. |
+| edit would grow a shared bind-group layout | **Clear.** Nothing in P2–P7 adds a binding. |
+| edit conflicts with the FXC banner / L2 | **Clear.** Every P2–P7 shader edit is arithmetic or const-expression offsets. |
+| `depthBiasClamp` illegal on this device | **Clear.** No compatibility mode is requested anywhere (P1-A). |
