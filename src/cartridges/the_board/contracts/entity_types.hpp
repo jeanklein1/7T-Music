@@ -173,6 +173,7 @@ struct EntityInstance {
     float    ground_y_offset = 0.0f;  // added to terrain Y (e.g. solid_height for pier entities)
     float    burial = 0.0f;
     float    colors[MAX_COLOR_CHANNELS]{};
+    uint32_t mosaic_seed = 0;   // MOSAIC_1: 0 = plain; 1..65535 rides the index channel
 };
 
 // ── Per-family adapter ───────────────────────────────────────────

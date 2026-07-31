@@ -431,6 +431,8 @@ inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
     else {
         p.color_r = a.col_r; p.color_g = a.col_g; p.color_b = a.col_b;
     }
+    // Portals are functional markers — always plain (stale-slot-proof).
+    p.mosaic_seed = a.is_portal ? 0u : a.mosaic_seed;
     p.is_active = 1;
     return p;
 }
@@ -452,6 +454,7 @@ inline GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c) 
     p.color_r = c.col_r;
     p.color_g = c.col_g;
     p.color_b = c.col_b;
+    p.mosaic_seed = c.mosaic_seed;   // MOSAIC_1 — the Q3 one-producer: commit + reupload/cull both ride this; antennas arrive plain (zeroed ActiveColumn)
     p.base_layers = c.base_layers;
     p.capital_layers = c.cap_layers;
     p.segs_around = c.segs_around;

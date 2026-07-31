@@ -10159,7 +10159,7 @@ const AMG_MAX_SLOTS: u32            = 16u;
 
 // ── Parameter buffer ──────────────────────────────────────────────────
 //
-// MUST match state.hpp::GPUArchMeshParams (size: 64 bytes).
+// MUST match state.hpp::GPUArchMeshParams (size: 80 bytes).
 // If this struct gains/loses a field, the CPU side and
 // its state.hpp sizeof static_assert must be updated together.
 
@@ -10180,6 +10180,12 @@ struct ArchMeshParams {
     color_g: f32,
     color_b: f32,
     is_active: u32,
+    // MOSAIC_1 (GROWTH 64 → 80 with the C++ twin): 0 = plain;
+    // enc = mosaic_seed·64 + slot rides the vertex index channel.
+    mosaic_seed: u32,
+    _pad80_0: u32,
+    _pad80_1: u32,
+    _pad80_2: u32,
 }
 
 // ── Bindings (dedicated layout — different binding numbers from pyramid) ─
@@ -10237,6 +10243,9 @@ fn amg_gen_shell(
     offset: f32, nsign: f32,
     co: f32, si: f32, base_y: f32, a: f32, H: f32
 ) {
+    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
+    // enc — legacy plain-slot meshes decode identically (seed 0).
+    let enc = p.mosaic_seed * 64u + slot;
     let su = p.segs_u;
     let sv = p.segs_v;
     let half_d = p.depth * 0.5;
@@ -10279,7 +10288,7 @@ fn amg_gen_shell(
             let wnz = (cat_pnx[iu] * nsign) * si;
 
             amg_write_vertex(vi, wx, wy, wz, wnx, wny, wnz,
-                p.color_r, p.color_g, p.color_b, slot);
+                p.color_r, p.color_g, p.color_b, enc);
             vi++;
         }
     }
@@ -10323,6 +10332,9 @@ fn amg_gen_cap(
     lz_pos: f32, nz_sign: f32,
     co: f32, si: f32, base_y: f32, a: f32, H: f32
 ) {
+    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
+    // enc — legacy plain-slot meshes decode identically (seed 0).
+    let enc = p.mosaic_seed * 64u + slot;
     let su = p.segs_u;
     let half_t = p.thickness * 0.5;
 
@@ -10351,7 +10363,7 @@ fn amg_gen_cap(
             oly,
             p.center_z + olx * si + lz_pos * co,
             cap_nx, cap_ny, cap_nz,
-            p.color_r, p.color_g, p.color_b, slot);
+            p.color_r, p.color_g, p.color_b, enc);
         vi++;
 
         // Inner vertex
@@ -10362,7 +10374,7 @@ fn amg_gen_cap(
             ily,
             p.center_z + ilx * si + lz_pos * co,
             cap_nx, cap_ny, cap_nz,
-            p.color_r, p.color_g, p.color_b, slot);
+            p.color_r, p.color_g, p.color_b, enc);
         vi++;
     }
 
@@ -10534,7 +10546,9 @@ struct ColumnMeshParams {
     drum_color_r1: f32, drum_color_g1: f32, drum_color_b1: f32,
     drum_color_r2: f32, drum_color_g2: f32, drum_color_b2: f32,
     drum_color_r3: f32, drum_color_g3: f32, drum_color_b3: f32,
-    _pad128_0: f32, _pad128_1: f32, _pad128_2: f32,
+    // MOSAIC_1: _pad128_0 repurposed (the indoor_height_cap precedent) —
+    // 0 = plain; enc = mosaic_seed·64 + slot rides the index channel.
+    mosaic_seed: u32, _pad128_1: f32, _pad128_2: f32,
 }
 
 // ── Bindings ──────────────────────────────────────────────────────────
@@ -10584,6 +10598,9 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (slot >= CMG_MAX_SLOTS) { return; }
 
     let p = cmg_params[slot];
+    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
+    // enc — legacy plain-slot meshes decode identically (seed 0).
+    let enc = p.mosaic_seed * 64u + slot;
     let slot_vb = slot * CMG_MAX_VERTS_PER_SLOT;
     let slot_ib = slot * CMG_MAX_INDICES_PER_SLOT;
 
@@ -10908,7 +10925,7 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             cmg_write_vertex(vi,
                 p.center_x + r * ct, y, p.center_z + r * st,
                 nx_local * ct, ny_local, nx_local * st,
-                prof_cr[pi], prof_cg[pi], prof_cb[pi], slot);
+                prof_cr[pi], prof_cg[pi], prof_cb[pi], enc);
             vi++;
         }
     }
@@ -10947,14 +10964,14 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             cmg_write_vertex(vi,
                 p.center_x, d_y, p.center_z,
                 0.0, d_ny, 0.0,
-                d_cr, d_cg, d_cb, slot);
+                d_cr, d_cg, d_cb, enc);
             vi++;
 
             for (var si = 0u; si <= sa; si++) {
                 cmg_write_vertex(vi,
                     p.center_x + d_ro * tbl_cos[si], d_y, p.center_z + d_ro * tbl_sin[si],
                     0.0, d_ny, 0.0,
-                    d_cr, d_cg, d_cb, slot);
+                    d_cr, d_cg, d_cb, enc);
                 vi++;
             }
 
@@ -10979,13 +10996,13 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
                 cmg_write_vertex(vi,
                     p.center_x + d_ri * ct, d_y, p.center_z + d_ri * st,
                     0.0, d_ny, 0.0,
-                    d_cr, d_cg, d_cb, slot);
+                    d_cr, d_cg, d_cb, enc);
                 vi++;
 
                 cmg_write_vertex(vi,
                     p.center_x + d_ro * ct, d_y, p.center_z + d_ro * st,
                     0.0, d_ny, 0.0,
-                    d_cr, d_cg, d_cb, slot);
+                    d_cr, d_cg, d_cb, enc);
                 vi++;
             }
 

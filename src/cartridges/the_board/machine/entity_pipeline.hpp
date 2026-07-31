@@ -453,6 +453,13 @@ inline void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits
         inst.colors[0] = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
         inst.colors[1] = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
         inst.colors[2] = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+        // THE MOSAIC ROLL (MOSAIC_1): a decorated column may be trencadís
+        // — a sub-roll of the COLOR_OVER hit; plain sandstone never
+        // mosaics. The flat palette color above stays as the dissolve
+        // target.
+        if (cpu_hash_f(inst.seed, ColumnProp::MOSAIC_ROLL) < ColumnConfig::MOSAIC_FRACTION) {
+            inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ColumnProp::MOSAIC_SEED) * 65534.0f);
+        }
     } else {
         inst.colors[0] = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
         inst.colors[1] = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
@@ -484,6 +491,7 @@ inline void column_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.shaft_rings = COLUMN_TIERS[inst.tier_idx].shaft_rings;
     ac.tier_idx = inst.tier_idx;
     ac.cached_ground_y = inst.cached_ground_y;
+    ac.mosaic_seed = inst.mosaic_seed;
     ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
     std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
 }
@@ -610,6 +618,7 @@ inline void antenna_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.shaft_rings = ANTENNA_TIERS[inst.tier_idx - COLUMN_TIER_COUNT].shaft_rings;
     ac.tier_idx = inst.tier_idx;
     ac.cached_ground_y = inst.cached_ground_y;
+    ac.mosaic_seed = 0u;   // antennas never mosaic (v1) — a recycled slot must not inherit
     ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
     std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
 }
@@ -926,6 +935,13 @@ inline void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&,
         inst.colors[0] = ARCH_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_R) - 0.5f) * 0.06f;
         inst.colors[1] = ARCH_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_G) - 0.5f) * 0.06f;
         inst.colors[2] = ARCH_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+        // THE MOSAIC ROLL (MOSAIC_1): a decorated arch may be trencadís
+        // — a sub-roll of the COLOR_OVER hit; plain sandstone never
+        // mosaics. The flat palette color above stays as the dissolve
+        // target.
+        if (cpu_hash_f(inst.seed, ArchProp::MOSAIC_ROLL) < ArchConfig::MOSAIC_FRACTION) {
+            inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ArchProp::MOSAIC_SEED) * 65534.0f);
+        }
     } else {
         inst.colors[0] = ARCH_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_R) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
         inst.colors[1] = ARCH_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_G) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
@@ -964,6 +980,7 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
     // Ground Y: GPU compute shader samples the heightfield at both leg
     // positions and takes the min (slope straddle). CPU uploads 0.
     aa.cached_ground_y = 0.0f;
+    aa.mosaic_seed = inst.mosaic_seed;
 
     // Portal state: recompute from seed
     aa.is_portal = false;
@@ -1005,6 +1022,7 @@ inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     mp.segs_u     = ARCH_TIERS[inst.tier_idx].segs_u;
     mp.segs_v     = ARCH_TIERS[inst.tier_idx].segs_v;
     mp.color_r    = inst.colors[3]; mp.color_g = inst.colors[4]; mp.color_b = inst.colors[5];
+    mp.mosaic_seed = inst.mosaic_seed;
     mp.is_active  = 1;
     c->gpuState_.upload_arch_mesh_params_slot(queue, inst.slot, mp);
     c->entities_state_.arch_mesh_gen_pending = true;

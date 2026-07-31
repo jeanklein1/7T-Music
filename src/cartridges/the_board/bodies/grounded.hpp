@@ -62,6 +62,7 @@ struct ArchConfig {
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
     // Position jitter within patch (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.35f;
+    static constexpr float MOSAIC_FRACTION = 0.55f;   // MOSAIC_1: of COLOR_OVER hits
 };
 
 // ── Property Index Registry ──────────────────────────────────────
@@ -84,6 +85,8 @@ struct ArchProp {
     static constexpr uint32_t COLOR_VAR_R = 621u;
     static constexpr uint32_t COLOR_VAR_G = 622u;
     static constexpr uint32_t COLOR_VAR_B = 623u;
+    static constexpr uint32_t MOSAIC_ROLL = 650u;   // MOSAIC_1: sub-roll of the COLOR_OVER hit
+    static constexpr uint32_t MOSAIC_SEED = 651u;   // MOSAIC_1: 16-bit paint identity
 };
 
 // ── Active Arch Tracking ─────────────────────────────────────────
@@ -117,6 +120,8 @@ struct ActiveArch {
     bool is_back_portal = false;
     uint32_t position_hash = 0;           // for crossing_seed
     PortalDestination destination{};      // world this portal leads to
+
+    uint32_t mosaic_seed = 0;   // MOSAIC_1 — frozen at spawn; 0 = plain
 };
 
 // ═══ VOCABULARY: COLUMN ══════════════════════════════════════════
@@ -150,6 +155,7 @@ inline constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 struct ColumnConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     static constexpr float POSITION_JITTER = 0.35f;
+    static constexpr float MOSAIC_FRACTION = 0.35f;   // MOSAIC_1: of COLOR_OVER hits
 };
 
 // ── Property Index Registry ──────────────────────────────────────
@@ -175,6 +181,8 @@ struct ColumnProp {
     static constexpr uint32_t COLOR_VAR_R = 741u;
     static constexpr uint32_t COLOR_VAR_G = 742u;
     static constexpr uint32_t COLOR_VAR_B = 743u;
+    static constexpr uint32_t MOSAIC_ROLL = 750u;   // MOSAIC_1: sub-roll of the COLOR_OVER hit
+    static constexpr uint32_t MOSAIC_SEED = 751u;   // MOSAIC_1: 16-bit paint identity
 };
 
 // ═══ VOCABULARY: ANTENNA ═════════════════════════════════════════
@@ -248,6 +256,8 @@ struct ActiveColumn {
 
     // Placement (computed once at spawn, immutable)
     float cached_ground_y = 0.0f;         // absolute ground Y for VS offset
+
+    uint32_t mosaic_seed = 0;   // MOSAIC_1 — frozen at spawn; 0 = plain
 };
 
 // ═══ VOCABULARY: PALM ════════════════════════════════════════════
@@ -686,6 +696,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
         aa.cached_ground_y = 0.0f;
     }
 
+    aa.mosaic_seed = 0;   // MOSAIC_1: portals are functional markers — always plain (recycled slot must not inherit)
     aa.is_portal = true;
     aa.is_back_portal = is_back_portal;
     aa.position_hash = cpu_hash(static_cast<uint32_t>(cx * 73856093.0f), static_cast<uint32_t>(cz * 19349663.0f));

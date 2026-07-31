@@ -983,9 +983,17 @@ namespace t7 {
             float color_g;
             float color_b;
             uint32_t is_active;
+            // MOSAIC_1: 0 = plain; 1..65535 rides the index channel as
+            // enc = mosaic_seed·64 + slot. GROWTH LAW: 64 → 80 with the
+            // WGSL twin, same commit. Zero-init {} keeps every direct-
+            // build path (portals) plain by construction.
+            uint32_t mosaic_seed;
+            uint32_t _pad80_0;
+            uint32_t _pad80_1;
+            uint32_t _pad80_2;
         };
-        static_assert(sizeof(GPUArchMeshParams) == 64,
-            "GPUArchMeshParams must be 64 bytes — keep in sync with world.wgsl::ArchMeshParams");
+        static_assert(sizeof(GPUArchMeshParams) == 80,
+            "GPUArchMeshParams must be 80 bytes — keep in sync with world.wgsl::ArchMeshParams (MOSAIC_1: 64 → 80)");
 
         //
         // MUST match world.wgsl::ColumnMeshParams (§9.2).
@@ -1016,7 +1024,8 @@ namespace t7 {
             float drum_color_r1, drum_color_g1, drum_color_b1;
             float drum_color_r2, drum_color_g2, drum_color_b2;
             float drum_color_r3, drum_color_g3, drum_color_b3;
-            float _pad128[3];           // pad to 128 bytes
+            uint32_t mosaic_seed;       // MOSAIC_1 — first pad repurposed (the indoor_height_cap precedent); 0 = plain
+            float _pad128[2];           // pad to 128 bytes
         };
         static_assert(sizeof(GPUColumnMeshParams) == 128,
             "GPUColumnMeshParams must be 128 bytes — keep in sync with world.wgsl::ColumnMeshParams");
@@ -3572,7 +3581,7 @@ namespace t7 {
                 archGroundBuffer_ = makeBuffer("Arch Ground Y",
                     Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchGroundEntry),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // Mesh gen params buffer (16 × 64 bytes)
+                // Mesh gen params buffer (16 × 80 bytes — MOSAIC_1 growth; size derives from sizeof below)
                 archMeshParamsBuffer_ = makeBuffer("Arch Mesh Params",
                     Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
