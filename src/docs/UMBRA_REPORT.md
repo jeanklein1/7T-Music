@@ -1251,3 +1251,84 @@ authorise one.**
 | edit would grow a shared bind-group layout | **Clear.** Nothing in P2–P7 adds a binding. |
 | edit conflicts with the FXC banner / L2 | **Clear.** Every P2–P7 shader edit is arithmetic or const-expression offsets. |
 | `depthBiasClamp` illegal on this device | **Clear.** No compatibility mode is requested anywhere (P1-A). |
+
+---
+
+## PENUMBRA_1 — RECON AMENDMENT (adversarial pass)
+
+The fan-out over P1's five questions returned after the campaign's edits had begun.
+Most of what it reports as "wrong" is **baseline drift I caused**: I launched the
+recon, said I would wait for it, and then began landing P2–P5 while its agents were
+still reading `world.wgsl`. Their line numbers and verbatim quotes are correct
+against `32a2ccd` and stale against HEAD. That is a process failure, not a finding,
+and it is the *second* time this campaign family has made it — UMBRA's recon drifted
+the same way. **The rule that would have prevented it: a report-only handoff may land
+while a recon runs; an edit handoff may not.**
+
+Three findings survive the drift and are recorded here.
+
+**1. The obvious fix for the spot aspect is wrong, and would clip every cone.**
+P1-D found the projection carries no aspect term against a 1:2 tile. The textbook
+correction — `proj[0] = f / aspect` with `aspect = 2048/4096 = 0.5`, i.e. `proj[0] =
+2f` — makes texels square by *halving the horizontal angular coverage*:
+
+| authored fov | half-angle X today | X after the "fix" | coverage kept |
+|---|---|---|---|
+| 1.2 rad | 34.4° | 18.9° | 55% |
+| 2.0 rad | 57.3° | 37.9° | 66% |
+| 2.8 rad | 80.2° | 71.0° | 88% |
+
+A spot cone is **circular**. A 1:2 tile cannot hold a circular cone with square
+texels — square texels force a 1:2 angular frustum, which clips the cone in X. **The
+tile shape is the defect, not the projection**, and the tile shape comes from the
+atlas packing (two half-width tiles per texture). Anyone who acts on the aspect
+HORIZON item by scaling `proj[0]` will lose light, not gain sharpness.
+
+**2. `fov` is not a constant across lights.** It ranges roughly 1.2–2.8 rad depending
+on the scheme, derived per light from a sampled `outer_cone`. P5's per-fragment
+recovery of `f` from the matrix handles that correctly *because* it is per-light; a
+mirrored constant would not have.
+
+**3. P1-A's runtime settle is weaker than P1 claimed, and the correction already rode
+in P2's commit.** The boot print is the **adapter's** feature list, not the device's
+(`device_.GetFeatures` is absent tree-wide), and it prints **bare integers** with no
+Dawn headers vendored to decode them. No recorded boot captures that line at all —
+though `Adapter selected: index=2` *is* recorded, which means ≥3 adapters enumerate
+on the shipping box, so the unfiltered first-max-wins pick is genuinely exercised.
+The live guard is the uncaptured-error callback: a compat device rejects non-zero
+`depthBiasClamp` at pipeline creation and fails **loudly**. P2 landed on that basis.
+
+---
+
+# PENUMBRA_1 — CAMPAIGN LEDGER
+
+| handoff | commit | state | notes |
+|---|---|---|---|
+| P1 | `penumbra: P1 recon; PROCESS_LAWS P9` | **landed** | Two of five questions overturned the handoff's own premise (P1-B's faceted normal, P1-D's non-existent constants). PROCESS_LAWS gained P9 — fetch before you claim. |
+| P2 | `penumbra: depthBiasClamp restores the SHADOW_BIAS_MAX ceiling` | **landed** | Ceiling restored at 2.8e-3, derived via texel-world ratio — which exposed that ECONOMY_1 E6's "free carry" tracked resolution only and would have been 1.40× short. `depthBias` deleted as inert. |
+| P3 | `penumbra: PCF_SPACING drives tap offsets and normal-offset magnitude` | **landed** | Penumbra 0.82 → 1.23 wu, 84% of pre-UMBRA. Offset gained a floor, closing the flat-sun-facing gap that neither slope-scale nor UMBRA_7's `(1−ndotl)` covered. |
+| P4 | `penumbra: shadow offset uses geometric normal` | **landed** | Aura's shading fiction no longer steers the shadow sample. Stronger than the handoff knew: the aura lookup snaps to a texel centre, so it was a per-cell *step*, not a smooth nudge. Dormant by default. |
+| P5 | `penumbra: normal offset on the spot path` | **landed** | `f` recovered from the matrix rather than mirrored; X axis taken per the uncompensated-aspect rule; `SPOT_PCF_RADIUS_TEXELS` kept separate from the sun's. |
+| P6 | `penumbra: P6 — the dead clamp is not dead; R11 sweep instead` | **deletion DEAD; sweep landed** | The clamp is the manual clamp a float depth format requires *and* the only NaN scrubber (`out_of_bounds` passes NaN by construction). Kept and documented. The R11 sweep corrected ~15 labels, most created by this campaign. |
+| P7 | `penumbra: tuning ladder rewritten against the new instruments` | **landed** | Four ladder rungs were actively wrong, one of them a 1.40× regression if followed. Levers now split by room. Crispness reserve and both HORIZON items recorded. |
+| P8 | — | **HELD** | Releases only on Jean's word, after P2's visual gate. |
+
+## WHAT THE ADVERSARIAL PASSES CAUGHT THIS TIME
+
+Every one of these was in work this campaign had just written:
+
+1. **P6's whole premise.** The deletion would have removed a documented format
+   requirement and the path's only NaN scrubber, on the reasoning that it was our own
+   residue. `P3 — REFUTER FOR DELETIONS` paid for itself twice over.
+2. **Four wrong ladder rungs**, including one that told Jean to set `depthBiasClamp`
+   to the exact value P2's derivation rejects as 1.40× short.
+3. **~15 stale labels**, including `sample_pawn_aura`'s comment that P4's commit body
+   convicted *in prose* and then left standing in the file — the campaign's named
+   failure mode, committed by the campaign.
+4. **`renderer.hpp` contradicting itself across 70 lines** of one comment block,
+   describing `depthBias` as a live dial fifty lines above the paragraph explaining it
+   had been deleted.
+
+The pattern is consistent and worth naming: the errors are not in the code, which is
+small and was checked. They are in the *prose about* the code, which is large, and
+which no compiler reads.
