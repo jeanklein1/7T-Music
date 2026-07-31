@@ -1989,9 +1989,11 @@ namespace t7 {
                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
 
                     // BIAS HAS ONE HOME, AND IT IS HERE (UMBRA_6). Every
-                    // shadow pipeline below shares this state, so these three
-                    // lines are the whole of the program's shadow bias — the
-                    // shader-side nudges that used to carry it are deleted.
+                    // shadow pipeline below shares this state, so these lines are
+                    // the whole of the program's shadow DEPTH bias. (Not the whole
+                    // of its bias: PENUMBRA_1 P3 and P5 put a normal offset back
+                    // in both samplers. Depth bias and normal offset are
+                    // different instruments — see the closing paragraph.)
                     //
                     // Slope-scale does most of the work. It multiplies the
                     // ACTUAL window-space depth gradient of the primitive —
@@ -2006,14 +2008,22 @@ namespace t7 {
                     //     0deg 0.00 · 30deg 1.11 · 45deg 1.04 · 60deg 1.13
                     //          80deg 2.32 · 85deg 4.26 · 88deg 10.13 · ->inf
                     // At NORMAL incidence the new bias is exactly zero where
-                    // the old had a 1.0e-4 floor. At GRAZING it is unbounded
+                    // the old had a 1.0e-4 floor. At GRAZING it RAN unbounded,
                     // where the old was capped at SHADOW_BIAS_MAX by
-                    // construction — depthBiasClamp = 0.0 means NO CLAMP in
-                    // WebGPU, not a clamp at zero. Both ends are named because
-                    // "45 degrees matches" is true and is not the same claim as
-                    // "this is equivalent".
+                    // construction. Both ends were named because "45 degrees
+                    // matches" is true and is not the same claim as "this is
+                    // equivalent".
                     //
-                    // THE CONSTANT, sized correctly for THIS scene. Depth32Float
+                    // BOTH ENDS ARE NOW CLOSED. The grazing end by the
+                    // depthBiasClamp set below (PENUMBRA_1 P2 — 0.0 had meant
+                    // NO clamp, not clamp-at-zero); the normal-incidence end by
+                    // the normal offset's FLOOR in sample_shadow_pcf
+                    // (PENUMBRA_1 P3). The table above is history that
+                    // motivated both, not a description of today.
+                    //
+                    // THE CONSTANT — HISTORY, kept because the arithmetic is the
+                    // reason it is gone and a future editor will otherwise re-add
+                    // it. depthBias was DELETED by PENUMBRA_1 P2. Depth32Float
                     // makes depthBias a ULP multiple of the primitive's max
                     // depth, so the exponent matters: the sun frustum is 599.9
                     // deep and the light sits SUN_ALTITUDE = 250 above the
@@ -2022,10 +2032,12 @@ namespace t7 {
                     // buys 6.0e-8 NDC = 3.6e-5 world units. (Reading the ULP at
                     // z = 1 would overstate it 4x — the easy error here.)
                     //
-                    // THE DIAL, with its arithmetic done in advance: restoring
-                    // the old floor (1.0e-4 NDC) means depthBias ~= 3355; the
-                    // old grazing ceiling (2.0e-3) means ~67100. Those are the
-                    // landmarks; 2 sits deliberately at the bottom.
+                    // The scale of that: restoring the old floor (1.0e-4 NDC)
+                    // would have meant depthBias ~= 3355, and the literal
+                    // value-at-deletion of SHADOW_BIAS_MAX (2.0e-3, the
+                    // resolution-only carry) ~67100. It was never a dial in
+                    // steps of one, which is why P2 removed it rather than
+                    // tuning it.
                     //
                     // DIRECTION, because it is easy to get backwards: bias
                     // pushes the STORED caster depth away from the light, so
@@ -2037,13 +2049,13 @@ namespace t7 {
                     // jobs — a floor AND a ceiling — and UMBRA_6 replaced only
                     // the floor. mix(MAX, MIN, cos) could never exceed
                     // SHADOW_BIAS_MAX by construction; slope-scale with no
-                    // clamp is unbounded, running 4.3x the old term at 85 deg
+                    // clamp WAS unbounded, running 4.3x the old term at 85 deg
                     // and 10.1x at 88 deg. Seven of the eleven shadow
                     // pipelines are CullMode::None zero-thickness sheets —
                     // pawn, column, palm, cactus, blade, shell, ribbon — whose
                     // faces reach grazing at every twist, and an unbounded
-                    // bias there can push a caster clean out of the depth
-                    // range so it stops occluding at all. That is the ribbon
+                    // bias there could push a caster clean out of the depth
+                    // range so it stopped occluding at all. That is the ribbon
                     // chainsaw's leading candidate.
                     //
                     // 2.8e-3 is the old SHADOW_BIAS_MAX carried across
@@ -2078,8 +2090,9 @@ namespace t7 {
                     // the old value of 2 bought 6.0e-8 NDC — about 3,355x
                     // short of the floor it was nominally replacing. It is not
                     // a dial in steps of one, and a line that reads like a dial
-                    // and is not one costs more than it buys. THE TWO LIVE
-                    // INSTRUMENTS ARE slopeScale AND the normal offset.
+                    // and is not one costs more than it buys. THE LIVE
+                    // INSTRUMENTS ARE slopeScale, depthBiasClamp, AND the normal
+                    // offset — whose floor and ceiling are separate rungs.
                     shadowDepth.depthBiasSlopeScale = 2.0f;
                     shadowDepth.depthBiasClamp      = 2.8e-3f;
 

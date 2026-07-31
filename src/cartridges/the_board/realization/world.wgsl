@@ -3625,8 +3625,11 @@ const SHADOW_MAP_SIZE: f32 = 4096.0;
 
 // SHADOW_BIAS_MIN/MAX deleted (UMBRA_6) — depth bias now lives once, in
 // the shared shadow pipeline's depth-stencil state (renderer.hpp). The
-// ECONOMY_1 E6 per-texel form these carried did its job: it let UMBRA_5's
-// resolution ruling land without a bias edit, and then it retired.
+// ECONOMY_1 E6 per-texel form these carried did NOT in fact carry UMBRA_5
+// for free, though it was credited here with doing so: it tracked
+// RESOLUTION only, and UMBRA_5 changed RADIUS too, so it would have landed
+// 1.40x short. The full derivation is at the depthBiasClamp assignment in
+// renderer.hpp, where PENUMBRA_1 P2 needed it.
 
 // --- Shadow Sampling with 3x3 PCF (the spot kernel below is still 4x4)
 
@@ -3639,7 +3642,8 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // it can exist here while the depth nudges could not.
     //
     // Magnitude DERIVES from the filter footprint (PENUMBRA_1 P3): it is
-    // PCF_RADIUS_TEXELS — half the kernel's reach — so the offset always
+    // PCF_RADIUS_TEXELS — half the footprint, i.e. the kernel's full reach
+    // of 3 texels out of a 6-texel span — so the offset always
     // clears the filter whatever the spacing becomes. Scale is in TEXELS,
     // so UMBRA_5's resize carried it for free and any future one will too.
     //
@@ -3795,7 +3799,9 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 // Doubles per-tile resolution vs the old single-texture 2×2 grid,
 // with zero extra VRAM — the sun map is idle during indoor moods.
 //
-// Bias strategy: NONE HERE (UMBRA_6). The hand-rolled pair that used to
+// Bias strategy: NO DEPTH BIAS HERE — but there IS a normal offset, added
+// by PENUMBRA_1 P5 and described at the end of this banner. (UMBRA_6.)
+// The hand-rolled pair that used to
 // live here — a base bias divided by clip.w to compensate for hyperbolic
 // 1/z depth, plus a per-pixel slope term from the radial light direction —
 // is deleted. The rasterizer's slope-scaled bias replaces both, and on the
@@ -3804,12 +3810,15 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 // hyperbolic 1/z distribution is handled exactly where the old /clip.w was
 // a hand-rolled approximation of the same thing.
 //
-// What is NOT replaced is the old term's CEILING. slope_bias was capped by
-// SPOT_SLOPE_BIAS_MAX; depthBiasClamp = 0.0 means no clamp at all, so the
-// rasterizer's grazing-angle term is unbounded. And the spot path was
-// never independently sized — it inherits slopeScale = 2.0 from the sun
-// pipelines through a completely different projection. Both are Jean's at
-// the indoor gate; depthBiasClamp is the lever if grazing bias runs away.
+// The old term's CEILING went missing for one campaign and came back:
+// slope_bias was capped by SPOT_SLOPE_BIAS_MAX, UMBRA_6 left
+// depthBiasClamp at 0.0 (which means NO clamp, not clamp-at-zero) so the
+// grazing term ran unbounded, and PENUMBRA_1 P2 restored a ceiling. The
+// live value lives in renderer.hpp beside the assignment — not quoted
+// here, because a cross-room quotation of a C++ field is a label waiting
+// to go stale. The spot path is still not independently SIZED: it
+// inherits slopeScale from the sun pipelines through a completely
+// different projection. Jean's, at the indoor gate.
 //
 // The spot pass reuses the SAME pipelines as the sun pass, so it inherits
 // that bias without a second home.
@@ -3836,8 +3845,10 @@ const SPOT_PCF_RADIUS_TEXELS: f32 = 2.5;
 
 // `normal` is back (PENUMBRA_1 P5) and it is the GEOMETRIC one — see
 // calc_directional_light. UMBRA_6 dropped it with the slope term that was
-// its only reader; the spot path then ran with no offset AND no constant
-// bias, which was the campaign's thinnest ice.
+// its only reader; the spot path then ran with no offset, and with a
+// constant bias that was INERT rather than absent (depthBias = 2 on a
+// float format bought 6.0e-8 NDC) until P2 deleted it outright. That
+// window was the campaign's thinnest ice.
 fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_index: u32) -> f32 {
     let light = render_spot_lights.lights[light_index];
 
@@ -3860,6 +3871,17 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_ind
     //       world-size, and X is the coarser axis. Over-offsets on one axis
     //       rather than under-offsetting on the other. The aspect itself is a
     //       HORIZON item; it is not fixed here.
+    // spot_f is a DIVISOR and it is unguarded here on purpose: it is
+    // guarded by an invariant kept in another room. A zeroed view_proj
+    // would make it 0, spot_texel_world +Inf, and offset_w NaN on every
+    // zero component of geo_normal — a flat floor's (0,1,0) being the
+    // commonest indoor receiver. That cannot be reached: apply_mood_lighting
+    // (direction/mood.hpp) runs compute_spot_light_vp for every
+    // i < cpuSpotLights_.count before uploading, and calc_spot_light below
+    // bounds its loop by the same count, so every light this function is
+    // ever called for has a computed matrix. fov is clamped to <= 2.8 rad,
+    // so f = 1/tan(fov/2) >= 0.17. If that loop bound and that fill ever
+    // stop agreeing, this is where it surfaces.
     let spot_f     = length(vec3(light.view_proj[0][0],
                                  light.view_proj[1][0],
                                  light.view_proj[2][0]));
@@ -3896,6 +3918,34 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_ind
     let clamped_uv = clamp(shadow_uv,
         tile_offset + vec2(0.001, 0.001),
         tile_offset + vec2(0.499, 0.999));
+    // THIS CLAMP IS LOAD-BEARING. It looks like residue of the bias UMBRA_6
+    // deleted — PENUMBRA_1 P6 was written to delete it on exactly that
+    // reading — and it is not. Two reasons, either one sufficient:
+    //
+    // 1. IT IS THE MANUAL CLAMP THE FORMAT REQUIRES. Both shadow textures
+    //    are Depth32Float, a FLOATING-POINT resource. HLSL's SampleCmp
+    //    reference: on a floating-point resource "the comparison value is
+    //    not automatically clamped between 0.0 and 1.0. Therefore, a manual
+    //    clamp of the comparison value may be necessary for common
+    //    shadowing techniques." Unorm depth formats do clamp; float ones do
+    //    not, and the difference is observable on D3D12 (gpuweb#4653).
+    //
+    // 2. IT IS THE ONLY NaN SCRUBBER ON THIS PATH, and out_of_bounds cannot
+    //    be one. Every ordered comparison against NaN is false, so a NaN
+    //    current_depth makes `< 0.0 || > 1.0` FALSE and the fragment passes
+    //    the guard. clamp(NaN, 0, 1) folds to saturate/min-max, and D3D's
+    //    rule is that a min/max with one NaN operand returns the other — so
+    //    NaN becomes 0.0, the nearest depth, and the fragment reads FULLY
+    //    LIT. Without the clamp a NaN reference fails all sixteen compares
+    //    (NaN < stored is false) and the fragment reads FULLY BLACK. The
+    //    clamp is what makes this path fail open instead of fail black.
+    //
+    // Note the taps below are NOT gated by out_of_bounds — they run on every
+    // fragment and only the RETURNED value is selected, so this argument
+    // reaches the sampler on 100% of fragments, not just survivors.
+    //
+    // Cost of keeping it: zero. On D3D12 clamp(x, 0, 1) folds into the _sat
+    // destination modifier of the instruction that produces x.
     let clamped_depth = clamp(current_depth, 0.0, 1.0);
 
     // 4x4 PCF kernel — branch on texture (lights 0-1 on sun map, 2-3 on spot map)
@@ -5856,21 +5906,29 @@ const AURA_DELTA_RANDOM: u32 = 1u;
 // Helper: sample pawn aura with toroidal lookup and ghost rejection.
 // Returns vec4(height_blend, delta_r, delta_g, delta_b) or vec4(0) if ghost/inactive.
 //
-// Called by contrib_pawn_aura_at_external(xz) and by the inline
-// render-side consumers (patch_terrain_vs, photo_painting FS tinting). NOT called by the pawn's own Y resolve:
-// POLICY_WALKER uses contrib_pawn_aura_at_self() which returns the
-// scalar peak directly — the pawn knows it sits at its own aura peak
+// Three call sites, all greppable: contrib_pawn_aura_at_external(xz),
+// patch_terrain_vs, and patch_terrain_fs. NOT called by the pawn's own Y
+// resolve: POLICY_WALKER uses contrib_pawn_aura_at_self() which returns
+// the scalar peak directly — the pawn knows it sits at its own aura peak
 // without reading the directionally-biased grid. See those functions
 // for rationale.
 //
-// Sampler choice — bilinear_sampler, not nearest_sampler. The aura
-// is a continuous influence field, not a discrete grid. Consumers
-// reading across cell boundaries (terrain rendering, flyers passing
-// through the aura's edge) need smooth interpolation; nearest-neighbor
-// would produce visible banding at cell boundaries (one PATCH_CELL_SIZE).
-// pawn_aura_read is rgba16float which supports bilinear filtering on
-// all target hardware; color deltas (.gba) and the cell lift's
-// suppression target also benefit from the smoother interpolation.
+// SAMPLER CHOICE — AND THE MECHANISM THE OLD COMMENT CLAIMED, CORRECTED.
+// It read: bilinear was chosen over nearest so consumers "reading across
+// cell boundaries" get smooth interpolation, because nearest "would
+// produce visible banding at cell boundaries (one PATCH_CELL_SIZE)".
+// The body defeats that. aura_uv is built from floor(world_xz / aura_cs)
+// plus a half-texel — an EXACT texel centre — so bilinear degenerates to
+// nearest and the result is constant across a PATCH_CELL_SIZE cell and
+// steps at every boundary. The comment described the banding it caused.
+//
+// Read from the addressing, not from the sampler. The filtering mode is
+// real (rgba16float is filterable) and harmless; it is simply not doing
+// the job the comment credited it with. Whether the aura SHOULD be
+// continuous is a design question this campaign did not open — but until
+// it is opened, this function returns a per-cell step, and any consumer
+// that needs continuity must know that. PENUMBRA_1 P4 is exactly such a
+// consumer: it stopped routing this value into the shadow sample.
 fn sample_pawn_aura(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> vec4<f32> {
     if (config.aura_enabled < 0.5) { return vec4(0.0); }
     // NOT pawn_aura_cfg.*: that uniform is bound ONLY in the Pawn Aura
