@@ -4133,6 +4133,77 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     return mix(fogged, config.fog_color, veil);
 }
 
+// ═══ THE MOSAIC (MOSAIC_0/1) — trencadís for the mesh-gen families ═══
+//
+// THE PAINT ANCHOR LAW: pigment evaluates in the frame that owns it.
+// Physics is the world's → the live position. Paint is the body's →
+// paint_pos = (world_pos.x, in.pos.y, world_pos.z): mesh-authored XZ
+// (the grounded lift is Y-only), body-relative Y — immune to ground_y
+// and the live card. world_pos remains light/fog/veil's coordinate.
+//
+// Two scales — the terrain's own structure at the body's size:
+// PASSAGES (~12 wu) raffle a small palette, always seating the
+// near-white binder; SHARDS (~0.3 wu, F1 Voronoi) raffle one member
+// and jitter it by the passage's variance. The per-shard normal lean
+// is the pressed-plate glitter. The eye-anchored dissolve past
+// mosaic_radius (the fog's metric — texel density is a view fact) is
+// anti-shimmer and the walk's cost cap in one smoothstep.
+//
+// Property run 900–916 (hash_property): 900-902 site jitter (cell
+// seed), 903 passage K, 904 raffle (shard), 905-907 members (passage),
+// 908 variance (passage), 910-912 color jitter (shard), 913 batch
+// (entity), 914-916 facet (shard). Cell-folded seeds — disjoint from
+// the CPU entity registries by construction.
+
+const MOSAIC_MEDIANS = array(
+    vec3(0.16, 0.32, 0.62),   // cobalt
+    vec3(0.20, 0.55, 0.58),   // teal
+    vec3(0.85, 0.63, 0.25),   // ochre
+    vec3(0.42, 0.56, 0.30),   // moss
+    vec3(0.72, 0.30, 0.22),   // rust
+    vec3(0.88, 0.78, 0.40),   // sun
+    vec3(0.35, 0.25, 0.50),   // violet
+    vec3(0.60, 0.75, 0.80),   // sky
+);
+const MOSAIC_WHITE: vec3<f32> = vec3(0.90, 0.88, 0.84);   // the binder
+const MOSAIC_VAR_BASE: f32 = 0.03;   // per-shard jitter floor
+const MOSAIC_VAR_SPAN: f32 = 0.10;   // + passage-hashed span
+
+// Fold a 3D lattice cell into the hash_property seed space. Spatial-
+// hash primes; bitcast keeps negative cells well-mixed. salt
+// decorrelates the shard lattice from the passage lattice.
+fn mosaic_cell_seed(c: vec3<i32>, salt: u32) -> u32 {
+    return (bitcast<u32>(c.x) * 73856093u)
+         ^ (bitcast<u32>(c.y) * 19349663u)
+         ^ (bitcast<u32>(c.z) * 83492791u)
+         ^ (salt * 2654435761u);
+}
+
+// F1-only 3×3×3 Voronoi: returns the nearest jittered site's cell seed
+// — the shard's identity. No F2: the grout died at design (Güell's
+// binder is pale; what separates shards is the shards), and F2 would
+// double the walk's register pressure for a line we don't draw.
+fn mosaic_shard(p: vec3<f32>) -> u32 {
+    let base = vec3<i32>(floor(p));
+    var best_d = 1e9;
+    var best = 0u;
+    for (var dz = -1; dz <= 1; dz++) {
+        for (var dy = -1; dy <= 1; dy++) {
+            for (var dx = -1; dx <= 1; dx++) {
+                let cell = base + vec3<i32>(dx, dy, dz);
+                let cs = mosaic_cell_seed(cell, 0u);
+                let site = vec3<f32>(cell) + vec3(hash_property(cs, 900u),
+                                                  hash_property(cs, 901u),
+                                                  hash_property(cs, 902u));
+                let dv = site - p;
+                let d = dot(dv, dv);
+                if (d < best_d) { best_d = d; best = cs; }
+            }
+        }
+    }
+    return best;
+}
+
 
 // §6.2 PATCH TERRAIN RENDERING
 // Instanced rendering of streaming terrain patches. Each instance is one
@@ -4895,7 +4966,18 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
 
 @fragment
 fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color, 1.0), 1.0);
+    var albedo = in.entity_color;
+    // MOSAIC_0 PROBE — the FXC witness for the campaign's two compile
+    // risks in this nine-pipeline FS: the 27-cell walk and a runtime-
+    // indexed const array. Runtime-gated on a uniform (unfoldable), so
+    // the COMPILED cost is present while the frame rests byte-identical
+    // (mosaic_enable = 0). MOSAIC_1b replaces this consumption with the
+    // painter; the walk and the table stay as landed here.
+    if (config.mosaic_enable > 0.5) {
+        let s = mosaic_shard(in.world_pos / max(config.mosaic_shard_size, 1e-4));
+        albedo = mix(albedo, MOSAIC_MEDIANS[u32(hash_property(s, 910u) * 7.999)], 0.7);
+    }
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), albedo, 1.0), 1.0);
 }
 
 // Ribbon FS — same shading as entity_fs but veil-EXEMPT (ruled fork): the
