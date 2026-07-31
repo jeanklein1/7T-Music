@@ -166,6 +166,20 @@ namespace t7 {
                 "VEIL CHAIN: RING > LOD0 (the draw set contains the full-mesh core)");
             static_assert(VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT,
                 "VEIL CHAIN: the icing band sits wholly outside the LOD0 core");
+
+            // ── THE MOSAIC (MOSAIC_0/1) — trencadís rests ──
+            // SHARD: wu per cell (~10× under the terrain cell 3.125; a
+            //   per-entity batch jitters it ±30%). PASSAGE: the coarse
+            //   palette lattice — slightly larger than a body. RADIUS/
+            //   ICING: eye-anchored dissolve. FACET: plate-lean strength.
+            // All live-tunable via config; these are the rests.
+            constexpr float MOSAIC_SHARD_SIZE_DEFAULT = 0.30f;
+            constexpr float MOSAIC_PASSAGE_DEFAULT    = 12.0f;
+            constexpr float MOSAIC_RADIUS_DEFAULT     = 45.0f;
+            constexpr float MOSAIC_ICING_DEFAULT      = 15.0f;
+            constexpr float MOSAIC_FACET_DEFAULT      = 0.25f;
+            static_assert(MOSAIC_RADIUS_DEFAULT < LOD0_RADIUS_DEFAULT,
+                "MOSAIC CHAIN: the mosaic band sits wholly inside the full-mesh core");
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
             constexpr uint32_t PATCH_INDEX_COUNT = PATCH_MESH_N * PATCH_MESH_N * 6;
 
@@ -590,6 +604,17 @@ namespace t7 {
             // nothing and shifts nothing — the same move point_bubble_radius
             // (CONTACT_2) and cube_plasticity (CONTACT_3) made above.
             float pawn_tilt_tau;
+            // ─── THE MOSAIC (MOSAIC_0/1) — trencadís dials ───────────
+            // Mirror of world.wgsl DesignConfig tail — GROWTH LAW (same
+            // commit, same order). Rests: Dim::MOSAIC_* via the boot pins.
+            float mosaic_enable;
+            float mosaic_shard_size;
+            float mosaic_passage_scale;
+            float mosaic_radius;
+            float mosaic_icing;
+            float mosaic_facet;
+            float _pad592_0;
+            float _pad592_1;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1482,13 +1507,14 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 560,
-            "GPUDesignConfig must be 560 bytes. PRUNING_1 P3 removed nine "
+        static_assert(sizeof(GPUDesignConfig) == 592,
+            "GPUDesignConfig must be 592 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
             "44 B moved all four vec3 members off their boundaries. "
             "592 - 44 + 12 = 560. The pads ARE the mirror, not waste — the "
-            "offsetof asserts below are what prove it.");
+            "offsetof asserts below are what prove it. "
+            "(MOSAIC_0: +6 dials +2 pads, 560 -> 592 — Jean OK'd at handoff)");
         // THE ALIGNMENT LAW (L4, src/docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -5954,6 +5980,13 @@ namespace t7 {
                 config_.veil_strength = 1.0f;
                 config_.lod0_radius = Dim::LOD0_RADIUS_DEFAULT;
                 config_.veil_dither = 0.0f;   // THE RIM: default = icing tints (mechanism 1 alone)
+                // THE MOSAIC (MOSAIC_0/1) — trencadís dials, pinned at rest.
+                config_.mosaic_enable        = 0.0f;   // dark until Jean's gate
+                config_.mosaic_shard_size    = Dim::MOSAIC_SHARD_SIZE_DEFAULT;
+                config_.mosaic_passage_scale = Dim::MOSAIC_PASSAGE_DEFAULT;
+                config_.mosaic_radius        = Dim::MOSAIC_RADIUS_DEFAULT;
+                config_.mosaic_icing         = Dim::MOSAIC_ICING_DEFAULT;
+                config_.mosaic_facet         = Dim::MOSAIC_FACET_DEFAULT;
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;

@@ -1652,6 +1652,25 @@ struct DesignConfig {
     // TAIL, or pad each vec3 back onto its boundary. (state.hpp carries the
     // matching static_assert.)
     pawn_tilt_tau: f32,
+    // ─── THE MOSAIC (MOSAIC_0/1) — trencadís dials ───────────────────
+    // Mirror of GPUDesignConfig tail (state.hpp) — GROWTH LAW, same
+    // commit, same order; sizeof witness 560 → 592. Rests: Dim::MOSAIC_*
+    // (boot pins). enable = master gate (0 = dark; the probe's runtime
+    // witness — a uniform, so FXC cannot fold the walk away).
+    // shard_size: wu per shard cell (batch-jittered ±30% per entity).
+    // passage_scale: the coarse palette lattice (the bench's passages).
+    // radius/icing: eye-anchored dissolve band [radius−icing, radius] —
+    //   the fog's metric (texel density is a view fact); anti-shimmer
+    //   and the walk's cost cap in one smoothstep.
+    // facet: per-shard plate lean on the shading normal (the glitter).
+    mosaic_enable: f32,
+    mosaic_shard_size: f32,
+    mosaic_passage_scale: f32,
+    mosaic_radius: f32,
+    mosaic_icing: f32,
+    mosaic_facet: f32,
+    _pad592_0: f32,
+    _pad592_1: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
