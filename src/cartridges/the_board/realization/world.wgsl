@@ -3814,21 +3814,65 @@ fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 // The spot pass reuses the SAME pipelines as the sun pass, so it inherits
 // that bias without a second home.
 //
-// No normal offset — it breaks contact shadows (disconnects pawn shadow
-// from feet by lifting the comparison point above the occluder depth).
-// This still holds, and it is why UMBRA_7's offset is sun-only: there is
-// no normal-offset backstop on this path, so rasterizer bias carries the
-// pawn's separation from terrain alone here.
+// THERE IS NOW A NORMAL OFFSET HERE (PENUMBRA_1 P5), and the old ruling
+// against one is superseded rather than merely overruled. That ruling said
+// an offset "breaks contact shadows (disconnects pawn shadow from feet by
+// lifting the comparison point above the occluder depth)" — true of a
+// DEPTH lift, which is what this path had at the time. A normal offset
+// moves the sample POSITION along the surface instead, so it walks out of
+// the occluder's texel without lifting the comparison off contact. That is
+// the whole distinction UMBRA_7 was built on, and it applies here too.
+//
+// What genuinely blocked it was that the frustum is perspective, so texel
+// world-size is not constant. Derived per fragment below, it is.
 
-// `normal` dropped from the signature with the slope term that was its
-// only reader (UMBRA_6). A parameter no body reads is a claimed
-// dependency that does not exist; the spot path is normal-offset-free by
-// ruling, so this one is not coming back.
-fn sample_spot_shadow_pcf(world_pos: vec3<f32>, light_index: u32) -> f32 {
+// This kernel's own footprint. NOT PCF_RADIUS_TEXELS — that is the sun's,
+// and coupling two kernels through one dial is the pattern this campaign
+// family exists to break. Derivation: 4x4 at spacing 1 with the +0.5
+// centring term puts tap centres at +-0.5 and +-1.5, and each
+// textureSampleCompare carries a 2x2 bilinear footprint reaching +-1, so
+// the kernel reaches +-2.5 texels.
+const SPOT_PCF_RADIUS_TEXELS: f32 = 2.5;
+
+// `normal` is back (PENUMBRA_1 P5) and it is the GEOMETRIC one — see
+// calc_directional_light. UMBRA_6 dropped it with the slope term that was
+// its only reader; the spot path then ran with no offset AND no constant
+// bias, which was the campaign's thinnest ice.
+fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_index: u32) -> f32 {
     let light = render_spot_lights.lights[light_index];
 
+    // THE SPOT NORMAL OFFSET. The frustum is perspective, so texel world-size
+    // is not constant — which is why UMBRA ruled this path offset-free. Derive
+    // it per fragment instead, from data already in hand:
+    //
+    //   f — the projection's 1/tan(halfFOV). Recovered from the matrix rather
+    //       than mirrored from the CPU: view_proj's first ROW is f * right and
+    //       right is unit, so its length IS f. (P1-D: the FOV is per-light,
+    //       computed CPU-side from light.outer_cone, and never uploaded as a
+    //       scalar — there is no constant to quote, and inventing one would
+    //       open a new L3 mirror.)
+    //   distance — radial, not axial. Slightly over-estimates inside the cone,
+    //       which is the conservative direction for an offset.
+    //   tile texels — the X axis, 2048 of them. P1-D found the projection
+    //       carries NO aspect term (proj[0] == proj[5] == f) while the tile is
+    //       2048 x 4096, so spot texels are non-square by exactly 2x. The
+    //       handoff's rule for that case is to take the LARGER texel
+    //       world-size, and X is the coarser axis. Over-offsets on one axis
+    //       rather than under-offsetting on the other. The aspect itself is a
+    //       HORIZON item; it is not fixed here.
+    let spot_f     = length(vec3(light.view_proj[0][0],
+                                 light.view_proj[1][0],
+                                 light.view_proj[2][0]));
+    let light_dist = distance(world_pos, light.position);
+    let spot_texel_world = 2.0 * light_dist / (spot_f * SHADOW_MAP_SIZE * 0.5);
+
+    let spot_dir = normalize(light.position - world_pos);
+    let ndotl    = clamp(dot(geo_normal, spot_dir), 0.0, 1.0);
+    let offset_w = geo_normal * (spot_texel_world * SPOT_PCF_RADIUS_TEXELS
+                                 * (0.33 + 0.67 * (1.0 - ndotl)));
+
     // Transform to light clip space (perspective)
-    let light_clip = light.view_proj * vec4(world_pos, 1.0);
+    let light_clip = light.view_proj * vec4(world_pos + offset_w, 1.0);
     let light_ndc = light_clip.xyz / light_clip.w;
 
     // NDC to UV (flip Y), then scale + offset into atlas tile.
@@ -3887,7 +3931,7 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, light_index: u32) -> f32 {
 
 // --- Spot Lights (cone + distance + shadow atlas, indoor moods)
 
-fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
     var total = vec3(0.0);
     let count = min(render_spot_lights.count, MAX_SPOT_LIGHTS);
 
@@ -3911,7 +3955,7 @@ fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
         let ndotl = max(dot(normal, light_dir), 0.0);
 
         // Per-light shadow from atlas tile
-        let shadow = sample_spot_shadow_pcf(world_pos, i);
+        let shadow = sample_spot_shadow_pcf(world_pos, geo_normal, i);
 
         total += light.color * light.intensity * attenuation_sq * cone_falloff * ndotl * shadow;
     }
@@ -3944,7 +3988,7 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     let points = base_color * calc_point_lights(world_pos, normal);
 
     // Spot light (cone + distance, indoor moods)
-    let spot = base_color * calc_spot_light(world_pos, normal);
+    let spot = base_color * calc_spot_light(world_pos, normal, geo_normal);
 
     let lit = ambient + sun + points + spot;
 
