@@ -930,7 +930,7 @@ is half the diagnosis:
   (`depthBiasSlopeScale`, `depthBiasClamp`). One edit reaches all eleven shadow
   pipelines, sun and spot alike.
 - `world.wgsl` — **the normal offset** and **the filter footprint**
-  (`PCF_SPACING`, `PCF_RADIUS_TEXELS`, `SPOT_PCF_RADIUS_TEXELS`, and the `0.33`/`0.67`
+  (`PCF_RADIUS_TEXELS`, `SPOT_PCF_RADIUS_TEXELS`, `TEXEL_UV`, and the `0.33`/`0.67`
   blend in each sampler). Sun and spot have separate footprint constants on purpose.
 
 **`depthBias` is not on this ladder and must not be put back.** Under `Depth32Float`
@@ -944,17 +944,33 @@ not a dial in steps of one. P2 deleted it.
 | acne on flat sun-facing ground | the offset **floor** (the `0.33` term) | **up**, +0.15 per step |
 | shadow off contact at the pawn's feet | the offset **ceiling** (the `0.67` term) | **down** |
 | shadow detaches on thin sheets only | `depthBiasClamp` | **down** from 2.8e-3 |
-| penumbra too hard, caster steps visible | `PCF_SPACING` | already at the gapless max — see below |
+| penumbra too hard, caster steps visible | **tap count** (`PCF_RADIUS_TEXELS` follows) | up — see below |
 | penumbra too soft near the camera | `SUN_HALF_EXTENT` | **down** — see the reserve below |
 | indoor pawn shadow off its feet | the **spot** offset (same `0.33`/`0.67`, in `sample_spot_shadow_pcf`) | **down** |
 
 Two rungs need their reasons, because both look like simple knobs and are not.
 
-**`PCF_SPACING` is already at its maximum and raising it alone makes things worse.**
-Each tap carries a 2×2 hardware-bilinear footprint, so taps at −2/0/+2 cover
-[−3,−1] [−1,1] [1,3] contiguously. At spacing 3 the footprints stop touching and blur
-becomes *banding* — the artifact gets worse, not softer. The next real step is more
-taps: 5×5 at spacing 2 (25 taps) is the honest next rung and it is not free.
+**Spacing is not a dial at all — it is pinned at 1, and width comes from tap count.**
+PENUMBRA_1 P3 argued the opposite here (taps at −2/0/+2 "cover [−3,−1] [−1,1] [1,3]
+contiguously") and shipped visible banding for it. A bilinear comparison tap is a
+**tent, not a box**: weight 1 at its centre falling linearly to zero at ±1 texel. Tents
+at spacing 2 land on each other's zeros — summed weight `1 0 1 0 1` at successive
+texels, half the map never read, a comb of period 2 texels. Touching supports is not
+coverage; the condition is on the weights. **PENUMBRA_2 N1 reverted it.**
+
+Width therefore comes from tap count alone, at spacing 1. **Quote the VISIBLE column at
+a gate** — support is which texels get read, but an edge sweeps the response 0→1 over
+the tap-centre span plus one texel of ramp:
+
+| kernel | taps | support | **visible penumbra** |
+|---|---|---|---|
+| UMBRA_8 3×3 | 9 | 0.820 wu | 0.615 wu |
+| P3 3×3 spacing 2 | 9 | 1.230 wu | 1.025 wu *(banded — withdrawn)* |
+| **N1 4×4 (current)** | **16** | **1.025 wu** | **0.820 wu** |
+| N4 5×5 *(held)* | 25 | 1.230 wu | 1.025 wu |
+| pre-campaign 4×4 @2048 | 16 | 1.465 wu | 1.171 wu |
+
+The next rung up is N4 — 25 taps — and it lands only once a measurement asks.
 
 **The crispness reserve — a control-panel fact, not a tuning tip.**
 `SUN_HALF_EXTENT` is a single WGSL const from which texel world-size, both normal
@@ -1306,7 +1322,7 @@ The live guard is the uncaptured-error callback: a compat device rejects non-zer
 |---|---|---|---|
 | P1 | `penumbra: P1 recon; PROCESS_LAWS P9` | **landed** | Two of five questions overturned the handoff's own premise (P1-B's faceted normal, P1-D's non-existent constants). PROCESS_LAWS gained P9 — fetch before you claim. |
 | P2 | `penumbra: depthBiasClamp restores the SHADOW_BIAS_MAX ceiling` | **landed** | Ceiling restored at 2.8e-3, derived via texel-world ratio — which exposed that ECONOMY_1 E6's "free carry" tracked resolution only and would have been 1.40× short. `depthBias` deleted as inert. |
-| P3 | `penumbra: PCF_SPACING drives tap offsets and normal-offset magnitude` | **landed** | Penumbra 0.82 → 1.23 wu, 84% of pre-UMBRA. Offset gained a floor, closing the flat-sun-facing gap that neither slope-scale nor UMBRA_7's `(1−ndotl)` covered. |
+| P3 | `penumbra: PCF_SPACING drives tap offsets and normal-offset magnitude` | **landed, then REVERTED by PENUMBRA_2 N1** | The offset floor stands and was the durable half. The spacing-2 widening was wrong: bilinear comparison taps are tents, so spacing 2 combed at a 2-texel period and banded every shadow. |
 | P4 | `penumbra: shadow offset uses geometric normal` | **landed** | Aura's shading fiction no longer steers the shadow sample. Stronger than the handoff knew: the aura lookup snaps to a texel centre, so it was a per-cell *step*, not a smooth nudge. Dormant by default. |
 | P5 | `penumbra: normal offset on the spot path` | **landed** | `f` recovered from the matrix rather than mirrored; X axis taken per the uncompensated-aspect rule; `SPOT_PCF_RADIUS_TEXELS` kept separate from the sun's. |
 | P6 | `penumbra: P6 — the dead clamp is not dead; R11 sweep instead` | **deletion DEAD; sweep landed** | The clamp is the manual clamp a float depth format requires *and* the only NaN scrubber (`out_of_bounds` passes NaN by construction). Kept and documented. The R11 sweep corrected ~15 labels, most created by this campaign. |

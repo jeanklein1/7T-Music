@@ -3267,9 +3267,13 @@ const SHADOW_TEXEL_WORLD: f32 = 2.0 * SUN_HALF_EXTENT / SHADOW_MAP_SIZE;
 // offset was pointless. Give the footprint one home and derive both from it.
 //
 // TAP SPACING ABOVE 1 TEXEL IS NEVER AVAILABLE WITH A BILINEAR COMPARISON
-// SAMPLER. Width comes from TAP COUNT alone. This is a standing law of the
-// hardware, not a tuning preference, and PENUMBRA_1 P3 shipped a regression
-// by not knowing it:
+// SAMPLER. Width comes from TAP COUNT alone. True of every shipping
+// implementation (D3D SampleCmp, Vulkan, Metal all do 4-texel
+// bilinear-of-comparisons); the WebGPU spec itself leaves comparison-sampler
+// filtering implementation-defined, so this is a fact about hardware rather
+// than a guarantee on paper. It does not weaken the rule: spacing <= 1 is
+// safe under ANY filter shape, spacing 2 is safe only under a box.
+// PENUMBRA_1 P3 shipped a regression by assuming the box:
 //
 //   A linear-filtered sampler_comparison tap is A TENT, NOT A BOX. The
 //   hardware compares the four texels around the sample point and blends the
@@ -3650,7 +3654,8 @@ const SHADOW_MAP_SIZE: f32 = 4096.0;
 // 1.40x short. The full derivation is at the depthBiasClamp assignment in
 // renderer.hpp, where PENUMBRA_1 P2 needed it.
 
-// --- Shadow Sampling with 3x3 PCF (the spot kernel below is still 4x4)
+// --- Shadow Sampling with 4x4 PCF. Both kernels are now 4x4 at spacing 1
+// with half-texel centres; the sun one arrived here second (PENUMBRA_2 N1).
 
 fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // THE NORMAL OFFSET (UMBRA_7) — what glues the pawn's shadow to its
@@ -3727,8 +3732,18 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // symmetric about the fragment, so UMBRA_8's centring fix survives: the
     // centroid sits on the fragment, not half a texel up-light of it.
     //
-    // Support is 5 texels = 1.026 wu. Sixteen taps is the pre-campaign
-    // count, so this cost is known-shipped rather than estimated.
+    // SUPPORT is 5 texels (1.025 wu) — which texels get read. The VISIBLE
+    // penumbra is narrower: an edge sweeps the response 0->1 over the
+    // tap-centre span plus one texel of bilinear ramp, i.e. 4 texels =
+    // 0.820 wu. Quote the second number at a visual gate; the first is a
+    // bounds fact. (For scale: UMBRA_8's 3x3 was 0.615 wu visible, P3's
+    // banded 3x3-at-spacing-2 was 1.025, pre-campaign was 1.171.)
+    //
+    // Sixteen taps is the pre-campaign COUNT, so the texture-op cost is
+    // known-shipped — though not the memory traffic: UMBRA_5 quadrupled
+    // the map behind it, so cache behaviour is an estimate, not a
+    // measurement. The 5x5-texel footprint is compact, so it should be
+    // small.
     //
     // This is now the SAME arrangement sample_spot_shadow_pcf has always
     // used (its `f32(x) + 0.5` term over -2..=1 gives the identical centres).

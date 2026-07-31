@@ -201,17 +201,22 @@ namespace t7 {
 
             // Lighting
             // TWIN: world.wgsl `const SHADOW_MAP_SIZE: f32` (— Shadow
-            // constants). THREE consumers read the WGSL twin:
+            // constants). FOUR consumers read the WGSL twin:
             //   1. the SPOT PCF's texel_size;
             //   2. SHADOW_TEXEL_WORLD — the unit of the sun frustum's snap
             //      and of the sun receiver normal offset;
             //   3. the SPOT normal offset's per-fragment texel size, which
             //      reads it DIRECTLY as the tile's X texel count
-            //      (SHADOW_MAP_SIZE * 0.5), not through (2).
-            // (The sun PCF does NOT read it: its taps are const texel
-            // offsets the hardware resolves.) Change it in BOTH rooms or
-            // the spot sample grid, the snap lattice and BOTH normal
-            // offsets silently rescale while the texture resizes.
+            //      (SHADOW_MAP_SIZE * 0.5), not through (2);
+            //   4. TEXEL_UV — the SUN PCF's tap offsets, which are
+            //      half-texel and so ride the uv rather than the integer
+            //      `offset` parameter (PENUMBRA_2 N1).
+            // Entry 4 has been removed and re-added once already: UMBRA_8
+            // moved the sun taps to const integer offsets and struck it,
+            // N1 moved them back. Change SHADOW_MAP_SIZE in BOTH rooms or
+            // the spot sample grid, the snap lattice, BOTH normal offsets
+            // and the sun tap spacing silently rescale while the texture
+            // resizes.
             // (L3 MIRROR — the TILE_GRID_CAPACITY pattern; no compile-time
             // bridge spans the runtime-loaded seam.)
             //
