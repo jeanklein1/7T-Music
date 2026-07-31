@@ -3742,7 +3742,14 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
 
 // --- Directional Light
 
-fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+// TWO NORMALS, ON PURPOSE (PENUMBRA_1 P4).
+//   normal     — the SHADING normal. Whatever the surface wants to look like.
+//   geo_normal — the GEOMETRIC normal. What the surface actually IS.
+// They are the same for every entity. They differ on terrain, where the pawn
+// aura bends the shading normal up to ~17 degrees to fake raised ground.
+// Normal-offset exists to escape a GEOMETRIC self-shadowing surface, so it
+// reads the second; ndotl is a shading fact and reads the first.
+fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
     let light_dir = -render_light.direction;  // toward light
     let ndotl = max(dot(normal, light_dir), 0.0);
 
@@ -3750,7 +3757,7 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> 
     // for spot atlas tiles, so the directional PCF would sample wrong.
     var shadow = 1.0;
     if (render_spot_lights.count == 0u) {
-        shadow = sample_shadow_pcf(world_pos, normal);
+        shadow = sample_shadow_pcf(world_pos, geo_normal);
     }
 
     return render_light.color * render_light.intensity * ndotl * shadow;
@@ -3923,12 +3930,15 @@ fn veil_dither_noise(p: vec2<f32>) -> f32 {
 // users); 0.0 = a ruled exemption (ribbon — a flown structure that shares
 // ENTITY_FS but must stay visible at range). NOT an anchor knob — the
 // veil always measures from the point.
-fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
+// geo_normal is the GEOMETRIC normal — see calc_directional_light. Callers
+// whose shading normal IS the geometry (every entity) pass it twice; the
+// terrain passes its pre-aura normal.
+fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
     // Ambient (always present)
     let ambient = base_color * render_light.ambient;
 
     // Directional light with shadows
-    let sun = base_color * calc_directional_light(world_pos, normal);
+    let sun = base_color * calc_directional_light(world_pos, normal, geo_normal);
 
     // Point lights (diffuse only)
     let points = base_color * calc_point_lights(world_pos, normal);
@@ -4269,6 +4279,13 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
+    // THE GEOMETRIC NORMAL, held before the aura touches it (PENUMBRA_1 P4).
+    // Everything above this line is the real surface: a bilinear heightfield
+    // gradient plus the live card's. The aura below is a SHADING fiction —
+    // it bends the normal up to fake raised ground it never raised. The
+    // shadow offset needs the geometry, so it takes its copy here.
+    let geo_normal = normal;
+
     // --- Pawn aura: persistent contextual tinting from toroidal spring grid
     // Texture encoding: R=height_blend, GBA=pre-multiplied color delta (with oscillation)
     // Runtime guard: sample returns near-zero when the aura system is idle.
@@ -4286,7 +4303,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
-    var out_colour = shade_lit(in.world_pos, normal, base_color, 1.0);
+    var out_colour = shade_lit(in.world_pos, normal, geo_normal, base_color, 1.0);
 
     // DEBUG_VIEW 6 — THE SHELL RINGS: each ring is an influence radius
     // the code actually uses; the grey patch ring is the world's own
@@ -4716,7 +4733,7 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
 
 @fragment
 fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), in.entity_color, 1.0), 1.0);
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color, 1.0), 1.0);
 }
 
 // Ribbon FS — same shading as entity_fs but veil-EXEMPT (ruled fork): the
@@ -4724,7 +4741,7 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
 // band; veil_scale 0.0 keeps it whole while everything else condenses.
 @fragment
 fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), in.entity_color, 0.0), 1.0);
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color, 0.0), 1.0);
 }
 
 // --- Monolith vertex shader (imperfect cube, per-face color from seed)
