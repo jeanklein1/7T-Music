@@ -1073,3 +1073,162 @@ every callee to its `textureSample*` — `sample_live_card` (`:8449`),
 
 **Card writer invocations ([F-4]).** `renderer.hpp:544-550`:
 `(640/8)² × 8×8 = 409,600` and `(640/16)² × 16×16 = 409,600`.
+
+---
+
+## [R] REPRESENTATION — AMENDMENT A
+
+**Appended, not merged.** This section amends LEDGER_1; it opens no campaign.
+Everything above stands as written at `186fd39`. **Line references in THIS
+section are read at `cab1a0f`** — the tree has moved 67 commits and +460/−222
+lines across `world.wgsl` + `state.hpp` since the body was written, so the
+body's references have drifted (see R-7). Where this section and the body cite
+the same code, this section's numbers are the live ones.
+
+### R-1 — THE FINDING: LOD0 AND LOD1 SCULPT THE SAME CELL DIFFERENTLY
+
+**Value.** The shape of one lifted GoL cell, as a function of which index buffer
+drew its patch.
+**Homes.** LOD0 draws per-cell caps (`state.hpp:3274-3287`) plus curtains
+(`:3288-3309`) — the cap band decodes at `world.wgsl:320-330`, cell-owned, so a
+cell's 25 verts all read one lift and the cell rises as a **slab** with vertical
+curtain walls to its neighbour. LOD1 draws the legacy 32×32 grid
+(`state.hpp:3368-3377`), decoded through `ug_decode`'s legacy branch
+(`world.wgsl:305-310`), where cell ownership is a **clamped division** —
+`min(d.vx / UG_QUADS, PATCH_CELL_N - 1u)` — so a vertex on a cell boundary
+belongs to one side and the quad spanning the boundary **interpolates between
+two lifts**. LOD1 has no curtain band at all: it never had one
+(`state.hpp:3363-3396` emits grid + skirt only).
+**The shape, exactly.** At LOD1 `step = 2` (`state.hpp:3364`), a 4-quad-wide
+cell is drawn as **2 quads**. Of those, the boundary quad straddles two cells,
+so a lifted cell renders as **one quad of flat top flanked by ramps** — half the
+cell at full height, half spent on the transition. Same apex, half the plateau.
+**Evidence (visual, Jean).** A three-frame series on one zone: wholly outside
+the LOD0 disc — **uniform taper**; straddling it — a **straight, patch-granular
+division** between tapered and slab halves, the division lying on the 50 wu
+patch grid; wholly inside — **clean**. The patch-granularity of the division is
+the signature: it is the LOD band boundary, not a zone artifact.
+**Rate.** Every LOD1 patch overlapping a live zone, every frame, in the eye
+pass. And in the **sun** shadow pass, where post-UMBRA both bands draw through
+the **LOD1 IB unconditionally** (`render_passes.hpp:393-408`, the density pin
+argued at `:372-377`) — so the taper is also what casts. Post-UMBRA
+qualification: terrain casts only under the `cast_terrain` arm, true for the sun
+pass and **false for every spot atlas tile** (`render_passes.hpp:319`, `:339`,
+`:355`). Indoors the taper does not cast because terrain does not cast at all.
+
+### R-2 — RULING (JEAN)
+
+**Cells do not taper. The slab is the truth; the LOD1 ring is what is wrong.**
+This closes the question of which representation is canonical. It does not
+authorize an edit.
+
+### R-3 — DEAD
+
+| Item | Killed by |
+|---|---|
+| **The taper/spire branch** — treating the LOD1 taper as an intended soft form to be extended | **Ruling** (R-2). Not a reading result; a decision. |
+| **`MAX_GOL_ZONES` truncation** — the suspicion that the draw plan's rect pack silently drops zones | **Census.** `Dim::MAX_GOL_ZONES = 8` (`state.hpp:294`) = the pack's loop bound `n < 8` (`render_passes.hpp:240`) = the WGSL array size `rects: array<vec4<f32>, 8>` (`world.wgsl:9227`). **8 = 8 = 8.** The cap is exact by construction, not a truncation. Struck. |
+
+### R-4 — HELD, DEMOTED: SEGMENT-B RECT CLASSIFICATION HAS NO MARGIN
+
+**Value.** Whether a clean-classified LOD0 patch can own a non-degenerate
+curtain and be drawn from the cap-only IB anyway — an open cap.
+**Home.** `world.wgsl:9318-9325` — patch rect vs zone rect, raw:
+`pi.origin.x + half >= r.x && pi.origin.x - half <= r.x + r.z` (and z). The
+frustum AABB one block up takes `CULL_MARGIN_WU = 5.0` (`world.wgsl:9239`, used
+at `:9287-9289`); **this test takes none.**
+**Why demoted, not dead.** The all-inside frame of the R-1 series shows **no
+open caps anywhere**. That is evidence against the mechanism being live, not
+proof — the frame does not exercise a zone edge landing inside the 5 wu the
+frustum test would have granted. It stays held. **It stops leading.**
+**What would settle it.** A zone rect whose edge falls within a few wu of a
+patch boundary, inside the LOD0 disc, held across a frame. Not authorized here.
+
+### R-5 — DESIGN, NOT AUTHORIZED: CELL-GRANULAR LOD1
+
+**Shape.** One cap quad per cell; curtains on the **+x and +z planes only**,
+each spanning ground to `max(L_here, L_neighbour)`. Every face seals —
+including the ones a cell does not own — because the neighbour's curtain takes
+the same `max`. The card is world-addressed (`live_card_uv`,
+`world.wgsl:8529-8531`, origin from `config.lod_point_*`), so the neighbour
+fetch crosses patch boundaries natively; no patch-local fixup.
+**Index arithmetic, against the real builders.** Today's LOD1 is
+`32×32 = 1024` interior quads (`state.hpp:3368-3377`) + `256/2 = 128` skirt
+segments (`:3380-3388`) = `(1024 + 128) × 6` = **6,912 indices / 2,304
+triangles** — confirmed. The two candidate bands, arithmetic checked, **not**
+read off any builder because none exists:
+
+| Band | Quads | Indices | vs today's LOD1 |
+|---|---|---|---|
+| today (grid + skirt) | 1024 + 128 | **6,912** | — |
+| four-curtain cell band | 256 + 1024 + 64 | **8,064** | **+16.7%** |
+| two-curtain cell band (the design) | 256 + 512 + 64 | **4,992** | **−27.8%** |
+
+**Status.** Design only. No builder, no decode branch, no authorization.
+
+### R-6 — OPEN COSTS
+
+**One extra card fetch per curtain vertex.** `max(L_here, L_neighbour)` is two
+`sample_live_card_gol` calls where today's `ug_cell_lift`
+(`world.wgsl:354-359`) is one. This is a **read-rate increase in the pipeline
+this ledger audits** — [A] counts eye at 3 unconditional + 1 guarded fetches per
+vertex — so it is a measurement, not an estimate. It must be measured, not
+argued.
+**New decode branching, against L2.** The design adds branching to a vertex
+decode — the exact class L2 constrains. **And the constraint's text cannot
+currently be read:** `LAWS.md:35-36` states "the operational home of the
+specifics is the world.wgsl FXC banner — the banner owns the constraints"; the
+`world.wgsl` header carries only the law index pointing back at L2
+(`world.wgsl:12-16`). `world.wgsl:2369` cites "the runtime-indexed const array
+**the banner forbids**" — a rule with no home in this tree. **The FXC banner
+does not exist.** Costing this design against L2 requires the banner first.
+**Behaviour at the card's edge — settled, and it is the benign one.** Read from
+the descriptor, not the call site: `nearest_sampler` is
+`AddressMode::ClampToEdge` on U and V (`state.hpp:3966-3967`),
+`FilterMode::Nearest` (`:3964-3965`). `live_card_uv` applies no clamp of its own
+(`world.wgsl:8529-8531`). **A fetch one cell outside the window returns the
+clamped edge texel — not wrapped, not zero.** So a rim cell's neighbour fetch
+reads the rim's own lift, `max` returns `L_here`, and the curtain collapses to
+zero height rather than to a full-height wall against nothing. **Clamp is the
+silhouette-safe answer; zero would have reopened what WALL_1 closed.** The
+window: `LIVE_CARD_SIZE = 640`, `LIVE_CARD_EXTENT = 1000.0`
+(`world.wgsl:223-224`, `state.hpp:91-92`), origin snapped to the 3.125 wu cell
+grid — `floor(raw / PATCH_CELL_SIZE) * PATCH_CELL_SIZE` (`world.wgsl:226-231`) —
+so texel pitch is 1.5625 wu and a cell is exactly 2 texels.
+
+### R-7 — TWO CORRECTIONS TO THE BODY, FOUND WHILE READING
+
+**F-9 is CLOSED in scope.** The stale 512 label is gone: the descriptor now
+reads `"Live Card (RGBA16Float — GROUND_CARD_1)"` (`state.hpp:3850`), and all
+four in-scope sites F-9 named (`state.hpp:3732`, `:3728`, `:1754`,
+`world.wgsl:8511` in the old numbering) now carry `LIVE_CARD_SIZE` symbolically
+or no number at all (`state.hpp:3846`, `:1797`; `world.wgsl:8601`, `:8626`).
+The declared dimension is **640**, one home, mirrored. Survivors are archival
+only and outside scope: `src/docs/old docs/ground_card_campaign_v2.md`,
+`gc_close_census.md`, and past reports.
+**The body's line references have drifted, and one cited symbol is gone.** 67
+commits since `186fd39`. Spot-checked: F-1's `state.hpp:3192-3210` (CURTAIN
+QUADS) now points at draw-plan segment prose — the loop is at `:3288-3309`;
+F-1's `world.wgsl:307` (`lift_scale`) now points at a `vx` decode line — the
+field is at `:297` and the value is **derived**, not assigned, at `:348`
+(WALL_1); and F-1's `world.wgsl:7863 generate_terrain_indices` **no longer
+exists** — kernel, IB, pipeline and bindings were retired at `7084f9f`
+(CENSUS_2b). The findings themselves are unaffected; their addresses are not.
+A full reference re-anchoring was not asked for and is not done here.
+
+### R-8 — ACCEPTANCE TEST, ALREADY IN HAND
+
+**The wholly-outside frame renders like the wholly-inside one.** The R-1 series
+is the fixture: same zone, same camera discipline, three positions relative to
+the LOD0 disc. The design succeeds when frame 1 stops tapering. The straddling
+frame is the sharper instrument — its division must **disappear**, not move.
+
+**Rate context for whatever is measured.** LOD0 full IB **50,688 indices /
+16,896 triangles** (cap 24,576 + curtain 24,576 + skirt 1,536); cap-only IB
+**26,112 / 8,704**; LOD1 IB **6,912 / 2,304** — derived from the three emission
+loops at `state.hpp:3274-3287`, `:3288-3309`, `:3310-3336` and the LOD1 block at
+`:3363-3396`. Counts reach the GPU through `reset_frustum_indirect`
+(`state.hpp:2630-2641`) as three 5-u32 slots — A full, B cap-only, C LOD1 — and
+are drawn at byte offsets **0 / 20 / 40** into the args buffer
+(`render_passes.hpp:451-465`), against list windows at byte offsets
+**0 / 512 / 1024** (`state.hpp:1418-1423`, TWIN of `world.wgsl:9231-9233`).
