@@ -11752,8 +11752,17 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let cg = (p.body_g + (p.rib_g - p.body_g) * arm_rib_frac * 0.6) * arm_shade;
                 let cb = (p.body_b + (p.rib_b - p.body_b) * arm_rib_frac * 0.6) * arm_shade;
 
+                // The normal takes the SAME basis as the position above.
+                // (ca, 0, sa) is the ring's local parameter, not a world
+                // direction — correct for the trunk, whose rings are
+                // horizontal circles about a vertical axis, and wrong here,
+                // where the ring lives in (r, f). r and f are orthonormal by
+                // construction (f = r x nd, both unit), so this is unit and
+                // needs no normalisation.
                 cactusg_write_vertex(vb_base + vi,
-                    vx, vy, vz, ca, 0.0, sa, cr, cg, cb, slot);
+                    vx, vy, vz,
+                    rx * ca + fx * sa, fy * sa, rz * ca + fz * sa,
+                    cr, cg, cb, slot);
                 vi++;
             }
 
