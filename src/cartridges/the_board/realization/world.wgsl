@@ -11692,8 +11692,13 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         let arm_r = p.arm_radius * (0.85 + cactus_hash(p.seed, 1080u + a) * 0.3);
 
         let lean_at_fork = p.lean * p.height * fork_frac * fork_frac;
-        let fork_x = cx + cos(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_cos * 0.3;
-        let fork_z = cz + sin(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_sin * 0.3;
+        // The fork rides the trunk's FULL lean. The trunk centre at
+        // fork_y is displaced by lean_at_fork; taking 0.3 of it left the
+        // arm growing out of a point the trunk is not at, and the error
+        // scales with lean. The designer's 2D preview applies the whole
+        // offset, and the designer is the shape authority.
+        let fork_x = cx + cos(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_cos;
+        let fork_z = cz + sin(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_sin;
 
         let out_x = cos(arm_az);
         let out_z = sin(arm_az);
