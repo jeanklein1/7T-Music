@@ -1533,7 +1533,9 @@ namespace t7 {
             "44 B moved all four vec3 members off their boundaries. "
             "592 - 44 + 12 = 560. The pads ARE the mirror, not waste — the "
             "offsetof asserts below are what prove it. "
-            "(MOSAIC_0: +6 dials +2 pads, 560 -> 592 — Jean OK'd at handoff)");
+            "(MOSAIC_0: +8 floats, 560 -> 592 — Jean OK'd at handoff. "
+            "MOSAIC_2 re-cut that tail from six dials + two pads to FIVE + "
+            "THREE — still 8 floats, so 592 is unmoved.)");
         // THE ALIGNMENT LAW (L4, src/docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or

@@ -304,18 +304,30 @@ cells, grains, bodies — the region lookup belongs at the unit's own position,
 so the whole unit belongs to one region. The fragment is where you are, not
 what you are part of.
 
-**Realize the zone in whatever the range can resolve, and let the far form be
-the near form's average.** Near, where units are visible, the zone is
-*interleaved*: perturb the lookup per unit so units near a face fall on either
-side, and the boundary becomes a band of intermixed regions. Far, where units
-are not resolvable, the zone is *chromatic*: lerp between the regions. These
-are not two mechanisms to be tuned into agreement — an unresolvable band of
-alternating blue and white tiles **is** a blue-white lerp, so they agree in the
-limit by construction. That identity is the whole point: it is why the
-transition cannot pop, why the far field cannot alias, and why one dial
-(`mosaic_blend`) can set the zone's width for both halves at once.
+**Realize the zone in whatever the range can resolve.** Near, where units are
+visible, the zone is *interleaved*: perturb the lookup per unit so units near a
+face fall on either side, and the boundary becomes a band of intermixed
+regions. Far, where units are not resolvable, the zone is *chromatic*: lerp
+between the regions. At the boundary these two are the same function at
+different scales — an unresolvable band of alternating blue and white tiles
+**is** a blue-white lerp — so they agree in the limit by construction, and that
+seam cannot pop or alias no matter how it is tuned.
 
-The general form, worth stating because it outlives the mosaic: **when a
-simplification and the thing it simplifies are the same function at different
-scales, no seam between them can exist.** When they are merely tuned to look
-alike, every seam is a bug waiting for a camera angle.
+**Do not extend that identity past where it holds.** MOSAIC_2's first draft of
+this law claimed the far form is *always* the near form's average; adversarial
+review showed it is not. Within a passage the far field draws one member where
+the near field is a mixture of several — the ensemble means coincide, the
+per-instance values differ by ~0.2 per channel. The law survives the correction
+because the identity was only ever earned at the boundary, which is where it
+was derived.
+
+So the general form has two halves, and the second is the one that gets
+forgotten: **when a simplification and the thing it simplifies are the same
+function at different scales, no seam between them can exist** — and **when
+they are not, the seam is real and must be placed where nothing can see it.**
+MOSAIC_2 does both: the boundary zone is the same function twice, and the
+within-passage seam is parked at `grain ≤ 0.001`, which the veil coupling
+makes identical to "this fragment is ≥99.9% fog." A seam hidden by a
+coincidence is a bug; a seam placed deliberately, where the placement is a
+consequence of the design rather than of tuning, is engineering. The
+distinction is whether you can say *why* nothing can see it.

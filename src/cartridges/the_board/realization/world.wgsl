@@ -1644,8 +1644,9 @@ struct DesignConfig {
     point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 20 = contracts/point.hpp)
     cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 0.6 = Idle::CUBE_PLASTICITY_DEFAULT)
     // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds (0 =
-    // instant). Lands at offset 588, the struct's last 4 bytes, in BOTH rooms;
-    // size stays 592. It reads as an Interaction knob and is grouped with them
+    // instant). Sits at offset 556 in BOTH rooms. (It WAS the struct's last
+    // 4 bytes at 588 when written; MOSAIC_0a appended the mosaic tail behind
+    // it and 588 is now _pad592_2. Size stays 592.) It reads as an Interaction knob and is grouped with them
     // in spirit, but it cannot sit there: this room aligns vec3<f32> to 16 and
     // the C++ room aligns float[3] to 4, so a field inserted above
     // sun_direction shifts the two mirrors by different amounts. Grow at the
@@ -1661,8 +1662,12 @@ struct DesignConfig {
     // passage_scale: the coarse palette lattice.
     // blend: boundary-zone width, in fractions of passage_scale — the
     //   ONE dial for both halves of "a boundary is a zone": near it
-    //   jitters the per-shard passage lookup (interleaved tiles), far
-    //   it widens the chromatic lerp. Same number, same zone.
+    //   jitters the per-shard passage lookup (interleaved tiles,
+    //   reaching blend·passage_scale from a face, linear), far it
+    //   widens the chromatic lerp (reaching HALF that — mosaic_far
+    //   halves it again — with a smoothstep profile). One dial, two
+    //   realizations; the widths are not equal and do not need to be,
+    //   since the far branch only runs where the veil has erased it.
     // facet: per-shard plate lean on the SHADING normal (the glitter).
     // (radius/icing RETIRED — grain is 1 − veil_t; the veil owns the
     //  band and owns it once.)
@@ -4203,9 +4208,20 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
 // that lookup is jittered per shard so tiles near a boundary fall on
 // either side — an interleaved zone, what a real tiler leaves behind.
 // Far, with no tiles to interleave, the zone is chromatic: a lerp with
-// the nearest neighbouring passage. The far form IS the near form's
-// average, which is why the two cannot disagree and why neither pops
-// nor aliases. One dial, mosaic_blend, sets both.
+// the nearest neighbouring passage. AT A BOUNDARY the far form is the
+// near form's average exactly — an unresolvable band of alternating
+// blue and white tiles IS a blue-white lerp — so that seam cannot pop.
+//
+// WITHIN a passage the two are NOT the same function, and saying so
+// was an overstatement worth correcting: far draws ONE member (roll
+// 909) where near is a mixture of the passage's members (roll 904 per
+// shard). Only their ensemble means coincide; per passage they differ
+// by ~0.2 per channel. What makes THAT seam invisible is not an
+// identity but the veil coupling — grain ≤ 0.001 is exactly
+// veil_t ≥ 0.999, so the far branch is only ever reached where the
+// fragment is ≥99.9% fog and the difference lands ~0.05/255, under
+// quantization. THE SEAM'S SAFETY IS THE COUPLING: decouple grain
+// from veil_t and this jump becomes visible.
 //
 // Property run 900–921 (hash_property): 900-902 shard site jitter,
 // 903 passage K, 904 shard slot roll, 905 member start, 906 member
