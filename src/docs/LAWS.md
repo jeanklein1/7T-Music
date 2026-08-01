@@ -269,10 +269,53 @@ its palette color (identity as a function of range) and it justified that
 dissolve as a cost cap it did not deliver (the walk still ran everywhere
 inside the band, and a radius caps the mean, never the max). MOSAIC_2 split
 them: the passage median is the material and is evaluated always, one hash; the
-shard is the grain and its 27-cell walk runs only where the grain is legible.
-The saving is real precisely because it is structural rather than a fade.
+shard is the grain and its 27-cell walk runs only where the grain is fine
+enough to matter. The saving is real precisely because it is structural rather
+than a fade.
+
+Where the grain's band comes from is a second question, and the answer is: the
+band a body already has. MOSAIC_2 binds grain to `1 − veil_t`, the veil's own
+icing smoothstep, so a body materializes at the ring already itself and gains
+its detail across exactly the band where it materializes. Two bands measuring
+"how far is this body" from two anchors can disagree — a body dithering out at
+the ring while its grain insists it is near — and one band cannot.
 
 The test for any distance-driven simplification: **name what the far form IS.**
 If the answer is "the same material with a term at zero," the simplification is
 lawful. If the answer names a different material, it is not a simplification —
 it is a second body wearing the first one's geometry.
+
+## L13 — A BOUNDARY IS A ZONE, NOT A LINE
+
+**Where two regions meet, the meeting has width — and the far form of that
+zone is the near form's average.**
+
+A lattice gives you cells, and the naive reading of a cell is that everything
+inside it takes the cell's value. That reading puts a hard edge at every face,
+and worse, it cuts through whatever unit the content is made of: MOSAIC_2's
+recon found passages sampled per fragment, so a single ceramic tile straddling
+a passage face was **half one colour and half another** — a thing no tiler has
+ever produced, and a defect no amount of tuning the edge would have fixed.
+
+Two rules, and the second is what makes the first safe.
+
+**Sample at the unit, not at the point.** If the content has a grain — tiles,
+cells, grains, bodies — the region lookup belongs at the unit's own position,
+so the whole unit belongs to one region. The fragment is where you are, not
+what you are part of.
+
+**Realize the zone in whatever the range can resolve, and let the far form be
+the near form's average.** Near, where units are visible, the zone is
+*interleaved*: perturb the lookup per unit so units near a face fall on either
+side, and the boundary becomes a band of intermixed regions. Far, where units
+are not resolvable, the zone is *chromatic*: lerp between the regions. These
+are not two mechanisms to be tuned into agreement — an unresolvable band of
+alternating blue and white tiles **is** a blue-white lerp, so they agree in the
+limit by construction. That identity is the whole point: it is why the
+transition cannot pop, why the far field cannot alias, and why one dial
+(`mosaic_blend`) can set the zone's width for both halves at once.
+
+The general form, worth stating because it outlives the mosaic: **when a
+simplification and the thing it simplifies are the same function at different
+scales, no seam between them can exist.** When they are merely tuned to look
+alike, every seam is a bug waiting for a camera angle.
