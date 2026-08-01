@@ -398,13 +398,13 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
             c->gpuState_.render_entity_group(),
             c->gpuState_.shadow_texture_group(),
             c->gpuState_.patch_index_buffer_lod1(),
-            c->gpuState_.patch_index_count_ring_clean(),
+            c->gpuState_.patch_index_count_ring_zoned(),
             c->world_state_.lod0_patch_count
         );
         if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
             // Band 1 — same IB, already bound by the band-0 helper; the
             // redundant re-bind collapsed (trivially adjacent).
-            pass.DrawIndexed(c->gpuState_.patch_index_count_ring_clean(),
+            pass.DrawIndexed(c->gpuState_.patch_index_count_ring_zoned(),
                 c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
         }
     }
