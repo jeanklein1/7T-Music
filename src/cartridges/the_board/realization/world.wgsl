@@ -11358,8 +11358,23 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── FRONDS: radial quad strips with golden-angle packing ──
 
     let golden_angle = PI * (3.0 - sqrt(5.0));
-    let n_fronds = min(u32(max(3.0, p.frond_count)), 18u);
     let frond_segs = min(p.frond_segs, 14u);
+
+    // THE SLOT IS THE AUTHORITY. Trunk and crown are already written, so
+    // the frond count is whatever the remaining vertex and index budgets
+    // afford — never a per-family constant, because the cost is per-tier.
+    // The authored floor of 3 yields to the ceiling: a floor that can
+    // overrun the slot is not a guard. The two saturating min() calls keep
+    // the subtraction total rather than dependent on the ring/seg clamps
+    // above staying where they are.
+    let trunk_verts   = (trunk_rings + 1u) * trunk_segs + 1u + trunk_segs;
+    let trunk_indices = trunk_rings * trunk_segs * 6u + trunk_segs * 3u;
+    let verts_left    = PALMG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   PALMG_MAX_VERTS_PER_SLOT);
+    let indices_left  = PALMG_MAX_INDICES_PER_SLOT - min(trunk_indices, PALMG_MAX_INDICES_PER_SLOT);
+    let frond_ceiling = min(verts_left / ((frond_segs + 1u) * 2u),
+                            indices_left / max(frond_segs * 6u, 1u));
+
+    let n_fronds = min(u32(max(3.0, p.frond_count)), frond_ceiling);
     let crown_frond_y = crown_y + crown_r * 0.3;
 
     for (var f = 0u; f < n_fronds; f++) {
