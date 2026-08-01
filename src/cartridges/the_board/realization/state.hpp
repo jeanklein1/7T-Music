@@ -167,40 +167,23 @@ namespace t7 {
             static_assert(VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT,
                 "VEIL CHAIN: the icing band sits wholly outside the LOD0 core");
 
-            // ── THE MOSAIC (MOSAIC_0/1) — trencadís rests ──
+            // ── THE MOSAIC (MOSAIC_0/1/2) — trencadís rests ──
             // SHARD: wu per cell (~10× under the terrain cell 3.125; a
             //   per-entity batch jitters it ±30%). PASSAGE: the coarse
-            //   palette lattice — slightly larger than a body. RADIUS/
-            //   ICING: eye-anchored dissolve. FACET: plate-lean strength.
+            //   palette lattice — slightly larger than a body. BLEND:
+            //   boundary-zone width as a fraction of PASSAGE, one dial
+            //   for both halves of the zone. FACET: plate-lean strength.
             // All live-tunable via config; these are the rests.
             constexpr float MOSAIC_SHARD_SIZE_DEFAULT = 0.30f;
             constexpr float MOSAIC_PASSAGE_DEFAULT    = 12.0f;
-            // THE GRAIN BAND (MOSAIC_2) — NOT a material crossfade. A
-            // mosaic body is a mosaic body at every range; what fades is
-            // the GRAIN (shard boundary, per-shard jitter, plate lean).
-            // Past the band the body is its passage medians at variance
-            // zero: a smooth field, passages still turning every
-            // passage_scale. Güell from across the park — the tesserae
-            // go long before the colored bands do.
-            //
-            // Bound by shard LEGIBILITY, the only thing that binds:
-            // below ~2 px a shard is noise, not a shard. At 1080p/60° a
-            // 0.3 wu shard is 2.9 px at 105 and 2.06 px at 150. Earlier
-            // 45/15 rested on two false claims — a 0.3 wu shard holds
-            // above 1 px to ~300 (so not anti-shimmer), and a radius
-            // caps the MEAN not the MAX (so not a cost cap; the peak is
-            // set by the largest painted body that can fill the frame,
-            // which a monumental arch could already do at 45).
-            //
-            // The real cap is structural and arrives here on its own
-            // terms: past the band the 27-cell walk does not run.
-            // Inside LOD0 (175) by construction — a painted body is
-            // always full-mesh.
-            constexpr float MOSAIC_RADIUS_DEFAULT     = 150.0f;
-            constexpr float MOSAIC_ICING_DEFAULT      = 45.0f;
+            // MOSAIC_2: the radius/icing pair is DELETED. Grain is now
+            // 1 − veil_t — the veil's own icing smoothstep — so a body
+            // materializes at the ring already ceramic and gains its
+            // grain across exactly the band where it materializes. One
+            // fact, one home; the veil chain assert above is the only
+            // chain there was ever reason to have.
+            constexpr float MOSAIC_BLEND_DEFAULT      = 0.18f;
             constexpr float MOSAIC_FACET_DEFAULT      = 0.25f;
-            static_assert(MOSAIC_RADIUS_DEFAULT < LOD0_RADIUS_DEFAULT,
-                "MOSAIC CHAIN: the mosaic band sits wholly inside the full-mesh core");
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
             constexpr uint32_t PATCH_INDEX_COUNT = PATCH_MESH_N * PATCH_MESH_N * 6;
 
@@ -625,17 +608,23 @@ namespace t7 {
             // nothing and shifts nothing — the same move point_bubble_radius
             // (CONTACT_2) and cube_plasticity (CONTACT_3) made above.
             float pawn_tilt_tau;
-            // ─── THE MOSAIC (MOSAIC_0/1) — trencadís dials ───────────
+            // ─── THE MOSAIC (MOSAIC_0/1/2) — trencadís dials ─────────
             // Mirror of world.wgsl DesignConfig tail — GROWTH LAW (same
             // commit, same order). Rests: Dim::MOSAIC_* via the boot pins.
+            // MOSAIC_2 retired radius/icing (grain is 1 − veil_t; the
+            // veil owns the band once) and added blend: six dials + two
+            // pads became FIVE + THREE. Still 8 floats — sizeof 592 is
+            // unmoved and the witness below must not change. The pads
+            // are structure, not reservation: the WGSL mirror has no
+            // invisible padding, so a hole must be declared here.
             float mosaic_enable;
             float mosaic_shard_size;
             float mosaic_passage_scale;
-            float mosaic_radius;
-            float mosaic_icing;
+            float mosaic_blend;
             float mosaic_facet;
             float _pad592_0;
             float _pad592_1;
+            float _pad592_2;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -6019,8 +6008,7 @@ namespace t7 {
                 config_.mosaic_enable        = 1.0f;
                 config_.mosaic_shard_size    = Dim::MOSAIC_SHARD_SIZE_DEFAULT;
                 config_.mosaic_passage_scale = Dim::MOSAIC_PASSAGE_DEFAULT;
-                config_.mosaic_radius        = Dim::MOSAIC_RADIUS_DEFAULT;
-                config_.mosaic_icing         = Dim::MOSAIC_ICING_DEFAULT;
+                config_.mosaic_blend         = Dim::MOSAIC_BLEND_DEFAULT;
                 config_.mosaic_facet         = Dim::MOSAIC_FACET_DEFAULT;
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;

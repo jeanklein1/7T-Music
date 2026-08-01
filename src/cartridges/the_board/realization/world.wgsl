@@ -1652,25 +1652,28 @@ struct DesignConfig {
     // TAIL, or pad each vec3 back onto its boundary. (state.hpp carries the
     // matching static_assert.)
     pawn_tilt_tau: f32,
-    // ─── THE MOSAIC (MOSAIC_0/1) — trencadís dials ───────────────────
+    // ─── THE MOSAIC (MOSAIC_0/1/2) — trencadís dials ─────────────────
     // Mirror of GPUDesignConfig tail (state.hpp) — GROWTH LAW, same
-    // commit, same order; sizeof witness 560 → 592. Rests: Dim::MOSAIC_*
-    // (boot pins). enable = master gate (0 = dark; the probe's runtime
-    // witness — a uniform, so FXC cannot fold the walk away).
+    // commit, same order; sizeof witness 592, UNMOVED by MOSAIC_2 (six
+    // dials + two pads became five + three). Rests: Dim::MOSAIC_*.
+    // enable: master gate; rests OPEN (MOSAIC_2). No key binds it.
     // shard_size: wu per shard cell (batch-jittered ±30% per entity).
-    // passage_scale: the coarse palette lattice (the bench's passages).
-    // radius/icing: eye-anchored dissolve band [radius−icing, radius] —
-    //   the fog's metric (texel density is a view fact); anti-shimmer
-    //   and the walk's cost cap in one smoothstep.
-    // facet: per-shard plate lean on the shading normal (the glitter).
+    // passage_scale: the coarse palette lattice.
+    // blend: boundary-zone width, in fractions of passage_scale — the
+    //   ONE dial for both halves of "a boundary is a zone": near it
+    //   jitters the per-shard passage lookup (interleaved tiles), far
+    //   it widens the chromatic lerp. Same number, same zone.
+    // facet: per-shard plate lean on the SHADING normal (the glitter).
+    // (radius/icing RETIRED — grain is 1 − veil_t; the veil owns the
+    //  band and owns it once.)
     mosaic_enable: f32,
     mosaic_shard_size: f32,
     mosaic_passage_scale: f32,
-    mosaic_radius: f32,
-    mosaic_icing: f32,
+    mosaic_blend: f32,
     mosaic_facet: f32,
     _pad592_0: f32,
     _pad592_1: f32,
+    _pad592_2: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -4123,6 +4126,16 @@ fn veil_dither_noise(p: vec2<f32>) -> f32 {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
+// THE ICING's t — factored (MOSAIC_2) so the veil and the mosaic's
+// grain read ONE value. Point-anchored, XZ, exactly as the veil law
+// requires: if grain were eye-anchored while the material dissolved
+// point-anchored, a body could be dithering out at the ring while its
+// grain insisted it was near.
+fn veil_t(world_pos: vec3<f32>) -> f32 {
+    return smoothstep(config.veil_ring - config.veil_icing, config.veil_ring,
+                      distance(world_pos.xz, render_point_pos().xz));
+}
+
 // veil_scale: 1.0 = the family joins the veil (terrain + all entity_fs
 // users); 0.0 = a ruled exemption (ribbon — a flown structure that shares
 // ENTITY_FS but must stay visible at range). NOT an anchor knob — the
@@ -4156,9 +4169,7 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     // band [ring−δ, ring] is where draw-set joins materialize. Zero
     // inside ring−δ (pixel-identical there); full fog/horizon color at
     // the ring (the rim melts into sky). strength: 0 in finite/indoor.
-    let point_d = distance(world_pos.xz, render_point_pos().xz);
-    let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
-             * config.veil_strength * veil_scale;
+    let veil = veil_t(world_pos) * config.veil_strength * veil_scale;
     // THE RIM taste knob: veil_dither > 0.5 → the icing band DITHER-
     // dissolves (geometry condenses) instead of tinting to fog.
     if (config.veil_dither > 0.5) {
@@ -4168,7 +4179,7 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     return mix(fogged, config.fog_color, veil);
 }
 
-// ═══ THE MOSAIC (MOSAIC_0/1) — trencadís for the mesh-gen families ═══
+// ═══ THE MOSAIC (MOSAIC_0/1/2) — trencadís for the mesh-gen families ═══
 //
 // THE PAINT ANCHOR LAW: pigment evaluates in the frame that owns it.
 // Physics is the world's → the live position. Paint is the body's →
@@ -4177,20 +4188,32 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
 // and the live card. world_pos remains light/fog/veil's coordinate.
 //
 // Two scales — the terrain's own structure at the body's size:
-// PASSAGES (~12 wu) raffle a small palette, always seating the
-// near-white binder; SHARDS (~0.3 wu, F1 Voronoi) raffle one member
-// and jitter it by the passage's variance. The per-shard normal lean
-// is the pressed-plate glitter. The eye-anchored dissolve past
-// mosaic_radius (the fog's metric — texel density is a view fact) is
-// anti-shimmer and the walk's cost cap in one smoothstep.
+// PASSAGES (~12 wu) raffle a small palette; SHARDS (~0.3 wu, F1
+// Voronoi) pick one member of it and jitter that by the passage's
+// variance. The per-shard normal lean is the pressed-plate glitter.
 //
-// Property run 900–916 (hash_property): 900-902 site jitter (cell
-// seed), 903 passage K, 904 raffle (shard), 905-907 members (passage),
-// 908 variance (passage), 909 passage member raffle (far field —
-// MOSAIC_2, the roll that stands in when the walk does not run),
-// 910-912 color jitter (shard), 913 batch (entity), 914-916 facet
-// (shard). Cell-folded seeds — disjoint from the CPU entity
-// registries by construction.
+// MATERIAL AT EVERY RANGE (MOSAIC_2): distance takes the GRAIN, never
+// the material. Grain is 1 − veil_t — the veil's own band — so a body
+// materializes at the ring already ceramic and gains its grain across
+// exactly the band where it materializes. At grain 0 the body is its
+// passage medians at variance zero and the 27-cell walk does not run.
+//
+// A BOUNDARY IS A ZONE (MOSAIC_2): the passage is sampled at the
+// SHARD'S SITE, so a tile is never cut in half by a colour edge, and
+// that lookup is jittered per shard so tiles near a boundary fall on
+// either side — an interleaved zone, what a real tiler leaves behind.
+// Far, with no tiles to interleave, the zone is chromatic: a lerp with
+// the nearest neighbouring passage. The far form IS the near form's
+// average, which is why the two cannot disagree and why neither pops
+// nor aliases. One dial, mosaic_blend, sets both.
+//
+// Property run 900–921 (hash_property): 900-902 shard site jitter,
+// 903 passage K, 904 shard slot roll, 905 member start, 906 member
+// stride, 908 passage variance, 909 passage slot roll (far),
+// 910-912 shard colour jitter, 913 entity batch, 914-916 shard facet,
+// 917 binder gate, 919-921 passage-lookup jitter. Free: 907, 918.
+// Cell-folded seeds — disjoint from the CPU entity registries by
+// construction.
 
 const MOSAIC_MEDIANS = array(
     vec3(0.16, 0.32, 0.62),   // cobalt
@@ -4216,14 +4239,24 @@ fn mosaic_cell_seed(c: vec3<i32>, salt: u32) -> u32 {
          ^ (salt * 2654435761u);
 }
 
-// F1-only 3×3×3 Voronoi: returns the nearest jittered site's cell seed
-// — the shard's identity. No F2: the grout died at design (Güell's
-// binder is pale; what separates shards is the shards), and F2 would
-// double the walk's register pressure for a line we don't draw.
-fn mosaic_shard(p: vec3<f32>) -> u32 {
+const MOSAIC_BINDER_CHANCE: f32 = 0.55;   // fraction of passages that seat white at all
+
+struct MosaicShard {
+    seed: u32,
+    site: vec3<f32>,   // the site's position, in shard-cell units
+}
+
+// F1-only 3×3×3 Voronoi. Returns the nearest jittered site's seed AND
+// its position — the position is what lets a whole tile belong to one
+// passage (see mosaic_sample). No F2: the grout died at design (Güell's
+// binder is pale cement; what separates shards is the shards), and F2
+// would double the walk's register pressure for a line we do not draw.
+fn mosaic_shard(p: vec3<f32>) -> MosaicShard {
     let base = vec3<i32>(floor(p));
     var best_d = 1e9;
-    var best = 0u;
+    var out: MosaicShard;
+    out.seed = 0u;
+    out.site = p;
     for (var dz = -1; dz <= 1; dz++) {
         for (var dy = -1; dy <= 1; dy++) {
             for (var dx = -1; dx <= 1; dx++) {
@@ -4234,11 +4267,76 @@ fn mosaic_shard(p: vec3<f32>) -> u32 {
                                                   hash_property(cs, 902u));
                 let dv = site - p;
                 let d = dot(dv, dv);
-                if (d < best_d) { best_d = d; best = cs; }
+                if (d < best_d) { best_d = d; out.seed = cs; out.site = site; }
             }
         }
     }
-    return best;
+    return out;
+}
+
+struct MosaicPassage {
+    median: vec3<f32>,
+    variance: f32,
+}
+
+fn mosaic_pcell(p: vec3<f32>) -> vec3<i32> {
+    return vec3<i32>(floor(p / max(config.mosaic_passage_scale, 1e-3)));
+}
+
+// A passage's small palette, and the raffle that picks one member.
+// roll_h is the SHARD's roll near (a passage is a mixture at fine
+// grain) and the PASSAGE's own roll far (one member, one clean field).
+fn mosaic_passage_at(ps: u32, roll_h: f32) -> MosaicPassage {
+    let k = 2u + u32(hash_property(ps, 903u) * 2.999);   // 2..4 COLOURED members
+    // MEMBERS BY STRIDE, not by independent picks. Four independent
+    // draws from an 8-entry table collide 59% of the time, so a
+    // "3-member" passage often had two — half of why every body read as
+    // white plus one median. A stride coprime to 8 walks the table and
+    // cannot repeat.
+    let start  = u32(hash_property(ps, 905u) * 7.999);
+    let stride = 1u + 2u * u32(hash_property(ps, 906u) * 3.999);   // 1,3,5,7
+    // THE BINDER IS A MEMBER, NOT A MAJORITY. MOSAIC_1's "double
+    // weight" resolved to a white share of 2/(k+1) — 67% at K=2, 52%
+    // averaged. That is the dominant material, not a binder threaded
+    // through. Now: one slot among k+1, and only some passages seat it
+    // at all. White share ≈ 14%.
+    let binder = select(0u, 1u, hash_property(ps, 917u) < MOSAIC_BINDER_CHANCE);
+    let slots  = k + binder;
+    // hash_property can return exactly 1.0 (one in 2³²); clamp or the
+    // pick runs off the end of the slot list.
+    let pick = min(u32(roll_h * f32(slots)), slots - 1u);
+    var out: MosaicPassage;
+    if (binder == 1u && pick == 0u) {
+        out.median = MOSAIC_WHITE;
+    } else {
+        out.median = MOSAIC_MEDIANS[(start + (pick - binder) * stride) & 7u];
+    }
+    out.variance = MOSAIC_VAR_BASE + hash_property(ps, 908u) * MOSAIC_VAR_SPAN;
+    return out;
+}
+
+// THE FAR FIELD — no tiles to interleave, so the boundary zone is
+// CHROMATIC: lerp with the nearest neighbouring passage. This is
+// exactly the near field's average — an unresolvable band of
+// alternating blue and white tiles IS a blue-white lerp — so the two
+// halves agree in the limit by construction. That is why the
+// transition cannot pop and why this cannot alias. t reaches 0.5 at
+// the face, so both sides of a boundary agree there.
+fn mosaic_far(p: vec3<f32>) -> vec3<f32> {
+    let scale = max(config.mosaic_passage_scale, 1e-3);
+    let f = fract(p / scale) - 0.5;
+    let a = abs(f);
+    var d = vec3(0.0, 0.0, 0.0);
+    if (a.x >= a.y && a.x >= a.z) { d.x = sign(f.x); }
+    else if (a.y >= a.z)          { d.y = sign(f.y); }
+    else                          { d.z = sign(f.z); }
+    let w = max(config.mosaic_blend, 1e-3) * 0.5;
+    let t = smoothstep(0.5 - w, 0.5, max(a.x, max(a.y, a.z))) * 0.5;
+    let psa = mosaic_cell_seed(mosaic_pcell(p), 7u);
+    let psb = mosaic_cell_seed(mosaic_pcell(p + d * scale), 7u);
+    return mix(mosaic_passage_at(psa, hash_property(psa, 909u)).median,
+               mosaic_passage_at(psb, hash_property(psb, 909u)).median,
+               t);
 }
 
 struct MosaicSample {
@@ -4247,44 +4345,38 @@ struct MosaicSample {
 }
 
 fn mosaic_sample(paint_pos: vec3<f32>, entity_seed: u32, grain: f32) -> MosaicSample {
-    // THE PASSAGE — the coarse lattice, and the body's IDENTITY at every
-    // range. Evaluated first and unconditionally: one hash, no walk.
-    let pcell = vec3<i32>(floor(paint_pos / max(config.mosaic_passage_scale, 1e-3)));
-    let ps = mosaic_cell_seed(pcell, 7u);
-    // K ∈ {2,3,4} members, binder at double weight (Güell's white share).
-    // FAR: the passage picks ONE member for its whole extent — the
-    // honest reading of "the median with variance zero". NEAR: the roll
-    // is per-shard, so a passage is a mixture at fine grain. Same law,
-    // one term at zero.
-    let k = 2u + u32(hash_property(ps, 903u) * 2.999);
-    // hash_property can return exactly 1.0 (one in 2³²) — unclamped this
-    // reaches k+1 and, at K=4, reads band 908 (the variance band) as a
-    // member pick.
-    var roll = min(u32(hash_property(ps, 909u) * f32(k + 1u)), k);
     var s: MosaicSample;
     s.facet = vec3(0.0);
-    var jit = vec3(0.0);
-    var vari = 0.0;
-    if (grain > 0.001) {
-        // THE GRAIN — shard boundary, jitter, plate lean. The walk runs
-        // HERE ONLY: the shard exists solely to carry these three, so
-        // past the band it has nothing to do and is not evaluated.
-        let batch = 0.85 + 0.30 * hash_property(entity_seed, 913u);
-        let shard = mosaic_shard(paint_pos / max(config.mosaic_shard_size * batch, 1e-4));
-        roll = min(u32(hash_property(shard, 904u) * f32(k + 1u)), k);
-        vari = (MOSAIC_VAR_BASE + hash_property(ps, 908u) * MOSAIC_VAR_SPAN) * grain;
-        jit = (vec3(hash_property(shard, 910u),
-                    hash_property(shard, 911u),
-                    hash_property(shard, 912u)) - 0.5) * 2.0;
-        s.facet = (vec3(hash_property(shard, 914u),
-                        hash_property(shard, 915u),
-                        hash_property(shard, 916u)) - 0.5) * 2.0;
+    // Grain 0: the body is still fully itself — its passage medians at
+    // variance zero. The shard exists only to carry jitter, lean and a
+    // boundary, so with all three at zero the walk has nothing to do
+    // and is not evaluated.
+    if (grain <= 0.001) {
+        s.color = mosaic_far(paint_pos);
+        return s;
     }
-    var med = MOSAIC_WHITE;
-    if (roll >= 2u) {
-        med = MOSAIC_MEDIANS[u32(hash_property(ps, 903u + roll) * 7.999)];   // bands 905..907
-    }
-    s.color = clamp(med + jit * vari, vec3(0.0), vec3(1.0));
+    let batch = 0.85 + 0.30 * hash_property(entity_seed, 913u);
+    let cell = max(config.mosaic_shard_size * batch, 1e-4);
+    let sh = mosaic_shard(paint_pos / cell);
+    // THE PASSAGE IS SAMPLED AT THE SHARD'S SITE, not at the fragment.
+    // A tile is one piece of ceramic and cannot be cut in half by a
+    // colour boundary; per-fragment sampling did exactly that. The
+    // lookup is then jittered per shard, so tiles near a boundary fall
+    // on either side and the boundary becomes an INTERLEAVED ZONE —
+    // what a real tiler leaves behind, and what mosaic_far averages.
+    let jitp = (vec3(hash_property(sh.seed, 919u),
+                     hash_property(sh.seed, 920u),
+                     hash_property(sh.seed, 921u)) - 0.5) * 2.0;
+    let look = sh.site * cell + jitp * (config.mosaic_blend * config.mosaic_passage_scale);
+    let pa = mosaic_passage_at(mosaic_cell_seed(mosaic_pcell(look), 7u),
+                               hash_property(sh.seed, 904u));
+    let jitc = (vec3(hash_property(sh.seed, 910u),
+                     hash_property(sh.seed, 911u),
+                     hash_property(sh.seed, 912u)) - 0.5) * 2.0;
+    s.color = clamp(pa.median + jitc * (pa.variance * grain), vec3(0.0), vec3(1.0));
+    s.facet = (vec3(hash_property(sh.seed, 914u),
+                    hash_property(sh.seed, 915u),
+                    hash_property(sh.seed, 916u)) - 0.5) * 2.0;
     return s;
 }
 
@@ -5062,15 +5154,13 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
     let geo_n = normalize(in.normal);
     var n = geo_n;
     // THE MOSAIC (MOSAIC_2) — TWO POPULATIONS, no leak. A mosaic body IS
-    // its mosaic at every range; entity_color is the color a body wears
-    // when it has NO mosaic and is never consulted here. What distance
-    // takes is the GRAIN, not the material: at grain 0 the body is its
-    // passage medians at variance zero — smooth fields, passages still
-    // turning — and the 27-cell walk does not run.
+    // its mosaic at every range; entity_color is what a body wears when
+    // it has NO mosaic and is never consulted here. Distance takes the
+    // GRAIN, never the material — and grain is the veil's own band, so
+    // a body materializes at the ring already ceramic and gains its
+    // grain across exactly the band where it materializes.
     if (in.mosaic_seed != 0u && config.mosaic_enable > 0.5) {
-        let grain = 1.0 - smoothstep(config.mosaic_radius - config.mosaic_icing,
-                                     config.mosaic_radius,
-                                     distance(in.world_pos, render_camera.pos));
+        let grain = 1.0 - veil_t(in.world_pos);
         let paint_pos = vec3(in.world_pos.x, in.paint_y, in.world_pos.z);
         let s = mosaic_sample(paint_pos, in.mosaic_seed, grain);
         albedo = s.color;
