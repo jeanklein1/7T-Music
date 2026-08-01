@@ -62,7 +62,6 @@ struct ArchConfig {
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
     // Position jitter within patch (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.35f;
-    static constexpr float MOSAIC_FRACTION = 0.55f;   // MOSAIC_1: of COLOR_OVER hits
 };
 
 // ── Property Index Registry ──────────────────────────────────────
@@ -155,7 +154,6 @@ inline constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 struct ColumnConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     static constexpr float POSITION_JITTER = 0.35f;
-    static constexpr float MOSAIC_FRACTION = 0.35f;   // MOSAIC_1: of COLOR_OVER hits
 };
 
 // ── Property Index Registry ──────────────────────────────────────

@@ -293,6 +293,15 @@ static_assert(sizeof(ANTENNA_PARAM_DEFS) / sizeof(TierParamDef) == ColIdx::COUNT
 struct ColumnTierRow {
     TierProfile profile;
     float       color_override;
+    // MOSAIC_2: is this KIND ceramic? Güell shatters kinds, not
+    // percentages — the roofs and spires are trencadís, the walls and
+    // hypostyle columns are plain masonry, and the mosaic reads as
+    // extraordinary because plain stone sits beside it. 1.0 = every
+    // body of this tier; 0.0 = none. Orthogonal to color_override: what a
+    // body's FALLBACK color is, and whether it is ceramic, are two
+    // facts. All 1.0 = total override, a setting rather than a rewrite.
+    // Antennas rest at 0.0 — their drum colors are a different concept.
+    float       mosaic_chance;
     float       burial;
     uint32_t    segs_around;
     uint32_t    shaft_rings;
@@ -307,7 +316,7 @@ struct ColumnTierRow {
 //     line 2: BASE_LAYERS  BASE_HEIGHT  BASE_OVERHANG
 //     line 3: CAP_LAYERS   CAP_HEIGHT   CAP_OVERHANG
 //     line 4: SOLID_PADDING  SOLID_HEIGHT  EDGE_BLEND
-//   then: color_override, burial, segs_around, shaft_rings.
+//   then: color_override, mosaic_chance, burial, segs_around, shaft_rings.
 // UNITS: wu except TAPER/ENTASIS (multipliers) and *_LAYERS (counts,
 //   do_round); weight = tier-selection weight; color_override =
 //   probability; burial = fraction of height sunk; segs/rings = mesh
@@ -324,21 +333,21 @@ inline constexpr ColumnTierRow COLUMN_TIERS[] = {
                    {1.0f, 0.3f}, {0.50f, 0.10f}, {0.20f, 0.05f},
                    {1.0f, 0.3f}, {0.40f, 0.08f}, {0.15f, 0.04f},
                    {0.3f, 0.08f}, {1.5f, 0.3f},  {0.4f, 0.08f} }},
-        0.85f, 0.25f, 16, 4
+        0.85f, 0.5f, 0.25f, 16, 4
     },
     /* DORIC  */ {
         { 0.20f, 0.0f, { {6.4f, 1.2f}, {0.38f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
                    {0.0f, 0.0f}, {0.00f, 0.00f}, {0.00f, 0.00f},
                    {2.0f, 0.5f}, {0.50f, 0.10f}, {0.15f, 0.04f},
                    {0.2f, 0.05f}, {1.0f, 0.2f},  {0.3f, 0.05f} }},
-        0.85f, 0.20f, 20, 8
+        0.85f, 0.0f, 0.20f, 20, 8
     },
     /* ORNATE */ {
         { 0.18f, 0.0f, { {16.8f, 2.8f}, {1.35f, 0.19f}, {0.82f, 0.03f}, {0.04f, 0.01f},
                    {2.0f, 0.5f},  {1.20f, 0.25f}, {0.30f, 0.08f},
                    {3.0f, 0.5f},  {1.50f, 0.30f}, {0.40f, 0.10f},
                    {0.4f, 0.10f}, {1.5f, 0.3f},   {0.5f, 0.10f} }},
-        0.85f, 0.20f, 28, 12
+        0.85f, 1.0f, 0.20f, 28, 12
     },
 };
 static_assert(sizeof(COLUMN_TIERS) / sizeof(ColumnTierRow) == static_cast<uint32_t>(ColumnTier::COUNT),
@@ -356,21 +365,21 @@ inline constexpr ColumnTierRow ANTENNA_TIERS[] = {
                    {2.0f, 0.5f},  {2.1f, 0.42f},  {1.5f, 0.3f},
                    {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
                    {0.2f, 0.05f}, {1.0f, 0.2f},   {0.3f, 0.05f} }},
-        0.40f, 0.20f, 16, 6
+        0.40f, 0.0f, 0.20f, 16, 6
     },
     /* SQUAT    */ {
         { 0.22f, 0.0f, { {32.5f, 6.5f}, {0.90f, 0.15f}, {0.85f, 0.05f}, {0.00f, 0.0f},
                    {2.0f, 0.5f},  {2.0f, 0.4f},   {6.0f, 1.2f},
                    {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
                    {0.4f, 0.10f}, {1.5f, 0.3f},   {0.4f, 0.08f} }},
-        0.40f, 0.20f, 16, 6
+        0.40f, 0.0f, 0.20f, 16, 6
     },
     /* COLOSSAL */ {
         { 0.13f, 0.0f, { {125.0f, 25.0f}, {3.00f, 0.50f}, {0.85f, 0.05f}, {0.00f, 0.0f},
                    {2.0f, 0.5f},    {7.5f, 1.5f},   {17.5f, 3.5f},
                    {0.0f, 0.0f},    {7.5f, 1.5f},   {0.0f, 0.0f},
                    {1.95f, 0.39f},  {12.0f, 2.4f},  {1.0f, 0.20f} }},
-        0.40f, 0.20f, 20, 8
+        0.40f, 0.0f, 0.20f, 20, 8
     },
 };
 static_assert(sizeof(ANTENNA_TIERS) / sizeof(ColumnTierRow) == static_cast<uint32_t>(AntennaTier::COUNT),
@@ -447,19 +456,22 @@ inline void column_compute_solid_half(EntityInstance& inst, const TierProfile&) 
 }
 
 inline void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
+    // THE MOSAIC ROLL (MOSAIC_2) — a TIER fact, not a sub-roll of the
+    // palette. Orthogonal to color_over by ruling: what a body's
+    // fallback color is, and whether it is ceramic, are two facts, and
+    // nesting them capped the mosaic at 85% for no reason. A painted
+    // body never reads its fallback at any range (the far field is the
+    // passage median at variance zero), so the fallback below is now
+    // written for the PLAIN population alone.
+    if (cpu_hash_f(inst.seed, ColumnProp::MOSAIC_ROLL) < COLUMN_TIERS[inst.tier_idx].mosaic_chance) {
+        inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ColumnProp::MOSAIC_SEED) * 65534.0f);
+    }
     // Sandstone / palette override
     if (cpu_hash_f(inst.seed, ColumnProp::COLOR_OVER) < COLUMN_TIERS[inst.tier_idx].color_override) {
         uint32_t pal_idx = cpu_hash(inst.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
         inst.colors[0] = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
         inst.colors[1] = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
         inst.colors[2] = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
-        // THE MOSAIC ROLL (MOSAIC_1): a decorated column may be trencadís
-        // — a sub-roll of the COLOR_OVER hit; plain sandstone never
-        // mosaics. The flat palette color above stays as the dissolve
-        // target.
-        if (cpu_hash_f(inst.seed, ColumnProp::MOSAIC_ROLL) < ColumnConfig::MOSAIC_FRACTION) {
-            inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ColumnProp::MOSAIC_SEED) * 65534.0f);
-        }
     } else {
         inst.colors[0] = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
         inst.colors[1] = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
@@ -929,19 +941,22 @@ inline void arch_compute_solid_half(EntityInstance& inst, const TierProfile&) {
 
 inline void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     const auto& tp = ARCH_TIERS[inst.tier_idx];
+    // THE MOSAIC ROLL (MOSAIC_2) — a TIER fact, not a sub-roll of the
+    // palette. Orthogonal to color_over by ruling: what a body's
+    // fallback color is, and whether it is ceramic, are two facts, and
+    // nesting them capped the mosaic at 85% for no reason. A painted
+    // body never reads its fallback at any range (the far field is the
+    // passage median at variance zero), so the fallback below is now
+    // written for the PLAIN population alone.
+    if (cpu_hash_f(inst.seed, ArchProp::MOSAIC_ROLL) < tp.mosaic_chance) {
+        inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ArchProp::MOSAIC_SEED) * 65534.0f);
+    }
     // Base color: sandstone/palette
     if (cpu_hash_f(inst.seed, ArchProp::COLOR_OVER) < tp.color_override) {
         uint32_t pal_idx = cpu_hash(inst.seed, ArchProp::COLOR_OVER + 1u) % ARCH_PALETTE_COUNT;
         inst.colors[0] = ARCH_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_R) - 0.5f) * 0.06f;
         inst.colors[1] = ARCH_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_G) - 0.5f) * 0.06f;
         inst.colors[2] = ARCH_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_B) - 0.5f) * 0.06f;
-        // THE MOSAIC ROLL (MOSAIC_1): a decorated arch may be trencadís
-        // — a sub-roll of the COLOR_OVER hit; plain sandstone never
-        // mosaics. The flat palette color above stays as the dissolve
-        // target.
-        if (cpu_hash_f(inst.seed, ArchProp::MOSAIC_ROLL) < ArchConfig::MOSAIC_FRACTION) {
-            inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ArchProp::MOSAIC_SEED) * 65534.0f);
-        }
     } else {
         inst.colors[0] = ARCH_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_R) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
         inst.colors[1] = ARCH_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_G) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
