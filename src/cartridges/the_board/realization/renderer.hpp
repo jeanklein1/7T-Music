@@ -2050,13 +2050,18 @@ namespace t7 {
                     // the floor. mix(MAX, MIN, cos) could never exceed
                     // SHADOW_BIAS_MAX by construction; slope-scale with no
                     // clamp WAS unbounded, running 4.3x the old term at 85 deg
-                    // and 10.1x at 88 deg. Seven of the eleven shadow
-                    // pipelines are CullMode::None zero-thickness sheets —
-                    // pawn, column, palm, cactus, blade, shell, ribbon — whose
-                    // faces reach grazing at every twist, and an unbounded
-                    // bias there could push a caster clean out of the depth
-                    // range so it stopped occluding at all. That is the ribbon
-                    // chainsaw's leading candidate.
+                    // and 10.1x at 88 deg. Seven of the eleven shadow pipelines
+                    // are CullMode::None, and an unbounded bias on a body whose
+                    // faces reach grazing could push a caster clean out of the
+                    // depth range so it stopped occluding at all.
+                    //
+                    // (This sentence used to call those seven "zero-thickness
+                    // sheets". It is false and it was mine: PENUMBRA_3 C1 read
+                    // the builders and found the RIBBON is a CLOSED capped tube
+                    // — 4 faces x 6 verts plus 2 caps x 6 — and the PAWN a closed
+                    // solid of revolution with a bottom cap fan. CullMode::None
+                    // is a draw decision, not a thickness claim. The correct
+                    // discriminator is at the BiasProfile enum below.)
                     //
                     // 2.8e-3 is the old SHADOW_BIAS_MAX carried across
                     // UMBRA_5 CORRECTLY: 8.192/2048 = 4.0e-3 NDC at the old
@@ -2126,9 +2131,66 @@ namespace t7 {
                     // Forks are parameters: shadow-VS (verbatim), VBL, cullMode — same
                     // Back/None split as the entity family (single-sided column/palm/cactus/
                     // blade + pawn/ribbon/shell → None; solids → Back).
+                    // TWO BIAS PROFILES (PENUMBRA_3 C2). The profile rides the
+                    // existing cullMode fork as a DEFAULTED 7th parameter, so the
+                    // ten call sites that keep SOLID stay byte-identical. It must
+                    // sit after `out` and not beside `cull`: default arguments are
+                    // trailing, and `out` has none.
+                    //
+                    // WHY TWO. depthBiasClamp bounds how far slope-scale may push a
+                    // caster. On terrain that bound is never reached — cell caps are
+                    // gently sloped, so the slope term stays far below it. On a body
+                    // whose faces reach GRAZING it is reached constantly, and it
+                    // RELEASES as the face turns away, so the shadow edge steps in
+                    // and out along the body. That is the serration the gate reports
+                    // on cubes and the ribbon, and it is why terrain improved while
+                    // they did not: they are the bodies that reach the ceiling.
+                    //
+                    // A tighter ceiling is the right direction for them and not a
+                    // compromise. A body that reaches grazing gains nothing from a
+                    // large bias — the receiver-side normal offset in
+                    // sample_shadow_pcf already covers its self-shadowing — while it
+                    // pays the full displacement.
+                    //
+                    // THE CLASSIFICATION IS NOT cullMode, AND NOT sheet-vs-solid.
+                    // Both proxies were tried and both are wrong here (C1):
+                    //   · cullMode == None misses the cube entirely — shadow_monolith
+                    //     is Back, because a cube IS closed.
+                    //   · "thin sheet" is false for the two loudest cases: the ribbon
+                    //     is a CLOSED capped tube and the pawn a closed solid of
+                    //     revolution, both drawn None.
+                    // The real discriminator C1 found is that the serrating bodies are
+                    // built from NON-PLANAR QUADS SPLIT INTO TWO TRIANGLES — the cube
+                    // by independent corner jitter (J = 0.06, giving up to 5.04
+                    // degrees between the two triangles of one face), the ribbon by
+                    // twist. Slope-scale is computed PER TRIANGLE, so the two halves
+                    // of one visual face disagree, and the ceiling bounds how far that
+                    // disagreement can travel. Hence: terrain keeps the loose ceiling
+                    // because it is the one body with a large gently-sloped area that
+                    // never reaches it; everything else takes the tight one.
+                    enum class BiasProfile { SOLID, GRAZING };
+
                     auto makeShadow = [&](const char* label, const char* dbgLabel, const char* vsEntry,
                                           const wgpu::VertexBufferLayout* vbl, wgpu::CullMode cull,
-                                          wgpu::RenderPipeline& out) -> bool {
+                                          wgpu::RenderPipeline& out,
+                                          BiasProfile profile = BiasProfile::GRAZING) -> bool {
+                        // Body-local, so its address is valid for exactly as long as
+                        // `desc`'s is — and CreateRenderPipeline is SYNCHRONOUS here
+                        // (tPipe invokes its closure immediately;
+                        // CreateRenderPipelineAsync is absent repo-wide), so nothing
+                        // outlives this call. Starts from the shared state, so the
+                        // format/write/compare triple has one home still.
+                        wgpu::DepthStencilState ds = shadowDepth;
+                        if (profile == BiasProfile::GRAZING) {
+                            // 0.300 wu / 1100.0 wu. World units are the fact; the NDC
+                            // number is derived against SUN_FAR - SUN_NEAR, exactly as
+                            // the SOLID ceiling is. 0.300 wu is 37% of the 0.820 wu
+                            // visible penumbra, so what shift survives stays inside
+                            // the blur meant to hide it.
+                            ds.depthBiasSlopeScale = 0.5f;
+                            ds.depthBiasClamp      = 2.727e-4f;
+                        }
+
                         wgpu::RenderPipelineDescriptor desc{};
                         desc.label = dbgLabel;
                         desc.layout = shadowRenderLayout;
@@ -2139,7 +2201,7 @@ namespace t7 {
                         desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
                         desc.primitive.cullMode = cull;
                         desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
+                        desc.depthStencil = &ds;
                         desc.fragment = nullptr;
                         return tPipe(label, [&]() {
                             out = device_.CreateRenderPipeline(&desc);
@@ -2163,8 +2225,15 @@ namespace t7 {
                     shadowMeshVBL.attributes = shadowMeshAttrs.data();
 
                     // Shadow patch-terrain (bufferless, Back) + pawn (bufferless, None).
+                    // The one SOLID: terrain's cell caps are gently sloped and never
+                    // reach the ceiling, and it is the body whose gate already passed.
+                    // GoL slabs, pyramids and the 8 wu patch skirt ride this pipeline
+                    // too and DO present vertical faces (C1) — flagged, not split,
+                    // because no measurement has asked and one pipeline cannot carry
+                    // two profiles.
                     if (!makeShadow("shadow_patch_terrain", "Shadow Patch Terrain", Entry::SHADOW_PATCH_TERRAIN_VS,
-                        nullptr, wgpu::CullMode::Back, shadowPatchTerrainPipeline_)) return false;
+                        nullptr, wgpu::CullMode::Back, shadowPatchTerrainPipeline_,
+                        BiasProfile::SOLID)) return false;
                     if (!makeShadow("shadow_pawn", "Shadow Pawn", Entry::SHADOW_PAWN_VS,
                         nullptr, wgpu::CullMode::None, shadowPawnPipeline_)) return false;
 
