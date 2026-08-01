@@ -1393,3 +1393,143 @@ back) or `SUN_NEAR`/`SUN_FAR`, and no PENUMBRA handoff authorises touching the s
 frustum's depth. Raising `SUN_ALTITUDE` alone is not free either — it moves the whole
 `[near, far]` window along the light axis and can clip the *far* side instead.
 **HORIZON, dated 2026-07-31.**
+
+---
+
+# PENUMBRA_3 — CLASSIFICATION
+
+Read 2026-07-31 at `cbc6687`. Four questions, each with an adversarial refuter. Three
+came back `SOUND_WITH_GAPS`; **C1-c came back `MATERIALLY_WRONG`, and its correction is
+the most important finding in this campaign.**
+
+## C1-a — the eleven shadow-writing pipelines
+
+`makeShadow` is the only depth-only pipeline builder in the tree: `desc.fragment =
+nullptr` occurs exactly once in all of `src/`, and `shadowDepth` is attached at exactly
+one site. Eleven calls, eleven `shadow*Pipeline_` members, eleven `fn shadow_*` entry
+points in `world.wgsl` — a 1:1 match with no orphan and no extra. (Enclosing symbol is
+`createRenderPipelines()`, not `createPipelines`; the refuter corrected that.)
+
+| # | pipeline | body | `cullMode` verbatim | ROSTER gate |
+|---|---|---|---|---|
+| 1 | `shadowPatchTerrainPipeline_` | terrain (LOD1 cell IB) | `wgpu::CullMode::Back` | — |
+| 2 | `shadowPawnPipeline_` | pawn + agents | `wgpu::CullMode::None` | — |
+| 3 | `shadowSpherePipeline_` | orbital spheres | `wgpu::CullMode::Back` | `ROSTER.sphere` |
+| 4 | `shadowMonolithPipeline_` | **the cubes** | `wgpu::CullMode::Back` | **`ROSTER.cube`** |
+| 5 | `shadowArchPipeline_` | catenary arches | `wgpu::CullMode::Back` | `ROSTER.arch` |
+| 6 | `shadowColumnPipeline_` | columns **and antennas** | `wgpu::CullMode::None` | `ROSTER.column \|\| ROSTER.antenna` |
+| 7 | `shadowPalmPipeline_` | palms | `wgpu::CullMode::None` | `ROSTER.palm` |
+| 8 | `shadowCactusPipeline_` | cacti | `wgpu::CullMode::None` | `ROSTER.cactus` |
+| 9 | `shadowBladePipeline_` | blade clusters | `wgpu::CullMode::None` | `ROSTER.blade` |
+| 10 | `shadowShellPipeline_` | indoor shell | `wgpu::CullMode::None` | `ROSTER.indoor_shell` |
+| 11 | `shadowRibbonPipeline_` | sky ribbon | `wgpu::CullMode::None` | `ROSTER.ribbon` |
+
+**Bodies that cast without a pipeline of their own** — the refuters' catch, and all three
+ride pipeline 1: **GoL zone slabs** (`ug_cell_lift` in `shadow_patch_terrain_vs` raises
+cells into slabs with *vertical curtain walls*), **pyramids** (baked into the heightfield
+via `contrib_pyramids_at` — "Pyramids are TERRAIN, not drawn geometry"), and the terrain
+**skirt** (`d.drop = PATCH_SKIRT_DEPTH` = 8.0 wu, an exactly-vertical wall at every patch
+rim). So "terrain" is not uniformly gentle: it carries vertical faces too.
+
+**Antennas have no pipeline of their own either** — they ride `shadow_column` at slot
+offset 16. One pipeline, two bodies.
+
+## C1-b — the cubes are the `monolith` pipeline, and the name is the reason they were missed
+
+`createMonolithMesh` is verbatim *"Imperfect unit cube: 6 faces, slightly jittered
+corners"* — a 24-vertex, 36-index box. The C++ symbol family says *monolith*; the ROSTER
+bit, the instance count (`MAX_CUBE_INSTANCES`), the slot offset (`CUBE_SLOT_OFFSET`), the
+behaviour module (`bodies/cube_behaviors.hpp`) and the WGSL `geometry_type == 1u` all say
+*cube*. **A label that lies, and precisely why "cubes" fell out of the earlier list.**
+
+**The flat panels are the same pipeline.** The box is scaled per instance by
+`aspect_y`/`aspect_z`, documented in the GPU struct as *"(1.0=cube, >1=tall, <1=flat)"*
+and *"(1.0=cube, <1=thin slab)"*. Cube tier 3 samples `ASPECT_Y` μ=5.0 and `ASPECT_Z`
+μ=0.15 — a tall thin slab, i.e. a panel. One pipeline draws both the cubes and the panels
+Jean sees, exactly as described.
+
+**They spin.** `update_cube` rewrites the orientation quaternion every frame —
+`spin_angle = fe.t * fe.spin_speed` about `normalize(vec3(fe.spin_tilt_x, 1.0,
+fe.spin_tilt_z))` — and `shadow_monolith_vs` applies it. Six large faces on a tumbling
+axis sweep the full incidence range against a fixed sun.
+
+**Why it was missed:** `shadow_monolith` is `CullMode::Back`. The earlier classification
+filtered on `cullMode == None` and got exactly seven. That filter is a **sheet-vs-solid
+proxy, and not even a correct one** — see C1-c.
+
+## C1-c — the correction: THE CUBE'S FACES ARE NOT PLANAR
+
+The reader claimed the cube presents "6 large PLANAR faces" and built the grazing story on
+it. **False, and the refuter caught it at the mesh builder.** `createMonolithMesh` jitters
+all eight corners *independently* before any face is constructed:
+
+```cpp
+static constexpr float J = 0.06f;  // jitter magnitude
+```
+
+so each face's four corners are not coplanar. Measured, per face — the angle between the
+two triangles the quad is split into:
+
+| face | non-planarity | angle between its two triangles |
+|---|---|---|
+| 0, 1 | 0.012, 0.008 | 0.12°, 0.08° |
+| 2 | 0.016 | 0.17° |
+| **3, 4, 5** | **0.472, 0.467, 0.472** | **5.04°, 4.86°, 4.76°** |
+
+**This is a second serration mechanism, and it is more specific than the first.** The
+rasterizer computes slope-scaled depth bias **per triangle**. Two triangles of one visual
+face whose normals differ by ~5° get *different* biases — and at grazing incidence, where
+the depth gradient is steepest, that difference is largest. The result is a depth step
+along each face's shared diagonal, which rotates with the body.
+
+**It predicts a diagonal pattern, not a uniform edge shift** — a testable discriminator
+Jean can check without instrumentation.
+
+**The ribbon has the same structure by construction.** Its tube quads twist along the
+trail, so their four corners are not coplanar either, and each is split into two
+triangles. Cubes and ribbon are exactly the two bodies whose faces are split non-planar
+quads — and exactly the two Jean reports serrating.
+
+**Two further corrections to the "thin sheet" framing, both against comments I wrote:**
+
+- **`CullMode::None` does not mean thin.** The **ribbon is a CLOSED capped tube**
+  (`TUBE_VERTS_PER_SEGMENT = 24u  // 4 faces × 6 verts`, `TUBE_CAP_VERTS = 12u  // 2 caps
+  × 6 verts`), and the **pawn is a closed solid of revolution** with a bottom cap fan.
+  The `renderer.hpp` comment calling those seven *"CullMode::None zero-thickness sheets"*
+  is **false for at least two of them**, and it is mine, from UMBRA_6. Corrected in C2.
+- Column, palm and cactus trunks are **open tubes at the base** — no bottom cap — so
+  "closed" is not uniform there either.
+
+## C1-d — the fork, and what a second profile costs
+
+`cullMode` is a **parameter**, not a branch: `makeShadow` has no `if`/`switch` in its
+body. Six parameters — `label`, `dbgLabel`, `vsEntry`, `vbl`, `cull`, `out&`. Eleven call
+sites, all in one block.
+
+**A second profile can ride it without touching a single existing call site**, subject to
+one hard constraint: default arguments must be **trailing**, and the current last
+parameter is the non-defaulted out-reference `wgpu::RenderPipeline& out`. So a defaulted
+profile parameter must go at **position 7, after `out`**. Overloading is not available —
+a lambda has one closure type with one `operator()`.
+
+**The lifetime fact that decides where a second depth state lives.**
+`desc.depthStencil = &shadowDepth` is a **pointer**, so the pointee must be alive and
+correct at `CreateRenderPipeline`. That call is **synchronous** — `tPipe` invokes
+`bool ok = fn();` immediately, and `CreateRenderPipelineAsync` is absent from the entire
+repository. Therefore no lifetime extension is needed, and the **smallest** correct form
+is a `wgpu::DepthStencilState` local to the lambda body: it has exactly the storage
+duration of `desc` itself, whose address is already passed the same way.
+
+## What this changes for C2
+
+The handoff's rule — classify on thin-vs-closed **and** grazing-face presentation, tight
+profile when they disagree — survives, but **neither axis is the real discriminator.**
+The bodies that serrate are the ones whose faces are **non-planar quads split into two
+triangles**: the cube by corner jitter, the ribbon by twist. Terrain's cell caps are
+near-planar and gently sloped, which is why it improved.
+
+A tighter ceiling still helps — it bounds the *magnitude* of the per-triangle
+disagreement — so C2 lands as designed. But its expected effect is now bounded, and the
+STOP condition anticipates exactly this: *"coincident geometry in the ribbon's own
+mesh"*. If serration survives C2 on the cube, the residue is the 5° jitter, and that is a
+mesh question, not a bias question.
