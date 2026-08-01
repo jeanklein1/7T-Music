@@ -967,10 +967,20 @@ the tap-centre span plus one texel of ramp:
 | UMBRA_8 3×3 | 9 | 0.820 wu | 0.615 wu |
 | P3 3×3 spacing 2 | 9 | 1.230 wu | 1.025 wu *(banded — withdrawn)* |
 | **N1 4×4 (current)** | **16** | **1.025 wu** | **0.820 wu** |
-| N4 5×5 *(held)* | 25 | 1.230 wu | 1.025 wu |
+| ~~N4 5×5~~ *(DEAD)* | 25 | 1.230 wu | 1.025 wu |
 | pre-campaign 4×4 @2048 | 16 | 1.465 wu | 1.171 wu |
 
-The next rung up is N4 — 25 taps — and it lands only once a measurement asks.
+**N4 IS DEAD, and the reason is the point.** It was held as the release valve for
+terrain sawtooth at N1's narrower filter. The post-N1 gate stamped terrain as
+*improved* at 0.820 wu visible — **the measurement declined to ask.** A rung removed
+for cause is a finding; a rung left standing unexercised is the residue this family
+deletes. If sawtooth ever returns, 25 taps at integer offsets −2…2 is what it was, and
+it would also close the `SHADOW_MAP_SIZE` mirror below.
+
+**The escalation figure was wrong in the same units as everything else.** PENUMBRA_2's
+horizon said matching the pre-campaign penumbra needs 7 taps per axis. In *visible*
+units it is **6 per axis (36 taps)** — 5×5 already reaches 87.6%, and 6 reaches 105%.
+Corrected for accuracy; the rung stays unscheduled.
 
 **The crispness reserve — a control-panel fact, not a tuning tip.**
 `SUN_HALF_EXTENT` is a single WGSL const from which texel world-size, both normal
@@ -1533,3 +1543,84 @@ disagreement — so C2 lands as designed. But its expected effect is now bounded
 STOP condition anticipates exactly this: *"coincident geometry in the ribbon's own
 mesh"*. If serration survives C2 on the cube, the residue is the 5° jitter, and that is a
 mesh question, not a bias question.
+
+---
+
+# PENUMBRA_3 — CLOSE
+
+This closes the UMBRA / PENUMBRA family.
+
+## Gate results — Jean's stamp, 2026-07-31, post-N1 boot
+
+| artifact | result |
+|---|---|
+| **Banding** | **GONE.** N1 passes. |
+| **Terrain sawtooth** | **IMPROVED** at 0.820 wu visible. N4 dead — the measurement declined to ask. |
+| **Pawn foot contact** | **PASSES** (outdoor). Indoor spot parity (P5) remains unwitnessed. |
+| **Cubes + ribbon** | **SERRATION SURVIVES.** Cause identified (C1); C2 addresses it. |
+| Sphere square | not run |
+| Checker | not run |
+
+## Three corrections that lived only in chat until now
+
+P8 says a finding exists only once committed. These were established during PENUMBRA_2
+and PENUMBRA_3 and were, until this commit, in conversation only.
+
+**1. Support is not penumbra.** Every penumbra figure in this family's docs before N1's
+follow-up was the kernel's *support* — which texels are read. The **visible** transition
+is one texel narrower, because each tap reads a bilinearly reconstructed value that is
+itself a one-texel ramp: the filter reaches one texel further than it varies.
+
+```
+visible transition = (N-1) * spacing + 1   texels
+support            = (N-1) * spacing + 2   texels
+```
+
+Verified numerically by sweeping a step occluder across the kernel. **Where these docs
+state a penumbra width, they now state which quantity it is.**
+
+**2. The escalation number was wrong in the same units.** Corrected in the ladder above:
+6 taps per axis, not 7.
+
+**3. The sun kernel's map-size dependency is now permanent, and it is structural.** N1's
+half-texel centres cannot ride the const-integer `offset` parameter, so they read
+`TEXEL_UV` and therefore `SHADOW_MAP_SIZE` in WGSL. A 5×5 integer-offset kernel would
+have closed that mirror — **N4 is dead, so it stays open.** Recorded in the L3 MIRROR
+registry at `state.hpp` as structural rather than incidental: the entry has been struck
+and re-added once already (UMBRA_8 removed it, N1 restored it), and **the tap arrangement
+and the mirror are the same decision.**
+
+## The family ledger
+
+| handoff | state | note |
+|---|---|---|
+| UMBRA P1–P8 | closed | |
+| PENUMBRA_1 P1–P7 | landed | |
+| PENUMBRA_1 P8 | **superseded by C2** | the bias-profile fork landed there, reclassified — its `CullMode::None` proxy was wrong twice over |
+| PENUMBRA_2 N1 | landed, **gate passed** | banding gone |
+| PENUMBRA_2 N2 | landed | depth range 599.9 → 1100.0 wu; `MOOD_FINITE_OUTDOOR` sized it, not the sunset |
+| PENUMBRA_2 N3 | landed | P10, and P11 which had been cited as binding without existing |
+| PENUMBRA_2 N4 | **DEAD** | measurement declined |
+| PENUMBRA_3 C1–C3 | this campaign | |
+
+## Where the boundary of this family is
+
+**If serration survives C2 on the same bodies, report and stop.** The remaining
+candidates are the cube's own 5.04° corner jitter and the ribbon's twist — non-planar
+quads split into two triangles, biased per triangle. Those are geometry, not bias, and
+they have no cheap fix. A geometry campaign is a different question with a different
+gate, and it belongs to Jean before it belongs to a handoff.
+
+## Still unwitnessed — carried, not chased
+
+- **Indoor spot parity (PENUMBRA_1 P5).** Never seen. Indoor moods run no sun shadow at
+  all (`render_spot_lights.count == 0u`), so the entire spot path — offset, ceiling,
+  parity — is unstamped.
+- **Sphere square** and **checker** discriminators: one pawn walk and one glance, unrun.
+  P1-E and P1-B respectively predict what each will show.
+- **Square spot tiles.** Four square 2048² tiles as a 2×2 grid in one dedicated 4096²
+  atlas: same VRAM, isotropic texels, and **the sun map stops being repurposed** — which
+  would retire the `count == 0u` gate and let sun and spot shadows coexist indoors. That
+  last consequence is an aesthetic decision, not a cleanup.
+- **The six shadow VS that omit the veil-ring kill** their colour twins apply, so those
+  bodies cast beyond the visible rim. Found by C1's refuters; never chased.
