@@ -455,6 +455,19 @@ inline void column_compute_solid_half(EntityInstance& inst, const TierProfile&) 
     inst.burial = std::max(0.2f, solid_h * COLUMN_TIERS[inst.tier_idx].burial);
 }
 
+// THE SPREAD LAW's one arithmetic (MOSAIC_2d) — median + jitter·spread,
+// clamped. One home for both families and both paths (palette and
+// sandstone), so "varied" has a single definition. Sited above the
+// FIRST consumer (column_compute_colors); the arch's is ~500 lines
+// below, and C++ wants the declaration before either.
+inline float entity_spread(uint32_t seed, uint32_t prop) {
+    return ENTITY_SPREAD_BASE + cpu_hash_f(seed, prop) * ENTITY_SPREAD_SPAN;
+}
+inline float entity_tint(float median, uint32_t seed, uint32_t prop, float spread) {
+    const float v = median + (cpu_hash_f(seed, prop) - 0.5f) * 2.0f * spread;
+    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+}
+
 inline void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     // THE MOSAIC ROLL (MOSAIC_2) — a TIER fact, not a sub-roll of the
     // palette. Orthogonal to color_over by ruling: what a body's
@@ -466,16 +479,21 @@ inline void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits
     if (cpu_hash_f(inst.seed, ColumnProp::MOSAIC_ROLL) < COLUMN_TIERS[inst.tier_idx].mosaic_chance) {
         inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ColumnProp::MOSAIC_SEED) * 65534.0f);
     }
-    // Sandstone / palette override
+    // THE SPREAD (MOSAIC_2d): rolled once per body, before the branch —
+    // how far THIS column sits from whichever median it lands on. Both
+    // paths read it, so "varied" is one definition.
+    const float spread = entity_spread(inst.seed, ColumnProp::COLOR_SPREAD);
+    // Sandstone / palette override — THE PLAIN POPULATION's scheme. A
+    // mosaic column never reads this at any range (MOSAIC_2c).
     if (cpu_hash_f(inst.seed, ColumnProp::COLOR_OVER) < COLUMN_TIERS[inst.tier_idx].color_override) {
         uint32_t pal_idx = cpu_hash(inst.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
-        inst.colors[0] = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
-        inst.colors[1] = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
-        inst.colors[2] = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+        inst.colors[0] = entity_tint(COLUMN_PALETTE[pal_idx][0], inst.seed, ColumnProp::COLOR_VAR_R, spread);
+        inst.colors[1] = entity_tint(COLUMN_PALETTE[pal_idx][1], inst.seed, ColumnProp::COLOR_VAR_G, spread);
+        inst.colors[2] = entity_tint(COLUMN_PALETTE[pal_idx][2], inst.seed, ColumnProp::COLOR_VAR_B, spread);
     } else {
-        inst.colors[0] = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-        inst.colors[1] = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-        inst.colors[2] = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(inst.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+        inst.colors[0] = entity_tint(COLUMN_SANDSTONE_BASE[0], inst.seed, ColumnProp::COLOR_VAR_R, spread);
+        inst.colors[1] = entity_tint(COLUMN_SANDSTONE_BASE[1], inst.seed, ColumnProp::COLOR_VAR_G, spread);
+        inst.colors[2] = entity_tint(COLUMN_SANDSTONE_BASE[2], inst.seed, ColumnProp::COLOR_VAR_B, spread);
     }
     // No drum colors for classical columns
     for (int i = 3; i < 12; i++) inst.colors[i] = 0.0f;
@@ -951,16 +969,21 @@ inline void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&,
     if (cpu_hash_f(inst.seed, ArchProp::MOSAIC_ROLL) < tp.mosaic_chance) {
         inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ArchProp::MOSAIC_SEED) * 65534.0f);
     }
-    // Base color: sandstone/palette
+    // THE SPREAD (MOSAIC_2d): rolled once per body, before the branch —
+    // how far THIS arch sits from whichever median it lands on. Both
+    // paths read it, so "varied" is one definition.
+    const float spread = entity_spread(inst.seed, ArchProp::COLOR_SPREAD);
+    // Base color: sandstone/palette — THE PLAIN POPULATION's scheme. A
+    // mosaic arch never reads this at any range (MOSAIC_2c).
     if (cpu_hash_f(inst.seed, ArchProp::COLOR_OVER) < tp.color_override) {
         uint32_t pal_idx = cpu_hash(inst.seed, ArchProp::COLOR_OVER + 1u) % ARCH_PALETTE_COUNT;
-        inst.colors[0] = ARCH_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_R) - 0.5f) * 0.06f;
-        inst.colors[1] = ARCH_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_G) - 0.5f) * 0.06f;
-        inst.colors[2] = ARCH_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+        inst.colors[0] = entity_tint(ARCH_PALETTE[pal_idx][0], inst.seed, ArchProp::COLOR_VAR_R, spread);
+        inst.colors[1] = entity_tint(ARCH_PALETTE[pal_idx][1], inst.seed, ArchProp::COLOR_VAR_G, spread);
+        inst.colors[2] = entity_tint(ARCH_PALETTE[pal_idx][2], inst.seed, ArchProp::COLOR_VAR_B, spread);
     } else {
-        inst.colors[0] = ARCH_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_R) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
-        inst.colors[1] = ARCH_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_G) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
-        inst.colors[2] = ARCH_SANDSTONE_BASE[2] + (cpu_hash_f(inst.seed, ArchProp::COLOR_VAR_B) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
+        inst.colors[0] = entity_tint(ARCH_SANDSTONE_BASE[0], inst.seed, ArchProp::COLOR_VAR_R, spread);
+        inst.colors[1] = entity_tint(ARCH_SANDSTONE_BASE[1], inst.seed, ArchProp::COLOR_VAR_G, spread);
+        inst.colors[2] = entity_tint(ARCH_SANDSTONE_BASE[2], inst.seed, ArchProp::COLOR_VAR_B, spread);
     }
     // Mesh color defaults to base; portal override applied in write_gpu
     // (needs ActiveArch.is_portal which is set by write_active first)

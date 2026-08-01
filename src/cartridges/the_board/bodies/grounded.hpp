@@ -39,6 +39,22 @@ namespace the_board {
 // delete; revive-or-delete when the pawn-height coupling is next worked.
 inline constexpr float PAWN_HEIGHT_UNITS = 1.5f;     // matches WGSL PAWN_HEIGHT
 
+// ═══ THE SPREAD LAW (MOSAIC_2) ═══════════════════════════════════
+//
+// The terrain's sorted-variance shape at the body's rate: raffle a
+// median, then raffle how far THIS body may sit from it. A fixed ±3%
+// puts every body the same distance from its color, which is why a
+// hundred plain arches read as one stone. A raffled spread makes some
+// bodies nearly flat and others strongly mottled — that is what
+// "varied" means, and it is the terrain's own law (var = base +
+// raw·span) at a smaller number.
+//
+// The span sits well under the terrain's 0.23 deliberately: a region is
+// a field the eye averages across, while a body wears its whole spread
+// at once. 0.16 is a body reading as its palette color in a different
+// light; 0.23 is a body reading as a different color.
+inline constexpr float ENTITY_SPREAD_BASE = 0.02f;
+inline constexpr float ENTITY_SPREAD_SPAN = 0.16f;
 // ═══ VOCABULARY: ARCH ════════════════════════════════════════════
 
 enum class ArchTier : uint32_t {
@@ -49,12 +65,24 @@ enum class ArchTier : uint32_t {
 };
 
 // ── Color Palette ────────────────────────────────────────────────
+// A QUARRIED vocabulary (MOSAIC_2d), deliberately distinct from the two
+// sets already in the tree: COLUMN_PALETTE is painted (sky, coral,
+// lavender), MOSAIC_MEDIANS is ceramic. Index 0 is the incumbent grey
+// unchanged, so every existing arch that rolled palette keeps a color
+// it could already have had. ARCH_SANDSTONE_BASE is deliberately NOT
+// duplicated here — it has one home.
 inline constexpr float ARCH_PALETTE[][3] = {
-    { 0.82f, 0.80f, 0.78f },   // 0: light grey stone
+    { 0.82f, 0.80f, 0.78f },   // 0: grey stone   (the incumbent)
+    { 0.88f, 0.85f, 0.76f },   // 1: limestone
+    { 0.28f, 0.28f, 0.30f },   // 2: basalt
+    { 0.72f, 0.42f, 0.30f },   // 3: terracotta
+    { 0.80f, 0.62f, 0.32f },   // 4: ochre
+    { 0.44f, 0.62f, 0.56f },   // 5: verdigris
+    { 0.48f, 0.30f, 0.34f },   // 6: porphyry
+    { 0.92f, 0.90f, 0.86f },   // 7: chalk
 };
-inline constexpr uint32_t ARCH_PALETTE_COUNT = 1;
+inline constexpr uint32_t ARCH_PALETTE_COUNT = 8;
 inline constexpr float ARCH_SANDSTONE_BASE[3] = { 0.75f, 0.68f, 0.60f };
-inline constexpr float ARCH_SANDSTONE_VARIANCE = 0.04f;
 
 // ── Spawn Configuration ──────────────────────────────────────────
 struct ArchConfig {
@@ -84,8 +112,9 @@ struct ArchProp {
     static constexpr uint32_t COLOR_VAR_R = 621u;
     static constexpr uint32_t COLOR_VAR_G = 622u;
     static constexpr uint32_t COLOR_VAR_B = 623u;
-    static constexpr uint32_t MOSAIC_ROLL = 650u;   // MOSAIC_1: sub-roll of the COLOR_OVER hit
+    static constexpr uint32_t MOSAIC_ROLL = 650u;   // MOSAIC_2: the tier's ceramic roll
     static constexpr uint32_t MOSAIC_SEED = 651u;   // MOSAIC_1: 16-bit paint identity
+    static constexpr uint32_t COLOR_SPREAD = 652u;  // MOSAIC_2: how far THIS body sits from its median
 };
 
 // ── Active Arch Tracking ─────────────────────────────────────────
@@ -148,6 +177,10 @@ inline constexpr float COLUMN_PALETTE[][3] = {
 };
 inline constexpr uint32_t COLUMN_PALETTE_COUNT = 10;
 inline constexpr float COLUMN_SANDSTONE_BASE[3] = { 0.75f, 0.68f, 0.60f };
+// MOSAIC_2d: the column's own paths took the spread law, but this
+// survives with ONE reader — antenna_compute_colors, which the campaign
+// deliberately leaves alone (three decorrelated drums is a different
+// concept from one body color; the ruling is Horizon's).
 inline constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 
 // ── Spawn Configuration ──────────────────────────────────────────
@@ -179,7 +212,8 @@ struct ColumnProp {
     static constexpr uint32_t COLOR_VAR_R = 741u;
     static constexpr uint32_t COLOR_VAR_G = 742u;
     static constexpr uint32_t COLOR_VAR_B = 743u;
-    static constexpr uint32_t MOSAIC_ROLL = 750u;   // MOSAIC_1: sub-roll of the COLOR_OVER hit
+    static constexpr uint32_t COLOR_SPREAD = 744u;  // MOSAIC_2: how far THIS body sits from its median
+    static constexpr uint32_t MOSAIC_ROLL = 750u;   // MOSAIC_2: the tier's ceramic roll
     static constexpr uint32_t MOSAIC_SEED = 751u;   // MOSAIC_1: 16-bit paint identity
 };
 
