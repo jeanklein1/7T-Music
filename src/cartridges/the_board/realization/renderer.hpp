@@ -2094,7 +2094,29 @@ namespace t7 {
                     // INSTRUMENTS ARE slopeScale, depthBiasClamp, AND the normal
                     // offset — whose floor and ceiling are separate rungs.
                     shadowDepth.depthBiasSlopeScale = 2.0f;
-                    shadowDepth.depthBiasClamp      = 2.8e-3f;
+                    // THE CEILING IS A WORLD QUANTITY WEARING NDC CLOTHES
+                    // (PENUMBRA_2 N2). depthBiasClamp is in depth-buffer
+                    // units, so its meaning scales with the sun's depth
+                    // range — and N2 widened that range from 599.9 wu to
+                    // 1100.0 wu so the caster set fits along the light axis
+                    // in every mood. Carrying 2.8e-3 across unchanged would
+                    // have silently widened the ceiling from 1.680 wu to
+                    // 3.080 wu, 1.83x, with nothing in the diff to show it.
+                    //
+                    // THE WORLD NUMBER IS THE FACT. Re-derived, not carried:
+                    //
+                    //     1.680 wu / 1100.0 wu = 1.527e-3 NDC
+                    //
+                    // where 1.680 wu is the ceiling PENUMBRA_1 P2 arrived at
+                    // (SHADOW_BIAS_MAX carried across UMBRA_5 by texel ratio)
+                    // and 1100.0 is SUN_FAR - SUN_NEAR in world.wgsl.
+                    //
+                    // CROSS-ROOM: the divisor lives in WGSL and the quotient
+                    // in C++, with nothing but this comment holding them
+                    // together — the same shape as the SHADOW_MAP_SIZE twin,
+                    // and filed with it in the report's HORIZON. If SUN_NEAR
+                    // or SUN_FAR moves, this number is wrong and silent.
+                    shadowDepth.depthBiasClamp      = 1.527e-3f;   // = 1.680 wu / 1100.0 wu
 
                     // THE SHARED BUILDER (shadow/depth category): the builder every shadow pipeline
                     // shares — shadowRenderLayout + shadowDepth (Depth32Float shadow map) +

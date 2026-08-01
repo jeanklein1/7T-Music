@@ -3260,7 +3260,42 @@ fn coupling_pawn_to_camera_target(pawn_pos: vec3<f32>, cam: CameraState) -> vec3
 }
 
 // --- [COUPLING:pawn→sun:view_proj]
-const SUN_ALTITUDE: f32 = 250.0;
+// THE DEPTH AXIS CONTAINS THE WORLD (PENUMBRA_2 N2). These three are one
+// decision, not three numbers: the eye sits SUN_ALTITUDE up-light of THE
+// POINT and the ortho keeps [SUN_NEAR, SUN_FAR] along the light axis, so
+// a caster survives only if dot(d, P - C) + SUN_ALTITUDE lands inside that
+// window. The sun direction's HORIZONTAL component converts lateral
+// distance into depth, and at a low sun almost all of it does.
+//
+// UMBRA_5 fixed this laterally and left the depth axis at its old size.
+// The result, found late in PENUMBRA_1: at MOOD_OPEN_SUNSET the near plane
+// clipped everything past ~259 wu down-sun while the visible rim ran to
+// 325 — a band of visible terrain casting nothing at all.
+//
+// THE REQUIREMENT, per outdoor mood (the two indoor moods mute the sun
+// coupling entirely, so they do not constrain it):
+//
+//   axial half-need = |d_xz| * R_xz + |d_y| * H
+//
+//   mood                  |d_xz|  |d_y|    R_xz    half-need
+//   MOOD_OPEN_SUNSET       0.966  0.259   395.7 *    398.8
+//   MOOD_FINITE_OUTDOOR    0.704  0.710   636.4 †    493.6
+//
+//   * veil ring 325 + a patch's far corner, 50*sqrt(2) — the caster set is
+//     patch-granular, so its supremum is R + 50*sqrt(2) = 395.71 wu.
+//   † finite_radius 4 puts the room at +-225 wu; THE POINT may stand in one
+//     corner with a caster in the opposite one, so the separation is the
+//     room's full diagonal, 450*sqrt(2).
+//   H = 64 wu of terrain height half-span: the six TERRAIN_BANDS at
+//     mu+3sigma sum to 61.5, and terrain_amp_ceiling is 0 (unlimited)
+//     outdoors, so this is a stated worst case rather than a read constant.
+//
+// Half-range 550 covers the worst mood with 56.4 wu to spare, and the
+// point sits at the exact centre so the two clips are symmetric.
+// Widening costs nothing but depth precision, and Depth32Float has it to
+// spare: one ULP near z = 0.5 is 6.6e-5 wu against a normal offset of
+// 0.169-0.513 wu, ~2,600x finer than the smallest thing that reads it.
+const SUN_ALTITUDE: f32 = 551.0;   // = SUN_NEAR + 550
 // UMBRA_5 bought 4x the texels and split the yield evenly: 1.4x coverage
 // here (the composing boundary moves out) and 1.4x crispness at the map
 // (SHADOW_TEXEL_WORLD falls to 0.7x its old value). The map centers on
@@ -3269,8 +3304,8 @@ const SUN_ALTITUDE: f32 = 250.0;
 // number, never from tap count — the tuning ladder claws it back at -10%
 // per step if the penumbra reads mushy near the camera.
 const SUN_HALF_EXTENT: f32 = 420.0;
-const SUN_NEAR: f32 = 0.1;
-const SUN_FAR: f32 = 600.0;
+const SUN_NEAR: f32 = 1.0;
+const SUN_FAR: f32 = 1101.0;  // = SUN_NEAR + 2*550 ; range exactly 1100 wu
 
 // One shadow-map texel, in world units, on the sun map. Derived — never
 // authored: it is the frustum's width divided by the map's, so it cannot
