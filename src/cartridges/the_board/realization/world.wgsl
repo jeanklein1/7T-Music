@@ -4151,9 +4151,11 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
 //
 // Property run 900–916 (hash_property): 900-902 site jitter (cell
 // seed), 903 passage K, 904 raffle (shard), 905-907 members (passage),
-// 908 variance (passage), 910-912 color jitter (shard), 913 batch
-// (entity), 914-916 facet (shard). Cell-folded seeds — disjoint from
-// the CPU entity registries by construction.
+// 908 variance (passage), 909 passage member raffle (far field —
+// MOSAIC_2, the roll that stands in when the walk does not run),
+// 910-912 color jitter (shard), 913 batch (entity), 914-916 facet
+// (shard). Cell-folded seeds — disjoint from the CPU entity
+// registries by construction.
 
 const MOSAIC_MEDIANS = array(
     vec3(0.16, 0.32, 0.62),   // cobalt
@@ -4209,40 +4211,45 @@ struct MosaicSample {
     facet: vec3<f32>,   // per-shard plate lean, unscaled — the FS scales it
 }
 
-fn mosaic_sample(paint_pos: vec3<f32>, entity_seed: u32) -> MosaicSample {
-    // Per-entity batch: shards from one workshop vary ±30% in size.
-    let batch = 0.85 + 0.30 * hash_property(entity_seed, 913u);
-    let shard = mosaic_shard(paint_pos / max(config.mosaic_shard_size * batch, 1e-4));
-
-    // THE PASSAGE — the coarse lattice choosing this region's small
-    // palette (the bench's green/yellow/white runs). One scale up.
+fn mosaic_sample(paint_pos: vec3<f32>, entity_seed: u32, grain: f32) -> MosaicSample {
+    // THE PASSAGE — the coarse lattice, and the body's IDENTITY at every
+    // range. Evaluated first and unconditionally: one hash, no walk.
     let pcell = vec3<i32>(floor(paint_pos / max(config.mosaic_passage_scale, 1e-3)));
     let ps = mosaic_cell_seed(pcell, 7u);
-
-    // K ∈ {2,3,4} members: the near-white binder + (K−1) decorrelated
-    // picks from the median table (the antenna-drum pattern).
+    // K ∈ {2,3,4} members, binder at double weight (Güell's white share).
+    // FAR: the passage picks ONE member for its whole extent — the
+    // honest reading of "the median with variance zero". NEAR: the roll
+    // is per-shard, so a passage is a mixture at fine grain. Same law,
+    // one term at zero.
     let k = 2u + u32(hash_property(ps, 903u) * 2.999);
-    // Raffle with the binder at double weight (Güell's white share):
-    // roll 0..k; 0 and 1 are both the binder.
-    let roll = u32(hash_property(shard, 904u) * f32(k + 1u));
-    var med = MOSAIC_WHITE;
-    if (roll >= 2u) {
-        let pick = hash_property(ps, 903u + roll);   // bands 905..907
-        med = MOSAIC_MEDIANS[u32(pick * 7.999)];
-    }
-
-    // Per-shard jitter scaled by the passage's own variance — the
-    // terrain's variance-law shape at the mosaic's numbers.
-    let vari = MOSAIC_VAR_BASE + hash_property(ps, 908u) * MOSAIC_VAR_SPAN;
-    let jit = (vec3(hash_property(shard, 910u),
+    // hash_property can return exactly 1.0 (one in 2³²) — unclamped this
+    // reaches k+1 and, at K=4, reads band 908 (the variance band) as a
+    // member pick.
+    var roll = min(u32(hash_property(ps, 909u) * f32(k + 1u)), k);
+    var s: MosaicSample;
+    s.facet = vec3(0.0);
+    var jit = vec3(0.0);
+    var vari = 0.0;
+    if (grain > 0.001) {
+        // THE GRAIN — shard boundary, jitter, plate lean. The walk runs
+        // HERE ONLY: the shard exists solely to carry these three, so
+        // past the band it has nothing to do and is not evaluated.
+        let batch = 0.85 + 0.30 * hash_property(entity_seed, 913u);
+        let shard = mosaic_shard(paint_pos / max(config.mosaic_shard_size * batch, 1e-4));
+        roll = min(u32(hash_property(shard, 904u) * f32(k + 1u)), k);
+        vari = (MOSAIC_VAR_BASE + hash_property(ps, 908u) * MOSAIC_VAR_SPAN) * grain;
+        jit = (vec3(hash_property(shard, 910u),
                     hash_property(shard, 911u),
                     hash_property(shard, 912u)) - 0.5) * 2.0;
-
-    var s: MosaicSample;
+        s.facet = (vec3(hash_property(shard, 914u),
+                        hash_property(shard, 915u),
+                        hash_property(shard, 916u)) - 0.5) * 2.0;
+    }
+    var med = MOSAIC_WHITE;
+    if (roll >= 2u) {
+        med = MOSAIC_MEDIANS[u32(hash_property(ps, 903u + roll) * 7.999)];   // bands 905..907
+    }
     s.color = clamp(med + jit * vari, vec3(0.0), vec3(1.0));
-    s.facet = (vec3(hash_property(shard, 914u),
-                    hash_property(shard, 915u),
-                    hash_property(shard, 916u)) - 0.5) * 2.0;
     return s;
 }
 
@@ -5016,26 +5023,23 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
 
 @fragment
 fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    var albedo = in.entity_color;
+    var albedo = in.entity_color;   // THE FALLBACK — plain bodies only
     let geo_n = normalize(in.normal);
     var n = geo_n;
-    // THE MOSAIC (MOSAIC_1) — trencadís cladding, gated per-entity by
-    // the seed and globally by the master dial. Eye-anchored dissolve
-    // first: past the band the body IS its base color and the walk
-    // never runs (the fade is the cost cap). Inside it, the painter;
-    // the plate lean rides the SHADING normal only — geo_n stays
-    // geometric (the terrain's pre-aura pattern; shadow and backface
-    // math unmoved).
+    // THE MOSAIC (MOSAIC_2) — TWO POPULATIONS, no leak. A mosaic body IS
+    // its mosaic at every range; entity_color is the color a body wears
+    // when it has NO mosaic and is never consulted here. What distance
+    // takes is the GRAIN, not the material: at grain 0 the body is its
+    // passage medians at variance zero — smooth fields, passages still
+    // turning — and the 27-cell walk does not run.
     if (in.mosaic_seed != 0u && config.mosaic_enable > 0.5) {
-        let fade = 1.0 - smoothstep(config.mosaic_radius - config.mosaic_icing,
-                                    config.mosaic_radius,
-                                    distance(in.world_pos, render_camera.pos));
-        if (fade > 0.001) {
-            let paint_pos = vec3(in.world_pos.x, in.paint_y, in.world_pos.z);
-            let s = mosaic_sample(paint_pos, in.mosaic_seed);
-            albedo = mix(albedo, s.color, fade);
-            n = normalize(geo_n + s.facet * (config.mosaic_facet * fade));
-        }
+        let grain = 1.0 - smoothstep(config.mosaic_radius - config.mosaic_icing,
+                                     config.mosaic_radius,
+                                     distance(in.world_pos, render_camera.pos));
+        let paint_pos = vec3(in.world_pos.x, in.paint_y, in.world_pos.z);
+        let s = mosaic_sample(paint_pos, in.mosaic_seed, grain);
+        albedo = s.color;
+        n = normalize(geo_n + s.facet * (config.mosaic_facet * grain));
     }
     return vec4(shade_lit(in.world_pos, n, geo_n, albedo, 1.0), 1.0);
 }
