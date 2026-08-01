@@ -431,8 +431,7 @@ inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
     else {
         p.color_r = a.col_r; p.color_g = a.col_g; p.color_b = a.col_b;
     }
-    // Portals are functional markers — always plain (stale-slot-proof).
-    p.mosaic_seed = a.is_portal ? 0u : a.mosaic_seed;
+    p.mosaic_seed = a.mosaic_seed;   // portals zeroed at the decision — MOSAIC_2b
     p.is_active = 1;
     return p;
 }

@@ -1013,6 +1013,11 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
             aa.destination.mood = mood;
             aa.destination.finite = mp.finite;
             aa.destination.finite_radius = derive_finite_radius(dest_seed, mp);
+            // A portal wears its destination's color — paint has no home here.
+            // Zeroed AT THE DECISION so both mesh-param producers read one
+            // correct value (MOSAIC_2b: the guard had two homes and they
+            // disagreed across a cull cycle).
+            aa.mosaic_seed = 0u;
         }
     }
 
@@ -1037,7 +1042,11 @@ inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     mp.segs_u     = ARCH_TIERS[inst.tier_idx].segs_u;
     mp.segs_v     = ARCH_TIERS[inst.tier_idx].segs_v;
     mp.color_r    = inst.colors[3]; mp.color_g = inst.colors[4]; mp.color_b = inst.colors[5];
-    mp.mosaic_seed = inst.mosaic_seed;
+    // MOSAIC_2b: the ONE home. arch_write_active (generic_commit calls it
+    // first) has already written this slot's seed and zeroed it if the
+    // arch is a portal, so both producers read one correct value — the
+    // instance's own field would miss that decision.
+    mp.mosaic_seed = c->entities_state_.arches[inst.slot].mosaic_seed;
     mp.is_active  = 1;
     c->gpuState_.upload_arch_mesh_params_slot(queue, inst.slot, mp);
     c->entities_state_.arch_mesh_gen_pending = true;
