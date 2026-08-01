@@ -160,6 +160,52 @@ the descriptor, not the label* produced, in its own closing act, a report
 sourced entirely from a label. The rule is written down because the instinct
 did not generalize on its own.
 
+## P10 — THE GATE LOOKS BOTH WAYS
+
+Every observation-gate row names what the edit should FIX and what the edit
+could BREAK. A gate that only lists intended improvements cannot distinguish
+"the fix did not work" from "the fix worked and introduced something worse".
+
+*Paid for by:* PENUMBRA_1 P3. The handoff widened the PCF tap spacing from 1 to
+2 texels and asserted the result was gapless because the taps' support intervals
+touched. They touch at their zeros: a bilinear comparison tap is a tent, not a
+box, and tents spaced 2 apart sum to a comb with zero weight at every odd texel.
+Every shadow in the program acquired parallel banding at a 2-texel period. The
+gate had a row for the sawtooth the edit was meant to soften and no row for the
+filter's own shape, so the regression arrived as a surprise from the person
+holding the gate rather than as a prediction from the handoff that caused it.
+
+The tell: a handoff whose rationale contains a derivation about how something
+will LOOK. Code claims are checked by the census and the compiler; a claim about
+continuous mathematics is checked by nothing in the tree. Such a claim is a
+hypothesis and gets a gate row of its own, phrased as the artifact it would
+produce if it were wrong.
+
+## P11 — ABSENCE IS A CLAIM ABOUT THE WHOLE FILE
+
+A search that verifies something is **absent** is never truncated. No `head`,
+no `-m`, no first-page-of-results. A search that finds something may stop at the
+first hit; a search that finds *nothing* has to have looked everywhere, or it
+has found nothing about nothing.
+
+*Paid for by:* PENUMBRA_2 N1. The commit replaced a nine-tap kernel with
+sixteen and attested, in its own message, "no `1/9` divisor, no `3x3` label and
+no integer-offset call left in the sun path." The verification was
+`grep -n "1.0 / 9.0\|3x3\|vec2<i32>" … | head`. There were 54 matches; `head`
+showed 10; the surviving `3x3` label was match 27 — three lines above the
+function that had just been rewritten. Absence in a truncated list was read as
+absence in the file and then written into the permanent record as a checked
+fact.
+
+Scope note: this binds the *verification*, not exploration. Piping a survey to
+`head` to see what a thing looks like is fine. Piping the check that a symbol is
+gone is not — and the tell is the word "no" or "zero" in the sentence the search
+is about to justify.
+
+It is P9 one more layer out. There the cached label was a git ref; here it was
+the shell's own output. Both times the reasoning was sound and the input to it
+was a summary that had quietly dropped the disconfirming case.
+
 ---
 
 ## SCHEDULING RECORD
