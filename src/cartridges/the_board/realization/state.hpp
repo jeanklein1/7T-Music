@@ -1762,7 +1762,8 @@ namespace t7 {
             wgpu::Buffer patchIndexBufferCapOnly_; // ECONOMY_1 E1 — caps + skirt, no curtain band
             wgpu::Buffer tileGridBuffer_;
             uint32_t patchIndexCount_ = 0;
-            uint32_t patchIndexCountLOD1_ = 0;
+            uint32_t patchIndexCountRingClean_ = 0;   // CELL_1 rev2 — caps + skirt prefix
+            uint32_t patchIndexCountRingZoned_ = 0;   // CELL_1 rev2 — prefix + curtain tail
             uint32_t patchIndexCountCapOnly_ = 0;
             // ECONOMY_1 E1 — the lift-conservative switch: true whenever a
             // zone lift COULD be nonzero (any zone slot active). The full IB
@@ -2672,7 +2673,8 @@ namespace t7 {
                 return curtainsActive_ ? patchIndexCount_ : patchIndexCountCapOnly_;
             }
             wgpu::Buffer patch_index_buffer_lod1() const { return patchIndexBufferLOD1_; }
-            uint32_t patch_index_count_lod1() const { return patchIndexCountLOD1_; }
+            uint32_t patch_index_count_ring_clean() const { return patchIndexCountRingClean_; }
+            uint32_t patch_index_count_ring_zoned() const { return patchIndexCountRingZoned_; }
 
             // --- GPU frustum culling ---
             wgpu::Buffer frustum_indirect_lod0() const { return frustumIndirectLOD0_; }
@@ -2689,7 +2691,7 @@ namespace t7 {
                 uint32_t args[15] = {
                     patchIndexCount_,        0, 0, 0, 0,
                     patchIndexCountCapOnly_, 0, 0, 0, 0,
-                    patchIndexCountLOD1_,    0, 0, 0, 0,
+                    patchIndexCountRingZoned_, 0, 0, 0, 0,
                 };
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
             }
@@ -3423,22 +3425,43 @@ namespace t7 {
                     // + the corner skirt. Indices land in the cap band
                     // (corners), base band (corners) and skirt copies; the
                     // legacy grid [0, PATCH_GRID_VERT_COUNT) has no reader.
+                    constexpr uint32_t s = Dim::UG_QUADS_PER_CELL / 2;   // stride-2 lattice
                     std::vector<uint32_t> idx;
-                    idx.reserve(Dim::UG_CELLS_PER_PATCH * (1 + 4) * 6
-                              + (4 * Dim::PATCH_MESH_N / Dim::UG_QUADS_PER_CELL) * 6);  // 8064
+                    idx.reserve(Dim::UG_CELLS_PER_PATCH * (4 + 8) * 6
+                              + (4 * Dim::PATCH_MESH_N / s) * 6);  // 19200
+                    // caps: 2×2 quads per cell on the corner lattice
+                    for (uint32_t cell = 0; cell < Dim::UG_CELLS_PER_PATCH; cell++) {
+                        const uint32_t cap0 = Dim::UG_CAP_BASE + cell * Dim::UG_CAP_VERTS_PER_CELL;
+                        for (uint32_t qz = 0; qz < 2; qz++) {
+                            for (uint32_t qx = 0; qx < 2; qx++) {
+                                uint32_t i00 = cap0 + (qz * s) * Dim::UG_CAP_STRIDE_C + qx * s;
+                                uint32_t i10 = i00 + s;
+                                uint32_t i01 = i00 + s * Dim::UG_CAP_STRIDE_C;
+                                uint32_t i11 = i01 + s;
+                                idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
+                                idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
+                            }
+                        }
+                    }
+                    // skirt: the stride-2 ring — top edge on the cap lattice,
+                    // copies on the matching legacy ring slots
+                    for (uint32_t k = 0; k < SKIRT_RING; k += s) {
+                        uint32_t k1 = (k + s) % SKIRT_RING;
+                        uint32_t a  = skirt_cap_index(k);
+                        uint32_t b  = skirt_cap_index(k1);
+                        uint32_t sa = SKIRT_GRID_VERTS + k;
+                        uint32_t sb = SKIRT_GRID_VERTS + k1;
+                        idx.push_back(a); idx.push_back(b); idx.push_back(sa);
+                        idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
+                    }
+                    // caps + skirt is a usable prefix: the clean count stops here
+                    patchIndexCountRingClean_ = (uint32_t)idx.size();
+                    // curtains: the stride-2 perimeter walk, cap vert to base twin
                     for (uint32_t cell = 0; cell < Dim::UG_CELLS_PER_PATCH; cell++) {
                         const uint32_t cap0  = Dim::UG_CAP_BASE  + cell * Dim::UG_CAP_VERTS_PER_CELL;
                         const uint32_t base0 = Dim::UG_BASE_BASE + cell * Dim::UG_BASE_VERTS_PER_CELL;
-                        // cap: the four tile corners
-                        uint32_t i00 = cap0;
-                        uint32_t i10 = i00 + Dim::UG_QUADS_PER_CELL;
-                        uint32_t i01 = i00 + Dim::UG_QUADS_PER_CELL * Dim::UG_CAP_STRIDE_C;
-                        uint32_t i11 = i01 + Dim::UG_QUADS_PER_CELL;
-                        idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
-                        idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
-                        // curtains: the corner walk (k on cell corners)
-                        for (uint32_t k = 0; k < Dim::UG_BASE_VERTS_PER_CELL; k += Dim::UG_QUADS_PER_CELL) {
-                            uint32_t k1 = (k + Dim::UG_QUADS_PER_CELL) % Dim::UG_BASE_VERTS_PER_CELL;
+                        for (uint32_t k = 0; k < Dim::UG_BASE_VERTS_PER_CELL; k += s) {
+                            uint32_t k1 = (k + s) % Dim::UG_BASE_VERTS_PER_CELL;
                             uint32_t lx, lz, lx1, lz1;
                             cell_perimeter(k, lx, lz);
                             cell_perimeter(k1, lx1, lz1);
@@ -3450,20 +3473,9 @@ namespace t7 {
                             idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
                         }
                     }
-                    // Skirt: corner ring — top edge on cap corners, copies on
-                    // the matching legacy ring slots.
-                    for (uint32_t k = 0; k < SKIRT_RING; k += Dim::UG_QUADS_PER_CELL) {
-                        uint32_t k1 = (k + Dim::UG_QUADS_PER_CELL) % SKIRT_RING;
-                        uint32_t a  = skirt_cap_index(k);
-                        uint32_t b  = skirt_cap_index(k1);
-                        uint32_t sa = SKIRT_GRID_VERTS + k;
-                        uint32_t sb = SKIRT_GRID_VERTS + k1;
-                        idx.push_back(a); idx.push_back(b); idx.push_back(sa);
-                        idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
-                    }
-                    patchIndexCountLOD1_ = (uint32_t)idx.size();
+                    patchIndexCountRingZoned_ = (uint32_t)idx.size();
                     patchIndexBufferLOD1_ = makeBuffer("Patch IB LOD1",
-                        patchIndexCountLOD1_ * 4,
+                        patchIndexCountRingZoned_ * 4,
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBufferLOD1_) return false;
                     auto q = device_.GetQueue();
