@@ -3417,14 +3417,19 @@ namespace t7 {
                 }
 
                 {
-                    // LOD-1: CELL SLABS (CELL_1). A cell is a slab at every
-                    // distance — the representation no longer changes across
-                    // the LOD boundary, only the density does. Per cell: one
-                    // cap-corner quad (the house winding at corner stride) +
-                    // four corner curtains (the LOD-0 curtain loop at k += 4)
-                    // + the corner skirt. Indices land in the cap band
-                    // (corners), base band (corners) and skirt copies; the
-                    // legacy grid [0, PATCH_GRID_VERT_COUNT) has no reader.
+                    // LOD-1: CELL SLABS (CELL_1, rev2 stride-2). A cell is a
+                    // slab at every distance — the representation no longer
+                    // changes across the LOD boundary, only the density does.
+                    // The ring's rate is 1.5625 wu per quad edge (the stride-2
+                    // cap lattice — every even local offset already decodes).
+                    // Emission order caps -> skirt -> curtains makes
+                    // caps+skirt a usable prefix: TWO counts, ONE buffer.
+                    // RingClean_ stops at the prefix (shadow casters, and the
+                    // held clean-ring draw-plan segment); RingZoned_ takes the
+                    // curtain tail too (the main pass, via slot C). Indices
+                    // land in the cap band, base band (curtain tail only) and
+                    // skirt copies; the legacy grid [0, PATCH_GRID_VERT_COUNT)
+                    // has no reader.
                     constexpr uint32_t s = Dim::UG_QUADS_PER_CELL / 2;   // stride-2 lattice
                     std::vector<uint32_t> idx;
                     idx.reserve(Dim::UG_CELLS_PER_PATCH * (4 + 8) * 6

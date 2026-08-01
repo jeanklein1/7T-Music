@@ -4768,11 +4768,11 @@ fn shadow_patch_terrain_vs(
     let pi = patch_instances[patch_id];
 
     // Same unified decode as patch_terrain_vs — but NOT the same index
-    // buffer. The shadow pass binds the LOD1 cell IB only (ECONOMY_1 E2,
-    // CELL_1), whose indices land on cap corners, base-band corners and
-    // skirt copies. Caps cast as slabs and their corner curtains cast
-    // with them. (UMBRA_3's caster diet survives as density: one quad
-    // per cell.)
+    // buffer. The shadow pass binds the ring IB's clean prefix only
+    // (ECONOMY_1 E2, CELL_1 rev2): stride-2 cap lattice + skirt copies.
+    // The curtain tail is not drawn here, so curtains again do not
+    // cast — caps cast as slabs, walls do not. (UMBRA_3's caster diet
+    // survives as density: 2×2 quads per cell.)
     let d = ug_decode(vi);
 
     let uv = vec2(

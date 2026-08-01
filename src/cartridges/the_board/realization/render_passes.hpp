@@ -356,16 +356,17 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // FORK — terrain, both bands at LOD1 density (ECONOMY_1 E2): the
     // shadow target resolves coarser than even the half mesh, and the
     // decode is patch-agnostic, so band 0 draws the LOD0 patches with
-    // the LOD1 cell IB (CELL_1). The cell IB lifts caps as slabs and
-    // its curtains cast, so lifted zones cast slab-and-wall shadows.
+    // the ring IB's CLEAN PREFIX (CELL_1 rev2) — caps and skirt, no
+    // curtain tail. Caps still lift as slabs, so lifted zones cast
+    // their tops; their walls do not cast (pre-CELL_1 behavior).
     //
     // THE CASTER LOD PIN (UMBRA_3, ruled here rather than re-cut). The
     // ladder is two rungs, both terrain-mesh densities of a 50 wu patch:
-    // LOD0 at PATCH_MESH_N = 64 (0.781 wu per quad edge) and the LOD1
-    // cell mesh at 3.125 wu (one quad per cell, CELL_1). Against a
+    // LOD0 at PATCH_MESH_N = 64 (0.781 wu per quad edge) and the ring's
+    // stride-2 cap lattice at 1.5625 wu (CELL_1 rev2). Against a
     // post-UMBRA_5 texel of 0.2051 wu, LOD0 is 3.8 texels per edge —
-    // finer than the map can resolve, so pure cost — and the cell mesh
-    // is 15.2, already coarser than the target. Neither rung satisfies
+    // finer than the map can resolve, so pure cost — and the ring is
+    // 7.6, already coarser than the target. Neither rung satisfies
     // "edge <= 2 x texelWorld", so that rule selects nothing; the pin is
     // nonetheless already at the ladder's COARSEST rung and there is
     // nothing coarser to move to.
