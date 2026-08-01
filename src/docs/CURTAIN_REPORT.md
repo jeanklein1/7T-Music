@@ -187,14 +187,35 @@ bind groups.
 
 **On the FXC banner (reported because the handoff instructed a STOP on mismatch).**
 The handoff says to read "the banner" and expects it to name *extra indirect draws* as
-a hang risk. **There is no such banner at HEAD.** `world.wgsl` has no dedicated FXC
-banner block; its header (lines 12-22) names L2 and points at `src/docs/LAWS.md`, and
-L2's four specifics are lean byte-pinned instance structs, no new runtime branching in
-the collision/ground chain, no texture-array stamps in that chain, and 10 storage /
-12 uniform buffers per stage. **None of them mentions draws of any kind, indirect or
-direct.** The banner the handoff refers to is not in the tree in that form. This does
-not block K2 — the banner does not say otherwise, it says nothing — but the handoff
-asked to be told, so: told.
+a hang risk. **The banner is not in `world.wgsl` at HEAD, and three live pointers
+still address it.**
+
+Searched untruncated per P11: `grep -n -i "fxc" world.wgsl` returns exactly 12 lines
+(14, 2395, 2935, 3029, 3784, 6709, 6769, 7501, 7505, 12364, 12416, 12637). Every one
+of them is either the file header's pointer to `LAWS.md` L2 (line 14) or an inline
+note at its own site. **There is no banner block.** Yet the tree still speaks of one:
+
+- `world.wgsl:2397` — *"a fn returning a constructed struct is not the runtime-indexed
+  const array **the banner forbids**."*
+- `world.wgsl:6769` — *"nothing inside the ground-resolve chain (**the FXC sanctum**)."*
+- `PROCESS_LAWS.md`, closing section — *"FXC's **behavior** (the `world.wgsl`
+  **banner's hang cliff**) is unchanged by build configuration."*
+
+And L2, which claims to delegate the specifics to that banner — *"the operational home
+of the specifics is the world.wgsl FXC banner"* — enumerates four of its own: lean
+byte-pinned instance structs, no new runtime branching in the collision/ground chain,
+no texture-array stamps in that chain, and 10 storage / 12 uniform buffers per stage.
+**No runtime-indexed const array. No hang cliff. And no draws of any kind, indirect or
+direct.** So the constraints the three pointers attribute to the banner are homeless at
+HEAD: the pointers survived the block.
+
+**This does not block K2** — the banner does not say otherwise about indirect draws, it
+says nothing, and K1-b establishes independently that both shadow terrain draws are
+direct `DrawIndexed` against an existing pipeline and existing bind groups. But the
+handoff asked to be told, and a dangling pointer to a deleted authority on a
+*hang* class is worth more than a footnote. Filed as R11-class, unchased: whether the
+banner was deleted or never migrated is a question for whoever owns L2, not for this
+campaign.
 
 ---
 
@@ -573,3 +594,63 @@ anything: the colour-ownership resolution at `world.wgsl:4577-4578` is the **onl
 consumer of `cell_local.z`, and K1-e above shows that field's value on skirt fragments
 is contested. That is a colour path, and both observations are colour artifacts.
 Stated as adjacency, not as diagnosis.
+
+---
+
+## K4 — CLOSE
+
+### Campaign ledger
+
+| Handoff | Commit | State | Notes |
+|---|---|---|---|
+| K1 | `curtain: K1 recon — the band, the cost, the provenance` | **landed** | This document. Three of the handoff's premises stale at HEAD; the diagnosis survives all three. Two STOPs fired — one on cost, one on a mismatch. |
+| K2 | `curtain: slab walls enter the shadow map` | **HELD — STOP fired** | K1-c: +177.8 % against a 40 % threshold, 4.4× over. Invariant to instance counts, and not rescued by a coarser band (the cheapest sealing geometry is still +88.9 %). Design is otherwise *simpler* than the handoff supposed — the band is in the buffer the pass already binds, and two accessors for it already exist. Held for Jean, with three options and no recommendation. |
+| K3 | `curtain: geometric normal on curtain walls` | **HELD — STOP on mismatch** | K1-e: no vertex discriminator exists or can (the wall's top verts *are* the cap's verts, welded by index). A fragment discriminator exists and is plumbed. But the fix needs `cell_local` to exclude skirt fragments, and that field's declared value on skirt quads contradicts the emission that writes it. Carries to HORIZON with the arithmetic worked out. |
+| K4 | `curtain: campaign close` | **landed** | This section, UMBRA_3's ledger amendment, and the PROCESS_LAWS candidate. |
+
+### What this campaign edited
+
+Nothing outside `src/docs/`. Two commits, both records:
+
+- `src/docs/CURTAIN_REPORT.md` — this document.
+- `src/docs/UMBRA_REPORT.md` — UMBRA_3's ledger row amended, with the reasoning
+  beneath the table.
+- `src/docs/HANDOFFS/PROCESS_LAWS.md` — one unnumbered candidate beside P10.
+
+Three code corrections are **reported and not made**, each because its owning handoff
+STOPPED: the `ring_clean` → `ring_zoned` switch (K2), the curtain-wall normal (K3),
+and `cartridge.hpp`'s two false SCOPE clauses (K2's label correction, travelling with
+K2). Replacement text for the last is in the R11 section above, ready to paste.
+
+### The one that is worth saying plainly
+
+This campaign was handed a defect, a cause, and a fix, and the fix is a one-line
+revert of a one-line change made six hours earlier by another session — whose own
+commit message predicted this exact outcome and accepted it as a trade. Both sessions
+reasoned correctly. What neither had was a record connecting "curtains leave the
+caster set" to "lifted cells' shadows detach and float," because UMBRA_3 filed the
+first as a saving and gated it against an artifact that was not this one.
+
+The cost arithmetic is why K2 does not simply land: the walls are twice the triangles
+of the caps that need them, and the frame's bottleneck is geometry. That is a real
+tension between two correct positions — CELL_1 rev2's and CURTAIN_1's — and it is
+Jean's to resolve, which is what the 40 % threshold in the handoff was for.
+
+### Gate rows still standing
+
+K2 and K3 did not land, so their gate rows are **predictions on record, not
+observations owed**. Two of them can be run now, before any edit, and both are worth
+running:
+
+1. **The detachment discriminator** (K1-f). Detachment should scale as
+   `lift / tan(sun elevation)` — 3.73× the lift at `MOOD_OPEN_SUNSET`, close under
+   the slab in a high-sun mood. If it does not track sun elevation, the floating-cap
+   diagnosis is wrong and K1 must widen before anything lands.
+2. **The dating check** (K1-f). If Screenshots 94 and 95 predate `bacc1a5`
+   (2026-08-01 04:14 UTC), the floating-cap mechanism cannot be their cause, because
+   no earlier tree state can produce a disconnected caster.
+
+The third — K2's *"slab walls self-shadow at grazing sun, walls are vertical so they
+sit at the bias ceiling C2 just tightened"* — cannot be observed until K2 lands. It is
+recorded here so that whoever lands K2 inherits it: **that is C2's ladder, not a K2
+revert.**

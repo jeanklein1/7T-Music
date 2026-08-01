@@ -208,6 +208,46 @@ was a summary that had quietly dropped the disconfirming case.
 
 ---
 
+## CANDIDATE (unnumbered) — THE GATE ROW NAMES THE ARTIFACT
+
+*Filed by CURTAIN_1 K4, 2026-08-01. Unnumbered pending Jean's ruling — numbers here
+are permanent, so this does not take one until it is adopted. It extends **P10**
+and belongs beside it.*
+
+P10 requires that every gate row carry a "could BREAK" column. This candidate
+requires that the column **name the artifact the reader would actually see** — the
+thing that appears on a screen, in the words someone looking at the screen would use.
+Not the mechanism, not the subsystem, not the quantity that moved.
+
+> **A gate row naming the wrong artifact is indistinguishable from no gate row at
+> all** — and it is worse than a blank one, because a blank gate invites a look while
+> a wrong one certifies the absence of a defect it never examined.
+
+*Paid for by:* UMBRA_3, and collected two campaigns later. UMBRA_3 ruled that the sun
+caster list contained no curtain geometry, proved it at the vertex-index level, and
+gated the ruling with a row about **silhouette light-leaks at patch rims**. Rim leaks
+are a real artifact. The artifact the exclusion actually produces, once the caster
+became slab-shaped, is **a lifted cell's shadow detaching from its base and floating
+3.7× the lift away across open ground** — which Jean photographed (94, 95) and which
+became CURTAIN_1. A reader holding UMBRA_3's gate against those screenshots finds no
+row that describes what they are looking at, and correctly concludes the gate is
+silent on it. The exclusion had been recorded as a saving with no artifact attached,
+and that record is what let a later commit drop the same walls again.
+
+The tell: a "could BREAK" cell written in the vocabulary of the *edit* — a count that
+rises, a band that is excluded, a buffer that changes — rather than the vocabulary of
+the *view*. "Shadow-pass triangle count rises" is a metric and belongs in the row;
+it is not, by itself, an artifact, and a row containing only metrics has not yet
+looked through the window. Ask of every "could BREAK" cell: **if this goes wrong,
+what would someone say out loud on seeing it?** That sentence is the row.
+
+Corollary, from the same failure: an artifact named in a gate is also a *claim about
+what else the edit cannot cause*. UMBRA_3's rim-leak row implicitly asserted that rims
+were where to look. Naming one artifact narrows the search for everyone downstream, so
+naming the wrong one misdirects rather than merely underdelivers.
+
+---
+
 ## SCHEDULING RECORD
 
 **CENSUS_1b — the exhaustive walk** of the four realization giants

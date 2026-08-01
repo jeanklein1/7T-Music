@@ -716,13 +716,56 @@ Flagged at the top of the tuning ladder.
 |---|---|---|---|
 | UMBRA_1 | `umbra: recon report` | **landed** | This document. No STOP fired. Sun VP is WGSL-side, not CPU-side — UMBRA_2's site corrected, UMBRA_7's growth risk dissolved. |
 | UMBRA_2 | `umbra: freeze and snap sun frustum` | **landed** | Freeze already true (named constants, no refit) — nothing to delete. Snap **replaced**, not added: world-XZ → light-space texels. `SHADOW_SNAP_SIZE` deleted, `SHADOW_TEXEL_WORLD` introduced. No animated-sun caveat (R3). |
-| UMBRA_3 | `umbra: pin shadow caster LOD; curtains out of sun casters` | **dead by prior work** | Both halves already landed by ECONOMY_1 E2, proven at the vertex-index level. No boolean added — the exclusion is structural, not conditional. Ladder + arithmetic committed to the tree at `draw_shadow_all`, per the handoff's STOP-and-report. Label corrections only. |
+| UMBRA_3 | `umbra: pin shadow caster LOD; curtains out of sun casters` | **dead by prior work — AMENDED, see below** | Both halves already landed by ECONOMY_1 E2, proven at the vertex-index level. No boolean added — the exclusion is structural, not conditional. Ladder + arithmetic committed to the tree at `draw_shadow_all`, per the handoff's STOP-and-report. Label corrections only. **The ruling was correct about triangles and wrong about slabs; the exclusion it verified is the mechanism that later removed the walls. Amended by CURTAIN_1 K4 — see the note below this table.** |
 | UMBRA_4 | `umbra: terrain out of spot caster lists` | **landed** | One `cast_terrain` argument, two call sites. Up to 4 full terrain redraws per frame removed indoors. Spot lists keep the ten drawable-table rows. |
 | UMBRA_5 | `umbra: sun map RES→2x per side, radius 1.4x` | **landed** | 2048→4096 (at the cap), 300→420. Both twin rooms, one commit. +100.7 MB VRAM, named in advance. Constant deliberately **not** split — the sun map *is* the spot atlas's first texture. |
 | UMBRA_6 | `umbra: bias to rasterizer state; shader nudges deleted` | **landed, with four flagged risks** | One depth-stencil site reaches all 11 shadow pipelines. Float-format flag raised with arithmetic: `depthBias = 2` = 6.0e-8 NDC vs the 1.0e-4…2.0e-3 it replaces. No `CullMode::Front` anywhere — step 3 a no-op. The P3 refuters caught the most in this commit: see findings 1, 2 and 6 below. |
 | UMBRA_7 | `umbra: normal-offset receiver sampling` | **landed** | `TEXEL_WORLD` as a const-expression — no uniform, no growth, no STOP, and better than the handoff's preferred rung. Receiver normal was already a parameter at the site; verified unit at every caller. |
 | UMBRA_8 | `umbra: 3x3 PCF + edge fade` | **landed** | Comparison sampler already correct — nothing to retype. Nine unrolled `textureSampleCompareLevel` taps at const offsets. Fixes the half-texel kernel offset found at R6. Edge fade is insurance at today's radius (see below). |
 | — | `umbra: campaign close` | **landed** | This ledger, plus three P5 corrections the campaign's own refuters found — two of them in the campaign's own output. |
+
+### AMENDMENT — UMBRA_3, filed by CURTAIN_1 K4 (2026-08-01)
+
+The row above says **dead by prior work**, and about triangles it was right. About
+slabs it was wrong, and the distance between those two is the whole of CURTAIN_1.
+
+R7(a) proved, at the vertex-index level, that the sun caster list contained zero
+curtain geometry. That proof holds. What it did not ask is what a lifted cell *looks*
+like once its walls are gone — and the answer is that the caster becomes a flat quad
+floating at cap height over ground it is no longer attached to, throwing its shadow
+`lift / tan(sun elevation)` away from its own base. At `MOOD_OPEN_SUNSET` that is
+3.73× the lift. Jean photographed it (94, 95) and CURTAIN_1 exists to answer it. See
+`src/docs/CURTAIN_REPORT.md`.
+
+**The exclusion UMBRA_3 verified is the mechanism that removed the walls.** UMBRA_3
+counted it as a saving and closed. It was a saving; it was also a defect, and one
+reading was recorded while the other was not.
+
+**The gate is where this should have been caught, and the gate had a row.** UMBRA_3's
+gate asked about **silhouette light-leaks at patch rims**. That is a real artifact and
+it is not this one. A reader holding that gate, looking at Screenshots 94 and 95, would
+see detached floating quads in the middle of open ground, find no row describing them,
+and conclude the gate was silent — which is exactly what happened, for two campaigns.
+
+> **A gate row that names the wrong artifact is indistinguishable from no gate row at
+> all.** Worse than that: it is *worse* than no row, because a blank gate invites a
+> look and a wrong one certifies the absence of a defect it never examined.
+
+Filed as a PROCESS_LAWS candidate beside P10, which it extends — P10 requires a "could
+break" column; this requires that the column name the artifact the reader would
+actually see.
+
+**One correction of the correction, for the record.** CURTAIN_1's own dating
+(K1-f) shows the detached-quad geometry did not exist while UMBRA_3 ran. Pre-CELL_1
+the LOD1 caster indexed the legacy grid, whose boundary quads straddle cells, so a
+lifted cell cast a flat top flanked by ramps — coarse and wrong, but *attached*.
+UMBRA_3 could not have photographed this artifact because the tree could not yet
+produce it. **That does not acquit the gate row; it is the reason the amendment is
+about gates rather than about UMBRA_3's arithmetic.** UMBRA_3 recorded "curtains are
+out of the caster set" as a settled saving with no artifact attached to it, and that
+record is what let CELL_1 rev2 (`bacc1a5`, 2026-08-01) drop the walls from a caster
+that had *since* become slab-shaped, with its own gate row naming the trade and no
+prior finding to tell it what the trade would look like.
 
 ## WHAT THE ADVERSARIAL PASSES CHANGED
 
