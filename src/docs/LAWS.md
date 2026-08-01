@@ -229,3 +229,50 @@ stops hand-copying a value, give the field a rest value that **fails loud**.
 `MoodState::sun_intensity` rests at `0.0f`, not `0.8f` — if the door ever
 fails to run, the sun goes out on frame 1 instead of hiding behind the value
 the door would have written.
+
+## L11 — THE PAINT ANCHOR LAW
+
+**Evaluate a thing in the frame that owns it.**
+
+Physics is owned by the world, so it reads the live position — the grounded
+lift, the card, the terrain under the body this frame. Pigment is owned by the
+body, so it reads the mesh frame: `paint_pos = vec3(world_pos.x, in.pos.y,
+world_pos.z)` — mesh-authored XZ (the grounded mesh-gen lift is Y-only),
+body-relative Y, immune to `ground_y` and the live card. `world_pos` remains
+the coordinate of light, fog, and veil.
+
+Either half alone reads as arbitrary — why should paint ignore the ground the
+body stands on? — and together they are one principle. The failure the law
+prevents is a pattern that swims: a body whose pigment is evaluated in world Y
+repaints itself every time the ground under it moves, so its own surface
+crawls while the body holds still. The mosaic found this first (MOSAIC_1), but
+nothing about it is the mosaic's: any body-owned field — wear, weathering,
+inscription — wants the same frame.
+
+Two coordinates, two jobs; neither borrows the other's.
+
+## L12 — DISTANCE TAKES THE GRAIN, NEVER THE MATERIAL
+
+**A body's identity must not be a function of range.**
+
+What fades with distance is the detail the eye can no longer resolve. What
+must not fade is what the thing IS. A ceramic body seen from across the valley
+is still ceramic — smoother, flatter, its tesserae gone — and if it instead
+becomes the stone it would have been had it never been painted, then the
+world's inventory changes as the camera moves, and no vantage point tells the
+truth about it.
+
+The law has a second half, and it is the half that pays for the first: **the
+structure that produces only the faded detail should not be evaluated once it
+has faded.** MOSAIC_1 fell into both halves at once — it dissolved a mosaic to
+its palette color (identity as a function of range) and it justified that
+dissolve as a cost cap it did not deliver (the walk still ran everywhere
+inside the band, and a radius caps the mean, never the max). MOSAIC_2 split
+them: the passage median is the material and is evaluated always, one hash; the
+shard is the grain and its 27-cell walk runs only where the grain is legible.
+The saving is real precisely because it is structural rather than a fade.
+
+The test for any distance-driven simplification: **name what the far form IS.**
+If the answer is "the same material with a term at zero," the simplification is
+lawful. If the answer names a different material, it is not a simplification —
+it is a second body wearing the first one's geometry.
