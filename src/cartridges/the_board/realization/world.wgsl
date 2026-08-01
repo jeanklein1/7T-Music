@@ -11718,15 +11718,16 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
             let seg_r = arm_r * (1.0 - t * 0.3);
 
-            var rx: f32; var rz: f32;
-            if (abs(ndy) > 0.95) {
-                rx = 1.0; rz = 0.0;
-            } else {
-                rx = ndz; rz = -ndx;
-                let rl = sqrt(rx * rx + rz * rz);
-                rx /= max(rl, 0.001);
-                rz /= max(rl, 0.001);
-            }
+            // THE ARM'S PLANE IS FIXED. The path lies entirely in the
+            // vertical plane spanned by out = (cos az, 0, sin az) and world
+            // up, so ONE horizontal perpendicular serves every ring. The
+            // runtime branch it replaces flipped the reference axis mid-arm
+            // whenever |ndy| passed 0.95 — which arm_curve mu 1.00 now
+            // reaches around t ~ 0.75 (the old designer defaults peaked at
+            // 0.949, one hundredth below it). out is already unit, so this
+            // is too: no re-normalisation.
+            let rx = out_z;
+            let rz = -out_x;
             let fx = 0.0 - rz * ndy;
             let fy = rz * ndx - rx * ndz;
             let fz = rx * ndy;
