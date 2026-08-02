@@ -11980,8 +11980,29 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let cx = p.center_x;
     let cz = p.center_z;
-    let n_blades = u32(max(2.0, p.blade_count));
     let segs = max(3u, p.blade_segs);
+
+    // THE SLOT IS THE AUTHORITY (mirrors the palm's frond ceiling and the
+    // cactus arm's). n_blades was an unbounded trip count writing into a
+    // fixed slot, and BLADE_COUNT carries 1e30f as its parameter ceiling,
+    // so only the distribution's tail was holding it.
+    //
+    // Costs read from the loops: the vertex loop is INCLUSIVE (s <= segs)
+    // and writes TWO verts per step; the index loop is exclusive and writes
+    // six. There is NO base or root cost — vi and ii are still zero when
+    // the blade loop opens, so the whole slot is the blade budget.
+    //
+    // NOTE for a future table edit: `segs` above has a floor but no
+    // ceiling. It is safe today only because blade_segs is an authored
+    // TIER SCALAR (5/6/7), not a sampled parameter — unlike blade_count.
+    // The ceiling below is computed FROM segs, so it stays correct if that
+    // ever changes; the guard that would still be missing is on segs itself.
+    let verts_per_blade   = (segs + 1u) * 2u;
+    let indices_per_blade = segs * 6u;
+    let blade_ceiling = min(BLADEG_MAX_VERTS_PER_SLOT   / max(verts_per_blade, 1u),
+                            BLADEG_MAX_INDICES_PER_SLOT / max(indices_per_blade, 1u));
+
+    let n_blades = min(u32(max(2.0, p.blade_count)), blade_ceiling);
     let GA = PI * (3.0 - sqrt(5.0));
 
     for (var b = 0u; b < n_blades; b++) {
