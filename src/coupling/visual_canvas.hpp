@@ -337,6 +337,15 @@ namespace t7 {
                     signal_layout_.resolve((v + ".onset").c_str());
             }
             for (int r = 0; r < 7; ++r) zoetrope_rows_[r] = 0.0f;
+            // Boot witness — doctrine, not measurement (P6): one line,
+            // always, so a deaf zoetrope names its fault at the seam.
+            {
+                int bound = 0;
+                for (int e = 0; e < zoetrope_ear_count_; ++e)
+                    if (zoetrope_ears_[e].valid) ++bound;
+                std::fprintf(stderr, "[Zoetrope] ears bound: %d of %d (mask 0x%02X)\n",
+                    bound, zoetrope_ear_count_, ZOETROPE_EARS);
+            }
         }
 
         // One frame: run every coupling — read its source, decode inline, carry the

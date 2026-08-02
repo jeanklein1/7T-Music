@@ -19,6 +19,8 @@
 
 #include <cmath>      // std::cos, std::sin   // (impl, merged)
 #include <iostream>   // diagnostics feedback   // (impl, merged)
+#include <cstdio>     // std::fprintf — the [ZOETROPE] witness line
+#include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.zoetrope_witness gates the [ZOETROPE] line
 
 namespace t7 {
 namespace the_board {
@@ -748,6 +750,18 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
                 gpu.upload_cube_color(queue, slot, cr, cg, cb);
             }
         }
+    // Strike witness (the [CHECKER] form): one line per strike-frame,
+    // on the dial. If the ears bound but this never prints, the fault
+    // is upstream — routing, transport, or the extractor.
+    if constexpr (INSTRUMENTS.zoetrope_witness) {
+        bool struck = false;
+        for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
+            if (rows[r] > 0.0f) { struck = true; break; }
+        if (struck)
+            std::fprintf(stderr,
+                "[ZOETROPE] strike col=%02u rows= %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",
+                col, rows[0], rows[1], rows[2], rows[3], rows[4], rows[5], rows[6]);
+    }
 }
 
 inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
