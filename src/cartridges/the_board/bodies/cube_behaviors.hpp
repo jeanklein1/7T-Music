@@ -73,6 +73,20 @@ inline constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
 //     omega       = 1.5      1/s, temporal frequency
 //     amplitude   = 30.0     force magnitude (vertical)
 
+// ═══ ZOETROPE — the lattice panel ═══ all Jean-tunable; beats units
+inline constexpr uint32_t LATTICE_ROWS  = 7;   // the mode's degrees
+inline constexpr uint32_t LATTICE_COLS  = Dim::MAX_CUBE_INSTANCES / LATTICE_ROWS;          // 36
+inline constexpr uint32_t LATTICE_CELLS = LATTICE_ROWS * LATTICE_COLS;  // 252 — the LIVING ceiling; capacity stays 256
+inline constexpr float ZOETROPE_TICK_BEATS        = 0.25f;  // automaton heartbeat
+inline constexpr float ZOETROPE_REV_BEATS         = 16.0f;  // write-head revolution
+inline constexpr float ZOETROPE_EXCITE_DIFFUSE    = 0.20f;  // per-tick neighbor share
+inline constexpr float ZOETROPE_ASYMMETRY         = 0.15f;  // seed-hashed weight skew
+inline constexpr float ZOETROPE_EXCITE_HALF_BEATS = 1.0f;   // flash memory
+inline constexpr float ZOETROPE_PIGMENT_GAIN      = 0.35f;  // deposit rate
+inline constexpr float ZOETROPE_PIGMENT_HALF_BEATS = 48.0f; // long memory
+static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0f,
+              "lattice diffusion unstable — lower DIFFUSE or ASYMMETRY");
+
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 
 struct CubeTierGain {
@@ -143,11 +157,26 @@ static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 
+// One lattice cell: fast excitation (the flash) and slow pigment (the
+// long memory). Cell index IS the cube slot — row-major, 7×36.
+struct ZoetropeCell {
+    float excite  = 0.0f;
+    float pigment = 0.0f;
+};
+
 struct CubeBehaviorsState {
     uint32_t   coordination_step  = 0;
     uint32_t   behavior_override  = CUBE_BEHAVIOR_STATIONARY;
     bool       kite_mode          = false;
     ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
+
+    // ── The zoetrope lattice (C4) ── zero-init is the law: boot is a
+    // transition from nothing — the lattice wakes silent, never replayed.
+    ZoetropeCell cells[LATTICE_CELLS]{};
+    float        cell_scratch[LATTICE_CELLS]{};   // diffusion inflow accumulator
+    float        wdir[LATTICE_CELLS][4]{};        // fixed-seed asymmetric weights, built at prime
+    float        last_tick_beat = 0.0f;           // the automaton's tick anchor
+    bool         primed         = false;          // weights built + clock anchored
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -171,6 +200,9 @@ void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
+// The zoetrope (the lattice substrate — spine-wired at U4)
+void zoetrope_strike(CubeBehaviorsState& cbs, const float rows[7], float t_beats);
+void zoetrope_service(CubeBehaviorsState& cbs, float t_beats);
 
 // ═══ IMPL:
 // rows deref cube_state(own) + mood/time/world via MachineCtx; corral/kite
@@ -419,7 +451,7 @@ inline const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
 }
 
 inline constexpr EntityFamilyTraits CUBE_TRAITS = {
-    PopFamily::CUBE, Dim::MAX_CUBE_INSTANCES,
+    PopFamily::CUBE, LATTICE_CELLS,   // the LIVING ceiling (7×36 = 252); capacity stays 256 — slots 252-255 never allocate
     false,                // NOT grounded — hovers and drifts; claims no ground (ruling 21)
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     mood_mult_for(PopFamily::CUBE), CubeConfig::POSITION_JITTER,
@@ -575,6 +607,88 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
     else { self->cube_behaviors_state_.activeCubes_[pe.generic.slot].active = false; }
 }
 
+
+// ═══ THE ZOETROPE — the lattice substrate (C4) ════════════════════
+//
+// A 7×36 cylinder automaton over the cube slots: cell index IS the cube
+// slot (row-major — row = slot / LATTICE_COLS, col = slot % LATTICE_COLS).
+// Columns wrap (the cylinder); rows clamp — the pitch edges are OPEN,
+// top/bottom outflow is lost. Two fields per cell: fast excitation
+// (diffuses one cell per tick, fixed-seed asymmetric weights) and slow
+// pigment (integrates excitation, long half-life). Ticks ride t_beats —
+// the musical clock; the write head is stateless, a pure function of
+// t_beats. The automaton never stops, including during transit.
+
+// Per-tick decay factors, derived from the panel (inline const, not
+// constexpr — std::exp2 is runtime at this standard; computed once).
+inline const float ZOETROPE_EXCITE_DECAY  = std::exp2(-ZOETROPE_TICK_BEATS / ZOETROPE_EXCITE_HALF_BEATS);
+inline const float ZOETROPE_PIGMENT_DECAY = std::exp2(-ZOETROPE_TICK_BEATS / ZOETROPE_PIGMENT_HALF_BEATS);
+
+// The weight table's seed grammar (primitives/seed_utils.hpp cpu_hash_f):
+// one FIXED seed, property = cell·4 + dir — per-(cell,dir) skew,
+// world-seed-independent (same MIDI, same screen).
+inline constexpr uint32_t ZOETROPE_WEIGHT_SEED = 0x20E7A0DEu;
+
+inline void zoetrope_strike(CubeBehaviorsState& cbs, const float rows[7], float t_beats) {
+    // The write head: col = the sweep's phase of revolution — stateless.
+    const float phase = t_beats / ZOETROPE_REV_BEATS;
+    const float fract = phase - std::floor(phase);
+    const uint32_t col = uint32_t(fract * float(LATTICE_COLS)) % LATTICE_COLS;
+    for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
+        if (rows[r] > 0.0f)
+            cbs.cells[r * LATTICE_COLS + col].excite += rows[r];
+}
+
+inline void zoetrope_service(CubeBehaviorsState& cbs, float t_beats) {
+    if (!cbs.primed) {
+        // First service: build the fixed-seed asymmetric weight table —
+        // per (cell, dir) a skew in [-ASYMMETRY, +ASYMMETRY] around
+        // DIFFUSE — and anchor the tick clock. Cells stay zero: the
+        // lattice wakes silent.
+        cbs.primed = true;
+        for (uint32_t cell = 0; cell < LATTICE_CELLS; ++cell)
+            for (uint32_t dir = 0; dir < 4; ++dir) {
+                const float skew = (cpu_hash_f(ZOETROPE_WEIGHT_SEED, cell * 4u + dir) - 0.5f)
+                                 * 2.0f * ZOETROPE_ASYMMETRY;
+                cbs.wdir[cell][dir] = ZOETROPE_EXCITE_DIFFUSE * (1.0f + skew);
+            }
+        cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
+        return;
+    }
+
+    // Transport-leap guard: more than 64 pending ticks means the clock
+    // leapt (a seek, a stall) — re-prime the anchor at the current beat.
+    // The cells persist: the automaton never replays.
+    if (t_beats - cbs.last_tick_beat > 64.0f * ZOETROPE_TICK_BEATS)
+        cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
+
+    while (cbs.last_tick_beat + ZOETROPE_TICK_BEATS <= t_beats) {
+        // One tick. Explicit 4-neighbor diffusion on the cylinder —
+        // dir order: 0 = +col (east), 1 = −col (west), 2 = +row (up),
+        // 3 = −row (down). Outflow toward a missing row is still shed
+        // (open edges); scratch gathers inflows from the OLD field.
+        for (uint32_t i = 0; i < LATTICE_CELLS; ++i) cbs.cell_scratch[i] = 0.0f;
+        for (uint32_t cell = 0; cell < LATTICE_CELLS; ++cell) {
+            const float e = cbs.cells[cell].excite;
+            if (e <= 0.0f) continue;
+            const uint32_t row = cell / LATTICE_COLS;
+            const uint32_t col = cell % LATTICE_COLS;
+            cbs.cell_scratch[row * LATTICE_COLS + (col + 1) % LATTICE_COLS]                += e * cbs.wdir[cell][0];
+            cbs.cell_scratch[row * LATTICE_COLS + (col + LATTICE_COLS - 1) % LATTICE_COLS] += e * cbs.wdir[cell][1];
+            if (row + 1 < LATTICE_ROWS) cbs.cell_scratch[cell + LATTICE_COLS] += e * cbs.wdir[cell][2];
+            if (row > 0)                cbs.cell_scratch[cell - LATTICE_COLS] += e * cbs.wdir[cell][3];
+        }
+        for (uint32_t cell = 0; cell < LATTICE_CELLS; ++cell) {
+            ZoetropeCell& c = cbs.cells[cell];
+            const float shed = cbs.wdir[cell][0] + cbs.wdir[cell][1]
+                             + cbs.wdir[cell][2] + cbs.wdir[cell][3];
+            c.excite  = (c.excite - c.excite * shed + cbs.cell_scratch[cell]) * ZOETROPE_EXCITE_DECAY;
+            c.pigment = std::min(1.0f, c.pigment * ZOETROPE_PIGMENT_DECAY
+                                     + c.excite * ZOETROPE_PIGMENT_GAIN);
+        }
+        cbs.last_tick_beat += ZOETROPE_TICK_BEATS;
+    }
+}
 
 // ─── Readback mirror reconciliation (owner verb) ─
 // the cube half of the floater-readback funnel.
