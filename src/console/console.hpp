@@ -125,14 +125,17 @@ namespace t7 {
             glfwSetCursorPosCallback(window_, [](GLFWwindow* w, double xpos, double ypos) {
                 auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
                 if (!console) return;
+                console->feed_cursor(xpos, ypos);
+                });
 
-                static double last_x = xpos, last_y = ypos;
-                console->inject_mouse_move(
-                    static_cast<float>(xpos - last_x),
-                    static_cast<float>(ypos - last_y)
-                );
-                last_x = xpos;
-                last_y = ypos;
+            // A focus change un-applies and re-applies the OS cursor mode
+            // beneath us; both edges move the pointer. Unprime so the first
+            // sample after the seam is a new origin, not a jump.
+            glfwSetWindowFocusCallback(window_, [](GLFWwindow* w, int focused) {
+                (void)focused;
+                auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
+                if (!console) return;
+                console->unprime_cursor();
                 });
 
             glfwSetMouseButtonCallback(window_, [](GLFWwindow* w, int button, int action, int mods) {
@@ -443,6 +446,25 @@ namespace t7 {
             inputEvents_.push_back(event);
         }
 
+        // The one differentiator. GLFW reports absolute positions; the
+        // tree consumes only deltas, so the previous position is console
+        // state — not a static hiding in a callback body.
+        void feed_cursor(double x, double y) {
+            if (!cursorPrimed_) {
+                lastCursorX_ = x;
+                lastCursorY_ = y;
+                cursorPrimed_ = true;
+                return;                 // no event: the first sample is an origin
+            }
+            inject_mouse_move(static_cast<float>(x - lastCursorX_),
+                              static_cast<float>(y - lastCursorY_));
+            lastCursorX_ = x;
+            lastCursorY_ = y;
+        }
+
+        // Declares a seam: the next sample re-origins instead of differencing.
+        void unprime_cursor() { cursorPrimed_ = false; }
+
         void inject_mouse_move(float dx, float dy) {
             InputEvent event{};
             event.type = InputEvent::Type::MouseMove;
@@ -549,6 +571,11 @@ namespace t7 {
 
         // ── Input ────────────────────────────────────────────────
         std::vector<InputEvent> inputEvents_;
+
+        // ── Cursor ───────────────────────────────────────────────
+        double lastCursorX_ = 0.0;
+        double lastCursorY_ = 0.0;
+        bool   cursorPrimed_ = false;
     };
 
 } // namespace t7
