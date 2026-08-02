@@ -11809,7 +11809,24 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             }
         }
 
-        // Arm cap
+        // ── Arm cap: the tip fans DIRECTLY to the last body ring ──
+        // The cap used to emit its OWN ring at arm_r * 0.6 while the last
+        // body ring sat at arm_r * 0.7 with rib modulation — two concentric
+        // rings at the same height, unstitched, leaving an open annulus all
+        // the way round every arm tip. Fanning to the body ring closes it
+        // and deletes the ring's vertices outright.
+        //
+        // THE FAN USES arm_around, NOT the old min(arm_around, 8u). Those
+        // two differ at every tier's mu (arm_around 12 against a cap of 8),
+        // so a fan over the cap count would have skipped a third of the
+        // ring it is stitching to.
+        //
+        // Winding is taken from the body's own quad, not guessed: the body
+        // writes (row0+seg, row1+seg, row1+next) then (row0+seg, row1+next,
+        // row0+next). The tip plays row1, so the first triangle degenerates
+        // and the second is what survives — (last+seg, tip, last+next). That
+        // is the OPPOSITE cyclic order from the deleted cap fan, which wound
+        // against its own separate ring.
         let arm_cap_r = arm_r * 0.6;
         let arm_cap_tip = vi;
         cactusg_write_vertex(vb_base + vi,
@@ -11818,22 +11835,12 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             cap_col_r, cap_col_g, cap_col_b, slot);
         vi++;
 
-        let arm_cap_ring = vi;
-        let arm_cap_segs = min(arm_around, 8u);
-        for (var seg = 0u; seg < arm_cap_segs; seg++) {
-            let angle = f32(seg) / f32(arm_cap_segs) * 2.0 * PI;
-            cactusg_write_vertex(vb_base + vi,
-                apx + cos(angle) * arm_cap_r, apy, apz + sin(angle) * arm_cap_r,
-                0.0, 1.0, 0.0,
-                cap_col_r, cap_col_g, cap_col_b, slot);
-            vi++;
-        }
-
-        for (var seg = 0u; seg < arm_cap_segs; seg++) {
-            let next = (seg + 1u) % arm_cap_segs;
-            cactusg_indices[ib_base + ii] = vb_base + arm_cap_tip; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + arm_cap_ring + seg; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + arm_cap_ring + next; ii++;
+        let arm_last_ring = arm_vi_start + arm_segs_u * arm_around;
+        for (var seg = 0u; seg < arm_around; seg++) {
+            let next = (seg + 1u) % arm_around;
+            cactusg_indices[ib_base + ii] = vb_base + arm_last_ring + seg;  ii++;
+            cactusg_indices[ib_base + ii] = vb_base + arm_cap_tip;          ii++;
+            cactusg_indices[ib_base + ii] = vb_base + arm_last_ring + next; ii++;
         }
     }
 
