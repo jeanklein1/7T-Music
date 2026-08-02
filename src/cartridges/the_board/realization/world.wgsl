@@ -1676,7 +1676,12 @@ struct DesignConfig {
     mosaic_passage_scale: f32,
     mosaic_blend: f32,
     mosaic_facet: f32,
-    _pad592_0: f32,
+    // TUNE_1 A3 — possessed figure's eye height in world units, authored
+    // CPU-side (FPV_EYE_RATIO x the figure's own height) and read by
+    // update_camera. This room cannot derive it: agent_figure_profiles
+    // (binding 112) is a render-VS uniform and no compute layout binds it.
+    // Reuses the first tail pad in place; sizeof 592 unmoved. Was _pad592_0.
+    fpv_eye_height: f32,
     _pad592_1: f32,
     _pad592_2: f32,
 }
@@ -1969,7 +1974,10 @@ const CAMERA_MAX_ELEVATION: f32 = 1.5;
 
 // --- FPV (First-Person View) constants
 
-const FPV_EYE_HEIGHT: f32 = PAWN_HEIGHT + 0.2;  // Camera at eye level
+// Eye height is NOT a constant: it is a ratio of the POSSESSED FIGURE's
+// own height, authored CPU-side into config.fpv_eye_height (TUNE_1 A3).
+// The constant this replaced was PAWN_HEIGHT + 0.2, which is what the
+// ratio still yields, to the bit, on the conventional figure.
 const FPV_MIN_ELEVATION: f32 = -1.4;             // Look down ~80°
 const FPV_MAX_ELEVATION: f32 = 1.5;              // Look up ~86°
 
@@ -7900,7 +7908,7 @@ fn update_camera() {
     }
 
     if (fpv_mode_active()) {
-        camera.pos = pawn_pos + vec3(0.0, FPV_EYE_HEIGHT, 0.0);
+        camera.pos = pawn_pos + vec3(0.0, config.fpv_eye_height, 0.0);
     } else if (coupling_active(COUPLING_PAWN_TO_CAMERA_TARGET)) {
         camera.pos = coupling_pawn_to_camera_target(camera.aim_point, camera);
     }

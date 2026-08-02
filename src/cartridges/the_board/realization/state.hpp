@@ -620,7 +620,14 @@ namespace t7 {
             float mosaic_passage_scale;
             float mosaic_blend;
             float mosaic_facet;
-            float _pad592_0;
+            // TUNE_1 A3 — the possessed figure's eye height, in world units.
+            // CPU-derived (FPV_EYE_RATIO x that figure's own height) because
+            // the compute stage cannot see agent_figure_profiles: binding 112
+            // is a render-VS-only uniform and update_camera's layout does not
+            // carry it. First of the three tail pads, reused in place — same
+            // position, same type, sizeof 592 UNMOVED (the possessed_slot /
+            // veil_dither / indoor_height_cap precedent). Was _pad592_0.
+            float fpv_eye_height;
             float _pad592_1;
             float _pad592_2;
         };
