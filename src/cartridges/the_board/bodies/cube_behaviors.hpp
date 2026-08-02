@@ -21,6 +21,7 @@
 #include <iostream>   // diagnostics feedback   // (impl, merged)
 #include <cstdio>     // std::fprintf — the [ZOETROPE] witness line
 #include <numeric>    // std::gcd — the helix coprimality witness
+#include <algorithm>  // std::min / std::max — the walk's clamps and settle norm
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.zoetrope_witness gates the [ZOETROPE] line
 
 namespace t7 {
@@ -99,6 +100,11 @@ inline constexpr float ZOETROPE_H_BASE      = 8.0f;   // row-0 height above grou
 inline constexpr float ZOETROPE_H_STEP      = 9.0f;   // wu per mode degree — screen ≈ rows 8..62 wu
 inline constexpr float ZOETROPE_PIXEL_RADIUS = 3.2f;  // pixel half-size; full ≈ 6.4 wu
 inline constexpr float ZOETROPE_FACE_SPLAY = 1.5f; // added face_variance at full excitation
+// ─ the scatter seat (the gathering, not the instrument) ─────────
+inline constexpr float ZOETROPE_SCATTER_RADIUS  = 90.0f;  // wu — the gathering's mean reach
+inline constexpr float ZOETROPE_SCATTER_JITTER_R = 0.45f; // × radius — deep, this is a flock
+inline constexpr float ZOETROPE_SCATTER_JITTER_H = 28.0f; // wu — free vertical spread
+inline constexpr uint32_t ZOETROPE_SCATTER_SEED = 0x5CA77E12u;
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
 inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
@@ -338,7 +344,17 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 inline uint32_t cell_of_slot(uint32_t s) { return (s * ZOETROPE_CELL_STRIDE)   % LATTICE_CELLS; }
 inline uint32_t slot_of_cell(uint32_t c) { return (c * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS; }
 
+// ── THE TWO STATIONS, side by side (H1b) ────────────────────────
+// SCATTER is the flock drawn in: own bodies, own altitudes, deep
+// jitter. SCREEN is the instrument: uniform pixels, ranked rows,
+// tight jitter. One function each; the cycle chooses.
+//
+// Both seat from the same construction — cell = cell_of_slot(slot),
+// theta from that cell's column — so a cube keeps its angular
+// identity across the whole cycle, and only its reach, its rank and
+// its body change between the two.
 struct ZoetropeStation { float off_x; float off_z; float h; };
+
 inline ZoetropeStation zoetrope_station(uint32_t slot) {
     const uint32_t cell = cell_of_slot(slot);
     const uint32_t row = cell / LATTICE_COLS;
@@ -348,6 +364,26 @@ inline ZoetropeStation zoetrope_station(uint32_t slot) {
     return { std::cos(theta) * ZOETROPE_RING_RADIUS,
              std::sin(theta) * ZOETROPE_RING_RADIUS,
              ZOETROPE_H_BASE + float(row) * ZOETROPE_H_STEP };
+}
+
+// The gathering's seat. Fixed-seed jitters (ZOETROPE_SCATTER_SEED), so
+// re-pressing lands every cube on the same seat it left — the flock has
+// a shape, not a shuffle.
+inline ZoetropeStation station_scatter(const CubeBehaviorsState& cbs, uint32_t slot) {
+    const uint32_t cell = cell_of_slot(slot);
+    const uint32_t col  = cell % LATTICE_COLS;
+    const float two_pi = 6.28318530718f;
+    const float theta = two_pi * float(col) / float(LATTICE_COLS);
+    // Deep radial jitter — this is a flock, not a ring.
+    const float jr = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 2u) - 0.5f) * 2.0f;
+    const float radius = ZOETROPE_SCATTER_RADIUS * (1.0f + jr * ZOETROPE_SCATTER_JITTER_R);
+    // Free vertical spread around the cube's OWN spawn altitude: the
+    // flock keeps its altitude character — it is gathered, not ranked.
+    // Floored at the screen's own base so no gathered cube sinks in.
+    const float jh = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 2u + 1u) - 0.5f) * 2.0f;
+    const float h = std::max(ZOETROPE_H_BASE,
+        cbs.activeCubes_[slot].orbit_height + jh * ZOETROPE_SCATTER_JITTER_H);
+    return { std::cos(theta) * radius, std::sin(theta) * radius, h };
 }
 
 inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
