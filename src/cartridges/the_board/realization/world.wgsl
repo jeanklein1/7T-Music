@@ -3459,41 +3459,6 @@ fn coupling_gol_next_state(alive: bool, neighbors: i32) -> f32 {
 // §4 DYNAMICS
 // §4.1 PGA MOTOR INTEGRATION
 // These functions use Projective Geometric Algebra for elegant transformations.
-fn pga_color_motor(current_rgb: vec3<f32>, hue_speed: f32, sat_push: f32, val_climb: f32, dt: f32) -> vec3<f32> {
-    // 1. CONVERT COLOR TO POINT
-    let p_color = point_from_vec3(current_rgb);
-    
-    // 2. DEFINE AXIS OF LUMINANCE (The Grey Line)
-    let axis_dir = normalize(vec3(0.60, 0.20, 0.10));
-    
-    // 3. HUE ROTOR (Twist)
-    //    Rotation around the luminance axis shifts hue
-    let r_hue = rotor(axis_dir, hue_speed * dt);
-    
-    // 4. VALUE TRANSLATOR (Climb)
-    //    Translation along the luminance axis changes value
-    let t_val = translator(axis_dir, val_climb * dt);
-    
-    // 5. SATURATION TRANSLATOR (Push)
-    //    Translation perpendicular to luminance axis changes saturation
-    //    Push AWAY from the grey line.
-    let parallel = dot(current_rgb, axis_dir) * axis_dir;
-    let perpendicular = current_rgb - parallel;
-    var sat_dir = vec3(0.0);
-    if (length(perpendicular) > 0.0001) {
-        sat_dir = normalize(perpendicular);
-    }
-    let t_sat = translator(sat_dir, sat_push * dt);
-    
-    // 6. COMPOSE MOTOR: Hue -> Sat -> Val
-    //    The geometric product composes transformations elegantly
-    var m = gp_mm(t_sat, r_hue);
-    m = gp_mm(t_val, m);
-    
-    // 7. APPLY AND RETURN
-    let p_new = sw_motor_point(m, p_color);
-    return clamp(point_to_vec3(p_new), vec3(0.0), vec3(1.0));
-}
 
 // --- [DYNAMICS:PGA] Sphere Orbit
 fn dynamics_sphere_motor_orbit(t: f32, fe: FloatingEntityState) -> FloatingEntityState {
