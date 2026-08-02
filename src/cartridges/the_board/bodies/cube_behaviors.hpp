@@ -137,10 +137,6 @@ inline constexpr float ZOETROPE_SCATTER_JITTER_H = 28.0f; // wu — free vertica
 inline constexpr float ZOETROPE_SCATTER_JITTER_THETA = 0.90f;  // × column arc — the flock is not spoked
 inline constexpr float ZOETROPE_SCATTER_SIZE_BIAS   = 4.0f;   // wu of extra radius per wu of body radius
 inline constexpr uint32_t ZOETROPE_SCATTER_SEED = 0x5CA77E12u;
-// ─ the disperse seat (the release, a dissolution) ───────────────
-inline constexpr float ZOETROPE_DISPERSE_RADIUS = 170.0f;  // wu — the release throws them wide
-inline constexpr float ZOETROPE_DISPERSE_JITTER = 0.65f;   // × radius — deep; this is a dissolution
-inline constexpr uint32_t ZOETROPE_DISPERSE_SEED = 0xD15BE12u;
 // ─ the walk between seats (every transition is a walk) ──────────
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
@@ -488,24 +484,6 @@ inline ZoetropeStation station_scatter(const CubeBehaviorsState& cbs, uint32_t s
     return { std::cos(theta) * radius, std::sin(theta) * radius, h };
 }
 
-// The release's seat — the third station. The scatter's grammar on its
-// own seed, but thrown WIDE and with a FULL-TURN angular jitter: the
-// gathering keeps its columns because it is still a formation, while a
-// dissolution owes the ring nothing. Heights return to the cube's own
-// spawn altitude, so what walks away is the swarm the world drew, not a
-// pattern wearing its clothes.
-inline ZoetropeStation station_disperse(const CubeBehaviorsState& cbs, uint32_t slot) {
-    const uint32_t cell = cell_of_slot(slot);
-    const float two_pi = 6.28318530718f;
-    const float jt = (cpu_hash_f(ZOETROPE_DISPERSE_SEED, cell * 3u + 2u) - 0.5f) * 2.0f;
-    const float theta = jt * two_pi;                      // a full turn — no column survives
-    const float jr = (cpu_hash_f(ZOETROPE_DISPERSE_SEED, cell * 3u) - 0.5f) * 2.0f;
-    const float radius = ZOETROPE_DISPERSE_RADIUS * (1.0f + jr * ZOETROPE_DISPERSE_JITTER);
-    const float jh = (cpu_hash_f(ZOETROPE_DISPERSE_SEED, cell * 3u + 1u) - 0.5f) * 2.0f;
-    const float h = std::max(ZOETROPE_H_BASE,
-        cbs.activeCubes_[slot].orbit_height + jh * ZOETROPE_SCATTER_JITTER_H);
-    return { std::cos(theta) * radius, std::sin(theta) * radius, h };
-}
 
 inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     using Formation = CubeBehaviorsState::Formation;
@@ -1211,12 +1189,11 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
             // target or body writes until it has eaten.
             cbs.stage_wait = false;
         } else {
-            if (!cbs.stations_sent) {
+            if ((to_screen || to_scatter) && !cbs.stations_sent) {
                 // First service after the press: the XZ seats, uniform,
-                // one pass. ALL THREE WALKS SEAT (W3) — the walk home is
-                // a walk of POSITIONS too, so TO_ROAM sends the disperse
-                // seats and the ring dissolves outward instead of holding
-                // its shape while only the bodies change.
+                // one pass. TO_ROAM sends no seats: a release is not a
+                // destination. The bodies walk home; the positions are
+                // handed back to drift at the settle.
                 //
                 // TWO ARMS, ONE DOOR (K1) — the corral's absolute arm,
                 // restored. C6R deleted it as "absorbed" and that
@@ -1226,9 +1203,8 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                 // the same ring either way — planted instead of carried.
                 for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
                     if (!cbs.activeCubes_[slot].active) continue;
-                    const ZoetropeStation st = to_screen  ? zoetrope_station(slot)
-                                             : to_scatter ? station_scatter(cbs, slot)
-                                                          : station_disperse(cbs, slot);
+                    const ZoetropeStation st = to_screen ? zoetrope_station(slot)
+                                                         : station_scatter(cbs, slot);
                     if (cbs.kite_mode)
                         gpu.upload_cube_glide_target(queue, slot, st.off_x, st.off_z);
                     else
@@ -1283,6 +1259,20 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                 gpu.upload_cube_aspects(queue, slot, w.ay, w.az);
             }
             if (all_settled) {
+                if (!to_screen && !to_scatter) {
+                    // THE HAND-BACK. Re-sending the sentinel it already
+                    // wears recaptures target := present in-kernel, so the
+                    // glide term goes to zero and the cube is returned to
+                    // drift and its behavior force — free where it stands.
+                    // kite_mode is UNCHANGED by construction: we resend
+                    // what it already is. F6 chooses shape; F7 chooses
+                    // frame. (Not set_cube_kite — that would rewrite the
+                    // flag and print.)
+                    for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
+                        if (!cbs.activeCubes_[slot].active) continue;
+                        gpu.upload_cube_follow_pawn(queue, slot, cbs.kite_mode ? 3u : 2u);
+                    }
+                }
                 cbs.formation = to_screen  ? Formation::SCREEN
                               : to_scatter ? Formation::SCATTERED
                                            : Formation::ROAM;
