@@ -99,6 +99,7 @@ inline constexpr float ZOETROPE_H_BASE      = 4.0f;   // row-0 height above grou
 inline constexpr float ZOETROPE_H_STEP      = 3.0f;   // wu per mode degree
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
+inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 
@@ -198,6 +199,10 @@ struct CubeBehaviorsState {
                                           // reads the GPU value; the walker owns
                                           // the scalar while the walk lives.
     bool  settled[LATTICE_CELLS]{};
+    // ── The reseat watch (G4) ── the point's last seen position; a
+    // per-frame step no motion can make marks a possession seam.
+    float last_px = 0.0f, last_pz = 0.0f;
+    bool  point_seen = false;
 
     // ── The zoetrope lattice (C4) ── zero-init is the law: boot is a
     // transition from nothing — the lattice wakes silent, never replayed.
@@ -235,7 +240,7 @@ void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatin
 void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed, const float rows[7], float t_beats);
 void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, float t_beats, float dt);
+    uint32_t active_seed, float t_beats, float dt, float point_x, float point_z);
 // The projector (C5): one home — cells reach pixels here and nowhere else
 uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
 void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
@@ -801,7 +806,33 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
 }
 
 inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, float t_beats, float dt) {
+    uint32_t active_seed, float t_beats, float dt, float point_x, float point_z) {
+    // ── The reseat watch (G4) ── possession moves the point in one
+    // frame farther than any motion can; a standing screen answers by
+    // re-using the capture two-step at the seam — recapture from the
+    // true present, restage, resend stations around the new host. The
+    // formation re-enters ASSEMBLING so the station pass runs; the
+    // heights are already settled, so the walk re-forms in one breath.
+    // RELEASING/ROAM: watch only.
+    {
+        using Formation = CubeBehaviorsState::Formation;
+        if (!cbs.point_seen) {
+            cbs.last_px = point_x; cbs.last_pz = point_z; cbs.point_seen = true;
+        }
+        const float ddx = point_x - cbs.last_px;
+        const float ddz = point_z - cbs.last_pz;
+        const float delta = std::sqrt(ddx * ddx + ddz * ddz);
+        if ((cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::FORMED)
+            && delta > ZOETROPE_RESEAT_JUMP) {
+            set_cube_kite(cbs, gpu, queue, true);   // re-capture at the new host
+            cbs.formation = Formation::ASSEMBLING;
+            cbs.stations_sent = false;
+            cbs.stage_wait = true;
+            std::cout << "[Zoetrope] reseat: the screen follows its new host\n";
+        }
+        cbs.last_px = point_x; cbs.last_pz = point_z;
+    }
+
     if (!cbs.primed) {
         // First service: build the fixed-seed asymmetric weight table —
         // per (cell, dir) a skew in [-ASYMMETRY, +ASYMMETRY] around
