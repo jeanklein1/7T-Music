@@ -383,7 +383,6 @@ namespace t7 {
             constexpr uint32_t INPUT_MOVES_PAWN          = 1u << 4;
             constexpr uint32_t INPUT_ORBITS_CAMERA       = 1u << 5;
             constexpr uint32_t INPUT_ZOOMS_CAMERA        = 1u << 6;
-            constexpr uint32_t POLYPHONY_TO_SPHERE_COLOR = 1u << 12;
             constexpr uint32_t TERRAIN_TO_SPHERE_HEIGHT  = 1u << 14;
             constexpr uint32_t PAWN_TO_SUN_VP            = 1u << 16;
             constexpr uint32_t ALL = 0x1FFFFFu;
@@ -393,7 +392,6 @@ namespace t7 {
             constexpr uint32_t TERRAIN = TERRAIN_TO_PAWN_Y | TERRAIN_TO_PAWN_TILT | TERRAIN_TO_SPHERE_HEIGHT;
             constexpr uint32_t INPUT = INPUT_MOVES_PAWN | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
             constexpr uint32_t CAMERA = PAWN_TO_CAMERA_TARGET | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
-            constexpr uint32_t SPHERE_APPEARANCE = POLYPHONY_TO_SPHERE_COLOR;
         }
 
         // =====================================================================
