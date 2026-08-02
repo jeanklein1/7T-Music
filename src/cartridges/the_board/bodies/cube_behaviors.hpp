@@ -226,6 +226,7 @@ void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Qu
 void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue, bool on);  // the ONE kite home (G3)
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
@@ -343,13 +344,27 @@ inline ZoetropeStation zoetrope_station(uint32_t slot) {
 }
 
 inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
-    // THE REVEAL, staged (V1): the 3u capture sentinel eats target_x/z
-    // in the frame it is consumed, so the press writes NO targets and NO
-    // heights — it stages. The service walks the formation from the next
-    // frame; the corral's absolute-ring arm is absorbed (the screen is
-    // kite-native — it tracks the point or it isn't a screen).
+    using Formation = CubeBehaviorsState::Formation;
+
+    // F6 IS A TOGGLE (G3): a standing (or assembling) screen lets go;
+    // a roaming (or releasing) swarm assembles. One kite home either way.
+    if (cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::FORMED) {
+        // The release arm: drop the kite; the service's release WATCH
+        // remains the one transition author — it sees the flag and
+        // fires RELEASING as today.
+        set_cube_kite(cbs, c->gpuState_, queue, false);
+        std::cout << "[Zoetrope] F6: release — the screen lets go\n";
+        return;
+    }
+
+    // The assemble arm (ROAM | RELEASING). THE REVEAL, staged (V1): the
+    // 3u capture sentinel eats target_x/z in the frame it is consumed,
+    // so the press writes NO targets and NO heights — it stages. The
+    // service walks the formation from the next frame; the corral's
+    // absolute-ring arm is absorbed (the screen is kite-native — it
+    // tracks the point or it isn't a screen).
     uint32_t staged = 0;
-    if (cbs.formation == CubeBehaviorsState::Formation::ROAM) {
+    if (cbs.formation == Formation::ROAM) {
         for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
             if (!cbs.activeCubes_[i].active) continue;
             cbs.prior_h[i] = cbs.activeCubes_[i].orbit_height;   // the V2 mirror field
@@ -358,7 +373,7 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
             staged++;
         }
     } else {
-        // Re-press in any non-ROAM state: re-arm the walk; prior_h is
+        // Re-assemble out of RELEASING: re-arm the walk; prior_h is
         // the original's — preserved, so release always scatters home.
         for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
             if (!cbs.activeCubes_[i].active) continue;
@@ -367,17 +382,11 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
         }
     }
     // The kite invariant: ASSEMBLING/FORMED require the flag true (the
-    // release watch reads it — E6), and an anchor-mode cube handed ring
+    // release watch reads it), and an anchor-mode cube handed ring
     // OFFSETS would glide to the WORLD ORIGIN (the documented spawn-mode
-    // desync trap). Any press that finds the flock anchored captures it.
-    if (!cbs.kite_mode) {
-        for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
-            if (!cbs.activeCubes_[i].active) continue;
-            c->gpuState_.upload_cube_follow_pawn(queue, i, 3u);
-        }
-        cbs.kite_mode = true;   // F7 remains the ONE release
-    }
-    cbs.formation = CubeBehaviorsState::Formation::ASSEMBLING;
+    // desync trap). The one kite home captures the flock whole.
+    set_cube_kite(cbs, c->gpuState_, queue, true);
+    cbs.formation = Formation::ASSEMBLING;
     cbs.stations_sent = false;
     cbs.stage_wait = true;      // this frame stages; the service acts next frame
 
@@ -387,24 +396,32 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
 
-inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
-    cbs.kite_mode = !cbs.kite_mode;
-    // Flip the flag; the kernel does the rest (the anchor law).
-    //   ON  → 3u kite-capture: offset := the true present
-    //         (pos − point − drift); target := offset.
-    //   OFF → 2u kite-release: anchor := current pos; target :=
-    //         anchor; drift zeroed.
-    // Both xz-position-preserving even under drift — the capture
-    // happens where drift lives. (Release clears drift.xz only; the
-    // vertical WALKS home on the existing spring/drag rather than
-    // snapping. Capture is xz-exact to f32.)
-    const uint32_t sentinel = cbs.kite_mode ? 3u : 2u;
+// THE ONE KITE HOME (G3): flag write + sentinel loop, extracted whole
+// from the toggle; no print — callers narrate. DEPS-FORM PRECEDENT
+// (clear_cubes): explicit GPUState& param, so the spine's service can
+// call it without a deps face. Returns the affected count.
+//   ON  → 3u kite-capture: offset := the true present
+//         (pos − point − drift); target := offset.
+//   OFF → 2u kite-release: anchor := current pos; target :=
+//         anchor; drift zeroed.
+// Both xz-position-preserving even under drift — the capture
+// happens where drift lives. (Release clears drift.xz only; the
+// vertical WALKS home on the existing spring/drag rather than
+// snapping. Capture is xz-exact to f32.)
+inline uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue, bool on) {
+    cbs.kite_mode = on;
+    const uint32_t sentinel = on ? 3u : 2u;
     uint32_t affected = 0;
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         if (!cbs.activeCubes_[i].active) continue;
-        c->gpuState_.upload_cube_follow_pawn(queue, i, sentinel);
+        gpu.upload_cube_follow_pawn(queue, i, sentinel);
         affected++;
     }
+    return affected;
+}
+
+inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
+    const uint32_t affected = set_cube_kite(cbs, c->gpuState_, queue, !cbs.kite_mode);
 
     std::cout << "[Floaters] kite mode: " << (cbs.kite_mode ? "ON" : "OFF")
               << " (" << affected << " cube(s))\n";
