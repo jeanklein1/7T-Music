@@ -194,9 +194,16 @@ struct CubeBehaviorsState {
     bool       kite_mode          = false;
     ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
 
-    // ── The reveal machine (C6R) ── staged capture, CPU flush-walk climb.
-    enum class Formation : uint8_t { ROAM, ASSEMBLING, FORMED, RELEASING };
+    // ── The reveal machine (C6R; H1: F6 IS A CYCLE) ── staged capture,
+    // CPU flush-walk climb. Three resting states — roam, scattered,
+    // screen — and a walk between each: roam → scatter → screen → roam.
+    // Every transition is a walk; nothing teleports.
+    enum class Formation : uint8_t {
+        ROAM, TO_SCATTER, SCATTERED, TO_SCREEN, SCREEN, TO_ROAM };
     Formation formation = Formation::ROAM;
+    // The reveal BORROWS the kite; it never owns it. kite_mode stays the
+    // FLOCK's own duty (F7's flag), handed back untouched at TO_ROAM.
+    bool  kite_by_reveal = false;
     bool  stations_sent = false;
     bool  stage_wait    = false;          // the press frame: the 3u sentinel is in
                                           // flight (V1) — no target/height writes
@@ -239,6 +246,7 @@ void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue, bool on);  // the ONE kite home (G3)
+bool cube_kite_effective(const CubeBehaviorsState& cbs);   // duty OR the reveal's borrow (H1)
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
@@ -389,55 +397,68 @@ inline ZoetropeStation station_scatter(const CubeBehaviorsState& cbs, uint32_t s
 inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     using Formation = CubeBehaviorsState::Formation;
 
-    // F6 IS A TOGGLE (G3): a standing (or assembling) screen lets go;
-    // a roaming (or releasing) swarm assembles. One kite home either way.
-    if (cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::FORMED) {
-        // The release arm: drop the kite; the service's release WATCH
-        // remains the one transition author — it sees the flag and
-        // fires RELEASING as today.
-        set_cube_kite(cbs, c->gpuState_, queue, false);
-        std::cout << "[Zoetrope] F6: release — the screen lets go\n";
-        return;
+    // F6 IS THE CYCLE (H1): roam → scatter → screen → roam. One door,
+    // three destinations; F7 never touches it. A press MID-WALK counts as
+    // its destination's press — the cycle advances and the walk simply
+    // re-aims, because the targets are read from the state every frame.
+    Formation next;
+    const char* line;
+    switch (cbs.formation) {
+        case Formation::ROAM:
+        case Formation::TO_ROAM:
+            next = Formation::TO_SCATTER;
+            line = "[Zoetrope] gather: the flock draws in";    break;
+        case Formation::SCATTERED:
+        case Formation::TO_SCATTER:
+            next = Formation::TO_SCREEN;
+            line = "[Zoetrope] reveal: the screen assembles";  break;
+        default:   // SCREEN | TO_SCREEN
+            next = Formation::TO_ROAM;
+            line = "[Zoetrope] release: the swarm walks home"; break;
     }
 
-    // The assemble arm (ROAM | RELEASING). THE REVEAL, staged (V1): the
-    // 3u capture sentinel eats target_x/z in the frame it is consumed,
-    // so the press writes NO targets and NO heights — it stages. The
-    // service walks the formation from the next frame; the corral's
-    // absolute-ring arm is absorbed (the screen is kite-native — it
-    // tracks the point or it isn't a screen).
-    uint32_t staged = 0;
-    if (cbs.formation == Formation::ROAM) {
-        for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
-            if (!cbs.activeCubes_[i].active) continue;
-            const ActiveCube& ac = cbs.activeCubes_[i];
-            // The walk starts at the truth — in ROAM the GPU scalars ARE
-            // the mirror's draws (nothing has walked them). The PRIOR
-            // itself is never staged: the mirror is the prior.
-            cbs.walk_[i] = { ac.orbit_height, ac.body_radius, ac.aspect_y, ac.aspect_z };
-            cbs.settled[i] = false;
-            staged++;
-        }
-    } else {
-        // Re-assemble out of RELEASING: re-arm the walk from its own live
-        // shadows; the mirror (the prior) is untouched by construction.
-        for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
-            if (!cbs.activeCubes_[i].active) continue;
-            cbs.settled[i] = false;
-            staged++;
-        }
+    // THE KITE, BORROWED. The formation is kite-native — it tracks the
+    // point or it is not a formation — and an anchor-mode cube handed
+    // ring OFFSETS would glide to the WORLD ORIGIN (the documented
+    // spawn-mode desync trap), so the capture is not optional while one
+    // stands. But the kite DUTY is the flock's, and F7's alone:
+    // set_cube_kite is the one sentinel home (G3) and writes the duty
+    // flag as F7's caller needs, so the borrow saves it and hands it
+    // straight back. TO_ROAM then restores exactly what the flock asked
+    // for, whether or not F7 was touched while the formation stood.
+    if (next == Formation::TO_ROAM) {
+        cbs.kite_by_reveal = false;
+        set_cube_kite(cbs, c->gpuState_, queue, cbs.kite_mode);   // the duty, handed back
+    } else if (!cbs.kite_by_reveal) {
+        const bool duty = cbs.kite_mode;
+        set_cube_kite(cbs, c->gpuState_, queue, true);
+        cbs.kite_mode = duty;
+        cbs.kite_by_reveal = true;
     }
-    // The kite invariant: ASSEMBLING/FORMED require the flag true (the
-    // release watch reads it), and an anchor-mode cube handed ring
-    // OFFSETS would glide to the WORLD ORIGIN (the documented spawn-mode
-    // desync trap). The one kite home captures the flock whole.
-    set_cube_kite(cbs, c->gpuState_, queue, true);
-    cbs.formation = Formation::ASSEMBLING;
+
+    // STAGED (V1): the sentinel eats target_x/z in the frame it is
+    // consumed, so the press writes NO targets and NO bodies — it stages,
+    // and the service walks from the next frame. Nothing new is recorded
+    // either: THE MIRROR IS THE PRIOR (G5). The walk re-arms from its own
+    // live shadows; only on the first press out of ROAM are those shadows
+    // seeded from the mirror, because in ROAM the GPU scalars ARE the
+    // mirror's draws — nothing has walked them yet.
+    const bool from_roam = (cbs.formation == Formation::ROAM);
+    uint32_t staged = 0;
+    for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
+        if (!cbs.activeCubes_[i].active) continue;
+        const ActiveCube& ac = cbs.activeCubes_[i];
+        if (from_roam)
+            cbs.walk_[i] = { ac.orbit_height, ac.body_radius, ac.aspect_y, ac.aspect_z };
+        cbs.settled[i] = false;
+        staged++;
+    }
+
+    cbs.formation = next;
     cbs.stations_sent = false;
     cbs.stage_wait = true;      // this frame stages; the service acts next frame
 
-    std::cout << "[Zoetrope] reveal: " << staged
-              << " cube(s) staged; the screen assembles\n";
+    std::cout << line << " (" << staged << " cube(s))\n";
 }
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
@@ -466,7 +487,31 @@ inline uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queu
     return affected;
 }
 
+// THE EFFECTIVE KITE (H1): the flock's own duty OR the reveal's borrow.
+// The GPU is kited whenever either says so, and kite_mode alone stopped
+// answering that question the moment the borrow started restoring it.
+// Every reader that asks "is the flock kited RIGHT NOW" must ask here —
+// a cube born anchored while its neighbours are kited would read the
+// next seat pass's ring OFFSETS as world coordinates and glide to the
+// world origin (the documented spawn-mode desync trap).
+inline bool cube_kite_effective(const CubeBehaviorsState& cbs) {
+    return cbs.kite_mode || cbs.kite_by_reveal;
+}
+
 inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
+    // F7 IS ONLY THE KITE (H1). While the reveal HOLDS the borrow, F7
+    // flips the flock's own duty flag and says so — no sentinel, nothing
+    // disturbed — and the duty is handed back when the cycle closes.
+    // The gate is the borrow itself, NOT formation != ROAM: the handback
+    // happens at the press that ENTERS TO_ROAM, so during that walk the
+    // flock owns its kite again and F7 must send a real sentinel.
+    if (cbs.kite_by_reveal) {
+        cbs.kite_mode = !cbs.kite_mode;
+        std::cout << "[Floaters] kite mode: " << (cbs.kite_mode ? "ON" : "OFF")
+                  << " (formation stands — flock already kited)\n";
+        return;
+    }
+
     const uint32_t affected = set_cube_kite(cbs, c->gpuState_, queue, !cbs.kite_mode);
 
     std::cout << "[Floaters] kite mode: " << (cbs.kite_mode ? "ON" : "OFF")
@@ -672,25 +717,37 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // exact — no sentinel round-trip, no capture frame. This is the
     // ONE init home for target in both arms: at rest target == param,
     // so update_cube's glide term is exactly zero either way.
-    if (c->cube_behaviors_state_.kite_mode) {
+    if (cube_kite_effective(c->cube_behaviors_state_)) {
         // Kite arm: the param is the OFFSET from the point, and the
         // point is point_.x/z — the same host-authored
-        // snapshot the reveal rings around.
+        // snapshot the reveal rings around. The EFFECTIVE kite decides
+        // (H1): under a standing formation the flock is kited by the
+        // reveal's borrow even when the flock's own duty says otherwise,
+        // and a newborn is born into the mode its neighbours are in.
         fe.follow_pawn = 1u;
+        using Formation = CubeBehaviorsState::Formation;
         const auto formation = c->cube_behaviors_state_.formation;
-        if (formation == CubeBehaviorsState::Formation::ASSEMBLING
-            || formation == CubeBehaviorsState::Formation::FORMED) {
-            // ZOETROPE (C6R E7 + G5): a newborn under a standing screen
-            // flies to its cell's seat — station offsets, station height,
-            // and PIXEL SCALE, written whole at commit. Birth may leap:
-            // boot is a transition from nothing, and so is birth. The
-            // mirror keeps its true tier draws (write_active), so release
+        const bool born_to_screen  = (formation == Formation::TO_SCREEN
+                                   || formation == Formation::SCREEN);
+        const bool born_to_scatter = (formation == Formation::TO_SCATTER
+                                   || formation == Formation::SCATTERED);
+        if (born_to_screen || born_to_scatter) {
+            // ZOETROPE (C6R E7 + G5 + H1): a newborn under a standing
+            // formation flies to its cell's seat, written whole at commit
+            // — the screen's seat takes PIXEL SCALE too, the gathering's
+            // leaves the body its own spawn draw. Birth may leap: boot is
+            // a transition from nothing, and so is birth. The mirror
+            // keeps its true tier draws (write_active), so the walk home
             // scatters it as if it had always roamed.
-            const ZoetropeStation st = zoetrope_station(inst.slot);
+            const ZoetropeStation st = born_to_screen
+                ? zoetrope_station(inst.slot)
+                : station_scatter(c->cube_behaviors_state_, inst.slot);
             fe.orbit_height = st.h;
-            fe.body_radius  = ZOETROPE_PIXEL_RADIUS;
-            fe.aspect_y     = 1.0f;
-            fe.aspect_z     = 1.0f;
+            if (born_to_screen) {
+                fe.body_radius = ZOETROPE_PIXEL_RADIUS;
+                fe.aspect_y    = 1.0f;
+                fe.aspect_z    = 1.0f;
+            }
             fe.pawn_offset[0] = st.off_x;
             fe.pawn_offset[1] = 0.0f;
             fe.pawn_offset[2] = st.off_z;
@@ -874,12 +931,12 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
 inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed, float t_beats, float dt, float point_x, float point_z) {
     // ── The reseat watch (G4) ── possession moves the point in one
-    // frame farther than any motion can; a standing screen answers by
+    // frame farther than any motion can; a standing formation answers by
     // re-using the capture two-step at the seam — recapture from the
-    // true present, restage, resend stations around the new host. The
-    // formation re-enters ASSEMBLING so the station pass runs; the
-    // heights are already settled, so the walk re-forms in one breath.
-    // RELEASING/ROAM: watch only.
+    // true present, restage, resend seats around the new host. A resting
+    // state re-enters its own walk so the seat pass runs; the bodies are
+    // already settled, so it re-forms in one breath. TO_ROAM/ROAM: watch
+    // only — a dissolving formation has no host to follow.
     {
         using Formation = CubeBehaviorsState::Formation;
         if (!cbs.point_seen) {
@@ -888,10 +945,15 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
         const float ddx = point_x - cbs.last_px;
         const float ddz = point_z - cbs.last_pz;
         const float delta = std::sqrt(ddx * ddx + ddz * ddz);
-        if ((cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::FORMED)
+        if ((cbs.formation == Formation::TO_SCATTER || cbs.formation == Formation::SCATTERED
+             || cbs.formation == Formation::TO_SCREEN || cbs.formation == Formation::SCREEN)
             && delta > ZOETROPE_RESEAT_JUMP) {
+            // The borrow again: recapture without spending the flock's duty.
+            const bool duty = cbs.kite_mode;
             set_cube_kite(cbs, gpu, queue, true);   // re-capture at the new host
-            cbs.formation = Formation::ASSEMBLING;
+            cbs.kite_mode = duty;
+            if (cbs.formation == Formation::SCATTERED)   cbs.formation = Formation::TO_SCATTER;
+            else if (cbs.formation == Formation::SCREEN) cbs.formation = Formation::TO_SCREEN;
             cbs.stations_sent = false;
             cbs.stage_wait = true;
             std::cout << "[Zoetrope] reseat: the screen follows its new host\n";
@@ -979,41 +1041,54 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
     // height scalar, the glide law's grammar; steady state pokes NOTHING.
     using Formation = CubeBehaviorsState::Formation;
 
-    // The release watch: F7 is the ONE release — the kite flag going
-    // false while the screen stands sends every cube walking home.
-    if ((cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::FORMED)
-        && !cbs.kite_mode) {
-        cbs.formation = Formation::RELEASING;
+    // The release watch: F6 is the ONE door; F7 is the flock's kite duty
+    // and never touches the formation. The reveal's own borrow flag
+    // falling — by any path — sends every cube walking home. reveal_
+    // zoetrope authors that transition at the press itself, so today this
+    // is the STANDING GUARD behind it, not the live author: it catches
+    // any future path that drops the borrow without moving the state.
+    if ((cbs.formation == Formation::TO_SCATTER || cbs.formation == Formation::SCATTERED
+         || cbs.formation == Formation::TO_SCREEN || cbs.formation == Formation::SCREEN)
+        && !cbs.kite_by_reveal) {
+        cbs.formation = Formation::TO_ROAM;
         for (uint32_t i = 0; i < LATTICE_CELLS; i++)
             if (cbs.activeCubes_[i].active) cbs.settled[i] = false;
         std::cout << "[Zoetrope] release: the swarm walks home\n";
     }
 
-    if (cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::RELEASING) {
+    if (cbs.formation == Formation::TO_SCATTER || cbs.formation == Formation::TO_SCREEN
+        || cbs.formation == Formation::TO_ROAM) {
+        const bool to_screen  = (cbs.formation == Formation::TO_SCREEN);
+        const bool to_scatter = (cbs.formation == Formation::TO_SCATTER);
         if (cbs.stage_wait) {
-            // The press frame (V1): the 3u sentinel is in flight — no
-            // target or height writes until it has eaten.
+            // The press frame (V1): the sentinel is in flight — no
+            // target or body writes until it has eaten.
             cbs.stage_wait = false;
         } else {
-            if (cbs.formation == Formation::ASSEMBLING && !cbs.stations_sent) {
-                // First service after the press: the XZ stations, uniform,
-                // one pass — the sentinel ate its 3u last frame.
+            if ((to_screen || to_scatter) && !cbs.stations_sent) {
+                // First service after the press: the XZ seats, uniform,
+                // one pass — the sentinel ate its 3u last frame. TO_ROAM
+                // sends none: the walk home is a walk of BODIES, and the
+                // xz stays where the cycle left it (the duty's own 2u
+                // freezes it in place if the flock asked to be let go).
                 for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
                     if (!cbs.activeCubes_[slot].active) continue;
-                    const ZoetropeStation st = zoetrope_station(slot);
+                    const ZoetropeStation st = to_screen ? zoetrope_station(slot)
+                                                         : station_scatter(cbs, slot);
                     gpu.upload_cube_glide_target(queue, slot, st.off_x, st.off_z);
                 }
                 cbs.stations_sent = true;
             }
-            // The pixel walk (G5): the walker owns its four shadows —
-            // height, radius, aspects — and never reads the GPU values
-            // while the walk lives. Assemble targets the pixel (station
-            // height, PIXEL_RADIUS, unit aspects); release targets the
-            // mirror's own draws — THE MIRROR IS THE PRIOR. One k for
-            // all four; aspects weigh 10× in the settle test (ratios).
+            // THE WALK'S TARGETS — one table, one home (H1 E3):
+            //   TO_SCATTER : the scatter seat's h; body = the MIRROR's own
+            //                spawn draw — the flock keeps its variety
+            //   TO_SCREEN  : the screen seat's h; body = the uniform pixel
+            //   TO_ROAM    : the mirror's four — THE MIRROR IS THE PRIOR
+            // The walker owns its four shadows (G5) and never reads the
+            // GPU values while the walk lives. One k for all four;
+            // aspects weigh 10× in the settle test (they are ratios).
             // Eviction mid-walk: inactive slots drop from the set; the
             // ghost keeps its cell.
-            const bool assembling = (cbs.formation == Formation::ASSEMBLING);
             const float k = 1.0f - std::exp(-dt / ZOETROPE_LIFT_TAU);
             bool all_settled = true;
             for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
@@ -1021,9 +1096,12 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                 if (cbs.settled[slot]) continue;
                 const ActiveCube& ac = cbs.activeCubes_[slot];
                 float th, tr, tay, taz;
-                if (assembling) {
+                if (to_screen) {
                     th = zoetrope_station(slot).h; tr = ZOETROPE_PIXEL_RADIUS;
                     tay = 1.0f; taz = 1.0f;
+                } else if (to_scatter) {
+                    th = station_scatter(cbs, slot).h;
+                    tr = ac.body_radius; tay = ac.aspect_y; taz = ac.aspect_z;
                 } else {
                     th = ac.orbit_height; tr = ac.body_radius;
                     tay = ac.aspect_y; taz = ac.aspect_z;
@@ -1047,13 +1125,16 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                 gpu.upload_cube_aspects(queue, slot, w.ay, w.az);
             }
             if (all_settled) {
-                cbs.formation = assembling ? Formation::FORMED : Formation::ROAM;
-                std::cout << (assembling ? "[Zoetrope] formed: the screen stands\n"
+                cbs.formation = to_screen  ? Formation::SCREEN
+                              : to_scatter ? Formation::SCATTERED
+                                           : Formation::ROAM;
+                std::cout << (to_screen  ? "[Zoetrope] screen: the instrument stands\n"
+                            : to_scatter ? "[Zoetrope] gathered: the flock stands drawn in\n"
                                          : "[Zoetrope] roam: the swarm is whole\n");
             }
         }
     }
-    // FORMED and ROAM poke nothing: steady-state height traffic is zero.
+    // SCATTERED, SCREEN and ROAM poke nothing: steady-state traffic is zero.
 }
 
 // ─── Readback mirror reconciliation (owner verb) ─
