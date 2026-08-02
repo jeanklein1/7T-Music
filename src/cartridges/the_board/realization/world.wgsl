@@ -2663,9 +2663,32 @@ fn zone_sphere_ff(world_xz: vec2<f32>, sphere_pos: vec3<f32>) -> f32 {
 }
 
 // --- Zone force field tint parameters
-const ZONE_PAWN_TINT: vec3<f32> = vec3(0.4, 0.2, 0.5);     // purple shift near pawn
+//
+// THE PAWN DOES NOT TINT THE GROUND (TUNE_2 B1). "A colour under the pawn"
+// is a PERCEPT, and a percept is only silenced when every producer of it is.
+// The whole producer list, so the next reader finds all of it from any one:
+//
+//   1. This pawn FF tint — ZONE_PAWN_TINT x ZONE_PAWN_TINT_STRENGTH, mixed
+//      into living GoL cells in patch_terrain_fs. SILENCED here: strength 0.
+//   2. The pawn aura's tint — PAWN_AURA_DEFAULT.tint_strength in
+//      bodies/pawn.hpp, which scales the GBA channels the aura kernel
+//      writes. SILENCED by TUNE_1 A4 (0.0f), and it stays so.
+//   3. zone_extrusion_fs's own copy of (1) — RETIRED with the whole separate
+//      extrusion mesh in [U4a]; GoL is the ground now, so there is no second
+//      fragment shader to keep in step. This is what closed charter C6-F1.
+//
+// NOT a tint, and deliberately still live: the aura's height brighten
+// (aura.r * 0.15, plus the normal perturb) in patch_terrain_fs. It adds the
+// SAME amount to R, G and B, so it moves brightness and not hue, and it is
+// part of the height effect this ruling preserves.
+//
+// COLOURS ARE KEPT, ONLY STRENGTHS GO TO ZERO — the effect returns by
+// restoring the number below, with its authored purple intact.
+//
+// The sphere is NOT ruled on and keeps its gold at 0.5.
+const ZONE_PAWN_TINT: vec3<f32> = vec3(0.4, 0.2, 0.5);     // purple shift near pawn (authored; kept)
 const ZONE_SPHERE_TINT: vec3<f32> = vec3(0.5, 0.35, 0.0);  // gold shift near sphere
-const ZONE_PAWN_TINT_STRENGTH: f32 = 0.6;
+const ZONE_PAWN_TINT_STRENGTH: f32 = 0.0;                  // TUNE_2 B1: was 0.6 — silenced
 const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 
 // --- Pawn GoL suppression radii (shared by the compute policies and the

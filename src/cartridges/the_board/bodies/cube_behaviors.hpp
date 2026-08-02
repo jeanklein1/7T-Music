@@ -151,7 +151,15 @@ inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
 inline constexpr float ZOETROPE_PIGMENT_WEIGHT = 0.45f;  // pigment is a stain under the flash, not a rival
 inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness — the instrument is dark until played
 inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
-inline constexpr float ZOETROPE_FACE_SPLAY = 1.50f;  // added face_variance at full I
+// TUNE_2 B2: was 1.50f. TUNE_1 A1 gave each RGB channel its own hash; the
+// magnitude was calibrated for ONE delta pushed into three channels at
+// (1.0, 0.7, 0.5), where the excursion was correlated and read as brightness.
+// Independent excursion at that magnitude clips, and clipped RGB is primaries:
+// at 1.50 a full strike put delivered face_variance near 2.0, ~74% of draws
+// against the [0,1] clamp and only ~44% of the intended excursion surviving.
+// At 0.40 that is ~17% clipping and ~96% surviving. Scales linearly in the
+// delta — this is the STRIKE knob; CUBE_TIERS FACE_VARIANCE is the REST knob.
+inline constexpr float ZOETROPE_FACE_SPLAY = 0.40f;  // added face_variance at full I
 inline constexpr float ZOETROPE_FACE_REST  = 1.20f;  // × the spawn draw, in formation
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
@@ -666,25 +674,25 @@ inline constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
     /* 0: SmallCube */ {
         { 0.40f, 0.0f, { {1.8f, 0.5f}, {25.0f, 20.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
                    {1.0f, 0.3f}, {5.0f, 1.5f},
-                   {1.0f, 0.15f}, {1.0f, 0.15f}, {0.40f, 0.12f} }},
+                   {1.0f, 0.15f}, {1.0f, 0.15f}, {0.18f, 0.06f} }},
         0.12f
     },
     /* 1: MedCube   */ {
         { 0.32f, 0.0f, { {4.0f, 1.2f}, {45.0f, 30.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
                    {1.5f, 0.4f}, {6.0f, 2.0f},
-                   {1.0f, 0.20f}, {1.0f, 0.20f}, {0.45f, 0.15f} }},
+                   {1.0f, 0.20f}, {1.0f, 0.20f}, {0.20f, 0.07f} }},
         0.10f
     },
     /* 2: LargeCube */ {
         { 0.20f, 0.0f, { {8.0f, 2.5f}, {75.0f, 45.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
                    {2.0f, 0.5f}, {8.0f, 2.5f},
-                   {1.0f, 0.25f}, {1.0f, 0.25f}, {0.35f, 0.10f} }},
+                   {1.0f, 0.25f}, {1.0f, 0.25f}, {0.16f, 0.05f} }},
         0.08f
     },
     /* 3: Monolith  */ {
         { 0.08f, 0.0f, { {3.0f, 0.8f}, {12.0f, 8.0f}, {12.0f, 3.0f}, {0.015f, 0.005f},
                    {1.2f, 0.3f}, {6.0f, 2.0f},
-                   {5.0f, 1.2f}, {0.15f, 0.03f}, {0.45f, 0.12f} }},
+                   {5.0f, 1.2f}, {0.15f, 0.03f}, {0.20f, 0.06f} }},
         0.10f
     },
 };
