@@ -20,6 +20,7 @@
 #include <cmath>      // std::cos, std::sin   // (impl, merged)
 #include <iostream>   // diagnostics feedback   // (impl, merged)
 #include <cstdio>     // std::fprintf — the [ZOETROPE] witness line
+#include <numeric>    // std::gcd — the helix coprimality witness
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.zoetrope_witness gates the [ZOETROPE] line
 
 namespace t7 {
@@ -87,6 +88,12 @@ static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0
 inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
 inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
 inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
+inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
+inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
+static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
+              "helix inverse broken — recompute UNSTRIDE for these dims");
+static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
+              "helix stride must be coprime to the lattice");
 inline constexpr float ZOETROPE_RING_RADIUS = 120.0f; // was corral's; FOV° ≈ 2·atan(3.5·H_STEP/RADIUS)
 inline constexpr float ZOETROPE_H_BASE      = 4.0f;   // row-0 height above ground (wu)
 inline constexpr float ZOETROPE_H_STEP      = 3.0f;   // wu per mode degree
@@ -164,7 +171,9 @@ static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 
 // One lattice cell: fast excitation (the flash) and slow pigment (the
-// long memory). Cell index IS the cube slot — row-major, 7×36.
+// long memory). THE HELIX (G2): cell = slot·37 mod 252 — consecutive
+// spawns land one column over, one row up; the screen densifies with
+// the population.
 struct ZoetropeCell {
     float excite  = 0.0f;
     float pigment = 0.0f;
@@ -314,12 +323,18 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 }
 
 // ── The zoetrope's stations (C6R) — the ONE home for geometry ───
-// Row-major with the first-free spawn scan: the screen fills its
-// tonic band first and grows upward from E.
+// THE HELIX (G2): cell = slot·37 mod 252 — consecutive spawns land one
+// column over, one row up; the screen densifies with the population.
+// The stride is coprime to the lattice, so slot↔cell is a bijection
+// (UNSTRIDE is its inverse); every row is reachable at any count.
+inline uint32_t cell_of_slot(uint32_t s) { return (s * ZOETROPE_CELL_STRIDE)   % LATTICE_CELLS; }
+inline uint32_t slot_of_cell(uint32_t c) { return (c * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS; }
+
 struct ZoetropeStation { float off_x; float off_z; float h; };
 inline ZoetropeStation zoetrope_station(uint32_t slot) {
-    const uint32_t row = slot / LATTICE_COLS;
-    const uint32_t col = slot % LATTICE_COLS;
+    const uint32_t cell = cell_of_slot(slot);
+    const uint32_t row = cell / LATTICE_COLS;
+    const uint32_t col = cell % LATTICE_COLS;
     const float two_pi = 6.28318530718f;
     const float theta = two_pi * float(col) / float(LATTICE_COLS);
     return { std::cos(theta) * ZOETROPE_RING_RADIUS,
@@ -682,8 +697,10 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 
 // ═══ THE ZOETROPE — the lattice substrate (C4) ════════════════════
 //
-// A 7×36 cylinder automaton over the cube slots: cell index IS the cube
-// slot (row-major — row = slot / LATTICE_COLS, col = slot % LATTICE_COLS).
+// A 7×36 cylinder automaton over the cube slots. THE HELIX (G2):
+// cell = slot·37 mod 252 — consecutive spawns land one column over, one
+// row up; the screen densifies with the population (cell_of_slot /
+// slot_of_cell are the only border crossings; cells stay cells).
 // Columns wrap (the cylinder); rows clamp — the pitch edges are OPEN,
 // top/bottom outflow is lost. Two fields per cell: fast excitation
 // (diffuses one cell per tick, fixed-seed asymmetric weights) and slow
@@ -720,7 +737,7 @@ inline uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t activ
 
 inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
     float& out_r, float& out_g, float& out_b) {
-    const ZoetropeCell& cell = cbs.cells[slot];
+    const ZoetropeCell& cell = cbs.cells[cell_of_slot(slot)];   // the helix crossing (G2)
     const float I = std::min(1.0f, cell.excite + cell.pigment);
     EntityInstance tmp{};
     tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
@@ -740,10 +757,12 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
     const uint32_t col = uint32_t(fract * float(LATTICE_COLS)) % LATTICE_COLS;
     for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
         if (rows[r] > 0.0f) {
-            const uint32_t slot = r * LATTICE_COLS + col;
-            cbs.cells[slot].excite += rows[r];
-            // The attack never waits for a tick: struck cells poke their
-            // slot immediately (mirror-active only — ghosts stay unseen).
+            const uint32_t cell = r * LATTICE_COLS + col;
+            cbs.cells[cell].excite += rows[r];
+            // The attack never waits for a tick: the struck cell pokes
+            // its slot — through the helix — immediately (mirror-active
+            // only; ghosts stay unseen).
+            const uint32_t slot = slot_of_cell(cell);
             if (cbs.activeCubes_[slot].active) {
                 float cr, cg, cb;
                 project_cell_color(cbs, active_seed, slot, cr, cg, cb);
