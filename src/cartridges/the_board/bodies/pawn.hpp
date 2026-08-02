@@ -40,7 +40,11 @@ struct PawnAuraProfile {
     float tint_r, tint_g, tint_b;
     uint32_t delta_mode;
     float delta_magnitude;     // random mode: max offset per channel
-    uint32_t effect_mask;      // bit 0=color, bit 1=height
+    uint32_t effect_mask;      // STATUS: INTENT — uploaded, never read.
+                               // Bit 0=color / bit 1=height was the intent;
+                               // no shader tests it (TUNE_1 A4 census). The
+                               // live gates are tint_strength (color) and
+                               // height_scale (height).
     float height_scale;        // height extrusion in world units
 };
 
@@ -49,8 +53,14 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
     12.0f,             // attack_stiffness
     0.7f,              // attack_damping
     1.5f,              // release_rate
-    0.5f,              // tint_strength
-    0.4f, 0.2f, 0.5f, // tint RGB (purple)
+    0.0f,              // tint_strength — MUTED (TUNE_1 A4). The tint's
+                       // only consumer is color_blend in the aura compute
+                       // kernel (world.wgsl), so 0 silences the terrain
+                       // tint outright. effect_mask bit 0 does NOT gate
+                       // that write — the field is uploaded and never
+                       // read — so the mask was not the dial. The height
+                       // effect rides height_scale and is untouched.
+    0.4f, 0.2f, 0.5f, // tint RGB (purple) — authored, kept
     PawnAuraDeltaMode::CONVERGENT,
     0.3f,              // delta_magnitude (used in random mode)
     0x3u,              // effect_mask: color tint + height

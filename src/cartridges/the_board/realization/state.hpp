@@ -1203,7 +1203,9 @@ namespace t7 {
             float attack_damping;      // damping ratio
             float release_rate;        // exponential decay rate
             float dt;
-            uint32_t effect_mask;      // bitfield: bit 0=color, bit 1=height (future)
+            uint32_t effect_mask;      // STATUS: INTENT — uploaded, never read by the
+                                       // kernel (TUNE_1 A4 census). tint_strength and
+                                       // height_scale are the live gates.
             uint32_t aura_n;           // grid side (64)
             float tint_strength;       // [0,1] blend strength
             float tint_r, tint_g, tint_b;  // signature color

@@ -6206,8 +6206,8 @@ struct PawnAuraConfig {
     attack_damping: f32,
     release_rate: f32,
     dt: f32,
-    effect_mask: u32,
-    aura_n: u32,
+    effect_mask: u32,          // STATUS: INTENT — mirrored, never read (TUNE_1 A4).
+    aura_n: u32,               // likewise unread: sample_pawn_aura uses PAWN_AURA_N.
     tint_strength: f32,
     tint_r: f32,
     tint_g: f32,
