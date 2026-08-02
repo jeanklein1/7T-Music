@@ -54,9 +54,19 @@ struct MoodState;
 // Deferred growth (named, not carried): smoothing/damping, invert-Y,
 // sprint multiplier, split H/V sensitivity, a vertical-lift axis.
 struct CameraControls {
+    // ── LIVE (run-time) ──────────────────────────────────────────
     // Mouse → rotation rate (radians per pixel of drag). Feeds every
-    // mouse-authored look/pan delta (on_mouse_move).
-    static constexpr float LOOK_SENSITIVITY = 0.005f;
+    // mouse-authored look/pan delta (on_mouse_move). The initialiser IS
+    // the design value: tune with KP_+/KP_-, read the printed number,
+    // write it here. One number, one home, no default table.
+    float look_sensitivity = 0.005f;
+
+    // ── DESIGN-TIME (the dial's own grammar) ─────────────────────
+    // Multiplicative: sensitivity is perceived logarithmically, so a
+    // fixed additive step is huge at the bottom and invisible at the top.
+    static constexpr float LOOK_SENS_STEP  = 1.25f;   // per keypress
+    static constexpr float LOOK_SENS_RANGE = 8.0f;    // clamp: init ÷R … init ×R
+    static constexpr float LOOK_SENS_INIT  = 0.005f;  // the clamp's anchor
     // W/S/A/D velocity in free-fly (world units per second) — the
     // camera host's MOVE_SPEED, wired to config.point_fly_speed at
     // boot. The pawn host's walk speed is Idle::PAWN_SPEED (state.hpp),
@@ -116,6 +126,7 @@ struct InputDeps {
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
     PointState&   point_;         // the point — the host toggle (key 4)
+    CameraControls& camera_;      // the first live panel dial (KP_+/KP_-)
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -142,6 +153,7 @@ void toggle_fpv_mode(InputDeps* c);
 void possess(InputDeps* c, PointHost next);   // THE ONE TRANSACTION — release(current) then bind(next); nothing else writes the host
 void set_render_radius(InputDeps* c, uint32_t r);
 void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
+void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multiplicative, clamped
 
 
 // ═══ MODULE IMPLEMENTATION ═══════════════════════════════════════
@@ -239,6 +251,10 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;
     case GLFW_KEY_V:              toggle_veil_dither(c);                                   break;  // THE RIM: icing tint <-> dither-dissolve
 
+    // ── Look dial (numpad) ───────────────────────────────────────
+    case GLFW_KEY_KP_ADD:      nudge_look_sensitivity(c, true);   break;
+    case GLFW_KEY_KP_SUBTRACT: nudge_look_sensitivity(c, false);  break;
+
     // ── Orb utilities (numpad) ───────────────────────────────────
     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state, &orbs_deps, q);            break;
     // KP_9 freed: the dome anchor toggle retired — the dome is
@@ -283,7 +299,7 @@ inline void on_key_up(InputDeps* c, int key) {
 // ═══ MOUSE / SCROLL ══════════════════════════════════════════════
 
 inline void on_mouse_move(InputDeps* c, float dx, float dy) {
-    constexpr float sensitivity = CameraControls::LOOK_SENSITIVITY;  // the panel dial
+    const float sensitivity = c->camera_.look_sensitivity;  // the panel dial, now live
     if (c->mouse_.left_dragging) {
         c->inputState_.look_az_delta += dx * sensitivity;
         c->inputState_.look_el_delta += dy * sensitivity;
@@ -335,6 +351,23 @@ inline void clear_input_deltas(InputDeps* c) {
 }
 
 // ═══ CAMERA / VIEW COMMANDS ══════════════════════════════════════
+
+// The printed line is the dial's whole point: it reads back as the
+// number to write into look_sensitivity's initialiser. The run-time
+// value is a VIEW of the source constant, not a rival to it.
+inline void nudge_look_sensitivity(InputDeps* c, bool up) {
+    const float lo = CameraControls::LOOK_SENS_INIT / CameraControls::LOOK_SENS_RANGE;
+    const float hi = CameraControls::LOOK_SENS_INIT * CameraControls::LOOK_SENS_RANGE;
+    const float k  = up ? CameraControls::LOOK_SENS_STEP
+                        : 1.0f / CameraControls::LOOK_SENS_STEP;
+
+    c->camera_.look_sensitivity =
+        std::min(hi, std::max(lo, c->camera_.look_sensitivity * k));
+
+    std::cout << "[Camera] Look sensitivity: " << c->camera_.look_sensitivity
+              << "  (x" << (c->camera_.look_sensitivity / CameraControls::LOOK_SENS_INIT)
+              << " of design)\n";
+}
 
 inline void toggle_fpv_mode(InputDeps* c) {
     c->player_.fpv_mode = !c->player_.fpv_mode;
