@@ -5165,9 +5165,18 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     } else {
         face_idx = select(0u, 1u, in.normal.x > 0.0);
     }
-    let face_hash = hash_property(fe.entity_seed, 500u + face_idx);
-    let face_delta = (face_hash - 0.5) * 2.0 * fe.face_variance;
-    let face_color = clamp(fe.color + vec3(face_delta, face_delta * 0.7, face_delta * 0.5), vec3(0.0), vec3(1.0));
+    // Per-channel face hue. One hash pushed into three channels at fixed
+    // ratios is monochromatic by construction — every face rides one color
+    // axis. Three independent hashes give each channel its own axis.
+    // Property block 500-517 is ONE purpose (entity-seed face hue), three
+    // disjoint 6-wide runs, face_idx in 0..5:
+    //   R 500-505   G 506-511   B 512-517
+    // R keeps its original hash, so R is bit-identical to before and the
+    // change is provably additive on G and B.
+    let dr = (hash_property(fe.entity_seed, 500u + face_idx) - 0.5) * 2.0 * fe.face_variance;
+    let dg = (hash_property(fe.entity_seed, 506u + face_idx) - 0.5) * 2.0 * fe.face_variance;
+    let db = (hash_property(fe.entity_seed, 512u + face_idx) - 0.5) * 2.0 * fe.face_variance;
+    let face_color = clamp(fe.color + vec3(dr, dg, db), vec3(0.0), vec3(1.0));
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
