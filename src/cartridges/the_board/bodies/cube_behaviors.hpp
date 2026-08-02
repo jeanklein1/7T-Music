@@ -94,9 +94,10 @@ static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS ==
               "helix inverse broken — recompute UNSTRIDE for these dims");
 static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
               "helix stride must be coprime to the lattice");
-inline constexpr float ZOETROPE_RING_RADIUS = 120.0f; // was corral's; FOV° ≈ 2·atan(3.5·H_STEP/RADIUS)
-inline constexpr float ZOETROPE_H_BASE      = 4.0f;   // row-0 height above ground (wu)
-inline constexpr float ZOETROPE_H_STEP      = 3.0f;   // wu per mode degree
+inline constexpr float ZOETROPE_RING_RADIUS = 60.0f;  // arc = 2π·R/36 ≈ 10.5 wu; FOV° ≈ 2·atan(3.5·H_STEP/RADIUS) ≈ 55°
+inline constexpr float ZOETROPE_H_BASE      = 8.0f;   // row-0 height above ground (wu)
+inline constexpr float ZOETROPE_H_STEP      = 9.0f;   // wu per mode degree — screen ≈ rows 8..62 wu
+inline constexpr float ZOETROPE_PIXEL_RADIUS = 3.2f;  // pixel half-size; full ≈ 6.4 wu
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
 inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
@@ -192,12 +193,11 @@ struct CubeBehaviorsState {
     bool  stations_sent = false;
     bool  stage_wait    = false;          // the press frame: the 3u sentinel is in
                                           // flight (V1) — no target/height writes
-    float prior_h[LATTICE_CELLS]{};       // staged ONLY on ROAM→ASSEMBLING;
-                                          // re-press during ASSEMBLING/FORMED/
-                                          // RELEASING preserves the original.
-    float h_walk[LATTICE_CELLS]{};        // the walker's own h shadow — it never
-                                          // reads the GPU value; the walker owns
-                                          // the scalar while the walk lives.
+    // The walker's own shadows (G5) — height, radius, aspects; it never
+    // reads the GPU values; the walker owns the scalars while the walk
+    // lives. The PRIOR needs no stage: THE MIRROR IS THE PRIOR
+    // (activeCubes_ keeps every tier draw; release targets read it).
+    struct ZoeWalk { float h, r, ay, az; } walk_[LATTICE_CELLS]{};
     bool  settled[LATTICE_CELLS]{};
     // ── The reseat watch (G4) ── the point's last seen position; a
     // per-frame step no motion can make marks a possession seam.
@@ -372,14 +372,17 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
     if (cbs.formation == Formation::ROAM) {
         for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
             if (!cbs.activeCubes_[i].active) continue;
-            cbs.prior_h[i] = cbs.activeCubes_[i].orbit_height;   // the V2 mirror field
-            cbs.h_walk[i]  = cbs.activeCubes_[i].orbit_height;   // the walk starts at the truth
+            const ActiveCube& ac = cbs.activeCubes_[i];
+            // The walk starts at the truth — in ROAM the GPU scalars ARE
+            // the mirror's draws (nothing has walked them). The PRIOR
+            // itself is never staged: the mirror is the prior.
+            cbs.walk_[i] = { ac.orbit_height, ac.body_radius, ac.aspect_y, ac.aspect_z };
             cbs.settled[i] = false;
             staged++;
         }
     } else {
-        // Re-assemble out of RELEASING: re-arm the walk; prior_h is
-        // the original's — preserved, so release always scatters home.
+        // Re-assemble out of RELEASING: re-arm the walk from its own live
+        // shadows; the mirror (the prior) is untouched by construction.
         for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
             if (!cbs.activeCubes_[i].active) continue;
             cbs.settled[i] = false;
@@ -560,7 +563,11 @@ inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.last_alloc_time = c->time_state_.seconds;
-    ac.orbit_height = inst.params[CubeIdx::ORBIT_HEIGHT];   // the tier draw — the release's PRIOR (C6R)
+    ac.orbit_height  = inst.params[CubeIdx::ORBIT_HEIGHT];    // the tier draws — THE MIRROR IS THE
+    ac.body_radius   = inst.params[CubeIdx::BODY_RADIUS];     // PRIOR (C6R V2 + G5): release walks
+    ac.aspect_y      = inst.params[CubeIdx::ASPECT_Y];        // every possessed scalar back here
+    ac.aspect_z      = inst.params[CubeIdx::ASPECT_Z];
+    ac.face_variance = inst.params[CubeIdx::FACE_VARIANCE];
     ac.active = true;
 }
 
@@ -630,14 +637,17 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
         const auto formation = c->cube_behaviors_state_.formation;
         if (formation == CubeBehaviorsState::Formation::ASSEMBLING
             || formation == CubeBehaviorsState::Formation::FORMED) {
-            // ZOETROPE (C6R E7): a newborn under a standing screen flies
-            // to its cell's seat — station offsets and station height,
-            // written whole at commit. Birth may leap: boot is a
-            // transition from nothing, and so is birth. Its prior_h is
-            // the spawn law's normal tier draw (seated by write_active),
-            // so release scatters it as if it had always roamed.
+            // ZOETROPE (C6R E7 + G5): a newborn under a standing screen
+            // flies to its cell's seat — station offsets, station height,
+            // and PIXEL SCALE, written whole at commit. Birth may leap:
+            // boot is a transition from nothing, and so is birth. The
+            // mirror keeps its true tier draws (write_active), so release
+            // scatters it as if it had always roamed.
             const ZoetropeStation st = zoetrope_station(inst.slot);
             fe.orbit_height = st.h;
+            fe.body_radius  = ZOETROPE_PIXEL_RADIUS;
+            fe.aspect_y     = 1.0f;
+            fe.aspect_z     = 1.0f;
             fe.pawn_offset[0] = st.off_x;
             fe.pawn_offset[1] = 0.0f;
             fe.pawn_offset[2] = st.off_z;
@@ -658,13 +668,12 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     }
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 
-    // ZOETROPE (C6R): birth bookkeeping — the walker's records. prior_h
-    // is the tier draw (release scatters home, as if it had always
-    // roamed); the h shadow mirrors the height just written; a newborn
-    // is born settled — no walk owed, in any formation state.
+    // ZOETROPE (C6R + G5): birth bookkeeping — the walker's shadows
+    // mirror the scalars just written; a newborn is born settled — no
+    // walk owed, in any formation state. The PRIOR needs no record
+    // here: the mirror is the prior (write_active seated the draws).
     auto& zcbs = c->cube_behaviors_state_;
-    zcbs.prior_h[inst.slot] = inst.params[CubeIdx::ORBIT_HEIGHT];
-    zcbs.h_walk[inst.slot]  = fe.orbit_height;
+    zcbs.walk_[inst.slot] = { fe.orbit_height, fe.body_radius, fe.aspect_y, fe.aspect_z };
     zcbs.settled[inst.slot] = true;
 }
 
@@ -764,7 +773,10 @@ inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_se
     EntityInstance tmp{};
     tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
     // The seed fn's exact signature takes traits + tier; it reads neither
-    // (both unnamed) — the call adapts, the law does not.
+    // (both unnamed) — the call adapts, the law does not. G5 V2 verdict:
+    // profile-INVARIANT — no profile field is consulted (and CUBE_TIERS'
+    // color_var column is 0.0 in every row), so profile(0) is bit-exact
+    // for every tier.
     cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
     out_r = tmp.colors[0] + (ZOETROPE_PIGMENT_R - tmp.colors[0]) * I;
     out_g = tmp.colors[1] + (ZOETROPE_PIGMENT_G - tmp.colors[1]) * I;
@@ -934,27 +946,46 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                 }
                 cbs.stations_sent = true;
             }
-            // The height walk: the walker owns its own h shadow — it never
-            // reads the GPU value while the walk lives. Eviction mid-walk:
-            // inactive slots drop from the set; the ghost keeps its cell,
-            // height is moot until the seat refills.
+            // The pixel walk (G5): the walker owns its four shadows —
+            // height, radius, aspects — and never reads the GPU values
+            // while the walk lives. Assemble targets the pixel (station
+            // height, PIXEL_RADIUS, unit aspects); release targets the
+            // mirror's own draws — THE MIRROR IS THE PRIOR. One k for
+            // all four; aspects weigh 10× in the settle test (ratios).
+            // Eviction mid-walk: inactive slots drop from the set; the
+            // ghost keeps its cell.
             const bool assembling = (cbs.formation == Formation::ASSEMBLING);
             const float k = 1.0f - std::exp(-dt / ZOETROPE_LIFT_TAU);
             bool all_settled = true;
             for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
                 if (!cbs.activeCubes_[slot].active) continue;
                 if (cbs.settled[slot]) continue;
-                const float target = assembling ? zoetrope_station(slot).h
-                                                : cbs.prior_h[slot];
-                float h = cbs.h_walk[slot];
-                h += (target - h) * k;
-                if (std::fabs(target - h) <= ZOETROPE_SETTLE_EPS) {
-                    h = target; cbs.settled[slot] = true;
+                const ActiveCube& ac = cbs.activeCubes_[slot];
+                float th, tr, tay, taz;
+                if (assembling) {
+                    th = zoetrope_station(slot).h; tr = ZOETROPE_PIXEL_RADIUS;
+                    tay = 1.0f; taz = 1.0f;
+                } else {
+                    th = ac.orbit_height; tr = ac.body_radius;
+                    tay = ac.aspect_y; taz = ac.aspect_z;
+                }
+                CubeBehaviorsState::ZoeWalk& w = cbs.walk_[slot];
+                w.h  += (th  - w.h)  * k;
+                w.r  += (tr  - w.r)  * k;
+                w.ay += (tay - w.ay) * k;
+                w.az += (taz - w.az) * k;
+                const float miss = std::max(
+                    std::max(std::fabs(th - w.h), std::fabs(tr - w.r)),
+                    10.0f * std::max(std::fabs(tay - w.ay), std::fabs(taz - w.az)));
+                if (miss <= ZOETROPE_SETTLE_EPS) {
+                    w = { th, tr, tay, taz };
+                    cbs.settled[slot] = true;
                 } else {
                     all_settled = false;
                 }
-                cbs.h_walk[slot] = h;
-                gpu.upload_cube_orbit_height(queue, slot, h);
+                gpu.upload_cube_orbit_height(queue, slot, w.h);
+                gpu.upload_cube_body_radius(queue, slot, w.r);
+                gpu.upload_cube_aspects(queue, slot, w.ay, w.az);
             }
             if (all_settled) {
                 cbs.formation = assembling ? Formation::FORMED : Formation::ROAM;
