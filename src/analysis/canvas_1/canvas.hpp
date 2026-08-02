@@ -82,6 +82,7 @@
 #include "sources/midi_port.hpp"
 #include "analysis/analysis_signal.hpp"
 #include "analysis/analysis_cartridge.hpp"
+#include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.zoetrope_witness gates the [ONSET] line
 
 #include <array>
 #include <cstdint>
@@ -451,6 +452,50 @@ private:
         for (int k = 0; k < published_count_; ++k)
             write_reading(published_[k]);
 
+        // ── THE PUBLISH-SIDE ONSET WITNESS ───────────────────────────
+        // The board's [ZOETROPE] strike line can only say "rows were
+        // empty"; it cannot say whether the EXTRACTOR produced nothing or
+        // the COUPLING failed to read it. This one sits on the publish
+        // side of that line, so the two together bound the fault.
+        //
+        // It reports two things, because a silent witness proves nothing:
+        // the per-voice onset sums when there ARE any, and — when notes
+        // are sounding but the aperture is shut — the reason. pc_onset
+        // admits an onset only if its beat stamp is strictly newer than
+        // the last published beat, and poll() stamps every event with
+        // the transport's own beats(), so a clock that does not ADVANCE
+        // closes the aperture completely, however many notes arrive.
+        // Values are the published ones: dressed to D, index 0 = D.
+        if constexpr (INSTRUMENTS.zoetrope_witness) {
+            for (int v = 0; v < MAX_CHANNELS; ++v) {
+                if (!active_[v]) continue;
+                float sum = 0.0f;
+                for (int i = 0; i < 12; ++i) sum += output_.stat(v, SLOT_ONSET + i);
+                if (sum <= 0.0f) continue;
+                std::fprintf(stderr, "[ONSET] ch%d sum=%.2f pcs=", v, sum);
+                for (int i = 0; i < 12; ++i)
+                    std::fprintf(stderr, "%.2f%s", output_.stat(v, SLOT_ONSET + i), i == 11 ? "\n" : " ");
+            }
+            bool sounding = false;
+            for (int v = 0; v < MAX_CHANNELS; ++v)
+                if (active_[v] && contexts_[v].playhead().gate()) { sounding = true; break; }
+            const bool aperture_shut = !(beat > onset_prev_beat_);
+            if (sounding && aperture_shut) {
+                if (!onset_mute_warned_) {
+                    std::fprintf(stderr,
+                        "[ONSET] APERTURE SHUT — notes sounding but beat has not advanced "
+                        "(beat=%.3f prev=%.3f, synced=%d playing=%d bpm=%.1f). "
+                        "No onset can publish until the DAW's clock runs: enable Clock/Sync "
+                        "output on this MIDI port and start the transport.\n",
+                        beat, onset_prev_beat_, (int)port_.ever_synced(),
+                        (int)port_.playing(), port_.bpm());
+                    onset_mute_warned_ = true;
+                }
+            } else if (!aperture_shut) {
+                onset_mute_warned_ = false;
+            }
+        }
+
         onset_prev_beat_ = beat;
     }
 
@@ -624,6 +669,7 @@ private:
     float    t_seconds_ = 0.0f; // wall-clock accumulation, the signal's telemetry
     float    dt_        = 0.0f; // the last frame's wall-clock delta
     float    onset_prev_beat_ = 0.0f; // the onset aperture's since-edge (advanced by publish)
+    bool     onset_mute_warned_ = false; // the [ONSET] aperture warning fires once per episode
 
     // The published signal and the contract over it: the list of published
     // readings (each carrying its own field state) and the parallel layout
