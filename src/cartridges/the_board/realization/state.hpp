@@ -1213,7 +1213,8 @@ namespace t7 {
             uint32_t effect_mask;      // STATUS: INTENT — uploaded, never read by the
                                        // kernel (TUNE_1 A4 census). tint_strength and
                                        // height_scale are the live gates.
-            uint32_t aura_n;           // grid side (64)
+            uint32_t aura_n;           // STATUS: INTENT — uploaded, never read; the
+                                       // kernel uses the WGSL PAWN_AURA_N constant.
             float tint_strength;       // [0,1] blend strength
             float tint_r, tint_g, tint_b;  // signature color
             uint32_t delta_mode;       // 0=convergent (toward tint), 1=random per-cell

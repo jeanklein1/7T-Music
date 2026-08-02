@@ -5,6 +5,46 @@ A8, A5, A10 — then this ledger. Cut from master `def19d7`.
 
 **All six landed. Nothing held.**
 
+> ### ⚠ READ FIRST — A4's GATE IS NOT MET BY ITS OWN BIND
+>
+> A4's BIND was executed exactly as ruled and is correct. Its **gate** —
+> "no purple under the pawn, on GoL cells or anywhere" — is **still open**,
+> because a **second, byte-identical purple** reaches terrain by a path the
+> BIND does not touch:
+>
+> ```
+> world.wgsl:2663  const ZONE_PAWN_TINT: vec3<f32> = vec3(0.4, 0.2, 0.5);     // purple shift near pawn
+> world.wgsl:2665  const ZONE_PAWN_TINT_STRENGTH: f32 = 0.6;
+> ```
+>
+> Applied in `patch_terrain_fs`, `world.wgsl:4642-4645`:
+>
+> ```
+>     let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn_pos(), render_pawn_vel_xz());
+>     if (pawn_ff > 0.01) {
+>         base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
+>     }
+> ```
+>
+> Same RGB triple as the aura's `tint_r/g/b`. It touches neither
+> `pawn_aura_cfg`, nor `tint_strength`, nor the aura texture, nor
+> `config.aura_enabled`, so **A4 cannot reach it**. `PAWN_FORCEFIELD_ENABLED`
+> is `true` (`world.wgsl:2146`), and `zone_pawn_ff` returns
+> `smoothstep(radius - 3, radius + 3, pawn_dist)`, which is **0 at the pawn**
+> for both the stationary and moving radii — so `pawn_ff` is 1.0 directly
+> underfoot and the mix reaches **0.6 toward purple** on a fully-lit GoL cell.
+> That is the gate's own worst case: on GoL cells, under the pawn.
+>
+> **This is a REPORT, not an improvisation.** `ZONE_PAWN_TINT_STRENGTH` is a
+> different dial in a different system (the zone force-field tint, which also
+> owns `ZONE_SPHERE_TINT`), and silencing it is a ruling Jean has not made —
+> the same shape as A8's "giving plants a private fraction" STOP. The
+> one-line edit that would close the gate is `ZONE_PAWN_TINT_STRENGTH
+> 0.6 → 0.0`, and it is **not** applied here.
+>
+> My A4 recon censused `effect_mask` and `tint_strength`. It did not census
+> the *colour the gate is written in*. That is the miss.
+
 | # | commit | task | verdict |
 |---|--------|------|---------|
 | 1 | `b1c0d73` | A4 mute pawn aura tint | LANDED — second branch |
@@ -152,10 +192,16 @@ disjoint.
 
 ### CENSUS 506–517 in the ENTITY-seed space — ZERO occupants
 
-The entity-seed space has exactly two consumers in scope:
+The entity-seed space has exactly **one** hash consumer in scope:
 
 - `world.wgsl:5168` — `hash_property(fe.entity_seed, 500u + face_idx)` → 500–505
-- `world.wgsl:4319` — `hash_property(entity_seed, 913u)`, the mosaic batch
+
+> **Corrected.** The A1 commit message counts `mosaic_sample` as a second
+> entity-seed consumer. It is not: its parameter is only *named* `entity_seed`,
+> and its sole call site passes `in.mosaic_seed`, authored in
+> `entity_pipeline.hpp` as `1u + hash × 65534` — a different space. The error
+> over-counted occupants, so it was conservative and could not have hidden a
+> STOP; its property is 913u and clean either way.
 
 `GAUSSIAN_PAIR_OFFSET` is 1000, so a `sample_gaussian` on property *P* also
 consumes *P*+1000; no entity-seed `sample_gaussian` exists at all, so neither
@@ -164,8 +210,16 @@ path reaches 506–517. **No STOP. The block was free.**
 **NOT collisions, as ruled.** The 500u / 501u / 510u / 520u / 521u / 540u uses
 at `world.wgsl:1153`, `1190`, `1223`, `1255`, `1281`, `1287` take a **lattice
 node seed** — the palette / mode / transition / sparse lattices — which is a
-different seed space entirely. They are recorded here so the next census does
-not re-litigate them.
+different seed space entirely.
+
+**Also not a collision, and the commit failed to name it:** the outdoor
+gallery holds 506 and 510+7p (so 510, 517, 524, …) as bare numerals —
+`gallery.hpp:312-314`, `CENTER_ANGLE = 506u`, `PER_PAINTING_BASE = 510u`,
+`PER_PAINTING_STRIDE = 7u`, consumed at `gallery.hpp:1058`. Those live in the
+**tile/patch-seed space** (`tile_seed(active_seed, gx, gz)`, a scrambled
+32-bit value), disjoint from the entity-seed space's raw slot integers. So
+"500–517 is now one purpose" is true **inside the entity-seed space** and only
+there. Recorded so the next census does not re-litigate any of these.
 
 **R is bit-identical**: same seed, same property, and the BIND gives R an
 implicit weight of 1.0, which is what `face_delta` carried before. At
@@ -355,10 +409,43 @@ and every indoor plant already under the cap are bit-identical.
 | cactus | `CactusIdx::HEIGHT` | trunk ring walk sets `y = t * p.height` |
 | blade | `BladeIdx::BLADE_H` | blade walks to `dist = t * blade_h`, lifts by `cos(splay) ≤ 1` |
 
-For cactus the arms fork at `p.height * fork_frac` and rise by at most
-`arm_length`, which stays under the trunk top in **all three tiers** at their
-means: FINGER 9.0 vs 3.6+2.0, SAGUARO 13.0 vs 5.9+4.5, CANDELABRA 20.0 vs
-8.0+7.0. The trunk is the family's tallest point in every row.
+> **CORRECTED after adversarial review.** Both extent claims were too strong
+> as first written. The choices stand — they are the palm mirror the ruling
+> asked for — but the *invariants* asserted for them did not hold, and the
+> code comments have been fixed to match this.
+
+**cactus — the means hold, the tails do not.** The arms fork at
+`p.height * fork_frac` and rise by at most `arm_length`. At the tier means the
+trunk wins everywhere: FINGER 9.0 vs 3.6+2.0, SAGUARO 13.0 vs 5.9+4.5,
+CANDELABRA 20.0 vs 8.0+7.0. But `arm_height`, `arm_length` and the fork jitter
+are all seeded, and at the ±3σ corner **the arms do pass the trunk** —
+SAGUARO 26.4 vs 20.5, CANDELABRA 37.5 vs 32.0. "Tallest point in every row" is
+a statement about means, not an invariant. Taking the trunk under-caps that
+corner rather than over-capping the common case.
+
+**blade — `BLADE_H` is the nominal rise, not the ceiling.** The mesh jitters
+each blade *above* the param:
+
+```
+world.wgsl:11953  let h_mult = 1.0 + (blade_hash(p.seed, 970u + b) - 0.5) * p.blade_h_var * 2.0;
+world.wgsl:11954  let blade_h = p.blade_h * max(0.4, h_mult);
+```
+
+so the true bound is `BLADE_H × (1 + BLADE_H_VAR)`, with `BLADE_H_VAR` at
+0.35 / 0.40 / 0.45 by tier. Palm and cactus have no upward jitter
+(`y = t * p.height`), so for them the primary param genuinely *is* the
+ceiling. **Blade is the odd one out**, and the first draft of this ledger
+asserted a ceiling two paragraphs above the very line that disproves it.
+
+**blade's hook cannot fire today — it is wiring, not a behavior change.**
+`BLADE_H` is a Gaussian truncated at ±3σ, so its largest reachable value is
+THICKET's `5.20 + 3(1.20) = 8.80`. The only two indoor ceilings are **20.0**
+and **25.0** (`spine_state.hpp:224-225`, static_asserted), i.e. cap thresholds
+of **15.00** and **18.75**. Even at the jittered bound (12.76) blade stays
+under. Blade now rides the same law as its siblings and will cap if a shorter
+ceiling or taller tier ever arrives, but **nothing about blade looks different
+today**. Cactus is the opposite: `HEIGHT` reaches 32.0, so its cap is live and
+CANDELABRA is capped at both ceilings.
 
 ### LENGTHS — classification from the code, not the column name
 
@@ -491,11 +578,32 @@ the tick reads. Weights are consumed as a normalized weighted pick — the
 selector walks `cumul += GOL_TIERS[t].weight` against a hash roll, in both
 rooms (`world.wgsl:6407`, `8774`; `gol_zones.hpp:436`).
 
-### Note, named rather than hidden
+### Note, named rather than hidden — CORRECTED
 
-**Flash is the only `force_no_height` row.** Starving it 0.17 → 0.03 makes flat
-GoL zones rare. That is a consequence of the weight shift, not a separate
-ruling, and it is stated here so it is not discovered later as a surprise.
+The A4–A10 commit messages say "Flash is the ONLY `force_no_height` row".
+**That is true only inside `GOL_TIERS`, and the conclusion drawn from it was
+wrong.** Pulse **Sparkle** also sets `force_no_height`
+(`gol_zones.hpp:182`, `world.wgsl:2135`), and Pulse is reached 35% of the time
+via `GOL_PULSE_ALGORITHM_CHANCE = 0.35f`.
+
+The real arithmetic, which `GoLZoneSpawnConfig` already maintained and which
+A10 initially left stale:
+
+```
+flat weight = 0.65 × Flash + 0.35 × Sparkle
+   before:   0.65 × 0.17 + 0.35 × 0.30 = 0.2155   → 78.45% extruded
+   after:    0.65 × 0.03 + 0.35 × 0.30 = 0.1245   → 87.55% extruded
+```
+
+So flat GoL zones go **21.55% → 12.45%** — about **one in eight**, not "rare".
+And after the shift **84% of the remaining flatness is owned by Pulse
+Sparkle**, a table A10 deliberately did not touch. If flat zones are meant to
+become genuinely rare, the dial is Sparkle's weight, and that is a ruling not
+yet made.
+
+The `HEIGHT_CHANCE` derivation comment at `gol_zones.hpp:103-109` is a
+maintained recipe whose input A10 moved; it has been corrected to the numbers
+above.
 
 ### Pulse untouched
 
@@ -510,28 +618,74 @@ rooms.
 
 Every gate below is visual or build, and none of them was run here.
 
-- **A4** — no purple under the pawn, on GoL cells or anywhere; the aura's
-  height extrusion behaves as today.
+- **A4** — **THIS GATE CANNOT PASS AS LANDED.** The aura's purple is silenced,
+  but `ZONE_PAWN_TINT` (same RGB, strength 0.6) is a second source on GoL
+  cells under the pawn, unreachable from A4's BIND. See the warning at the
+  head of this ledger. Ruling needed.
+- **A4** — the aura's height extrusion behaves as today. *(Invariant to
+  within 1.5e-3: with GBA forced to 0, the FS `aura_active` test collapses to
+  `aura.r`, so the ≤0.0015 brightness / ≤0.003 normal-tilt contribution is
+  lost in cells where `aura.r ≤ 0.01` but the colour delta previously cleared
+  the threshold. Sub-perceptual; the load-bearing height paths are untouched.)
 - **A1** — cubes read as polychrome; the near-uniform minority survives.
 - **A3** — conventional-pawn FPV pixel-identical to today (the float
   arithmetic is witnessed above, but the *render* is not); taller and shorter
   figures sit proportionally.
-- **A8** — no cactus or blade pierces or crowds a ceiling; outdoor sizes
-  unchanged; nothing inflates.
+- **A8** — no cactus **or blade** pierces or crowds a ceiling; outdoor sizes
+  unchanged; nothing inflates. *(Blade will look identical — its cap is
+  unreachable at every seed today. Only cactus visibly changes.)*
 - **A5** — fewer dead-flat stretches; isolated sharp risers at the 30 wu and
   12 wu scales; no uniform rubble; large landforms unchanged; **walk a
   riser — collision follows.**
 - **A10** — GoL mostly slow, occasionally quick; the 4-beat tier is plainly
   the common case; Pulse zones unchanged.
 
-## CARRIED FORWARD
+## CARRIED FORWARD — RULINGS NEEDED
 
-1. **A4** — `effect_mask` is a dead uniform field in both rooms, now tagged
-   `STATUS: INTENT`. So is `aura_n`. Removing them is a struct change; no task
+1. **A4 — `ZONE_PAWN_TINT_STRENGTH 0.6 → 0.0`.** The one-line edit that
+   closes A4's gate. Not applied: it is a different system's dial and Jean has
+   not ruled on it. **This is the blocking item.**
+2. **A10 — Pulse Sparkle's weight.** Flat GoL zones are now ~1 in 8, and 84%
+   of that flatness is Sparkle's, not Flash's. If "rare" was the intent, the
+   dial is in `GOL_PULSE_TIERS`, which A10 was told not to touch.
+3. **A8 — blade's `current_h`.** `BLADE_H × (1 + BLADE_H_VAR)` is the true
+   extent. Moot today (the cap is unreachable at every seed either way), so
+   the palm mirror was kept as ruled; revisit if a shorter ceiling lands.
+4. **A10 — the `grid_cells` column.** Its "weight order thirds 32/24/16"
+   pattern held exactly at `def19d7` and no longer does, because A10 re-ranked
+   the weights and cells were not in its bind. Values unchanged; the comments
+   in both rooms now record this as provenance rather than a live rule.
+   Re-author the cells if the pattern is wanted back.
+
+## CARRIED FORWARD — HOUSEKEEPING
+
+5. **A4** — `effect_mask` and `aura_n` are dead uniform fields in both rooms,
+   now tagged `STATUS: INTENT`. Removing them is a struct change; no task
    named one. For a pruning pass.
-2. **A1** — the `ZOETROPE_FACE_SPLAY` coupling drives delivered
+6. **A1** — the `ZOETROPE_FACE_SPLAY` coupling drives delivered
    `face_variance` to ~2.0 under a full-intensity strike, well past the
    `[0,1]` clamp. The dial for controlled hue is the splay, not `CUBE_TIERS`.
-3. **A5** — `damping_mean` on bands 2 and 3 is the named second pass.
-4. **A8** — the `CACTUS_TIERS` UNITS comment calls `LEAN` radians where the
+7. **A5** — `damping_mean` on bands 2 and 3 is the named second pass.
+8. **A8** — the `CACTUS_TIERS` UNITS comment calls `LEAN` radians where the
    mesh uses it as a fraction of height. Harmless to A8; worth a look.
+9. **A3** — staging writes through the raw `config()` accessor, which is the
+   first such write in the tree; `state.hpp` documents a named-poke idiom that
+   replaced raw pokes elsewhere. A `set_fpv_eye_height` shaped like
+   `set_pawn_tilt_tau` would fold the boot pin and the U1 write into one door
+   and remove the hand-copy L10 warns about. Not done: this round forbade new
+   functions. Convention, not a law violation.
+
+## THE REVIEW THAT FOUND THESE
+
+The six commits were put through an adversarial refutation pass — one skeptic
+per task instructed to break it, plus a law sweep and a build sweep, all told
+to default to "refuted" on anything they could not confirm. It found the A4
+gate failure, the blade no-op, both over-strong extent claims, the stale
+`HEIGHT_CHANCE` recipe, the `grid_cells` invariant, the `force_no_height`
+miscount, a fourth stale `effect_mask` comment the A4 commit claimed to have
+fixed, and a stray download artifact a verifier itself had left in the repo
+root and a `git add -A` had swept into the ledger commit. All of the above are
+corrected here or listed above as needing a ruling.
+
+Recorded because the campaign register asks for findings, and because a
+ledger that only lists what went right is not a ledger.

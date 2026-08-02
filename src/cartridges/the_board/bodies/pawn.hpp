@@ -63,7 +63,8 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
     0.4f, 0.2f, 0.5f, // tint RGB (purple) — authored, kept
     PawnAuraDeltaMode::CONVERGENT,
     0.3f,              // delta_magnitude (used in random mode)
-    0x3u,              // effect_mask: color tint + height
+    0x3u,              // effect_mask: authored; unread (see the field at
+                       // the struct, above — no shader tests this)
     3.0f,              // height_scale
 };
 
@@ -74,8 +75,10 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 //     swappable by landmarks/commands).
 //   aura_enabled — On/off intent (numpad 3, direction/input.hpp); the presence ramp
 //     smooths the transition. Temporary binding; the function persists.
-//   aura_height_enabled — Height-effect gate (key 2, direction/input.hpp); leaves the
-//     color tint visible while flattening the extrusion.
+//   aura_height_enabled — Height-effect gate (key 2, direction/input.hpp);
+//     flattens the extrusion. It USED to leave the color tint visible; since
+//     TUNE_1 A4 muted tint_strength there is no tint left to leave, so the
+//     key is now a height-only toggle.
 //   aura_needs_clear — Internal: clear cells next frame after aura disable.
 //   aura_cfg_dirty — Internal: full-config upload flag; true at boot; set by
 //     external writers on a parameter shift.

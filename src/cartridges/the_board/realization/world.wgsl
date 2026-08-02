@@ -2074,8 +2074,11 @@ struct GoLTierParams {
 const GOL_TIER_COUNT: u32 = 7u;
 
 //                                                 dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h  cells
-// (cells column: UNIFIED_GROUND_1 U5 — authored defaults by weight
-//  order thirds, 32/24/16; Jean-tunable per row.)
+// (cells column: authored by UNIFIED_GROUND_1 U5 as "defaults by weight
+//  order thirds, 32/24/16"; Jean-tunable per row. That descending-rank
+//  pattern held until TUNE_1 A10 re-ranked the weights without touching
+//  the cells — the values are unchanged, the pattern is not. See the CPU
+//  twin in bodies/gol_zones.hpp for the full note.)
 const GOL_TIERS = array<GoLTierParams, 7>(
     /* 0: PILLARS  */ GoLTierParams(0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.14, 0u, 16u),
     /* 1: SPARSE   */ GoLTierParams(0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.22, 0u, 32u),

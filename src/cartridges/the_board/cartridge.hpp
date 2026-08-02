@@ -465,10 +465,12 @@ namespace t7 {
                     // it from the possessed figure every frame.
                     gpuState_.set_pawn_tilt_tau(PAWN_FIGURES[0].tilt_tau);
                     // FPV eye rest = the conventional figure's eye (TUNE_1 A3).
-                    // Same shape as the tilt pin above and re-authored from the
-                    // possessed figure by U1 every frame. Unlike tilt this does
-                    // NOT match zero-init, and the zero would put the camera at
-                    // the pawn's feet on frame 1, so the pin is load-bearing.
+                    // Same shape as the tilt pin above; U1 re-authors it from
+                    // the possessed figure every frame. U1 runs before the
+                    // first upload (UPDATE_SPINE[0] vs [6]), so a zero could
+                    // not actually reach the GPU — this declares the rest
+                    // value where the other rest pins live (L10), it is not a
+                    // guard against a reachable frame-1 hazard.
                     gpuState_.config().fpv_eye_height =
                         FPV_EYE_RATIO * PAWN_FIGURES[0].height;
                     gpuState_.mark_config_dirty();
