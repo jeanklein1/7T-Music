@@ -73,10 +73,28 @@ inline constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
 //     omega       = 1.5      1/s, temporal frequency
 //     amplitude   = 30.0     force magnitude (vertical)
 
-// ═══ ZOETROPE — the lattice panel ═══ all Jean-tunable; beats units
+// ═══ ZOETROPE — THE CONSOLE ═══ four bands: THE LATTICE, THE
+// AUTOMATON, THE SCREEN, THE EXPRESSION. All Jean-tunable; beats units
+// unless a comment says otherwise.
+//
+// NONE OF THESE IS MIRRORED TO WGSL. The zoetrope is CPU-resident by
+// construction (the GPU is a projector only), so every constant here is
+// safe to change live — no shader recompile, no struct, no binding, no
+// two-room handshake to keep. The only arithmetic that binds is stated
+// in its own band: the automaton's composite law and the screen's
+// spacing.
+//
+// ─ THE LATTICE band ─────────────────────────────────────────────
 inline constexpr uint32_t LATTICE_ROWS  = 7;   // the mode's degrees
 inline constexpr uint32_t LATTICE_COLS  = Dim::MAX_CUBE_INSTANCES / LATTICE_ROWS;          // 36
 inline constexpr uint32_t LATTICE_CELLS = LATTICE_ROWS * LATTICE_COLS;  // 252 — the LIVING ceiling; capacity stays 256
+inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
+inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
+static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
+              "helix inverse broken — recompute UNSTRIDE for these dims");
+static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
+              "helix stride must be coprime to the lattice");
+
 // ─ THE AUTOMATON band ───────────────────────────────────────────
 // THE COMPOSITE LAW, so the flash is predictable rather than tuned by
 // feel: a cell keeps, per tick,
@@ -96,25 +114,22 @@ inline constexpr float ZOETROPE_PIGMENT_HALF_BEATS = 48.0f; // long memory
 inline constexpr float ZOETROPE_STRIKE_SPREAD = 0.55f;  // × w into each column-neighbour — a note has width
 static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0f,
               "lattice diffusion unstable — lower DIFFUSE or ASYMMETRY");
-// ─ THE EXPRESSION band ──────────────────────────────────────────
-inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
-inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
-inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
-inline constexpr float ZOETROPE_PIGMENT_WEIGHT = 0.45f;  // pigment is a stain under the flash, not a rival
-inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness — the instrument is dark until played
-inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
-inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
-static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
-              "helix inverse broken — recompute UNSTRIDE for these dims");
-static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
-              "helix stride must be coprime to the lattice");
+// ─ THE SCREEN band ──────────────────────────────────────────────
+// THE SPACING: 9 wu rows against 6.4 wu pixels is the first spacing
+// where the rows read as rows; the column arc at R=60 is 2πR/36 ≈
+// 10.5 wu, so neighbours in a row clear each other too.
 inline constexpr float ZOETROPE_RING_RADIUS = 60.0f;  // arc = 2π·R/36 ≈ 10.5 wu; FOV° ≈ 2·atan(3.5·H_STEP/RADIUS) ≈ 55°
 inline constexpr float ZOETROPE_H_BASE      = 8.0f;   // row-0 height above ground (wu)
 inline constexpr float ZOETROPE_H_STEP      = 9.0f;   // wu per mode degree — screen ≈ rows 8..62 wu
 inline constexpr float ZOETROPE_PIXEL_RADIUS = 3.2f;  // pixel half-size; full ≈ 6.4 wu
-inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
-inline constexpr float ZOETROPE_FACE_SPLAY = 1.50f;  // added face_variance at full I
-inline constexpr float ZOETROPE_FACE_REST  = 1.20f;  // × the spawn draw, in formation
+// The screen's own loosening — all zero ⇒ the machined ring; raise for
+// a hand-placed screen. Bounded by the spacing above: the jitters are
+// fractions of the arc, the step and the radius, so no setting of them
+// can put two pixels in one place.
+inline constexpr float ZOETROPE_JITTER_R     = 0.14f;  // × radius
+inline constexpr float ZOETROPE_JITTER_THETA = 0.35f;  // × column arc
+inline constexpr float ZOETROPE_JITTER_H     = 0.30f;  // × H_STEP
+inline constexpr uint32_t ZOETROPE_STATION_SEED = 0x57A7104Eu;
 // ─ the scatter seat (the gathering, not the instrument) ─────────
 inline constexpr float ZOETROPE_SCATTER_RADIUS  = 90.0f;  // wu — the gathering's mean reach
 inline constexpr float ZOETROPE_SCATTER_JITTER_R = 0.45f; // × radius — deep, this is a flock
@@ -122,9 +137,22 @@ inline constexpr float ZOETROPE_SCATTER_JITTER_H = 28.0f; // wu — free vertica
 inline constexpr float ZOETROPE_SCATTER_JITTER_THETA = 0.90f;  // × column arc — the flock is not spoked
 inline constexpr float ZOETROPE_SCATTER_SIZE_BIAS   = 4.0f;   // wu of extra radius per wu of body radius
 inline constexpr uint32_t ZOETROPE_SCATTER_SEED = 0x5CA77E12u;
+// ─ the walk between seats (every transition is a walk) ──────────
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
 inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
+
+// ─ THE EXPRESSION band ──────────────────────────────────────────
+// One intensity, three expressions: the colour mix, the swell, the
+// splay. All read the same I, so a strike is one gesture.
+inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
+inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
+inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
+inline constexpr float ZOETROPE_PIGMENT_WEIGHT = 0.45f;  // pigment is a stain under the flash, not a rival
+inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness — the instrument is dark until played
+inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
+inline constexpr float ZOETROPE_FACE_SPLAY = 1.50f;  // added face_variance at full I
+inline constexpr float ZOETROPE_FACE_REST  = 1.20f;  // × the spawn draw, in formation
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 
@@ -408,10 +436,21 @@ inline ZoetropeStation zoetrope_station(uint32_t slot) {
     const uint32_t row = cell / LATTICE_COLS;
     const uint32_t col = cell % LATTICE_COLS;
     const float two_pi = 6.28318530718f;
-    const float theta = two_pi * float(col) / float(LATTICE_COLS);
-    return { std::cos(theta) * ZOETROPE_RING_RADIUS,
-             std::sin(theta) * ZOETROPE_RING_RADIUS,
-             ZOETROPE_H_BASE + float(row) * ZOETROPE_H_STEP };
+    const float column_arc = two_pi / float(LATTICE_COLS);
+    // THE LOOSENING (V4): three fixed-seed offsets, the same grammar the
+    // scatter uses, on their own seed so the two seatings never share a
+    // hash — a cube's screen seat and its gathering seat are independent
+    // draws. All three jitters at zero give back the machined ring
+    // exactly; raised, the screen reads as hand-placed rather than
+    // milled, without any seat leaving its own cell's neighbourhood.
+    const float jt = (cpu_hash_f(ZOETROPE_STATION_SEED, cell * 3u + 2u) - 0.5f) * 2.0f;
+    const float jr = (cpu_hash_f(ZOETROPE_STATION_SEED, cell * 3u)      - 0.5f) * 2.0f;
+    const float jh = (cpu_hash_f(ZOETROPE_STATION_SEED, cell * 3u + 1u) - 0.5f) * 2.0f;
+    const float theta  = column_arc * float(col) + jt * column_arc * ZOETROPE_JITTER_THETA;
+    const float radius = ZOETROPE_RING_RADIUS * (1.0f + jr * ZOETROPE_JITTER_R);
+    const float h      = ZOETROPE_H_BASE + float(row) * ZOETROPE_H_STEP
+                       + jh * ZOETROPE_H_STEP * ZOETROPE_JITTER_H;
+    return { std::cos(theta) * radius, std::sin(theta) * radius, h };
 }
 
 // The gathering's seat. Fixed-seed jitters (ZOETROPE_SCATTER_SEED), so
