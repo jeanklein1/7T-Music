@@ -101,6 +101,7 @@ inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
 inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
 inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
 inline constexpr float ZOETROPE_PIGMENT_WEIGHT = 0.45f;  // pigment is a stain under the flash, not a rival
+inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness — the instrument is dark until played
 inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
 inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
 static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
@@ -216,6 +217,12 @@ struct CubeBehaviorsState {
         ROAM, TO_SCATTER, SCATTERED, TO_SCREEN, SCREEN, TO_ROAM };
     Formation formation = Formation::ROAM;
     bool  stations_sent = false;
+    // The dim changes with the formation, not with the music, so the
+    // projector must repaint once at the transition — otherwise the new
+    // rest waits for a strike that may never come (V1 E3). reveal_
+    // zoetrope cannot reach the world seed the projector needs, so it
+    // raises this and the service spends it on its next pass.
+    bool  repaint_all   = false;
     bool  stage_wait    = false;          // the press frame: the 3u sentinel is in
                                           // flight (V1) — no target/height writes
     // The walker's own shadows (G5) — height, radius, aspects; it never
@@ -481,6 +488,13 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
     cbs.formation = next;
     cbs.stations_sent = false;
     cbs.stage_wait = true;      // this frame stages; the service acts next frame
+    // THE TWO DIM EDGES (V1 E3) — the only two transitions that change
+    // the rest brightness: entering TO_SCREEN turns the dim ON, entering
+    // TO_ROAM turns it OFF. (TO_SCATTER is reachable only from ROAM and
+    // TO_ROAM, both already undimmed, and the settles stay inside their
+    // own band — so no other edge moves it.)
+    if (next == Formation::TO_SCREEN || next == Formation::TO_ROAM)
+        cbs.repaint_all = true;
 
     std::cout << line << " (" << staged << " cube(s))\n";
 }
@@ -908,9 +922,38 @@ inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_se
     // color_var column is 0.0 in every row), so profile(0) is bit-exact
     // for every tier.
     cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
-    out_r = tmp.colors[0] + (ZOETROPE_PIGMENT_R - tmp.colors[0]) * I;
-    out_g = tmp.colors[1] + (ZOETROPE_PIGMENT_G - tmp.colors[1]) * I;
-    out_b = tmp.colors[2] + (ZOETROPE_PIGMENT_B - tmp.colors[2]) * I;
+    // THE DARK REST (V1): the instrument is dark until played. The base
+    // dims in the SCREEN states ONLY — a lit rock face spends the whole
+    // of I on a tint nobody can see, so the screen makes room for the
+    // music first. ROAM and the gathering keep the world's own swarm at
+    // full brightness; dimming those would darken the world, not an
+    // instrument. At I = 1 the destination is the pigment either way, so
+    // the dim costs the gesture nothing — it only lowers the floor.
+    using Formation = CubeBehaviorsState::Formation;
+    const bool screen = (cbs.formation == Formation::SCREEN
+                      || cbs.formation == Formation::TO_SCREEN);
+    const float dim = screen ? ZOETROPE_REST_DIM : 1.0f;
+    const float br = tmp.colors[0] * dim;
+    const float bg = tmp.colors[1] * dim;
+    const float bb = tmp.colors[2] * dim;
+    out_r = br + (ZOETROPE_PIGMENT_R - br) * I;
+    out_g = bg + (ZOETROPE_PIGMENT_G - bg) * I;
+    out_b = bb + (ZOETROPE_PIGMENT_B - bb) * I;
+}
+
+// THE ONE POKE HOME: every projector write for a slot goes through here
+// — the immediate strike poke, the tick sweep, and the transition
+// repaint — so no two paths can disagree about what a cell looks like.
+inline void zoetrope_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
+    wgpu::Queue& queue, uint32_t active_seed, uint32_t slot) {
+    float cr, cg, cb;
+    project_cell_color(cbs, active_seed, slot, cr, cg, cb);
+    gpu.upload_cube_color(queue, slot, cr, cg, cb);
+    // The splay rides the projector (G6): variance relaxes to the
+    // mirror's rest as the cell dims.
+    const float I = zoetrope_cell_intensity(cbs, slot);
+    gpu.upload_cube_face_variance(queue, slot,
+        cbs.activeCubes_[slot].face_variance + ZOETROPE_FACE_SPLAY * I);
 }
 
 inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
@@ -939,13 +982,7 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
                 // (mirror-active only; ghosts stay unseen).
                 const uint32_t slot = slot_of_cell(hit[n]);
                 if (!cbs.activeCubes_[slot].active) continue;
-                float cr, cg, cb;
-                project_cell_color(cbs, active_seed, slot, cr, cg, cb);
-                gpu.upload_cube_color(queue, slot, cr, cg, cb);
-                // The splay rides the projector (G6): faces answer the music.
-                const float I = zoetrope_cell_intensity(cbs, slot);
-                gpu.upload_cube_face_variance(queue, slot,
-                    cbs.activeCubes_[slot].face_variance + ZOETROPE_FACE_SPLAY * I);
+                zoetrope_project_slot(cbs, gpu, queue, active_seed, slot);
             }
         }
     // Strike witness (the [CHECKER] form): one line per strike-frame,
@@ -1058,18 +1095,15 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
     // The projector's flush (C5): when a tick ran, every mirror-active
     // slot wears its cell — ≤252 12-byte pokes per tick, beneath the
     // spawn-commit idiom. Ghost cells (inactive slots) evolve unseen.
-    if (ticked) {
+    // The repaint edge (V1 E3) rides the same loop: a formation change
+    // that moves the dim spends one unconditional pass here, so the new
+    // rest lands without waiting for a strike.
+    if (ticked || cbs.repaint_all) {
         for (uint32_t slot = 0; slot < LATTICE_CELLS; ++slot) {
             if (!cbs.activeCubes_[slot].active) continue;
-            float cr, cg, cb;
-            project_cell_color(cbs, active_seed, slot, cr, cg, cb);
-            gpu.upload_cube_color(queue, slot, cr, cg, cb);
-            // The splay rides the projector (G6): variance relaxes to the
-            // mirror's rest as the cell dims.
-            const float I = zoetrope_cell_intensity(cbs, slot);
-            gpu.upload_cube_face_variance(queue, slot,
-                cbs.activeCubes_[slot].face_variance + ZOETROPE_FACE_SPLAY * I);
+            zoetrope_project_slot(cbs, gpu, queue, active_seed, slot);
         }
+        cbs.repaint_all = false;
     }
 
     // ── THE CLIMB (C6R): the formation walk — a CPU flush-walk on the
