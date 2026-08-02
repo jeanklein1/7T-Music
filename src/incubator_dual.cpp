@@ -164,6 +164,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Failed to initialize console\n";
         return 1;
     }
+    console.set_cursor_grab(true);   // the exhibition holds the pointer
 
     // --- Initialize Analysis Cartridge --------------------------------------
     AnalysisCartridge analysis;
