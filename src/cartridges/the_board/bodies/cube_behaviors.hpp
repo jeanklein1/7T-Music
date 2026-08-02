@@ -77,18 +77,30 @@ inline constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
 inline constexpr uint32_t LATTICE_ROWS  = 7;   // the mode's degrees
 inline constexpr uint32_t LATTICE_COLS  = Dim::MAX_CUBE_INSTANCES / LATTICE_ROWS;          // 36
 inline constexpr uint32_t LATTICE_CELLS = LATTICE_ROWS * LATTICE_COLS;  // 252 — the LIVING ceiling; capacity stays 256
+// ─ THE AUTOMATON band ───────────────────────────────────────────
+// THE COMPOSITE LAW, so the flash is predictable rather than tuned by
+// feel: a cell keeps, per tick,
+//     retention = (1 − 4·DIFFUSE) · 2^(−TICK/HALF)
+// — the diffusion sheds four ways BEFORE the decay multiplies. At the
+// values below that is ≈ 0.894 per tick, so the flash half-life is
+// ≈ 1.5 beats: a strike reads for about a bar and then is gone.
+// Raising DIFFUSE spends the flash sideways; raising HALF holds it in
+// place. They are not interchangeable, and this line is why.
 inline constexpr float ZOETROPE_TICK_BEATS        = 0.25f;  // automaton heartbeat
 inline constexpr float ZOETROPE_REV_BEATS         = 16.0f;  // write-head revolution
-inline constexpr float ZOETROPE_EXCITE_DIFFUSE    = 0.20f;  // per-tick neighbor share
+inline constexpr float ZOETROPE_EXCITE_DIFFUSE    = 0.02f;  // was 0.20 — per-tick neighbor share
 inline constexpr float ZOETROPE_ASYMMETRY         = 0.15f;  // seed-hashed weight skew
-inline constexpr float ZOETROPE_EXCITE_HALF_BEATS = 1.0f;   // flash memory
-inline constexpr float ZOETROPE_PIGMENT_GAIN      = 0.35f;  // deposit rate
+inline constexpr float ZOETROPE_EXCITE_HALF_BEATS = 6.0f;   // was 1.0 — the flash lingers a bar
+inline constexpr float ZOETROPE_PIGMENT_GAIN      = 0.25f;  // was 0.35 — deposit rate
 inline constexpr float ZOETROPE_PIGMENT_HALF_BEATS = 48.0f; // long memory
+inline constexpr float ZOETROPE_STRIKE_SPREAD = 0.55f;  // × w into each column-neighbour — a note has width
 static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0f,
               "lattice diffusion unstable — lower DIFFUSE or ASYMMETRY");
+// ─ THE EXPRESSION band ──────────────────────────────────────────
 inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
 inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
 inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
+inline constexpr float ZOETROPE_PIGMENT_WEIGHT = 0.45f;  // pigment is a stain under the flash, not a rival
 inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
 inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
 static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
@@ -879,7 +891,10 @@ inline uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t activ
 // helix crossing (G2) with it.
 inline float zoetrope_cell_intensity(const CubeBehaviorsState& cbs, uint32_t slot) {
     const ZoetropeCell& cell = cbs.cells[cell_of_slot(slot)];
-    return std::min(1.0f, cell.excite + cell.pigment);
+    // Pigment is a STAIN UNDER THE FLASH, not a rival (K3 A2): weighted
+    // down, the screen keeps its long memory without every cell flooding
+    // to uniform bright once the pigment saturates.
+    return std::min(1.0f, cell.excite + ZOETROPE_PIGMENT_WEIGHT * cell.pigment);
 }
 
 inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
@@ -906,13 +921,24 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
     const uint32_t col = uint32_t(fract * float(LATTICE_COLS)) % LATTICE_COLS;
     for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
         if (rows[r] > 0.0f) {
-            const uint32_t cell = r * LATTICE_COLS + col;
-            cbs.cells[cell].excite += rows[r];
-            // The attack never waits for a tick: the struck cell pokes
-            // its slot — through the helix — immediately (mirror-active
-            // only; ghosts stay unseen).
-            const uint32_t slot = slot_of_cell(cell);
-            if (cbs.activeCubes_[slot].active) {
+            // A NOTE HAS WIDTH (K3 A3): the strike lands on its own cell
+            // and bleeds SPREAD into both column-neighbours, columns
+            // wrapping. At partial population most single cells are
+            // ghosts, so width is what makes a note visible at all — and
+            // it is musically true: a struck string moves its neighbours.
+            const uint32_t row_base = r * LATTICE_COLS;
+            const uint32_t west = (col + LATTICE_COLS - 1) % LATTICE_COLS;
+            const uint32_t east = (col + 1) % LATTICE_COLS;
+            const uint32_t hit[3] = { row_base + col, row_base + west, row_base + east };
+            const float    amt[3] = { rows[r], rows[r] * ZOETROPE_STRIKE_SPREAD,
+                                               rows[r] * ZOETROPE_STRIKE_SPREAD };
+            for (uint32_t n = 0; n < 3; ++n) {
+                cbs.cells[hit[n]].excite += amt[n];
+                // The attack never waits for a tick: every struck cell
+                // pokes its slot — through the helix — immediately
+                // (mirror-active only; ghosts stay unseen).
+                const uint32_t slot = slot_of_cell(hit[n]);
+                if (!cbs.activeCubes_[slot].active) continue;
                 float cr, cg, cb;
                 project_cell_color(cbs, active_seed, slot, cr, cg, cb);
                 gpu.upload_cube_color(queue, slot, cr, cg, cb);
