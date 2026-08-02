@@ -11694,10 +11694,35 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── ARMS: ribbed columns along upward-curving paths ──
 
     let golden_angle = PI * (3.0 - sqrt(5.0));
-    let n_arms = u32(max(0.0, p.arm_count));
     let arm_segs_u = min(u32(p.arm_segs), 12u);
     let arm_ribs = max(4u, ribs - 2u);
     let arm_around = min(max(arm_ribs * 2u, 8u), 12u);
+
+    // THE SLOT IS THE AUTHORITY (mirrors the palm's frond ceiling). Every
+    // other quantity feeding the arm loops is clamped — arm_segs_u,
+    // arm_around, around, trunk_steps — and the TRIP COUNT was the one
+    // thing that was not, while ARM_COUNT carries 1e30f as its parameter
+    // ceiling. An unbounded loop writing into a fixed slot is a hole whose
+    // probability is a property of the current table, not of the code: a
+    // later table edit moves it with no warning.
+    //
+    // Costs are read from the loops, POST-F5. Trunk: rings are inclusive
+    // (ring <= trunk_steps) over `around` segs, plus ONE top-cap tip that
+    // fans to the existing top ring rather than emitting its own — which
+    // is precisely the pattern the arm tip lacked until F5. Per arm: the
+    // body rings are inclusive too, plus the single cap tip.
+    // n_arms moves BELOW arm_segs_u and arm_around because the ceiling
+    // depends on both. No floor to preserve — zero arms is a valid Finger.
+    let trunk_verts   = (trunk_steps + 1u) * around + 1u;
+    let trunk_indices = trunk_steps * around * 6u + around * 3u;
+    let verts_per_arm   = (arm_segs_u + 1u) * arm_around + 1u;
+    let indices_per_arm = arm_segs_u * arm_around * 6u + arm_around * 3u;
+    let arm_verts_left   = CACTUSG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   CACTUSG_MAX_VERTS_PER_SLOT);
+    let arm_indices_left = CACTUSG_MAX_INDICES_PER_SLOT - min(trunk_indices, CACTUSG_MAX_INDICES_PER_SLOT);
+    let arm_ceiling = min(arm_verts_left / max(verts_per_arm, 1u),
+                          arm_indices_left / max(indices_per_arm, 1u));
+
+    let n_arms = min(u32(max(0.0, p.arm_count)), arm_ceiling);
 
     for (var a = 0u; a < n_arms; a++) {
         let arm_az = f32(a) * golden_angle + cactus_hash(p.seed, 1050u + a) * 0.5;
