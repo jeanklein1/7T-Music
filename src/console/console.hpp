@@ -119,20 +119,31 @@ namespace t7 {
                     return;
                 }
 
+                // Numpad * — the pointer door. A window command of the same
+                // class as ESC: it never reaches the cartridge fan, and the
+                // cartridge never gains a window handle to serve it.
+                if (key == GLFW_KEY_KP_MULTIPLY && action == GLFW_PRESS) {
+                    console->toggle_cursor_grab();
+                    return;
+                }
+
                 console->inject_key_event(key, action);
                 });
 
             glfwSetCursorPosCallback(window_, [](GLFWwindow* w, double xpos, double ypos) {
                 auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
                 if (!console) return;
+                console->feed_cursor(xpos, ypos);
+                });
 
-                static double last_x = xpos, last_y = ypos;
-                console->inject_mouse_move(
-                    static_cast<float>(xpos - last_x),
-                    static_cast<float>(ypos - last_y)
-                );
-                last_x = xpos;
-                last_y = ypos;
+            // A focus change un-applies and re-applies the OS cursor mode
+            // beneath us; both edges move the pointer. Unprime so the first
+            // sample after the seam is a new origin, not a jump.
+            glfwSetWindowFocusCallback(window_, [](GLFWwindow* w, int focused) {
+                (void)focused;
+                auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
+                if (!console) return;
+                console->unprime_cursor();
                 });
 
             glfwSetMouseButtonCallback(window_, [](GLFWwindow* w, int button, int action, int mods) {
@@ -443,6 +454,25 @@ namespace t7 {
             inputEvents_.push_back(event);
         }
 
+        // The one differentiator. GLFW reports absolute positions; the
+        // tree consumes only deltas, so the previous position is console
+        // state — not a static hiding in a callback body.
+        void feed_cursor(double x, double y) {
+            if (!cursorPrimed_) {
+                lastCursorX_ = x;
+                lastCursorY_ = y;
+                cursorPrimed_ = true;
+                return;                 // no event: the first sample is an origin
+            }
+            inject_mouse_move(static_cast<float>(x - lastCursorX_),
+                              static_cast<float>(y - lastCursorY_));
+            lastCursorX_ = x;
+            lastCursorY_ = y;
+        }
+
+        // Declares a seam: the next sample re-origins instead of differencing.
+        void unprime_cursor() { cursorPrimed_ = false; }
+
         void inject_mouse_move(float dx, float dy) {
             InputEvent event{};
             event.type = InputEvent::Type::MouseMove;
@@ -476,6 +506,46 @@ namespace t7 {
             inputEvents_.clear();
         }
 
+        // ── Cursor grab ──────────────────────────────────────────
+        //
+        // Two facts, two homes; the GLFW mode is always DERIVED, never
+        // set from anywhere else.
+        //   grabPolicy_ — this program grabs the pointer. The board's
+        //                 boot declares it; the lab never does (ImGui
+        //                 needs a live cursor), so the door is inert there.
+        //   grabActive_ — the grab is applied right now. KP_* toggles it,
+        //                 and the choice persists across focus changes.
+
+        void set_cursor_grab(bool on) {
+            grabPolicy_ = on;
+            apply_cursor_mode();
+        }
+
+        void toggle_cursor_grab() {
+            if (!grabPolicy_) return;
+            grabActive_ = !grabActive_;
+            apply_cursor_mode();
+        }
+
+        bool cursor_grabbed() const { return grabPolicy_ && grabActive_; }
+
+    private:
+        void apply_cursor_mode() {
+            if (!window_) return;
+            const bool grab = grabPolicy_ && grabActive_;
+            glfwSetInputMode(window_, GLFW_CURSOR,
+                grab ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+            // Raw motion is only provided while the cursor is disabled, so
+            // it travels with the mode and is never set separately. It
+            // removes the OS pointer-ballistics curve from the look path.
+            if (glfwRawMouseMotionSupported()) {
+                glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION,
+                    grab ? GLFW_TRUE : GLFW_FALSE);
+            }
+            unprime_cursor();           // the mode change moves the pointer
+        }
+
+    public:
 
         // ═══ §5 ACCESSORS ════════════════════════════════════════
 
@@ -549,6 +619,13 @@ namespace t7 {
 
         // ── Input ────────────────────────────────────────────────
         std::vector<InputEvent> inputEvents_;
+
+        // ── Cursor ───────────────────────────────────────────────
+        bool   grabPolicy_ = false;   // no program has claimed the pointer
+        bool   grabActive_ = true;    // if one does, it begins grabbed
+        double lastCursorX_ = 0.0;
+        double lastCursorY_ = 0.0;
+        bool   cursorPrimed_ = false;
     };
 
 } // namespace t7
