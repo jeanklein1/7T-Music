@@ -1984,7 +1984,6 @@ const SPHERE_SLOT_COUNT: u32 = 8u;
 const CUBE_SLOT_OFFSET: u32 = 8u;
 const CUBE_SLOT_COUNT: u32 = 256u;
 
-const SPHERE_COLOR_RELEASE_RATE: f32 = 2.0;
 const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 
 // RESIDUE_2 [3b]: the sphere's floor over the LIVE ground (flyer
@@ -2545,7 +2544,6 @@ const COUPLING_PAWN_TO_CAMERA_TARGET:        u32 = 1u << 3u;
 const COUPLING_INPUT_MOVES_PLAYER:           u32 = 1u << 4u;
 const COUPLING_INPUT_ORBITS_CAMERA:          u32 = 1u << 5u;
 const COUPLING_INPUT_ZOOMS_CAMERA:           u32 = 1u << 6u;
-const COUPLING_POLYPHONY_TO_SPHERE_COLOR:    u32 = 1u << 12u;
 const COUPLING_TERRAIN_TO_SPHERE_HEIGHT:     u32 = 1u << 14u;
 const COUPLING_PAWN_TO_SUN_VP:               u32 = 1u << 16u;
 
@@ -2597,24 +2595,6 @@ fn point_ribbon_hosted() -> bool {
 // the signal bypass canvas and bank (sovereignty decision, parked).
 
 // §3.2 signal → entities
-
-// --- [COUPLING:signal.polyphony→sphere:color]
-fn coupling_signal_polyphony_to_sphere_color(polyphony: f32, current: vec3<f32>, base_color: vec3<f32>, dt: f32) -> vec3<f32> {
-    let intensity = saturate(polyphony / 8.0);
-    
-    // --- HYBRID APPROACH
-    if (intensity < 0.01) {
-        // Silent: smooth return to base color using existing release rate
-        return current + (base_color - current) * (1.0 - exp(-SPHERE_COLOR_RELEASE_RATE * dt));
-    }
-    
-    // Active: PGA spiral (rotation scales with intensity, no idle drift)
-    let hue_speed = intensity * 2.5;
-    let sat_push = intensity * 0.5;
-    let val_climb = intensity * 0.2;
-    
-    return pga_color_motor(current, hue_speed, sat_push, val_climb, dt);
-}
 
 // §3.3 input → entities
 
@@ -3479,41 +3459,6 @@ fn coupling_gol_next_state(alive: bool, neighbors: i32) -> f32 {
 // §4 DYNAMICS
 // §4.1 PGA MOTOR INTEGRATION
 // These functions use Projective Geometric Algebra for elegant transformations.
-fn pga_color_motor(current_rgb: vec3<f32>, hue_speed: f32, sat_push: f32, val_climb: f32, dt: f32) -> vec3<f32> {
-    // 1. CONVERT COLOR TO POINT
-    let p_color = point_from_vec3(current_rgb);
-    
-    // 2. DEFINE AXIS OF LUMINANCE (The Grey Line)
-    let axis_dir = normalize(vec3(0.60, 0.20, 0.10));
-    
-    // 3. HUE ROTOR (Twist)
-    //    Rotation around the luminance axis shifts hue
-    let r_hue = rotor(axis_dir, hue_speed * dt);
-    
-    // 4. VALUE TRANSLATOR (Climb)
-    //    Translation along the luminance axis changes value
-    let t_val = translator(axis_dir, val_climb * dt);
-    
-    // 5. SATURATION TRANSLATOR (Push)
-    //    Translation perpendicular to luminance axis changes saturation
-    //    Push AWAY from the grey line.
-    let parallel = dot(current_rgb, axis_dir) * axis_dir;
-    let perpendicular = current_rgb - parallel;
-    var sat_dir = vec3(0.0);
-    if (length(perpendicular) > 0.0001) {
-        sat_dir = normalize(perpendicular);
-    }
-    let t_sat = translator(sat_dir, sat_push * dt);
-    
-    // 6. COMPOSE MOTOR: Hue -> Sat -> Val
-    //    The geometric product composes transformations elegantly
-    var m = gp_mm(t_sat, r_hue);
-    m = gp_mm(t_val, m);
-    
-    // 7. APPLY AND RETURN
-    let p_new = sw_motor_point(m, p_color);
-    return clamp(point_to_vec3(p_new), vec3(0.0), vec3(1.0));
-}
 
 // --- [DYNAMICS:PGA] Sphere Orbit
 fn dynamics_sphere_motor_orbit(t: f32, fe: FloatingEntityState) -> FloatingEntityState {
@@ -8032,17 +7977,6 @@ fn update_sphere() {
 
             floating_entities.entities[slot] = fe;
         }
-
-        if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
-            // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
-            // neutral 0.0 — color rests at base_color.
-            floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
-                0.0,
-                floating_entities.entities[slot].color,
-                floating_entities.entities[slot].base_color,
-                dt
-            );
-        }
     }
 }
 
@@ -8443,18 +8377,6 @@ fn update_cube() {
             fe.orientation = vec4(axis * sin(half_a), cos(half_a));
 
             floating_entities.entities[slot] = fe;
-        }
-
-        // Floater color — shares the sphere-color capability below.
-        if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
-            // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
-            // neutral 0.0 — color rests at base_color.
-            floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
-                0.0,
-                floating_entities.entities[slot].color,
-                floating_entities.entities[slot].base_color,
-                dt
-            );
         }
     }
 }

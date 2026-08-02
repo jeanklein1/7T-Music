@@ -1134,7 +1134,7 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
 // grounded(4) is pinned too, which brackets the first removal from both sides.
 #define T7_GATE_PIN(TR, FAM, MAXN, GND, PROP, CHANCE, NCOL)                       \
     static_assert(TR.family_id       == FAM,     #TR " family_id must match");    \
-    static_assert(TR.max_instances   == MAXN,    #TR " max_instances must match");\
+    static_assert(TR.max_instances   <= MAXN,    #TR " population law ≤ capacity; the lattice owns the living ceiling");\
     static_assert(TR.grounded        == GND,     #TR " grounded must match");     \
     static_assert(TR.spawn_roll_prop == PROP,    #TR " spawn_roll_prop must match"); \
     static_assert(TR.spawn_chance    == CHANCE,  #TR " spawn_chance must match"); \

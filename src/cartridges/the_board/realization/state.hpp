@@ -383,7 +383,6 @@ namespace t7 {
             constexpr uint32_t INPUT_MOVES_PAWN          = 1u << 4;
             constexpr uint32_t INPUT_ORBITS_CAMERA       = 1u << 5;
             constexpr uint32_t INPUT_ZOOMS_CAMERA        = 1u << 6;
-            constexpr uint32_t POLYPHONY_TO_SPHERE_COLOR = 1u << 12;
             constexpr uint32_t TERRAIN_TO_SPHERE_HEIGHT  = 1u << 14;
             constexpr uint32_t PAWN_TO_SUN_VP            = 1u << 16;
             constexpr uint32_t ALL = 0x1FFFFFu;
@@ -393,7 +392,6 @@ namespace t7 {
             constexpr uint32_t TERRAIN = TERRAIN_TO_PAWN_Y | TERRAIN_TO_PAWN_TILT | TERRAIN_TO_SPHERE_HEIGHT;
             constexpr uint32_t INPUT = INPUT_MOVES_PAWN | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
             constexpr uint32_t CAMERA = PAWN_TO_CAMERA_TARGET | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
-            constexpr uint32_t SPHERE_APPEARANCE = POLYPHONY_TO_SPHERE_COLOR;
         }
 
         // =====================================================================
@@ -2171,6 +2169,27 @@ namespace t7 {
                 size_t off = offsetof(GPUFloatingEntityState, behavior_id);
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &behavior_id, sizeof(uint32_t));
             }
+            void upload_cube_orbit_height(wgpu::Queue& queue, uint32_t slot, float h) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, orbit_height);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &h, sizeof(float));
+            }
+            void upload_cube_body_radius(wgpu::Queue& queue, uint32_t slot, float r) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, body_radius);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &r, sizeof(float));
+            }
+            void upload_cube_aspects(wgpu::Queue& queue, uint32_t slot, float ay, float az) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, aspect_y);
+                float a[2] = { ay, az };   // aspect_z rides aspect_y — adjacent (128/132)
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, a, sizeof(a));
+            }
+            void upload_cube_face_variance(wgpu::Queue& queue, uint32_t slot, float v) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, face_variance);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &v, sizeof(float));
+            }
 
             // Partial writes for the anchor law (ONE_ANCHOR_1). The
             // toggle writes only the follow_pawn sentinel (the kernel
@@ -2188,6 +2207,12 @@ namespace t7 {
                 size_t off = offsetof(GPUFloatingEntityState, target_x);
                 float t[2] = { tx, tz };   // target_z rides target_x — pinned adjacent (200/204)
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, t, sizeof(t));
+            }
+            void upload_cube_color(wgpu::Queue& queue, uint32_t slot, float r, float g, float b) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, color);
+                float col[3] = { r, g, b };   // color[3] rides one write — contiguous floats (48/52/56)
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, col, sizeof(col));
             }
 
             // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)

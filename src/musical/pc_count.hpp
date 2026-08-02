@@ -14,6 +14,9 @@
 //               held); the window a completed one; the union sums the two,
 //               which are disjoint because a note is sounding or completed,
 //               never both.
+//   pc_onset  — weight = the note-on's velocity, filtered to onsets since a
+//               caller-held beat (the per-frame aperture). Present + window,
+//               disjoint as the length is.
 //   pc_set    — support of a count: the pitch-class SET, a class in iff it
 //               occurred at all. Derives FROM the count (count dominates;
 //               the set is recoverable from the count, not the reverse).
@@ -89,6 +92,28 @@ inline PitchClassVector pc_length(const PlayheadReadout& ph, const WagonReadout&
     PitchClassVector v = pc_length(ph);
     const PitchClassVector w = pc_length(wg);
     for (int i = 0; i < 12; ++i) v.v[i] += w.v[i];
+    return v;
+}
+
+// ═══ ONSET ═══════════════════════════════════════════════════════
+
+// Note-on impulses since `since_beat` (exclusive) → velocity-weighted
+// pitch-class sums. The same reduction as the counts, with the weight
+// switched from 1 to the note-on's velocity (already [0,1] at the stream
+// layer) and the population filtered to onsets inside (since_beat, anchor].
+// The present carries the still-sounding onsets; the window carries the
+// ones already completed (an on-and-off within a single frame) — disjoint
+// as ever, so the sum stands without double-counting. Each onset lands in
+// exactly one aperture: the caller advances since_beat to its anchor after
+// every read. Same-class retriggers inside one aperture sum.
+inline PitchClassVector pc_onset(const PlayheadReadout& ph, const WagonReadout& wg, float since_beat) {
+    PitchClassVector v;
+    for (int i = 0; i < ph.current_count; ++i)
+        if (ph.current[i].onset_beat > since_beat)
+            v[pc_of(ph.current[i].pitch)] += ph.current[i].velocity;
+    for (int i = 0; i < wg.note_count; ++i)
+        if (wg.notes[i].onset_beat > since_beat)
+            v[pc_of(wg.notes[i].pitch)] += wg.notes[i].velocity;
     return v;
 }
 

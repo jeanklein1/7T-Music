@@ -255,7 +255,7 @@ inline void on_key_down(InputDeps* c, int key,
     // ── Diagnostics (function keys) ──────────────────────────────
     case GLFW_KEY_F4: cycle_cube_behavior_override(cube_behaviors_state, &cube_deps, q);   break;
     case GLFW_KEY_F5: cycle_floater_coordination(cube_behaviors_state, &cube_deps);        break;
-    case GLFW_KEY_F6: corral_cubes(cube_behaviors_state, &cube_deps, q);                   break;
+    case GLFW_KEY_F6: reveal_zoetrope(cube_behaviors_state, &cube_deps, q);                break;
     case GLFW_KEY_F7: toggle_cube_kite_mode(cube_behaviors_state, &cube_deps, q);          break;
     case GLFW_KEY_F8:
         // ROSTER-GATE ribbon (b): sky-flight's entry

@@ -133,6 +133,15 @@ struct ActiveCube {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
     float   last_alloc_time = -1000.0f;
+    // ── THE MIRROR IS THE PRIOR (C6R V2 + G5 V1) ── the spawn law's
+    // tier draws, seated at write_active; the zoetrope's release walks
+    // every possessed scalar back to these. CPU mirror only —
+    // 24 → 28 (C6R) → 44 bytes (G5).
+    float   orbit_height  = 0.0f;
+    float   body_radius   = 0.0f;
+    float   aspect_y      = 0.0f;
+    float   aspect_z      = 0.0f;
+    float   face_variance = 0.0f;
     bool active = false;
 };
 

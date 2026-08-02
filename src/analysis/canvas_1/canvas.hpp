@@ -82,6 +82,7 @@
 #include "sources/midi_port.hpp"
 #include "analysis/analysis_signal.hpp"
 #include "analysis/analysis_cartridge.hpp"
+#include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.zoetrope_witness gates the [ONSET] line
 
 #include <array>
 #include <cstdint>
@@ -126,6 +127,7 @@ public:
             // families over this voice's published present-count vector.
             publish_reading(Reading::DftMag,       Source::channel(v), NAME_DFT_MAG[v]);
             publish_reading(Reading::DftPhase,     Source::channel(v), NAME_DFT_PHASE[v]);
+            publish_reading(Reading::Onset,        Source::channel(v), NAME_ONSET[v]);
         }
 
         // Compound readings over the union of all voices, in the group band: the
@@ -175,7 +177,7 @@ public:
     enum class Reading : uint8_t {
         PresentCount, PresentLength, WindowCount, WindowLength,
         CurrentPC, Distance, Field, Polyphony,
-        DftMag, DftPhase
+        DftMag, DftPhase, Onset
     };
 
     struct Source {
@@ -305,6 +307,9 @@ private:
     static constexpr int SLOT_DFT_PHASE      = 70;   // 6   pc-DFT arg(X1..X6), radians [−π,π],
                                                      //     origin = the published D origin;
                                                      //     REST: zero vector → mags 0, phases HOLD-LAST
+    static constexpr int SLOT_ONSET          = 76;   // 12  note-on impulses since the previous
+                                                     //     published frame, velocity-weighted;
+                                                     //     each onset lands in exactly one frame
 
     // Per-voice reading names, positional — the index is the channel. Static, so
     // the layout may hold pointers into them for the program's life. Compound
@@ -333,6 +338,10 @@ private:
         "ch0.dft_phase","ch1.dft_phase","ch2.dft_phase","ch3.dft_phase",
         "ch4.dft_phase","ch5.dft_phase","ch6.dft_phase","ch7.dft_phase"
     };
+    static constexpr const char* NAME_ONSET[MAX_CHANNELS] = {
+        "ch0.onset","ch1.onset","ch2.onset","ch3.onset",
+        "ch4.onset","ch5.onset","ch6.onset","ch7.onset"
+    };
 
     struct ReadingSpec { int slot; int width; StatShape shape; };
 
@@ -348,6 +357,7 @@ private:
             case Reading::Polyphony:     return { SLOT_POLYPHONY,       1, StatShape::Scalar };
             case Reading::DftMag:        return { SLOT_DFT_MAG,         6, StatShape::Vector };
             case Reading::DftPhase:      return { SLOT_DFT_PHASE,       6, StatShape::Vector };
+            case Reading::Onset:         return { SLOT_ONSET,          12, StatShape::Vector };
         }
         return { 0, 1, StatShape::Scalar };   // unreachable; quiets the compiler
     }
@@ -360,7 +370,8 @@ private:
     static bool reading_needs_window(Reading r) {
         return r == Reading::WindowCount || r == Reading::WindowLength
             || r == Reading::Field
-            || r == Reading::DftMag || r == Reading::DftPhase;
+            || r == Reading::DftMag || r == Reading::DftPhase
+            || r == Reading::Onset;
     }
     static bool reading_needs_spine(Reading r) {
         return r == Reading::CurrentPC || r == Reading::Distance;
@@ -376,7 +387,8 @@ private:
         return r == Reading::Field || r == Reading::CurrentPC
             || r == Reading::PresentCount
             || r == Reading::WindowLength || r == Reading::Distance
-            || r == Reading::DftMag || r == Reading::DftPhase;
+            || r == Reading::DftMag || r == Reading::DftPhase
+            || r == Reading::Onset;
     }
 
     // One published reading: its kind, the channels it draws from, the band it
@@ -431,8 +443,60 @@ private:
         output_.t_seconds = t_seconds_;
         output_.dt        = dt_;
 
+        // The onset aperture: a backward beat jump (a DAW transport loop)
+        // re-anchors the since-edge, so a looped clip keeps striking; the
+        // edge then advances once per published frame, so each onset lands
+        // in exactly one frame's (prev, beat] window.
+        if (beat < onset_prev_beat_) onset_prev_beat_ = beat;
+
         for (int k = 0; k < published_count_; ++k)
             write_reading(published_[k]);
+
+        // ── THE PUBLISH-SIDE ONSET WITNESS ───────────────────────────
+        // The board's [ZOETROPE] strike line can only say "rows were
+        // empty"; it cannot say whether the EXTRACTOR produced nothing or
+        // the COUPLING failed to read it. This one sits on the publish
+        // side of that line, so the two together bound the fault.
+        //
+        // It reports two things, because a silent witness proves nothing:
+        // the per-voice onset sums when there ARE any, and — when notes
+        // are sounding but the aperture is shut — the reason. pc_onset
+        // admits an onset only if its beat stamp is strictly newer than
+        // the last published beat, and poll() stamps every event with
+        // the transport's own beats(), so a clock that does not ADVANCE
+        // closes the aperture completely, however many notes arrive.
+        // Values are the published ones: dressed to D, index 0 = D.
+        if constexpr (INSTRUMENTS.zoetrope_witness) {
+            for (int v = 0; v < MAX_CHANNELS; ++v) {
+                if (!active_[v]) continue;
+                float sum = 0.0f;
+                for (int i = 0; i < 12; ++i) sum += output_.stat(v, SLOT_ONSET + i);
+                if (sum <= 0.0f) continue;
+                std::fprintf(stderr, "[ONSET] ch%d sum=%.2f pcs=", v, sum);
+                for (int i = 0; i < 12; ++i)
+                    std::fprintf(stderr, "%.2f%s", output_.stat(v, SLOT_ONSET + i), i == 11 ? "\n" : " ");
+            }
+            bool sounding = false;
+            for (int v = 0; v < MAX_CHANNELS; ++v)
+                if (active_[v] && contexts_[v].playhead().gate()) { sounding = true; break; }
+            const bool aperture_shut = !(beat > onset_prev_beat_);
+            if (sounding && aperture_shut) {
+                if (!onset_mute_warned_) {
+                    std::fprintf(stderr,
+                        "[ONSET] APERTURE SHUT — notes sounding but beat has not advanced "
+                        "(beat=%.3f prev=%.3f, synced=%d playing=%d bpm=%.1f). "
+                        "No onset can publish until the DAW's clock runs: enable Clock/Sync "
+                        "output on this MIDI port and start the transport.\n",
+                        beat, onset_prev_beat_, (int)port_.ever_synced(),
+                        (int)port_.playing(), port_.bpm());
+                    onset_mute_warned_ = true;
+                }
+            } else if (!aperture_shut) {
+                onset_mute_warned_ = false;
+            }
+        }
+
+        onset_prev_beat_ = beat;
     }
 
     // Write one published reading to its band and canonical slot. Only the field
@@ -478,7 +542,8 @@ private:
                 break;
             case Reading::CurrentPC:
             case Reading::PresentCount:
-            case Reading::WindowLength: {
+            case Reading::WindowLength:
+            case Reading::Onset: {
                 // Vector readings: the per-source sum dressed to D. One channel ->
                 // that channel's reading; a union -> the cross-voice vector sum —
                 // same code, since the additive compound is just the sum.
@@ -528,6 +593,7 @@ private:
             case Reading::CurrentPC:    return current_note(c.spine());
             case Reading::PresentCount: return pc_count(c.playhead());
             case Reading::WindowLength: return pc_length(c.playhead(), c.wagon(0));
+            case Reading::Onset:        return pc_onset(c.playhead(), c.wagon(0), onset_prev_beat_);
             default:                    return PitchClassVector{};
         }
     }
@@ -602,6 +668,8 @@ private:
     MidiPort port_;             // the DAW's MIDI port, owned and drained each frame
     float    t_seconds_ = 0.0f; // wall-clock accumulation, the signal's telemetry
     float    dt_        = 0.0f; // the last frame's wall-clock delta
+    float    onset_prev_beat_ = 0.0f; // the onset aperture's since-edge (advanced by publish)
+    bool     onset_mute_warned_ = false; // the [ONSET] aperture warning fires once per episode
 
     // The published signal and the contract over it: the list of published
     // readings (each carrying its own field state) and the parallel layout

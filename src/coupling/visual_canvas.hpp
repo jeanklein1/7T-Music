@@ -125,6 +125,18 @@ namespace t7 {
     // of these is the CASTING SHEET. The ribbon is the chordal piano.
     inline constexpr const char* RIBBON_VOICE = "ch1";   // live prefix verified: chN (canvas_1 NAME_* tables)
 
+    // ── The zoetrope's ears ── a listener SET, not a voice: bit N =
+    // wire chN listens. DIAGNOSTIC WIDE: the screen hears the whole
+    // composition. Narrow to a set once the pipe is proven — {ch6}
+    // (0b0100'0000u) was the ruling; wire = Ableton − 1.
+    inline constexpr uint32_t ZOETROPE_EARS = 0b0111'1111u;
+
+    // ── The mode fold ── pc → screen row, bottom = tonic. Seven rows =
+    // E Phrygian dominant {E F G# A B C D} = pc {4 5 8 9 11 0 2}.
+    // Out-of-mode pcs borrow the nearest degree's row, ties downward.
+    inline constexpr uint8_t ZOETROPE_ROW_OF_PC[12] =
+        { 5, 5, 6, 6, 0, 1, 1, 2, 2, 3, 3, 4 };
+
     // ── Sustain swell (movement) ── PURE ADDITIVE: the dance is the seed
     // idle PLUS the chord's contribution. goal = 1 + (CEILING−1)·t where
     // t ramps over the hold; silence gives 1 from the formula itself —
@@ -315,6 +327,27 @@ namespace t7 {
             checker_var_goal_ = 0.0f;                             // distinct-pc spread (rest 0)
             checker_var_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
+
+            // zoetrope ears (the listener set): one "chN.onset" resolve per
+            // set bit of ZOETROPE_EARS. A miss warns and disables that ear —
+            // the resolver's own semantics; the deaf ear simply never sums.
+            zoetrope_ear_count_ = 0;
+            for (int ch = 0; ch < 8; ++ch) {
+                if (!(ZOETROPE_EARS & (1u << ch))) continue;
+                std::string v("ch" + std::to_string(ch));
+                zoetrope_ears_[zoetrope_ear_count_++] =
+                    signal_layout_.resolve((v + ".onset").c_str());
+            }
+            for (int r = 0; r < 7; ++r) zoetrope_rows_[r] = 0.0f;
+            // Boot witness — doctrine, not measurement (P6): one line,
+            // always, so a deaf zoetrope names its fault at the seam.
+            {
+                int bound = 0;
+                for (int e = 0; e < zoetrope_ear_count_; ++e)
+                    if (zoetrope_ears_[e].valid) ++bound;
+                std::fprintf(stderr, "[Zoetrope] ears bound: %d of %d (mask 0x%02X)\n",
+                    bound, zoetrope_ear_count_, ZOETROPE_EARS);
+            }
         }
 
         // One frame: run every coupling — read its source, decode inline, carry the
@@ -492,12 +525,35 @@ namespace t7 {
                         (checker_var_goal_ > 0.0f ? CHECKER_ATTACK : CHECKER_RELEASE)));
             }
 
+            // ── the zoetrope's ears (row impulses) ──────────────────────
+            // Sum the resolved ears' onset vectors into pc impulses and fold
+            // them through the mode table. Published vectors ship DRESSED to
+            // D (index 0 = D — the canvas contract the checker's PC_COLOR
+            // table already binds); ZOETROPE_ROW_OF_PC is authored by raw
+            // pitch class (0 = C), so the fold un-dresses: pc = (i + 2) % 12.
+            // Overwritten every tick — impulses, not an accumulator; the
+            // lattice integrates, this side only hears.
+            for (int r = 0; r < 7; ++r) zoetrope_rows_[r] = 0.0f;
+            for (int e = 0; e < zoetrope_ear_count_; ++e) {
+                const SourceBinding& ear = zoetrope_ears_[e];
+                if (!ear.valid) continue;
+                for (int i = 0; i < 12; ++i) {
+                    const float w = signal.stat(ear.channel, ear.base + i);
+                    if (w <= 0.0f) continue;
+                    zoetrope_rows_[ZOETROPE_ROW_OF_PC[(i + 2) % 12]] += w;
+                }
+            }
+
             last_beat_ = beat;   // single write, shared by the swell's hold clock
         }
 
         // Consumers read the bank (and resolve their pipe once through layout()).
         const VisualParams& params() const { return params_; }
         const ParamLayout& layout() const { return param_layout_; }
+
+        // The zoetrope's row impulses — seven floats, bottom row = tonic,
+        // overwritten each tick. The lattice (the_board) strikes from these.
+        const float* zoetrope_rows() const { return zoetrope_rows_; }
 
     private:
         VisualParams params_;
@@ -538,6 +594,11 @@ namespace t7 {
         Segment       checker_res_seg_[3]{};
         Segment       checker_amount_seg_{};
         Segment       checker_var_seg_{};
+
+        // ── zoetrope coupling state (the ears + the fold) ────────────────
+        SourceBinding zoetrope_ears_[8]{};    // "chN.onset" per set bit of ZOETROPE_EARS
+        int           zoetrope_ear_count_ = 0;
+        float         zoetrope_rows_[7] = {}; // row impulses, overwritten each tick
     };
 
 } // namespace t7

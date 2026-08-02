@@ -49,6 +49,7 @@ namespace t7 {
         bool frame_meter;      // per-row CPU clocks, per-pass GPU timestamps, the [METER] table
         bool periodic_census;  // the wall-clock [CENSUS] dump (the spine's census row)
         bool checker_witness;  // the [CHECKER] line, one per checker read (~every 4 beats)
+        bool zoetrope_witness; // the [ZOETROPE] strike line, one per strike-frame
         bool watcher_ticks;    // the harness's hot-reload progress dot (a flushed write, 2×/s)
     };
 
@@ -60,11 +61,11 @@ namespace t7 {
 
     constexpr Instruments instruments_config(InstrumentCol col) {
         switch (col) {
-        case InstrumentCol::meter: return { true,  true,  false, false };
-        case InstrumentCol::full:  return { true,  true,  true,  true };
+        case InstrumentCol::meter: return { true,  true,  false, false, false };
+        case InstrumentCol::full:  return { true,  true,  true,  true,  true };
         case InstrumentCol::off:   break;
         }
-        return { false, false, false, false };
+        return { false, false, false, false, false };
     }
 
 } // namespace t7
