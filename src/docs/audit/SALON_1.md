@@ -7,9 +7,15 @@ before being relied on; where it disagrees with the tree, §0 says so.
 
 **Scope read:** `src/cartridges/the_board/**`, `src/incubator_dual.cpp`,
 plus `src/console/console.hpp` (device limits), `src/docs/LAWS.md` (L2/L3).
-`src/tools/*.jsx` confirmed OUT and empty of subject matter — the only
-hits for "painting" there are prose about Jean's canvases
-(`7t_blade_cluster_designer.jsx:8`, `7t_cactus_designer.jsx:7`), no code.
+`src/tools/*.jsx` confirmed OUT — and the handoff's ruling is vindicated
+concretely. Two files mention "painting" only as prose about Jean's canvases
+(`7t_blade_cluster_designer.jsx:8`, `7t_cactus_designer.jsx:7`). One does carry
+gallery data: `7t_population_designer.jsx:62-64` holds a `gallery` family row
+and `const GALLERY_CHANCE_BY_ARCHETYPE = [0.03, 0.06, 0.30, 0.40]; // gallery.hpp`.
+**That copy is stale by ~4×** — the live table is
+`{ 0.12f, 0.24f, 0.70f, 0.85f }` (`gallery.hpp:169`), and the same row's
+`mood: [1,1,1,1,1,0]` has six entries against `MOOD_COUNT = 4`. A sketch that has
+already drifted is not a call site. Nothing in this campaign touches it.
 
 ---
 
@@ -39,6 +45,12 @@ does not check it either — its own header (`run.py:20`) states it proves
 
 **Consequence:** a C++-only Stage B does not raise capacity. It raises the
 buffer and the draw counts while the shader keeps reading 32 slots.
+
+Cost note on the third literal: `compute_entity_placement` is **dirty-driven,
+not per-frame** — `cartridge.hpp:1602-1605` gates `dispatch_placement_correction`
+on `world_state_.placement_dirty`. So `:9573`'s serial 32-iteration loop is a
+placement-event cost, not a frame cost, and raising its bound to 256 is cheap.
+It still has to be raised, or slots 32+ never get their ground Y corrected.
 
 ### 0.2 — Stage B's "expected visual delta: none" does not hold as written.
 
@@ -155,6 +167,11 @@ Full census in §A9. It is incremented at four sites, decremented at two,
 zeroed at one, and **read at zero**. Not even in a log line. This is the
 single most useful fact for Stage D: the field is free to be repurposed as
 a refcount base, or deleted, without breaking a consumer.
+
+Sharpening it: both decrements (`gallery.hpp:1215`, `:1803`) are unfloored
+`uint32_t` `--`. The field can already wrap to `0xFFFFFFFF`, and nothing would
+notice — which is the proof that no consumer exists, stated the other way
+round.
 
 ### 0.7 — No shader path assumes a slot↔layer bijection. Stage D's GPU side is already free.
 
@@ -675,6 +692,15 @@ turns this function's per-slot free into the §A9 Q3 defect as well. Two reasons
 to look at `clear_wall_paintings` again before Stage E, neither of them Stage
 A's to act on.
 
+Corroboration that the form-type overlap is real, from the tree itself:
+`evict_paintings_for_patch` carries an explicit
+`if (... form_type == FormType::WALL_FRAME) gs.wall_frame_count--;` branch
+(`gallery.hpp:1218-1220`) keyed on `patch_gx/gz` — reachable **only** for slots
+`commit_gallery` produced, since both `place_wall_paintings` fill sites pass
+`INT32_MAX, INT32_MAX` (`gallery.hpp:1720`, `:1774`). The outdoor path knowingly
+makes `WALL_FRAME` slots. `clear_wall_paintings` is the one site that filters on
+form type **without** also filtering on patch.
+
 ---
 
 ## §A7 — Every caller of `place_wall_paintings` / `clear_wall_paintings`
@@ -766,6 +792,31 @@ Stage E can rely on: a placement event starts from a clean slot pool every time.
 (default 2, `surface_services.hpp:45`) is written at `cartridge.hpp:966` from
 `pendingDestination_.finite_radius`, inside the same teardown arm and therefore
 already live when `generate_indoor_shell` reads it. `ceiling_h` is compile-time.
+
+**How a transition is armed, and how Jean will reach the visual gate.**
+`apply_mood` still has exactly the two callers above — but the *transition* one
+is armed from two doors, and one of them is the keyboard:
+
+- **ENTRY door #1**, `request_mood_transition` (`mood.hpp:1148-1173`, so
+  labelled at `:1149`) — bound to **`GLFW_KEY_6` → `MOOD_INDOOR_FLAT`** and
+  **`GLFW_KEY_7` → `MOOD_INDOOR_VAULT`** (`input.hpp:246-247`; `5` and `8` take
+  the two outdoor moods).
+- **ENTRY door #2**, the portal path (`cartridge.hpp:1247-1258`).
+
+Both only set `pendingDestination_` and `phase = TransitionPhase::FADE_OUT`
+(`mood.hpp:1161`, `cartridge.hpp:1258`); neither calls `apply_mood`. Both then
+run the *same* block at `cartridge.hpp:960-1040` — `teardown_gallery` at `:987`,
+`apply_mood` at `:1021`. **The teardown-before-place ordering is unconditional.**
+
+Two consequences worth having before Stage E's visual gate:
+
+- Keys **6** and **7** are the fastest route into a hung wall. No portal needed.
+- Each keypress rolls a **fresh** `finite_radius` (`mood.hpp:1159`), so the room
+  size changes every time — which is what makes the §E.1 coverage table's
+  spread visible by just pressing 6 repeatedly. The **back portal** is the
+  exception: it replays the saved radius (`mood.hpp:944`, `:973`, captured at
+  `cartridge.hpp:962`), so returning through one reproduces the same room —
+  the reproducible test case for an A/B look.
 
 **Why `src/incubator_dual.cpp` is in scope:** it holds no gallery or painting
 code at all (grepped: zero hits for `gallery|painting|Gallery|Painting`). It is
