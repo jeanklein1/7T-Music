@@ -126,8 +126,10 @@ namespace t7 {
     inline constexpr const char* RIBBON_VOICE = "ch1";   // live prefix verified: chN (canvas_1 NAME_* tables)
 
     // ── The zoetrope's ears ── a listener SET, not a voice: bit N =
-    // wire chN listens. Ruled: {ch6} — Jean's channel 7; wire = Ableton − 1.
-    inline constexpr uint32_t ZOETROPE_EARS = 0b0100'0000u;
+    // wire chN listens. DIAGNOSTIC WIDE: the screen hears the whole
+    // composition. Narrow to a set once the pipe is proven — {ch6}
+    // (0b0100'0000u) was the ruling; wire = Ableton − 1.
+    inline constexpr uint32_t ZOETROPE_EARS = 0b0111'1111u;
 
     // ── The mode fold ── pc → screen row, bottom = tonic. Seven rows =
     // E Phrygian dominant {E F G# A B C D} = pc {4 5 8 9 11 0 2}.
