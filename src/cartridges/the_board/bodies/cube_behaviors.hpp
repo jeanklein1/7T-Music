@@ -112,7 +112,9 @@ inline constexpr float ZOETROPE_RING_RADIUS = 60.0f;  // arc = 2π·R/36 ≈ 10.
 inline constexpr float ZOETROPE_H_BASE      = 8.0f;   // row-0 height above ground (wu)
 inline constexpr float ZOETROPE_H_STEP      = 9.0f;   // wu per mode degree — screen ≈ rows 8..62 wu
 inline constexpr float ZOETROPE_PIXEL_RADIUS = 3.2f;  // pixel half-size; full ≈ 6.4 wu
-inline constexpr float ZOETROPE_FACE_SPLAY = 1.5f; // added face_variance at full excitation
+inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
+inline constexpr float ZOETROPE_FACE_SPLAY = 1.50f;  // added face_variance at full I
+inline constexpr float ZOETROPE_FACE_REST  = 1.20f;  // × the spawn draw, in formation
 // ─ the scatter seat (the gathering, not the instrument) ─────────
 inline constexpr float ZOETROPE_SCATTER_RADIUS  = 90.0f;  // wu — the gathering's mean reach
 inline constexpr float ZOETROPE_SCATTER_JITTER_R = 0.45f; // × radius — deep, this is a flock
@@ -475,12 +477,21 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
     // seeded from the mirror, because in ROAM the GPU scalars ARE the
     // mirror's draws — nothing has walked them yet.
     const bool from_roam = (cbs.formation == Formation::ROAM);
+    // Leaving a STANDING screen, the swell (V2) owns the live radius
+    // while the walk's shadow still reads the bare pixel — so a lit cube
+    // would snap down the instant the walk resumed. Seed the shadow from
+    // what the eye is actually seeing: nothing teleports, including out
+    // of a gesture.
+    const bool from_screen = (cbs.formation == Formation::SCREEN);
     uint32_t staged = 0;
     for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
         if (!cbs.activeCubes_[i].active) continue;
         const ActiveCube& ac = cbs.activeCubes_[i];
         if (from_roam)
             cbs.walk_[i] = { ac.orbit_height, ac.body_radius, ac.aspect_y, ac.aspect_z };
+        else if (from_screen)
+            cbs.walk_[i].r = ZOETROPE_PIXEL_RADIUS
+                * (1.0f + ZOETROPE_SWELL_GAIN * zoetrope_cell_intensity(cbs, i));
         cbs.settled[i] = false;
         staged++;
     }
@@ -949,11 +960,26 @@ inline void zoetrope_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
     float cr, cg, cb;
     project_cell_color(cbs, active_seed, slot, cr, cg, cb);
     gpu.upload_cube_color(queue, slot, cr, cg, cb);
-    // The splay rides the projector (G6): variance relaxes to the
-    // mirror's rest as the cell dims.
+
+    // THE STRIKE IS A GESTURE (V2): one intensity, three expressions —
+    // brightness above, then swell and splay, all read from the SAME I
+    // through its one home, so they can never disagree about how hard a
+    // cell was struck. ROAM pokes neither: the world's swarm keeps its
+    // own body and face, and the zoetrope only ever borrows a cube that
+    // has joined a formation.
+    using Formation = CubeBehaviorsState::Formation;
+    if (cbs.formation == Formation::ROAM) return;
+
     const float I = zoetrope_cell_intensity(cbs, slot);
     gpu.upload_cube_face_variance(queue, slot,
-        cbs.activeCubes_[slot].face_variance + ZOETROPE_FACE_SPLAY * I);
+        cbs.activeCubes_[slot].face_variance * ZOETROPE_FACE_REST + ZOETROPE_FACE_SPLAY * I);
+
+    // THE WALK OWNS RADIUS during every TO_* state (it is walking the
+    // body toward its seat), so the swell speaks only when the screen
+    // STANDS — the two never write the same scalar in the same frame.
+    if (cbs.formation == Formation::SCREEN)
+        gpu.upload_cube_body_radius(queue, slot,
+            ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN * I));
 }
 
 inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
