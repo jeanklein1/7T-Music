@@ -429,8 +429,8 @@ const TERRAIN_BANDS = array<TerrainBand, 6>(
     //                                                                      reach≈3/min
     TerrainBand(    200.0,   0.030,  0.010,  8.0,   3.0,   0.008,  0.004,  0.005,  0.70,  0.05  ),  // 0: continental  reach≈600
     TerrainBand(     80.0,   0.080,  0.025,  3.0,   1.5,   0.020,  0.010,  0.010,  0.65,  0.10  ),  // 1: regional     reach≈300
-    TerrainBand(     30.0,   0.200,  0.060,  1.2,   0.5,   0.040,  0.020,  0.020,  0.60,  0.20  ),  // 2: local        reach≈150
-    TerrainBand(     12.0,   0.500,  0.150,  0.4,   0.2,   0.080,  0.040,  0.040,  0.55,  0.40  ),  // 3: detail       reach≈75
+    TerrainBand(     30.0,   0.200,  0.060,  1.2,   1.0,   0.040,  0.020,  0.020,  0.78,  0.20  ),  // 2: local        reach≈150
+    TerrainBand(     12.0,   0.500,  0.150,  0.4,   0.45,  0.080,  0.040,  0.040,  0.72,  0.40  ),  // 3: detail       reach≈75
     TerrainBand(      5.0,   1.200,  0.350,  0.12,  0.05,  0.150,  0.075,  0.060,  0.50,  0.80  ),  // 4: fine         reach≈50
     TerrainBand(    500.0,   0.012,  0.004,  15.0,  6.0,   0.004,  0.002,  0.003,  0.75,  0.02  ),  // 5: tectonic     reach≈1000
 );
@@ -1676,7 +1676,12 @@ struct DesignConfig {
     mosaic_passage_scale: f32,
     mosaic_blend: f32,
     mosaic_facet: f32,
-    _pad592_0: f32,
+    // TUNE_1 A3 — possessed figure's eye height in world units, authored
+    // CPU-side (FPV_EYE_RATIO x the figure's own height) and read by
+    // update_camera. This room cannot derive it: agent_figure_profiles
+    // (binding 112) is a render-VS uniform and no compute layout binds it.
+    // Reuses the first tail pad in place; sizeof 592 unmoved. Was _pad592_0.
+    fpv_eye_height: f32,
     _pad592_1: f32,
     _pad592_2: f32,
 }
@@ -1969,7 +1974,10 @@ const CAMERA_MAX_ELEVATION: f32 = 1.5;
 
 // --- FPV (First-Person View) constants
 
-const FPV_EYE_HEIGHT: f32 = PAWN_HEIGHT + 0.2;  // Camera at eye level
+// Eye height is NOT a constant: it is a ratio of the POSSESSED FIGURE's
+// own height, authored CPU-side into config.fpv_eye_height (TUNE_1 A3).
+// The constant this replaced was PAWN_HEIGHT + 0.2, which is what the
+// ratio still yields, to the bit, on the conventional figure.
 const FPV_MIN_ELEVATION: f32 = -1.4;             // Look down ~80°
 const FPV_MAX_ELEVATION: f32 = 1.5;              // Look up ~86°
 
@@ -2066,16 +2074,19 @@ struct GoLTierParams {
 const GOL_TIER_COUNT: u32 = 7u;
 
 //                                                 dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h  cells
-// (cells column: UNIFIED_GROUND_1 U5 — authored defaults by weight
-//  order thirds, 32/24/16; Jean-tunable per row.)
+// (cells column: authored by UNIFIED_GROUND_1 U5 as "defaults by weight
+//  order thirds, 32/24/16"; Jean-tunable per row. That descending-rank
+//  pattern held until TUNE_1 A10 re-ranked the weights without touching
+//  the cells — the values are unchanged, the pattern is not. See the CPU
+//  twin in bodies/gol_zones.hpp for the full note.)
 const GOL_TIERS = array<GoLTierParams, 7>(
-    /* 0: PILLARS  */ GoLTierParams(0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.10, 0u, 16u),
-    /* 1: SPARSE   */ GoLTierParams(0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.20, 0u, 32u),
-    /* 2: MODERATE */ GoLTierParams(0.30, 0.08,   1.0, 0.3,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.18, 0u, 32u),
-    /* 3: DENSE    */ GoLTierParams(0.45, 0.10,   0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.10, 0u, 16u),
-    /* 4: FLASH    */ GoLTierParams(0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.17, 1u, 24u),
-    /* 5: MONOLITH */ GoLTierParams(0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.12, 0u, 16u),
-    /* 6: GLACIER  */ GoLTierParams(0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.13, 0u, 24u),
+    /* 0: PILLARS  */ GoLTierParams(0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.14, 0u, 16u),
+    /* 1: SPARSE   */ GoLTierParams(0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.22, 0u, 32u),
+    /* 2: MODERATE */ GoLTierParams(0.30, 0.08,   1.0, 0.3,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.12, 0u, 32u),
+    /* 3: DENSE    */ GoLTierParams(0.45, 0.10,   0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.04, 0u, 16u),
+    /* 4: FLASH    */ GoLTierParams(0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.03, 1u, 24u),
+    /* 5: MONOLITH */ GoLTierParams(0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.15, 0u, 16u),
+    /* 6: GLACIER  */ GoLTierParams(0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.30, 0u, 24u),
 );
 
 // --- Pulse Algorithm Tier Definitions ────────────────────────────────────
@@ -5165,9 +5176,18 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     } else {
         face_idx = select(0u, 1u, in.normal.x > 0.0);
     }
-    let face_hash = hash_property(fe.entity_seed, 500u + face_idx);
-    let face_delta = (face_hash - 0.5) * 2.0 * fe.face_variance;
-    let face_color = clamp(fe.color + vec3(face_delta, face_delta * 0.7, face_delta * 0.5), vec3(0.0), vec3(1.0));
+    // Per-channel face hue. One hash pushed into three channels at fixed
+    // ratios is monochromatic by construction — every face rides one color
+    // axis. Three independent hashes give each channel its own axis.
+    // Property block 500-517 is ONE purpose (entity-seed face hue), three
+    // disjoint 6-wide runs, face_idx in 0..5:
+    //   R 500-505   G 506-511   B 512-517
+    // R keeps its original hash, so R is bit-identical to before and the
+    // change is provably additive on G and B.
+    let dr = (hash_property(fe.entity_seed, 500u + face_idx) - 0.5) * 2.0 * fe.face_variance;
+    let dg = (hash_property(fe.entity_seed, 506u + face_idx) - 0.5) * 2.0 * fe.face_variance;
+    let db = (hash_property(fe.entity_seed, 512u + face_idx) - 0.5) * 2.0 * fe.face_variance;
+    let face_color = clamp(fe.color + vec3(dr, dg, db), vec3(0.0), vec3(1.0));
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -6206,8 +6226,8 @@ struct PawnAuraConfig {
     attack_damping: f32,
     release_rate: f32,
     dt: f32,
-    effect_mask: u32,
-    aura_n: u32,
+    effect_mask: u32,          // STATUS: INTENT — mirrored, never read (TUNE_1 A4).
+    aura_n: u32,               // likewise unread: sample_pawn_aura uses PAWN_AURA_N.
     tint_strength: f32,
     tint_r: f32,
     tint_g: f32,
@@ -7891,7 +7911,7 @@ fn update_camera() {
     }
 
     if (fpv_mode_active()) {
-        camera.pos = pawn_pos + vec3(0.0, FPV_EYE_HEIGHT, 0.0);
+        camera.pos = pawn_pos + vec3(0.0, config.fpv_eye_height, 0.0);
     } else if (coupling_active(COUPLING_PAWN_TO_CAMERA_TARGET)) {
         camera.pos = coupling_pawn_to_camera_target(camera.aim_point, camera);
     }

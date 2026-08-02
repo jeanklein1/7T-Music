@@ -1019,9 +1019,44 @@ inline void blade_write_gpu(MachineCtx* c,
     c->entities_state_.blade_mesh_gen_pending = true;
 }
 
+inline constexpr uint32_t BLADE_INDOOR_RESCALE_PARAMS[] = {
+    BladeIdx::BLADE_H, BladeIdx::BLADE_W,
+    // BLADE_COUNT (count), BLADE_H_VAR (fraction of BLADE_H — the per-blade
+    // jitter rides the scaled height already), SPLAY/TWIST (angles), CURVE
+    // (a multiplier ON blade_h, so it scales for free), TAPER (a width
+    // exponent) intentionally not scaled.
+};
+
+// Blade policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless taller
+// than the cap. current_h = BLADE_H, the family's NOMINAL rise, mirroring
+// palm's hook (which likewise takes the primary height param, not the
+// seeded worst case).
+//
+// BLADE_H IS NOT THE FAMILY'S TRUE CEILING, and the mesh is where that
+// shows: world.wgsl applies a per-blade jitter ABOVE the param —
+//   let h_mult = 1.0 + (blade_hash(...) - 0.5) * p.blade_h_var * 2.0;
+//   let blade_h = p.blade_h * max(0.4, h_mult);
+// so the true bound is BLADE_H * (1 + BLADE_H_VAR), with BLADE_H_VAR
+// running 0.35 / 0.40 / 0.45 by tier. Palm and cactus have no such upward
+// jitter (y = t * p.height), so for them the primary param IS the ceiling;
+// blade is the odd one out.
+//
+// TODAY THIS HOOK CANNOT FIRE, and that is worth stating rather than
+// discovering. BLADE_H is a Gaussian truncated at ±3σ, so its largest
+// reachable value is THICKET's 5.20 + 3(1.20) = 8.80 — while the only two
+// indoor ceilings are 20.0 and 25.0, i.e. cap thresholds of 15.00 and
+// 18.75. Blade is wired into the module and rides the same law as its
+// siblings, but it is inert until a shorter ceiling or a taller tier
+// arrives. It is not a behavior change today.
+inline void blade_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+        /*current_h*/ inst.params[BladeIdx::BLADE_H],
+        BLADE_INDOOR_RESCALE_PARAMS);
+}
+
 inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_run_gate,
-    nullptr,                  // apply_indoor_rescale → NATURAL (INDOOR_TREATMENT): keeps size
+    blade_apply_indoor_rescale,   // CAP (INDOOR_TREATMENT) — TUNE_1 A8
     blade_compute_solid_half,
     nullptr,                  // compute_colors → use generic (Q24)
     blade_write_active,
@@ -1451,9 +1486,35 @@ inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->entities_state_.cactus_mesh_gen_pending = true;
 }
 
+inline constexpr uint32_t CACTUS_INDOOR_RESCALE_PARAMS[] = {
+    CactusIdx::HEIGHT, CactusIdx::RADIUS,
+    CactusIdx::ARM_LENGTH, CactusIdx::ARM_RADIUS,
+    // TAPER/CAP_ROUND/RIB_DEPTH (multipliers on a radius), RIBS/ARM_COUNT
+    // (counts), LEAN (a fraction of HEIGHT — lean_mag = lean * height * t²),
+    // LEAN_DIR/ARM_CURVE (angle and blend) intentionally not scaled.
+};
+
+// Cactus policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless taller
+// than the cap. current_h = HEIGHT: the trunk ring walk puts y = t * height,
+// with no jitter above the param, so HEIGHT is the trunk's true top.
+//
+// The arms fork at height * arm_height and rise by at most arm_length. AT
+// THE TIER MEANS the trunk wins everywhere — FINGER 9.0 vs 3.6+2.0,
+// SAGUARO 13.0 vs 5.9+4.5, CANDELABRA 20.0 vs 8.0+7.0 — but that is a
+// statement about means, NOT an invariant: arm_height, arm_length and the
+// fork jitter are all seeded, and at the ±3σ corner the arms do pass the
+// trunk (SAGUARO 26.4 vs 20.5, CANDELABRA 37.5 vs 32.0). Taking the trunk
+// is the palm-mirror choice the ruling asked for, and it under-caps that
+// corner rather than over-capping the common case.
+inline void cactus_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+        /*current_h*/ inst.params[CactusIdx::HEIGHT],
+        CACTUS_INDOOR_RESCALE_PARAMS);
+}
+
 inline constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
     cactus_run_gate,
-    nullptr,                              // apply_indoor_rescale → NATURAL (INDOOR_TREATMENT): keeps size
+    cactus_apply_indoor_rescale,          // CAP (INDOOR_TREATMENT) — TUNE_1 A8
     cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
     cactus_write_active, cactus_write_gpu, nullptr,
     cactus_get_tier_profile,

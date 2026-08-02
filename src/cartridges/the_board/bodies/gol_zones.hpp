@@ -103,10 +103,14 @@ struct GoLZoneSpawnConfig {
     // Fraction of zones that get extrusion. The roll refuses no zone; the
     // only flat zones left are the two tiers whose identity is flatness
     // (Conway Flash, Pulse Sparkle set force_no_height), so the delivered
-    // rate is 0.7845. Recipe: each family's weights sum to 1, and
+    // rate is 0.8755. Recipe: each family's weights sum to 1, and
     // GOL_PULSE_ALGORITHM_CHANCE = 0.35 splits them, so the flat weight is
-    // 0.65 x Flash 0.17 + 0.35 x Sparkle 0.30 = 0.2155, and 1.0 - 0.2155
-    // = 0.7845. See the tier tables below.
+    // 0.65 x Flash 0.03 + 0.35 x Sparkle 0.30 = 0.1245, and 1.0 - 0.1245
+    // = 0.8755. See the tier tables below.
+    // (TUNE_1 A10 moved Flash 0.17 -> 0.03, which is an INPUT to this
+    //  recipe. Flat zones went 0.2155 -> 0.1245 — about one in eight, not
+    //  rare — and Pulse Sparkle, untouched by A10, now owns 84% of what
+    //  flatness remains.)
     static constexpr float HEIGHT_CHANCE = 1.00f;
     static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
     // Per-cell height factor seeding (Gaussian draw per cell)
@@ -170,18 +174,24 @@ struct GoLTierProfile {
     uint32_t grid_cells;       // zone side in cells ∈ {8..32}
 };
 
-// MUST match world.wgsl's GOL_TIERS cells column (UNIFIED_GROUND_1 U5 —
-// "authored defaults by weight order thirds, 32/24/16"). Hardware
-// mirror — when tuning, change both sides.
+// MUST match world.wgsl's GOL_TIERS cells column. Hardware mirror — when
+// tuning, change both sides.
+// PROVENANCE, no longer an invariant: the cells column was authored by
+// UNIFIED_GROUND_1 U5 as "defaults by weight order thirds, 32/24/16", and
+// at that time weight-descending order gave 32,32,24,24,16,16,16. TUNE_1
+// A10 re-ranked the weights without re-authoring the cells (cells were not
+// in its bind), so the order now reads 24,32,16,16,32,16,24. The column is
+// Jean-tunable per row and its VALUES are unchanged; only the descending-
+// rank pattern is gone. Re-author the cells if the pattern is wanted back.
 //                                          dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h   cells
 inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-    /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false, 16u },
-    /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false, 32u },
-    /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false, 32u },
-    /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false, 16u },
-    /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true,  24u },
-    /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false, 16u },
-    /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false, 24u },
+    /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.14f, false, 16u },
+    /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.22f, false, 32u },
+    /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.12f, false, 32u },
+    /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.04f, false, 16u },
+    /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
+    /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.15f, false, 16u },
+    /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.30f, false, 24u },
 };
 
 inline constexpr const char* GOL_TIER_NAMES[] = {

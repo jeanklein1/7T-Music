@@ -620,7 +620,14 @@ namespace t7 {
             float mosaic_passage_scale;
             float mosaic_blend;
             float mosaic_facet;
-            float _pad592_0;
+            // TUNE_1 A3 — the possessed figure's eye height, in world units.
+            // CPU-derived (FPV_EYE_RATIO x that figure's own height) because
+            // the compute stage cannot see agent_figure_profiles: binding 112
+            // is a render-VS-only uniform and update_camera's layout does not
+            // carry it. First of the three tail pads, reused in place — same
+            // position, same type, sizeof 592 UNMOVED (the possessed_slot /
+            // veil_dither / indoor_height_cap precedent). Was _pad592_0.
+            float fpv_eye_height;
             float _pad592_1;
             float _pad592_2;
         };
@@ -1203,8 +1210,11 @@ namespace t7 {
             float attack_damping;      // damping ratio
             float release_rate;        // exponential decay rate
             float dt;
-            uint32_t effect_mask;      // bitfield: bit 0=color, bit 1=height (future)
-            uint32_t aura_n;           // grid side (64)
+            uint32_t effect_mask;      // STATUS: INTENT — uploaded, never read by the
+                                       // kernel (TUNE_1 A4 census). tint_strength and
+                                       // height_scale are the live gates.
+            uint32_t aura_n;           // STATUS: INTENT — uploaded, never read; the
+                                       // kernel uses the WGSL PAWN_AURA_N constant.
             float tint_strength;       // [0,1] blend strength
             float tint_r, tint_g, tint_b;  // signature color
             uint32_t delta_mode;       // 0=convergent (toward tint), 1=random per-cell
