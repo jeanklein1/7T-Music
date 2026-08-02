@@ -1019,9 +1019,28 @@ inline void blade_write_gpu(MachineCtx* c,
     c->entities_state_.blade_mesh_gen_pending = true;
 }
 
+inline constexpr uint32_t BLADE_INDOOR_RESCALE_PARAMS[] = {
+    BladeIdx::BLADE_H, BladeIdx::BLADE_W,
+    // BLADE_COUNT (count), BLADE_H_VAR (fraction of BLADE_H — the per-blade
+    // jitter rides the scaled height already), SPLAY/TWIST (angles), CURVE
+    // (a multiplier ON blade_h, so it scales for free), TAPER (a width
+    // exponent) intentionally not scaled.
+};
+
+// Blade policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless taller
+// than the cap. Vertical extent = BLADE_H: the mesh walks the blade axis to
+// dist = t * blade_h and lifts by cos(splay) ≤ 1, so BLADE_H is the ceiling
+// of the family's rise. Mirrors palm's hook, which likewise takes the
+// family's primary height param rather than the seeded worst case.
+inline void blade_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+        /*current_h*/ inst.params[BladeIdx::BLADE_H],
+        BLADE_INDOOR_RESCALE_PARAMS);
+}
+
 inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_run_gate,
-    nullptr,                  // apply_indoor_rescale → NATURAL (INDOOR_TREATMENT): keeps size
+    blade_apply_indoor_rescale,   // CAP (INDOOR_TREATMENT) — TUNE_1 A8
     blade_compute_solid_half,
     nullptr,                  // compute_colors → use generic (Q24)
     blade_write_active,
@@ -1451,9 +1470,28 @@ inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->entities_state_.cactus_mesh_gen_pending = true;
 }
 
+inline constexpr uint32_t CACTUS_INDOOR_RESCALE_PARAMS[] = {
+    CactusIdx::HEIGHT, CactusIdx::RADIUS,
+    CactusIdx::ARM_LENGTH, CactusIdx::ARM_RADIUS,
+    // TAPER/CAP_ROUND/RIB_DEPTH (multipliers on a radius), RIBS/ARM_COUNT
+    // (counts), LEAN (a fraction of HEIGHT — lean_mag = lean * height * t²),
+    // LEAN_DIR/ARM_CURVE (angle and blend) intentionally not scaled.
+};
+
+// Cactus policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless taller
+// than the cap. Vertical extent = HEIGHT: the trunk ring walk puts y = t *
+// height, and the arms fork at height * arm_height and rise by at most
+// arm_length, which stays under the trunk top in all three tiers
+// (FINGER 9 vs 3.6+2.0, SAGUARO 13 vs 5.9+4.5, CANDELABRA 20 vs 8.0+7.0).
+inline void cactus_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+        /*current_h*/ inst.params[CactusIdx::HEIGHT],
+        CACTUS_INDOOR_RESCALE_PARAMS);
+}
+
 inline constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
     cactus_run_gate,
-    nullptr,                              // apply_indoor_rescale → NATURAL (INDOOR_TREATMENT): keeps size
+    cactus_apply_indoor_rescale,          // CAP (INDOOR_TREATMENT) — TUNE_1 A8
     cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
     cactus_write_active, cactus_write_gpu, nullptr,
     cactus_get_tier_profile,

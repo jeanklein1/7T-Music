@@ -67,8 +67,8 @@ inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* column  */ { IndoorSize::EXACT,   IndoorBounds::MARGIN },  // architectural: touches the ceiling
     /* antenna */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* palm    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* cactus  */ { IndoorSize::NATURAL, IndoorBounds::MARGIN },  // Jean: keeps size
-    /* blade   */ { IndoorSize::NATURAL, IndoorBounds::MARGIN },  // Jean: keeps size
+    /* cactus  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },  // TUNE_1 A8: was NATURAL
+    /* blade   */ { IndoorSize::CAP,     IndoorBounds::MARGIN },  // TUNE_1 A8: was NATURAL
     /* sphere  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* ribbon  */ { IndoorSize::CAP,     IndoorBounds::FULL   },  // pre-scaled by RIBBON_INDOOR_SCALE; stays inside
     /* cube    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
