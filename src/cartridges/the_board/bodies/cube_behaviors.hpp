@@ -104,6 +104,8 @@ inline constexpr float ZOETROPE_FACE_SPLAY = 1.5f; // added face_variance at ful
 inline constexpr float ZOETROPE_SCATTER_RADIUS  = 90.0f;  // wu — the gathering's mean reach
 inline constexpr float ZOETROPE_SCATTER_JITTER_R = 0.45f; // × radius — deep, this is a flock
 inline constexpr float ZOETROPE_SCATTER_JITTER_H = 28.0f; // wu — free vertical spread
+inline constexpr float ZOETROPE_SCATTER_JITTER_THETA = 0.90f;  // × column arc — the flock is not spoked
+inline constexpr float ZOETROPE_SCATTER_SIZE_BIAS   = 4.0f;   // wu of extra radius per wu of body radius
 inline constexpr uint32_t ZOETROPE_SCATTER_SEED = 0x5CA77E12u;
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
@@ -370,6 +372,14 @@ inline uint32_t slot_of_cell(uint32_t c) { return (c * ZOETROPE_CELL_UNSTRIDE) %
 // theta from that cell's column — so a cube keeps its angular
 // identity across the whole cycle, and only its reach, its rank and
 // its body change between the two.
+//
+// THE SEATING LAW (K2): two cubes may share a column; nothing may
+// share a bearing. The screen ranks its seven rows on one bearing per
+// column and separates them vertically, so a shared bearing is the
+// point there. The gathering has no ranks to separate it, so it
+// scatters the bearing itself (JITTER_THETA, most of a column arc) and
+// separates by BODY as well — SIZE_BIAS seats big cubes outward and
+// small ones close, which reads as depth rather than as a ring.
 struct ZoetropeStation { float off_x; float off_z; float h; };
 
 inline ZoetropeStation zoetrope_station(uint32_t slot) {
@@ -390,14 +400,21 @@ inline ZoetropeStation station_scatter(const CubeBehaviorsState& cbs, uint32_t s
     const uint32_t cell = cell_of_slot(slot);
     const uint32_t col  = cell % LATTICE_COLS;
     const float two_pi = 6.28318530718f;
-    const float theta = two_pi * float(col) / float(LATTICE_COLS);
-    // Deep radial jitter — this is a flock, not a ring.
-    const float jr = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 2u) - 0.5f) * 2.0f;
-    const float radius = ZOETROPE_SCATTER_RADIUS * (1.0f + jr * ZOETROPE_SCATTER_JITTER_R);
+    const float column_arc = two_pi / float(LATTICE_COLS);   // radians per column
+    // Angular jitter (K2): the bearing itself scatters, so the seven
+    // cells of a column stop reading as a radial string.
+    const float jt = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 3u + 2u) - 0.5f) * 2.0f;
+    const float theta = column_arc * float(col) + jt * column_arc * ZOETROPE_SCATTER_JITTER_THETA;
+    // Deep radial jitter — this is a flock, not a ring — plus the SIZE
+    // BIAS: a big body seats outward, a small one close, so bodies never
+    // contend for the same neighbourhood and the depth reads.
+    const float jr = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 3u) - 0.5f) * 2.0f;
+    const float radius = ZOETROPE_SCATTER_RADIUS * (1.0f + jr * ZOETROPE_SCATTER_JITTER_R)
+                       + ZOETROPE_SCATTER_SIZE_BIAS * cbs.activeCubes_[slot].body_radius;
     // Free vertical spread around the cube's OWN spawn altitude: the
     // flock keeps its altitude character — it is gathered, not ranked.
     // Floored at the screen's own base so no gathered cube sinks in.
-    const float jh = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 2u + 1u) - 0.5f) * 2.0f;
+    const float jh = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 3u + 1u) - 0.5f) * 2.0f;
     const float h = std::max(ZOETROPE_H_BASE,
         cbs.activeCubes_[slot].orbit_height + jh * ZOETROPE_SCATTER_JITTER_H);
     return { std::cos(theta) * radius, std::sin(theta) * radius, h };
