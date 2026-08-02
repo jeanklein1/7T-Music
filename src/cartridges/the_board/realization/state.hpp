@@ -2187,6 +2187,12 @@ namespace t7 {
                 float t[2] = { tx, tz };   // target_z rides target_x — pinned adjacent (200/204)
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, t, sizeof(t));
             }
+            void upload_cube_color(wgpu::Queue& queue, uint32_t slot, float r, float g, float b) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, color);
+                float col[3] = { r, g, b };   // color[3] rides one write — contiguous floats (48/52/56)
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, col, sizeof(col));
+            }
 
             // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)
             void upload_arch_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUArchMeshParams& params) {

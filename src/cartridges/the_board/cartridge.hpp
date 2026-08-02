@@ -843,11 +843,14 @@ namespace t7 {
                     }
                 }
 
-                // ZOETROPE (C4): the lattice hears the canvas's row impulses
-                // and ticks on the musical clock — invisible until the
-                // projector (C5). Same member plumbing as the flushes above.
-                zoetrope_strike(cube_behaviors_state_, visual_canvas_.zoetrope_rows(), signal.t_beats);
-                zoetrope_service(cube_behaviors_state_, signal.t_beats);
+                // ZOETROPE (C4/C5): the lattice hears the canvas's row
+                // impulses, ticks on the musical clock, and projects cells
+                // to cube color through the partial-write door. Same member
+                // plumbing as the flushes above; the queue is the phase's.
+                zoetrope_strike(cube_behaviors_state_, gpuState_, c.queue,
+                    world_state_.active_seed, visual_canvas_.zoetrope_rows(), signal.t_beats);
+                zoetrope_service(cube_behaviors_state_, gpuState_, c.queue,
+                    world_state_.active_seed, signal.t_beats);
             }
 
             // U5 — MOTION BODIES (wall-clock). Pawn presence ramp + aura height

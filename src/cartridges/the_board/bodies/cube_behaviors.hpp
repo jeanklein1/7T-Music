@@ -86,6 +86,9 @@ inline constexpr float ZOETROPE_PIGMENT_GAIN      = 0.35f;  // deposit rate
 inline constexpr float ZOETROPE_PIGMENT_HALF_BEATS = 48.0f; // long memory
 static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0f,
               "lattice diffusion unstable — lower DIFFUSE or ASYMMETRY");
+inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
+inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
+inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 
@@ -200,9 +203,16 @@ void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
-// The zoetrope (the lattice substrate — spine-wired at U4)
-void zoetrope_strike(CubeBehaviorsState& cbs, const float rows[7], float t_beats);
-void zoetrope_service(CubeBehaviorsState& cbs, float t_beats);
+// The zoetrope (the lattice substrate — spine-wired at U4; the C5
+// projector pokes ride the same calls, so they carry the GPU wire)
+void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t active_seed, const float rows[7], float t_beats);
+void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t active_seed, float t_beats);
+// The projector (C5): one home — cells reach pixels here and nowhere else
+uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
+void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
+    float& out_r, float& out_g, float& out_b);
 
 // ═══ IMPL:
 // rows deref cube_state(own) + mood/time/world via MachineCtx; corral/kite
@@ -503,7 +513,12 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.bob_period = inst.params[CubeIdx::BOB_PERIOD];
     fe.spin_tilt_x = tilt_x; fe.spin_tilt_z = tilt_z;
     fe.base_color[0] = inst.colors[0]; fe.base_color[1] = inst.colors[1]; fe.base_color[2] = inst.colors[2];
-    fe.color[0] = inst.colors[0]; fe.color[1] = inst.colors[1]; fe.color[2] = inst.colors[2];
+    // ZOETROPE (C5): the ghost dresses the newborn — color projects the
+    // cell's accumulated state over the seed base (write_active has already
+    // seated the mirror, so the slot's seed recomputes; at I = 0 this is
+    // inst.colors bit-exactly — the silent path is today's).
+    project_cell_color(c->cube_behaviors_state_, c->world_state_.active_seed, inst.slot,
+                       fe.color[0], fe.color[1], fe.color[2]);
     fe.aspect_y = inst.params[CubeIdx::ASPECT_Y];
     fe.aspect_z = inst.params[CubeIdx::ASPECT_Z];
     fe.face_variance = inst.params[CubeIdx::FACE_VARIANCE];
@@ -629,17 +644,59 @@ inline const float ZOETROPE_PIGMENT_DECAY = std::exp2(-ZOETROPE_TICK_BEATS / ZOE
 // world-seed-independent (same MIDI, same screen).
 inline constexpr uint32_t ZOETROPE_WEIGHT_SEED = 0x20E7A0DEu;
 
-inline void zoetrope_strike(CubeBehaviorsState& cbs, const float rows[7], float t_beats) {
+// ── The projector (C5) ──────────────────────────────────────────
+//
+// One home, one function: cells reach pixels HERE and nowhere else.
+// base is RECOMPUTED through the seed fn (cube_compute_colors — base
+// color's one home) from the slot's TRUE spawn seed, never cached:
+// the gate drew tile_seed(active world seed, trigger patch)
+// (machine/spawn_engine.hpp evaluate_spawn_gate), and the mirror
+// keeps the trigger patch, so the seed reconstructs bit-exactly.
+// I = min(1, excite + pigment); out = mix(base, PIGMENT, I). At
+// I = 0 the mix returns base bit-exactly — silence projects today's
+// tree unchanged, spawn included.
+
+inline uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot) {
+    const ActiveCube& ac = cbs.activeCubes_[slot];
+    return tile_seed(active_seed, ac.patch_gx, ac.patch_gz);
+}
+
+inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
+    float& out_r, float& out_g, float& out_b) {
+    const ZoetropeCell& cell = cbs.cells[slot];
+    const float I = std::min(1.0f, cell.excite + cell.pigment);
+    EntityInstance tmp{};
+    tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
+    // The seed fn's exact signature takes traits + tier; it reads neither
+    // (both unnamed) — the call adapts, the law does not.
+    cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
+    out_r = tmp.colors[0] + (ZOETROPE_PIGMENT_R - tmp.colors[0]) * I;
+    out_g = tmp.colors[1] + (ZOETROPE_PIGMENT_G - tmp.colors[1]) * I;
+    out_b = tmp.colors[2] + (ZOETROPE_PIGMENT_B - tmp.colors[2]) * I;
+}
+
+inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t active_seed, const float rows[7], float t_beats) {
     // The write head: col = the sweep's phase of revolution — stateless.
     const float phase = t_beats / ZOETROPE_REV_BEATS;
     const float fract = phase - std::floor(phase);
     const uint32_t col = uint32_t(fract * float(LATTICE_COLS)) % LATTICE_COLS;
     for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
-        if (rows[r] > 0.0f)
-            cbs.cells[r * LATTICE_COLS + col].excite += rows[r];
+        if (rows[r] > 0.0f) {
+            const uint32_t slot = r * LATTICE_COLS + col;
+            cbs.cells[slot].excite += rows[r];
+            // The attack never waits for a tick: struck cells poke their
+            // slot immediately (mirror-active only — ghosts stay unseen).
+            if (cbs.activeCubes_[slot].active) {
+                float cr, cg, cb;
+                project_cell_color(cbs, active_seed, slot, cr, cg, cb);
+                gpu.upload_cube_color(queue, slot, cr, cg, cb);
+            }
+        }
 }
 
-inline void zoetrope_service(CubeBehaviorsState& cbs, float t_beats) {
+inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t active_seed, float t_beats) {
     if (!cbs.primed) {
         // First service: build the fixed-seed asymmetric weight table —
         // per (cell, dir) a skew in [-ASYMMETRY, +ASYMMETRY] around
@@ -662,7 +719,9 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, float t_beats) {
     if (t_beats - cbs.last_tick_beat > 64.0f * ZOETROPE_TICK_BEATS)
         cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
 
+    bool ticked = false;
     while (cbs.last_tick_beat + ZOETROPE_TICK_BEATS <= t_beats) {
+        ticked = true;
         // One tick. Explicit 4-neighbor diffusion on the cylinder —
         // dir order: 0 = +col (east), 1 = −col (west), 2 = +row (up),
         // 3 = −row (down). Outflow toward a missing row is still shed
@@ -687,6 +746,18 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, float t_beats) {
                                      + c.excite * ZOETROPE_PIGMENT_GAIN);
         }
         cbs.last_tick_beat += ZOETROPE_TICK_BEATS;
+    }
+
+    // The projector's flush (C5): when a tick ran, every mirror-active
+    // slot wears its cell — ≤252 12-byte pokes per tick, beneath the
+    // spawn-commit idiom. Ghost cells (inactive slots) evolve unseen.
+    if (ticked) {
+        for (uint32_t slot = 0; slot < LATTICE_CELLS; ++slot) {
+            if (!cbs.activeCubes_[slot].active) continue;
+            float cr, cg, cb;
+            project_cell_color(cbs, active_seed, slot, cr, cg, cb);
+            gpu.upload_cube_color(queue, slot, cr, cg, cb);
+        }
     }
 }
 
