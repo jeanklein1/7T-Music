@@ -850,7 +850,7 @@ namespace t7 {
                 zoetrope_strike(cube_behaviors_state_, gpuState_, c.queue,
                     world_state_.active_seed, visual_canvas_.zoetrope_rows(), signal.t_beats);
                 zoetrope_service(cube_behaviors_state_, gpuState_, c.queue,
-                    world_state_.active_seed, signal.t_beats);
+                    world_state_.active_seed, signal.t_beats, signal.dt);
             }
 
             // U5 — MOTION BODIES (wall-clock). Pawn presence ramp + aura height

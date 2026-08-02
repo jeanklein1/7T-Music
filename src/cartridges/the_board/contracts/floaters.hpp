@@ -133,6 +133,9 @@ struct ActiveCube {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
     float   last_alloc_time = -1000.0f;
+    float   orbit_height = 0.0f;   // the spawn law's tier draw — the PRIOR the
+                                   // zoetrope's release walks back to (C6R V2;
+                                   // CPU mirror only, 24 → 28 bytes)
     bool active = false;
 };
 

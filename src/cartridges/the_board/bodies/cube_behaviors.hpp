@@ -57,10 +57,6 @@ inline constexpr const char* CUBE_BEHAVIOR_NAMES[CUBE_BEHAVIOR_COUNT] = {
 inline constexpr float CUBE_DEFAULT_SPRING_STIFFNESS = 4.0f;   // 1/s², ~0.5s settle
 inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle damping
 
-// ─ Diagnostics (corral) ─────────────────────────────────────────
-
-inline constexpr float CUBE_CORRAL_RADIUS = 120.0f;  // ring radius around the point (world units); the glide pace is CUBE_GLIDE_TAU (world.wgsl)
-
 // ─ Diagnostics (coordination cycle) ─────────────────────────────
 
 inline constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
@@ -89,6 +85,11 @@ static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0
 inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
 inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
 inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
+inline constexpr float ZOETROPE_RING_RADIUS = 120.0f; // was corral's; FOV° ≈ 2·atan(3.5·H_STEP/RADIUS)
+inline constexpr float ZOETROPE_H_BASE      = 4.0f;   // row-0 height above ground (wu)
+inline constexpr float ZOETROPE_H_STEP      = 3.0f;   // wu per mode degree
+inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
+inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 
@@ -173,6 +174,20 @@ struct CubeBehaviorsState {
     bool       kite_mode          = false;
     ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
 
+    // ── The reveal machine (C6R) ── staged capture, CPU flush-walk climb.
+    enum class Formation : uint8_t { ROAM, ASSEMBLING, FORMED, RELEASING };
+    Formation formation = Formation::ROAM;
+    bool  stations_sent = false;
+    bool  stage_wait    = false;          // the press frame: the 3u sentinel is in
+                                          // flight (V1) — no target/height writes
+    float prior_h[LATTICE_CELLS]{};       // staged ONLY on ROAM→ASSEMBLING;
+                                          // re-press during ASSEMBLING/FORMED/
+                                          // RELEASING preserves the original.
+    float h_walk[LATTICE_CELLS]{};        // the walker's own h shadow — it never
+                                          // reads the GPU value; the walker owns
+                                          // the scalar while the walk lives.
+    bool  settled[LATTICE_CELLS]{};
+
     // ── The zoetrope lattice (C4) ── zero-init is the law: boot is a
     // transition from nothing — the lattice wakes silent, never replayed.
     ZoetropeCell cells[LATTICE_CELLS]{};
@@ -199,7 +214,7 @@ void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Qu
 // Player commands
 void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
-void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
@@ -208,7 +223,7 @@ void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatin
 void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed, const float rows[7], float t_beats);
 void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, float t_beats);
+    uint32_t active_seed, float t_beats, float dt);
 // The projector (C5): one home — cells reach pixels here and nowhere else
 uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
 void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
@@ -296,47 +311,61 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
               << CUBE_BEHAVIOR_NAMES[cbs.behavior_override] << "\n";
 }
 
-inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
-    // THE POINT: the corral ring forms around the point —
-    // point_.x/z, host-authored (pawn-host value-identical: same
-    // P5 harvest snapshot as the slot mirror).
-    const float px = c->point_.x;
-    const float pz = c->point_.z;
-
-    uint32_t active_count = 0;
-    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-        if (cbs.activeCubes_[i].active) active_count++;
-    }
-    if (active_count == 0) {
-        std::cout << "[Floaters] corral: no active cubes\n";
-        return;
-    }
-
-    // TARGETS ONLY (the anchor law): mode 0 gets ring positions,
-    // mode 1 ring offsets. The kernel walks the live param from the
-    // true present — no from-computation, no arming, no mirror.
-    uint32_t armed = 0;
-    uint32_t k = 0;
+// ── The zoetrope's stations (C6R) — the ONE home for geometry ───
+// Row-major with the first-free spawn scan: the screen fills its
+// tonic band first and grows upward from E.
+struct ZoetropeStation { float off_x; float off_z; float h; };
+inline ZoetropeStation zoetrope_station(uint32_t slot) {
+    const uint32_t row = slot / LATTICE_COLS;
+    const uint32_t col = slot % LATTICE_COLS;
     const float two_pi = 6.28318530718f;
-    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-        if (!cbs.activeCubes_[i].active) continue;
-        float theta = (float(k) / float(active_count)) * two_pi;
-        float target_x, target_z;
-        if (cbs.kite_mode) {
-            target_x = std::cos(theta) * CUBE_CORRAL_RADIUS;
-            target_z = std::sin(theta) * CUBE_CORRAL_RADIUS;
-        } else {
-            target_x = px + std::cos(theta) * CUBE_CORRAL_RADIUS;
-            target_z = pz + std::sin(theta) * CUBE_CORRAL_RADIUS;
-        }
-        c->gpuState_.upload_cube_glide_target(queue, i, target_x, target_z);
-        armed++;
-        k++;
-    }
+    const float theta = two_pi * float(col) / float(LATTICE_COLS);
+    return { std::cos(theta) * ZOETROPE_RING_RADIUS,
+             std::sin(theta) * ZOETROPE_RING_RADIUS,
+             ZOETROPE_H_BASE + float(row) * ZOETROPE_H_STEP };
+}
 
-    std::cout << "[Floaters] corral: " << armed << " cube(s) gliding "
-              << (cbs.kite_mode ? "to ring offset around the point" : "to ring")
-              << " radius " << CUBE_CORRAL_RADIUS << "\n";
+inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
+    // THE REVEAL, staged (V1): the 3u capture sentinel eats target_x/z
+    // in the frame it is consumed, so the press writes NO targets and NO
+    // heights — it stages. The service walks the formation from the next
+    // frame; the corral's absolute-ring arm is absorbed (the screen is
+    // kite-native — it tracks the point or it isn't a screen).
+    uint32_t staged = 0;
+    if (cbs.formation == CubeBehaviorsState::Formation::ROAM) {
+        for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
+            if (!cbs.activeCubes_[i].active) continue;
+            cbs.prior_h[i] = cbs.activeCubes_[i].orbit_height;   // the V2 mirror field
+            cbs.h_walk[i]  = cbs.activeCubes_[i].orbit_height;   // the walk starts at the truth
+            cbs.settled[i] = false;
+            staged++;
+        }
+    } else {
+        // Re-press in any non-ROAM state: re-arm the walk; prior_h is
+        // the original's — preserved, so release always scatters home.
+        for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
+            if (!cbs.activeCubes_[i].active) continue;
+            cbs.settled[i] = false;
+            staged++;
+        }
+    }
+    // The kite invariant: ASSEMBLING/FORMED require the flag true (the
+    // release watch reads it — E6), and an anchor-mode cube handed ring
+    // OFFSETS would glide to the WORLD ORIGIN (the documented spawn-mode
+    // desync trap). Any press that finds the flock anchored captures it.
+    if (!cbs.kite_mode) {
+        for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
+            if (!cbs.activeCubes_[i].active) continue;
+            c->gpuState_.upload_cube_follow_pawn(queue, i, 3u);
+        }
+        cbs.kite_mode = true;   // F7 remains the ONE release
+    }
+    cbs.formation = CubeBehaviorsState::Formation::ASSEMBLING;
+    cbs.stations_sent = false;
+    cbs.stage_wait = true;      // this frame stages; the service acts next frame
+
+    std::cout << "[Zoetrope] reveal: " << staged
+              << " cube(s) staged; the screen assembles\n";
 }
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
@@ -492,6 +521,7 @@ inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.last_alloc_time = c->time_state_.seconds;
+    ac.orbit_height = inst.params[CubeIdx::ORBIT_HEIGHT];   // the tier draw — the release's PRIOR (C6R)
     ac.active = true;
 }
 
@@ -556,11 +586,27 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     if (c->cube_behaviors_state_.kite_mode) {
         // Kite arm: the param is the OFFSET from the point, and the
         // point is point_.x/z — the same host-authored
-        // snapshot corral_cubes rings around.
+        // snapshot the reveal rings around.
         fe.follow_pawn = 1u;
-        fe.pawn_offset[0] = inst.cx - c->point_.x;
-        fe.pawn_offset[1] = 0.0f;
-        fe.pawn_offset[2] = inst.cz - c->point_.z;
+        const auto formation = c->cube_behaviors_state_.formation;
+        if (formation == CubeBehaviorsState::Formation::ASSEMBLING
+            || formation == CubeBehaviorsState::Formation::FORMED) {
+            // ZOETROPE (C6R E7): a newborn under a standing screen flies
+            // to its cell's seat — station offsets and station height,
+            // written whole at commit. Birth may leap: boot is a
+            // transition from nothing, and so is birth. Its prior_h is
+            // the spawn law's normal tier draw (seated by write_active),
+            // so release scatters it as if it had always roamed.
+            const ZoetropeStation st = zoetrope_station(inst.slot);
+            fe.orbit_height = st.h;
+            fe.pawn_offset[0] = st.off_x;
+            fe.pawn_offset[1] = 0.0f;
+            fe.pawn_offset[2] = st.off_z;
+        } else {
+            fe.pawn_offset[0] = inst.cx - c->point_.x;
+            fe.pawn_offset[1] = 0.0f;
+            fe.pawn_offset[2] = inst.cz - c->point_.z;
+        }
         fe.target_x = fe.pawn_offset[0];
         fe.target_z = fe.pawn_offset[2];
     } else {
@@ -572,6 +618,15 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
         fe.target_z = inst.cz;
     }
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
+
+    // ZOETROPE (C6R): birth bookkeeping — the walker's records. prior_h
+    // is the tier draw (release scatters home, as if it had always
+    // roamed); the h shadow mirrors the height just written; a newborn
+    // is born settled — no walk owed, in any formation state.
+    auto& zcbs = c->cube_behaviors_state_;
+    zcbs.prior_h[inst.slot] = inst.params[CubeIdx::ORBIT_HEIGHT];
+    zcbs.h_walk[inst.slot]  = fe.orbit_height;
+    zcbs.settled[inst.slot] = true;
 }
 
 inline constexpr uint32_t CUBE_INDOOR_RESCALE_PARAMS[] = {
@@ -696,7 +751,7 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
 }
 
 inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, float t_beats) {
+    uint32_t active_seed, float t_beats, float dt) {
     if (!cbs.primed) {
         // First service: build the fixed-seed asymmetric weight table —
         // per (cell, dir) a skew in [-ASYMMETRY, +ASYMMETRY] around
@@ -767,6 +822,67 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
             gpu.upload_cube_color(queue, slot, cr, cg, cb);
         }
     }
+
+    // ── THE CLIMB (C6R): the formation walk — a CPU flush-walk on the
+    // height scalar, the glide law's grammar; steady state pokes NOTHING.
+    using Formation = CubeBehaviorsState::Formation;
+
+    // The release watch: F7 is the ONE release — the kite flag going
+    // false while the screen stands sends every cube walking home.
+    if ((cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::FORMED)
+        && !cbs.kite_mode) {
+        cbs.formation = Formation::RELEASING;
+        for (uint32_t i = 0; i < LATTICE_CELLS; i++)
+            if (cbs.activeCubes_[i].active) cbs.settled[i] = false;
+        std::cout << "[Zoetrope] release: the swarm walks home\n";
+    }
+
+    if (cbs.formation == Formation::ASSEMBLING || cbs.formation == Formation::RELEASING) {
+        if (cbs.stage_wait) {
+            // The press frame (V1): the 3u sentinel is in flight — no
+            // target or height writes until it has eaten.
+            cbs.stage_wait = false;
+        } else {
+            if (cbs.formation == Formation::ASSEMBLING && !cbs.stations_sent) {
+                // First service after the press: the XZ stations, uniform,
+                // one pass — the sentinel ate its 3u last frame.
+                for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
+                    if (!cbs.activeCubes_[slot].active) continue;
+                    const ZoetropeStation st = zoetrope_station(slot);
+                    gpu.upload_cube_glide_target(queue, slot, st.off_x, st.off_z);
+                }
+                cbs.stations_sent = true;
+            }
+            // The height walk: the walker owns its own h shadow — it never
+            // reads the GPU value while the walk lives. Eviction mid-walk:
+            // inactive slots drop from the set; the ghost keeps its cell,
+            // height is moot until the seat refills.
+            const bool assembling = (cbs.formation == Formation::ASSEMBLING);
+            const float k = 1.0f - std::exp(-dt / ZOETROPE_LIFT_TAU);
+            bool all_settled = true;
+            for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
+                if (!cbs.activeCubes_[slot].active) continue;
+                if (cbs.settled[slot]) continue;
+                const float target = assembling ? zoetrope_station(slot).h
+                                                : cbs.prior_h[slot];
+                float h = cbs.h_walk[slot];
+                h += (target - h) * k;
+                if (std::fabs(target - h) <= ZOETROPE_SETTLE_EPS) {
+                    h = target; cbs.settled[slot] = true;
+                } else {
+                    all_settled = false;
+                }
+                cbs.h_walk[slot] = h;
+                gpu.upload_cube_orbit_height(queue, slot, h);
+            }
+            if (all_settled) {
+                cbs.formation = assembling ? Formation::FORMED : Formation::ROAM;
+                std::cout << (assembling ? "[Zoetrope] formed: the screen stands\n"
+                                         : "[Zoetrope] roam: the swarm is whole\n");
+            }
+        }
+    }
+    // FORMED and ROAM poke nothing: steady-state height traffic is zero.
 }
 
 // ─── Readback mirror reconciliation (owner verb) ─

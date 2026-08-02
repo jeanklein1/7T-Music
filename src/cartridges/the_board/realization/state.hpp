@@ -2169,6 +2169,11 @@ namespace t7 {
                 size_t off = offsetof(GPUFloatingEntityState, behavior_id);
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &behavior_id, sizeof(uint32_t));
             }
+            void upload_cube_orbit_height(wgpu::Queue& queue, uint32_t slot, float h) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, orbit_height);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &h, sizeof(float));
+            }
 
             // Partial writes for the anchor law (ONE_ANCHOR_1). The
             // toggle writes only the follow_pawn sentinel (the kernel
