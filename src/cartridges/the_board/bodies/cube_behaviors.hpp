@@ -713,6 +713,14 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
         return;
     }
 
+    // The checker/ears backward-jump rule (visual_canvas.hpp CADENCE
+    // precedent — threshold one span below the next scheduled event,
+    // which for a stored last-anchor is the anchor itself): a looping
+    // clip re-anchors the clock; the cells PERSIST — the screen keeps
+    // its memory across the loop seam.
+    if (t_beats < cbs.last_tick_beat)
+        cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
+
     // Transport-leap guard: more than 64 pending ticks means the clock
     // leapt (a seek, a stall) — re-prime the anchor at the current beat.
     // The cells persist: the automaton never replays.
