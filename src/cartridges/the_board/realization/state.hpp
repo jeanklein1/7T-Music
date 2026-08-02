@@ -2185,6 +2185,11 @@ namespace t7 {
                 float a[2] = { ay, az };   // aspect_z rides aspect_y — adjacent (128/132)
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, a, sizeof(a));
             }
+            void upload_cube_face_variance(wgpu::Queue& queue, uint32_t slot, float v) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off = offsetof(GPUFloatingEntityState, face_variance);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &v, sizeof(float));
+            }
 
             // Partial writes for the anchor law (ONE_ANCHOR_1). The
             // toggle writes only the follow_pawn sentinel (the kernel

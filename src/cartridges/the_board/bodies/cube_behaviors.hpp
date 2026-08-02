@@ -98,6 +98,7 @@ inline constexpr float ZOETROPE_RING_RADIUS = 60.0f;  // arc = 2π·R/36 ≈ 10.
 inline constexpr float ZOETROPE_H_BASE      = 8.0f;   // row-0 height above ground (wu)
 inline constexpr float ZOETROPE_H_STEP      = 9.0f;   // wu per mode degree — screen ≈ rows 8..62 wu
 inline constexpr float ZOETROPE_PIXEL_RADIUS = 3.2f;  // pixel half-size; full ≈ 6.4 wu
+inline constexpr float ZOETROPE_FACE_SPLAY = 1.5f; // added face_variance at full excitation
 inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
 inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
 inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
@@ -243,6 +244,7 @@ void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue
     uint32_t active_seed, float t_beats, float dt, float point_x, float point_z);
 // The projector (C5): one home — cells reach pixels here and nowhere else
 uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
+float zoetrope_cell_intensity(const CubeBehaviorsState& cbs, uint32_t slot);  // I — ONE computation (G6)
 void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
     float& out_r, float& out_g, float& out_b);
 
@@ -597,7 +599,12 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
                        fe.color[0], fe.color[1], fe.color[2]);
     fe.aspect_y = inst.params[CubeIdx::ASPECT_Y];
     fe.aspect_z = inst.params[CubeIdx::ASPECT_Z];
-    fe.face_variance = inst.params[CubeIdx::FACE_VARIANCE];
+    // ZOETROPE (G6): the ghost's splay dresses the newborn whole-slot —
+    // variance = the tier draw + SPLAY·I of the inherited cell (the
+    // mirror keeps the bare draw; the projector relaxes it as I dims).
+    fe.face_variance = inst.params[CubeIdx::FACE_VARIANCE]
+                     + ZOETROPE_FACE_SPLAY
+                       * zoetrope_cell_intensity(c->cube_behaviors_state_, inst.slot);
     fe.geometry_type = 1; fe.motion_type = 1;
     fe.entity_seed = Dim::CUBE_SLOT_OFFSET + inst.slot;
     fe.t = 0.0f; fe.orientation[3] = 1.0f;
@@ -766,10 +773,17 @@ inline uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t activ
     return tile_seed(active_seed, ac.patch_gx, ac.patch_gz);
 }
 
+// The intensity — I's ONE computation (G6): both the color mix and the
+// face splay read the cell through this door and no other. Carries the
+// helix crossing (G2) with it.
+inline float zoetrope_cell_intensity(const CubeBehaviorsState& cbs, uint32_t slot) {
+    const ZoetropeCell& cell = cbs.cells[cell_of_slot(slot)];
+    return std::min(1.0f, cell.excite + cell.pigment);
+}
+
 inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
     float& out_r, float& out_g, float& out_b) {
-    const ZoetropeCell& cell = cbs.cells[cell_of_slot(slot)];   // the helix crossing (G2)
-    const float I = std::min(1.0f, cell.excite + cell.pigment);
+    const float I = zoetrope_cell_intensity(cbs, slot);
     EntityInstance tmp{};
     tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
     // The seed fn's exact signature takes traits + tier; it reads neither
@@ -801,6 +815,10 @@ inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue&
                 float cr, cg, cb;
                 project_cell_color(cbs, active_seed, slot, cr, cg, cb);
                 gpu.upload_cube_color(queue, slot, cr, cg, cb);
+                // The splay rides the projector (G6): faces answer the music.
+                const float I = zoetrope_cell_intensity(cbs, slot);
+                gpu.upload_cube_face_variance(queue, slot,
+                    cbs.activeCubes_[slot].face_variance + ZOETROPE_FACE_SPLAY * I);
             }
         }
     // Strike witness (the [CHECKER] form): one line per strike-frame,
@@ -913,6 +931,11 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
             float cr, cg, cb;
             project_cell_color(cbs, active_seed, slot, cr, cg, cb);
             gpu.upload_cube_color(queue, slot, cr, cg, cb);
+            // The splay rides the projector (G6): variance relaxes to the
+            // mirror's rest as the cell dims.
+            const float I = zoetrope_cell_intensity(cbs, slot);
+            gpu.upload_cube_face_variance(queue, slot,
+                cbs.activeCubes_[slot].face_variance + ZOETROPE_FACE_SPLAY * I);
         }
     }
 
