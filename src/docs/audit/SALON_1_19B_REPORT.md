@@ -138,7 +138,23 @@ its first sixteen frames. That is not the failure §6 predicted (silent
 sparseness); it is a quieter one: the dial works, the wall fills, and the
 content type is overwhelmed by its own fallback.
 
-**Reported, not fixed.** Three responses exist and the choice is not mine:
+**RULED — option 3**, by `SALON_1_E_C.md` §1. *The fill tier is snapshots by
+definition.* D1 already said it: the fill tier rides smaller footprints, the
+centre band holds the paintings. **Nothing is broken — the label is.**
+
+The fix folds into **E-b** and costs one condition moved, no mechanism:
+
+- **The centre band honours `site_type`.** AUTHORED_ONLY means the paintings
+  are authored — what it should always have meant.
+- **The fill tier draws snapshots regardless of `site_type`.** No uniqueness
+  rule, no fallback chain, no `usedAuthored` on that path at all.
+
+`usedAuthored` stays exactly as it is for the centre band, where 16 authored
+against ≤ 20 frames is ample and uniqueness is correct. **D's spacing rule is
+NOT extended to the authored path** — that path stops being under pressure the
+moment the fill tier stops drawing from it.
+
+The three options as reported, for the record:
 
 1. **Extend §6's ruling to the authored path** — give `usedAuthored` the same
    spacing-rule treatment D gave the snapshot side. Symmetric, and it makes the
@@ -154,7 +170,7 @@ content type is overwhelmed by its own fallback.
 
 Option 3 is consistent with D1 as written and costs nothing. It is recorded
 first among equals because it may already be the answer, not because it is
-mine to choose.
+mine to choose. — **It was the answer.**
 
 ---
 
@@ -167,9 +183,10 @@ with content supply.
 The finding lands on **E-b's** gate, and belongs beside the symptom row the
 addendum §4 just added:
 
-| symptom at the gate | cause | response |
-|---|---|---|
-| An AUTHORED_ONLY room's fill reads as snapshots, not paintings | `usedAuthored` is a uniqueness rule; authored images cannot repeat, so 16 of 192 frames are authored | §3 above — extend the spacing rule, raise the pool, or rule the fill tier snapshot-by-definition |
+**Superseded by the ruling.** An AUTHORED_ONLY room's fill reading as snapshots
+is no longer a symptom to watch for — it is the intended behaviour, and E-b
+carries the condition that makes the *centre band* honour the site type. The row
+that would have gone on E-b's symptom table is withdrawn.
 
 ---
 
@@ -177,4 +194,4 @@ addendum §4 just added:
 
 | Stage | State | Commit | Note |
 |---|---|---|---|
-| 19b — `authored_staged_count` | **reported** | this commit | **16** (`min(57 on disk, STAGING_LAYERS)`) — below the threshold, but the conclusion does not follow: authored exhaustion falls back to snapshots (`gallery.hpp:1814`), so drops need `frames > 16 + N` and vanish once ~100 wu have been walked. **Baseline is sound.** Separate finding: the authored path still runs the uniqueness rule §6 struck — invisible at 20 frames, makes an AUTHORED_ONLY full-tier room 92 % snapshots at 192. |
+| 19b — `authored_staged_count` | **reported** | this commit | **16** (`min(57 on disk, STAGING_LAYERS)`) — below the threshold, but the conclusion does not follow: authored exhaustion falls back to snapshots (`gallery.hpp:1814`), so drops need `frames > 16 + N` and vanish once ~100 wu have been walked. **Baseline is sound.** Separate finding: the authored path still runs the uniqueness rule §6 struck — invisible at 20 frames, makes an AUTHORED_ONLY full-tier room 92 % snapshots at 192. **RULED option 3** (`SALON_1_E_C.md` §1): the fill tier is snapshots by definition; the centre band gains `site_type` in E-b; `usedAuthored` unchanged there; D's spacing rule NOT extended. |
