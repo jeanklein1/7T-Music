@@ -9907,42 +9907,43 @@ fn deform_gallery_frame(local: vec3<f32>, uv: vec2<f32>, seed: f32) -> vec3<f32>
     return p;
 }
 
-// --- Vertex Shader
-@vertex
-fn gallery_frame_vs(
-    @builtin(vertex_index) vid: u32,
-    @builtin(instance_index) iid: u32,
-) -> GalleryVarying {
-    var out: GalleryVarying;
+// The quad's geometry, shared by the color VS and its shadow twin. Both
+// gates live here — the bounds guard and THE RING — so a caster set and a
+// draw set cannot drift apart. `valid` false means the slot is not drawn
+// by this entry point; each caller emits its own degenerate position.
+struct GalleryQuadPoint {
+    world:         vec3<f32>,
+    uv:            vec2<f32>,
+    fwd:           vec3<f32>,
+    uv_scale:      vec2<f32>,
+    texture_layer: u32,
+    valid:         bool,
+};
+
+fn compute_gallery_quad_geometry(vid: u32, iid: u32) -> GalleryQuadPoint {
+    var out: GalleryQuadPoint;
+    out.world = vec3(0.0);
+    out.uv = vec2(0.0);
+    out.fwd = vec3(0.0, 1.0, 0.0);
+    out.uv_scale = vec2(1.0);
+    out.texture_layer = 0u;
+    out.valid = false;
 
     // Instance count comes from the CPU (Dim::PAINTING_MAX_SLOTS, at
     // renderer.hpp's draw_gallery_frames) and the array size from this
     // room. They agree today, which is the only reason the read below has
     // stood unguarded. wall_painting_vs already guards its decoded index;
     // this is the same guard, on the other painting entry point.
-    if (iid >= PAINTING_MAX_SLOTS) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        out.uv = vec2(0.0);
-        out.world_pos = vec3(0.0);
-        out.world_normal = vec3(0.0, 1.0, 0.0);
-        out.texture_layer = 0u;
-        return out;
-    }
+    if (iid >= PAINTING_MAX_SLOTS) { return out; }
 
     let slot = painting_slots[iid];
 
-    // Skip inactive or wall-frame slots (only terrain quads drawn here).
     // THE RING (draw authority): outdoor frames draw only inside the ring
-    // (center − extent ≤ ring; 5 wu covers the frame's half-reach).
+    // (center - extent <= ring; 5 wu covers the frame's half-reach).
     let frame_in_ring = distance(slot.position.xz,
                                  vec2(config.lod_point_x, config.lod_point_z))
                         - 5.0 <= config.veil_ring;
     if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD || !frame_in_ring) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        out.uv = vec2(0.0);
-        out.world_pos = vec3(0.0);
-        out.world_normal = vec3(0.0, 1.0, 0.0);
-        out.texture_layer = 0u;
         return out;
     }
 
@@ -9996,7 +9997,38 @@ fn gallery_frame_vs(
     // Transform to world space
     let world = slot.position + right * local.x + up * local.y + fwd * local.z;
 
-    out.clip_pos = render_vp.m * vec4(world, 1.0);
+    out.world = world;
+    out.uv = uv;
+    out.fwd = fwd;
+    out.uv_scale = vec2(slot.uv_scale_x, slot.uv_scale_y);
+    out.texture_layer = slot.texture_layer;
+    out.valid = true;
+    return out;
+}
+
+// --- Vertex Shader
+@vertex
+fn gallery_frame_vs(
+    @builtin(vertex_index) vid: u32,
+    @builtin(instance_index) iid: u32,
+) -> GalleryVarying {
+    var out: GalleryVarying;
+
+    // Both gates — the bounds guard and THE RING — now live in
+    // compute_gallery_quad_geometry, shared with the shadow twin. The two
+    // early-return blocks this VS used to carry are one block, because
+    // they always emitted the same degenerate vertex.
+    let g = compute_gallery_quad_geometry(vid, iid);
+    if (!g.valid) {
+        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
+        out.uv = vec2(0.0);
+        out.world_pos = vec3(0.0);
+        out.world_normal = vec3(0.0, 1.0, 0.0);
+        out.texture_layer = 0u;
+        return out;
+    }
+
+    out.clip_pos = render_vp.m * vec4(g.world, 1.0);
     // THE SLOT'S uv_scale, which this path used to drop on the floor. The wall
     // path has always applied it (compute_wall_painting_geometry); this one
     // emitted raw uv, so a slot occupying part of its layer drew the whole
@@ -10022,17 +10054,28 @@ fn gallery_frame_vs(
     //
     // `uv` itself stays raw above: it drives local position and
     // deform_gallery_frame, which are geometry and must not move with content.
-    out.uv = vec2(uv.x, 1.0 - uv.y) * vec2(slot.uv_scale_x, slot.uv_scale_y);
-    out.world_pos = world;
-    out.world_normal = fwd;
-    out.texture_layer = slot.texture_layer;
+    out.uv = vec2(g.uv.x, 1.0 - g.uv.y) * g.uv_scale;
+    out.world_pos = g.world;
+    out.world_normal = g.fwd;
+    out.texture_layer = g.texture_layer;
     return out;
 }
 
-// §8.1.1 GALLERY FRAME SHADOW — CUT (orphan sweep): shadow_gallery_frame_vs
-// was caller-free (draw_shadow_gallery_frames had no caller — gallery frames
-// are drawn in the color pass but never cast a mesh-shadow). Shared helper
-// deform_gallery_frame is retained (used by the live gallery_frame_vs).
+// §8.1.1 GALLERY FRAME SHADOW
+@vertex
+fn shadow_gallery_frame_vs(
+    @builtin(vertex_index) vid: u32,
+    @builtin(instance_index) iid: u32,
+) -> ShadowVarying {
+    var out: ShadowVarying;
+    let g = compute_gallery_quad_geometry(vid, iid);
+    if (!g.valid) {
+        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
+        return out;
+    }
+    out.clip_pos = render_vp.light_vp * vec4(g.world, 1.0);
+    return out;
+}
 
 // --- Fragment Shader
 @fragment
@@ -10269,6 +10312,42 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
     let dist = distance(in.world_pos, render_camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     return vec4(mix(lit, config.fog_color, fog), 1.0);
+}
+
+// §8.3 WALL PAINTING SHADOW
+// The twin of wall_painting_vs: the same decode, the same two guards, the
+// same geometry call and the same live-card lift, differing only in the
+// matrix. BOTH VERT RANGES PASS THROUGH — canvas [0, 6) and frame [6, 78).
+// The frame is an open border with a canvas-shaped hole (§8.2's [54, 78)
+// branch), so a frame-only caster would print an outline with a lit hole
+// where the picture is. That is why ONE shadow draw replaces the color
+// pass's two: with no fragment stage the canvas/frame split has nothing
+// left to distinguish.
+@vertex
+fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
+    let pidx = vid / PAINTING_FRAME_VERTS_PER;
+    let local_vid = vid % PAINTING_FRAME_VERTS_PER;
+
+    if (pidx >= PAINTING_MAX_SLOTS) {
+        var out: ShadowVarying;
+        out.clip_pos = vec4(0.0);
+        return out;
+    }
+
+    let slot = painting_slots[pidx];
+
+    // Skip inactive or terrain-quad slots
+    if (slot.is_active == 0u || slot.form_type != FORM_WALL_FRAME) {
+        var out: ShadowVarying;
+        out.clip_pos = vec4(0.0);
+        return out;
+    }
+
+    var g = compute_wall_painting_geometry(slot, pidx, local_vid);
+    g.world_pos.y += sample_live_card(g.world_pos.xz).x;
+    var out: ShadowVarying;
+    out.clip_pos = render_vp.light_vp * vec4(g.world_pos, 1.0);
+    return out;
 }
 
 
