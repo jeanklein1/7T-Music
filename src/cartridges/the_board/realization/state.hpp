@@ -255,7 +255,16 @@ namespace t7 {
             // WALL_ART in bodies/gallery.hpp — the first site that can see all
             // three dials. Do not restate the sum here.
             constexpr uint32_t PAINTING_MAX_SLOTS = 288;      // max exhibited paintings
-            constexpr uint32_t PAINTING_RESOLUTION = 1024;
+            // TWO RESOLUTIONS. Authored images are photographs off disk and
+            // are what a viewer walks up to; snapshots are renders of low-poly
+            // terrain and carry no detail worth 1024. They share the
+            // exhibition array, so the small one lands at that array's ORIGIN
+            // and the frame's uv_scale selects the sub-square — which is why
+            // these two must stay a RATIO and never be written as 0.5.
+            constexpr uint32_t PAINTING_RESOLUTION  = 1024;   // authored + exhibition
+            constexpr uint32_t SNAPSHOT_RESOLUTION  = 512;    // snapshot staging + offscreen
+            static_assert(SNAPSHOT_RESOLUTION <= PAINTING_RESOLUTION,
+                "the snapshot sub-square must fit the exhibition layer it lands in");
             constexpr uint32_t STAGING_LAYERS = 16;            // per staging array (snapshot + authored)
             constexpr uint32_t EXHIBITION_LAYERS = 32;         // exhibition array
             constexpr uint32_t PAINTING_QUAD_N = 8;
@@ -2325,11 +2334,11 @@ namespace t7 {
                 colorFormat_ = colorFormat;
 
                 auto makeTextureArray = [&](const char* label, uint32_t layers,
-                    wgpu::TextureUsage usage) -> wgpu::Texture
+                    uint32_t resolution, wgpu::TextureUsage usage) -> wgpu::Texture
                     {
                         wgpu::TextureDescriptor desc{};
                         desc.label = label;
-                        desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, layers };
+                        desc.size = { resolution, resolution, layers };
                         desc.dimension = wgpu::TextureDimension::e2D;
                         desc.format = colorFormat;
                         desc.usage = usage;
@@ -2346,7 +2355,7 @@ namespace t7 {
 
                 // Snapshot staging — photographer writes here, promotion copies from here
                 snapshotStagingTexture_ = makeTextureArray("Snapshot Staging",
-                    Dim::STAGING_LAYERS,
+                    Dim::STAGING_LAYERS, Dim::SNAPSHOT_RESOLUTION,
                     wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc);
                 if (!snapshotStagingTexture_) return false;
                 snapshotStagingReadView_ = makeArrayView(snapshotStagingTexture_,
@@ -2354,7 +2363,7 @@ namespace t7 {
 
                 // Authored staging — disk images loaded here, promotion copies from here
                 authoredStagingTexture_ = makeTextureArray("Authored Staging",
-                    Dim::STAGING_LAYERS,
+                    Dim::STAGING_LAYERS, Dim::PAINTING_RESOLUTION,
                     wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc);
                 if (!authoredStagingTexture_) return false;
                 authoredStagingReadView_ = makeArrayView(authoredStagingTexture_,
@@ -2362,7 +2371,7 @@ namespace t7 {
 
                 // Exhibition — promoted images live here, GPU reads for rendering
                 exhibitionTexture_ = makeTextureArray("Exhibition",
-                    Dim::EXHIBITION_LAYERS,
+                    Dim::EXHIBITION_LAYERS, Dim::PAINTING_RESOLUTION,
                     wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding);
                 if (!exhibitionTexture_) return false;
                 exhibitionReadView_ = makeArrayView(exhibitionTexture_,
@@ -2372,7 +2381,7 @@ namespace t7 {
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "Offscreen Snapshot Color";
-                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
+                    desc.size = { Dim::SNAPSHOT_RESOLUTION, Dim::SNAPSHOT_RESOLUTION, 1 };
                     desc.format = colorFormat;
                     desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
                     offscreenColorTexture_ = device_.CreateTexture(&desc);
@@ -2382,7 +2391,7 @@ namespace t7 {
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "Offscreen Snapshot Depth";
-                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
+                    desc.size = { Dim::SNAPSHOT_RESOLUTION, Dim::SNAPSHOT_RESOLUTION, 1 };
                     desc.format = wgpu::TextureFormat::Depth24Plus;
                     desc.usage = wgpu::TextureUsage::RenderAttachment;
                     offscreenDepthTexture_ = device_.CreateTexture(&desc);
@@ -2922,9 +2931,13 @@ namespace t7 {
             wgpu::Texture exhibition_texture() const { return exhibitionTexture_; }
 
             // Promote a staging layer to an exhibition layer (GPU copy, call within encoder scope)
+            // The extent is the SOURCE's resolution and is passed in, because
+            // the two staging arrays no longer agree on it and the texture
+            // handle is the wrong thing to branch on — the caller already
+            // knows which pool it drew from.
             void promote_to_exhibition(wgpu::CommandEncoder& encoder,
                 wgpu::Texture srcTexture, uint32_t srcLayer,
-                uint32_t dstLayer)
+                uint32_t dstLayer, uint32_t srcResolution)
             {
                 wgpu::TexelCopyTextureInfo src{};
                 src.texture = srcTexture;
@@ -2938,7 +2951,7 @@ namespace t7 {
                 dst.origin = { 0, 0, dstLayer };
                 dst.aspect = wgpu::TextureAspect::All;
 
-                wgpu::Extent3D extent = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
+                wgpu::Extent3D extent = { srcResolution, srcResolution, 1 };
                 encoder.CopyTextureToTexture(&src, &dst, &extent);
             }
             static constexpr uint32_t painting_quad_verts() { return Dim::PAINTING_QUAD_VERTS; }
