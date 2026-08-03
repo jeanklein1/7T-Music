@@ -172,6 +172,16 @@ R2 holds.
 The campaign has one item **HELD** whose trigger was recorded as *Jean's eye on
 E-b*: **sub-rect packing**. The measurement fires that trigger analytically.
 
+> **CORRECTED by `SALON_1_E_B2.md` §4.** The lateral columns are **not** the
+> HELD item. HELD is **`uv_offset` texture packing** — fitting four or sixteen
+> images into one exhibition layer, a capacity-and-distinctness question that
+> costs a GROWTH-LAW struct edit. **The lateral columns are layout**, and they
+> landed in E-b2 at no struct cost. Two different things that both got called
+> "sub-rect"; building the wrong one would have bought no visual gain. **HELD
+> stays held**, and its trigger is Jean's eye on a *filled* wall. The
+> arithmetic in this section is sound — it is the label on the lever that was
+> wrong.
+
 E-b's simplification — the band is a horizontal slab, so its complement is two
 horizontal sub-rects — is exactly right about the *vertical* complement and
 throws away the *horizontal* one. A band of three pieces is roughly 45 wu wide.
