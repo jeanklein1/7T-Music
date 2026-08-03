@@ -257,7 +257,11 @@ struct WallArtConfig {
     float corner_margin;        // distance from wall corners
     float painting_gap;         // gap between adjacent painting edges
     float paint_y_frac;         // base center as fraction of ceiling
+    // The bottom edge is clamped from BOTH sides. max_ keeps a piece from
+    // riding up the wall; min_ keeps it off the floor. The pair is one
+    // clamp with two ends, not two mechanisms.
     float max_bottom_height;    // hard upper clamp on bottom edge (m)
+    float min_bottom_height;    // hard lower clamp on bottom edge (m)
 
     // ─── Size buckets (intimate / standard / statement) ─────
     WallArtScaleBucket intimate;
@@ -287,6 +291,10 @@ inline constexpr WallArtConfig WALL_ART = {
     /* painting_gap      */ 6.0f,
     /* paint_y_frac      */ 0.45f,
     /* max_bottom_height */ 4.0f,   // bottom no higher than 4 m above floor
+    // Floor side. MUST stay above the frame border (FrameStyle::width,
+    // 0.45 at both FRAME_AUTHORED and FRAME_SNAPSHOT) or the frame's lower
+    // edge dips below the wall base even when the canvas clears it.
+    /* min_bottom_height */ 1.0f,   // bottom no lower than 1 m above floor
 
     //                 height_lo, height_hi, weight, y_offset_lo, y_offset_hi
     /* intimate  */  {  6.0f,    11.0f,    0.25f,   0.0f,        2.0f },
@@ -477,8 +485,12 @@ struct GalleryState {
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
+    // The occupancy array is the whole record. A companion count used to
+    // ride beside it, incremented at every claim and decremented at every
+    // free — and read by nothing, not even a log. Deleted rather than
+    // reserved: if a later stage needs a population figure it can name its
+    // reader when it introduces one.
     bool     exhibition_occupied[Dim::EXHIBITION_LAYERS]{};
-    uint32_t exhibition_count = 0;
 
     PendingPromotion pending_promotions[MAX_PROMOTIONS_PER_FRAME]{};
     uint32_t         pending_promotion_count = 0;
@@ -1122,7 +1134,6 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
                 s.geometry_seed = cpu_hash_f(p_seed, GalleryPaintingProp::GEOMETRY_SEED);
 
                 gs.exhibition_occupied[exh] = true;
-                gs.exhibition_count++;
                 gs.authored_staging[auth_stg].consumed = true;
                 queue_promotion(gs, false, auth_stg, exh);
                 gs.wall_frame_count++;
@@ -1165,7 +1176,6 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
             s.patch_gx = gx; s.patch_gz = gz;
 
             gs.exhibition_occupied[exh] = true;
-            gs.exhibition_count++;
             gs.snapshot_staging[staging_layer].consumed = true;
             queue_promotion(gs, true, staging_layer, exh);
             placed_this = true;
@@ -1212,7 +1222,6 @@ inline void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c, int32_t g
             uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
                 gs.exhibition_occupied[exh] = false;
-                gs.exhibition_count--;
             }
 
             if (gs.painting_slots[i].form_type == FormType::WALL_FRAME) {
@@ -1647,7 +1656,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         for (uint32_t p = 0; p < effective_count; p++) {
 
             uint32_t slot = find_free_painting_slot(gs);
-            if (slot == UINT32_MAX) return;
+            // Exhaustion ends THIS WALL, not the hang. `return` here
+            // abandoned every remaining wall — one full wall and three bare
+            // ones — and skipped the closing log too, which is why it stayed
+            // invisible. commit_gallery, the outdoor twin, already breaks at
+            // the corresponding site.
+            if (slot == UINT32_MAX) break;
 
             uint32_t p_seed = cpu_hash(w_seed, WallArtProp::PER_PAINTING_BASE + p * WallArtProp::PER_PAINTING_STRIDE);
 
@@ -1668,6 +1682,13 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             float bottom = py - h_for_clamp * 0.5f;
             if (bottom > WALL_ART.max_bottom_height) {
                 py = WALL_ART.max_bottom_height + h_for_clamp * 0.5f;
+            }
+            // The clamp's other end. Only the statement bucket can reach it:
+            // its bottom spans [-1.5, 2.5] against standard's [1.5, 6.5] and
+            // intimate's [3.5, 8.0], so a tall piece hung low was the one
+            // shape that put a frame through the floor.
+            else if (bottom < WALL_ART.min_bottom_height) {
+                py = WALL_ART.min_bottom_height + h_for_clamp * 0.5f;
             }
 
             // ─── Content decision (three-way) ────────────────
@@ -1696,7 +1717,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 }
                 else {
                     uint32_t exh = find_free_exhibition_layer(gs);
-                    if (exh == UINT32_MAX) return;
+                    if (exh == UINT32_MAX) break;   // this wall, not the hang
 
                     const auto& snap = gs.snapshot_staging[snap_stg];
                     float height = painting_heights[p];
@@ -1720,7 +1741,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         INT32_MAX, INT32_MAX);
 
                     gs.exhibition_occupied[exh] = true;
-                    gs.exhibition_count++;
                     gs.snapshot_staging[snap_stg].consumed = true;
                     queue_promotion(gs, true, snap_stg, exh);
 
@@ -1748,7 +1768,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 }
 
                 uint32_t exh = find_free_exhibition_layer(gs);
-                if (exh == UINT32_MAX) return;
+                if (exh == UINT32_MAX) break;   // this wall, not the hang
 
                 usedAuthored[auth_stg] = true;
 
@@ -1774,7 +1794,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                     INT32_MAX, INT32_MAX);
 
                 gs.exhibition_occupied[exh] = true;
-                gs.exhibition_count++;
                 gs.authored_staging[auth_stg].consumed = true;
                 queue_promotion(gs, false, auth_stg, exh);
 
@@ -1800,7 +1819,6 @@ inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
                 gs.exhibition_occupied[exh] = false;
-                gs.exhibition_count--;
             }
             gs.painting_slots[i].is_active = 0;
             c->gpuState_.deactivate_painting_slot(queue, i);
@@ -1887,7 +1905,6 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     }
     // Free all exhibition layers (staging persists across worlds)
     for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) gs.exhibition_occupied[i] = false;
-    gs.exhibition_count = 0;
     rotate_authored_staging(gs, c, queue);
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gs.authored_staging[i].consumed = false;
 }

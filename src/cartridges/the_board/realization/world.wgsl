@@ -9322,7 +9322,7 @@ struct PhotographerConfig {
 @group(0) @binding(140) var<uniform> photographer_config: PhotographerConfig;
 @group(0) @binding(141) var<storage, read_write> photographer_vp: VPMatrix;
 @group(0) @binding(142) var<storage, read_write> photographer_camera_out: CameraState;
-@group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, 32>;
+@group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
 @group(0) @binding(145) var photo_heightfield: texture_2d_array<f32>;
 @group(0) @binding(146) var photo_sampler: sampler;
 
@@ -9570,7 +9570,7 @@ fn compute_entity_placement() {
 
     // Y-correct all outdoor paintings (terrain quads + wall frame monuments).
     // Indoor wall frames use sentinel patch coords (0x7FFFFFFF) and are skipped.
-    for (var i = 0u; i < 32u; i++) {
+    for (var i = 0u; i < PAINTING_MAX_SLOTS; i++) {
         if (photo_painting_slots[i].is_active != 0u &&
             photo_painting_slots[i].patch_gx != 0x7FFFFFFF) {
             let slot_xz = vec2(
@@ -9866,7 +9866,7 @@ const PAINTING_MAX_SLOTS: u32 = 32u;
 
 // --- Gallery Group 1 bindings (shared by terrain quads + wall frames)
 
-@group(1) @binding(50) var<storage, read> painting_slots: array<UnifiedPaintingSlot, 32>;
+@group(1) @binding(50) var<storage, read> painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
 @group(1) @binding(51) var painting_array: texture_2d_array<f32>;
 @group(1) @binding(52) var painting_sampler_filt: sampler;
 
@@ -9912,6 +9912,21 @@ fn gallery_frame_vs(
     @builtin(instance_index) iid: u32,
 ) -> GalleryVarying {
     var out: GalleryVarying;
+
+    // Instance count comes from the CPU (Dim::PAINTING_MAX_SLOTS, at
+    // renderer.hpp's draw_gallery_frames) and the array size from this
+    // room. They agree today, which is the only reason the read below has
+    // stood unguarded. wall_painting_vs already guards its decoded index;
+    // this is the same guard, on the other painting entry point.
+    if (iid >= PAINTING_MAX_SLOTS) {
+        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
+        out.uv = vec2(0.0);
+        out.world_pos = vec3(0.0);
+        out.world_normal = vec3(0.0, 1.0, 0.0);
+        out.texture_layer = 0u;
+        return out;
+    }
+
     let slot = painting_slots[iid];
 
     // Skip inactive or wall-frame slots (only terrain quads drawn here).
