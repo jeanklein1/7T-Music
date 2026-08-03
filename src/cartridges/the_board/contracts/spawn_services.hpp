@@ -173,14 +173,18 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
     // DOORWAY's weight IS the open world's portal density. PORTAL_DENSITY
     // is 1.0 (mood.hpp): every doorway arch becomes a portal, so this
     // number and ArchConfig::SPAWN_CHANCE are the only two dials deciding
-    // how many ways out the field has. Rebalancing the three tiers on
-    // looks alone silently changes that. STANDARD carries the slack.
+    // how many ways out the field has.
+    // ZERO-SUM (ARCH_2): at a fixed SPAWN_CHANCE these three weights trade
+    // against each other in ABSOLUTE counts — the mix is theirs, the count
+    // is the chance's. Every portal bought by skewing is a big arch sold.
+    // STANDARD and MONUMENTAL are the outdoor silhouette and are held by
+    // ruling: buy portals with the chance, never out of them.
     /* DOORWAY    */ {
-        { 0.75f, 0.0f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
+        { 0.70f, 0.0f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
         0.85f, 1.0f, 0.20f, 16, 4
     },
     /* STANDARD   */ {
-        { 0.10f, 0.0f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
+        { 0.15f, 0.0f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
         0.85f, 1.0f, 0.20f, 32, 8
     },
     /* MONUMENTAL */ {
