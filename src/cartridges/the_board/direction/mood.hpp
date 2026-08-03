@@ -575,7 +575,7 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     // every mood transition, so every live zone was derived inside the mood
     // it lives in and the capping is complete, not approximate.
     c->gpuState_.set_indoor_height_cap(
-        m.indoor ? INDOOR_HEIGHT_CAP_FRACTION * m.ceiling_height : 0.0f);
+        m.indoor ? INDOOR_HEIGHT_CAP_FRACTION * m.wall_height : 0.0f);
     c->mood_state_.lights_dirty = true;
 }
 
@@ -586,7 +586,7 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
 
         const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
         const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-        derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.ceiling_height, m.ceiling_type);
+        derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.wall_height, m.ceiling_type);
 
         for (uint32_t i = 0; i < c->cpuSpotLights_.count; i++) {
             compute_spot_light_vp(c->cpuSpotLights_.lights[i],
@@ -606,7 +606,7 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
 // both consume THIS — no bare-literal twin survives at either site.
 //
 // THE ROOM DEFINES THE SPRING; THE HANG FITS UNDER IT. The spring was
-// once derived from where the art hangs — ceiling_height x paint_y_frac,
+// once derived from where the art hangs — wall_height x paint_y_frac,
 // plus a top margin, plus a spring margin — so the room's shape depended
 // on the hang. That was inert while the fraction was spelled twice, and
 // became a live cycle the moment one home was given to it. The
@@ -623,9 +623,9 @@ inline VaultCrown vault_crown(const MoodProfile& m, float bmin, float bmax) {
     // Lower the dial and it binds.
     static constexpr float MIN_RISE_FLOOR       = 5.0f;
     const float half_span = (bmax - bmin) * 0.5f;
-    const float spring_h = m.ceiling_height;
+    const float spring_h = m.wall_height;
     // The crown clears the spring by construction now — rise is >= 5 — so
-    // the old min_rise term (ceiling_height - spring_h, guarding exactly
+    // the old min_rise term (wall_height - spring_h, guarding exactly
     // that) has nothing left to guard and is gone with the derivation.
     const float rise = std::max(half_span * VAULT_RISE_FRACTION, MIN_RISE_FLOOR);
     return VaultCrown{ spring_h, rise, spring_h + rise };
@@ -648,7 +648,7 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
 
     // Camera ceiling clamp — consumes THE CROWN LAW (vault_crown_height).
     if (m.indoor) {
-        float effective_ceiling = m.ceiling_height;
+        float effective_ceiling = m.wall_height;
         if (m.ceiling_type == CeilingType::VAULT) {
             const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
             const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
@@ -726,7 +726,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     GalleryState& gallery_state, GalleryDeps& gallery_deps) {
     float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    float ch = m.ceiling_height;
+    float ch = m.wall_height;
 
     std::vector<ShellVertex> verts;
     std::vector<uint32_t> indices;

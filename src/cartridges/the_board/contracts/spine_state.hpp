@@ -173,7 +173,9 @@ struct MoodProfile {
     // ─── Indoor shell ───────────────────────────────────────
     bool   indoor;                 // true = enclosed space with ceiling
     CeilingType ceiling_type;      // NONE / FLAT / VAULT
-    float  ceiling_height;         // ceiling Y (world units)
+    float  wall_height;            // where the VERTICAL wall stops (world units).
+                                   // NOT the ceiling on VAULT — there the ceiling is
+                                   // the crown, 47-92 against this 25. See vault_crown.
     float  terrain_amp_ceiling;    // indoor terrain-amp cap (0 = uncapped, outdoor)
 
     // ─── Background ─────────────────────────────────────────
@@ -195,7 +197,7 @@ struct MoodProfile {
 //   sits astride the binary and the encoding doesn't survive contact —
 //   correct for today but worth re-examining when finite_outdoor
 //   design lands.
-//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull
+//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       wall_h  amp_c  clear_color            zones  aura   cull
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
     /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
@@ -221,8 +223,8 @@ static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].finite         == false, "MOOD_TABLE 
 static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].finite      == true,  "MOOD_TABLE column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].indoor         == false, "MOOD_TABLE column drift: indoor (middle)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].indoor        == true,  "MOOD_TABLE column drift: indoor (middle)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].ceiling_height  == 20.0f, "MOOD_TABLE column drift: ceiling_height");
-static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].ceiling_height == 25.0f, "MOOD_TABLE column drift: ceiling_height");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].wall_height  == 20.0f, "MOOD_TABLE column drift: wall_height");
+static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].wall_height == 25.0f, "MOOD_TABLE column drift: wall_height");
 // The tail probe followed has_anchor_ribbon out; allow_frustum_cull is the
 // last field now and takes it. Both values differ from `indoor` at the same
 // rows, so the tail probe still names something the middle probe does not.

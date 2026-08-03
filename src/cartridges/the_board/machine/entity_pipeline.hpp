@@ -37,7 +37,7 @@ namespace the_board {
 // scaled, never ratios (TAPER, ENTASIS, ASPECT...), counts
 // (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
 // FROND_DROOP...). CAP families call the shared cap_to_ceiling law;
-// column's EXACT hook snaps HEIGHT to ceiling_height and scales
+// column's EXACT hook snaps HEIGHT to wall_height and scales
 // every other length param by the same ratio so proportions hold.
 // Adding a new eligible family means declaring its own
 // <family>_apply_indoor_rescale (a cap_to_ceiling call + its list),
@@ -160,7 +160,7 @@ inline bool generic_select(MachineCtx* c,
     if (MOOD_TABLE[c->mood_state_.active].indoor
         && INDOOR_TREATMENT[traits.family_id].size != IndoorSize::NATURAL
         && adapter.apply_indoor_rescale) {
-        adapter.apply_indoor_rescale(inst, MOOD_TABLE[c->mood_state_.active].ceiling_height);
+        adapter.apply_indoor_rescale(inst, MOOD_TABLE[c->mood_state_.active].wall_height);
     }
 
     // ── Per-family derived values ──
