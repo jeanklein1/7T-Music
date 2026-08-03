@@ -9912,6 +9912,21 @@ fn gallery_frame_vs(
     @builtin(instance_index) iid: u32,
 ) -> GalleryVarying {
     var out: GalleryVarying;
+
+    // Instance count comes from the CPU (Dim::PAINTING_MAX_SLOTS, at
+    // renderer.hpp's draw_gallery_frames) and the array size from this
+    // room. They agree today, which is the only reason the read below has
+    // stood unguarded. wall_painting_vs already guards its decoded index;
+    // this is the same guard, on the other painting entry point.
+    if (iid >= PAINTING_MAX_SLOTS) {
+        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
+        out.uv = vec2(0.0);
+        out.world_pos = vec3(0.0);
+        out.world_normal = vec3(0.0, 1.0, 0.0);
+        out.texture_layer = 0u;
+        return out;
+    }
+
     let slot = painting_slots[iid];
 
     // Skip inactive or wall-frame slots (only terrain quads drawn here).
