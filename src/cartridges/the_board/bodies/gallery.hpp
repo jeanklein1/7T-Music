@@ -264,13 +264,6 @@ struct WallArtConfig {
     uint32_t per_wall_count_lo;
     uint32_t per_wall_count_hi;
 
-    // ─── Fill tier ceiling (E-b's R5 `full` reads this) ─────
-    // A CEILING, NOT A TARGET. The row-walk places what fits and stops. At
-    // finite_radius 1 the wall is area-bound, so raising this will NOT
-    // densify the smallest room — that is R1' working, not a shortfall.
-    // The slot budget below is proved against it.
-    uint32_t frames_per_wall_max;
-
     // ─── Wall surface geometry ──────────────────────────────
     float corner_margin;        // distance from wall corners
     float painting_gap;         // gap between adjacent painting edges
@@ -283,15 +276,6 @@ struct WallArtConfig {
     // R4's other side: the matting above. Measured against wall_height, the
     // top of the vertical wall — NOT the ceiling, which on VAULT is the crown.
     float top_margin;           // hard clamp on the top edge, below wall_height (m)
-
-    // ─── Fill tier (E-b) — the snapshots that fill the complement ─
-    // D1: hierarchy is carried by position AND resolution. These are strictly
-    // below every painting bucket (the smallest is intimate at 6.0), so the
-    // centre band reads as content and the fill reads as texture.
-    float snapshot_height_lo;
-    float snapshot_height_hi;   // + snapshot_gap is also the row pitch
-    float snapshot_gap;         // fill spacing; the coverage ceiling rides on it
-    float painting_clearance;   // the moat between the band and the fill
 
     // ─── Size buckets (intimate / standard / statement) ─────
     WallArtScaleBucket intimate;
@@ -316,8 +300,6 @@ inline constexpr WallArtConfig WALL_ART = {
     /* per_wall_count_lo */ 1,
     /* per_wall_count_hi */ 5,
 
-    /* frames_per_wall_max */ 48,
-
     // wall surface geometry
     /* corner_margin     */ 12.0f,
     /* painting_gap      */ 6.0f,
@@ -328,16 +310,10 @@ inline constexpr WallArtConfig WALL_ART = {
     // edge dips below the wall base even when the canvas clears it.
     /* min_bottom_height */ 1.0f,   // bottom no lower than 1 m above floor
     // Inert on today's population: the reachable band tops at 16.45 against a
-    // wall_height of 20.0, so anything below 3.55 never fires. That is the
-    // point — E-a's top guard cannot change what you see; it exists so the
-    // fill tier cannot breach.
+    // wall_height of 20.0, so anything below 3.55 never fires. It is R4's
+    // ceiling side kept honest against the buckets, and the assert below is
+    // what proves the two clamps cannot cross.
     /* top_margin        */ 2.0f,   // top no closer than 2 m to the wall top
-
-    // fill tier — strictly below intimate's 6.0
-    /* snapshot_height_lo */ 3.0f,
-    /* snapshot_height_hi */ 5.0f,
-    /* snapshot_gap        */ 1.5f,   // 0.589 coverage ceiling; 1.0 gives 0.692
-    /* painting_clearance  */ 2.0f,   // must exceed the 0.45 frame border
 
     //                 height_lo, height_hi, weight, y_offset_lo, y_offset_hi
     /* intimate  */  {  6.0f,    11.0f,    0.25f,   0.0f,        2.0f },
@@ -350,10 +326,10 @@ inline constexpr WallArtConfig WALL_ART = {
     /* mix_snapshot_chance */ 0.40f,
 };
 
-// THE SLOT BUDGET, PROVED RATHER THAN CLAIMED. Three dials on this panel
-// feed the sum and all three will be turned; a number derived by hand in a
-// handoff is a claim, the same number checked by the compiler is a fact —
-// the sizeof(GPUPaintingSlot) == 128 handshake, one level up.
+// THE SLOT BUDGET, PROVED RATHER THAN CLAIMED. The dials on this panel feed
+// the sum and they will be turned; a number derived by hand in a handoff is a
+// claim, the same number checked by the compiler is a fact — the
+// sizeof(GPUPaintingSlot) == 128 handshake, one level up.
 //
 // It lives HERE, not beside Dim::PAINTING_MAX_SLOTS, because this is the
 // first point in the translation unit where all three facts coexist:
@@ -361,16 +337,15 @@ inline constexpr WallArtConfig WALL_ART = {
 // so WALL_ART and GalleryConfig are not reachable from the declaration
 // site. Beside the dials is also where a dial-turner will see it.
 static_assert(Dim::PAINTING_MAX_SLOTS >=
-      4u * WALL_ART.frames_per_wall_max
-    + 4u * WALL_ART.per_wall_count_hi
+      4u * WALL_ART.per_wall_count_hi
     + GalleryConfig::OUTDOOR_SLOT_RESERVE,
-    "slot budget: fill + centre band + outdoor reserve must fit");
+    "slot budget: the four walls' rows and the outdoor reserve must fit");
 
 // R4's TWO CLAMPS MUST NOT CROSS. min_bottom_height pushes a piece up,
 // top_margin pushes it down, and top wins because it is applied last — so a
 // top_margin large enough to drive the tallest bucket back through the floor
 // guard would do it silently. This is a dial Jean turns at the visual gate,
-// which is exactly when a silent conflict would be blamed on the fill.
+// which is exactly when a silent conflict would be blamed on the hang.
 //
 // MOOD_TABLE reaches here by COHORT ORDER, not by this file's includes:
 // cartridge.hpp takes contracts/spine_state.hpp (:60) before bodies/gallery.hpp
@@ -381,31 +356,6 @@ static_assert(WALL_ART.min_bottom_height
             + WALL_ART.top_margin
               <= MOOD_TABLE[MOOD_INDOOR_FLAT].wall_height,
     "R4: floor margin + tallest bucket + top margin must fit the FLAT wall");
-
-// ═══ R5 — THE DENSITY ROLL ═══════════════════════════════════════
-//
-// The walls should not always be full; full is an event, and an event needs a
-// rate. A frames_per_wall drawn uniformly from a range gives a smooth spread in
-// which "full" is asymptotic and never happens at a stated frequency — so the
-// dial is discrete tiers, selected by the same pure seeded select_tier idiom
-// the painting size buckets already use, one level up.
-//
-// ONE ROLL PER ROOM, seeded from site_seed, which derives from
-// world_state_.active_seed — the same seed finite_radius derives from. No new
-// persistent state, and the back portal replays density with the room because
-// it restores active_seed.
-//
-// Governs the FILL TIER ONLY. The centre band is exempt, which is what makes
-// `bare` literally the pre-campaign room — a live control at the gate, seen
-// roughly one room in four.
-struct DensityTier { uint32_t frames_lo, frames_hi; float weight; };
-inline constexpr DensityTier DENSITY_TIERS[] = {
-    /* bare    */ {  0u,  0u, 0.25f },   // today's room, exactly
-    /* partial */ {  8u, 28u, 0.45f },
-    /* full    */ { WALL_ART.frames_per_wall_max, WALL_ART.frames_per_wall_max, 0.30f },
-};
-inline constexpr uint32_t DENSITY_TIER_COUNT = 3;
-inline constexpr const char* DENSITY_TIER_NAMES[] = { "bare", "partial", "full" };
 
 // ── Property index registries ────────────────────────────────────
 
@@ -447,11 +397,8 @@ struct WallArtProp {
     static constexpr uint32_t SITE_TYPE_ROLL      = 0u;
     static constexpr uint32_t WALL_COUNT_ROLL     = 1u;
     static constexpr uint32_t WALL_SHUFFLE_BASE   = 2u;   // shuffle index = WALL_SHUFFLE_BASE + i
-    static constexpr uint32_t DENSITY_ROLL        = 6u;   // R5 tier, once per room
-    // Fill-tier frames, off w_seed: f_seed = hash(w_seed, FILL_BASE + i*FILL_STRIDE).
-    // 1000 clears PER_PAINTING_BASE(100) + 8 x STRIDE(10) with room to spare.
-    static constexpr uint32_t FILL_BASE           = 1000u;
-    static constexpr uint32_t FILL_STRIDE         = 3u;
+    // 6 (the R5 density roll) and 1000/3 (the fill-frame stride) are VACANT —
+    // PROPORTION deleted the second system that used them.
     static constexpr uint32_t PER_WALL_BASE       = 10u;  // w_seed = hash(site_seed, BASE + w*STRIDE)
     static constexpr uint32_t PER_WALL_STRIDE     = 20u;
 
@@ -1748,21 +1695,11 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         active_walls[j] = tmp;
     }
 
-    // ─── R5 — ONE DENSITY ROLL PER ROOM ─────────────────────────────
-    // Off site_seed, which derives from world_state_.active_seed — the same
-    // seed finite_radius comes from. No new persistent state; the back portal
-    // replays density with the room because it restores active_seed.
-    float dw[DENSITY_TIER_COUNT];
-    for (uint32_t t = 0; t < DENSITY_TIER_COUNT; t++) dw[t] = DENSITY_TIERS[t].weight;
-    const uint32_t density_idx = select_tier(site_seed, WallArtProp::DENSITY_ROLL, dw, DENSITY_TIER_COUNT);
-    const DensityTier& tier = DENSITY_TIERS[density_idx];
-    const uint32_t fill_target = tier.frames_lo + (tier.frames_hi > tier.frames_lo
-        ? cpu_hash(site_seed, WallArtProp::DENSITY_ROLL + 1u) % (tier.frames_hi - tier.frames_lo + 1u)
-        : 0u);
-    uint32_t fill_placed = 0;   // across all walls, for the console line
-    uint32_t band_placed = 0;   // ditto — counted here, not derived from
-                                // wall_frame_count, which commit_gallery's
-                                // authored branch also increments.
+    // Console tallies, split by content source. Counted here rather than
+    // derived from wall_frame_count, which commit_gallery's authored branch
+    // also increments.
+    uint32_t authored_placed = 0;
+    uint32_t snapshot_placed = 0;
 
     // Track which authored layers have been used across all walls (no duplicates)
     bool usedAuthored[Dim::STAGING_LAYERS]{};
@@ -1963,16 +1900,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         float group_start = wall_center - total_width * 0.5f;
         float cursor = group_start;
 
-        // The band's real RECT on THIS wall, over the paintings that ACTUALLY
-        // placed — not the planned set. E-b2's correction: the band has an
-        // x-extent too, and it is small. Both pairs are seeded to a degenerate
-        // point (the paint line, the wall's centre) so a wall that places
-        // nothing still yields a usable rect: the fill then treats the band as
-        // a zero-area point and takes the whole wall.
-        float band_top = paint_y_base, band_bottom = paint_y_base;
-        float band_left = wall_center, band_right = wall_center;
-        bool  band_any = false;
-
         // ─── PLACEMENT PASS — consumes the plan, decides nothing ──
         for (uint32_t p = 0; p < effective_count; p++) {
             const PlannedFrame& f = plan[p];
@@ -2075,277 +2002,26 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 queue_promotion(gs, false, f.record, exh);
             }
 
-            if (!band_any) {
-                band_top = py + half_h; band_bottom = py - half_h;
-                band_left = cursor;     band_right  = cursor + f.width;
-                band_any = true;
-            }
-            else {
-                band_top    = std::max(band_top,    py + half_h);
-                band_bottom = std::min(band_bottom, py - half_h);
-                band_left   = std::min(band_left,   cursor);
-                band_right  = std::max(band_right,  cursor + f.width);
-            }
-
             cursor += f.width + WALL_ART.painting_gap;
             c->gpuState_.upload_painting_slot(queue, slot, s);
             gs.wall_frame_count++;
-            band_placed++;
+            if (f.is_snapshot) snapshot_placed++; else authored_placed++;
         }
-
-        // ═══ THE FILL TIER — THE RING ═══════════════════════════════
-        // E-b modelled the band as a horizontal SLAB and took its complement
-        // to be two rects, above and below. The band is not a slab: it is a
-        // centred group roughly 45 wu wide on a wall 126 to 426 wu wide. Its
-        // complement is a RING, and the two LATERAL COLUMNS are 64 to 89 % of
-        // it. E-b built the two thinnest scraps and discarded the space; the
-        // fill placed nothing on 99 % of FLAT walls as a direct consequence.
-        //
-        //   usable  x [ wall_center +- usable_span/2 ]
-        //           y [ min_bottom_height , wall_height - top_margin ]
-        //   band    x [ band_left - clear , band_right + clear ]
-        //           y [ band_bottom - clear , band_top + clear ]
-        //
-        //   +--------+---------------------+--------+   columns run the FULL
-        //   |        |    upper strip      |        |   usable height; strips
-        //   |  left  +---------------------+ right  |   get the band's x-range
-        //   | column |     THE BAND        | column |   only. That is the whole
-        //   |        +---------------------+        |   model — still no
-        //   |        |    lower strip      |        |   intersection testing.
-        //   +--------+---------------------+--------+
-        //
-        // R1 and R2 were never in tension. They only appeared to be while the
-        // fill was confined to the VERTICAL complement, where paintings 6-14
-        // tall on a 20-tall wall leave nothing. Laterally there is no conflict:
-        // no painting moves and no bucket shrinks to make room here.
-        const float row_h  = WALL_ART.snapshot_height_hi;      // the pitch's basis
-        const float pitch  = row_h + WALL_ART.snapshot_gap;
-        // No band, no moat. E-a's trim can empty a wall (one statement piece
-        // wider than usable_span at the smallest radius), and the band rect is
-        // a degenerate point at the wall's centre there. Charging clearance
-        // against a rect that is not on the wall would leave a hole with
-        // nothing to explain it; at zero the two columns meet exactly at
-        // wall_center and the fill takes the whole wall.
-        const float clear = band_any ? WALL_ART.painting_clearance : 0.0f;
-        const float up_limit   = wall_height - WALL_ART.top_margin;
-        const float down_limit = WALL_ART.min_bottom_height;
-        const float usable_lo  = wall_center - usable_span * 0.5f;
-        const float usable_hi  = wall_center + usable_span * 0.5f;
-        const float band_lo    = band_left  - clear;
-        const float band_hi    = band_right + clear;
-        // The line the columns run out from is the band's OWN vertical centre,
-        // not paint_y_base. max_bottom_height drags a tall piece down by up to
-        // 5 wu, and seeding from the nominal line would start the fill above
-        // the art it is supposed to flank — which is exactly the "on the same
-        // line" the gate asks about.
-        const float band_mid   = (band_top + band_bottom) * 0.5f;
-
-        static_assert(WALL_ART.frames_per_wall_max <= 64,
-            "frames_per_wall_max must fit the fill row array");
-
-        uint32_t wall_fill = 0;
-        bool wall_done = false;   // slots, layers or content ran out — not geometry
-
-        // ── ONE ROW, PLANNED THEN PLACED, IN AN ARBITRARY X-RANGE ──
-        // E-b had this inline against usable_span. The ring needs it against
-        // four different x-ranges, so it becomes a callable. Content first,
-        // real widths, then centre: left-aligning a row would re-create the
-        // asymmetry E-a removed. Returns frames placed.
-        auto place_fill_row = [&](float row_y, float x_lo, float x_hi) -> uint32_t {
-            const float span = x_hi - x_lo;
-            if (span <= 0.0f || wall_done || wall_fill >= fill_target) return 0;
-
-            struct FillFrame { float height, aspect, width; uint32_t record; };
-            FillFrame row[64]{};
-            uint32_t  row_n = 0;
-            float     row_total = 0.0f;
-
-            while (row_n < 64 && wall_fill + row_n < fill_target) {
-                const uint32_t f_seed = cpu_hash(w_seed,
-                    WallArtProp::FILL_BASE + (fill_placed + wall_fill + row_n) * WallArtProp::FILL_STRIDE);
-
-                // THE FILL IS SNAPSHOTS, regardless of site_type (19b, ruled).
-                // No usedAuthored, no uniqueness rule, no fallback chain here —
-                // D1 already put the paintings in the band and the texture out
-                // here. First unclaimed unconsumed record, else D's spacing rule.
-                uint32_t rec = UINT32_MAX;
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed && !snapClaimed[i]) {
-                        rec = i; break;
-                    }
-                }
-                if (rec != UINT32_MAX) {
-                    snapClaimed[rec] = true;
-                    planPromoted[rec] = true;
-                }
-                else {
-                    uint32_t best_gap = 0;
-                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                        if (!planPromoted[i]) continue;
-                        uint32_t gap = plan_ordinal - planLastUse[i];
-                        if (rec == UINT32_MAX || gap > best_gap) { best_gap = gap; rec = i; }
-                    }
-                }
-                // Zero snapshots on the whole board: zero fill, and no later
-                // row will fare better. This is content, not geometry, so it
-                // ends the WALL rather than this row.
-                if (rec == UINT32_MAX) { wall_done = true; break; }
-                planLastUse[rec] = plan_ordinal++;
-
-                FillFrame ff{};
-                ff.record = rec;
-                // Per FRAME, not per row — varied heights on a shared CENTRE
-                // line read as a hang; one height, or a shared baseline, reads
-                // as a filmstrip. The quad is centred on slot.position
-                // (world.wgsl compute_wall_painting_geometry), so passing row_y
-                // as the slot's Y is already the shared-centre half of that.
-                ff.height = WALL_ART.snapshot_height_lo
-                    + cpu_hash_f(f_seed, 0u) * (WALL_ART.snapshot_height_hi - WALL_ART.snapshot_height_lo);
-                ff.aspect = gs.snapshot_staging[rec].aspect_ratio;
-                ff.width  = ff.height * ff.aspect;
-
-                const float add = ff.width + (row_n > 0 ? WALL_ART.snapshot_gap : 0.0f);
-                if (row_total + add > span) break;   // bound on REAL widths
-                row_total += add;
-                row[row_n++] = ff;
-            }
-            if (row_n == 0) return 0;
-
-            float fcursor = (x_lo + x_hi) * 0.5f - row_total * 0.5f;
-            uint32_t placed_this_row = 0;
-            for (uint32_t i = 0; i < row_n; i++) {
-                const FillFrame& ff = row[i];
-                uint32_t fslot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
-                if (fslot != UINT32_MAX && fslot + 1 > gs.slot_high_water) gs.slot_high_water = fslot + 1;
-                if (fslot == UINT32_MAX) { wall_done = true; break; }
-
-                uint32_t fexh;
-                bool fill_first = true;
-                if (snapLayer[ff.record] != UINT32_MAX) { fill_first = false; fexh = snapLayer[ff.record]; }
-                else {
-                    fexh = find_free_exhibition_layer(gs);
-                    if (fexh == UINT32_MAX) { wall_done = true; break; }
-                }
-
-                const float fcentre = fcursor + ff.width * 0.5f;
-                const float fpx = wall.px + wall.tx * (fcentre - wall_center);
-                const float fpz = wall.pz + wall.tz * (fcentre - wall_center);
-
-                auto& fs = gs.painting_slots[fslot];
-                fill_slot_wall_frame(fs,
-                    fpx, row_y, fpz,
-                    wall.nx, wall.ny, wall.nz,
-                    ff.aspect, ff.height,
-                    fexh, ContentSource::SNAPSHOT,
-                    1.0f, 1.0f,
-                    FRAME_SNAPSHOT,
-                    INT32_MAX, INT32_MAX);
-
-                if (fill_first) {
-                    gs.exhibition_occupied[fexh] = true;
-                    gs.snapshot_staging[ff.record].consumed = true;
-                    queue_promotion(gs, true, ff.record, fexh);
-                    snapLayer[ff.record] = fexh;
-                }
-
-                fcursor += ff.width + WALL_ART.snapshot_gap;
-                c->gpuState_.upload_painting_slot(queue, fslot, fs);
-                gs.wall_frame_count++;
-                placed_this_row++;
-            }
-            wall_fill += placed_this_row;
-            return placed_this_row;
-        };
-
-        // ── 1. THE COLUMNS, FIRST AND OUTWARD FROM THE BAND'S LINE ──
-        // The seed row sits ON the band's line and runs laterally away from
-        // the art; then one row up, one row down. Left and right alternate in
-        // ORDER as well as in turn, so a hang that runs out of frames stays
-        // symmetric rather than favouring the side that always went first.
-        //
-        // Running short therefore leaves the wall's EXTREMES bare — the same
-        // reasoning that made E-b's rows grow outward, applied to the axis
-        // that actually has room.
-        float ring_rows[16];
-        uint32_t ring_n = 0;
-        {
-            const float lo = down_limit + row_h * 0.5f;
-            const float hi = up_limit   - row_h * 0.5f;
-            if (band_mid >= lo && band_mid <= hi) ring_rows[ring_n++] = band_mid;
-            for (uint32_t k = 1; k <= 16 && ring_n < 16; k++) {
-                const float u = band_mid + (float)k * pitch;
-                const float d = band_mid - (float)k * pitch;
-                const bool u_ok = (u <= hi), d_ok = (d >= lo);
-                if (!u_ok && !d_ok) break;
-                if (u_ok)                 ring_rows[ring_n++] = u;
-                if (d_ok && ring_n < 16)  ring_rows[ring_n++] = d;
-            }
-        }
-        // The array is the ring's only fixed bound, so it must outlast the
-        // dials. VAULT is the tallest wall and the pitch is the row cost;
-        // 16 rows have to span it whatever snapshot_height_hi and
-        // snapshot_gap become.
-        static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].wall_height
-                    - WALL_ART.min_bottom_height - WALL_ART.top_margin
-                      <= 16.0f * (WALL_ART.snapshot_height_hi + WALL_ART.snapshot_gap),
-            "fill ring: 16 rows must span the tallest wall at the current pitch");
-
-        bool left_first = true;
-        for (uint32_t r = 0; r < ring_n && !wall_done && wall_fill < fill_target; r++) {
-            const float y = ring_rows[r];
-            if (left_first) {
-                place_fill_row(y, usable_lo, band_lo);
-                place_fill_row(y, band_hi,   usable_hi);
-            }
-            else {
-                place_fill_row(y, band_hi,   usable_hi);
-                place_fill_row(y, usable_lo, band_lo);
-            }
-            left_first = !left_first;
-        }
-
-        // ── 2. THE STRIPS, WITH WHATEVER IS LEFT ──
-        // E-b's two rects, kept as the remainder they always were. The band's
-        // x-range WITHOUT the moat, so a strip row and a column row that land
-        // on the same y keep a clearance-wide gap between them instead of
-        // abutting.
-        {
-            float up_y   = band_top    + clear + row_h * 0.5f;
-            float down_y = band_bottom - clear - row_h * 0.5f;
-            bool go_up = true;
-            while (!wall_done && wall_fill < fill_target) {
-                const bool up_ok   = (up_y   + row_h * 0.5f) <= up_limit;
-                const bool down_ok = (down_y - row_h * 0.5f) >= down_limit;
-                if (!up_ok && !down_ok) break;
-                float row_y;
-                if (go_up && up_ok)        { row_y = up_y;   up_y   += pitch; }
-                else if (!go_up && down_ok){ row_y = down_y; down_y -= pitch; }
-                else if (up_ok)            { row_y = up_y;   up_y   += pitch; }
-                else                       { row_y = down_y; down_y -= pitch; }
-                go_up = !go_up;
-                if (place_fill_row(row_y, band_left, band_right) == 0) break;
-            }
-        }
-        fill_placed += wall_fill;
     }
 
     const char* site_type_name = (site_type == IndoorSiteType::SNAPSHOT_ONLY) ? "SNAPSHOT"
         : (site_type == IndoorSiteType::MIXED) ? "MIXED" : "AUTHORED";
     // Autonomous stdout — exhibition-guard candidate, still open.
     //
-    // R5 makes the console the ONLY way to tell a `bare` roll from a broken
-    // stage: both print an empty fill. So the tier is named, and the two
-    // counts are split — `bare` is a quarter of rooms by design, and a stage
-    // that silently stopped filling would otherwise be indistinguishable
-    // from one. fill_placed short of fill_target means slots or exhibition
-    // layers ran out, which is the other thing worth seeing here.
-    std::cout << "[WallPainting] Placed " << band_placed
-        << " painting(s) + " << fill_placed
+    // The counts are split by CONTENT SOURCE, not by tier: there is one tier
+    // now. In a MIXED room the split is the mix roll made visible, and in an
+    // AUTHORED_ONLY room a non-zero snapshot count is the authored pool
+    // running dry and falling through (gallery.hpp's `count_unused_authored`
+    // branch) — which is the one thing here worth seeing from the console.
+    std::cout << "[WallPainting] Placed " << authored_placed
+        << " painting(s) + " << snapshot_placed
         << " snapshot(s) across " << active_wall_count << " walls"
-        << " (" << site_type_name
-        << ", tier=" << DENSITY_TIER_NAMES[density_idx]
-        << ", fill " << fill_placed << "/" << (fill_target * active_wall_count)
-        << ")\n";
+        << " (" << site_type_name << ")\n";
 }
 
 inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
