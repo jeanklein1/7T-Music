@@ -27,6 +27,15 @@
 # Any called-but-undeclared name that appears AFTER the baseline is a
 # regression by construction.
 #
+# ...WITH ONE HOLE, and PREDECLARED is the patch. The inference above
+# reads "builtin" off USE, so a builtin the shader never happened to call
+# at baseline is absent from the set, and the first legitimate use of it
+# afterwards is reported as a call to an undeclared name. That is a false
+# positive about the LANGUAGE, not a finding about the tree. Language
+# facts do not belong in a snapshot, so they live here instead — and this
+# set is deliberately not a full builtin list, only the names that have
+# actually tripped it.
+#
 #   python3 audit/tools/glaw2/run.py --record   # freeze the baseline
 #   python3 audit/tools/glaw2/run.py            # check against it
 # ═══════════════════════════════════════════════════════════════════════
@@ -40,6 +49,14 @@ import sys
 
 WGSL = "src/cartridges/the_board/realization/world.wgsl"
 BASE = "audit/tools/glaw2/baseline.json"
+
+# WGSL predeclared names the baseline could not have captured, because the
+# shader did not call them at record time. See SELF-CALIBRATION above.
+#   array     — predeclared type-generator; `array<T, N>(...)` is a
+#               constructor, so CALL matches it like a function.
+#   atomicSub — predeclared builtin function (atomicAdd was already in the
+#               recorded set; its sibling simply had no use yet).
+PREDECLARED = {"array", "atomicSub"}
 
 IDENT = re.compile(r"[A-Za-z_]\w*")
 CALL = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
@@ -136,7 +153,7 @@ def main():
         sys.stderr.write("glaw2: no baseline; run --record first\n")
         return 2
     base = json.load(io.open(BASE, encoding="utf-8"))
-    builtins = set(base["builtins"])
+    builtins = set(base["builtins"]) | PREDECLARED
 
     errs = []
     new_unresolved = sorted(unresolved_calls - builtins)
