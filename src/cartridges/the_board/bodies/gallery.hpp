@@ -1814,8 +1814,15 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
 inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+        // WALL_FRAME alone does not mean indoor. commit_gallery's authored
+        // branch fills outdoor monuments through the same helper, so form
+        // type matches those too; the sentinel patch pair is what separates
+        // them, and it is the pair — the same discriminator world.wgsl uses
+        // to skip indoor frames during outdoor Y-correction.
         if (gs.painting_slots[i].is_active != 0 &&
-            gs.painting_slots[i].form_type == FormType::WALL_FRAME) {
+            gs.painting_slots[i].form_type == FormType::WALL_FRAME &&
+            gs.painting_slots[i].patch_gx == INT32_MAX &&
+            gs.painting_slots[i].patch_gz == INT32_MAX) {
             uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
                 gs.exhibition_occupied[exh] = false;
