@@ -194,7 +194,7 @@ void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& que
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
 // Indoor support
 void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
-    float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT);
+    float wall_height, CeilingType ceiling_type = CeilingType::FLAT);
 void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
     const IndoorPalette& pal,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
@@ -343,7 +343,7 @@ inline constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
 // ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
 
 inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
-    float ceiling_height, CeilingType ceiling_type) {
+    float wall_height, CeilingType ceiling_type) {
     c->cpuSpotLights_ = GPUSpotLightArray{};
 
     float room_size = bmax - bmin;
@@ -412,27 +412,27 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
         switch (s.anchor) {
         case LightAnchor::CEILING:
             px = bmin + lat * room_size;
-            py = ceiling_height - 0.5f;
+            py = wall_height - 0.5f;
             pz = bmin + hfrac * room_size;
             break;
         case LightAnchor::WALL_NORTH:
             px = bmin + lat * room_size;
-            py = ceiling_height * hfrac;
+            py = wall_height * hfrac;
             pz = bmax - wall_off;
             break;
         case LightAnchor::WALL_SOUTH:
             px = bmin + lat * room_size;
-            py = ceiling_height * hfrac;
+            py = wall_height * hfrac;
             pz = bmin + wall_off;
             break;
         case LightAnchor::WALL_EAST:
             px = bmax - wall_off;
-            py = ceiling_height * hfrac;
+            py = wall_height * hfrac;
             pz = bmin + lat * room_size;
             break;
         case LightAnchor::WALL_WEST:
             px = bmin + wall_off;
-            py = ceiling_height * hfrac;
+            py = wall_height * hfrac;
             pz = bmin + lat * room_size;
             break;
         }
@@ -504,7 +504,7 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
         L.inner_cone = std::cos(inner_half);
         L.outer_cone = std::cos(outer_half);
         L.range = (s.anchor == LightAnchor::CEILING)
-            ? ceiling_height + 30.0f : room_range;
+            ? wall_height + 30.0f : room_range;
 
     }
 
@@ -527,7 +527,12 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
         L.intensity = 2.5f;               // subtle — structural reveal, not flood
         L.inner_cone = std::cos(0.9f);    // ~52° half-angle
         L.outer_cone = std::cos(1.25f);   // ~72° half-angle — within shadow FOV cap
-        L.range = ceiling_height + 80.0f; // reach the crown with headroom
+        // Reaches the crown by headroom rather than by computing it: the
+        // light sits at y = 2.0, so the reach needed is crown - 2.0, at most
+        // 90.5 against this 105.0. Holds at every legal radius with 14.5 wu
+        // spare at the worst. vault_crown_height() is the exact quantity if
+        // VAULT_RISE_FRACTION ever moves.
+        L.range = wall_height + 80.0f;  // reach the crown with headroom
         count++;
         c->cpuSpotLights_.count = count;
         std::cout << "[Lighting] Added vault uplight (slot " << (count - 1) << ")\n";
