@@ -1655,7 +1655,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         for (uint32_t p = 0; p < effective_count; p++) {
 
             uint32_t slot = find_free_painting_slot(gs);
-            if (slot == UINT32_MAX) return;
+            // Exhaustion ends THIS WALL, not the hang. `return` here
+            // abandoned every remaining wall — one full wall and three bare
+            // ones — and skipped the closing log too, which is why it stayed
+            // invisible. commit_gallery, the outdoor twin, already breaks at
+            // the corresponding site.
+            if (slot == UINT32_MAX) break;
 
             uint32_t p_seed = cpu_hash(w_seed, WallArtProp::PER_PAINTING_BASE + p * WallArtProp::PER_PAINTING_STRIDE);
 
@@ -1711,7 +1716,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 }
                 else {
                     uint32_t exh = find_free_exhibition_layer(gs);
-                    if (exh == UINT32_MAX) return;
+                    if (exh == UINT32_MAX) break;   // this wall, not the hang
 
                     const auto& snap = gs.snapshot_staging[snap_stg];
                     float height = painting_heights[p];
@@ -1763,7 +1768,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 }
 
                 uint32_t exh = find_free_exhibition_layer(gs);
-                if (exh == UINT32_MAX) return;
+                if (exh == UINT32_MAX) break;   // this wall, not the hang
 
                 usedAuthored[auth_stg] = true;
 
