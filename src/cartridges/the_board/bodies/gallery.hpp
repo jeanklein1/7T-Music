@@ -257,7 +257,11 @@ struct WallArtConfig {
     float corner_margin;        // distance from wall corners
     float painting_gap;         // gap between adjacent painting edges
     float paint_y_frac;         // base center as fraction of ceiling
+    // The bottom edge is clamped from BOTH sides. max_ keeps a piece from
+    // riding up the wall; min_ keeps it off the floor. The pair is one
+    // clamp with two ends, not two mechanisms.
     float max_bottom_height;    // hard upper clamp on bottom edge (m)
+    float min_bottom_height;    // hard lower clamp on bottom edge (m)
 
     // ─── Size buckets (intimate / standard / statement) ─────
     WallArtScaleBucket intimate;
@@ -287,6 +291,10 @@ inline constexpr WallArtConfig WALL_ART = {
     /* painting_gap      */ 6.0f,
     /* paint_y_frac      */ 0.45f,
     /* max_bottom_height */ 4.0f,   // bottom no higher than 4 m above floor
+    // Floor side. MUST stay above the frame border (FrameStyle::width,
+    // 0.45 at both FRAME_AUTHORED and FRAME_SNAPSHOT) or the frame's lower
+    // edge dips below the wall base even when the canvas clears it.
+    /* min_bottom_height */ 1.0f,   // bottom no lower than 1 m above floor
 
     //                 height_lo, height_hi, weight, y_offset_lo, y_offset_hi
     /* intimate  */  {  6.0f,    11.0f,    0.25f,   0.0f,        2.0f },
@@ -1668,6 +1676,13 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             float bottom = py - h_for_clamp * 0.5f;
             if (bottom > WALL_ART.max_bottom_height) {
                 py = WALL_ART.max_bottom_height + h_for_clamp * 0.5f;
+            }
+            // The clamp's other end. Only the statement bucket can reach it:
+            // its bottom spans [-1.5, 2.5] against standard's [1.5, 6.5] and
+            // intimate's [3.5, 8.0], so a tall piece hung low was the one
+            // shape that put a frame through the floor.
+            else if (bottom < WALL_ART.min_bottom_height) {
+                py = WALL_ART.min_bottom_height + h_for_clamp * 0.5f;
             }
 
             // ─── Content decision (three-way) ────────────────
