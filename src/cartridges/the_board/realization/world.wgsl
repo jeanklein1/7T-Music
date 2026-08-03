@@ -9862,7 +9862,9 @@ struct UnifiedPaintingSlot {
     _pad2:          vec4<f32>,
 };
 
-const PAINTING_MAX_SLOTS: u32 = 32u;
+// L3 MIRROR — twin of Dim::PAINTING_MAX_SLOTS in state.hpp. Both rooms,
+// same commit; nothing the compiler can see holds this pair.
+const PAINTING_MAX_SLOTS: u32 = 288u;
 
 // --- Gallery Group 1 bindings (shared by terrain quads + wall frames)
 

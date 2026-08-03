@@ -210,6 +210,17 @@ struct GalleryConfig {
     // the actual overlap guard, this is the spacing taste.
     static constexpr float MIN_GALLERY_DISTANCE = 110.0f;
 
+    // Painting slots the wall path may not take. The pool is shared and the
+    // walls always win by arriving first: place_wall_paintings runs once at
+    // mood entry and takes everything it wants in one pass, while
+    // commit_gallery arrives afterwards over many frames at
+    // SPAWN_BUDGET_PER_FRAME. This is a GEOMETRIC BOUND, not an expected
+    // occupancy — sixteen galleries all rolling n=3 against a mean of 5, on a
+    // near-perfect grid at exactly the exclusion distance, under a spawner
+    // that places randomly with rejection. Realistic peak is 25-35. Derivation
+    // in src/docs/audit/SALON_1_B4_REPORT.md.
+    static constexpr uint32_t OUTDOOR_SLOT_RESERVE = 48;
+
     // ─── Content×Form Mixing ─────────────────────────────────
     //
     static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.80f;  // [0.00, 0.80)
@@ -433,7 +444,13 @@ struct PendingPromotion {
     uint32_t staging_layer;
     uint32_t exhibition_layer;
 };
-inline constexpr uint32_t MAX_PROMOTIONS_PER_FRAME = 32;
+// ONE FACT, NOT TWO. Every promotion accompanies exactly one slot fill —
+// each of the four queue_promotion calls sits beside a find_free_exhibition_layer
+// and a slot write — so promotions per frame can never exceed total slots.
+// Spelled twice and agreeing by coincidence until now; the drop at
+// queue_promotion is silent, so a divergence would have produced frames
+// pointing at exhibition layers nothing ever wrote.
+inline constexpr uint32_t MAX_PROMOTIONS_PER_FRAME = Dim::PAINTING_MAX_SLOTS;
 
 // Active gallery centers (for minimum distance enforcement)
 struct GalleryCenter {
@@ -1620,6 +1637,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
         // ─── Pre-compute widths to center the group on the wall ──
         float total_width = 0.0f;
+        // The 8 is the array bound, and it must not be the thing that trims
+        // the roll — a count above it would be silently truncated here rather
+        // than rejected at the dial. per_wall_count_hi is the dial; this holds
+        // it under the storage.
+        static_assert(WALL_ART.per_wall_count_hi <= 8,
+            "per_wall_count_hi must fit painting_widths/painting_heights");
         float painting_widths[8]{};
         float painting_heights[8]{};
         uint32_t effective_count = std::min(count, 8u);
