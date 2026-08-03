@@ -63,13 +63,13 @@ namespace t7 {
             // Gallery (self-portrait painting frames)
             constexpr const char* GALLERY_FRAME_VS = "gallery_frame_vs";
             constexpr const char* GALLERY_FRAME_FS = "gallery_frame_fs";
-            // SHADOW_GALLERY_FRAME_VS CUT — caller-free shadow
+            constexpr const char* SHADOW_GALLERY_FRAME_VS = "shadow_gallery_frame_vs";
 
             // Wall-mounted framed paintings (indoor)
             constexpr const char* WALL_PAINTING_VS        = "wall_painting_vs";
             constexpr const char* WALL_PAINTING_CANVAS_FS = "wall_painting_canvas_fs";
             constexpr const char* WALL_PAINTING_FRAME_FS  = "wall_painting_frame_fs";
-            // SHADOW_WALL_PAINTING_VS CUT — caller-free shadow
+            constexpr const char* SHADOW_WALL_PAINTING_VS = "shadow_wall_painting_vs";
 
             // Photographer compute (GPU-coupled snapshot camera)
             constexpr const char* COMPUTE_PHOTOGRAPHER_VP = "compute_photographer_vp";
@@ -235,12 +235,12 @@ namespace t7 {
 
             // Gallery frame pipeline (painting quads in the world)
             wgpu::RenderPipeline galleryFramePipeline_;
-            // shadowGalleryFramePipeline_ CUT — caller-free shadow
+            wgpu::RenderPipeline shadowGalleryFramePipeline_;
 
             // Wall-mounted framed paintings (indoor) — uses galleryEntity + galleryTexture layouts
             wgpu::RenderPipeline wallPaintingCanvasPipeline_;
             wgpu::RenderPipeline wallPaintingFramePipeline_;
-            // shadowWallPaintingPipeline_ CUT — caller-free shadow
+            wgpu::RenderPipeline shadowWallPaintingPipeline_;
 
             // Photographer VP compute pipeline (0D, GPU-coupled camera)
             wgpu::ComputePipeline photographerVPPipeline_;
@@ -1167,7 +1167,7 @@ namespace t7 {
                 if (!(ROSTER.blade)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
-                if (!(ROSTER.gallery)) n += 4;  // was 6; shadow_gallery_frame + shadow_wall_painting cut
+                if (!(ROSTER.gallery)) n += 6;
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.indoor_shell)) n += 2;
@@ -1909,7 +1909,8 @@ namespace t7 {
                     })) return false;
                     }
 
-                    // Shadow Gallery Frame pipeline CUT — caller-free
+                    // Shadow Gallery Frame lives in the shadow block below, on a
+                    // third build of this same layout pair (UMBRA_9).
                 }
 
                 // ─── Wall Painting Pipelines (framed paintings on indoor walls) ──
@@ -1988,7 +1989,8 @@ namespace t7 {
                         }
                     }
 
-                    // Shadow Wall Painting pipeline CUT — caller-free
+                    // Shadow Wall Painting lives in the shadow block below — ONE
+                    // pipeline where the color side needs two (UMBRA_9).
                 }
 
                 // ─── Shadow Pipelines (depth-only, Depth32Float) ─────────────────
@@ -2182,10 +2184,25 @@ namespace t7 {
                     // never reaches it; everything else takes the tight one.
                     enum class BiasProfile { SOLID, GRAZING };
 
+                    // THE LAYOUT FORK (UMBRA_9). Trailing and defaulted, so the ten
+                    // call sites that take shadowRenderLayout stay byte-identical;
+                    // the gallery's two pass their own. It rides BEHIND `profile`
+                    // for the same reason `profile` rides behind `out`: default
+                    // arguments are trailing.
+                    //
+                    // NULL IS THE SENTINEL FOR shadowRenderLayout, and it must be —
+                    // the layout cannot be spelled as the default argument itself.
+                    // shadowRenderLayout is a local of the enclosing function, and a
+                    // lambda's default argument sits in the lambda's PARAMETER scope
+                    // rather than its block, where an enclosing local is not
+                    // odr-usable ([basic.def.odr]/10). Both GCC and Clang reject
+                    // `= shadowRenderLayout` outright; MSVC accepts it only outside
+                    // /permissive-. The resolution is one line, at desc.layout below.
                     auto makeShadow = [&](const char* label, const char* dbgLabel, const char* vsEntry,
                                           const wgpu::VertexBufferLayout* vbl, wgpu::CullMode cull,
                                           wgpu::RenderPipeline& out,
-                                          BiasProfile profile = BiasProfile::GRAZING) -> bool {
+                                          BiasProfile profile = BiasProfile::GRAZING,
+                                          wgpu::PipelineLayout layout = nullptr) -> bool {
                         // Body-local, so its address is valid for exactly as long as
                         // `desc`'s is — and CreateRenderPipeline is SYNCHRONOUS here
                         // (tPipe invokes its closure immediately;
@@ -2205,7 +2222,7 @@ namespace t7 {
 
                         wgpu::RenderPipelineDescriptor desc{};
                         desc.label = dbgLabel;
-                        desc.layout = shadowRenderLayout;
+                        desc.layout = layout ? layout : shadowRenderLayout;
                         desc.vertex.module = shaderModule_;
                         desc.vertex.entryPoint = vsEntry;
                         desc.vertex.bufferCount = vbl ? 1u : 0u;
@@ -2339,6 +2356,41 @@ namespace t7 {
                     if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled
                     if (!makeShadow("shadow_ribbon", "Shadow Sky Ribbon", Entry::SHADOW_RIBBON_VS,
                         nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
+                    }
+
+                    // Shadow gallery frame + wall painting (both bufferless, None —
+                    // the color side's mode, so the caster silhouette is the drawn
+                    // body's). A body that is DRAWN is a body that CASTS; there was
+                    // never an artwork exception, only an artwork omission.
+                    //
+                    // THE GALLERY PIPELINE LAYOUT, THIRD INSTANCE. galleryLayout and
+                    // wpLayout are locals of their own pipeline blocks above and do
+                    // not reach here, so this rebuilds the SAME pair of bind group
+                    // layouts — layout-compatible with the two color families, and
+                    // the whole reason this campaign is small: the gallery entity
+                    // group already binds vpBuffer_ at sizeof(GPUVPMatrix), so
+                    // render_vp.light_vp is already reachable, and the gallery
+                    // texture group binds no shadow map, so it is already legal
+                    // inside a depth-only pass. ZERO new bindings, ZERO new
+                    // bind-group layouts. Do not grow either one.
+                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled
+                    std::array<wgpu::BindGroupLayout, 2> galleryShadowGroups = {
+                        galleryEntityLayout_, galleryTextureLayout_
+                    };
+                    wgpu::PipelineLayoutDescriptor galleryShadowPld{};
+                    galleryShadowPld.bindGroupLayoutCount = galleryShadowGroups.size();
+                    galleryShadowPld.bindGroupLayouts = galleryShadowGroups.data();
+                    wgpu::PipelineLayout galleryShadowLayout = device_.CreatePipelineLayout(&galleryShadowPld);
+                    if (!galleryShadowLayout) return false;
+
+                    if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",
+                        Entry::SHADOW_GALLERY_FRAME_VS, nullptr,
+                        wgpu::CullMode::None, shadowGalleryFramePipeline_,
+                        BiasProfile::GRAZING, galleryShadowLayout)) return false;
+                    if (!makeShadow("shadow_wall_painting", "Shadow Wall Painting",
+                        Entry::SHADOW_WALL_PAINTING_VS, nullptr,
+                        wgpu::CullMode::None, shadowWallPaintingPipeline_,
+                        BiasProfile::GRAZING, galleryShadowLayout)) return false;
                     }
 
                 }
