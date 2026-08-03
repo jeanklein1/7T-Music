@@ -485,8 +485,12 @@ struct GalleryState {
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
+    // The occupancy array is the whole record. A companion count used to
+    // ride beside it, incremented at every claim and decremented at every
+    // free — and read by nothing, not even a log. Deleted rather than
+    // reserved: if a later stage needs a population figure it can name its
+    // reader when it introduces one.
     bool     exhibition_occupied[Dim::EXHIBITION_LAYERS]{};
-    uint32_t exhibition_count = 0;
 
     PendingPromotion pending_promotions[MAX_PROMOTIONS_PER_FRAME]{};
     uint32_t         pending_promotion_count = 0;
@@ -1130,7 +1134,6 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
                 s.geometry_seed = cpu_hash_f(p_seed, GalleryPaintingProp::GEOMETRY_SEED);
 
                 gs.exhibition_occupied[exh] = true;
-                gs.exhibition_count++;
                 gs.authored_staging[auth_stg].consumed = true;
                 queue_promotion(gs, false, auth_stg, exh);
                 gs.wall_frame_count++;
@@ -1173,7 +1176,6 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
             s.patch_gx = gx; s.patch_gz = gz;
 
             gs.exhibition_occupied[exh] = true;
-            gs.exhibition_count++;
             gs.snapshot_staging[staging_layer].consumed = true;
             queue_promotion(gs, true, staging_layer, exh);
             placed_this = true;
@@ -1220,7 +1222,6 @@ inline void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c, int32_t g
             uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
                 gs.exhibition_occupied[exh] = false;
-                gs.exhibition_count--;
             }
 
             if (gs.painting_slots[i].form_type == FormType::WALL_FRAME) {
@@ -1740,7 +1741,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         INT32_MAX, INT32_MAX);
 
                     gs.exhibition_occupied[exh] = true;
-                    gs.exhibition_count++;
                     gs.snapshot_staging[snap_stg].consumed = true;
                     queue_promotion(gs, true, snap_stg, exh);
 
@@ -1794,7 +1794,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                     INT32_MAX, INT32_MAX);
 
                 gs.exhibition_occupied[exh] = true;
-                gs.exhibition_count++;
                 gs.authored_staging[auth_stg].consumed = true;
                 queue_promotion(gs, false, auth_stg, exh);
 
@@ -1820,7 +1819,6 @@ inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
                 gs.exhibition_occupied[exh] = false;
-                gs.exhibition_count--;
             }
             gs.painting_slots[i].is_active = 0;
             c->gpuState_.deactivate_painting_slot(queue, i);
@@ -1907,7 +1905,6 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     }
     // Free all exhibition layers (staging persists across worlds)
     for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) gs.exhibition_occupied[i] = false;
-    gs.exhibition_count = 0;
     rotate_authored_staging(gs, c, queue);
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gs.authored_staging[i].consumed = false;
 }
