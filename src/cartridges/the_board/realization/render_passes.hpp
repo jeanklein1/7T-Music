@@ -414,6 +414,26 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
                 /*shadow=*/true,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
+
+    // FORKS — the artworks, on their OWN gallery bind groups, as in the
+    // main pass. UNCONDITIONAL: no cast_terrain-style argument and no mood
+    // test. The mood selects which LIGHT this pass runs for; it does not
+    // select what exists. Each form self-culls in its VS, so outdoors the
+    // wall draw is near-degenerate and indoors the quad draw is.
+    c->renderer_.draw_shadow_wall_paintings(
+        pass,
+        c->gpuState_.gallery_entity_group(),
+        c->gpuState_.gallery_texture_group(),
+        c->gallery_state_.wall_frame_count,
+        c->gallery_state_.slot_high_water
+    );
+    c->renderer_.draw_shadow_gallery_frames(
+        pass,
+        c->gpuState_.gallery_entity_group(),
+        c->gpuState_.gallery_texture_group(),
+        c->gallery_state_.active_painting_count,
+        c->gallery_state_.slot_high_water
+    );
 }
 
 // ═══ MAIN PASS ═══════════════════════════════════════════════════

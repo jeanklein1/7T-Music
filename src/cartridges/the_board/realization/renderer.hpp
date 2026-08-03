@@ -1149,9 +1149,37 @@ namespace t7 {
                     vertexBuffer, indexBuffer, indexCount);
             }
 
-            // draw_shadow_wall_paintings + draw_shadow_gallery_frames CUT
-            // — both caller-free (frames/paintings are drawn
-            // in the color pass but never cast a mesh-shadow).
+            void draw_shadow_gallery_frames(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup galleryEntityBindGroup,
+                wgpu::BindGroup galleryTextureBindGroup,
+                uint32_t activePaintingCount,
+                uint32_t slotHighWater          // one past the highest ACTIVE slot
+            ) {
+                if constexpr (!(ROSTER.gallery)) return;
+                if (activePaintingCount == 0 || slotHighWater == 0) return;
+                pass.SetPipeline(shadowGalleryFramePipeline_);
+                pass.SetBindGroup(0, galleryEntityBindGroup);
+                pass.SetBindGroup(1, galleryTextureBindGroup);
+                pass.Draw(Dim::PAINTING_QUAD_VERTS, slotHighWater);
+            }
+
+            void draw_shadow_wall_paintings(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup galleryEntityBindGroup,
+                wgpu::BindGroup galleryTextureBindGroup,
+                uint32_t wallFrameCount,
+                uint32_t slotHighWater          // one past the highest ACTIVE slot
+            ) {
+                if constexpr (!(ROSTER.gallery)) return;
+                if (wallFrameCount == 0 || slotHighWater == 0) return;
+                // ONE draw where the color pass needs two: with no fragment
+                // stage the canvas/frame split has nothing to distinguish.
+                pass.SetPipeline(shadowWallPaintingPipeline_);
+                pass.SetBindGroup(0, galleryEntityBindGroup);
+                pass.SetBindGroup(1, galleryTextureBindGroup);
+                pass.Draw(slotHighWater * Dim::PAINTING_FRAME_VERTS_PER);
+            }
 
             // Gate (a'): compile-time count of pipelines the
             // selected demo skips — the boot summary's number.
