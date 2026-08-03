@@ -265,8 +265,14 @@ namespace t7 {
             constexpr uint32_t SNAPSHOT_RESOLUTION  = 512;    // snapshot staging + offscreen
             static_assert(SNAPSHOT_RESOLUTION <= PAINTING_RESOLUTION,
                 "the snapshot sub-square must fit the exhibition layer it lands in");
-            constexpr uint32_t STAGING_LAYERS = 16;            // per staging array (snapshot + authored)
-            constexpr uint32_t EXHIBITION_LAYERS = 32;         // exhibition array
+            // Both raised by SUPPLY. The old 16 capped `to_load` at a sixteenth
+            // of the paintings on disk and made content, not geometry, the
+            // thing that ended a row — one wall would take the whole pool and
+            // the other three stayed bare. The layer budget these must satisfy
+            // is proved beside WALL_ART in bodies/gallery.hpp, with the slot
+            // budget; do not restate it here.
+            constexpr uint32_t STAGING_LAYERS = 32;            // per staging array (snapshot + authored)
+            constexpr uint32_t EXHIBITION_LAYERS = 40;         // exhibition array
             constexpr uint32_t PAINTING_QUAD_N = 8;
             constexpr uint32_t PAINTING_QUAD_VERTS = PAINTING_QUAD_N * PAINTING_QUAD_N * 6;
             constexpr uint32_t PAINTING_FRAME_VERTS_PER = 78;

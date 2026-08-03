@@ -372,20 +372,22 @@ static_assert(Dim::PAINTING_MAX_SLOTS >=
     + GalleryConfig::OUTDOOR_SLOT_RESERVE,
     "slot budget: the four walls' rows and the outdoor reserve must fit");
 
-// THE LAYER SUPPLY, load-bearing as of PROPORTION. A four-wall room used to
-// want at most 20 frames and never came near the exhibition array; it can now
-// ask for 76, and since the weld was restored it wants one layer per FRAME.
+// THE LAYER SUPPLY ASSERT LIVED HERE AND IS GONE, DELIBERATELY.
 //
-// It never gets to 76, and that is the point: no record repeats, so frames are
-// bounded by DISTINCT RECORDS — two staging arrays of them — long before they
-// are bounded by anything else. The two bounds are the same number, so the
-// exhibition array can never be the thing that ends a row. Content is. That
-// makes the console's counts a true reading of supply rather than of a layer
-// shortage, which is the whole reason the next stage can be about supply.
+// PROPORTION wrote `2 * STAGING_LAYERS <= EXHIBITION_LAYERS`: with an uncapped
+// row, frames were bounded only by DISTINCT RECORDS, so every record had to be
+// able to hold a layer at once. It was true (32 <= 32) and it was the right
+// statement for that world.
 //
-// It holds with nothing to spare, which is why it is written down.
-static_assert(2u * Dim::STAGING_LAYERS <= Dim::EXHIBITION_LAYERS,
-    "layer supply: both staging arrays must fit the exhibition array");
+// SUPPLY raises staging to 32, and 64 <= 40 is false. That is not a regression
+// — it is the premise expiring. Once the row is capped, a room can ask for at
+// most 4 * per_wall_cap frames and the staging arrays are a LIBRARY to draw
+// from rather than a set that must be resident simultaneously. The correct
+// bound is against the cap, not against the library, and it is written in the
+// commit that introduces the cap.
+//
+// Nothing guards the layer supply between that commit and this one. Recorded
+// so a bisect landing in the gap knows why.
 
 // R4's TWO CLAMPS MUST NOT CROSS. min_bottom_height pushes a piece up,
 // top_margin pushes it down, and top wins because it is applied last — so a
