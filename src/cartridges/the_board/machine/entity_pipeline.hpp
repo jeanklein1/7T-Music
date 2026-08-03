@@ -293,14 +293,13 @@ static_assert(sizeof(ANTENNA_PARAM_DEFS) / sizeof(TierParamDef) == ColIdx::COUNT
 struct ColumnTierRow {
     TierProfile profile;
     float       color_override;
-    // MOSAIC_2: is this KIND ceramic? Güell shatters kinds, not
-    // percentages — the roofs and spires are trencadís, the walls and
-    // hypostyle columns are plain masonry, and the mosaic reads as
-    // extraordinary because plain stone sits beside it. 1.0 = every
-    // body of this tier; 0.0 = none. Orthogonal to color_override: what a
-    // body's FALLBACK color is, and whether it is ceramic, are two
-    // facts. All 1.0 = total override, a setting rather than a rewrite.
-    // Antennas rest at 0.0 — their drum colors are a different concept.
+    // MOSAIC_2: is this KIND ceramic? 1.0 = every body of this tier;
+    // 0.0 = none. Orthogonal to color_override: what a body's FALLBACK
+    // color is, and whether it is ceramic, are two facts.
+    // MOSAIC_3 — ALL ROWS 1.0. The contrast ruling (plain stone beside
+    // the ceramic) is retired: every column is ceramic. Antennas are a
+    // separate family on a separate table (ANTENNA_TIERS) and stay
+    // plain; antenna_write_active zeroes their seed regardless.
     float       mosaic_chance;
     float       burial;
     uint32_t    segs_around;
@@ -333,14 +332,14 @@ inline constexpr ColumnTierRow COLUMN_TIERS[] = {
                    {1.0f, 0.3f}, {0.50f, 0.10f}, {0.20f, 0.05f},
                    {1.0f, 0.3f}, {0.40f, 0.08f}, {0.15f, 0.04f},
                    {0.3f, 0.08f}, {1.5f, 0.3f},  {0.4f, 0.08f} }},
-        0.85f, 0.5f, 0.25f, 16, 4
+        0.85f, 1.0f, 0.25f, 16, 4
     },
     /* DORIC  */ {
         { 0.20f, 0.0f, { {6.4f, 1.2f}, {0.38f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
                    {0.0f, 0.0f}, {0.00f, 0.00f}, {0.00f, 0.00f},
                    {2.0f, 0.5f}, {0.50f, 0.10f}, {0.15f, 0.04f},
                    {0.2f, 0.05f}, {1.0f, 0.2f},  {0.3f, 0.05f} }},
-        0.85f, 0.0f, 0.20f, 20, 8
+        0.85f, 1.0f, 0.20f, 20, 8
     },
     /* ORNATE */ {
         { 0.18f, 0.0f, { {16.8f, 2.8f}, {1.35f, 0.19f}, {0.82f, 0.03f}, {0.04f, 0.01f},
