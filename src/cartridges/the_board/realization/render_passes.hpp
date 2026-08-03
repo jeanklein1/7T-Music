@@ -483,7 +483,8 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         pass,
         c->gpuState_.gallery_entity_group(),
         c->gpuState_.gallery_texture_group(),
-        c->gallery_state_.wall_frame_count
+        c->gallery_state_.wall_frame_count,
+        c->gallery_state_.slot_high_water
     );
 
     // Gallery frames (self-portrait paintings on terrain)
@@ -491,7 +492,8 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         pass,
         c->gpuState_.gallery_entity_group(),
         c->gpuState_.gallery_texture_group(),
-        c->gallery_state_.active_painting_count
+        c->gallery_state_.active_painting_count,
+        c->gallery_state_.slot_high_water
     );
 
     render_orbs(orbs_state_, &orbs_deps_, pass);

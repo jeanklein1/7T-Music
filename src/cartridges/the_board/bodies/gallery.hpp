@@ -515,6 +515,15 @@ struct GalleryState {
     GPUPaintingSlot painting_slots[Dim::PAINTING_MAX_SLOTS]{};
     uint32_t        active_painting_count = 0;
     uint32_t        wall_frame_count = 0;
+    // One past the highest ACTIVE slot index — what the two painting draws
+    // are sized from, instead of Dim::PAINTING_MAX_SLOTS. Both draws walk
+    // slot indices and cull in the shader, so the constant made every frame
+    // pay for the ceiling rather than for the hang; B3 multiplied that by 9.
+    // Raised where a slot is claimed, recomputed exactly where slots are
+    // released (those sites already scan the whole array), zeroed at
+    // teardown. Under-drawing is safe by construction — gallery_frame_vs and
+    // wall_painting_vs both guard their index (B1).
+    uint32_t        slot_high_water = 0;
 
     GalleryCenter gallery_centers[MAX_GALLERIES]{};
 
@@ -597,6 +606,15 @@ inline uint32_t find_free_painting_slot(const GalleryState& gs, uint32_t floor) 
     }
     if (first_free == UINT32_MAX) return UINT32_MAX;   // nothing free at all
     return free_count > floor ? first_free : UINT32_MAX;
+}
+
+// Exact, not a running high-water: called from the release sites, which
+// already walk the array, so it costs nothing they were not paying.
+inline void recompute_slot_high_water(GalleryState& gs) {
+    uint32_t mark = 0;
+    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++)
+        if (gs.painting_slots[i].is_active != 0) mark = i + 1;
+    gs.slot_high_water = mark;
 }
 
 // ── Impl-internal forward declarations ───────────────────────────
@@ -1101,6 +1119,7 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
         // exists to PROTECT, not the one it holds back.
         uint32_t slot = find_free_painting_slot(gs, 0u);
         if (slot == UINT32_MAX) break;
+        if (slot + 1 > gs.slot_high_water) gs.slot_high_water = slot + 1;
 
         uint32_t p_seed = cpu_hash(seed, GalleryProp::PER_PAINTING_BASE + p * GalleryProp::PER_PAINTING_STRIDE);
 
@@ -1268,6 +1287,7 @@ inline void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c, int32_t g
             gs.active_painting_count--;
         }
     }
+    recompute_slot_high_water(gs);
 }
 
 // ═══ SNAPSHOT RENDER ═════════════════════════════════════════════
@@ -1725,6 +1745,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             // at mood entry, and would otherwise take everything before
             // commit_gallery gets a frame.
             uint32_t slot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
+            if (slot != UINT32_MAX && slot + 1 > gs.slot_high_water) gs.slot_high_water = slot + 1;
             // Exhaustion ends THIS WALL, not the hang. `return` here
             // abandoned every remaining wall — one full wall and three bare
             // ones — and skipped the closing log too, which is why it stayed
@@ -1940,6 +1961,7 @@ inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         }
     }
     gs.wall_frame_count = 0;
+    recompute_slot_high_water(gs);
 }
 
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
@@ -2004,6 +2026,7 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     gs.pending_promotion_count = 0;
     gs.wall_frame_count = 0;
     gs.active_painting_count = 0;
+    gs.slot_high_water = 0;
     // The place/commit reservation balance is void here: reset_surface (same
     // TEARDOWN block) zeroes placementCount_ without committing, so any
     // gallery placed-but-not-committed never reaches its release. Without this

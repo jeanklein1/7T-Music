@@ -912,36 +912,48 @@ namespace t7 {
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup galleryEntityBindGroup,
                 wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t activePaintingCount
+                uint32_t activePaintingCount,
+                uint32_t slotHighWater          // one past the highest ACTIVE slot
             ) {
                 if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                if (activePaintingCount == 0) return;
+                if (activePaintingCount == 0 || slotHighWater == 0) return;
                 pass.SetPipeline(galleryFramePipeline_);
                 pass.SetBindGroup(0, galleryEntityBindGroup);
                 pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
+                // Instance count is the live mark, not Dim::PAINTING_MAX_SLOTS.
+                // The shader culls per slot either way, so the constant meant
+                // paying for the ceiling every frame; gallery_frame_vs's bounds
+                // guard (B1) makes drawing fewer safe by construction.
+                pass.Draw(Dim::PAINTING_QUAD_VERTS, slotHighWater);
             }
 
             void draw_wall_paintings(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup galleryEntityBindGroup,
                 wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t wallFrameCount
+                uint32_t wallFrameCount,
+                uint32_t slotHighWater          // one past the highest ACTIVE slot
             ) {
                 if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                if (wallFrameCount == 0) return;
+                if (wallFrameCount == 0 || slotHighWater == 0) return;
+
+                // Both passes walk vid/PAINTING_FRAME_VERTS_PER as a slot index,
+                // so the vertex count is the live mark x the per-frame stride
+                // rather than Dim::PAINTING_FRAME_VERTEX_COUNT's ceiling.
+                // wall_painting_vs already guards the decoded index (world.wgsl).
+                const uint32_t verts = slotHighWater * Dim::PAINTING_FRAME_VERTS_PER;
 
                 // Canvas pass (textured surface)
                 pass.SetPipeline(wallPaintingCanvasPipeline_);
                 pass.SetBindGroup(0, galleryEntityBindGroup);
                 pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_FRAME_VERTEX_COUNT);
+                pass.Draw(verts);
 
                 // Frame pass (solid color)
                 pass.SetPipeline(wallPaintingFramePipeline_);
                 pass.SetBindGroup(0, galleryEntityBindGroup);
                 pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_FRAME_VERTEX_COUNT);
+                pass.Draw(verts);
             }
 
             void draw_fade_overlay(
