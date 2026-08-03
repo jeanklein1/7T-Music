@@ -1963,11 +1963,14 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         float group_start = wall_center - total_width * 0.5f;
         float cursor = group_start;
 
-        // The band's real extent on THIS wall, over the paintings that
-        // ACTUALLY placed — not the planned set. Seeded to the base line so a
-        // wall that places nothing still yields a usable pair: the fill then
-        // treats the band as a zero-height slab and takes the whole wall.
+        // The band's real RECT on THIS wall, over the paintings that ACTUALLY
+        // placed — not the planned set. E-b2's correction: the band has an
+        // x-extent too, and it is small. Both pairs are seeded to a degenerate
+        // point (the paint line, the wall's centre) so a wall that places
+        // nothing still yields a usable rect: the fill then treats the band as
+        // a zero-area point and takes the whole wall.
         float band_top = paint_y_base, band_bottom = paint_y_base;
+        float band_left = wall_center, band_right = wall_center;
         bool  band_any = false;
 
         // ─── PLACEMENT PASS — consumes the plan, decides nothing ──
@@ -2072,10 +2075,16 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 queue_promotion(gs, false, f.record, exh);
             }
 
-            if (!band_any) { band_top = py + half_h; band_bottom = py - half_h; band_any = true; }
+            if (!band_any) {
+                band_top = py + half_h; band_bottom = py - half_h;
+                band_left = cursor;     band_right  = cursor + f.width;
+                band_any = true;
+            }
             else {
                 band_top    = std::max(band_top,    py + half_h);
                 band_bottom = std::min(band_bottom, py - half_h);
+                band_left   = std::min(band_left,   cursor);
+                band_right  = std::max(band_right,  cursor + f.width);
             }
 
             cursor += f.width + WALL_ART.painting_gap;
@@ -2084,54 +2093,68 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             band_placed++;
         }
 
-        // ═══ THE FILL TIER ══════════════════════════════════════════
-        // E-a left the band a single centred row, so its footprint is a
-        // horizontal slab and the complement is TWO SUB-RECTS. No intersection
-        // testing, no footprint union, no skip logic — that falls out of the
-        // band staying centred, which is why the split into E-a/E-b was worth
-        // its extra commit.
+        // ═══ THE FILL TIER — THE RING ═══════════════════════════════
+        // E-b modelled the band as a horizontal SLAB and took its complement
+        // to be two rects, above and below. The band is not a slab: it is a
+        // centred group roughly 45 wu wide on a wall 126 to 426 wu wide. Its
+        // complement is a RING, and the two LATERAL COLUMNS are 64 to 89 % of
+        // it. E-b built the two thinnest scraps and discarded the space; the
+        // fill placed nothing on 99 % of FLAT walls as a direct consequence.
         //
-        //   upper  [ band_top    + painting_clearance , wall_height - top_margin ]
-        //   lower  [ min_bottom_height , band_bottom - painting_clearance ]
+        //   usable  x [ wall_center +- usable_span/2 ]
+        //           y [ min_bottom_height , wall_height - top_margin ]
+        //   band    x [ band_left - clear , band_right + clear ]
+        //           y [ band_bottom - clear , band_top + clear ]
         //
-        // Rows grow OUTWARD from the band, alternating above/below. Running out
-        // of frames then leaves margin at the wall's extremes, which reads as
-        // intentional; filling inward from the edges would leave a hole beside
-        // the paintings, which reads as a bug.
+        //   +--------+---------------------+--------+   columns run the FULL
+        //   |        |    upper strip      |        |   usable height; strips
+        //   |  left  +---------------------+ right  |   get the band's x-range
+        //   | column |     THE BAND        | column |   only. That is the whole
+        //   |        +---------------------+        |   model — still no
+        //   |        |    lower strip      |        |   intersection testing.
+        //   +--------+---------------------+--------+
+        //
+        // R1 and R2 were never in tension. They only appeared to be while the
+        // fill was confined to the VERTICAL complement, where paintings 6-14
+        // tall on a 20-tall wall leave nothing. Laterally there is no conflict:
+        // no painting moves and no bucket shrinks to make room here.
         const float row_h  = WALL_ART.snapshot_height_hi;      // the pitch's basis
         const float pitch  = row_h + WALL_ART.snapshot_gap;
         // No band, no moat. E-a's trim can empty a wall (one statement piece
-        // wider than usable_span at the smallest radius), and band_top ==
-        // band_bottom == paint_y_base there. Charging clearance against a slab
-        // that is not on the wall would leave a 2 x clearance hole at the
-        // paint line with nothing to explain it; at zero the two sub-rects
-        // meet exactly and the fill takes the whole wall, which is what the
-        // seeding comment above already promises.
+        // wider than usable_span at the smallest radius), and the band rect is
+        // a degenerate point at the wall's centre there. Charging clearance
+        // against a rect that is not on the wall would leave a hole with
+        // nothing to explain it; at zero the two columns meet exactly at
+        // wall_center and the fill takes the whole wall.
         const float clear = band_any ? WALL_ART.painting_clearance : 0.0f;
-        float up_y   = band_top    + clear + row_h * 0.5f;
-        float down_y = band_bottom - clear - row_h * 0.5f;
         const float up_limit   = wall_height - WALL_ART.top_margin;
         const float down_limit = WALL_ART.min_bottom_height;
+        const float usable_lo  = wall_center - usable_span * 0.5f;
+        const float usable_hi  = wall_center + usable_span * 0.5f;
+        const float band_lo    = band_left  - clear;
+        const float band_hi    = band_right + clear;
+        // The line the columns run out from is the band's OWN vertical centre,
+        // not paint_y_base. max_bottom_height drags a tall piece down by up to
+        // 5 wu, and seeding from the nominal line would start the fill above
+        // the art it is supposed to flank — which is exactly the "on the same
+        // line" the gate asks about.
+        const float band_mid   = (band_top + band_bottom) * 0.5f;
 
         static_assert(WALL_ART.frames_per_wall_max <= 64,
             "frames_per_wall_max must fit the fill row array");
-        uint32_t wall_fill = 0;
-        bool go_up = true;
-        while (wall_fill < fill_target) {
-            // Pick the next row, alternating, and stop when both rects are out.
-            float row_y;
-            const bool up_ok   = (up_y   + row_h * 0.5f) <= up_limit;
-            const bool down_ok = (down_y - row_h * 0.5f) >= down_limit;
-            if (!up_ok && !down_ok) break;
-            if (go_up && up_ok)        { row_y = up_y;   up_y   += pitch; }
-            else if (!go_up && down_ok){ row_y = down_y; down_y -= pitch; }
-            else if (up_ok)            { row_y = up_y;   up_y   += pitch; }
-            else                       { row_y = down_y; down_y -= pitch; }
-            go_up = !go_up;
 
-            // ── plan the row, exactly as E-a plans the band ──
-            // Content first, real widths, then centre. Left-aligning rows would
-            // re-create the asymmetry E-a just removed.
+        uint32_t wall_fill = 0;
+        bool wall_done = false;   // slots, layers or content ran out — not geometry
+
+        // ── ONE ROW, PLANNED THEN PLACED, IN AN ARBITRARY X-RANGE ──
+        // E-b had this inline against usable_span. The ring needs it against
+        // four different x-ranges, so it becomes a callable. Content first,
+        // real widths, then centre: left-aligning a row would re-create the
+        // asymmetry E-a removed. Returns frames placed.
+        auto place_fill_row = [&](float row_y, float x_lo, float x_hi) -> uint32_t {
+            const float span = x_hi - x_lo;
+            if (span <= 0.0f || wall_done || wall_fill >= fill_target) return 0;
+
             struct FillFrame { float height, aspect, width; uint32_t record; };
             FillFrame row[64]{};
             uint32_t  row_n = 0;
@@ -2163,38 +2186,45 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         if (rec == UINT32_MAX || gap > best_gap) { best_gap = gap; rec = i; }
                     }
                 }
-                if (rec == UINT32_MAX) break;   // zero snapshots: zero fill, correctly
+                // Zero snapshots on the whole board: zero fill, and no later
+                // row will fare better. This is content, not geometry, so it
+                // ends the WALL rather than this row.
+                if (rec == UINT32_MAX) { wall_done = true; break; }
                 planLastUse[rec] = plan_ordinal++;
 
                 FillFrame ff{};
                 ff.record = rec;
+                // Per FRAME, not per row — varied heights on a shared CENTRE
+                // line read as a hang; one height, or a shared baseline, reads
+                // as a filmstrip. The quad is centred on slot.position
+                // (world.wgsl compute_wall_painting_geometry), so passing row_y
+                // as the slot's Y is already the shared-centre half of that.
                 ff.height = WALL_ART.snapshot_height_lo
                     + cpu_hash_f(f_seed, 0u) * (WALL_ART.snapshot_height_hi - WALL_ART.snapshot_height_lo);
                 ff.aspect = gs.snapshot_staging[rec].aspect_ratio;
                 ff.width  = ff.height * ff.aspect;
 
                 const float add = ff.width + (row_n > 0 ? WALL_ART.snapshot_gap : 0.0f);
-                if (row_total + add > usable_span) break;   // bound on REAL widths
+                if (row_total + add > span) break;   // bound on REAL widths
                 row_total += add;
                 row[row_n++] = ff;
             }
-            if (row_n == 0) break;   // nothing fits or no content — done with this wall
+            if (row_n == 0) return 0;
 
-            // ── place the row, centred ──
-            float fcursor = wall_center - row_total * 0.5f;
+            float fcursor = (x_lo + x_hi) * 0.5f - row_total * 0.5f;
             uint32_t placed_this_row = 0;
             for (uint32_t i = 0; i < row_n; i++) {
                 const FillFrame& ff = row[i];
                 uint32_t fslot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
                 if (fslot != UINT32_MAX && fslot + 1 > gs.slot_high_water) gs.slot_high_water = fslot + 1;
-                if (fslot == UINT32_MAX) break;
+                if (fslot == UINT32_MAX) { wall_done = true; break; }
 
                 uint32_t fexh;
                 bool fill_first = true;
                 if (snapLayer[ff.record] != UINT32_MAX) { fill_first = false; fexh = snapLayer[ff.record]; }
                 else {
                     fexh = find_free_exhibition_layer(gs);
-                    if (fexh == UINT32_MAX) break;
+                    if (fexh == UINT32_MAX) { wall_done = true; break; }
                 }
 
                 const float fcentre = fcursor + ff.width * 0.5f;
@@ -2224,7 +2254,77 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 placed_this_row++;
             }
             wall_fill += placed_this_row;
-            if (placed_this_row < row_n) break;   // slots or layers ran out
+            return placed_this_row;
+        };
+
+        // ── 1. THE COLUMNS, FIRST AND OUTWARD FROM THE BAND'S LINE ──
+        // The seed row sits ON the band's line and runs laterally away from
+        // the art; then one row up, one row down. Left and right alternate in
+        // ORDER as well as in turn, so a hang that runs out of frames stays
+        // symmetric rather than favouring the side that always went first.
+        //
+        // Running short therefore leaves the wall's EXTREMES bare — the same
+        // reasoning that made E-b's rows grow outward, applied to the axis
+        // that actually has room.
+        float ring_rows[16];
+        uint32_t ring_n = 0;
+        {
+            const float lo = down_limit + row_h * 0.5f;
+            const float hi = up_limit   - row_h * 0.5f;
+            if (band_mid >= lo && band_mid <= hi) ring_rows[ring_n++] = band_mid;
+            for (uint32_t k = 1; k <= 16 && ring_n < 16; k++) {
+                const float u = band_mid + (float)k * pitch;
+                const float d = band_mid - (float)k * pitch;
+                const bool u_ok = (u <= hi), d_ok = (d >= lo);
+                if (!u_ok && !d_ok) break;
+                if (u_ok)                 ring_rows[ring_n++] = u;
+                if (d_ok && ring_n < 16)  ring_rows[ring_n++] = d;
+            }
+        }
+        // The array is the ring's only fixed bound, so it must outlast the
+        // dials. VAULT is the tallest wall and the pitch is the row cost;
+        // 16 rows have to span it whatever snapshot_height_hi and
+        // snapshot_gap become.
+        static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].wall_height
+                    - WALL_ART.min_bottom_height - WALL_ART.top_margin
+                      <= 16.0f * (WALL_ART.snapshot_height_hi + WALL_ART.snapshot_gap),
+            "fill ring: 16 rows must span the tallest wall at the current pitch");
+
+        bool left_first = true;
+        for (uint32_t r = 0; r < ring_n && !wall_done && wall_fill < fill_target; r++) {
+            const float y = ring_rows[r];
+            if (left_first) {
+                place_fill_row(y, usable_lo, band_lo);
+                place_fill_row(y, band_hi,   usable_hi);
+            }
+            else {
+                place_fill_row(y, band_hi,   usable_hi);
+                place_fill_row(y, usable_lo, band_lo);
+            }
+            left_first = !left_first;
+        }
+
+        // ── 2. THE STRIPS, WITH WHATEVER IS LEFT ──
+        // E-b's two rects, kept as the remainder they always were. The band's
+        // x-range WITHOUT the moat, so a strip row and a column row that land
+        // on the same y keep a clearance-wide gap between them instead of
+        // abutting.
+        {
+            float up_y   = band_top    + clear + row_h * 0.5f;
+            float down_y = band_bottom - clear - row_h * 0.5f;
+            bool go_up = true;
+            while (!wall_done && wall_fill < fill_target) {
+                const bool up_ok   = (up_y   + row_h * 0.5f) <= up_limit;
+                const bool down_ok = (down_y - row_h * 0.5f) >= down_limit;
+                if (!up_ok && !down_ok) break;
+                float row_y;
+                if (go_up && up_ok)        { row_y = up_y;   up_y   += pitch; }
+                else if (!go_up && down_ok){ row_y = down_y; down_y -= pitch; }
+                else if (up_ok)            { row_y = up_y;   up_y   += pitch; }
+                else                       { row_y = down_y; down_y -= pitch; }
+                go_up = !go_up;
+                if (place_fill_row(row_y, band_left, band_right) == 0) break;
+            }
         }
         fill_placed += wall_fill;
     }
