@@ -280,6 +280,9 @@ struct WallArtConfig {
     // clamp with two ends, not two mechanisms.
     float max_bottom_height;    // hard upper clamp on bottom edge (m)
     float min_bottom_height;    // hard lower clamp on bottom edge (m)
+    // R4's other side: the matting above. Measured against wall_height, the
+    // top of the vertical wall — NOT the ceiling, which on VAULT is the crown.
+    float top_margin;           // hard clamp on the top edge, below wall_height (m)
 
     // ─── Size buckets (intimate / standard / statement) ─────
     WallArtScaleBucket intimate;
@@ -315,6 +318,11 @@ inline constexpr WallArtConfig WALL_ART = {
     // 0.45 at both FRAME_AUTHORED and FRAME_SNAPSHOT) or the frame's lower
     // edge dips below the wall base even when the canvas clears it.
     /* min_bottom_height */ 1.0f,   // bottom no lower than 1 m above floor
+    // Inert on today's population: the reachable band tops at 16.45 against a
+    // wall_height of 20.0, so anything below 3.55 never fires. That is the
+    // point — E-a's top guard cannot change what you see; it exists so the
+    // fill tier cannot breach.
+    /* top_margin        */ 2.0f,   // top no closer than 2 m to the wall top
 
     //                 height_lo, height_hi, weight, y_offset_lo, y_offset_hi
     /* intimate  */  {  6.0f,    11.0f,    0.25f,   0.0f,        2.0f },
@@ -398,7 +406,11 @@ struct WallPaintingProp {
     static constexpr uint32_t MIX_SNAPSHOT_ROLL = 2u;  // chance this painting is snapshot in MIXED site
     static constexpr uint32_t HEIGHT_JITTER     = 3u;
     static constexpr uint32_t AUTH_STG_PICK     = 4u;  // unused — see Q30 in rollout report
-    static constexpr uint32_t ASPECT_ESTIMATE   = 5u;
+    // ASPECT_ESTIMATE = 5u died with E-a's reorder: widths are planned from the
+    // REAL aspect now, so there is nothing left to estimate. 5 stays vacant
+    // rather than being reused — these are hash props, and a later prop taking
+    // the index would be free to, but leaving the gap costs nothing and keeps
+    // the numbering legible against the campaign history.
     static constexpr uint32_t SCALE_ROLL        = 7u;
 };
 
@@ -579,7 +591,7 @@ bool dispatch_place_gallery(MachineCtx* self, EntityQueueEntry& e, PlacementEntr
 void dispatch_commit_gallery(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Indoor entry (called by mood.hpp::apply_mood)
 void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
-    float bmin, float bmax, float ceiling_h);
+    float bmin, float bmax, float wall_height);
 void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 // Authored image loading
 void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);  // GPUState& deps-form: context-agnostic dual-entry door
@@ -1611,7 +1623,7 @@ inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint3
 
 // ═══ WALL PAINTINGS (indoor) ═════════════════════════════════════
 
-inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue, float bmin, float bmax, float ceiling_h) {
+inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue, float bmin, float bmax, float wall_height) {
     // Clear any existing wall paintings first (indoor→indoor transitions)
     clear_wall_paintings(gs, c, queue);
 
@@ -1620,7 +1632,10 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // Painting center base height (fraction of ceiling) — WALL_ART knob.
     constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
 
-    float paint_y_base = ceiling_h * WALL_ART.paint_y_frac;
+    // wall_height is the true top of the VERTICAL wall on both paths — ch on
+    // FLAT, the collapsed spring on VAULT (P5a/P5b) — and it excludes
+    // JOINT_OVERLAP, which is a mesh joint device, not usable wall.
+    float paint_y_base = wall_height * WALL_ART.paint_y_frac;
     float wall_span = bmax - bmin;
     float wall_center = (bmin + bmax) * 0.5f;
 
@@ -1692,13 +1707,19 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // `consumed` semantics are untouched (supply is out of scope). A record is
     // still consumed on first use; what changes is that running out of
     // unconsumed records now REUSES instead of dropping the frame.
-    uint32_t snapLayer[Dim::STAGING_LAYERS];   // record -> exhibition layer, or UINT32_MAX
-    uint32_t snapLastUse[Dim::STAGING_LAYERS]; // placement ordinal of last use
+    uint32_t snapLayer[Dim::STAGING_LAYERS];    // record -> exhibition layer, set at PLACEMENT
+    bool     planPromoted[Dim::STAGING_LAYERS]; // record already planned for a first use
+    uint32_t planLastUse[Dim::STAGING_LAYERS];  // plan ordinal of the record's last planned use
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         snapLayer[i] = UINT32_MAX;
-        snapLastUse[i] = 0u;
+        planPromoted[i] = false;
+        planLastUse[i] = 0u;
     }
-    uint32_t placement_ordinal = 0;   // increments per frame placed, all walls
+    // The spacing clock. It counts every frame PLANNED, authored included, so a
+    // gap measures real distance along the wall. It lives on the plan side now:
+    // E-a made selection authoritative, and the spacing rule is a selection
+    // decision.
+    uint32_t plan_ordinal = 0;
 
     // ─── Painting scale buckets ────────────────────────────────────
     // Tabulated form lets the bucket-selection loop iterate the WALL_ART
@@ -1723,238 +1744,249 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         float usable_span = std::max(wall.span - 2.0f * WALL_ART.corner_margin,
             wall.span * 0.3f);
 
-        // ─── Pre-compute widths to center the group on the wall ──
-        float total_width = 0.0f;
-        // The 8 is the array bound, and it must not be the thing that trims
-        // the roll — a count above it would be silently truncated here rather
-        // than rejected at the dial. per_wall_count_hi is the dial; this holds
-        // it under the storage.
+        // ─── SELECTION PASS — AUTHORITATIVE ──────────────────────
+        // Content source, staging record and the REAL aspect are all resolved
+        // here; the placement pass below re-decides nothing. Planned width is
+        // then placed width by construction, and group_start is exact.
+        //
+        // THE DEFECT THIS REMOVES. Widths were planned from est_aspect in
+        // [0.8, 1.6] while cursor advanced by real widths, whose range over
+        // SHOT_PARAMS is [0.56, 2.39] with a weighted mean near 1.60. So the
+        // row ran long by ~4 wu per painting while group_start was computed
+        // from the short total — a one-way push, always in the wall's own
+        // cursor direction, +6 wu at three paintings and +10 at five. Around
+        // four walls that reads as a rotational bias, and it is far easier to
+        // see than the rare right-edge truncation it also caused.
+        //
+        // The trim loop dies as a separate structure; its job moves in here,
+        // where it can bound against REAL widths. Plan only what fits, and the
+        // row is both exactly centred and guaranteed inside usable_span.
         static_assert(WALL_ART.per_wall_count_hi <= 8,
-            "per_wall_count_hi must fit painting_widths/painting_heights");
-        float painting_widths[8]{};
-        float painting_heights[8]{};
+            "per_wall_count_hi must fit the plan array");
+        struct PlannedFrame {
+            float    height;
+            float    aspect;
+            float    width;       // height * REAL aspect
+            uint32_t record;      // staging index — snapshot or authored array
+            bool     is_snapshot;
+        };
+        PlannedFrame plan[8]{};
         uint32_t effective_count = std::min(count, 8u);
+        float    total_width = 0.0f;
+        uint32_t planned = 0;
+
+        // Per-WALL claim masks. Selection does not set `consumed` — constraint
+        // 2: a painting the placement pass drops on slot exhaustion (Stage C's
+        // break) must not have wasted its record. The mask prevents two
+        // paintings on THIS wall picking the same record; `consumed`, set at
+        // placement, is what later walls see.
+        bool snapClaimed[Dim::STAGING_LAYERS]{};
+        bool authClaimed[Dim::STAGING_LAYERS]{};
 
         for (uint32_t p = 0; p < effective_count; p++) {
             uint32_t p_seed = cpu_hash(w_seed, WallArtProp::PER_PAINTING_BASE + p * WallArtProp::PER_PAINTING_STRIDE);
 
-            // Scale selection (weighted)
-            float w[INDOOR_SCALE_COUNT];
-            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) w[si] = INDOOR_SCALES[si]->weight;
-            uint32_t scale_idx = select_tier(p_seed, WallPaintingProp::SCALE_ROLL, w, INDOOR_SCALE_COUNT);
+            // Scale selection (weighted) — unchanged, and the placement pass
+            // re-derives the same bucket from the same p_seed for the Y offset.
+            float wsel[INDOOR_SCALE_COUNT];
+            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) wsel[si] = INDOOR_SCALES[si]->weight;
+            uint32_t scale_idx = select_tier(p_seed, WallPaintingProp::SCALE_ROLL, wsel, INDOOR_SCALE_COUNT);
             float h = INDOOR_SCALES[scale_idx]->height_lo
-                + cpu_hash_f(p_seed, WallPaintingProp::HEIGHT_JITTER) * (INDOOR_SCALES[scale_idx]->height_hi - INDOOR_SCALES[scale_idx]->height_lo);
-            painting_heights[p] = h;
+                + cpu_hash_f(p_seed, WallPaintingProp::HEIGHT_JITTER)
+                  * (INDOOR_SCALES[scale_idx]->height_hi - INDOOR_SCALES[scale_idx]->height_lo);
 
-            // Estimate width from typical aspect ratio (~1.3)
-            float est_aspect = 0.8f + cpu_hash_f(p_seed, WallPaintingProp::ASPECT_ESTIMATE) * 0.8f;  // [0.8, 1.6]
-            painting_widths[p] = h * est_aspect;
-            total_width += painting_widths[p];
-            if (p > 0) total_width += WALL_ART.painting_gap;
+            // Content decision — the one obstacle Stage A named against this
+            // reorder. It resolves here now because the authored tally is a
+            // plan-side count over the claim mask, not a live consumed-count.
+            bool use_snapshot = (site_type == IndoorSiteType::SNAPSHOT_ONLY)
+                || (site_type == IndoorSiteType::MIXED
+                    && cpu_hash_f(p_seed, WallPaintingProp::MIX_SNAPSHOT_ROLL) < WALL_ART.mix_snapshot_chance);
+
+            uint32_t auth_free = 0;
+            for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++)
+                if (gs.authored_staging[a].valid && !gs.authored_staging[a].consumed && !authClaimed[a])
+                    auth_free++;
+            if (!use_snapshot && auth_free == 0) use_snapshot = true;
+
+            PlannedFrame f{};
+            f.height = h;
+            bool resolved = false;
+
+            if (use_snapshot) {
+                uint32_t rec = UINT32_MAX;
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                    if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed && !snapClaimed[i]) {
+                        rec = i;
+                        break;
+                    }
+                }
+                if (rec != UINT32_MAX) {
+                    snapClaimed[rec] = true;
+                    planPromoted[rec] = true;
+                    planLastUse[rec] = plan_ordinal++;
+                    f.record = rec; f.is_snapshot = true;
+                    f.aspect = gs.snapshot_staging[rec].aspect_ratio;
+                    resolved = true;
+                }
+                else {
+                    // THE SPACING RULE (D / Amdt II §6), now planned rather than
+                    // executed: take the record whose last use is furthest back.
+                    uint32_t reuse = UINT32_MAX, best_gap = 0;
+                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                        if (!planPromoted[i]) continue;
+                        uint32_t gap = plan_ordinal - planLastUse[i];
+                        if (reuse == UINT32_MAX || gap > best_gap) { best_gap = gap; reuse = i; }
+                    }
+                    if (reuse != UINT32_MAX) {
+                        planLastUse[reuse] = plan_ordinal++;
+                        f.record = reuse; f.is_snapshot = true;
+                        f.aspect = gs.snapshot_staging[reuse].aspect_ratio;
+                        resolved = true;
+                    }
+                    else if (auth_free > 0) {
+                        use_snapshot = false;   // nothing to reuse yet; try authored
+                    }
+                }
+            }
+
+            if (!resolved && !use_snapshot) {
+                // Lowest disk_index first, the pick_authored_staging order,
+                // with the claim mask on top.
+                uint32_t a_rec = UINT32_MAX, best_disk = UINT32_MAX;
+                for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
+                    if (!authClaimed[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
+                        && gs.authored_staging[a].disk_index < best_disk) {
+                        best_disk = gs.authored_staging[a].disk_index;
+                        a_rec = a;
+                    }
+                }
+                if (a_rec != UINT32_MAX) {
+                    authClaimed[a_rec] = true;
+                    plan_ordinal++;
+                    f.record = a_rec; f.is_snapshot = false;
+                    f.aspect = gs.authored_staging[a_rec].aspect_ratio;
+                    resolved = true;
+                }
+            }
+
+            if (!resolved) break;   // no content of either kind — this wall is done
+
+            f.width = f.height * f.aspect;
+            const float add = f.width + (planned > 0 ? WALL_ART.painting_gap : 0.0f);
+            if (total_width + add > usable_span) break;   // the trim, on REAL widths
+            total_width += add;
+            plan[planned++] = f;
         }
+        effective_count = planned;
 
-        // Trim paintings that don't fit
-        while (effective_count > 1 && total_width > usable_span) {
-            total_width -= painting_widths[effective_count - 1];
-            total_width -= WALL_ART.painting_gap;
-            effective_count--;
-        }
-
-        // Center the group on the wall
+        // Exact: total_width IS the row's real width, so the row is centred and
+        // its right edge lands at or inside wall_center + usable_span/2.
         float group_start = wall_center - total_width * 0.5f;
         float cursor = group_start;
 
+        // ─── PLACEMENT PASS — consumes the plan, decides nothing ──
         for (uint32_t p = 0; p < effective_count; p++) {
+            const PlannedFrame& f = plan[p];
 
             // The wall path stops short of the outdoor reserve. It runs once,
             // at mood entry, and would otherwise take everything before
             // commit_gallery gets a frame.
             uint32_t slot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
             if (slot != UINT32_MAX && slot + 1 > gs.slot_high_water) gs.slot_high_water = slot + 1;
-            // Exhaustion ends THIS WALL, not the hang. `return` here
-            // abandoned every remaining wall — one full wall and three bare
-            // ones — and skipped the closing log too, which is why it stayed
-            // invisible. commit_gallery, the outdoor twin, already breaks at
-            // the corresponding site.
+            // Exhaustion ends THIS WALL, not the hang.
             if (slot == UINT32_MAX) break;
 
+            // Y is placement's own: the vertical offset never fed the width
+            // plan, so it stays here. Same p_seed, same bucket as selection.
             uint32_t p_seed = cpu_hash(w_seed, WallArtProp::PER_PAINTING_BASE + p * WallArtProp::PER_PAINTING_STRIDE);
-
-            // Vertical position: scale-dependent offset from base
-            // Intimate pieces: hung higher. Statement pieces: anchored lower.
-            float w[INDOOR_SCALE_COUNT];
-            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) w[si] = INDOOR_SCALES[si]->weight;
-            uint32_t scale_idx = select_tier(p_seed, WallPaintingProp::SCALE_ROLL, w, INDOOR_SCALE_COUNT);
-
-            // Y-offset: uniform [lo, hi] per bucket from WALL_ART.
+            float wsel[INDOOR_SCALE_COUNT];
+            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) wsel[si] = INDOOR_SCALES[si]->weight;
+            uint32_t scale_idx = select_tier(p_seed, WallPaintingProp::SCALE_ROLL, wsel, INDOOR_SCALE_COUNT);
             const auto& bucket = *INDOOR_SCALES[scale_idx];
             float y_offset = bucket.y_offset_lo
                 + cpu_hash_f(p_seed, WallPaintingProp::Y_OFFSET_JITTER) * (bucket.y_offset_hi - bucket.y_offset_lo);
 
             float py = wall.py + y_offset;
+            const float half_h = f.height * 0.5f;
 
-            float h_for_clamp = painting_heights[p];
-            float bottom = py - h_for_clamp * 0.5f;
+            float bottom = py - half_h;
             if (bottom > WALL_ART.max_bottom_height) {
-                py = WALL_ART.max_bottom_height + h_for_clamp * 0.5f;
+                py = WALL_ART.max_bottom_height + half_h;
             }
             // The clamp's other end. Only the statement bucket can reach it:
             // its bottom spans [-1.5, 2.5] against standard's [1.5, 6.5] and
             // intimate's [3.5, 8.0], so a tall piece hung low was the one
             // shape that put a frame through the floor.
             else if (bottom < WALL_ART.min_bottom_height) {
-                py = WALL_ART.min_bottom_height + h_for_clamp * 0.5f;
+                py = WALL_ART.min_bottom_height + half_h;
+            }
+            // R4's top side, symmetric to min_bottom_height and applied last so
+            // it wins any conflict. It cannot fire on today's population — the
+            // reachable top is 16.45 against wall_height 20.0 — and exists so
+            // E-b's fill cannot breach the wall top.
+            if (py + half_h > wall_height - WALL_ART.top_margin) {
+                py = wall_height - WALL_ART.top_margin - half_h;
             }
 
-            // ─── Content decision (three-way) ────────────────
-            bool use_snapshot = (site_type == IndoorSiteType::SNAPSHOT_ONLY)
-                || (site_type == IndoorSiteType::MIXED
-                    && cpu_hash_f(p_seed, WallPaintingProp::MIX_SNAPSHOT_ROLL) < WALL_ART.mix_snapshot_chance);
-
-            if (!use_snapshot && count_unused_authored(gs, usedAuthored) == 0) {
-                use_snapshot = true;
+            // The layer. `snapLayer` is the authority for whether a record
+            // already has one, not the plan — a wall that broke on slot
+            // exhaustion can leave a record planned but never promoted, and
+            // reading the map rather than a plan flag makes that self-healing.
+            uint32_t exh;
+            bool first_use = true;
+            if (f.is_snapshot && snapLayer[f.record] != UINT32_MAX) {
+                first_use = false;
+                exh = snapLayer[f.record];       // already ours; costs nothing
             }
+            else {
+                exh = find_free_exhibition_layer(gs);
+                if (exh == UINT32_MAX) break;    // this wall, not the hang
+            }
+
+            // Planned width IS placed width, so this cursor cannot run past
+            // wall_center + usable_span/2 — selection bounded the total.
+            float paint_center = cursor + f.width * 0.5f;
+            float px = wall.px + wall.tx * (paint_center - wall_center);
+            float pz = wall.pz + wall.tz * (paint_center - wall_center);
 
             auto& s = gs.painting_slots[slot];
-            float paint_width = 0.0f;  // will be set by whichever path fills the slot
-
-            if (use_snapshot) {
-                uint32_t snap_stg = UINT32_MAX;
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed) {
-                        snap_stg = i;
-                        break;
-                    }
-                }
-                // No unconsumed record left — reuse one already promoted this
-                // event. THE SPACING RULE (Amdt II §6): take the layer whose
-                // last use is furthest back. Expressed as a maximum rather
-                // than a minimum-with-a-failure-branch, it satisfies the
-                // separation wherever separation exists and degrades to
-                // "least recently used" where it does not. Always terminates,
-                // always places — a uniqueness rule could do neither, because
-                // 4 walls x 48 frames draws on at most STAGING_LAYERS distinct
-                // images and would silently truncate the hang.
-                uint32_t reuse_stg = UINT32_MAX;
-                if (snap_stg == UINT32_MAX) {
-                    uint32_t best_gap = 0;
-                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                        if (snapLayer[i] == UINT32_MAX) continue;
-                        uint32_t gap = placement_ordinal - snapLastUse[i];
-                        if (reuse_stg == UINT32_MAX || gap > best_gap) {
-                            best_gap = gap;
-                            reuse_stg = i;
-                        }
-                    }
-                }
-                if (snap_stg == UINT32_MAX && reuse_stg == UINT32_MAX) {
-                    if (count_unused_authored(gs, usedAuthored) == 0) continue;
-                    use_snapshot = false;
-                }
-                else {
-                    const bool first_use = (snap_stg != UINT32_MAX);
-                    const uint32_t rec = first_use ? snap_stg : reuse_stg;
-
-                    uint32_t exh;
-                    if (first_use) {
-                        exh = find_free_exhibition_layer(gs);
-                        if (exh == UINT32_MAX) break;   // this wall, not the hang
-                    } else {
-                        exh = snapLayer[rec];           // already ours; costs nothing
-                    }
-
-                    const auto& snap = gs.snapshot_staging[rec];
-                    float height = painting_heights[p];
-                    paint_width = height * snap.aspect_ratio;
-
-                    // Safety check: actual width may differ from estimate
-                    float wall_right = wall_center + usable_span * 0.5f;
-                    if (cursor + paint_width > wall_right) break;
-
-                    float paint_center = cursor + paint_width * 0.5f;
-                    float px = wall.px + wall.tx * (paint_center - wall_center);
-                    float pz = wall.pz + wall.tz * (paint_center - wall_center);
-
-                    fill_slot_wall_frame(s,
-                        px, py, pz,
-                        wall.nx, wall.ny, wall.nz,
-                        snap.aspect_ratio, height,
-                        exh, ContentSource::SNAPSHOT,
-                        1.0f, 1.0f,
-                        FRAME_SNAPSHOT,
-                        INT32_MAX, INT32_MAX);
-
-                    if (first_use) {
-                        gs.exhibition_occupied[exh] = true;
-                        gs.snapshot_staging[rec].consumed = true;
-                        queue_promotion(gs, true, rec, exh);
-                        snapLayer[rec] = exh;
-                    }
-                    snapLastUse[rec] = placement_ordinal++;
-
-                    cursor += paint_width + WALL_ART.painting_gap;
-                    c->gpuState_.upload_painting_slot(queue, slot, s);
-                    gs.wall_frame_count++;
-                    continue;
-                }
-            }
-
-            if (!use_snapshot) {
-                uint32_t auth_stg = pick_authored_staging(gs, p_seed, WallPaintingProp::AUTH_STG_PICK);
-                if (auth_stg == UINT32_MAX) continue;
-                if (usedAuthored[auth_stg]) {
-                    uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
-                    for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
-                        if (!usedAuthored[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
-                            && gs.authored_staging[a].disk_index < best_disk) {
-                            best_disk = gs.authored_staging[a].disk_index;
-                            best = a;
-                        }
-                    }
-                    if (best == UINT32_MAX) continue;
-                    auth_stg = best;
-                }
-
-                uint32_t exh = find_free_exhibition_layer(gs);
-                if (exh == UINT32_MAX) break;   // this wall, not the hang
-
-                usedAuthored[auth_stg] = true;
-
-                const auto& img = gs.authored_staging[auth_stg];
-                float height = painting_heights[p];
-                paint_width = height * img.aspect_ratio;
-
-                // Safety check: actual width may differ from estimate
-                float wall_right = wall_center + usable_span * 0.5f;
-                if (cursor + paint_width > wall_right) break;
-
-                float paint_center = cursor + paint_width * 0.5f;
-                float px = wall.px + wall.tx * (paint_center - wall_center);
-                float pz = wall.pz + wall.tz * (paint_center - wall_center);
-
+            if (f.is_snapshot) {
                 fill_slot_wall_frame(s,
                     px, py, pz,
                     wall.nx, wall.ny, wall.nz,
-                    img.aspect_ratio, height,
+                    f.aspect, f.height,
+                    exh, ContentSource::SNAPSHOT,
+                    1.0f, 1.0f,
+                    FRAME_SNAPSHOT,
+                    INT32_MAX, INT32_MAX);
+
+                if (first_use) {
+                    gs.exhibition_occupied[exh] = true;
+                    gs.snapshot_staging[f.record].consumed = true;
+                    queue_promotion(gs, true, f.record, exh);
+                    snapLayer[f.record] = exh;
+                }
+            }
+            else {
+                const auto& img = gs.authored_staging[f.record];
+                fill_slot_wall_frame(s,
+                    px, py, pz,
+                    wall.nx, wall.ny, wall.nz,
+                    f.aspect, f.height,
                     exh, ContentSource::AUTHORED,
                     img.uv_scale_x, img.uv_scale_y,
                     FRAME_AUTHORED,
                     INT32_MAX, INT32_MAX);
 
                 gs.exhibition_occupied[exh] = true;
-                gs.authored_staging[auth_stg].consumed = true;
-                queue_promotion(gs, false, auth_stg, exh);
-                // The spacing clock counts EVERY frame placed, not only the
-                // snapshots, so a gap measures real distance along the wall.
-                // The authored path keeps its own no-duplicates rule
-                // (usedAuthored) and shares no layers — it draws on a disk
-                // manifest, not on a 16-deep freshness window.
-                placement_ordinal++;
-
-                cursor += paint_width + WALL_ART.painting_gap;
-                c->gpuState_.upload_painting_slot(queue, slot, s);
-                gs.wall_frame_count++;
+                gs.authored_staging[f.record].consumed = true;
+                usedAuthored[f.record] = true;
+                queue_promotion(gs, false, f.record, exh);
             }
+
+            cursor += f.width + WALL_ART.painting_gap;
+            c->gpuState_.upload_painting_slot(queue, slot, s);
+            gs.wall_frame_count++;
         }
     }
 

@@ -859,7 +859,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
 
     c->gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
 
-    place_wall_paintings(gallery_state, &gallery_deps, queue, bmin, bmax, ch);
+    place_wall_paintings(gallery_state, &gallery_deps, queue, bmin, bmax, wall_h);
 
     std::cout << "[Shell] Generated "
         << (m.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
