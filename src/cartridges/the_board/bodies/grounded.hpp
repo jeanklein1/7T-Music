@@ -86,7 +86,7 @@ inline constexpr float ARCH_SANDSTONE_BASE[3] = { 0.75f, 0.68f, 0.60f };
 
 // ── Spawn Configuration ──────────────────────────────────────────
 struct ArchConfig {
-    static constexpr float SPAWN_CHANCE = 0.030f;
+    static constexpr float SPAWN_CHANCE = 0.050f;
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
     // Position jitter within patch (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.35f;
