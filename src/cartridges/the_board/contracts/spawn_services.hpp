@@ -134,13 +134,15 @@ struct ArchIdx {
 struct ArchTierRow {
     TierProfile profile;
     float       color_override;
-    // MOSAIC_2: is this KIND ceramic? Güell shatters kinds, not
-    // percentages — the roofs and spires are trencadís, the walls and
-    // hypostyle columns are plain masonry, and the mosaic reads as
-    // extraordinary because plain stone sits beside it. 1.0 = every
-    // body of this tier; 0.0 = none. Orthogonal to color_override: what a
-    // body's FALLBACK color is, and whether it is ceramic, are two
-    // facts. All 1.0 = total override, a setting rather than a rewrite.
+    // MOSAIC_2: is this KIND ceramic? 1.0 = every body of this tier;
+    // 0.0 = none. Orthogonal to color_override: what a body's FALLBACK
+    // color is, and whether it is ceramic, are two facts.
+    // MOSAIC_3 — ALL ROWS 1.0. The contrast ruling (plain stone beside
+    // the ceramic) is retired: every arch is ceramic. The portals are
+    // the one plain population left, and they are plain for a different
+    // reason — a functional marker wears its destination's color. That
+    // exception lives at the decision in arch_write_active, NOT here.
+    // Do not "restore" DOORWAY to 0.0; that duplicates the guard.
     float       mosaic_chance;
     float       burial;
     uint32_t    segs_u;
@@ -170,11 +172,11 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
     //   {  weight, color_var, { {μ,σ}: SPAN      RISE        DEPTH       THICKNESS     PIER_HEIGHT  PIER_PAD     EDGE_BLEND } },  col_ovr  mosaic  burial  segs_u  segs_v
     /* DOORWAY    */ {
         { 0.50f, 0.0f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
-        0.85f, 0.0f, 0.20f, 16, 4
+        0.85f, 1.0f, 0.20f, 16, 4
     },
     /* STANDARD   */ {
         { 0.15f, 0.0f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
-        0.85f, 0.35f, 0.20f, 32, 8
+        0.85f, 1.0f, 0.20f, 32, 8
     },
     /* MONUMENTAL */ {
         { 0.15f, 0.0f, { {60.0f, 10.0f}, {80.0f, 12.0f}, {10.0f, 2.0f}, {2.5f, 0.30f}, {8.0f, 2.5f}, {1.0f, 0.3f}, {0.8f, 0.15f} }},
