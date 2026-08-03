@@ -69,13 +69,20 @@ normal reach, and answers it with a dedicated floor-mounted uplight aimed
 straight up, added only when `ceiling_type == VAULT`. That light exists
 precisely because the ceiling-anchored spots do not reach the vault.
 
-So `py = ceiling_height - 0.5f` at spring height is **deliberate, not a
-mis-wired call site.** Under a vault, a downlight at the springing line is
-also the ordinary architectural answer — the vault above it is lit by the
-uplight, which is what the uplight is for.
+**The fork therefore takes branch one for all five position uses: the call
+site passes what every use wants.** That settles the naming question, which is
+what P7 was asked.
 
-**The fork therefore takes branch one for all five position uses.** No call
-site is wrong. The rename is one word:
+**It does not settle the design question, and this report does not.**
+*(Corrected by the E-split addendum §1.)* The first version of this section
+concluded that `py = wall_height - 0.5f` is "deliberate, not a mis-wired call
+site", inferring intent from the uplight's presence. That is plausible and it
+is not proven — the same shape as the "ordinary steady state" line struck from
+B4, a claim that would be found in the ledger later and treated as settled.
+Whether a light named `CEILING` should hang at spring height under a 92-wu
+vault is a design question nobody asked. **It goes to the control panel, open.**
+
+The rename is one word:
 
 ```
     float ceiling_height  →  float wall_height
@@ -94,17 +101,23 @@ headroom`.
 
 The comment names the crown. The expression does not compute it: it adds a
 constant to a number that is *not* the crown and relies on the constant being
-large enough. Checked at every legal radius, it is:
+large enough.
 
-| radius | crown | `wall_height + 80` | headroom |
-|---:|---:|---:|---:|
-| 1 | 47.50 | 105.0 | 57.5 |
-| 2 | 62.50 | 105.0 | 42.5 |
-| 3 | 77.50 | 105.0 | 27.5 |
-| 4 | 92.50 | 105.0 | 12.5 |
+**Range is measured from the light, and the light is not on the floor plane.**
+`L.position[1] = 2.0f`, so the reach required is `crown − 2.0`, not `crown`.
+*(Corrected by the E-split addendum §1. The first table omitted this and
+understated the spare — the error ran conservative, but the ledger should say
+which way the slack falls.)*
 
-It holds — with 12.5 wu to spare at the largest room, which is the tightest
-case and still comfortable. **No edit is warranted.**
+| radius | crown | reach needed (`crown − 2.0`) | range 105.0 | **spare** |
+|---:|---:|---:|---:|---:|
+| 1 | 47.50 | 45.50 | 105.0 | 59.5 |
+| 2 | 62.50 | 60.50 | 105.0 | 44.5 |
+| 3 | 77.50 | 75.50 | 105.0 | 29.5 |
+| 4 | 92.50 | 90.50 | 105.0 | **14.5** |
+
+It holds — with **14.5 wu** to spare at the largest room, the tightest case.
+**No edit is warranted.**
 
 Recorded because the exact quantity the comment names is available as a
 function call: `vault_crown_height(m, bmin, bmax)` (`mood.hpp:633`), which both
@@ -128,7 +141,7 @@ because it really is the ceiling, while `MoodProfile::ceiling_height` became
 This is the third instance of the same spelling, and the same method settles
 it: the four sconce uses always wanted the wall, the ceiling anchor wants the
 wall *by design* with the uplight as its documented compensation, and the one
-line that genuinely means the crown says so in a comment and clears it by 12.5
+line that genuinely means the crown says so in a comment and clears it by 14.5
 wu at the worst radius.
 
 **One name, three referents, resolved three times by reading what the code does
@@ -140,4 +153,4 @@ with it.** Nothing here needed a mechanism.
 
 | Stage | State | Commit | Note |
 |---|---|---|---|
-| P7 — `derive_indoor_lights` parameter | **reported, edit not authorized** | this commit | **Branch one: one-word rename**, `mood.hpp:197` + `:346` + 7 uses. No call site is wrong — the VAULT uplight (`:513-534`) is the deliberate compensation for ceiling spots sitting at spring height. One observation: `:530`'s `+ 80.0f` reaches the crown by headroom rather than by computing it; holds at every radius with 12.5 wu spare at the worst. |
+| P7 — `derive_indoor_lights` parameter | **reported; rename landed** | report `c4a81a9`, edit this commit | **Branch one: one-word rename**, `mood.hpp:197` + `:346` + 7 uses. The call site passes what every use wants. Whether a CEILING-anchored light belongs at spring height under a vault is a DESIGN question and is left **open** to the control panel. One observation: `:530`'s `+ 80.0f` reaches the crown by headroom rather than by computing it; holds at every radius with 14.5 wu spare at the worst (range is measured from y=2.0, not the floor). |
