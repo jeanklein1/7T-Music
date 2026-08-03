@@ -88,11 +88,12 @@ struct OrbsState;   struct OrbsDeps;
 struct GalleryState; struct GalleryDeps;
 struct PawnState;
 // The gallery dependency is NOT satisfied by these forward declarations
-// alone: this file calls place_wall_paintings / clear_wall_paintings and
-// reads WALL_ART.paint_y_frac (THE CROWN LAW, below), all of which need
-// bodies/gallery.hpp complete. The cohort order supplies it —
+// alone: this file calls place_wall_paintings / clear_wall_paintings,
+// which need bodies/gallery.hpp complete. The cohort order supplies it —
 // cartridge.hpp includes gallery.hpp (:78) before mood.hpp (:81), which
 // its own include note already names. Moving either breaks this file.
+// (THE CROWN LAW below also read WALL_ART.paint_y_frac for a time; that
+// read is gone — the room no longer derives its shape from the hang.)
 
 // ═══ MOOD STATE + PROFILE VOCABULARY — GRADUATED ═════════════════
 // MoodState / CeilingType / MoodProfile / MOOD_TABLE live in
@@ -603,27 +604,30 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
 // Spring (wall top), rise, crown for a VAULT room over the finite
 // bounds [bmin, bmax]. The generator and the camera ceiling clamp
 // both consume THIS — no bare-literal twin survives at either site.
+//
+// THE ROOM DEFINES THE SPRING; THE HANG FITS UNDER IT. The spring was
+// once derived from where the art hangs — ceiling_height x paint_y_frac,
+// plus a top margin, plus a spring margin — so the room's shape depended
+// on the hang. That was inert while the fraction was spelled twice, and
+// became a live cycle the moment one home was given to it. The
+// dependency now runs the other way: the wall stops where the room says
+// it stops, and the hang is bounded under that. The clearance the old
+// chain approximated (a margin above a NOMINAL paint centre) is
+// strengthened by the reversal, because a dense hang's real top has no
+// relation to a fraction of the ceiling.
 struct VaultCrown { float spring_h; float rise; float crown_h; };
 inline VaultCrown vault_crown(const MoodProfile& m, float bmin, float bmax) {
     static constexpr float VAULT_RISE_FRACTION  = 0.30f;
-    static constexpr float SPRING_MARGIN        = 8.0f;
-    static constexpr float PAINT_TOP_MARGIN     = 5.5f;
+    // A floor beneath the dial above, not a dead term: it does not fire at
+    // any legal radius only because VAULT_RISE_FRACTION is currently high.
+    // Lower the dial and it binds.
     static constexpr float MIN_RISE_FLOOR       = 5.0f;
-    const float ch = m.ceiling_height;
     const float half_span = (bmax - bmin) * 0.5f;
-    // WHERE THE PAINTINGS HANG IS NOT VAULT GEOMETRY. The spring is sized
-    // to clear the art, so the fraction that places the art is the art's
-    // fact and has one home — WALL_ART (gallery.hpp). The local
-    // PAINT_CENTER_FRACTION = 0.45f that used to sit here was a second
-    // spelling of it, agreeing by coincidence, with the room's shape
-    // deriving from the duplicate. PAINT_TOP_MARGIN and SPRING_MARGIN stay:
-    // those ARE vault geometry, not duplicates.
-    const float paint_center = ch * WALL_ART.paint_y_frac;
-    const float paint_top = paint_center + PAINT_TOP_MARGIN;
-    const float spring_h = paint_top + SPRING_MARGIN;
-    const float min_rise = ch - spring_h;
-    const float rise = std::max(half_span * VAULT_RISE_FRACTION,
-                                std::max(min_rise, MIN_RISE_FLOOR));
+    const float spring_h = m.ceiling_height;
+    // The crown clears the spring by construction now — rise is >= 5 — so
+    // the old min_rise term (ceiling_height - spring_h, guarding exactly
+    // that) has nothing left to guard and is gone with the derivation.
+    const float rise = std::max(half_span * VAULT_RISE_FRACTION, MIN_RISE_FLOOR);
     return VaultCrown{ spring_h, rise, spring_h + rise };
 }
 inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
