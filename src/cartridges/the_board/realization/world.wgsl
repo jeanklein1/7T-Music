@@ -9997,7 +9997,32 @@ fn gallery_frame_vs(
     let world = slot.position + right * local.x + up * local.y + fwd * local.z;
 
     out.clip_pos = render_vp.m * vec4(world, 1.0);
-    out.uv = vec2(uv.x, 1.0 - uv.y);
+    // THE SLOT'S uv_scale, which this path used to drop on the floor. The wall
+    // path has always applied it (compute_wall_painting_geometry); this one
+    // emitted raw uv, so a slot occupying part of its layer drew the whole
+    // layer — the composite quads, when snapshots were briefly 512.
+    //
+    // It affects OUTDOOR SNAPSHOTS ONLY, and today they fill their layer, so
+    // this line changes nothing that draws. The two entry points partition by
+    // form type, and outdoor AUTHORED paintings go through fill_slot_wall_frame
+    // into FORM_WALL_FRAME — the path that already scaled — so they never
+    // showed load_authored_image_to_staging's letterbox padding. The only
+    // writer of FORM_TERRAIN_QUAD is commit_gallery's snapshot branch.
+    //
+    // It lands anyway: an entry point that silently ignores a field the slot
+    // carries is a trap, and it cost this campaign a stage.
+    //
+    // SCALE AFTER THE FLIP, and the two paths then agree exactly. `uv` runs 0 at
+    // the quad's bottom (local.y = (uv.y - 0.5) * scale_y), so the flip sends
+    // bottom to v = 1 and top to v = 0; scaling here selects v in [0, s], the
+    // ORIGIN-side band, which is the end a partial write lands on. The wall
+    // path's corner/uv tables give the same mapping — bottom to s, top to 0.
+    // Scaling BEFORE the flip would select v in [1-s, 1], the far end, where
+    // nothing is ever written.
+    //
+    // `uv` itself stays raw above: it drives local position and
+    // deform_gallery_frame, which are geometry and must not move with content.
+    out.uv = vec2(uv.x, 1.0 - uv.y) * vec2(slot.uv_scale_x, slot.uv_scale_y);
     out.world_pos = world;
     out.world_normal = fwd;
     out.texture_layer = slot.texture_layer;
