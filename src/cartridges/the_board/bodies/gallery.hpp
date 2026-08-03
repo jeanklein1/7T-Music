@@ -752,18 +752,6 @@ inline constexpr FrameStyle FRAME_SNAPSHOT = { 0.30f, 0.45f, 0.09f, { 0.25f, 0.1
 
 // ── Slot fill helper ──
 
-// A snapshot occupies the ORIGIN sub-square of the exhibition layer it was
-// promoted into; the rest of that layer is whatever was there before. This is
-// the uv that selects it, and it is a RATIO on purpose — write 0.5 and the two
-// resolution dials silently stop being connected to what samples them.
-//
-// It is uniform in u and v, which is what makes it safe: the offscreen target
-// is square and the shot's aspect lives in an ANAMORPHIC squeeze (build_lookat_vp
-// puts f/aspect in x), undone by the quad's scale_x = height * aspect. A uniform
-// scale selects a sub-square of the same shape and leaves that squeeze intact.
-inline constexpr float SNAPSHOT_UV_SCALE =
-    (float)Dim::SNAPSHOT_RESOLUTION / (float)Dim::PAINTING_RESOLUTION;
-
 inline void fill_slot_wall_frame(
     GPUPaintingSlot& s,
     float x, float y, float z,
@@ -1351,10 +1339,11 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
             s.form_type = FormType::TERRAIN_QUAD;
             s.is_active = 1;
             s.content_source = ContentSource::SNAPSHOT;
-            // Written inline rather than through fill_slot_wall_frame, which is
-            // why a search for that CALL misses this site. Same sub-square.
-            s.uv_scale_x = SNAPSHOT_UV_SCALE;
-            s.uv_scale_y = SNAPSHOT_UV_SCALE;
+            // A snapshot fills its exhibition layer edge to edge. Written
+            // inline rather than through fill_slot_wall_frame, which is why a
+            // search for that CALL misses this site.
+            s.uv_scale_x = 1.0f;
+            s.uv_scale_y = 1.0f;
             s.patch_gx = gx; s.patch_gz = gz;
 
             gs.exhibition_occupied[exh] = true;
@@ -1488,7 +1477,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     dst.mipLevel = 0;
     dst.origin = { 0, 0, layer };
 
-    wgpu::Extent3D extent = { Dim::SNAPSHOT_RESOLUTION, Dim::SNAPSHOT_RESOLUTION, 1 };
+    wgpu::Extent3D extent = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
     encoder.CopyTextureToTexture(&src, &dst, &extent);
 }
 
@@ -2017,7 +2006,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                     wall.nx, wall.ny, wall.nz,
                     f.aspect, f.height,
                     exh, ContentSource::SNAPSHOT,
-                    SNAPSHOT_UV_SCALE, SNAPSHOT_UV_SCALE,
+                    1.0f, 1.0f,
                     FRAME_SNAPSHOT,
                     INT32_MAX, INT32_MAX);
 
@@ -2176,14 +2165,10 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
 inline void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEncoder& encoder) {
     for (uint32_t i = 0; i < gs.pending_promotion_count; i++) {
         auto& p = gs.pending_promotions[i];
-        // is_snapshot picks the pool AND its resolution — the one flag the
-        // record already carries, rather than a second discriminator that
-        // could drift from it.
         wgpu::Texture src = p.is_snapshot
             ? c->gpuState_.snapshot_staging_texture()
             : c->gpuState_.authored_staging_texture();
-        uint32_t res = p.is_snapshot ? Dim::SNAPSHOT_RESOLUTION : Dim::PAINTING_RESOLUTION;
-        c->gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer, res);
+        c->gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
     }
     gs.pending_promotion_count = 0;
 }
