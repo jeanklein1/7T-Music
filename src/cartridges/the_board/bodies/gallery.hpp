@@ -210,6 +210,17 @@ struct GalleryConfig {
     // the actual overlap guard, this is the spacing taste.
     static constexpr float MIN_GALLERY_DISTANCE = 110.0f;
 
+    // Painting slots the wall path may not take. The pool is shared and the
+    // walls always win by arriving first: place_wall_paintings runs once at
+    // mood entry and takes everything it wants in one pass, while
+    // commit_gallery arrives afterwards over many frames at
+    // SPAWN_BUDGET_PER_FRAME. This is a GEOMETRIC BOUND, not an expected
+    // occupancy — sixteen galleries all rolling n=3 against a mean of 5, on a
+    // near-perfect grid at exactly the exclusion distance, under a spawner
+    // that places randomly with rejection. Realistic peak is 25-35. Derivation
+    // in src/docs/audit/SALON_1_B4_REPORT.md.
+    static constexpr uint32_t OUTDOOR_SLOT_RESERVE = 48;
+
     // ─── Content×Form Mixing ─────────────────────────────────
     //
     static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.80f;  // [0.00, 0.80)
@@ -433,7 +444,13 @@ struct PendingPromotion {
     uint32_t staging_layer;
     uint32_t exhibition_layer;
 };
-inline constexpr uint32_t MAX_PROMOTIONS_PER_FRAME = 32;
+// ONE FACT, NOT TWO. Every promotion accompanies exactly one slot fill —
+// each of the four queue_promotion calls sits beside a find_free_exhibition_layer
+// and a slot write — so promotions per frame can never exceed total slots.
+// Spelled twice and agreeing by coincidence until now; the drop at
+// queue_promotion is silent, so a divergence would have produced frames
+// pointing at exhibition layers nothing ever wrote.
+inline constexpr uint32_t MAX_PROMOTIONS_PER_FRAME = Dim::PAINTING_MAX_SLOTS;
 
 // Active gallery centers (for minimum distance enforcement)
 struct GalleryCenter {
@@ -560,10 +577,26 @@ inline void queue_promotion(GalleryState& gs,
 
 // ── Slot lookup helpers ──
 
-inline uint32_t find_free_painting_slot(const GalleryState& gs) {
-    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++)
-        if (gs.painting_slots[i].is_active == 0) return i;
-    return UINT32_MAX;
+// THE FLOOR LIVES IN THE ALLOCATOR. One handout point, one place to hold a
+// reserve — a counter beside it would be a second fact about the same thing.
+// `floor` is how many slots must remain free AFTER this one is taken;
+// returns UINT32_MAX rather than allocate past it, which both callers already
+// handle as ordinary exhaustion.
+//
+// Single pass: the free tally is counted while scanning for the first free
+// index, so this stays the O(n) it already was. Placement-event path, not a
+// frame path.
+inline uint32_t find_free_painting_slot(const GalleryState& gs, uint32_t floor) {
+    uint32_t first_free = UINT32_MAX;
+    uint32_t free_count = 0;
+    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+        if (gs.painting_slots[i].is_active == 0) {
+            if (first_free == UINT32_MAX) first_free = i;
+            free_count++;
+        }
+    }
+    if (first_free == UINT32_MAX) return UINT32_MAX;   // nothing free at all
+    return free_count > floor ? first_free : UINT32_MAX;
 }
 
 // ── Impl-internal forward declarations ───────────────────────────
@@ -1064,7 +1097,9 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     bool usedAuthored[Dim::STAGING_LAYERS]{};
 
     for (uint32_t p = 0; p < painting_count; p++) {
-        uint32_t slot = find_free_painting_slot(gs);
+        // Outdoor takes from the whole pool: it is the path the reserve
+        // exists to PROTECT, not the one it holds back.
+        uint32_t slot = find_free_painting_slot(gs, 0u);
         if (slot == UINT32_MAX) break;
 
         uint32_t p_seed = cpu_hash(seed, GalleryProp::PER_PAINTING_BASE + p * GalleryProp::PER_PAINTING_STRIDE);
@@ -1595,6 +1630,31 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // Track which authored layers have been used across all walls (no duplicates)
     bool usedAuthored[Dim::STAGING_LAYERS]{};
 
+    // ─── THE WELD, BROKEN — placement-scoped, snapshot side ─────────
+    // texture_layer is a REFERENCE, not an ownership claim: many slots may
+    // point at one exhibition layer. These two arrays are the whole
+    // mechanism, and they are LOCAL — sharing lives inside one placement
+    // event and never escapes it, which is why neither free site needs to
+    // change. clear_wall_paintings sweeps every indoor frame in one pass, so
+    // all sharers of a layer die together and freeing it repeatedly is
+    // idempotent; evict_paintings_for_patch matches on real patch coords and
+    // so never sees an indoor slot at all. No refcount is warranted.
+    //
+    // A promotion is issued only on a record's FIRST use here. Afterwards the
+    // record's layer is reused: no free layer consumed, and no
+    // CopyTextureToTexture — the copy storm goes with the weld.
+    //
+    // `consumed` semantics are untouched (supply is out of scope). A record is
+    // still consumed on first use; what changes is that running out of
+    // unconsumed records now REUSES instead of dropping the frame.
+    uint32_t snapLayer[Dim::STAGING_LAYERS];   // record -> exhibition layer, or UINT32_MAX
+    uint32_t snapLastUse[Dim::STAGING_LAYERS]; // placement ordinal of last use
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+        snapLayer[i] = UINT32_MAX;
+        snapLastUse[i] = 0u;
+    }
+    uint32_t placement_ordinal = 0;   // increments per frame placed, all walls
+
     // ─── Painting scale buckets ────────────────────────────────────
     // Tabulated form lets the bucket-selection loop iterate the WALL_ART
     // sub-structs uniformly without repeating field names.
@@ -1620,6 +1680,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
         // ─── Pre-compute widths to center the group on the wall ──
         float total_width = 0.0f;
+        // The 8 is the array bound, and it must not be the thing that trims
+        // the roll — a count above it would be silently truncated here rather
+        // than rejected at the dial. per_wall_count_hi is the dial; this holds
+        // it under the storage.
+        static_assert(WALL_ART.per_wall_count_hi <= 8,
+            "per_wall_count_hi must fit painting_widths/painting_heights");
         float painting_widths[8]{};
         float painting_heights[8]{};
         uint32_t effective_count = std::min(count, 8u);
@@ -1655,7 +1721,10 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
         for (uint32_t p = 0; p < effective_count; p++) {
 
-            uint32_t slot = find_free_painting_slot(gs);
+            // The wall path stops short of the outdoor reserve. It runs once,
+            // at mood entry, and would otherwise take everything before
+            // commit_gallery gets a frame.
+            uint32_t slot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
             // Exhaustion ends THIS WALL, not the hang. `return` here
             // abandoned every remaining wall — one full wall and three bare
             // ones — and skipped the closing log too, which is why it stayed
@@ -1711,15 +1780,44 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         break;
                     }
                 }
+                // No unconsumed record left — reuse one already promoted this
+                // event. THE SPACING RULE (Amdt II §6): take the layer whose
+                // last use is furthest back. Expressed as a maximum rather
+                // than a minimum-with-a-failure-branch, it satisfies the
+                // separation wherever separation exists and degrades to
+                // "least recently used" where it does not. Always terminates,
+                // always places — a uniqueness rule could do neither, because
+                // 4 walls x 48 frames draws on at most STAGING_LAYERS distinct
+                // images and would silently truncate the hang.
+                uint32_t reuse_stg = UINT32_MAX;
                 if (snap_stg == UINT32_MAX) {
+                    uint32_t best_gap = 0;
+                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                        if (snapLayer[i] == UINT32_MAX) continue;
+                        uint32_t gap = placement_ordinal - snapLastUse[i];
+                        if (reuse_stg == UINT32_MAX || gap > best_gap) {
+                            best_gap = gap;
+                            reuse_stg = i;
+                        }
+                    }
+                }
+                if (snap_stg == UINT32_MAX && reuse_stg == UINT32_MAX) {
                     if (count_unused_authored(gs, usedAuthored) == 0) continue;
                     use_snapshot = false;
                 }
                 else {
-                    uint32_t exh = find_free_exhibition_layer(gs);
-                    if (exh == UINT32_MAX) break;   // this wall, not the hang
+                    const bool first_use = (snap_stg != UINT32_MAX);
+                    const uint32_t rec = first_use ? snap_stg : reuse_stg;
 
-                    const auto& snap = gs.snapshot_staging[snap_stg];
+                    uint32_t exh;
+                    if (first_use) {
+                        exh = find_free_exhibition_layer(gs);
+                        if (exh == UINT32_MAX) break;   // this wall, not the hang
+                    } else {
+                        exh = snapLayer[rec];           // already ours; costs nothing
+                    }
+
+                    const auto& snap = gs.snapshot_staging[rec];
                     float height = painting_heights[p];
                     paint_width = height * snap.aspect_ratio;
 
@@ -1740,9 +1838,13 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         FRAME_SNAPSHOT,
                         INT32_MAX, INT32_MAX);
 
-                    gs.exhibition_occupied[exh] = true;
-                    gs.snapshot_staging[snap_stg].consumed = true;
-                    queue_promotion(gs, true, snap_stg, exh);
+                    if (first_use) {
+                        gs.exhibition_occupied[exh] = true;
+                        gs.snapshot_staging[rec].consumed = true;
+                        queue_promotion(gs, true, rec, exh);
+                        snapLayer[rec] = exh;
+                    }
+                    snapLastUse[rec] = placement_ordinal++;
 
                     cursor += paint_width + WALL_ART.painting_gap;
                     c->gpuState_.upload_painting_slot(queue, slot, s);
@@ -1796,6 +1898,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 gs.exhibition_occupied[exh] = true;
                 gs.authored_staging[auth_stg].consumed = true;
                 queue_promotion(gs, false, auth_stg, exh);
+                // The spacing clock counts EVERY frame placed, not only the
+                // snapshots, so a gap measures real distance along the wall.
+                // The authored path keeps its own no-duplicates rule
+                // (usedAuthored) and shares no layers — it draws on a disk
+                // manifest, not on a 16-deep freshness window.
+                placement_ordinal++;
 
                 cursor += paint_width + WALL_ART.painting_gap;
                 c->gpuState_.upload_painting_slot(queue, slot, s);

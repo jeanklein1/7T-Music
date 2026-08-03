@@ -1122,7 +1122,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
         // The cap law, ribbon-shaped: extent = clearance + vertical
         // wave + half a cube; all four dimensions ride one ratio.
         const float cap_h  = INDOOR_HEIGHT_CAP_FRACTION
-                           * MOOD_TABLE[c->mood_state_.active].ceiling_height;
+                           * MOOD_TABLE[c->mood_state_.active].wall_height;
         const float extent = sel.height + sel.vertical_amp + 0.5f * sel.cube_size;
         if (extent > cap_h) {
             const float s = cap_h / extent;

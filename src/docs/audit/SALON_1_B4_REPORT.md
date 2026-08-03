@@ -136,8 +136,22 @@ ceiling:
 - **`SPAWN_BUDGET_PER_FRAME = 4`** (`surface_services.hpp:132`) — a rate limit
   on patches processed per frame, not a population limit.
 
-**Treat 48 as the number to reserve.** It is not a pathological corner; it is
-the ordinary steady state of a large basin room after a few minutes of walking.
+**Treat 48 as the number to reserve — but read it as a GEOMETRIC BOUND, not as
+an expected occupancy.** Reaching it needs sixteen galleries all rolling `n = 3`
+against a distribution with mean 5, landing on a near-perfect 4×4 grid at
+exactly the exclusion distance, under a spawner that places randomly with
+rejection. Random sequential placement reaches roughly half of grid density, so
+the **realistic peak is 25–35**.
+
+Reserve 48 regardless: a floor should be a bound, and sixteen slots is nothing
+against 288. But the distinction has to travel with the number. The next
+campaign to need a gallery figure will find this one in the ledger, and if it
+reads "ordinary steady state" it will size a draw list to it — where the
+overstatement is not cheap. A number carrying an unearned claim is the
+stale-label failure mode with better grammar.
+
+*(Corrected by Amendment III §3. The first version of this paragraph called 48
+"the ordinary steady state of a large basin room"; it is not.)*
 
 ---
 
