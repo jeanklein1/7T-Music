@@ -87,6 +87,12 @@ struct GoLState;   struct EntitiesState; struct MachineCtx;
 struct OrbsState;   struct OrbsDeps;
 struct GalleryState; struct GalleryDeps;
 struct PawnState;
+// The gallery dependency is NOT satisfied by these forward declarations
+// alone: this file calls place_wall_paintings / clear_wall_paintings and
+// reads WALL_ART.paint_y_frac (THE CROWN LAW, below), all of which need
+// bodies/gallery.hpp complete. The cohort order supplies it —
+// cartridge.hpp includes gallery.hpp (:78) before mood.hpp (:81), which
+// its own include note already names. Moving either breaks this file.
 
 // ═══ MOOD STATE + PROFILE VOCABULARY — GRADUATED ═════════════════
 // MoodState / CeilingType / MoodProfile / MOOD_TABLE live in
@@ -601,12 +607,18 @@ struct VaultCrown { float spring_h; float rise; float crown_h; };
 inline VaultCrown vault_crown(const MoodProfile& m, float bmin, float bmax) {
     static constexpr float VAULT_RISE_FRACTION  = 0.30f;
     static constexpr float SPRING_MARGIN        = 8.0f;
-    static constexpr float PAINT_CENTER_FRACTION = 0.45f;
     static constexpr float PAINT_TOP_MARGIN     = 5.5f;
     static constexpr float MIN_RISE_FLOOR       = 5.0f;
     const float ch = m.ceiling_height;
     const float half_span = (bmax - bmin) * 0.5f;
-    const float paint_center = ch * PAINT_CENTER_FRACTION;
+    // WHERE THE PAINTINGS HANG IS NOT VAULT GEOMETRY. The spring is sized
+    // to clear the art, so the fraction that places the art is the art's
+    // fact and has one home — WALL_ART (gallery.hpp). The local
+    // PAINT_CENTER_FRACTION = 0.45f that used to sit here was a second
+    // spelling of it, agreeing by coincidence, with the room's shape
+    // deriving from the duplicate. PAINT_TOP_MARGIN and SPRING_MARGIN stay:
+    // those ARE vault geometry, not duplicates.
+    const float paint_center = ch * WALL_ART.paint_y_frac;
     const float paint_top = paint_center + PAINT_TOP_MARGIN;
     const float spring_h = paint_top + SPRING_MARGIN;
     const float min_rise = ch - spring_h;
