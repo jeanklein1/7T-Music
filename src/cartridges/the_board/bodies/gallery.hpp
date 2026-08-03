@@ -266,6 +266,11 @@ struct WallArtConfig {
     // — which is the whole defect PROPORTION exists to remove. Divide the
     // wall instead: mean piece ~12 wu plus a ~10 wu share of gap and air.
     float target_spacing;       // world units of wall per piece
+    // And a ceiling on it, because proportional is not the same as unbounded:
+    // at radius 4 the raw division asks for 19 a wall, 76 a room, against a
+    // library of 64 distinct images. The cap is what makes the layer budget
+    // provable — see the two asserts below.
+    uint32_t per_wall_cap;      // hard ceiling on pieces per wall
 
     // ─── Wall surface geometry ──────────────────────────────
     float corner_margin;        // distance from wall corners
@@ -299,8 +304,10 @@ inline constexpr WallArtConfig WALL_ART = {
     /* wall_count_t2 */ 0.0075f,
     /* wall_count_t3 */ 0.2775f,
 
-    // per-wall row density — yields 5 / 10 / 14 / 19 pieces at radius 1..4
+    // per-wall row density — the division yields 5 / 10 / 14 / 19 at radius
+    // 1..4, and the cap flattens the top two to 7
     /* target_spacing */ 22.0f,
+    /* per_wall_cap   */ 7,
 
     // wall surface geometry
     /* corner_margin     */ 12.0f,
@@ -354,8 +361,16 @@ inline constexpr float INDOOR_MAX_USABLE_SPAN =
     ? (INDOOR_MAX_WALL_SPAN - 2.0f * WALL_ART.corner_margin)
     : (INDOOR_MAX_WALL_SPAN * 0.3f);
 
-inline constexpr uint32_t INDOOR_MAX_ROW_COUNT =
+// The cap and the division both bound the row, so the array bound is the
+// smaller. Keeping the min HERE rather than only at the call site means plan[]
+// shrinks with the cap instead of carrying storage for a row that can no
+// longer happen.
+inline constexpr uint32_t INDOOR_MAX_ROW_DERIVED =
     (uint32_t)(INDOOR_MAX_USABLE_SPAN / WALL_ART.target_spacing);   // 19 today
+
+inline constexpr uint32_t INDOOR_MAX_ROW_COUNT =
+    WALL_ART.per_wall_cap < INDOOR_MAX_ROW_DERIVED
+    ? WALL_ART.per_wall_cap : INDOOR_MAX_ROW_DERIVED;               // 7 today
 
 // THE SLOT BUDGET, PROVED RATHER THAN CLAIMED. The dials on this panel feed
 // the sum and they will be turned; a number derived by hand in a handoff is a
@@ -1799,12 +1814,13 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         float usable_span = std::max(wall.span - 2.0f * WALL_ART.corner_margin,
             wall.span * 0.3f);
 
-        // ONE DIAL: the count is READ OFF THE WALL, not rolled. This is the
-        // whole of PROPORTION — a long wall gets a long row and a short wall a
-        // short one, at one scale, with no second system and therefore no
-        // seam. The upper clamp is not an argument about reachability: it is
-        // the plan array's bound made unconditional, so an index can never
-        // outrun its storage even if a future mood widens the room.
+        // ONE DIAL AND ITS CEILING. The count is READ OFF THE WALL, not rolled
+        // — a long wall gets a long row and a short wall a short one, at one
+        // scale, with no second system and therefore no seam. INDOOR_MAX_ROW_COUNT
+        // is already min(per_wall_cap, derived), so this single min applies both
+        // bounds; a second min against the cap here would apply the same
+        // ceiling twice. It is also the plan array's bound made unconditional,
+        // so an index cannot outrun its storage if a future mood widens the room.
         uint32_t count = std::min(INDOOR_MAX_ROW_COUNT,
             std::max(1u, (uint32_t)(usable_span / WALL_ART.target_spacing)));
 
