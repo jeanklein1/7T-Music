@@ -1630,6 +1630,31 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // Track which authored layers have been used across all walls (no duplicates)
     bool usedAuthored[Dim::STAGING_LAYERS]{};
 
+    // ─── THE WELD, BROKEN — placement-scoped, snapshot side ─────────
+    // texture_layer is a REFERENCE, not an ownership claim: many slots may
+    // point at one exhibition layer. These two arrays are the whole
+    // mechanism, and they are LOCAL — sharing lives inside one placement
+    // event and never escapes it, which is why neither free site needs to
+    // change. clear_wall_paintings sweeps every indoor frame in one pass, so
+    // all sharers of a layer die together and freeing it repeatedly is
+    // idempotent; evict_paintings_for_patch matches on real patch coords and
+    // so never sees an indoor slot at all. No refcount is warranted.
+    //
+    // A promotion is issued only on a record's FIRST use here. Afterwards the
+    // record's layer is reused: no free layer consumed, and no
+    // CopyTextureToTexture — the copy storm goes with the weld.
+    //
+    // `consumed` semantics are untouched (supply is out of scope). A record is
+    // still consumed on first use; what changes is that running out of
+    // unconsumed records now REUSES instead of dropping the frame.
+    uint32_t snapLayer[Dim::STAGING_LAYERS];   // record -> exhibition layer, or UINT32_MAX
+    uint32_t snapLastUse[Dim::STAGING_LAYERS]; // placement ordinal of last use
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+        snapLayer[i] = UINT32_MAX;
+        snapLastUse[i] = 0u;
+    }
+    uint32_t placement_ordinal = 0;   // increments per frame placed, all walls
+
     // ─── Painting scale buckets ────────────────────────────────────
     // Tabulated form lets the bucket-selection loop iterate the WALL_ART
     // sub-structs uniformly without repeating field names.
@@ -1755,15 +1780,44 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         break;
                     }
                 }
+                // No unconsumed record left — reuse one already promoted this
+                // event. THE SPACING RULE (Amdt II §6): take the layer whose
+                // last use is furthest back. Expressed as a maximum rather
+                // than a minimum-with-a-failure-branch, it satisfies the
+                // separation wherever separation exists and degrades to
+                // "least recently used" where it does not. Always terminates,
+                // always places — a uniqueness rule could do neither, because
+                // 4 walls x 48 frames draws on at most STAGING_LAYERS distinct
+                // images and would silently truncate the hang.
+                uint32_t reuse_stg = UINT32_MAX;
                 if (snap_stg == UINT32_MAX) {
+                    uint32_t best_gap = 0;
+                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                        if (snapLayer[i] == UINT32_MAX) continue;
+                        uint32_t gap = placement_ordinal - snapLastUse[i];
+                        if (reuse_stg == UINT32_MAX || gap > best_gap) {
+                            best_gap = gap;
+                            reuse_stg = i;
+                        }
+                    }
+                }
+                if (snap_stg == UINT32_MAX && reuse_stg == UINT32_MAX) {
                     if (count_unused_authored(gs, usedAuthored) == 0) continue;
                     use_snapshot = false;
                 }
                 else {
-                    uint32_t exh = find_free_exhibition_layer(gs);
-                    if (exh == UINT32_MAX) break;   // this wall, not the hang
+                    const bool first_use = (snap_stg != UINT32_MAX);
+                    const uint32_t rec = first_use ? snap_stg : reuse_stg;
 
-                    const auto& snap = gs.snapshot_staging[snap_stg];
+                    uint32_t exh;
+                    if (first_use) {
+                        exh = find_free_exhibition_layer(gs);
+                        if (exh == UINT32_MAX) break;   // this wall, not the hang
+                    } else {
+                        exh = snapLayer[rec];           // already ours; costs nothing
+                    }
+
+                    const auto& snap = gs.snapshot_staging[rec];
                     float height = painting_heights[p];
                     paint_width = height * snap.aspect_ratio;
 
@@ -1784,9 +1838,13 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                         FRAME_SNAPSHOT,
                         INT32_MAX, INT32_MAX);
 
-                    gs.exhibition_occupied[exh] = true;
-                    gs.snapshot_staging[snap_stg].consumed = true;
-                    queue_promotion(gs, true, snap_stg, exh);
+                    if (first_use) {
+                        gs.exhibition_occupied[exh] = true;
+                        gs.snapshot_staging[rec].consumed = true;
+                        queue_promotion(gs, true, rec, exh);
+                        snapLayer[rec] = exh;
+                    }
+                    snapLastUse[rec] = placement_ordinal++;
 
                     cursor += paint_width + WALL_ART.painting_gap;
                     c->gpuState_.upload_painting_slot(queue, slot, s);
@@ -1840,6 +1898,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 gs.exhibition_occupied[exh] = true;
                 gs.authored_staging[auth_stg].consumed = true;
                 queue_promotion(gs, false, auth_stg, exh);
+                // The spacing clock counts EVERY frame placed, not only the
+                // snapshots, so a gap measures real distance along the wall.
+                // The authored path keeps its own no-duplicates rule
+                // (usedAuthored) and shares no layers — it draws on a disk
+                // manifest, not on a 16-deep freshness window.
+                placement_ordinal++;
 
                 cursor += paint_width + WALL_ART.painting_gap;
                 c->gpuState_.upload_painting_slot(queue, slot, s);
