@@ -260,9 +260,12 @@ struct WallArtConfig {
     float wall_count_t2;
     float wall_count_t3;
 
-    // ─── Per-wall painting count: uniform [lo, hi] inclusive ─
-    uint32_t per_wall_count_lo;
-    uint32_t per_wall_count_hi;
+    // ─── Per-wall row density: ONE dial, read against the wall ─
+    // The count is not rolled. A uniform [1,5] gave the same short row on a
+    // 126 wu wall and a 426 wu one, so the biggest rooms read as the emptiest
+    // — which is the whole defect PROPORTION exists to remove. Divide the
+    // wall instead: mean piece ~12 wu plus a ~10 wu share of gap and air.
+    float target_spacing;       // world units of wall per piece
 
     // ─── Wall surface geometry ──────────────────────────────
     float corner_margin;        // distance from wall corners
@@ -296,9 +299,8 @@ inline constexpr WallArtConfig WALL_ART = {
     /* wall_count_t2 */ 0.0075f,
     /* wall_count_t3 */ 0.2775f,
 
-    // per-wall painting count
-    /* per_wall_count_lo */ 1,
-    /* per_wall_count_hi */ 5,
+    // per-wall row density — yields 5 / 10 / 14 / 19 pieces at radius 1..4
+    /* target_spacing */ 22.0f,
 
     // wall surface geometry
     /* corner_margin     */ 12.0f,
@@ -326,6 +328,35 @@ inline constexpr WallArtConfig WALL_ART = {
     /* mix_snapshot_chance */ 0.40f,
 };
 
+// THE ROW'S UPPER BOUND, DERIVED RATHER THAN GUESSED. The count is now a
+// function of the wall, so its maximum is a function of the biggest wall —
+// and every input is constexpr, so the plan array and the slot budget can
+// both ride the real number instead of a padded literal.
+//
+//   wall_span   = (2 * finite_radius + 1) * PATCH_EXTENT
+//   usable_span = max(wall_span - 2*corner_margin, wall_span * 0.3)
+//   count       = usable_span / target_spacing
+//
+// Monotone in finite_radius, so the bound is the value at finite_radius_max.
+// Dim::PATCH_EXTENT comes through this file's own include of state.hpp;
+// MOOD_TABLE comes by COHORT ORDER, the same reach the R4 assert below uses.
+inline constexpr uint32_t INDOOR_RADIUS_MAX =
+    MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
+        > MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max
+    ? MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
+    : MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max;
+
+inline constexpr float INDOOR_MAX_WALL_SPAN =
+    (2.0f * (float)INDOOR_RADIUS_MAX + 1.0f) * Dim::PATCH_EXTENT;
+
+inline constexpr float INDOOR_MAX_USABLE_SPAN =
+    (INDOOR_MAX_WALL_SPAN - 2.0f * WALL_ART.corner_margin) > (INDOOR_MAX_WALL_SPAN * 0.3f)
+    ? (INDOOR_MAX_WALL_SPAN - 2.0f * WALL_ART.corner_margin)
+    : (INDOOR_MAX_WALL_SPAN * 0.3f);
+
+inline constexpr uint32_t INDOOR_MAX_ROW_COUNT =
+    (uint32_t)(INDOOR_MAX_USABLE_SPAN / WALL_ART.target_spacing);   // 19 today
+
 // THE SLOT BUDGET, PROVED RATHER THAN CLAIMED. The dials on this panel feed
 // the sum and they will be turned; a number derived by hand in a handoff is a
 // claim, the same number checked by the compiler is a fact — the
@@ -337,9 +368,19 @@ inline constexpr WallArtConfig WALL_ART = {
 // so WALL_ART and GalleryConfig are not reachable from the declaration
 // site. Beside the dials is also where a dial-turner will see it.
 static_assert(Dim::PAINTING_MAX_SLOTS >=
-      4u * WALL_ART.per_wall_count_hi
+      4u * INDOOR_MAX_ROW_COUNT
     + GalleryConfig::OUTDOOR_SLOT_RESERVE,
     "slot budget: the four walls' rows and the outdoor reserve must fit");
+
+// THE LAYER SUPPLY, load-bearing as of PROPORTION. A four-wall room used to
+// want at most 20 frames and never came near the exhibition array; it can now
+// want 76. The row does not need a layer per FRAME — snapLayer shares one
+// across every reuse of a record and usedAuthored keeps authored unique — so
+// the demand is one layer per distinct RECORD, and there are two staging
+// arrays of them. This holds with nothing to spare, which is why it is
+// written down rather than noticed later.
+static_assert(2u * Dim::STAGING_LAYERS <= Dim::EXHIBITION_LAYERS,
+    "layer supply: both staging arrays must fit the exhibition array");
 
 // R4's TWO CLAMPS MUST NOT CROSS. min_bottom_height pushes a piece up,
 // top_margin pushes it down, and top wins because it is applied last — so a
@@ -403,7 +444,8 @@ struct WallArtProp {
     static constexpr uint32_t PER_WALL_STRIDE     = 20u;
 
     // off w_seed:
-    static constexpr uint32_t WALL_PAINTING_COUNT     = 0u;
+    // 0 (the per-wall count roll) is VACANT — PROPORTION reads the count off
+    // the wall's own length instead, so there is nothing left to roll.
     static constexpr uint32_t PER_PAINTING_BASE       = 100u;  // p_seed = hash(w_seed, BASE + p*STRIDE)
     static constexpr uint32_t PER_PAINTING_STRIDE     = 10u;
 };
@@ -1750,13 +1792,18 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         const auto& wall = walls[w];
         uint32_t w_seed = cpu_hash(site_seed, WallArtProp::PER_WALL_BASE + w * WallArtProp::PER_WALL_STRIDE);
 
-        // Per-wall count: uniform [lo, hi] inclusive, from WALL_ART.
-        uint32_t count_range = WALL_ART.per_wall_count_hi - WALL_ART.per_wall_count_lo + 1;
-        uint32_t count = WALL_ART.per_wall_count_lo + cpu_hash(w_seed, WallArtProp::WALL_PAINTING_COUNT) % count_range;
-
         // Keep paintings away from corners — WALL_ART knob.
         float usable_span = std::max(wall.span - 2.0f * WALL_ART.corner_margin,
             wall.span * 0.3f);
+
+        // ONE DIAL: the count is READ OFF THE WALL, not rolled. This is the
+        // whole of PROPORTION — a long wall gets a long row and a short wall a
+        // short one, at one scale, with no second system and therefore no
+        // seam. The upper clamp is not an argument about reachability: it is
+        // the plan array's bound made unconditional, so an index can never
+        // outrun its storage even if a future mood widens the room.
+        uint32_t count = std::min(INDOOR_MAX_ROW_COUNT,
+            std::max(1u, (uint32_t)(usable_span / WALL_ART.target_spacing)));
 
         // ─── SELECTION PASS — AUTHORITATIVE ──────────────────────
         // Content source, staging record and the REAL aspect are all resolved
@@ -1775,8 +1822,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         // The trim loop dies as a separate structure; its job moves in here,
         // where it can bound against REAL widths. Plan only what fits, and the
         // row is both exactly centred and guaranteed inside usable_span.
-        static_assert(WALL_ART.per_wall_count_hi <= 8,
-            "per_wall_count_hi must fit the plan array");
         struct PlannedFrame {
             float    height;
             float    aspect;
@@ -1785,8 +1830,11 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             uint32_t scale_idx;   // the bucket, carried rather than re-derived
             bool     is_snapshot;
         };
-        PlannedFrame plan[8]{};
-        uint32_t effective_count = std::min(count, 8u);
+        // Sized from the derived bound, not from a padded literal — the array
+        // and the slot budget then move together the moment target_spacing or
+        // finite_radius_max does, and neither can silently fall behind.
+        PlannedFrame plan[INDOOR_MAX_ROW_COUNT]{};
+        uint32_t effective_count = count;   // already clamped to the bound
         float    total_width = 0.0f;
         uint32_t planned = 0;
 
