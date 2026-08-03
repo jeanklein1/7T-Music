@@ -264,6 +264,13 @@ struct WallArtConfig {
     uint32_t per_wall_count_lo;
     uint32_t per_wall_count_hi;
 
+    // ─── Fill tier ceiling (E-b's R5 `full` reads this) ─────
+    // A CEILING, NOT A TARGET. The row-walk places what fits and stops. At
+    // finite_radius 1 the wall is area-bound, so raising this will NOT
+    // densify the smallest room — that is R1' working, not a shortfall.
+    // The slot budget below is proved against it.
+    uint32_t frames_per_wall_max;
+
     // ─── Wall surface geometry ──────────────────────────────
     float corner_margin;        // distance from wall corners
     float painting_gap;         // gap between adjacent painting edges
@@ -297,6 +304,8 @@ inline constexpr WallArtConfig WALL_ART = {
     /* per_wall_count_lo */ 1,
     /* per_wall_count_hi */ 5,
 
+    /* frames_per_wall_max */ 48,
+
     // wall surface geometry
     /* corner_margin     */ 12.0f,
     /* painting_gap      */ 6.0f,
@@ -317,6 +326,22 @@ inline constexpr WallArtConfig WALL_ART = {
     /* mixed_share         */ 0.05f,
     /* mix_snapshot_chance */ 0.40f,
 };
+
+// THE SLOT BUDGET, PROVED RATHER THAN CLAIMED. Three dials on this panel
+// feed the sum and all three will be turned; a number derived by hand in a
+// handoff is a claim, the same number checked by the compiler is a fact —
+// the sizeof(GPUPaintingSlot) == 128 handshake, one level up.
+//
+// It lives HERE, not beside Dim::PAINTING_MAX_SLOTS, because this is the
+// first point in the translation unit where all three facts coexist:
+// bodies/gallery.hpp includes realization/state.hpp and never the reverse,
+// so WALL_ART and GalleryConfig are not reachable from the declaration
+// site. Beside the dials is also where a dial-turner will see it.
+static_assert(Dim::PAINTING_MAX_SLOTS >=
+      4u * WALL_ART.frames_per_wall_max
+    + 4u * WALL_ART.per_wall_count_hi
+    + GalleryConfig::OUTDOOR_SLOT_RESERVE,
+    "slot budget: fill + centre band + outdoor reserve must fit");
 
 // ── Property index registries ────────────────────────────────────
 
