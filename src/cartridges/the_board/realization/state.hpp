@@ -1950,6 +1950,7 @@ namespace t7 {
             wgpu::BindGroupLayout photographerComputeLayout_;
             wgpu::BindGroupLayout entityPlacementComputeLayout_;
             wgpu::BindGroup galleryEntityBindGroup_;
+            wgpu::BindGroup galleryPhotographerEntityBindGroup_;  // same layout, photographer VP + camera
             wgpu::BindGroup galleryTextureBindGroup_;
             wgpu::BindGroup photographerComputeBindGroup_;
             wgpu::BindGroup entityPlacementComputeBindGroup_;
@@ -2918,6 +2919,7 @@ namespace t7 {
 
             // --- Gallery system ---
             wgpu::BindGroup gallery_entity_group() const { return galleryEntityBindGroup_; }
+            wgpu::BindGroup gallery_photographer_entity_group() const { return galleryPhotographerEntityBindGroup_; }
             wgpu::BindGroupLayout gallery_entity_layout() const { return galleryEntityBindGroupLayout_; }
             wgpu::BindGroup gallery_texture_group() const { return galleryTextureBindGroup_; }
             wgpu::BindGroupLayout gallery_texture_layout() const { return galleryTextureBindGroupLayout_; }
@@ -5506,6 +5508,37 @@ namespace t7 {
                     desc.entries = entries.data();
                     galleryEntityBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!galleryEntityBindGroup_) return false;
+                }
+
+                // Gallery photographer entity bind group (UMBRA_9) — the SAME
+                // layout as the group above, with the same two buffers swapped
+                // that the photographer render group swaps against the main one.
+                // No new layout and no new binding: the artworks join the
+                // snapshot pass because there is ONE sun shadow map and that pass
+                // samples it, so an artwork that casts and is not drawn there
+                // leaves a rectangle of shade lying on empty sand.
+                {
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    entries[0].binding = bind::g0::config;
+                    entries[0].buffer = configBuffer_;
+                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[1].binding = bind::g0::render_vp;
+                    entries[1].buffer = photographerVPBuffer_;  // ← THE DIFFERENCE
+                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[2].binding = bind::g0::render_camera;
+                    entries[2].buffer = photographerCameraBuffer_;  // ← photographer pos for fog
+                    entries[2].size = sizeof(GPUCameraState);
+                    entries[3].binding = bind::g0::render_light;
+                    entries[3].buffer = directionalLightBuffer_;
+                    entries[3].size = sizeof(GPUDirectionalLight);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Gallery Photographer Entity BindGroup";
+                    desc.layout = galleryEntityBindGroupLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    galleryPhotographerEntityBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!galleryPhotographerEntityBindGroup_) return false;
                 }
 
                 // Photographer render entity bind group (same layout as main, different VP)

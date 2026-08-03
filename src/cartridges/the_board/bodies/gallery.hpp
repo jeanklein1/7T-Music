@@ -1465,6 +1465,28 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SNAPSHOT);
 
+    // FORKS — the artworks, on the gallery layout bound to the
+    // photographer's VP. THE PHOTOGRAPHER CAN NOW SHOOT THE EXHIBITION.
+    // Not optional beside UMBRA_9: there is ONE sun shadow map and this
+    // pass samples it, so an artwork that casts and is not drawn here
+    // leaves a rectangle of shade lying on empty sand. The nesting this
+    // opens is bounded — the sampled layer is already flat and resolved,
+    // and R20 reads the exhibition texture before R21 writes it.
+    c->renderer_.draw_wall_paintings(
+        pass,
+        c->gpuState_.gallery_photographer_entity_group(),
+        c->gpuState_.gallery_texture_group(),
+        gs.wall_frame_count,
+        gs.slot_high_water
+    );
+    c->renderer_.draw_gallery_frames(
+        pass,
+        c->gpuState_.gallery_photographer_entity_group(),
+        c->gpuState_.gallery_texture_group(),
+        gs.active_painting_count,
+        gs.slot_high_water
+    );
+
     pass.End();
 
     wgpu::TexelCopyTextureInfo src{};
