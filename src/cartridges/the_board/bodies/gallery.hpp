@@ -577,10 +577,26 @@ inline void queue_promotion(GalleryState& gs,
 
 // ── Slot lookup helpers ──
 
-inline uint32_t find_free_painting_slot(const GalleryState& gs) {
-    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++)
-        if (gs.painting_slots[i].is_active == 0) return i;
-    return UINT32_MAX;
+// THE FLOOR LIVES IN THE ALLOCATOR. One handout point, one place to hold a
+// reserve — a counter beside it would be a second fact about the same thing.
+// `floor` is how many slots must remain free AFTER this one is taken;
+// returns UINT32_MAX rather than allocate past it, which both callers already
+// handle as ordinary exhaustion.
+//
+// Single pass: the free tally is counted while scanning for the first free
+// index, so this stays the O(n) it already was. Placement-event path, not a
+// frame path.
+inline uint32_t find_free_painting_slot(const GalleryState& gs, uint32_t floor) {
+    uint32_t first_free = UINT32_MAX;
+    uint32_t free_count = 0;
+    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+        if (gs.painting_slots[i].is_active == 0) {
+            if (first_free == UINT32_MAX) first_free = i;
+            free_count++;
+        }
+    }
+    if (first_free == UINT32_MAX) return UINT32_MAX;   // nothing free at all
+    return free_count > floor ? first_free : UINT32_MAX;
 }
 
 // ── Impl-internal forward declarations ───────────────────────────
@@ -1081,7 +1097,9 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     bool usedAuthored[Dim::STAGING_LAYERS]{};
 
     for (uint32_t p = 0; p < painting_count; p++) {
-        uint32_t slot = find_free_painting_slot(gs);
+        // Outdoor takes from the whole pool: it is the path the reserve
+        // exists to PROTECT, not the one it holds back.
+        uint32_t slot = find_free_painting_slot(gs, 0u);
         if (slot == UINT32_MAX) break;
 
         uint32_t p_seed = cpu_hash(seed, GalleryProp::PER_PAINTING_BASE + p * GalleryProp::PER_PAINTING_STRIDE);
@@ -1678,7 +1696,10 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
         for (uint32_t p = 0; p < effective_count; p++) {
 
-            uint32_t slot = find_free_painting_slot(gs);
+            // The wall path stops short of the outdoor reserve. It runs once,
+            // at mood entry, and would otherwise take everything before
+            // commit_gallery gets a frame.
+            uint32_t slot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
             // Exhaustion ends THIS WALL, not the hang. `return` here
             // abandoned every remaining wall — one full wall and three bare
             // ones — and skipped the closing log too, which is why it stayed
