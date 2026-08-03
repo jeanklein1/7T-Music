@@ -374,11 +374,16 @@ static_assert(Dim::PAINTING_MAX_SLOTS >=
 
 // THE LAYER SUPPLY, load-bearing as of PROPORTION. A four-wall room used to
 // want at most 20 frames and never came near the exhibition array; it can now
-// want 76. The row does not need a layer per FRAME — snapLayer shares one
-// across every reuse of a record and usedAuthored keeps authored unique — so
-// the demand is one layer per distinct RECORD, and there are two staging
-// arrays of them. This holds with nothing to spare, which is why it is
-// written down rather than noticed later.
+// ask for 76, and since the weld was restored it wants one layer per FRAME.
+//
+// It never gets to 76, and that is the point: no record repeats, so frames are
+// bounded by DISTINCT RECORDS — two staging arrays of them — long before they
+// are bounded by anything else. The two bounds are the same number, so the
+// exhibition array can never be the thing that ends a row. Content is. That
+// makes the console's counts a true reading of supply rather than of a layer
+// shortage, which is the whole reason the next stage can be about supply.
+//
+// It holds with nothing to spare, which is why it is written down.
 static_assert(2u * Dim::STAGING_LAYERS <= Dim::EXHIBITION_LAYERS,
     "layer supply: both staging arrays must fit the exhibition array");
 
@@ -1746,36 +1751,18 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // Track which authored layers have been used across all walls (no duplicates)
     bool usedAuthored[Dim::STAGING_LAYERS]{};
 
-    // ─── THE WELD, BROKEN — placement-scoped, snapshot side ─────────
-    // texture_layer is a REFERENCE, not an ownership claim: many slots may
-    // point at one exhibition layer. These two arrays are the whole
-    // mechanism, and they are LOCAL — sharing lives inside one placement
-    // event and never escapes it, which is why neither free site needs to
-    // change. clear_wall_paintings sweeps every indoor frame in one pass, so
-    // all sharers of a layer die together and freeing it repeatedly is
-    // idempotent; evict_paintings_for_patch matches on real patch coords and
-    // so never sees an indoor slot at all. No refcount is warranted.
+    // THE WELD IS RESTORED. D broke it deliberately — texture_layer became a
+    // reference so many frames could draw one image, which at three frames a
+    // wall was invisible and at nineteen is the visible bug: the same snapshot
+    // repeating down the row. One frame owns one layer owns one image again,
+    // and D's whole mechanism goes with it — the snapLayer map on the
+    // placement side AND the spacing rule on the selection side, which was the
+    // half that handed a record out twice in the first place. Deleting only
+    // the map would have kept the repeat and paid a second layer for it.
     //
-    // A promotion is issued only on a record's FIRST use here. Afterwards the
-    // record's layer is reused: no free layer consumed, and no
-    // CopyTextureToTexture — the copy storm goes with the weld.
-    //
-    // `consumed` semantics are untouched (supply is out of scope). A record is
-    // still consumed on first use; what changes is that running out of
-    // unconsumed records now REUSES instead of dropping the frame.
-    uint32_t snapLayer[Dim::STAGING_LAYERS];    // record -> exhibition layer, set at PLACEMENT
-    bool     planPromoted[Dim::STAGING_LAYERS]; // record already planned for a first use
-    uint32_t planLastUse[Dim::STAGING_LAYERS];  // plan ordinal of the record's last planned use
-    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        snapLayer[i] = UINT32_MAX;
-        planPromoted[i] = false;
-        planLastUse[i] = 0u;
-    }
-    // The spacing clock. It counts every frame PLANNED, authored included, so a
-    // gap measures real distance along the wall. It lives on the plan side now:
-    // E-a made selection authoritative, and the spacing rule is a selection
-    // decision.
-    uint32_t plan_ordinal = 0;
+    // What replaces it is nothing. Selection takes fresh records until there
+    // are none, then the wall ends on its own `break`. Running out of content
+    // is now a visible, bounded thing rather than a silent duplication.
 
     // ─── Painting scale buckets ────────────────────────────────────
     // Tabulated form lets the bucket-selection loop iterate the WALL_ART
@@ -1886,30 +1873,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 }
                 if (rec != UINT32_MAX) {
                     snapClaimed[rec] = true;
-                    planPromoted[rec] = true;
-                    planLastUse[rec] = plan_ordinal++;
                     f.record = rec; f.is_snapshot = true;
                     f.aspect = gs.snapshot_staging[rec].aspect_ratio;
                     resolved = true;
                 }
-                else {
-                    // THE SPACING RULE (D / Amdt II §6), now planned rather than
-                    // executed: take the record whose last use is furthest back.
-                    uint32_t reuse = UINT32_MAX, best_gap = 0;
-                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                        if (!planPromoted[i]) continue;
-                        uint32_t gap = plan_ordinal - planLastUse[i];
-                        if (reuse == UINT32_MAX || gap > best_gap) { best_gap = gap; reuse = i; }
-                    }
-                    if (reuse != UINT32_MAX) {
-                        planLastUse[reuse] = plan_ordinal++;
-                        f.record = reuse; f.is_snapshot = true;
-                        f.aspect = gs.snapshot_staging[reuse].aspect_ratio;
-                        resolved = true;
-                    }
-                    else if (auth_free > 0) {
-                        use_snapshot = false;   // nothing to reuse yet; try authored
-                    }
+                else if (auth_free > 0) {
+                    use_snapshot = false;   // snapshots dry; try authored
                 }
             }
 
@@ -1926,7 +1895,6 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 }
                 if (a_rec != UINT32_MAX) {
                     authClaimed[a_rec] = true;
-                    plan_ordinal++;
                     f.record = a_rec; f.is_snapshot = false;
                     f.aspect = gs.authored_staging[a_rec].aspect_ratio;
                     resolved = true;
@@ -1994,20 +1962,10 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 py = wall_height - WALL_ART.top_margin - half_h;
             }
 
-            // The layer. `snapLayer` is the authority for whether a record
-            // already has one, not the plan — a wall that broke on slot
-            // exhaustion can leave a record planned but never promoted, and
-            // reading the map rather than a plan flag makes that self-healing.
-            uint32_t exh;
-            bool first_use = true;
-            if (f.is_snapshot && snapLayer[f.record] != UINT32_MAX) {
-                first_use = false;
-                exh = snapLayer[f.record];       // already ours; costs nothing
-            }
-            else {
-                exh = find_free_exhibition_layer(gs);
-                if (exh == UINT32_MAX) break;    // this wall, not the hang
-            }
+            // ONE FRAME, ONE LAYER, ONE IMAGE. No sharing, no lookup — a free
+            // layer or the wall ends here (Stage C's break, unchanged).
+            uint32_t exh = find_free_exhibition_layer(gs);
+            if (exh == UINT32_MAX) break;    // this wall, not the hang
 
             // Planned width IS placed width, so this cursor cannot run past
             // wall_center + usable_span/2 — selection bounded the total.
@@ -2026,12 +1984,9 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                     FRAME_SNAPSHOT,
                     INT32_MAX, INT32_MAX);
 
-                if (first_use) {
-                    gs.exhibition_occupied[exh] = true;
-                    gs.snapshot_staging[f.record].consumed = true;
-                    queue_promotion(gs, true, f.record, exh);
-                    snapLayer[f.record] = exh;
-                }
+                gs.exhibition_occupied[exh] = true;
+                gs.snapshot_staging[f.record].consumed = true;
+                queue_promotion(gs, true, f.record, exh);
             }
             else {
                 const auto& img = gs.authored_staging[f.record];
