@@ -348,6 +348,36 @@ struct PlacementEntry {
 // machine face CONST — the census reads and never writes, and the
 // signature says so.
 
+// ─── SlotCensus (ARCH_2) — the occupancy triple ────────────────────
+//
+// WHY A TRIPLE AND NOT A SECOND COUNTER: `live` alone cannot say
+// whether a family is SATURATED, because the census has no denominator
+// — 16 arches reads the same as 3 until you know the array holds 16.
+// That distinction is the whole question the tier weights turn on: at a
+// fixed SPAWN_CHANCE the three ArchTiers are zero-sum in ABSOLUTE
+// counts, so if the array is already pinned at its ceiling, reweighting
+// tiers only decides WHICH bodies win a first-come race for slots — it
+// cannot add bodies. Reading a weight change as a population change is
+// the error this triple exists to make impossible.
+//
+// capacity is DEDUCED from the array by the scanning template, never
+// written — the same rule the active_count row already obeys, and for
+// the same three reasons stated at its banner in cartridge.hpp.
+//
+// high_water is the ALLOCATOR'S REACH: one past the highest live slot,
+// exact per scan, not a running maximum. It is not a session peak and
+// must not be read as one — nothing here stores state between dumps.
+// Against `live` it separates two saturation stories a single number
+// cannot: live == capacity is a full array; high_water == capacity with
+// live below it is an array that has BEEN full and now carries holes,
+// which is what a population cycling against its ceiling looks like
+// when the census happens to sample it mid-breath.
+struct SlotCensus {
+    uint32_t live;         // bodies with .active set
+    uint32_t high_water;   // one past the highest live slot (this scan)
+    uint32_t capacity;     // the array's bound — deduced, never written
+};
+
 struct FamilyDispatch {
     bool (*try_select)(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
     bool (*try_place)(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
@@ -356,6 +386,13 @@ struct FamilyDispatch {
     bool (*prepare_mesh)(MachineCtx* self, wgpu::Queue& queue);
     void (*dispatch_mesh)(MachineCtx* self, wgpu::ComputePassEncoder& pass);
     uint32_t (*active_count)(const MachineCtx* self);
+    // The occupancy triple, same scan discipline as active_count and the
+    // same CONST face. Kept a SEPARATE row rather than folded into
+    // active_count: active_count has eleven callers' worth of settled
+    // meaning as a plain population, and the census's own delta column is
+    // built from it. A diagnostic does not get to change the shape of the
+    // number the leak check is computed from.
+    SlotCensus (*slot_census)(const MachineCtx* self);
     // Does this family claim ground? (ruling 21 — the campaign law is "a
     // family registers iff its own extent touches the ground plane".) The
     // census needs it for all TWELVE families, and ribbon/gol/gallery have no

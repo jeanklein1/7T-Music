@@ -2104,12 +2104,15 @@ namespace t7 {
             (void)self; (void)pass;
         }
 
-        // ─── Census: the per-family active_count row ───────────────────────
+        // ─── Census: the per-family active_count + slot_census rows ────────
         //
         // THE COUNT IS A `.active` SCAN. NEVER A STORED FIELD. A stored
         // counter would be a number no consumer has ever validated; the
         // scan is ground truth. (The write-only per-family counters the
         // modules once carried were cut once the scan became the census.)
+        // ARCH_2 extends the rule, it does not bend it: slot_census's
+        // high-water is scanned too — it is the reach AT THAT SCAN, not a
+        // running maximum, and nothing below stores state between dumps.
         //
         // The bound is DEDUCED from the array, never written. That is not
         // brevity — it makes three standing traps structurally unreachable:
@@ -2121,7 +2124,12 @@ namespace t7 {
         //   · gol_state_.active_slot_count and cpu_pyramids.count are
         //     HIGH-WATER MARKS (highest active slot + 1), not populations.
         //     Both are live-read, which is what makes them tempting; neither
-        //     is reachable from here.
+        //     is reachable from here. ARCH_2 makes this bullet sharper, not
+        //     stale: slot_census now PRINTS a high-water, so the temptation
+        //     is no longer "close enough" but "the same word". It is still
+        //     the wrong number — those two fields are maintained for their
+        //     own consumers, on their own cadence, for two families out of
+        //     twelve. The census scans; it does not borrow.
         //
         // GALLERY counts gallery_centers, not painting_slots[32] — the latter
         // is shared with the indoor_shell feature via form_type == WALL_FRAME
@@ -2139,6 +2147,29 @@ namespace t7 {
             return n;
         }
 
+        // The occupancy triple (ARCH_2), same shape and same deduced bound.
+        // N is the capacity: that is the ONLY way the ceiling reaches the
+        // census without a constant being named here, which is what keeps the
+        // three traps above unreachable — the ribbon/gallery bounds are not
+        // Dim:: members, and the antenna/cube slot offsets are GPU-side.
+        //
+        // Deliberately a SECOND pass over the array, not a merge with
+        // census_scan_active. The two numbers must be able to disagree: `live`
+        // feeds the delta column that catches ground/body leaks, and a
+        // diagnostic that silently re-derived it would put the leak check
+        // downstream of itself. Twelve arrays at ≤288 entries, once per
+        // census dump — the cost is not measurable beside the print.
+        template<typename T, size_t N>
+        inline SlotCensus census_scan_slots(const T (&arr)[N]) {
+            SlotCensus s{ 0u, 0u, static_cast<uint32_t>(N) };
+            for (size_t i = 0; i < N; i++) {
+                if (!arr[i].active) continue;
+                s.live++;
+                s.high_water = static_cast<uint32_t>(i) + 1u;   // ascending scan: last write wins
+            }
+            return s;
+        }
+
         inline uint32_t active_count_pyramid(const MachineCtx* c) { return census_scan_active(c->entities_state_.pyramids); }
         inline uint32_t active_count_arch   (const MachineCtx* c) { return census_scan_active(c->entities_state_.arches); }
         inline uint32_t active_count_column (const MachineCtx* c) { return census_scan_active(c->entities_state_.columns); }
@@ -2152,6 +2183,23 @@ namespace t7 {
         inline uint32_t active_count_gol    (const MachineCtx* c) { return census_scan_active(c->gol_state_.zones); }
         inline uint32_t active_count_gallery(const MachineCtx* c) { return census_scan_active(c->gallery_state_.gallery_centers); }
 
+        // The slot_census row — the SAME twelve arrays, named once more so the
+        // capacity travels with the population. Any divergence between these
+        // two lists is a family reporting its live count off one array and its
+        // ceiling off another, so they are kept adjacent on purpose.
+        inline SlotCensus slot_census_pyramid(const MachineCtx* c) { return census_scan_slots(c->entities_state_.pyramids); }
+        inline SlotCensus slot_census_arch   (const MachineCtx* c) { return census_scan_slots(c->entities_state_.arches); }
+        inline SlotCensus slot_census_column (const MachineCtx* c) { return census_scan_slots(c->entities_state_.columns); }
+        inline SlotCensus slot_census_antenna(const MachineCtx* c) { return census_scan_slots(c->entities_state_.antennas); }
+        inline SlotCensus slot_census_palm   (const MachineCtx* c) { return census_scan_slots(c->entities_state_.palms); }
+        inline SlotCensus slot_census_cactus (const MachineCtx* c) { return census_scan_slots(c->entities_state_.cacti); }
+        inline SlotCensus slot_census_blade  (const MachineCtx* c) { return census_scan_slots(c->entities_state_.blades); }
+        inline SlotCensus slot_census_sphere (const MachineCtx* c) { return census_scan_slots(c->sphere_state_.activeSpheres_); }
+        inline SlotCensus slot_census_ribbon (const MachineCtx* c) { return census_scan_slots(c->ribbon_state_.active); }
+        inline SlotCensus slot_census_cube   (const MachineCtx* c) { return census_scan_slots(c->cube_behaviors_state_.activeCubes_); }
+        inline SlotCensus slot_census_gol    (const MachineCtx* c) { return census_scan_slots(c->gol_state_.zones); }
+        inline SlotCensus slot_census_gallery(const MachineCtx* c) { return census_scan_slots(c->gallery_state_.gallery_centers); }
+
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
         //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
@@ -2160,7 +2208,8 @@ namespace t7 {
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
         //     { try_select, try_place, try_commit, evict_slot,
-        //       prepare_mesh, dispatch_mesh, active_count, grounded, name }
+        //       prepare_mesh, dispatch_mesh, active_count, slot_census,
+        //       grounded, name }
         // CONSUMERS: the machine tail walks select/place/commit per queue
         //   entry; eviction routes through evict_slot; the mesh pair feeds the
         //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
@@ -2168,62 +2217,74 @@ namespace t7 {
             { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
               evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
               active_count_pyramid,
+              slot_census_pyramid,
               PYRAMID_TRAITS.grounded,
               "pyr" },
             { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
               evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
               active_count_arch,
+              slot_census_arch,
               ARCH_TRAITS.grounded,
               "arch" },
             { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
               evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
               active_count_column,
+              slot_census_column,
               COLUMN_TRAITS.grounded,
               "col" },
             { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
               evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
               active_count_antenna,
+              slot_census_antenna,
               ANTENNA_TRAITS.grounded,
               "ant" },
             { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
               evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
               active_count_palm,
+              slot_census_palm,
               PALM_TRAITS.grounded,
               "palm" },
             { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
               evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
               active_count_cactus,
+              slot_census_cactus,
               CACTUS_TRAITS.grounded,
               "cact" },
             { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
               evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
               active_count_blade,
+              slot_census_blade,
               BLADE_TRAITS.grounded,
               "blad" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
               evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,
+              slot_census_sphere,
               SPHERE_TRAITS.grounded,   // false — orbits an anchor, claims no ground
               "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
             { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
               evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_ribbon,
+              slot_census_ribbon,
               true,   // anchored: the tips touch ground (no TRAITS object)
               "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
             { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
               evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_cube,
+              slot_census_cube,
               CUBE_TRAITS.grounded,      // false — hovers and drifts, claims no ground
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
             { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
               evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_gol,
+              slot_census_gol,
               true,   // registers directly, gol_zones.hpp (no TRAITS object)
               "gol" },   // mesh hook → none-fork: GoL has no mesh — the zone IS
                          // the ground (UNIFIED_GROUND_1); the lift rides the card's .a
             { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
               evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_gallery,
+              slot_census_gallery,
               true,   // registers directly, gallery.hpp (no TRAITS object)
               "gall" },
         };

@@ -753,6 +753,63 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
             << " live footprint(s) carry no family — deltas above are understated\n";
     }
 
+    // ─── SLOT OCCUPANCY (ARCH_2) ──────────────────────────────────────
+    //
+    // THE TABLE ABOVE HAS NO DENOMINATOR. It answers "how many stand" and
+    // "does ground agree with body"; it cannot answer "could there have
+    // been more", because nothing in it names a ceiling. This block adds
+    // the ceiling and the reach, and it is the number the arch tier
+    // weights have to be read against.
+    //
+    // WHY IT DECIDES: ArchConfig::SPAWN_CHANCE sets how many arches are
+    // ATTEMPTED; ARCH_TIERS' three weights only choose WHICH tier each
+    // attempt becomes. They are zero-sum in absolute counts. So a tier
+    // reweight adds big arches only while the array has room — if live is
+    // already sitting at capacity, the same reweight adds nothing and
+    // merely reshuffles which bodies win a first-come race for the
+    // sixteen slots. Same table, opposite conclusion, and the only thing
+    // that tells them apart is printed here.
+    //
+    // ALL TWELVE ROWS, not the grounded ten. The dash convention above is
+    // for FOOTPRINT-derived columns, and a family that claims no ground
+    // genuinely has nothing to report there. These columns are
+    // ARRAY-derived: every family has an instance array with a bound, so
+    // every family has an honest answer, floaters included. The one dash
+    // here is `portal`, below.
+    //
+    // hi-wtr is one past the highest live slot AT THIS SCAN — the
+    // allocator's reach, not a session peak. Nothing is stored between
+    // dumps. live == cap is a full array; hi-wtr == cap with live under it
+    // is an array that has been full and now carries holes, which is what
+    // a population cycling against its ceiling looks like when the census
+    // samples it mid-breath. Both readings mean "the ceiling is binding".
+    //
+    // portal is arch-only and DASHED elsewhere — not zeroed. A palm has no
+    // portal count to be zero; PORTAL_DENSITY applies to the DOORWAY arch
+    // tier alone (mood.hpp), so `0` on a palm row would be a measurement
+    // of something that does not exist. Same law as census_put_dash.
+    // It is a SUBSET of the arch row's live, never a separate population:
+    // portals are force-spawned into the same sixteen slots every rolled
+    // arch competes for (force_spawn_portal_arch, grounded.hpp), which is
+    // precisely why a portal-heavy tier skew costs big arches.
+    uint32_t portal_arches = 0;
+    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+        const auto& a = c->entities_state_.arches[i];
+        if (a.active && a.is_portal) portal_arches++;
+    }
+
+    std::cout << "  fam      live   hi-wtr     cap  portal\n";
+    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+        const SlotCensus s = FAMILY_DISPATCH[f].slot_census(c);
+        std::cout << "  " << std::left << std::setw(7) << family_short_name(f) << std::right
+            << std::setw(6) << s.live
+            << std::setw(9) << s.high_water
+            << std::setw(8) << s.capacity;
+        if (f == PopFamily::ARCH) std::cout << std::setw(8) << portal_arches;
+        else                      census_put_dash(8);
+        std::cout << "\n";
+    }
+
     // ARRIVALS ONLY — the detail listing shows what appeared since the last
     // census, not everything that stands.
     //
