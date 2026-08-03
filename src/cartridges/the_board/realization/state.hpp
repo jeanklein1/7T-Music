@@ -251,12 +251,9 @@ namespace t7 {
             constexpr uint32_t SHELL_MAX_INDICES = 8192;
 
             // Painting system: staging + exhibition
-            // Budget: 4 walls x 48 fill frames (192) + 4 walls x 5 centre-band
-            // (20) + 48 outdoor reserve (GalleryConfig::OUTDOOR_SLOT_RESERVE,
-            // measured — see src/docs/audit/SALON_1_B4_REPORT.md) = 260, plus
-            // 28 slack. The compile-time proof of that sum cannot live here:
-            // WALL_ART and GalleryConfig are in bodies/gallery.hpp, which
-            // INCLUDES this file, so neither is reachable from this line.
+            // The budget this must cover is proved by a static_assert beside
+            // WALL_ART in bodies/gallery.hpp — the first site that can see all
+            // three dials. Do not restate the sum here.
             constexpr uint32_t PAINTING_MAX_SLOTS = 288;      // max exhibited paintings
             constexpr uint32_t PAINTING_RESOLUTION = 1024;
             constexpr uint32_t STAGING_LAYERS = 16;            // per staging array (snapshot + authored)
