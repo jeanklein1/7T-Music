@@ -22,7 +22,14 @@
 // FORKS (Discipline 2 — flagged, NOT forced into a uniform row):
 //   - terrain: three different per-pass codes (shadow: LOD0 + manual LOD1;
 //     main: LOD0 indirect/direct + LOD1 direct; snapshot: one direct draw).
-//   - wall_paintings / gallery_frames: their OWN gallery bind groups.
+//   - wall_paintings / gallery_frames: their OWN gallery bind groups, in
+//     ALL THREE passes (UMBRA_9). This is the triplication the table
+//     exists to kill, and the pair cannot enter it: a row would need three
+//     different entity groups across the three passes, and DrawBind carries
+//     one `shadow` bool. Growing that struct for one fork's benefit makes
+//     every pass pay for the gallery's shape. Flagged, hand-synced, and
+//     the debt is three sites — grep the two draw verbs before editing
+//     either.
 //   - orbs / fade: blended, ORDER-SENSITIVE, kept LAST in the main pass.
 // These stay as explicit code in their pass function; only the uniform
 // opaque entity draws live in the table.

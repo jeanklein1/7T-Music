@@ -32,11 +32,6 @@
 //   0.01 deliberately — authored-but-unused, kept available for a
 //   future "wide environmental" framing pass. Same family as the
 //   ribbon harmonic-ratio palettes (ribbon:P8).
-// NOTE[gallery:shadows-missing] paintings (terrain quads) and wall
-//   frames are not currently drawn in the shadow pass
-//   (render_passes.hpp::draw_shadow_all). They render in the main
-//   pass via draw_wall_paintings + draw_gallery_frames but cast no
-//   shadows. Known gap; not addressed in this pass.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>   // std::max, std::min, std::sort, std::transform   // (impl, merged)
