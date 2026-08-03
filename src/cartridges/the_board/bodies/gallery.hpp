@@ -387,22 +387,27 @@ static_assert(Dim::PAINTING_MAX_SLOTS >=
     + GalleryConfig::OUTDOOR_SLOT_RESERVE,
     "slot budget: the four walls' rows and the outdoor reserve must fit");
 
-// THE LAYER SUPPLY ASSERT LIVED HERE AND IS GONE, DELIBERATELY.
+// THE TWO SUPPLY BUDGETS, which the slot budget above never covered. It proves
+// SLOTS fit — 288 of them — and says nothing about the two arrays that
+// actually ran out: a frame needs an exhibition layer to draw from and a
+// staging record to draw. Four full walls need both, and neither was checked
+// until the day they ran out on wall two.
 //
-// PROPORTION wrote `2 * STAGING_LAYERS <= EXHIBITION_LAYERS`: with an uncapped
-// row, frames were bounded only by DISTINCT RECORDS, so every record had to be
-// able to hold a layer at once. It was true (32 <= 32) and it was the right
-// statement for that world.
-//
-// SUPPLY raises staging to 32, and 64 <= 40 is false. That is not a regression
-// — it is the premise expiring. Once the row is capped, a room can ask for at
-// most 4 * per_wall_cap frames and the staging arrays are a LIBRARY to draw
-// from rather than a set that must be resident simultaneously. The correct
-// bound is against the cap, not against the library, and it is written in the
-// commit that introduces the cap.
-//
-// Nothing guards the layer supply between that commit and this one. Recorded
-// so a bisect landing in the gap knows why.
+// These bound against the CAP, not against the library. PROPORTION's version
+// asserted `2 * STAGING_LAYERS <= EXHIBITION_LAYERS` — with an uncapped row
+// frames were bounded only by distinct records, so every record had to be able
+// to hold a layer at once. That premise expired with the cap: staging is now a
+// library to draw FROM, not a set that must be simultaneously resident.
+static_assert(Dim::EXHIBITION_LAYERS >= 4u * WALL_ART.per_wall_cap,
+    "layer supply: four full walls must each own a distinct exhibition layer");
+static_assert(Dim::STAGING_LAYERS >= 4u * WALL_ART.per_wall_cap,
+    "content supply: a room must be fillable with distinct images");
+
+// 40 >= 28 and 32 >= 28. The outdoor galleries share what is left over — 12
+// layers at today's dials — and their row ends on its own when it runs out.
+// That is a SHARE, not a reservation, and it is deliberately not asserted:
+// writing it down would turn a soft degradation into a build failure the first
+// time either dial moved, and outdoor is the one that should give way.
 
 // R4's TWO CLAMPS MUST NOT CROSS. min_bottom_height pushes a piece up,
 // top_margin pushes it down, and top wins because it is applied last — so a
