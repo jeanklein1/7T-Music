@@ -132,6 +132,10 @@ inline constexpr float RIBBON_FIELD_GAIN_Y   = 1.0f;    // alt_target wu per wu/
 inline constexpr float RIBBON_FIELD_SLACK    = 3.0f;
 inline constexpr float RIBBON_FIELD_K        = 300.0f;
 inline constexpr float RIBBON_FIELD_FMAX     = 600.0f;
+// The whisper's grammar at ribbon scale: a body with R_MIN = 40
+//  cannot react to what it senses at 15 — the probe rides ahead of
+//  the head along motion so the turn begins in time. Jean's dial.
+inline constexpr float RIBBON_FIELD_LOOKAHEAD = 40.0f;  // = R_MIN
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
@@ -899,10 +903,17 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         && rs.head.slot == rs.rendered_slot) {
         float hx, hy, hz, hh;
         ribbon_head_pose(rs, hx, hy, hz, hh);
+        // Motion runs along -heading (the mover's law); the probe
+        // rides ahead of the head along it (FIELD_3b) so the turn
+        // begins in time — lateral anticipates, while the vertical
+        // channel keeps the head's own y (altitude yield stays local).
+        const float mx = -std::cos(hh), mz = -std::sin(hh);
+        const float px = hx + mx * RIBBON_FIELD_LOOKAHEAD;
+        const float pz = hz + mz * RIBBON_FIELD_LOOKAHEAD;
         const float r_head = rs.gpu[rs.rendered_slot].cube_size * 0.5f;
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
         auto field_add = [&](float ex, float ey, float ez, float r_e) {
-            const float dx = hx - ex, dy = hy - ey, dz = hz - ez;
+            const float dx = px - ex, dy = hy - ey, dz = pz - ez;
             const float shell = (r_head + r_e) * RIBBON_FIELD_SLACK;
             const float len = std::sqrt(dx * dx + dy * dy + dz * dz);
             if (len >= shell) return;
@@ -938,12 +949,12 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             const float s = RIBBON_FIELD_FMAX / fmag;
             fx *= s; fy *= s; fz *= s;
         }
-        // Horizontal → the eased yaw command. Motion runs along
-        // -heading; +yaw rotates motion toward the (-sin h, cos h)
-        // side, and the signed lateral term below is positive exactly
-        // when the field lies on that side — the head turns away from
-        // what it is inside.
-        const float mx = -std::cos(hh), mz = -std::sin(hh);
+        // Horizontal → the eased yaw command. +yaw rotates motion
+        // toward the (-sin h, cos h) side, and the signed lateral
+        // term below is positive exactly when the field lies on that
+        // side. The force at the probe pushes the probe away; the
+        // same cross term turns the head away from where it was
+        // about to be.
         ribbon_yaw_in += (mx * fz - mz * fx) * RIBBON_FIELD_GAIN_XZ;
         // Vertical → the target; the pen's spring and climb clamp
         // dispose. The travel-eased raw_target reclaims it when the
