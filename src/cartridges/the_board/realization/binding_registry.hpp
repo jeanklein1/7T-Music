@@ -13,7 +13,7 @@
 // patch_instances(340) / fc_patches(340); orb_state(410) /
 // render_orb_state(400) / orb_state_ro(413).
 //
-// The WGSL @binding literals in world.wgsl (96 declarations over 93 slots;
+// The WGSL @binding literals in world.wgsl (99 declarations over 96 slots;
 // three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
 // MIRROR of this file, kept in lockstep by the boot-time bind-group and
 // pipeline validation, not by the compiler. The names here deliberately
@@ -165,9 +165,10 @@ namespace t7 {
                 // reachability topology differs).
                 inline constexpr uint32_t occupier_cmg               = 0;   // ColumnMeshParams[32] (columns 0-15, antennas 16-31)
                 inline constexpr uint32_t occupier_amg               = 1;   // ArchMeshParams[16]
-                // The field (FIELD_2) — emitter window in, force sum out.
+                // The field (FIELD_2) — emitter windows in, force sum out.
                 inline constexpr uint32_t field_head_poses           = 2;   // vec4<f32>[400] — read-only window onto headPosesBuffer_ (same buffer, new reachability; the occupier-window pattern)
                 inline constexpr uint32_t field_forces               = 3;   // vec4<f32>[FIELD_SUBSCRIBER_CAP] — read_write, the field's one output
+                inline constexpr uint32_t field_ribbon               = 4;   // RibbonState — uniform window onto ribbonBuffer_ (ring count / visibility / cube_size for the ring emitter loop; same pattern as g2:2)
             } // namespace g2
 
             // ─────────────────────────────────────────────────────────────

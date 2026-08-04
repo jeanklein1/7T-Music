@@ -2210,6 +2210,23 @@ const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
 // m_other/(m_self+m_other). Not a radius.
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
 
+// --- The avoidance field (FIELD_2, phase A) -------------------------
+// One summation loop (field_sum, hosted in update_other_agents)
+// writes field_forces: one vec4 per subscriber. INDEX MAP (mirrors
+// Dim::FIELD_SUBSCRIBER_CAP, state.hpp): [0..31] agents by slot ·
+// [32..39] spheres · [40..295] cubes — for floaters, lane − 32 is the
+// floating_entities index. Additive beside the influence law: pairs an
+// influence_response / boids row already owns are SKIPPED (phase B
+// migrates them); the possessed pawn neither emits nor subscribes.
+const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
+const FIELD_SLACK: f32 = 1.15;         // shell factor over summed radii
+const FIELD_K: f32 = 30.0;             // accel per unit of quadratic shell depth
+const FIELD_FMAX: f32 = 60.0;          // magnitude clamp on the summed force
+// Jean's gate instrument — any subscriber class zeroes independently:
+const FIELD_GAIN_CUBE: f32 = 1.0;
+const FIELD_GAIN_SPHERE: f32 = 1.0;
+const FIELD_GAIN_AGENT: f32 = 1.0;
+
 // --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
 // reference: mosaic cell PATCH_CELL_SIZE 3.125 wu -> ~1.3 cells of
 // anticipation ahead of the walker. A distance, not a gate.
@@ -2457,6 +2474,12 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // geometry, one home; the rows and the mesh can never disagree.
 @group(2) @binding(0) var<storage, read> occupier_cmg: array<ColumnMeshParams, 32>;
 @group(2) @binding(1) var<storage, read> occupier_amg: array<ArchMeshParams, 16>;
+// The field (FIELD_2): the ring-pose and ribbon-state windows in, the
+// force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
+// new reachability, not a new fact.
+@group(2) @binding(2) var<storage, read> field_head_poses : array<vec4<f32>, 400>;
+@group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, 296>;
+@group(2) @binding(4) var<uniform> field_ribbon : RibbonState;
 
 // The body-agnostic row's stand-in for g_self.contact_radius: the
 // occupier push has zero per-kernel variation (no possession case, no
@@ -7680,12 +7703,119 @@ fn update_player_agent() {
 // 32 threads, one per slot. Skips the possessed slot (handled by
 // update_player_agent). Runs algorithmic behaviors only — the heavy
 // walker-policy path never inlines here.
+// ─── THE FIELD (FIELD_2, phase A) ────────────────────────────────
+// One pair law, one summation body — the influence-law shape ("one
+// body, many callers") at field scale. field_pair is the quadratic
+// shell; field_sum resolves one subscriber lane and walks the four
+// emitter classes under the PHASE-A FEEL MATRIX: pairs the influence
+// law / boids already own are skipped (agent↔agent, point↔agent,
+// sphere→agent, point→cube), the possessed pawn neither emits nor
+// subscribes. Loops are flat and constant- or uniform-bounded
+// (banner rule 2); no textures (rule 3); outside every collision/
+// ground chain.
+
+fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
+              r_s: f32, r_e: f32, sub_i: u32, emit_i: u32) -> vec3<f32> {
+    let dvec = sub_pos - emit_pos;
+    let shell = (r_s + r_e) * FIELD_SLACK;
+    let len = length(dvec);
+    if (len >= shell) { return vec3(0.0); }
+    // Degenerate overlap: deterministic axis by index parity — no
+    // randomness, recordings stay reproducible.
+    var dir = vec3(1.0, 0.0, 0.0);
+    if (len < 1e-4) {
+        if (((sub_i ^ emit_i) & 1u) == 1u) { dir = vec3(0.0, 0.0, 1.0); }
+    } else {
+        dir = dvec / len;
+    }
+    let depth = 1.0 - len / shell;
+    return dir * (FIELD_K * depth * depth);
+}
+
+fn field_sum(sub_i: u32) -> vec3<f32> {
+    // Subscriber resolve — lane map at the FIELD consts. Radii ride
+    // the sources the CONTACT rows already use: agents
+    // agent_tier_gains[...].contact_radius (row_agent_contact's
+    // reference), floaters fe.body_radius (row_agent_sphere's S2c).
+    var sub_pos: vec3<f32>;
+    var r_s: f32;
+    if (sub_i < 32u) {
+        let a = agent_state[sub_i];
+        if (a.is_active == 0u || sub_i == config.possessed_slot) { return vec3(0.0); }
+        sub_pos = vec3(a.pos_x, a.pos_y, a.pos_z);
+        r_s = agent_tier_gains[min(a.tier_idx, 3u)].contact_radius;
+    } else {
+        let fe = floating_entities.entities[sub_i - 32u];
+        if (fe.is_active == 0u) { return vec3(0.0); }
+        sub_pos = fe.pos;
+        r_s = fe.body_radius;
+    }
+    var f = vec3(0.0);
+    if (sub_i >= 32u) {
+        // Free agents emit — floater subscribers only (agent↔agent and
+        // the point's rows own the rest; possessed never emits).
+        for (var k = 0u; k < 32u; k++) {
+            if (k == config.possessed_slot) { continue; }
+            let a = agent_state[k];
+            if (a.is_active == 0u) { continue; }
+            let r_e = agent_tier_gains[min(a.tier_idx, 3u)].contact_radius;
+            f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, r_e, sub_i, k);
+        }
+        // Spheres emit — floater subscribers only (sphere→agent is
+        // row_agent_sphere's); skip self.
+        for (var k = 0u; k < SPHERE_SLOT_COUNT; k++) {
+            if (sub_i - 32u == k) { continue; }
+            let fe = floating_entities.entities[k];
+            if (fe.is_active == 0u) { continue; }
+            f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 32u + k);
+        }
+    }
+    // Cubes emit — every subscriber; skip self.
+    for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
+        let ei = CUBE_SLOT_OFFSET + k;
+        if (sub_i >= 32u && sub_i - 32u == ei) { continue; }
+        let fe = floating_entities.entities[ei];
+        if (fe.is_active == 0u) { continue; }
+        f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 40u + k);
+    }
+    // Rings emit — every subscriber. CPU-authored centerline poses
+    // through the g2 window; liveness is the ring kernel's own
+    // predicate; the bound is a uniform (banner rule 2). Ring radius:
+    // field_ribbon.cube_size * 0.5 — the mount's half-extent reading
+    // of the one cube_size home (bodies/ribbon.hpp, cube_size * 0.5f).
+    if (field_ribbon.is_visible == 1u && field_ribbon.cube_count >= 2u) {
+        let ring_n = min(field_ribbon.cube_count, 400u);
+        for (var k = 0u; k < ring_n; k++) {
+            f += field_pair(sub_pos, field_head_poses[k].xyz, r_s,
+                            field_ribbon.cube_size * 0.5, sub_i, 296u + k);
+        }
+    }
+    let fl = length(f);
+    if (fl > FIELD_FMAX) { f = f * (FIELD_FMAX / fl); }
+    var gain = FIELD_GAIN_AGENT;
+    if (sub_i >= 40u) { gain = FIELD_GAIN_CUBE; }
+    else if (sub_i >= 32u) { gain = FIELD_GAIN_SPHERE; }
+    return f * gain;
+}
+
 @compute @workgroup_size(32)
 fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (!dynamics_0d_active()) { return; }
 
     let slot = gid.x;
     if (slot >= 32u) { return; }
+
+    // ── THE FIELD (FIELD_2): the summation lanes ───────────────────
+    // Every thread walks its lanes (slot, slot+32, …) BEFORE the
+    // possession/liveness returns below — a returned thread must not
+    // starve its sphere/cube lanes. Reads positions only, which
+    // nothing writes between here and agent_settle, so the read set
+    // equals an after-the-gather placement; lane coverage is why it
+    // sits here. Dead/possessed subscribers write rest (vec4(0)).
+    for (var lane = slot; lane < FIELD_SUBSCRIBERS; lane += 32u) {
+        field_forces[lane] = vec4(field_sum(lane), 0.0);
+    }
+
     if (slot == config.possessed_slot) { return; }   // handled separately
 
     var agent = agent_state[slot];
@@ -7801,6 +7931,16 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 point_pos(), src_vel, p_prof, signal.dt);
             agent.vel_x += p_r.x;
             agent.vel_z += p_r.y;
+        }
+
+        // ── THE FIELD (FIELD_2): the ride ──────────────────────────
+        // Beside the gather impulses, before settle. This thread's
+        // lane was summed above, so the read is same-frame fresh.
+        // Per the feel matrix the agent lane carries cube and ring
+        // terms only. xz only — agents are grounded.
+        {
+            agent.vel_x += field_forces[slot].x * signal.dt;
+            agent.vel_z += field_forces[slot].z * signal.dt;
         }
     }
 
@@ -8337,7 +8477,8 @@ fn update_cube() {
                 push_impulse = vec3(q_r.x, 0.0, q_r.y);
             }
             let spring_a = -fe.drift * fe.spring_stiffness;
-            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force) * dt + push_impulse;
+            let ff = field_forces[32u + slot].xyz;  // lane 40 + (slot − CUBE_SLOT_OFFSET): the cube band of the index map
+            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + ff) * dt + push_impulse;
             fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);
             fe.drift = fe.drift + fe.drift_vel * dt;
 

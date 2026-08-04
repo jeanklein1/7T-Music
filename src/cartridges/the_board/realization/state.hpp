@@ -1849,7 +1849,7 @@ namespace t7 {
 
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
-            wgpu::BindGroupLayout roomLayout_;  // THE ROOM (group 2): g2:0-3 — agent + floater kernels
+            wgpu::BindGroupLayout roomLayout_;  // THE ROOM (group 2): g2:0-4 — agent + floater kernels
             wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
             wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
             wgpu::BindGroupLayout bladeMeshGenLayout_;   // bindings 186-188
@@ -5016,17 +5016,17 @@ namespace t7 {
                     if (!archMeshGenLayout_) return false;
                 }
 
-                // -- THE ROOM (Group 2) -- bindings g2:0-3 --
+                // -- THE ROOM (Group 2) -- bindings g2:0-4 --
                 // Option B (Batch F; FIELD_2 amendment): the private third
                 // group, so tenant-side growth never touches the six
                 // pipelines sharing the entity layout. Two ReadOnlyStorage
                 // occupier windows onto the SAME mesh-param buffers the
                 // mesh-gen groups bind — one fact, one home — plus the
-                // field pair: the ring-pose window in, the force sum out.
-                // Two named tenants arrived (FIELD_2): the floater kernels
-                // now stand beside the agent kernels.
+                // field trio: the ring-pose and ribbon-state windows in,
+                // the force sum out. Two named tenants arrived (FIELD_2):
+                // the floater kernels now stand beside the agent kernels.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (read-only storage)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -5043,6 +5043,10 @@ namespace t7 {
                     entries[3].binding = bind::g2::field_forces;  // field_forces (read_write storage)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[4].binding = bind::g2::field_ribbon;  // field_ribbon (uniform window)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "The Room Layout";
@@ -5967,11 +5971,12 @@ namespace t7 {
                 }
 
                 // The room bind group (group 2) — the two occupier windows
-                // plus the field pair, bound once at boot. field_head_poses
-                // is the SAME headPosesBuffer_ the ribbon pipeline binds
-                // (new reachability, not a new fact).
+                // plus the field trio, bound once at boot. field_head_poses
+                // and field_ribbon are the SAME headPosesBuffer_ /
+                // ribbonBuffer_ the ribbon pipeline binds (new
+                // reachability, not a new fact).
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = bind::g2::occupier_cmg;
                     entries[0].buffer = columnMeshParamsBuffer_;
@@ -5988,6 +5993,10 @@ namespace t7 {
                     entries[3].binding = bind::g2::field_forces;
                     entries[3].buffer = fieldForcesBuffer_;
                     entries[3].size = sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP;
+
+                    entries[4].binding = bind::g2::field_ribbon;
+                    entries[4].buffer = ribbonBuffer_;
+                    entries[4].size = sizeof(GPURibbonState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "The Room BindGroup";
