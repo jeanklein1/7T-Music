@@ -13106,14 +13106,23 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
         orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_flocking * dt);
 
-        let sep_r2 = orb_config.flock_sep_radius   * orb_config.flock_sep_radius;
         let ali_r2 = orb_config.flock_align_radius * orb_config.flock_align_radius;
         let coh_r2 = orb_config.flock_coh_radius   * orb_config.flock_coh_radius;
+
+        // FIELD_B3: separation calls the ONE LAW in place (field_pair,
+        //  module-scope) — the succession's second transport: the
+        //  buffer where classes must hear each other, the direct call
+        //  where a subsystem is closed (orb↔orb only; the snapshot
+        //  keeps it race-free). Radius mapping keeps the mood dial:
+        //  shell = 2r·FIELD_SLACK = flock_sep_radius exactly — and the
+        //  shell gives separation a TRUE finite reach where 1/d² had an
+        //  infinite tail behind a gate. Magnitude ownership unchanged:
+        //  the sum is normalized below, the weight chain governs.
+        let sep_pair_r = orb_config.flock_sep_radius / (2.0 * FIELD_SLACK);
 
         var sep_sum   = vec3<f32>(0.0, 0.0, 0.0);
         var ali_sum   = vec3<f32>(0.0, 0.0, 0.0);
         var coh_sum   = vec3<f32>(0.0, 0.0, 0.0);
-        var sep_count = 0.0;
         var ali_count = 0.0;
         var coh_count = 0.0;
 
@@ -13124,10 +13133,9 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
             let diff  = orb.pos - other.pos;
             let d2    = dot(diff, diff);
 
-            if (d2 < sep_r2 && d2 > 0.001) {
-                sep_sum = sep_sum + diff / d2;
-                sep_count = sep_count + 1.0;
-            }
+            sep_sum = sep_sum + field_pair(orb.pos, other.pos,
+                                           sep_pair_r, sep_pair_r,
+                                           i, j);
             if (d2 < ali_r2) {
                 ali_sum = ali_sum + other.vel;
                 ali_count = ali_count + 1.0;
@@ -13140,10 +13148,8 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
         // Separation: direction away from the distance-weighted sum.
         var sep_force = vec3<f32>(0.0, 0.0, 0.0);
-        if (sep_count > 0.0) {
-            let sl = length(sep_sum);
-            if (sl > 0.001) { sep_force = sep_sum / sl; }
-        }
+        let sl = length(sep_sum);
+        if (sl > 0.001) { sep_force = sep_sum / sl; }
 
         // Alignment: steer toward the average velocity.
         var ali_force = vec3<f32>(0.0, 0.0, 0.0);
