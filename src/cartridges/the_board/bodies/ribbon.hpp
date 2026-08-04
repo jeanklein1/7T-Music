@@ -144,6 +144,10 @@ inline constexpr float RIBBON_FIELD_LOOKAHEAD = 40.0f;  // = R_MIN
 //  scales the standing-geometry terms before the FMAX clamp —
 //  zeroing it silences FIELD_3b.3 exactly.
 inline constexpr float RIBBON_FIELD_OCCUPIER_GAIN = 1.0f;
+// LOCKSTEP MIRROR of world.wgsl's FIELD_AUTHORED_GAIN — the lure's
+//  mute; the head reads the same authored table the GPU field does
+//  (the CPU-sovereign stage at the writer, FIELD_4).
+inline constexpr float RIBBON_FIELD_AUTHORED_GAIN = 1.0f;
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
@@ -985,6 +989,31 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             fx = flt_x + (fx - flt_x) * RIBBON_FIELD_OCCUPIER_GAIN;
             fy = flt_y + (fy - flt_y) * RIBBON_FIELD_OCCUPIER_GAIN;
             fz = flt_z + (fz - flt_z) * RIBBON_FIELD_OCCUPIER_GAIN;
+        }
+        // The lure (FIELD_4): the head reads the authored table — the
+        // same CPU-sovereign stage the beacon writer fills. The shell
+        // law in CPU dialect: attraction toward the ring r0, envelope
+        // (1-len/R)^2, zero beyond R. Probe basis like the rest of
+        // the sum — lookahead makes the approach an arc. RIBBON's own
+        // FMAX still governs (the clamp below).
+        {
+            const auto& at = c->gpuState_.field_authored_stage();
+            const uint32_t nb = (at.count < 4u) ? at.count : 4u;
+            for (uint32_t i = 0; i < nb; i++) {
+                const float* a0 = at.rows[2u * i];
+                const float* a1 = at.rows[2u * i + 1u];
+                if (a1[2] < 0.5f) continue;
+                const float dx = px - a0[0], dy = hy - a0[1], dz = pz - a0[2];
+                const float alen = std::sqrt(dx * dx + dy * dy + dz * dz);
+                if (alen >= a1[1]) continue;
+                float ux = 1.0f, uy = 0.0f, uz = 0.0f;
+                if (alen >= 1e-4f) { ux = dx / alen; uy = dy / alen; uz = dz / alen; }
+                const float env = 1.0f - alen / a1[1];
+                float e = (alen - a1[0]) / ((a1[0] > 1.0f) ? a1[0] : 1.0f);
+                e = (e > 1.0f) ? 1.0f : (e < -1.0f) ? -1.0f : e;
+                const float mag = -(a0[3]) * e * env * env * RIBBON_FIELD_AUTHORED_GAIN;
+                fx += ux * mag; fy += uy * mag; fz += uz * mag;
+            }
         }
         const float fmag = std::sqrt(fx * fx + fy * fy + fz * fz);
         if (fmag > RIBBON_FIELD_FMAX) {

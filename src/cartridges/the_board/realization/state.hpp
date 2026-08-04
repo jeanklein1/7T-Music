@@ -1768,6 +1768,7 @@ namespace t7 {
             wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
             wgpu::Buffer fieldForcesBuffer_;  // FIELD_2: vec4<f32>[FIELD_SUBSCRIBER_CAP] — the field's one output, GPU-only (g2:3)
             wgpu::Buffer fieldAuthoredBuffer_;  // FIELD_4: the authored table (uniform, g2:5) — the CPU stage is sovereign
+            GPUFieldAuthored fieldAuthoredStage_{};  // FIELD_4: the sovereign CPU copy, kept at the writer (the ribbon's lure reads it)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer vpBuffer_;
             wgpu::Buffer directionalLightBuffer_;
@@ -2242,6 +2243,15 @@ namespace t7 {
             // writes only the glide target (the kernel walks the live
             // param toward it). No CPU hand ever moves anchor or
             // offset directly.
+            // ── FIELD_4: the authored table's hot writer ── the CPU
+            // stage is SOVEREIGN; the GPU buffer is the derived copy.
+            // 144 B WriteBuffer per frame — lean, no dirty gate.
+            void upload_field_authored(wgpu::Queue& queue, const GPUFieldAuthored& t) {
+                fieldAuthoredStage_ = t;
+                queue.WriteBuffer(fieldAuthoredBuffer_, 0, &t, sizeof(GPUFieldAuthored));
+            }
+            const GPUFieldAuthored& field_authored_stage() const { return fieldAuthoredStage_; }
+
             void upload_cube_follow_pawn(wgpu::Queue& queue, uint32_t slot, uint32_t follow) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
                 size_t off = offsetof(GPUFloatingEntityState, follow_pawn);

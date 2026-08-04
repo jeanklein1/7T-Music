@@ -836,6 +836,17 @@ namespace t7 {
             // U4 — MOTION DRIVERS (music). The music driver authors params
             // through the canvas; fog is its first staged consumer. (Input was
             // harvested by the on_input callbacks; its deltas rode U1.)
+            // ── FIELD_4: THE BEACON (the first authored emitter) ──
+            // S rides config.floater_coordination (F5): 0 / 0.5 / 1.0 —
+            // the knob's first visible meaning in open_sunset. R0 sits
+            // outside the point's bubble (20); S < FIELD_K so contact
+            // repulsion outranks the pull at the ring — the ring
+            // self-spaces.
+            static constexpr float FIELD_BEACON_R0   = 25.0f;
+            static constexpr float FIELD_BEACON_R    = 120.0f;
+            static constexpr float FIELD_BEACON_S    = 200.0f;
+            static constexpr float FIELD_BEACON_LIFT = 20.0f;
+
             void phase_motion_drivers(UpdateCtx& c) {
                 auto& signal = c.signal;
                 visual_canvas_.tick(signal);
@@ -880,6 +891,34 @@ namespace t7 {
                 zoetrope_service(cube_behaviors_state_, gpuState_, c.queue,
                     world_state_.active_seed, signal.t_beats, signal.dt,
                     point_.x, point_.z);   // the point mirror — the reseat watch (G4)
+
+                // ── THE BEACON (FIELD_4): row 0, rewritten hot each
+                // frame — the point moved. point y is DERIVED (the
+                // point's house carries no y): host-routed — pawn
+                // mirror y / ribbon head y / ground under the point
+                // (the camera has no CPU y mirror; the harvest
+                // discards cam pos[1]).
+                {
+                    GPUFieldAuthored fa{};
+                    const float coord = gpuState_.config().floater_coordination;
+                    float py;
+                    if (point_.host == PointHost::PAWN) {
+                        py = agent_state_.slots[player_.possessed_slot].pos_y;
+                    } else if (point_.host == PointHost::RIBBON) {
+                        py = ribbon_state_.head.pos[1];
+                    } else {
+                        py = estimate_terrain_height(tile_world_state_, point_.x, point_.z);
+                    }
+                    fa.count = 1u;
+                    fa.rows[0][0] = point_.x;
+                    fa.rows[0][1] = py + FIELD_BEACON_LIFT;
+                    fa.rows[0][2] = point_.z;
+                    fa.rows[0][3] = FIELD_BEACON_S * coord;
+                    fa.rows[1][0] = FIELD_BEACON_R0;
+                    fa.rows[1][1] = FIELD_BEACON_R;
+                    fa.rows[1][2] = (coord > 0.0f) ? 1.0f : 0.0f;
+                    gpuState_.upload_field_authored(c.queue, fa);
+                }
             }
 
             // U5 — MOTION BODIES (wall-clock). Pawn presence ramp + aura height
