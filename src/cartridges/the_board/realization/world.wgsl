@@ -977,7 +977,8 @@ struct FloatingEntityState {
     is_active: u32,            // 124: 0=inactive, 1=active
     aspect_y: f32,             // 128: Y-axis scale (1.0=cube, >1=tall, <1=flat)
     aspect_z: f32,             // 132: Z-axis scale (1.0=cube, <1=thin slab)
-    // Drift-integrator substrate (cube use; spheres leave at zero).
+    // Drift-integrator substrate (cube + sphere use since FIELD_2;
+    // sphere spawn seeds spring/drag — bodies/spheres.hpp).
     //   home = analytical rest (anchor.xz + ground + bob)
     //   pos  = home + drift
     spring_stiffness: f32,     // 136: pulls drift toward zero (1/s²)
@@ -8148,6 +8149,19 @@ fn update_sphere() {
             let prev_y = fe.pos.y;   // the walking value's present (last frame's settled y)
             fe.pos = updated.pos;
             fe.orientation = updated.orientation;
+
+            // ── THE FIELD (FIELD_2): the sphere yields, then returns ──
+            // The reserved substrate wakes — the cube's integrator,
+            // spring-to-zero keeping the orbit the attractor (spawn
+            // seeds spring/drag, bodies/spheres.hpp). Drift joins the
+            // composed position HERE — after orbit compose, before the
+            // floor ease and walls: resolve stays last (H4 untouched).
+            let ff = field_forces[32u + slot].xyz;  // lane 32 + sphere slot: the sphere band
+            let sph_spring_a = -fe.drift * fe.spring_stiffness;
+            fe.drift_vel = fe.drift_vel + (sph_spring_a + ff) * dt;
+            fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);
+            fe.drift = fe.drift + fe.drift_vel * dt;
+            fe.pos = fe.pos + fe.drift;
 
             // RESIDUE_2 [3b]: the sphere rides the live ground. The goal
             // may leap (authored orbit y, live floor + clearance); the

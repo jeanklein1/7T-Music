@@ -165,6 +165,13 @@ inline void sphere_write_active(MachineCtx* c, const EntityInstance& inst) {
     af.active = true;
 }
 
+// FIELD_2: the reserved drift substrate wakes for spheres — spring-to-
+// zero keeps the orbit the attractor (the sphere yields, then returns).
+// Values mirror the cube's defaults (cube_behaviors.hpp
+// CUBE_DEFAULT_SPRING_STIFFNESS / CUBE_DEFAULT_DRAG); Jean-tunable.
+inline constexpr float SPHERE_FIELD_SPRING_STIFFNESS = 4.0f;  // 1/s², ~0.5s settle
+inline constexpr float SPHERE_FIELD_DRAG             = 1.5f;  // 1/s, gentle damping
+
 inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     GPUFloatingEntityState fe{};
     fe.anchor[0] = inst.cx; fe.anchor[1] = 0.0f; fe.anchor[2] = inst.cz;
@@ -182,6 +189,9 @@ inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     fe.entity_seed = inst.slot;
     fe.t = 0.0f; fe.orientation[3] = 1.0f;
     fe.pos[0] = inst.cx + fe.orbit_radius; fe.pos[1] = fe.orbit_height; fe.pos[2] = inst.cz;
+    // FIELD_2: seed the substrate (drift/drift_vel stay zero — rest).
+    fe.spring_stiffness = SPHERE_FIELD_SPRING_STIFFNESS;
+    fe.drag             = SPHERE_FIELD_DRAG;
     fe.is_active = 1;
     c->gpuState_.upload_sphere_entity_slot(queue, inst.slot, fe);
 }
