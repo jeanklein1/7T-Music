@@ -123,11 +123,15 @@ inline constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen
 // are Jean's dials; either zeroes its axis independently.
 inline constexpr float RIBBON_FIELD_GAIN_XZ  = 0.05f;   // yaw command per wu/s² of lateral field
 inline constexpr float RIBBON_FIELD_GAIN_Y   = 1.0f;    // alt_target wu per wu/s² of vertical field per s
-// LOCKSTEP MIRRORS of world.wgsl's FIELD_SLACK / FIELD_K / FIELD_FMAX
-// (the GPU field's one home) — the CPU head runs the same pair law.
-inline constexpr float RIBBON_FIELD_SLACK    = 1.15f;
-inline constexpr float RIBBON_FIELD_K        = 30.0f;
-inline constexpr float RIBBON_FIELD_FMAX     = 60.0f;
+// LOCKSTEP MIRRORS of world.wgsl's FIELD_SLACK / FIELD_K /
+//  FIELD_FMAX. L3: edit BOTH rooms in the same commit — the
+//  2026-08 stamp edited the WGSL room live and this room froze at
+//  the pre-stamp values (the ribbon went numb; Gate E's lesson).
+//  Control-panel horizon: this trio is the newest exhibit for
+//  config-field migration — one home, both rooms read it.
+inline constexpr float RIBBON_FIELD_SLACK    = 3.0f;
+inline constexpr float RIBBON_FIELD_K        = 300.0f;
+inline constexpr float RIBBON_FIELD_FMAX     = 600.0f;
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
