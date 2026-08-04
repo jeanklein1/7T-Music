@@ -704,6 +704,13 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
             const float travel = std::fabs(step);   // this frame's distance
             const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
             hd.alt_target += (raw_target - hd.alt_target) * alpha;
+            // FIELD_B0: the floor's guarantee, re-imposed AFTER
+            // every field contribution — the lure is lateral by law,
+            // but repulsion's fy is not, and a standing ceiling of
+            // gathered cubes drove the target under the world
+            // (Gate F's second lesson). The constant's own comment
+            // says "guaranteed gap"; this line makes it true.
+            if (hd.alt_target < floor_y) { hd.alt_target = floor_y; }
 
             const float damp = 2.0f * std::sqrt(RIBBON_ALT_STIFF);
             hd.y_vel += ((hd.alt_target - hd.pos[1]) * RIBBON_ALT_STIFF
