@@ -75,6 +75,10 @@ struct RibbonDeps {
     const AgentState&         agent_state_;
     const SphereState&        sphere_state_;
     const CubeBehaviorsState& cube_state_;
+    // FIELD_3b.3: the standing bodies' persistent CPU home — the same
+    // facts occupier_cmg/amg window on the GPU (rebuilt from these at
+    // every upload; spawn_engine.hpp build_*_mesh_params).
+    const EntitiesState&      entities_state_;
 };
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
@@ -136,6 +140,10 @@ inline constexpr float RIBBON_FIELD_FMAX     = 600.0f;
 //  cannot react to what it senses at 15 — the probe rides ahead of
 //  the head along motion so the turn begins in time. Jean's dial.
 inline constexpr float RIBBON_FIELD_LOOKAHEAD = 40.0f;  // = R_MIN
+// The mute switch, mirroring FIELD_OCCUPIER_GAIN (world.wgsl):
+//  scales the standing-geometry terms before the FMAX clamp —
+//  zeroing it silences FIELD_3b.3 exactly.
+inline constexpr float RIBBON_FIELD_OCCUPIER_GAIN = 1.0f;
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
@@ -943,6 +951,40 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             const auto& cb = c->cube_state_.activeCubes_[i];
             if (!cb.active || cb.live_body_radius <= 0.0f) continue;
             field_add(cb.live_pos[0], cb.live_pos[1], cb.live_pos[2], cb.live_body_radius);
+        }
+        // Standing geometry emits (FIELD_3b.3) — FIELD_3's law in the
+        // CPU dialect: shafts (columns + antennas) and arch legs,
+        // planar (emitter y := the probe's y — hy, so dy = 0;
+        // row_occupier's cylindrical ruling), true radii, no skin —
+        // the slack is the standoff. The SPAN stays open: only the
+        // legs push. Source: the persistent CPU home (EntitiesState).
+        // The tail-scale below is the CPU dialect of the GPU's occ
+        // accumulator — the occupier terms scale by the mute switch
+        // before joining the one clamp.
+        {
+            const float flt_x = fx, flt_y = fy, flt_z = fz;
+            for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
+                const auto& col = c->entities_state_.columns[i];
+                if (!col.active) continue;
+                field_add(col.world_x, hy, col.world_z, col.shaft_radius);
+            }
+            for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+                const auto& ant = c->entities_state_.antennas[i];
+                if (!ant.active) continue;
+                field_add(ant.world_x, hy, ant.world_z, ant.shaft_radius);
+            }
+            for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                const auto& ar = c->entities_state_.arches[i];
+                if (!ar.active) continue;
+                const float leg_r = std::max(ar.thickness, ar.depth) * 0.5f;
+                const float lx = std::cos(ar.rotation) * ar.half_span;
+                const float lz = std::sin(ar.rotation) * ar.half_span;
+                field_add(ar.world_x + lx, hy, ar.world_z + lz, leg_r);
+                field_add(ar.world_x - lx, hy, ar.world_z - lz, leg_r);
+            }
+            fx = flt_x + (fx - flt_x) * RIBBON_FIELD_OCCUPIER_GAIN;
+            fy = flt_y + (fy - flt_y) * RIBBON_FIELD_OCCUPIER_GAIN;
+            fz = flt_z + (fz - flt_z) * RIBBON_FIELD_OCCUPIER_GAIN;
         }
         const float fmag = std::sqrt(fx * fx + fy * fy + fz * fz);
         if (fmag > RIBBON_FIELD_FMAX) {
