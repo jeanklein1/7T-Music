@@ -68,6 +68,13 @@ struct RibbonDeps {
     const TargetBinding& ribbon_amp_vert_dst_;
     const TargetBinding& ribbon_tint_stim_dst_;
     const TargetBinding& ribbon_tint_mix_dst_;
+    // FIELD_2: the CPU-visible emitter mirrors the head's field sum
+    // reads (agent slots refresh whole each harvest; floater mirrors
+    // carry the live_pos/live_body_radius harvest). Occupiers are
+    // terrain-class — never emitters.
+    const AgentState&         agent_state_;
+    const SphereState&        sphere_state_;
+    const CubeBehaviorsState& cube_state_;
 };
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
@@ -107,6 +114,20 @@ inline constexpr float RIBBON_CLIMB_RATE     = 15.0f;   // u/s cap on the pen's 
 inline constexpr float RIBBON_FLOOR_MARGIN   = 25.0f;   // guaranteed gap over tall ground
 inline constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f; // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
 inline constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen's stiffness; damping = 2*sqrt(stiffness), critically damped
+// ── FIELD_2: the head reads the field (CPU, one frame behind) ────
+// The head's field sum over the CPU mirrors, consumed per the
+// ribbon's own grammar (target-shaping, not force-then-resolve):
+// horizontal nudges the eased yaw command; vertical folds into
+// alt_target (the pen above disposes). One frame stale by
+// construction — acceptable on the slowest, softest actor. Gains
+// are Jean's dials; either zeroes its axis independently.
+inline constexpr float RIBBON_FIELD_GAIN_XZ  = 0.05f;   // yaw command per wu/s² of lateral field
+inline constexpr float RIBBON_FIELD_GAIN_Y   = 1.0f;    // alt_target wu per wu/s² of vertical field per s
+// LOCKSTEP MIRRORS of world.wgsl's FIELD_SLACK / FIELD_K / FIELD_FMAX
+// (the GPU field's one home) — the CPU head runs the same pair law.
+inline constexpr float RIBBON_FIELD_SLACK    = 1.15f;
+inline constexpr float RIBBON_FIELD_K        = 30.0f;
+inline constexpr float RIBBON_FIELD_FMAX     = 60.0f;
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
@@ -858,6 +879,72 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             whx, whz, whh, c->time_state_.dt,
             ribbon_yaw_in, ribbon_thr_in);
         ribbon_flown = true;
+    }
+
+    // ── THE FIELD (FIELD_2): the head reads the field ──────────────
+    // Summed here, BEFORE heading/altitude integration (the mover
+    // below), over the CPU-visible emitters: agent mirror (whole-
+    // buffer harvest) + floater mirrors (live_pos harvest). One frame
+    // stale by construction — the slowest, softest actor tolerates
+    // it. Consumed per the ribbon's own grammar: the lateral
+    // component nudges the eased yaw command; the vertical folds into
+    // alt_target — the critically damped pen disposes. Skipped while
+    // re-seating (no live head this tick) and when parked (yield
+    // rides motion; a parked head holds its pose).
+    if (current_alive && ribbon_flown && rs.head.seeded
+        && rs.head.slot == rs.rendered_slot) {
+        float hx, hy, hz, hh;
+        ribbon_head_pose(rs, hx, hy, hz, hh);
+        const float r_head = rs.gpu[rs.rendered_slot].cube_size * 0.5f;
+        float fx = 0.0f, fy = 0.0f, fz = 0.0f;
+        auto field_add = [&](float ex, float ey, float ez, float r_e) {
+            const float dx = hx - ex, dy = hy - ey, dz = hz - ez;
+            const float shell = (r_head + r_e) * RIBBON_FIELD_SLACK;
+            const float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+            if (len >= shell) return;
+            // Degenerate overlap: deterministic +X (no per-pair index
+            // here; the head meets one body at a time).
+            float ux = 1.0f, uy = 0.0f, uz = 0.0f;
+            if (len >= 1e-4f) { ux = dx / len; uy = dy / len; uz = dz / len; }
+            const float depth = 1.0f - len / shell;
+            const float mag = RIBBON_FIELD_K * depth * depth;
+            fx += ux * mag; fy += uy * mag; fz += uz * mag;
+        };
+        // Free agents emit (the possessed pawn neither emits nor
+        // subscribes in phase A); radius = the CONTACT rows' source.
+        for (uint32_t i = 0; i < Dim::MAX_AGENTS; i++) {
+            if (i == c->player_.possessed_slot) continue;
+            const auto& a = c->agent_state_.slots[i];
+            if (a.is_active == 0u) continue;
+            const uint32_t tier = (a.tier_idx < AGENT_TIER_COUNT) ? a.tier_idx : (AGENT_TIER_COUNT - 1u);
+            field_add(a.pos_x, a.pos_y, a.pos_z, AGENT_TIER_GAINS[tier].contact_radius);
+        }
+        for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
+            const auto& s = c->sphere_state_.activeSpheres_[i];
+            if (!s.active || s.live_body_radius <= 0.0f) continue;
+            field_add(s.live_pos[0], s.live_pos[1], s.live_pos[2], s.live_body_radius);
+        }
+        for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+            const auto& cb = c->cube_state_.activeCubes_[i];
+            if (!cb.active || cb.live_body_radius <= 0.0f) continue;
+            field_add(cb.live_pos[0], cb.live_pos[1], cb.live_pos[2], cb.live_body_radius);
+        }
+        const float fmag = std::sqrt(fx * fx + fy * fy + fz * fz);
+        if (fmag > RIBBON_FIELD_FMAX) {
+            const float s = RIBBON_FIELD_FMAX / fmag;
+            fx *= s; fy *= s; fz *= s;
+        }
+        // Horizontal → the eased yaw command. Motion runs along
+        // -heading; +yaw rotates motion toward the (-sin h, cos h)
+        // side, and the signed lateral term below is positive exactly
+        // when the field lies on that side — the head turns away from
+        // what it is inside.
+        const float mx = -std::cos(hh), mz = -std::sin(hh);
+        ribbon_yaw_in += (mx * fz - mz * fx) * RIBBON_FIELD_GAIN_XZ;
+        // Vertical → the target; the pen's spring and climb clamp
+        // dispose. The travel-eased raw_target reclaims it when the
+        // field releases — yield, then return.
+        rs.head.alt_target += fy * RIBBON_FIELD_GAIN_Y * c->time_state_.dt;
     }
 
     if (current_alive) {

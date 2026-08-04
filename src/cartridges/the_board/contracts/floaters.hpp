@@ -84,6 +84,12 @@ struct ActiveSphere {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
     float   last_alloc_time = -1000.0f;
+    // ── FIELD_2: the live harvest ── GPU truth, one frame stale,
+    // written by reconcile_sphere_mirror from the readback the funnel
+    // already maps. live_body_radius == 0 marks "not yet harvested"
+    // (a live sphere's radius is never zero) — emitter loops skip it.
+    float   live_pos[3] = { 0.0f, 0.0f, 0.0f };
+    float   live_body_radius = 0.0f;
     bool active = false;
 };
 
@@ -142,6 +148,13 @@ struct ActiveCube {
     float   aspect_y      = 0.0f;
     float   aspect_z      = 0.0f;
     float   face_variance = 0.0f;
+    // ── FIELD_2: the live harvest ── GPU truth, one frame stale,
+    // written by reconcile_cube_mirror from the readback the funnel
+    // already maps. DISTINCT from the PRIOR block above: the release
+    // walk keeps reading the prior; these never feed it.
+    // live_body_radius == 0 marks "not yet harvested".
+    float   live_pos[3] = { 0.0f, 0.0f, 0.0f };
+    float   live_body_radius = 0.0f;
     bool active = false;
 };
 

@@ -260,6 +260,16 @@ inline void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFlo
             (now - ss.activeSpheres_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
             ss.activeSpheres_[i].active = false;
         }
+        // FIELD_2: harvest the live pose the funnel already maps —
+        // one frame stale, the ribbon's CPU field reads it.
+        if (gpu_active) {
+            ss.activeSpheres_[i].live_pos[0] = data[i].pos[0];
+            ss.activeSpheres_[i].live_pos[1] = data[i].pos[1];
+            ss.activeSpheres_[i].live_pos[2] = data[i].pos[2];
+            ss.activeSpheres_[i].live_body_radius = data[i].body_radius;
+        } else {
+            ss.activeSpheres_[i].live_body_radius = 0.0f;  // un-harvested sentinel
+        }
     }
 }
 

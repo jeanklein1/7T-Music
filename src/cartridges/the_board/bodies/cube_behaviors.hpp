@@ -1305,6 +1305,18 @@ inline void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPU
             (now - cs.activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
             cs.activeCubes_[i].active = false;
         }
+        // FIELD_2: harvest the live pose the funnel already maps —
+        // one frame stale, the ribbon's CPU field reads it. The PRIOR
+        // scalars above stay untouched (the release walk's law).
+        if (gpu_active) {
+            const auto& fe = data[Dim::CUBE_SLOT_OFFSET + i];
+            cs.activeCubes_[i].live_pos[0] = fe.pos[0];
+            cs.activeCubes_[i].live_pos[1] = fe.pos[1];
+            cs.activeCubes_[i].live_pos[2] = fe.pos[2];
+            cs.activeCubes_[i].live_body_radius = fe.body_radius;
+        } else {
+            cs.activeCubes_[i].live_body_radius = 0.0f;  // un-harvested sentinel
+        }
     }
 }
 
