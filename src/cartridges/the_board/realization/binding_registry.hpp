@@ -154,11 +154,10 @@ namespace t7 {
             } // namespace g1
 
             // ─────────────────────────────────────────────────────────────
-            // GROUP 2 — THE AGENTS' ROOM (BATCH F-B, Option B ruling): the
-            // agent kernels' own bind group. All future agent-side bindings
-            // (the week's musical couplings included) land HERE, without
-            // touching the six pipelines sharing the entity layout. Bound
-            // only by update_player_agent / update_other_agents.
+            // GROUP 2 — THE ROOM (Option B, Batch F; FIELD_2 amendment): the
+            // private third group. Tenants: the two agent kernels AND the
+            // two floater kernels. All future agent/floater-side bindings
+            // land HERE; shared g0/g1 never grow for tenant needs.
             // ─────────────────────────────────────────────────────────────
             namespace g2 {
                 // Occupier windows — read-only views onto the SAME mesh-param
@@ -166,6 +165,9 @@ namespace t7 {
                 // reachability topology differs).
                 inline constexpr uint32_t occupier_cmg               = 0;   // ColumnMeshParams[32] (columns 0-15, antennas 16-31)
                 inline constexpr uint32_t occupier_amg               = 1;   // ArchMeshParams[16]
+                // The field (FIELD_2) — emitter window in, force sum out.
+                inline constexpr uint32_t field_head_poses           = 2;   // vec4<f32>[400] — read-only window onto headPosesBuffer_ (same buffer, new reachability; the occupier-window pattern)
+                inline constexpr uint32_t field_forces               = 3;   // vec4<f32>[FIELD_SUBSCRIBER_CAP] — read_write, the field's one output
             } // namespace g2
 
             // ─────────────────────────────────────────────────────────────

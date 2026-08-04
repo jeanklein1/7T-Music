@@ -353,6 +353,12 @@ namespace t7 {
             // body; slots 1..MAX_AGENTS-1 are mood-authored agents. See
             // bodies/agents.hpp.
             constexpr uint32_t MAX_AGENTS = 32;
+
+            // FIELD_2: one force slot per subscriber — 32 agents + 8 spheres
+            // + 256 cubes (capacity, not the 252 living). Index map lives at
+            // the WGSL field consts: [0..31] agents · [32..39] spheres ·
+            // [40..295] cubes.
+            constexpr uint32_t FIELD_SUBSCRIBER_CAP = MAX_AGENTS + MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 296
         }
 
         namespace Idle {
@@ -1747,6 +1753,7 @@ namespace t7 {
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
             wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
+            wgpu::Buffer fieldForcesBuffer_;  // FIELD_2: vec4<f32>[FIELD_SUBSCRIBER_CAP] — the field's one output, GPU-only (g2:3)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer vpBuffer_;
             wgpu::Buffer directionalLightBuffer_;
@@ -1842,7 +1849,7 @@ namespace t7 {
 
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
-            wgpu::BindGroupLayout agentOccupierLayout_;  // THE AGENTS' ROOM (group 2): g2:0-1
+            wgpu::BindGroupLayout roomLayout_;  // THE ROOM (group 2): g2:0-3 — agent + floater kernels
             wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
             wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
             wgpu::BindGroupLayout bladeMeshGenLayout_;   // bindings 186-188
@@ -1851,7 +1858,7 @@ namespace t7 {
             wgpu::BindGroup palmMeshGenBindGroup_;
             wgpu::BindGroup cactusMeshGenBindGroup_;
             wgpu::BindGroup bladeMeshGenBindGroup_;
-            wgpu::BindGroup agentOccupierBindGroup_;     // THE AGENTS' ROOM (group 2)
+            wgpu::BindGroup roomBindGroup_;     // THE ROOM (group 2)
 
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
@@ -2247,8 +2254,8 @@ namespace t7 {
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
             wgpu::BindGroupLayout arch_mesh_gen_layout() const { return archMeshGenLayout_; }
             wgpu::BindGroup arch_mesh_gen_group() const { return archMeshGenBindGroup_; }
-            wgpu::BindGroupLayout agent_occupier_layout() const { return agentOccupierLayout_; }
-            wgpu::BindGroup agent_occupier_group() const { return agentOccupierBindGroup_; }
+            wgpu::BindGroupLayout room_layout() const { return roomLayout_; }
+            wgpu::BindGroup room_group() const { return roomBindGroup_; }
 
             void upload_painting_slots(wgpu::Queue& queue, const GPUPaintingSlot* slots, uint32_t count) {
                 writeArray(queue, paintingSlotsBuffer_, slots, count);
@@ -3208,6 +3215,9 @@ namespace t7 {
                 headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
                     sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                fieldForcesBuffer_ = makeBuffer("Field Forces",
+                    sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP,
+                    wgpu::BufferUsage::Storage);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 directionalLightBuffer_ = makeBuffer("Directional Light", sizeof(GPUDirectionalLight), SU);
@@ -3333,7 +3343,7 @@ namespace t7 {
 
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
-                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ &&
+                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
@@ -5006,15 +5016,17 @@ namespace t7 {
                     if (!archMeshGenLayout_) return false;
                 }
 
-                // -- THE AGENTS' ROOM (Group 2) -- bindings g2:0-1 --
-                // Option B (BATCH F-B ruling): the agent kernels' own bind
-                // group, so agent-side growth never touches the six pipelines
-                // sharing the entity layout. Exactly two ReadOnlyStorage
-                // windows onto the SAME mesh-param buffers the mesh-gen
-                // groups bind — one fact, one home. The room grows only when
-                // a named tenant arrives.
+                // -- THE ROOM (Group 2) -- bindings g2:0-3 --
+                // Option B (Batch F; FIELD_2 amendment): the private third
+                // group, so tenant-side growth never touches the six
+                // pipelines sharing the entity layout. Two ReadOnlyStorage
+                // occupier windows onto the SAME mesh-param buffers the
+                // mesh-gen groups bind — one fact, one home — plus the
+                // field pair: the ring-pose window in, the force sum out.
+                // Two named tenants arrived (FIELD_2): the floater kernels
+                // now stand beside the agent kernels.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
                     entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (read-only storage)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -5024,12 +5036,20 @@ namespace t7 {
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
+                    entries[2].binding = bind::g2::field_head_poses;  // field_head_poses (read-only storage)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[3].binding = bind::g2::field_forces;  // field_forces (read_write storage)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Agent Occupier Layout";
+                    desc.label = "The Room Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    agentOccupierLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!agentOccupierLayout_) return false;
+                    roomLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!roomLayout_) return false;
                 }
 
                 // -- Column mesh gen layout (Group 0) -- bindings 190/191 + 196-198 --
@@ -5946,10 +5966,12 @@ namespace t7 {
                     if (!archMeshGenBindGroup_) return false;
                 }
 
-                // The agents' room bind group (group 2) — the two occupier
-                // windows, bound once at boot from the existing buffers.
+                // The room bind group (group 2) — the two occupier windows
+                // plus the field pair, bound once at boot. field_head_poses
+                // is the SAME headPosesBuffer_ the ribbon pipeline binds
+                // (new reachability, not a new fact).
                 {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
 
                     entries[0].binding = bind::g2::occupier_cmg;
                     entries[0].buffer = columnMeshParamsBuffer_;
@@ -5959,13 +5981,21 @@ namespace t7 {
                     entries[1].buffer = archMeshParamsBuffer_;
                     entries[1].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
 
+                    entries[2].binding = bind::g2::field_head_poses;
+                    entries[2].buffer = headPosesBuffer_;
+                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+
+                    entries[3].binding = bind::g2::field_forces;
+                    entries[3].buffer = fieldForcesBuffer_;
+                    entries[3].size = sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP;
+
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Agent Occupier BindGroup";
-                    desc.layout = agentOccupierLayout_;
+                    desc.label = "The Room BindGroup";
+                    desc.layout = roomLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    agentOccupierBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!agentOccupierBindGroup_) return false;
+                    roomBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!roomBindGroup_) return false;
                 }
 
                 // Column mesh gen bind group (dedicated layout — bindings 190/191 + 196-198)

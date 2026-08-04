@@ -116,7 +116,7 @@ namespace t7 {
             wgpu::Device device_;
             wgpu::BindGroupLayout computeEntityLayout_;
             wgpu::BindGroupLayout computeTextureLayout_;   // Group 1 for live-contributor compute (sphere/cube)
-            wgpu::BindGroupLayout agentOccupierLayout_;    // Group 2, agent kernels only — THE AGENTS' ROOM
+            wgpu::BindGroupLayout roomLayout_;    // Group 2, agent + floater kernels — THE ROOM
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout renderEntityLayout_;
             wgpu::BindGroupLayout renderTextureLayout_;
@@ -302,7 +302,7 @@ namespace t7 {
                 device_ = device;
                 computeEntityLayout_ = gpuState.compute_entity_layout();
                 computeTextureLayout_ = gpuState.compute_texture_layout();
-                agentOccupierLayout_ = gpuState.agent_occupier_layout();
+                roomLayout_ = gpuState.room_layout();
                 patchGenLayout_ = gpuState.patch_gen_layout();
                 renderEntityLayout_ = gpuState.render_entity_layout();
                 renderTextureLayout_ = gpuState.render_texture_layout();
@@ -399,24 +399,28 @@ namespace t7 {
             void dispatch_update_sphere(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup
+                wgpu::BindGroup textureBindGroup,
+                wgpu::BindGroup roomBindGroup
             ) {
                 if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateSpherePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
+                pass.SetBindGroup(2, roomBindGroup);      // the room: field bindings (FIELD_2)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
             void dispatch_update_cube(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup
+                wgpu::BindGroup textureBindGroup,
+                wgpu::BindGroup roomBindGroup
             ) {
                 if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateCubePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
+                pass.SetBindGroup(2, roomBindGroup);      // the room: field bindings (FIELD_2)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
@@ -1319,42 +1323,41 @@ namespace t7 {
                     device_.CreatePipelineLayout(&liveContribLayoutDesc);
                 if (!liveContribComputeLayout) return false;
 
-                // THE AGENTS' ROOM (BATCH F-B, Option B): the two agent
-                // kernels — and ONLY they — carry group 2 on top of the
-                // shared live-contributor pair. The other four
-                // live-contributor pipelines keep the two-group layout
-                // untouched, so agent-side binding growth (this room's
-                // occupier windows now, the week's couplings next) never
-                // widens their FXC surface.
-                std::array<wgpu::BindGroupLayout, 3> agentLayouts = {
+                // THE ROOM (Option B, Batch F; FIELD_2 amendment): the two
+                // agent kernels AND the two floater kernels carry group 2
+                // on top of the shared live-contributor pair. The camera
+                // keeps the two-group layout untouched, so tenant-side
+                // binding growth (the occupier windows, the field pair)
+                // never widens its FXC surface.
+                std::array<wgpu::BindGroupLayout, 3> roomLayouts = {
                     computeEntityLayout_,
                     computeTextureLayout_,
-                    agentOccupierLayout_
+                    roomLayout_
                 };
-                wgpu::PipelineLayoutDescriptor agentLayoutDesc{};
-                agentLayoutDesc.bindGroupLayoutCount = agentLayouts.size();
-                agentLayoutDesc.bindGroupLayouts = agentLayouts.data();
-                wgpu::PipelineLayout agentComputeLayout =
-                    device_.CreatePipelineLayout(&agentLayoutDesc);
-                if (!agentComputeLayout) return false;
+                wgpu::PipelineLayoutDescriptor roomLayoutDesc{};
+                roomLayoutDesc.bindGroupLayoutCount = roomLayouts.size();
+                roomLayoutDesc.bindGroupLayouts = roomLayouts.data();
+                wgpu::PipelineLayout roomComputeLayout =
+                    device_.CreatePipelineLayout(&roomLayoutDesc);
+                if (!roomComputeLayout) return false;
 
                 // Pipeline: update_player_agent (0D, 1 thread — possessed slot only)
-                // Agent layout (live-contributor pair + the room) —
+                // Room layout (live-contributor pair + the room) —
                 // pawn_ground_resolve, terrain_normal_at
                 // call query_ground_walker → contrib_pawn_aura_at → sample_pawn_aura.
                 // The walker-policy heavy path inlines once, for one slot.
                 if (!makeComputePipeline("update_player_agent", "Update Player Agent (0D, 1 thread)",
-                    agentComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
+                    roomComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
 
                 // Pipeline: update_other_agents (1D, 32 threads — non-possessed slots)
-                // Agent layout (live-contributor pair + the room) —
+                // Room layout (live-contributor pair + the room) —
                 // query_ground_walker_agent reads aura
                 // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
                 // The walker-policy heavy path is NOT inlined here; algorithmic
                 // behaviors only.
                 if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — FXC skipped when disabled
                 if (!makeComputePipeline("update_other_agents", "Update Other Agents (1D, 32 threads)",
-                    agentComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
+                    roomComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
 
                 // Pipeline: update_camera (0D)
@@ -1364,19 +1367,21 @@ namespace t7 {
                     liveContribComputeLayout, Entry::UPDATE_CAMERA, updateCameraPipeline_)) return false;
 
                 // Pipeline: update_sphere (0D)
-                // Uses the live-contributor layout so coupling_terrain_to_sphere_orbit_height
-                // can call query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura).
+                // Room layout (FIELD_2 tenancy) — coupling_terrain_to_sphere_orbit_height
+                // still calls query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura);
+                // group 2 adds the field bindings. Unused group members are legal.
                 if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled
                 if (!makeComputePipeline("update_sphere", "Update Sphere (0D)",
-                    liveContribComputeLayout, Entry::UPDATE_SPHERE, updateSpherePipeline_)) return false;
+                    roomComputeLayout, Entry::UPDATE_SPHERE, updateSpherePipeline_)) return false;
                 }
 
                 // Pipeline: update_cube (0D)
-                // Same live-contributor layout — update_cube calls
-                // query_ground_flyer directly for hover-base clearance.
+                // Room layout (FIELD_2 tenancy) — update_cube calls
+                // query_ground_flyer directly for hover-base clearance;
+                // group 2 adds the field bindings.
                 if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled
                 if (!makeComputePipeline("update_cube", "Update Cube (0D)",
-                    liveContribComputeLayout, Entry::UPDATE_CUBE, updateCubePipeline_)) return false;
+                    roomComputeLayout, Entry::UPDATE_CUBE, updateCubePipeline_)) return false;
                 }
 
                 // Pipeline: compute_vp (0D)

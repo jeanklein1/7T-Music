@@ -188,14 +188,14 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
         compute,
         c->gpuState_.compute_entity_group(),
         c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_WALKER
-        c->gpuState_.agent_occupier_group()    // the room: occupier windows
+        c->gpuState_.room_group()              // the room: occupier windows + field
     );
 
     c->renderer_.dispatch_update_other_agents(
         compute,
         c->gpuState_.compute_entity_group(),
         c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_WALKER_AGENT
-        c->gpuState_.agent_occupier_group()    // the room: occupier windows
+        c->gpuState_.room_group()              // the room: occupier windows + field
     );
 
     c->renderer_.dispatch_update_camera(
@@ -207,13 +207,15 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     c->renderer_.dispatch_update_sphere(
         compute,
         c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
+        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_FLYER
+        c->gpuState_.room_group()              // the room: field bindings (FIELD_2)
     );
 
     c->renderer_.dispatch_update_cube(
         compute,
         c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
+        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_FLYER
+        c->gpuState_.room_group()              // the room: field bindings (FIELD_2)
     );
 
     c->renderer_.dispatch_compute_vp(
