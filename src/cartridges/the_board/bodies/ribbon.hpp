@@ -1012,7 +1012,16 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
                 float e = (alen - a1[0]) / ((a1[0] > 1.0f) ? a1[0] : 1.0f);
                 e = (e > 1.0f) ? 1.0f : (e < -1.0f) ? -1.0f : e;
                 const float mag = -(a0[3]) * e * env * env * RIBBON_FIELD_AUTHORED_GAIN;
-                fx += ux * mag; fy += uy * mag; fz += uz * mag;
+                // LATERAL ONLY — Gate F's stratosphere lesson: the
+                // beacon is the field's first STANDING source, and a
+                // sustained fy against the persistent alt_target
+                // integrator is windup by construction (the pump
+                // outruns the travel-eased reclaim ~1000:1). The
+                // lure shapes the PATH; the pen owns the ALTITUDE.
+                // 3D distance stays: altitude separation weakens the
+                // envelope naturally, so a high head orbits the
+                // beacon's axis instead of diving at it.
+                fx += ux * mag; fz += uz * mag;
             }
         }
         const float fmag = std::sqrt(fx * fx + fy * fy + fz * fz);
@@ -1030,6 +1039,10 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         // Vertical → the target; the pen's spring and climb clamp
         // dispose. The travel-eased raw_target reclaims it when the
         // field releases — yield, then return.
+        // Repulsion terms only, by law: bodies are transient and
+        // occupiers planar (fy = 0 by construction) — no standing
+        // vertical source exists, so no anti-windup is built
+        // (FIELD_4b: the mechanism waits for a measurement to ask).
         rs.head.alt_target += fy * RIBBON_FIELD_GAIN_Y * c->time_state_.dt;
     }
 
