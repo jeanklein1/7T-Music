@@ -839,6 +839,19 @@ namespace t7 {
             }
         }
 
+        // ── FIELD_4: the authored table ── CPU-sovereign source terms
+        // for the field (the GPU buffer is the derived copy). L4-safe
+        // by packing: no bare vec3 — each emitter i is two vec4 rows:
+        //   rows[2i]   = { x, y, z, S }        (center, strength)
+        //   rows[2i+1] = { r0, R, enable, _ }  (ring, reach, gate)
+        struct GPUFieldAuthored {
+            uint32_t count;
+            uint32_t _p0, _p1, _p2;    // 16 B header
+            float rows[8][4];          // 4 emitters × 2 vec4 = 128 B
+        };
+        static_assert(sizeof(GPUFieldAuthored) == 144,
+            "GPUFieldAuthored: the two-rooms handshake (16 B header + 8 vec4)");
+
         struct alignas(16) GPUCameraState {
             float pos[3];
             float azimuth;
@@ -1754,6 +1767,7 @@ namespace t7 {
             wgpu::Buffer ringTransformsBuffer_;
             wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
             wgpu::Buffer fieldForcesBuffer_;  // FIELD_2: vec4<f32>[FIELD_SUBSCRIBER_CAP] — the field's one output, GPU-only (g2:3)
+            wgpu::Buffer fieldAuthoredBuffer_;  // FIELD_4: the authored table (uniform, g2:5) — the CPU stage is sovereign
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer vpBuffer_;
             wgpu::Buffer directionalLightBuffer_;
@@ -1849,7 +1863,7 @@ namespace t7 {
 
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
-            wgpu::BindGroupLayout roomLayout_;  // THE ROOM (group 2): g2:0-4 — agent + floater kernels
+            wgpu::BindGroupLayout roomLayout_;  // THE ROOM (group 2): g2:0-5 — agent + floater kernels
             wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
             wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
             wgpu::BindGroupLayout bladeMeshGenLayout_;   // bindings 186-188
@@ -3218,6 +3232,9 @@ namespace t7 {
                 fieldForcesBuffer_ = makeBuffer("Field Forces",
                     sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP,
                     wgpu::BufferUsage::Storage);
+                fieldAuthoredBuffer_ = makeBuffer("Field Authored",
+                    sizeof(GPUFieldAuthored),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 directionalLightBuffer_ = makeBuffer("Directional Light", sizeof(GPUDirectionalLight), SU);
@@ -3343,7 +3360,7 @@ namespace t7 {
 
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
-                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ &&
+                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldAuthoredBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
@@ -5016,7 +5033,7 @@ namespace t7 {
                     if (!archMeshGenLayout_) return false;
                 }
 
-                // -- THE ROOM (Group 2) -- bindings g2:0-4 --
+                // -- THE ROOM (Group 2) -- bindings g2:0-5 --
                 // Option B (Batch F; FIELD_2 amendment): the private third
                 // group, so tenant-side growth never touches the six
                 // pipelines sharing the entity layout. Two ReadOnlyStorage
@@ -5026,7 +5043,7 @@ namespace t7 {
                 // the force sum out. Two named tenants arrived (FIELD_2):
                 // the floater kernels now stand beside the agent kernels.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (read-only storage)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -5047,6 +5064,10 @@ namespace t7 {
                     entries[4].binding = bind::g2::field_ribbon;  // field_ribbon (uniform window)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[5].binding = bind::g2::field_authored;  // field_authored (uniform, FIELD_4)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "The Room Layout";
@@ -5971,12 +5992,13 @@ namespace t7 {
                 }
 
                 // The room bind group (group 2) — the two occupier windows
-                // plus the field trio, bound once at boot. field_head_poses
-                // and field_ribbon are the SAME headPosesBuffer_ /
-                // ribbonBuffer_ the ribbon pipeline binds (new
-                // reachability, not a new fact).
+                // plus the field quartet, bound once at boot.
+                // field_head_poses and field_ribbon are the SAME
+                // headPosesBuffer_ / ribbonBuffer_ the ribbon pipeline
+                // binds (new reachability, not a new fact); field_authored
+                // is the FIELD_4 table, CPU-sovereign.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::occupier_cmg;
                     entries[0].buffer = columnMeshParamsBuffer_;
@@ -5997,6 +6019,10 @@ namespace t7 {
                     entries[4].binding = bind::g2::field_ribbon;
                     entries[4].buffer = ribbonBuffer_;
                     entries[4].size = sizeof(GPURibbonState);
+
+                    entries[5].binding = bind::g2::field_authored;
+                    entries[5].buffer = fieldAuthoredBuffer_;
+                    entries[5].size = sizeof(GPUFieldAuthored);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "The Room BindGroup";

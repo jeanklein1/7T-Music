@@ -13,7 +13,7 @@
 // patch_instances(340) / fc_patches(340); orb_state(410) /
 // render_orb_state(400) / orb_state_ro(413).
 //
-// The WGSL @binding literals in world.wgsl (99 declarations over 96 slots;
+// The WGSL @binding literals in world.wgsl (100 declarations over 97 slots;
 // three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
 // MIRROR of this file, kept in lockstep by the boot-time bind-group and
 // pipeline validation, not by the compiler. The names here deliberately
@@ -169,6 +169,9 @@ namespace t7 {
                 inline constexpr uint32_t field_head_poses           = 2;   // vec4<f32>[400] — read-only window onto headPosesBuffer_ (same buffer, new reachability; the occupier-window pattern)
                 inline constexpr uint32_t field_forces               = 3;   // vec4<f32>[FIELD_SUBSCRIBER_CAP] — read_write, the field's one output
                 inline constexpr uint32_t field_ribbon               = 4;   // RibbonState — uniform window onto ribbonBuffer_ (ring count / visibility / cube_size for the ring emitter loop; same pattern as g2:2)
+                // The authored table (FIELD_4): CPU-sovereign source terms;
+                // rows are coupling-eligible / control-panel facts.
+                inline constexpr uint32_t field_authored             = 5;   // FieldAuthored — uniform, 144 B (count header + 4 emitters × 2 vec4)
             } // namespace g2
 
             // ─────────────────────────────────────────────────────────────

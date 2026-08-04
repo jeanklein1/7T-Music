@@ -2232,6 +2232,10 @@ const FIELD_GAIN_AGENT: f32 = 4.0;
 //  exactly. Applies to floater subscribers only; agents' occupier
 //  law stays occupier_contact.
 const FIELD_OCCUPIER_GAIN: f32 = 1.0;
+// Authored emitters (FIELD_4): SHELL attractors — spring toward
+// radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0; the
+// mute switch below. Tiebreak band: 900+i.
+const FIELD_AUTHORED_GAIN: f32 = 1.0;
 
 // --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
 // reference: mosaic cell PATCH_CELL_SIZE 3.125 wu -> ~1.3 cells of
@@ -2486,6 +2490,18 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 @group(2) @binding(2) var<storage, read> field_head_poses : array<vec4<f32>, 400>;
 @group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, 296>;
 @group(2) @binding(4) var<uniform> field_ribbon : RibbonState;
+// The authored table (FIELD_4) — mirrors GPUFieldAuthored in
+// state.hpp BYTE-FOR-BYTE (144 B; the static_assert is the
+// handshake). Per emitter i: rows[2i] = {x, y, z, S};
+// rows[2i+1] = {r0, R, enable, _}.
+struct FieldAuthored {
+    count: u32,
+    _p0: u32,
+    _p1: u32,
+    _p2: u32,
+    rows: array<vec4<f32>, 8>,
+}
+@group(2) @binding(5) var<uniform> field_authored : FieldAuthored;
 
 // The body-agnostic row's stand-in for g_self.contact_radius: the
 // occupier push has zero per-kernel variation (no possession case, no
@@ -7712,12 +7728,13 @@ fn update_player_agent() {
 // ─── THE FIELD (FIELD_2, phase A) ────────────────────────────────
 // One pair law, one summation body — the influence-law shape ("one
 // body, many callers") at field scale. field_pair is the quadratic
-// shell; field_sum resolves one subscriber lane and walks the four
+// shell; field_sum resolves one subscriber lane and walks the
 // emitter classes under the PHASE-A FEEL MATRIX: pairs the influence
 // law / boids already own are skipped (agent↔agent, point↔agent,
 // sphere→agent, point→cube, agent←occupier), the possessed pawn
 // neither emits nor
-// subscribes. Loops are flat and constant- or uniform-bounded
+// subscribes. Authored emitters (FIELD_4): floaters YES; agents
+// no* (the point-rows own them); possessed no. Loops are flat and constant- or uniform-bounded
 // (banner rule 2); no textures (rule 3); outside every collision/
 // ground chain.
 
@@ -7830,6 +7847,25 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
                               r_s, leg_r, sub_i, 741u + 2u * i);
         }
         f += occ * FIELD_OCCUPIER_GAIN;
+        // Authored emitters (FIELD_4) — floater subscribers only
+        // v1 (agents keep their point-rows; possessed exempt).
+        let na = min(field_authored.count, 4u);
+        for (var i = 0u; i < na; i++) {
+            let a0 = field_authored.rows[2u * i];
+            let a1 = field_authored.rows[2u * i + 1u];
+            if (a1.z < 0.5) { continue; }
+            let advec = sub_pos - a0.xyz;
+            let alen = length(advec);
+            if (alen >= a1.y) { continue; }
+            var adir = vec3(1.0, 0.0, 0.0);
+            if (alen >= 1e-4) { adir = advec / alen; }
+            else if (((sub_i ^ (900u + i)) & 1u) == 1u) {
+                adir = vec3(0.0, 0.0, 1.0);
+            }
+            let env = 1.0 - alen / a1.y;
+            let e = clamp((alen - a1.x) / max(a1.x, 1.0), -1.0, 1.0);
+            f += adir * (-(a0.w) * e * env * env) * FIELD_AUTHORED_GAIN;
+        }
     }
     let fl = length(f);
     if (fl > FIELD_FMAX) { f = f * (FIELD_FMAX / fl); }
