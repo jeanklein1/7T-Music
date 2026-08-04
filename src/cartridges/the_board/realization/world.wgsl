@@ -2207,18 +2207,18 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 // CONTACT_SPRING/_IMPULSE_CAP are not radii -- units below.
 const CONTACT_SPRING: f32 = 40.0;        // impulse per wu overlap per s
 const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
-// dimensionless -- the pawn's yield authority in the pair weight
-// m_other/(m_self+m_other). Not a radius.
-const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
+// dimensionless -- the pawn's emitter authority. Not a radius.
+const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — consumed by field_sum's emitter scale since FIELD_B2 (the possessed emits, never yields)
 
 // --- The avoidance field (FIELD_2, phase A) -------------------------
 // One summation loop (field_sum, hosted in update_other_agents)
 // writes field_forces: one vec4 per subscriber. INDEX MAP (mirrors
 // Dim::FIELD_SUBSCRIBER_CAP, state.hpp): [0..31] agents by slot ·
 // [32..39] spheres · [40..295] cubes — for floaters, lane − 32 is the
-// floating_entities index. Additive beside the influence law: pairs an
-// influence_response / boids row already owns are SKIPPED (phase B
-// migrates them); the possessed pawn neither emits nor subscribes.
+// floating_entities index. Beside the influence law: pairs a row
+// still owns are SKIPPED (phase B migrates them commit by commit —
+// sphere→agent B1, agent↔agent presence B2); the possessed pawn
+// emits (×PAWN_CONTACT_MASS_MULT, B2) and never subscribes.
 const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
 const FIELD_SLACK: f32 = 3.0;         // shell factor over summed radii
 const FIELD_K: f32 = 300.0;             // accel per unit of quadratic shell depth
@@ -2317,9 +2317,11 @@ const SPHERE_PUSH_GAIN: f32 = 40.0;
 //   cube push (update_cube) ..... other = point_pos()   [PRESENCE -> POINT]
 //   sphere push (player/camera) . self  = the point's HOST body; other = the
 //                                 sphere (fe.pos)        [emanation of the sphere]
-//   agent<->agent contact/flee .. other = agent_state[k] [BODY pair -- stays]
+//   agent<->agent flee .......... other = agent_state[k] [BODY pair -- stays;
+//                                 the contact half migrated to the field, FIELD_B2]
 //   contact mass weight ......... k == possessed_slot -> PAWN_CONTACT_MASS_MULT
-//                                 [the pawn BODY's yield authority -- stays]
+//                                 [the pawn BODY's yield authority -- consumed
+//                                 by field_sum's emitter scale since FIELD_B2]
 // The one remaining possessed-slot read for a point term is the point's
 // VELOCITY in the point-source flee's pawn-host branch (the point's velocity
 // IS its host's; camera-host uses the BUBBLE_PART_SPEED floor). The deferred
@@ -2442,11 +2444,6 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
 // (T1c gate: the kernels' backend SPIR-V is unchanged). FXC-safe -- a fn
 // returning a constructed struct is not the runtime-indexed const array the
 // banner forbids.
-fn row_agent_contact(g_self: AgentTierParams, og: AgentTierParams, m_self: f32, m_other: f32) -> InfluenceProfile {
-    return InfluenceProfile(g_self.contact_radius + og.contact_radius, 0.0,
-                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
-                            m_other / (m_self + m_other), 0.0, 0.0);
-}
 fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProfile {
     return InfluenceProfile((g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
                             0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6, 0.0);
@@ -2581,6 +2578,9 @@ fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
 //     const-expression, so no const_assert can see it. This is the first
 //     concrete cost of a value split across rooms: move the tier radii next to
 //     the caps and the row becomes checkable (T3 charter generalizes the rule).
+//     SUCCESSION (FIELD_B1/B2): agent<->agent and agent<-sphere presence
+//     migrated to the field (its ceiling is FIELD_FMAX, one clamp for the
+//     whole sum); the surviving CONTACT-cap consumer here is row_occupier.
 //   SPHERE row   -- LIVE LIMITER, not a guard. Max impulse is
 //     fe.influence_radius*SPHERE_PUSH_GAIN*dt; at the typical mu=8 that is 5.33
 //     at 60 Hz (under CONTACT_IMPULSE_CAP 6) but crosses it below 53.3 fps, and
@@ -7632,33 +7632,16 @@ fn update_player_agent() {
     // the disclosed softness: one-frame asymmetries the springs absorb.
     {
         let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
-        // The pawn's authority: the pair weight m_other/(m_self+m_other)
-        // stays small — the player feels a nudge, never a shove.
-        let m_self = g_self.contact_mass * PAWN_CONTACT_MASS_MULT;
-        // ── CONTACT_2 C1a — 3D gate, planar push ──────────────────
-        // The distance GATE is 3D (a sphere is a sphere: dy counts),
-        // but the RESPONSE stays planar (dx,dz via d_pl) — influence
-        // is vertically bounded (the bubble's portal-gate law,
-        // contracts/point.hpp): walkers are never pushed into the air;
-        // a cube overhead feels nothing from a pawn beneath. Overlap
-        // (r - d) uses the true 3D distance; direction uses d_pl.
+        // (FIELD_B2: the agent↔agent presence row migrated to the
+        // field — the possessed EMITS at ×PAWN_CONTACT_MASS_MULT in
+        // field_sum and yields to nothing; the flee-dodge stays.)
         for (var k = 0u; k < 32u; k++) {
             if (k == slot) { continue; }
             let other = agent_state[k];
             if (other.is_active == 0u) { continue; }
             let og = agent_tier_gains[min(other.tier_idx, 3u)];
-            var m_other = og.contact_mass;
-            if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
             let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
-            // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
-            // body, all pairs. Reproduces the C1a spring exactly (cap before
-            // the mass weight -- min() then * yield_share). Bit-proof: LOG.
-            let c_prof = row_agent_contact(g_self, og, m_self, m_other);
-            let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
-                                         c_prof, signal.dt);
-            agent.vel_x += c_r.x;
-            agent.vel_z += c_r.y;
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
             // pair. self_vel reads the POST-contact velocity (the same
             // sequential dependency the inline blocks had). falloff_mix 0 = the
@@ -7726,10 +7709,10 @@ fn update_player_agent() {
 // body, many callers") at field scale. field_pair is the quadratic
 // shell; field_sum resolves one subscriber lane and walks the
 // emitter classes under the PHASE-A FEEL MATRIX: pairs the influence
-// law / boids already own are skipped (agent↔agent, point↔agent,
-// point→cube, agent←occupier; sphere→agent migrated in, FIELD_B1),
-// the possessed pawn
-// neither emits nor
+// law / boids already own are skipped (point↔agent, point→cube,
+// agent←occupier; sphere→agent migrated FIELD_B1, agent↔agent
+// presence FIELD_B2 — the flee-dodge stays), the possessed pawn
+// EMITS (×PAWN_CONTACT_MASS_MULT, FIELD_B2) and never
 // subscribes. Authored emitters (FIELD_4): floaters YES; agents
 // no* (the point-rows own them); possessed no. Loops are flat and constant- or uniform-bounded
 // (banner rule 2); no textures (rule 3); outside every collision/
@@ -7755,10 +7738,9 @@ fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
 
 fn field_sum(sub_i: u32) -> vec3<f32> {
     // Subscriber resolve — lane map at the FIELD consts. Radii ride
-    // the sources the CONTACT rows already use: agents
-    // agent_tier_gains[...].contact_radius (row_agent_contact's
-    // reference), floaters fe.body_radius (the S2c ruling: the
-    // sphere's OWN body).
+    // the CONTACT vocabulary: agents
+    // agent_tier_gains[...].contact_radius, floaters fe.body_radius
+    // (the S2c ruling: the sphere's OWN body).
     var sub_pos: vec3<f32>;
     var r_s: f32;
     if (sub_i < 32u) {
@@ -7773,16 +7755,21 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
         r_s = fe.body_radius;
     }
     var f = vec3(0.0);
-    if (sub_i >= 32u) {
-        // Free agents emit — floater subscribers only (agent↔agent and
-        // the point's rows own the rest; possessed never emits).
-        for (var k = 0u; k < 32u; k++) {
-            if (k == config.possessed_slot) { continue; }
-            let a = agent_state[k];
-            if (a.is_active == 0u) { continue; }
-            let r_e = agent_tier_gains[min(a.tier_idx, 3u)].contact_radius;
-            f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, r_e, sub_i, k);
-        }
+    // Agents emit — EVERY subscriber (FIELD_B2: the agent↔agent
+    // presence row migrated here; the flee-dodge personality stays
+    // the influence law's). Authority enters the field: each
+    // emitter's term scales by its contact_mass, and the possessed
+    // emits at og_mass × PAWN_CONTACT_MASS_MULT — the heavy pawn
+    // parts the crowd through the one law. It still never yields:
+    // its subscriber lane stays rest.
+    for (var k = 0u; k < 32u; k++) {
+        if (sub_i < 32u && k == sub_i) { continue; }   // self
+        let a = agent_state[k];
+        if (a.is_active == 0u) { continue; }
+        let og = agent_tier_gains[min(a.tier_idx, 3u)];
+        var og_mass = og.contact_mass;
+        if (k == config.possessed_slot) { og_mass *= PAWN_CONTACT_MASS_MULT; }
+        f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, og.contact_radius, sub_i, k) * og_mass;
     }
     // Spheres emit — EVERY subscriber (FIELD_B1: the agent←sphere
     // presence row migrated here; point←sphere stays the influence
@@ -7923,25 +7910,16 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     // the disclosed softness: one-frame asymmetries the springs absorb.
     {
         let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
-        let m_self = g_self.contact_mass;
-        // 3D gate, planar push — CONTACT_2 C1a (see update_player_agent).
+        // (FIELD_B2: the agent↔agent presence row migrated to the
+        // field — crowd spacing is field_sum's now, mass-weighted;
+        // the flee-dodge personality stays here.)
         for (var k = 0u; k < 32u; k++) {
             if (k == slot) { continue; }
             let other = agent_state[k];
             if (other.is_active == 0u) { continue; }
             let og = agent_tier_gains[min(other.tier_idx, 3u)];
-            var m_other = og.contact_mass;
-            if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
             let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
-            // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
-            // body, all pairs. Reproduces the C1a spring exactly (cap before
-            // the mass weight -- min() then * yield_share). Bit-proof: LOG.
-            let c_prof = row_agent_contact(g_self, og, m_self, m_other);
-            let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
-                                         c_prof, signal.dt);
-            agent.vel_x += c_r.x;
-            agent.vel_z += c_r.y;
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
             // pair. self_vel reads the POST-contact velocity (the same
             // sequential dependency the inline blocks had). falloff_mix 0 = the
