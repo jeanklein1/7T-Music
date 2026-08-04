@@ -2455,10 +2455,6 @@ fn row_sphere_push(fe: FloatingEntityState) -> InfluenceProfile {
     return InfluenceProfile(fe.influence_radius, 0.0,
                             SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
 }
-fn row_agent_sphere(g_self: AgentTierParams, fe: FloatingEntityState) -> InfluenceProfile {
-    return InfluenceProfile(g_self.contact_radius + fe.body_radius, 0.0,
-                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
-}
 fn row_point_flee(g_self: AgentTierParams, approach_floor: f32) -> InfluenceProfile {
     return InfluenceProfile(config.point_bubble_radius, 0.0,
                             0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6, approach_floor);
@@ -2511,8 +2507,8 @@ struct FieldAuthored {
 const OCCUPIER_CONTACT_SKIN: f32 = 1.6;
 
 fn row_occupier(radius: f32) -> InfluenceProfile {
-    // The row_agent_sphere immovable-authority pattern verbatim
-    // (yield 1.0 on the agent, zero on the occupier), with the
+    // The immovable-authority pattern (yield 1.0 on the agent,
+    // zero on the occupier; retired row_agent_sphere's shape), with the
     // CYLINDRICAL gate: a column is a vertical body — an agent at any
     // height meets the shaft (the row_cube_push planar precedent).
     return InfluenceProfile(radius, INFLUENCE_PLANAR_ONLY,
@@ -7731,7 +7727,8 @@ fn update_player_agent() {
 // shell; field_sum resolves one subscriber lane and walks the
 // emitter classes under the PHASE-A FEEL MATRIX: pairs the influence
 // law / boids already own are skipped (agent↔agent, point↔agent,
-// sphere→agent, point→cube, agent←occupier), the possessed pawn
+// point→cube, agent←occupier; sphere→agent migrated in, FIELD_B1),
+// the possessed pawn
 // neither emits nor
 // subscribes. Authored emitters (FIELD_4): floaters YES; agents
 // no* (the point-rows own them); possessed no. Loops are flat and constant- or uniform-bounded
@@ -7760,7 +7757,8 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // Subscriber resolve — lane map at the FIELD consts. Radii ride
     // the sources the CONTACT rows already use: agents
     // agent_tier_gains[...].contact_radius (row_agent_contact's
-    // reference), floaters fe.body_radius (row_agent_sphere's S2c).
+    // reference), floaters fe.body_radius (the S2c ruling: the
+    // sphere's OWN body).
     var sub_pos: vec3<f32>;
     var r_s: f32;
     if (sub_i < 32u) {
@@ -7785,14 +7783,15 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
             let r_e = agent_tier_gains[min(a.tier_idx, 3u)].contact_radius;
             f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, r_e, sub_i, k);
         }
-        // Spheres emit — floater subscribers only (sphere→agent is
-        // row_agent_sphere's); skip self.
-        for (var k = 0u; k < SPHERE_SLOT_COUNT; k++) {
-            if (sub_i - 32u == k) { continue; }
-            let fe = floating_entities.entities[k];
-            if (fe.is_active == 0u) { continue; }
-            f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 32u + k);
-        }
+    }
+    // Spheres emit — EVERY subscriber (FIELD_B1: the agent←sphere
+    // presence row migrated here; point←sphere stays the influence
+    // law's — row_sphere_push, the point's own reflex); skip self.
+    for (var k = 0u; k < SPHERE_SLOT_COUNT; k++) {
+        if (sub_i >= 32u && sub_i - 32u == k) { continue; }
+        let fe = floating_entities.entities[k];
+        if (fe.is_active == 0u) { continue; }
+        f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 32u + k);
     }
     // Cubes emit — every subscriber; skip self.
     for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
@@ -7957,21 +7956,9 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 agent.vel_z += f_r.y;
             }
         }
-        // spheres push walkers (celestial-massive: only self yields)
-        for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
-            let fe = floating_entities.entities[sph];
-            if (fe.is_active == 0u) { continue; }
-            // CONTACT_5 P1b: agent-vs-sphere contact (PRESENCE) through the one
-            // body. Reference is the sphere's OWN body (fe.body_radius, S2c);
-            // yield 1 -- the agent takes the whole push, the sphere is unmoved
-            // here (P2a gives the sphere authority over the POINT, not agents).
-            let s_prof = row_agent_sphere(g_self, fe);
-            let s_r = influence_response(
-                vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
-                fe.pos, vec2(0.0), s_prof, signal.dt);
-            agent.vel_x += s_r.x;
-            agent.vel_z += s_r.y;
-        }
+        // (FIELD_B1: the agent←sphere presence row migrated to the
+        // field — walkers part by field law; point←sphere stays in
+        // update_player_agent, the point's own reflex.)
 
         // ── OCCUPIERS PUSH WALKERS (BATCH F-B) ────────────────────
         // The standing bodies' word — columns, antennas, arch legs.
