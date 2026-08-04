@@ -1,0 +1,90 @@
+# FIELD_1 — Avoidance Field Recon (read-only audit)
+
+## GIT LAW (standing)
+Trunk-based, master only. This handoff is read-only: zero builds, `glaw1`
+not invoked, no source edits. Product is ONE markdown committed and pushed
+directly to master. No `claude/*` branch. You start shallow; no ancestry
+claims are needed — this audit reads the working tree at HEAD.
+
+## REGISTER
+REPORT findings; never improvise fixes. Every claim carries path + line +
+a verbatim anchor quote. The count law governs: any symbol count states
+the exact search expression and its disambiguating boundary — bare
+substring counts are not evidence. If a named anchor is absent or
+ambiguous: STOP on that item, record the mismatch, continue with the rest.
+
+## SCOPE
+`src/cartridges/the_board/**`, `src/incubator_dual.cpp`, and `world.wgsl`
+(banner + agent-side chains). `src/tools/*.jsx` is out of scope —
+generated text is not a live call site.
+
+## PURPOSE
+We are designing a unified avoidance field: every entity emits soft
+repulsive influence proportional to its size; every entity integrates the
+superposition; terrain constraints override (field proposes, constraints
+dispose). Storage form is analytic — a per-frame packed emitter buffer
+(live position, radius, family, strength) summed per subscriber in one
+loop; no 3D texture. This audit establishes the real anchors first.
+
+## HYPOTHESES — verdict each CONFIRMED / FALSIFIED / PARTIAL, with evidence
+
+H1 — Integration site. Velocity/position integration for floaters runs on
+the CPU spine; the GPU receives finished positions. Verdict separately for
+pawns and ribbon rings. Distinguish *integration* from *resolve*: the
+known WGSL ground chain suggests pawn vertical resolve is GPU-side even if
+integration is not. Where integration happens is where the field force
+must be summed.
+
+H2 — The field is additive. No entity↔entity avoidance, repulsion, or
+separation logic exists anywhere in scope — floaters, pawns, rings
+interpenetrate freely today. Any pairwise-avoidance site found is listed
+as a future deletion target.
+
+H3 — One home per pack fact. For each emitter class (floater, pawn, ring):
+position, size/radius, and a usable identity (index that can serve as
+family ID) each have exactly one live home readable at pack time. Table:
+class × {position home, size home, identity home}, path:line each. Flag
+any fact with two homes or none. Ribbon: confirm ring positions read from
+the post-RESIDUE_3 host machine's single home.
+
+H4 — Constraint-last ordering. Terrain resolve executes as a distinct step
+after motion integration in frame order, so a field force sums into
+velocity before resolve without reordering the frame. Quote the
+frame-order site that proves or disproves; if the boundary is CPU→GPU,
+describe the actual shape.
+
+H5 — Room for the pass. The field loop can bind without growing shared
+entity/texture layouts. Report: group 2's current bind-group layout
+verbatim; free slots; the unspent storage-buffer slots freed by the
+reallocation campaign; whether an existing agent compute pass could host
+the loop or a dedicated pipeline+layout is cheaper. Quote the `world.wgsl`
+FXC banner block verbatim — it is the law the eventual pass is judged
+against. Name the METER_1 row (existing or needed) that would time the
+loop.
+
+H6 — Choreography is enumerable. F6/F7 reach a bounded, isolated set of
+motion-logic sites (candidates for re-expression as authored emitters).
+List every site the two keys reach. FALSIFIED if choreography logic is
+diffused through general entity update code.
+
+H7 — Damping exists. Every subscriber class already damps velocity (decay,
+spring damping, or equivalent) that a field force can ride. Table: class ×
+mechanism × path:line. Flag any undamped class — pure repulsion without
+damping orbits.
+
+H8 — Populations are small. Live counts or compile-time caps per class:
+floaters, pawns, rings, any other prospective emitter. Compute worst-case
+emitters × subscribers. This number settles direct summation or opens a
+broadphase question.
+
+## DELIVERABLE
+One markdown — the FIELD_1 recon ledger — beside LEDGER_1's artifact,
+mirroring its convention: per-hypothesis verdicts with evidence, the three
+tables (pack facts, damping, populations), the group-2 layout, the
+freed-slot inventory, the quoted banner, the F6/F7 site list.
+Commit message: `FIELD_1: avoidance field recon ledger (read-only)`.
+One commit, straight to master, push. Nothing else changes.
+
+## INDEPENDENCE
+FIELD_1 does not touch LEDGER_1's terrain scope; the audits land in either
+order.
