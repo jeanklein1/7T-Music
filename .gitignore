@@ -388,3 +388,5 @@ CASE/
 
 # package-lock.json - optional, uncomment if you want to track it
 # package-lock.json
+# Visual Studio encoding-save artifacts
+enc_temp_folder/
