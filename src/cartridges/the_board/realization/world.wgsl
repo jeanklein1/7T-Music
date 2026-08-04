@@ -2218,7 +2218,8 @@ const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — 
 // floating_entities index. Beside the influence law: pairs a row
 // still owns are SKIPPED (phase B migrates them commit by commit —
 // sphere→agent B1, agent↔agent presence B2); the possessed pawn
-// emits (×PAWN_CONTACT_MASS_MULT, B2) and never subscribes.
+// emits to agents only (×PAWN_CONTACT_MASS_MULT, B2b) and never
+// subscribes.
 const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
 const FIELD_SLACK: f32 = 3.0;         // shell factor over summed radii
 const FIELD_K: f32 = 300.0;             // accel per unit of quadratic shell depth
@@ -7712,7 +7713,8 @@ fn update_player_agent() {
 // law / boids already own are skipped (point↔agent, point→cube,
 // agent←occupier; sphere→agent migrated FIELD_B1, agent↔agent
 // presence FIELD_B2 — the flee-dodge stays), the possessed pawn
-// EMITS (×PAWN_CONTACT_MASS_MULT, FIELD_B2) and never
+// EMITS to agents only (×PAWN_CONTACT_MASS_MULT, FIELD_B2b;
+// floaters no* — row_cube_push owns cube←point) and never
 // subscribes. Authored emitters (FIELD_4): floaters YES; agents
 // no* (the point-rows own them); possessed no. Loops are flat and constant- or uniform-bounded
 // (banner rule 2); no textures (rule 3); outside every collision/
@@ -7759,16 +7761,19 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // presence row migrated here; the flee-dodge personality stays
     // the influence law's). Authority enters the field: each
     // emitter's term scales by its contact_mass, and the possessed
-    // emits at og_mass × PAWN_CONTACT_MASS_MULT — the heavy pawn
-    // parts the crowd through the one law. It still never yields:
-    // its subscriber lane stays rest.
+    // emits at og_mass × PAWN_CONTACT_MASS_MULT — to AGENT lanes
+    // only (FIELD_B2b: floater lanes keep Phase A's discipline;
+    // cube←point stays row_cube_push's until the point arc rules).
+    // It still never yields: its subscriber lane stays rest.
     for (var k = 0u; k < 32u; k++) {
         if (sub_i < 32u && k == sub_i) { continue; }   // self
         let a = agent_state[k];
         if (a.is_active == 0u) { continue; }
         let og = agent_tier_gains[min(a.tier_idx, 3u)];
         var og_mass = og.contact_mass;
-        if (k == config.possessed_slot) { og_mass *= PAWN_CONTACT_MASS_MULT; }
+        if (k == config.possessed_slot) {
+            og_mass = select(0.0, og_mass * PAWN_CONTACT_MASS_MULT, sub_i < 32u);
+        }
         f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, og.contact_radius, sub_i, k) * og_mass;
     }
     // Spheres emit — EVERY subscriber (FIELD_B1: the agent←sphere
