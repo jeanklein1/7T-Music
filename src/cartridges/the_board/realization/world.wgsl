@@ -11,9 +11,19 @@
 //
 // THE LAWS THAT GOVERN THIS FILE — src/docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
-//   L2  FXC — the Windows D3D12 backend's hard limits, honored by
-//       structure. READ L2 BEFORE adding a branch to the collision/
-//       ground chain or a texture-array stamp anywhere near it.
+// ─── FXC BANNER (L2's operational home; L2 owns the why) ────
+// Windows D3D12 compiles through FXC. Honored BY STRUCTURE:
+//  1. Hot-loop instance structs stay lean and byte-pinned
+//     (exemplar: GPUSpotLightArray static_assert, state.hpp).
+//  2. The collision/ground chain admits NO new runtime
+//     branching. Loops bound by uniforms
+//     (min(count, MAX_...)); dispatch by uniform function
+//     choice, never by branch.
+//  3. NO texture-array stamps in or near the collision chain.
+//  4. Storage buffers per stage = 10. Uniforms per stage = 12.
+// A violation does not fail here. It fails on Windows, at
+// pipeline creation, in someone else's hands. The kernel-split
+// banner (above the agent kernels) prices the inlining cliff.
 //   L3  mirror — §2.1 structs ↔ state.hpp byte-for-byte; §3.4
 //       POLICY_*_MASK ↔ POLICIES[] in contracts/
 //       ground_architecture.hpp; §1.5 randomness ↔ primitives/
