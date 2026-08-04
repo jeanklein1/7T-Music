@@ -2220,13 +2220,13 @@ const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the
 // influence_response / boids row already owns are SKIPPED (phase B
 // migrates them); the possessed pawn neither emits nor subscribes.
 const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
-const FIELD_SLACK: f32 = 3.0;         // shell factor over summed radii
-const FIELD_K: f32 = 300.0;             // accel per unit of quadratic shell depth
-const FIELD_FMAX: f32 = 600.0;          // magnitude clamp on the summed force
+const FIELD_SLACK: f32 = 1.35;         // shell factor over summed radii
+const FIELD_K: f32 = 100.0;             // accel per unit of quadratic shell depth
+const FIELD_FMAX: f32 = 60.0;          // magnitude clamp on the summed force
 // Jean's gate instrument — any subscriber class zeroes independently:
-const FIELD_GAIN_CUBE: f32 = 4.0;
+const FIELD_GAIN_CUBE: f32 = 1.0;
 const FIELD_GAIN_SPHERE: f32 = 1.0;
-const FIELD_GAIN_AGENT: f32 = 4.0;
+const FIELD_GAIN_AGENT: f32 = 1.0;
 
 // --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
 // reference: mosaic cell PATCH_CELL_SIZE 3.125 wu -> ~1.3 cells of
