@@ -278,6 +278,10 @@ namespace t7 {
 
             enum class PawnReadbackState { IDLE, COPIED, MAPPING };
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
+
+            // OPT_1a: true while the live card holds a clean rest field
+            // (skip the writer); boots false so the first frame writes.
+            bool liveCardRestClean_ = false;
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             // The point readback (option A): runs ONLY in
@@ -967,6 +971,9 @@ namespace t7 {
                         //   spine-owned.
 
                         world_state_.world_gen++;
+                        // OPT_1a: the new world's rest field must be written
+                        // once even if no zone ever goes live there.
+                        liveCardRestClean_ = false;
                         // THE FIRST-CAPTURE GATE (POINT_1, the measured seam):
                         // the harvest closures bind their gen at MAP time, so a
                         // copy STAGED in the old world (state COPIED) and
@@ -1483,8 +1490,38 @@ namespace t7 {
             // texel centers; every consumer then samples one card. Before
             // DispatchCompute (the consumers) and before PlacementCorrection
             // (reads .a at H5).
+            //
+            // OPT_1a — THE REST SKIP: both dispatches (819,200 invocations)
+            // are skipped while the card's field is at rest. The full
+            // three-conjunct rest law, evaluated CPU-side and conservative
+            // (any doubt => write): no GoL zone live, pulse ring empty,
+            // terrain_time <= 0. Post-CUT_1 the last two are structurally
+            // pinned at rest (O0-d: the ring's only writer is the boot
+            // zero-pin; terrain_time's only writers pin 0.0) — checked
+            // anyway so a future re-arming of either conjunct wakes the
+            // writer without an edit here. On the transition into rest, ONE
+            // final write runs so consumers never read stale non-zero
+            // texels; the flag resets at world teardown so a fresh world's
+            // rest field is written once too.
             void phase_live_card_write(RenderCtx& c) {
                 auto& encoder = c.encoder;
+
+                bool card_live = gpuState_.config().pulse_count > 0
+                              || gpuState_.config().terrain_time > 0.0f;
+                if (!card_live) {
+                    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
+                        if (gol_state_.zones[i].active) { card_live = true; break; }
+                    }
+                }
+
+                if (card_live) {
+                    liveCardRestClean_ = false;      // live: write every frame
+                } else if (liveCardRestClean_) {
+                    return;                          // at rest, card clean: skip
+                } else {
+                    liveCardRestClean_ = true;       // entering rest: one clearing write
+                }
+
                 dispatch_live_card_write(&machine_ctx_, encoder);
             }
 
