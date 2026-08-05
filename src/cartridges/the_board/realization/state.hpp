@@ -27,7 +27,6 @@
 //     set_* surface      grouped by ─── system headers
 //     bind groups        bind::g0/g1 only — the registry is the map
 
-#include "analysis/analysis_signal.hpp"
 #include "core/instruments.hpp"                  // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter gates the GPU half's creation + arming (compile-time, T7_INSTRUMENTS; default off)
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)

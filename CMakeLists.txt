@@ -266,52 +266,26 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/$<CONFIG>/SP
 # ACTIVE CARTRIDGE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Controls which cartridges the incubator targets include.
-# IntelliSense will only index these — no noise from other cartridges.
+# Controls which render cartridge the incubator target includes.
+# IntelliSense will only index it — no noise from other cartridges.
 #
 # Change here to switch focus. No need to edit .cpp files.
 #
 #   Render cartridges:   src/cartridges/<name>/cartridge.hpp
-#   Analysis cartridges: src/analysis/<name>/canvas.hpp
 #
 #   Available render cartridges: the_board
 #
-# Set INCUBATOR_ONLY=ON during development to hide the main target entirely.
-# The main target pulls ALL cartridges and pollutes IntelliSense.
-
-# Per-target cartridge selection. incubator_dual carries the render
-# cartridge; the_lab shares the analysis selection.
-set(INCUBATOR_ANALYSIS_CARTRIDGE      "canvas_1"         CACHE STRING "Analysis cartridge for the 'the_lab' target")
+# The analysis side is the BeatClock (src/analysis/beat_clock.hpp,
+# CUT_1c) — no analysis cartridge selection exists anymore.
 
 set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
 set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
-set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
-option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
-
-# ── Self-heal a stale cartridge selection ──────────────────────────────────────
-# A CACHE value persists in an existing build directory and is NOT overwritten by
-# the defaults above (a `set(... CACHE ...)` without FORCE is a no-op once the
-# entry exists). So a build dir configured before a cartridge was renamed or
-# removed — e.g. the old 'polyphony_basic' — keeps pointing at a directory that no
-# longer exists, and the build fails with a confusing "cannot find file". Detect
-# that and reset to the current default, so a plain reconfigure recovers without
-# anyone having to clear the cache by hand. A still-valid selection is left alone,
-# so an intentional -D choice of another (existing) cartridge is preserved.
-foreach(_sel INCUBATOR_ANALYSIS_CARTRIDGE
-             INCUBATOR_DUAL_ANALYSIS_CARTRIDGE)
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${${_sel}}/canvas.hpp")
-        message(STATUS "Cartridge '${${_sel}}' (cached in ${_sel}) not found; resetting to 'canvas_1'.")
-        set(${_sel} "canvas_1" CACHE STRING "Analysis cartridge" FORCE)
-    endif()
-endforeach()
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
-message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} analysis: ${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
+message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
 message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
-message(STATUS "  the_lab        -> analysis: ${INCUBATOR_ANALYSIS_CARTRIDGE}")
-message(STATUS "  Incubator only: ${INCUBATOR_ONLY}")
 message(STATUS "")
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -505,7 +479,7 @@ set(MSVC_LINK_OPTS
     "$<$<CONFIG:Release>:/OPT:REF>"
     "$<$<CONFIG:Release>:/OPT:ICF>"
     "$<$<CONFIG:Release>:/INCREMENTAL:NO>")
-set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS __WINDOWS_MM__)
+set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILD INFO
@@ -520,30 +494,25 @@ message(STATUS "")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# INCUBATOR DUAL — Analysis + Render cartridge development
+# INCUBATOR DUAL — Render cartridge development
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Pairs an analysis cartridge with a render cartridge (the_board).
-# Uses INCUBATOR_DUAL_ANALYSIS_CARTRIDGE and INCUBATOR_DUAL_RENDER_CARTRIDGE.
+# The render cartridge (the_board) driven by the BeatClock.
+# Uses INCUBATOR_DUAL_RENDER_CARTRIDGE.
 #
 # Build:  cmake --build . --target incubator_dual
-# Run:    ./incubator_dual.exe [optional_midi_file]
+# Run:    ./incubator_dual.exe
 #
 
-# Only the active cartridges' headers → scoped IntelliSense
+# Only the active cartridge's headers → scoped IntelliSense
 file(GLOB_RECURSE DUAL_RENDER_HEADERS
     "src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}/*.hpp"
-)
-file(GLOB_RECURSE DUAL_ANALYSIS_HEADERS CONFIGURE_DEPENDS
-    "src/analysis/${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
 add_executable(incubator_dual
     src/incubator_dual.cpp
     src/external/stb_image.cpp
-    src/external/RtMidi.cpp
     ${DUAL_RENDER_HEADERS}
-    ${DUAL_ANALYSIS_HEADERS}
 )
 
 target_include_directories(incubator_dual PRIVATE
@@ -559,7 +528,6 @@ if(MSVC)
     target_compile_definitions(incubator_dual PRIVATE
         ${MSVC_COMPILE_DEFS}
         INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
-        INCUBATE_ANALYSIS=${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
     )
@@ -576,249 +544,3 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_R
     PREFIX "Render Cartridge"
     FILES ${DUAL_RENDER_HEADERS}
 )
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}"
-    PREFIX "Analysis Cartridge"
-    FILES ${DUAL_ANALYSIS_HEADERS}
-)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# THE_LAB — Coupling laboratory (ImGui + WebGPU, no render cartridge)
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# Sub-second iteration sandbox for designing musical couplings.
-# Pairs an analysis cartridge with an ImGui+ImPlot dashboard.
-# No project WGSL pipelines — FXC compile time is trivial.
-#
-# Build:  cmake --build . --target the_lab
-# Run:    ./the_lab.exe [optional_midi_file]
-#
-
-# Analysis cartridge headers (INCUBATOR_ANALYSIS_CARTRIDGE selection)
-file(GLOB_RECURSE LAB_ANALYSIS_HEADERS CONFIGURE_DEPENDS
-    "src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}/*.hpp"
-)
-
-# ImGui sources (vendored)
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/src/external/imgui)
-set(IMGUI_SOURCES
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_demo.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_wgpu.cpp
-)
-
-# ImPlot sources (vendored)
-set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/src/external/implot)
-set(IMPLOT_SOURCES
-    ${IMPLOT_DIR}/implot.cpp
-    ${IMPLOT_DIR}/implot_items.cpp
-)
-
-add_executable(the_lab
-    src/the_lab.cpp
-    src/external/RtMidi.cpp
-    ${IMGUI_SOURCES}
-    ${IMPLOT_SOURCES}
-    ${LAB_ANALYSIS_HEADERS}
-)
-
-target_include_directories(the_lab PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${IMGUI_DIR}
-    ${IMGUI_DIR}/backends
-    ${IMPLOT_DIR}
-    ${DAWN_INCLUDES}
-)
-
-target_link_libraries(the_lab PRIVATE ${DAWN_LIBS})
-
-if(MSVC)
-    target_compile_options(the_lab PRIVATE ${MSVC_COMPILE_OPTS})
-    target_link_options(the_lab PRIVATE ${MSVC_LINK_OPTS})
-    target_compile_definitions(the_lab PRIVATE
-        ${MSVC_COMPILE_DEFS}
-        LAB_ANALYSIS=${INCUBATOR_ANALYSIS_CARTRIDGE}
-        # imgui_impl_wgpu chooses its WebGPU runtime binding via this define
-        IMGUI_IMPL_WEBGPU_BACKEND_DAWN
-    )
-endif()
-
-add_custom_command(TARGET the_lab POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:the_lab>/assets
-    COMMENT "Copying assets for the_lab..."
-)
-
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}"
-    PREFIX "Analysis Cartridge"
-    FILES ${LAB_ANALYSIS_HEADERS}
-)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ── PROBE_CANVAS — headless reading check (RtMidi only; no Dawn, no ImGui) ──
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# The canvas-cartridge probe. Earlier one-off probes were scaffolding for
-# building the analysis layer; their targets and sources are gone (git has
-# them).
-
-add_executable(probe_canvas src/analysis/canvas_1/probe_canvas.cpp src/external/RtMidi.cpp)
-target_include_directories(probe_canvas PRIVATE src)
-if(MSVC)
-    target_compile_definitions(probe_canvas PRIVATE __WINDOWS_MM__)
-    target_link_libraries(probe_canvas PRIVATE winmm)
-endif()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ── CANVAS_1 CHECKS — headless assertion tests (no Dawn, no ImGui) ──
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# check_canvas_union   — the published surface end-to-end: two voices, the union
-#                        field in the group band, opt-in and availability-bound.
-#                        Drives the canvas directly, port dormant; needs RtMidi
-#                        linked (the Canvas owns a MidiPort) but never opens it.
-# check_field_union    — the union primitive + field election in isolation, over
-#                        field.hpp alone; no canvas, no port, no RtMidi.
-
-add_executable(check_canvas_union src/analysis/canvas_1/check_canvas_union.cpp src/external/RtMidi.cpp)
-target_include_directories(check_canvas_union PRIVATE src)
-if(MSVC)
-    target_compile_definitions(check_canvas_union PRIVATE __WINDOWS_MM__)
-    target_link_libraries(check_canvas_union PRIVATE winmm)
-endif()
-
-add_executable(check_field_union src/analysis/canvas_1/check_field_union.cpp)
-target_include_directories(check_field_union PRIVATE src)
-
-# check_pc_dft — the pc-DFT capability's pure-fn gate: known vectors →
-# known interval families, over pc_dft.hpp alone; no canvas, no RtMidi.
-add_executable(check_pc_dft src/analysis/canvas_1/check_pc_dft.cpp)
-target_include_directories(check_pc_dft PRIVATE src)
-
-add_executable(check_canvas_compound src/analysis/canvas_1/check_canvas_compound.cpp src/external/RtMidi.cpp)
-target_include_directories(check_canvas_compound PRIVATE src)
-if(MSVC)
-    target_compile_definitions(check_canvas_compound PRIVATE __WINDOWS_MM__)
-    target_link_libraries(check_canvas_compound PRIVATE winmm)
-endif()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN TARGET — Full program with all cartridges
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# Disabled by default during development (INCUBATOR_ONLY=ON).
-# This target discovers ALL cartridge headers, which floods IntelliSense
-# with duplicate definitions. Enable for production builds only.
-#
-# To enable:  cmake -DINCUBATOR_ONLY=OFF ..
-# To disable: cmake -DINCUBATOR_ONLY=ON ..  (default)
-
-if(NOT INCUBATOR_ONLY)
-
-# Auto-discover ALL cartridge headers
-file(GLOB_RECURSE CARTRIDGE_HEADERS "src/cartridges/*.hpp")
-
-message(STATUS "")
-message(STATUS "Discovered cartridges (main target):")
-foreach(HEADER ${CARTRIDGE_HEADERS})
-    file(RELATIVE_PATH REL_PATH ${CMAKE_CURRENT_SOURCE_DIR} ${HEADER})
-    message(STATUS "  ${REL_PATH}")
-endforeach()
-message(STATUS "")
-
-# Header-only modules (for IDE visibility)
-set(HEADERS
-    # Console (runtime infrastructure)
-    src/console/console.hpp
-
-    # Core
-    src/core/types.hpp
-    src/core/clock.hpp
-    src/core/input_event.hpp
-
-    # Analysis (cartridge interface + signal contract)
-    src/analysis/analysis_signal.hpp
-    src/analysis/analysis_cartridge.hpp
-
-    # Render (cartridge interface)
-    src/render/render_cartridge.hpp
-
-    # Sources (MIDI input providers)
-    src/sources/midi_event.hpp
-    src/sources/midi_file.hpp
-    src/sources/keyboard_midi.hpp
-    src/sources/midi_port.hpp
-
-    # Musical
-    src/musical/stream_data.hpp
-    src/musical/midi_stream.hpp
-    src/musical/musical_ops.hpp
-    src/musical/playhead.hpp
-    src/musical/wagon.hpp
-
-    # Cartridges (auto-discovered)
-    ${CARTRIDGE_HEADERS}
-)
-
-add_executable(${PROJECT_NAME}
-    src/main.cpp
-    ${HEADERS}
-    src/external/stb_image.cpp
-    src/external/RtMidi.cpp
-)
-
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${DAWN_INCLUDES}
-)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE ${DAWN_LIBS})
-
-if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE ${MSVC_COMPILE_OPTS})
-    target_link_options(${PROJECT_NAME} PRIVATE ${MSVC_LINK_OPTS})
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        ${MSVC_COMPILE_DEFS}
-        T7_INSTRUMENTS=${T7_INSTRUMENTS}
-    )
-endif()
-
-# Post-build: copy assets and cartridges
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
-    COMMENT "Copying assets..."
-)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges
-    $<TARGET_FILE_DIR:${PROJECT_NAME}>/cartridges
-    COMMENT "Copying cartridges..."
-)
-
-# IDE organization
-source_group("Source" FILES src/main.cpp src/incubator.cpp)
-source_group("Console" FILES src/console/console.hpp)
-source_group("Core" FILES src/core/types.hpp src/core/clock.hpp src/core/input_event.hpp)
-source_group("Analysis" FILES src/analysis/analysis_signal.hpp src/analysis/analysis_cartridge.hpp)
-source_group("Render" FILES src/render/render_cartridge.hpp)
-source_group("Sources" FILES src/sources/midi_event.hpp src/sources/midi_file.hpp src/sources/keyboard_midi.hpp src/sources/midi_port.hpp)
-source_group("Musical" FILES
-    src/musical/stream_data.hpp src/musical/midi_stream.hpp src/musical/musical_ops.hpp
-    src/musical/playhead.hpp src/musical/wagon.hpp
-)
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges"
-    PREFIX "Cartridges"
-    FILES ${CARTRIDGE_HEADERS}
-)
-
-endif() # NOT INCUBATOR_ONLY
