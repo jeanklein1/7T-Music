@@ -54,6 +54,16 @@ inline constexpr float FIELD_FMAX  = 600.0f;  // magnitude clamp on the summed f
 inline constexpr float FIELD_OCCUPIER_GAIN = 1.0f;  // standing geometry (shafts + arch legs)
 inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the beacon, the lure)
 
+// The gate instrument's subscriber half — any class zeroes
+// independently. Applied AFTER the FMAX clamp: the summed shape is
+// bounded once, then scaled per class. These three were WGSL-only
+// before the panel (no C++ twin existed to relocate in FIELD_2a), so
+// the panel is their FIRST home, not their second — authored here
+// from the values the deleted consts carried.
+inline constexpr float FIELD_GAIN_CUBE   = 4.0f;
+inline constexpr float FIELD_GAIN_SPHERE = 1.0f;
+inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
+
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination (F5): 0 / 0.5 / 1.0 — the
 // knob's first visible meaning in open_sunset. R0 sits outside the

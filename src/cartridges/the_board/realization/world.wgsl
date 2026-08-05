@@ -1693,8 +1693,25 @@ struct DesignConfig {
     // (binding 112) is a render-VS uniform and no compute layout binds it.
     // Reuses the first tail pad in place; sizeof 592 unmoved. Was _pad592_0.
     fpv_eye_height: f32,
-    _pad592_1: f32,
-    _pad592_2: f32,
+    // ─── THE FIELD'S DIALS (FIELD_2b) ────────────────────────────────
+    // Mirror of GPUDesignConfig tail (state.hpp) — GROWTH LAW, same
+    // commit, same order, same types. These were module consts in this
+    // room and hand-copied constants in the ribbon's; both copies are
+    // gone. THE PANEL (contracts/control_panel.hpp) authors the rests
+    // and the boot pins them here, so the rooms cannot drift — the
+    // failure Gate E paid for is now structurally impossible.
+    // Two _pad592 floats consumed, six appended, two fresh pads to the
+    // boundary: sizeof 592 -> 624 (state.hpp carries the witness).
+    field_slack: f32,
+    field_k: f32,
+    field_fmax: f32,
+    field_occupier_gain: f32,
+    field_authored_gain: f32,
+    field_gain_cube: f32,
+    field_gain_sphere: f32,
+    field_gain_agent: f32,
+    _pad624_0: f32,
+    _pad624_1: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -2220,23 +2237,25 @@ const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — 
 // sphere→agent B1, agent↔agent presence B2); the possessed pawn
 // emits to agents only (×PAWN_CONTACT_MASS_MULT, B2b) and never
 // subscribes.
+// FIELD_SUBSCRIBERS is a DIMENSION, not a dial: it sizes the
+// field_forces array, and an array size cannot come from a uniform.
+// It stays a const here and is pinned to Dim::FIELD_SUBSCRIBER_CAP by
+// a static_assert in state.hpp (the L3 lockstep witness it never had).
+// The array bound below reads THIS name — one home in this room.
 const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
-const FIELD_SLACK: f32 = 3.0;         // shell factor over summed radii
-const FIELD_K: f32 = 300.0;             // accel per unit of quadratic shell depth
-const FIELD_FMAX: f32 = 600.0;          // magnitude clamp on the summed force
-// Jean's gate instrument — any subscriber class zeroes independently:
-const FIELD_GAIN_CUBE: f32 = 4.0;
-const FIELD_GAIN_SPHERE: f32 = 1.0;
-const FIELD_GAIN_AGENT: f32 = 4.0;
-// Emitter-side gain: scales the standing-geometry terms (shafts +
-//  arch legs) before the FMAX clamp — zeroing it mutes FIELD_3
-//  exactly. Applies to floater subscribers only; agents' occupier
-//  law stays occupier_contact.
-const FIELD_OCCUPIER_GAIN: f32 = 1.0;
+// The dials themselves live at THE PANEL (contracts/control_panel.hpp)
+// and arrive as config fields (FIELD_2b): config.field_slack /
+// field_k / field_fmax, the two emitter mutes field_occupier_gain /
+// field_authored_gain, and the subscriber-class gains
+// field_gain_cube / _sphere / _agent — Jean's gate instrument, each
+// still zeroing its class independently.
+// config.field_occupier_gain scales the standing-geometry terms
+//  (shafts + arch legs) before the FMAX clamp — zeroing it mutes
+//  FIELD_3 exactly. Applies to floater subscribers only; agents'
+//  occupier law stays occupier_contact.
 // Authored emitters (FIELD_4): SHELL attractors — spring toward
-// radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0; the
-// mute switch below. Tiebreak band: 900+i.
-const FIELD_AUTHORED_GAIN: f32 = 1.0;
+// radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0;
+// config.field_authored_gain is their mute. Tiebreak band: 900+i.
 
 // --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
 // reference: mosaic cell PATCH_CELL_SIZE 3.125 wu -> ~1.3 cells of
@@ -2482,7 +2501,7 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
 // new reachability, not a new fact.
 @group(2) @binding(2) var<storage, read> field_head_poses : array<vec4<f32>, 400>;
-@group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, 296>;
+@group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;
 @group(2) @binding(4) var<uniform> field_ribbon : RibbonState;
 // The authored table (FIELD_4) — mirrors GPUFieldAuthored in
 // state.hpp BYTE-FOR-BYTE (144 B; the static_assert is the
@@ -2580,7 +2599,7 @@ fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
 //     concrete cost of a value split across rooms: move the tier radii next to
 //     the caps and the row becomes checkable (T3 charter generalizes the rule).
 //     SUCCESSION (FIELD_B1/B2): agent<->agent and agent<-sphere presence
-//     migrated to the field (its ceiling is FIELD_FMAX, one clamp for the
+//     migrated to the field (its ceiling is config.field_fmax, one clamp for the
 //     whole sum); the surviving CONTACT-cap consumer here is row_occupier.
 //   SPHERE row   -- LIVE LIMITER, not a guard. Max impulse is
 //     fe.influence_radius*SPHERE_PUSH_GAIN*dt; at the typical mu=8 that is 5.33
@@ -7723,7 +7742,7 @@ fn update_player_agent() {
 fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
               r_s: f32, r_e: f32, sub_i: u32, emit_i: u32) -> vec3<f32> {
     let dvec = sub_pos - emit_pos;
-    let shell = (r_s + r_e) * FIELD_SLACK;
+    let shell = (r_s + r_e) * config.field_slack;
     let len = length(dvec);
     if (len >= shell) { return vec3(0.0); }
     // Degenerate overlap: deterministic axis by index parity — no
@@ -7735,7 +7754,7 @@ fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
         dir = dvec / len;
     }
     let depth = 1.0 - len / shell;
-    return dir * (FIELD_K * depth * depth);
+    return dir * (config.field_k * depth * depth);
 }
 
 fn field_sum(sub_i: u32) -> vec3<f32> {
@@ -7813,7 +7832,7 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // are infinite columns to floaters, as they are to agents; if
     // altitude phantoms ever read wrong, the deferral is a base_y
     // cached at spawn (where ground is queried once), not a manifold
-    // query here. True radii, no skin — FIELD_SLACK is the standoff.
+    // query here. True radii, no skin — config.field_slack is the standoff.
     // Flat, const-bounded loops; no textures; outside every
     // collision/ground chain (banner rules 2, 3).
     if (sub_i >= 32u) {
@@ -7837,7 +7856,7 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
                               vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
                               r_s, leg_r, sub_i, 741u + 2u * i);
         }
-        f += occ * FIELD_OCCUPIER_GAIN;
+        f += occ * config.field_occupier_gain;
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).
         let na = min(field_authored.count, 4u);
@@ -7855,14 +7874,14 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
             }
             let env = 1.0 - alen / a1.y;
             let e = clamp((alen - a1.x) / max(a1.x, 1.0), -1.0, 1.0);
-            f += adir * (-(a0.w) * e * env * env) * FIELD_AUTHORED_GAIN;
+            f += adir * (-(a0.w) * e * env * env) * config.field_authored_gain;
         }
     }
     let fl = length(f);
-    if (fl > FIELD_FMAX) { f = f * (FIELD_FMAX / fl); }
-    var gain = FIELD_GAIN_AGENT;
-    if (sub_i >= 40u) { gain = FIELD_GAIN_CUBE; }
-    else if (sub_i >= 32u) { gain = FIELD_GAIN_SPHERE; }
+    if (fl > config.field_fmax) { f = f * (config.field_fmax / fl); }
+    var gain = config.field_gain_agent;
+    if (sub_i >= 40u) { gain = config.field_gain_cube; }
+    else if (sub_i >= 32u) { gain = config.field_gain_sphere; }
     return f * gain;
 }
 
@@ -13114,11 +13133,11 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         //  buffer where classes must hear each other, the direct call
         //  where a subsystem is closed (orb↔orb only; the snapshot
         //  keeps it race-free). Radius mapping keeps the mood dial:
-        //  shell = 2r·FIELD_SLACK = flock_sep_radius exactly — and the
+        //  shell = 2r·config.field_slack = flock_sep_radius exactly — and the
         //  shell gives separation a TRUE finite reach where 1/d² had an
         //  infinite tail behind a gate. Magnitude ownership unchanged:
         //  the sum is normalized below, the weight chain governs.
-        let sep_pair_r = orb_config.flock_sep_radius / (2.0 * FIELD_SLACK);
+        let sep_pair_r = orb_config.flock_sep_radius / (2.0 * config.field_slack);
 
         var sep_sum   = vec3<f32>(0.0, 0.0, 0.0);
         var ali_sum   = vec3<f32>(0.0, 0.0, 0.0);
