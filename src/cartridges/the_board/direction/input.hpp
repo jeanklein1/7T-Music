@@ -198,21 +198,6 @@ void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multipl
 #ifndef GLFW_KEY_V
 #define GLFW_KEY_V  86
 #endif
-#ifndef GLFW_KEY_F4
-#define GLFW_KEY_F4  293
-#endif
-#ifndef GLFW_KEY_F5
-#define GLFW_KEY_F5  294
-#endif
-#ifndef GLFW_KEY_F6
-#define GLFW_KEY_F6  295
-#endif
-#ifndef GLFW_KEY_F7
-#define GLFW_KEY_F7  296
-#endif
-#ifndef GLFW_KEY_F8
-#define GLFW_KEY_F8  297
-#endif
 
 
 // ═══ KEY DISPATCH ════════════════════════════════════════════════
@@ -267,21 +252,6 @@ inline void on_key_down(InputDeps* c, int key,
         toggle_fpv_mode(c);
         break;
     case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(agent_state, &agents_deps, q);  break;
-
-    // ── Diagnostics (function keys) ──────────────────────────────
-    case GLFW_KEY_F4: cycle_cube_behavior_override(cube_behaviors_state, &cube_deps, q);   break;
-    case GLFW_KEY_F5: cycle_floater_coordination(cube_behaviors_state, &cube_deps);        break;
-    case GLFW_KEY_F6: reveal_zoetrope(cube_behaviors_state, &cube_deps, q);                break;
-    case GLFW_KEY_F7: toggle_cube_kite_mode(cube_behaviors_state, &cube_deps, q);          break;
-    case GLFW_KEY_F8:
-        // ROSTER-GATE ribbon (b): sky-flight's entry
-        // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
-        // the pawn to origin (the fail-LOUD zeros turned player-facing —
-        // earlier recon). RIBBON is a host (RESIDUE_3); from camera host
-        // possess() composes: release camera, mount.
-        if constexpr (ROSTER.ribbon)
-            possess(c, c->point_.host == PointHost::RIBBON ? PointHost::PAWN : PointHost::RIBBON);
-        break;
     }
     update_movement_intent(c);
 }

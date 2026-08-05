@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
     FileWatcher watcher;
     watcher.watch(render.shader_path());
     std::cout << "[Incubator] Hot reload enabled: " << render.shader_path() << "\n\n";
-    std::cout << "Controls: WASD=move, Mouse=camera, 4=host, F8=ribbon, 5-8=moods, Esc=quit\n\n";
+    std::cout << "Controls: WASD=move, Mouse=camera, 4=host, 5-8=moods, Esc=quit\n\n";
 
     int reload_frame_counter = 0;
     wgpu::Queue queue = console.queue();
