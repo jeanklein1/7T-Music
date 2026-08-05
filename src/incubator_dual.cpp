@@ -71,7 +71,6 @@
 
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.watcher_ticks gates the hot-reload progress dot
 #include <iostream>
-#include <GLFW/glfw3.h>
 #include <filesystem>
 #include <system_error>   // std::error_code — the watcher's non-throwing stat
 #include <chrono>

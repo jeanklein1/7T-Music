@@ -567,13 +567,6 @@ endif()
 
 add_custom_command(TARGET incubator_dual POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges
-    $<TARGET_FILE_DIR:incubator_dual>/cartridges
-    COMMENT "Copying cartridges for incubator_dual..."
-)
-
-add_custom_command(TARGET incubator_dual POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_CURRENT_SOURCE_DIR}/assets
     $<TARGET_FILE_DIR:incubator_dual>/assets
     COMMENT "Copying assets for incubator_dual..."
