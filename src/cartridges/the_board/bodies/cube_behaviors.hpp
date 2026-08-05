@@ -805,12 +805,21 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // ONE init home for target in both arms: at rest target == param,
     // so update_cube's glide term is exactly zero either way.
     // ZOETROPE (C6R E7 + G5 + K1): a newborn under a standing formation
-    // flies to its cell's seat, written whole at commit — the screen's
-    // seat takes PIXEL SCALE too, the gathering's leaves the body its own
-    // spawn draw. Birth may leap: boot is a transition from nothing, and
-    // so is birth. The mirror keeps its true tier draws (write_active),
-    // so the walk home scatters it as if it had always roamed. The seat
-    // is hoisted above the mode arms because BOTH of them wear it.
+    // wears its cell's LOOK — row height, and PIXEL SCALE for the
+    // screen; the gathering's leaves the body its own spawn draw. The
+    // mirror keeps its true tier draws (write_active), so the walk home
+    // scatters it as if it had always roamed.
+    //
+    // THE SPAWN LAW (Jean, non-negotiable): a cube spawns at its
+    // DESIGNATED PATCH, outside the render radius — no matter what.
+    // The seat therefore authors APPEARANCE ONLY. Both arms previously
+    // relocated a newborn to point + station (kite via pawn_offset,
+    // anchor via an absolute seat), which put newborns in the lattice
+    // beside the player the moment a formation stood; that is the
+    // violation, and it is gone. A newborn born under a formation
+    // stands at its patch wearing the cohort's look and joins the
+    // lattice on the next cycle — the service owns the travel, birth
+    // does not teleport.
     using Formation = CubeBehaviorsState::Formation;
     const auto formation = c->cube_behaviors_state_.formation;
     const bool born_to_screen  = (formation == Formation::TO_SCREEN
@@ -834,34 +843,23 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
         // Kite arm: the param is the OFFSET from the point, and the
         // point is point_.x/z — the same host-authored snapshot the
         // seat pass rings around.
+        // THE SPAWN LAW: the offset is the one that PRESERVES the
+        // patch position (inst.cx/cz), formation or not.
         fe.follow_pawn = 1u;
-        if (born_seated) {
-            fe.pawn_offset[0] = st.off_x;
-            fe.pawn_offset[1] = 0.0f;
-            fe.pawn_offset[2] = st.off_z;
-        } else {
-            fe.pawn_offset[0] = inst.cx - c->point_.x;
-            fe.pawn_offset[1] = 0.0f;
-            fe.pawn_offset[2] = inst.cz - c->point_.z;
-        }
+        fe.pawn_offset[0] = inst.cx - c->point_.x;
+        fe.pawn_offset[1] = 0.0f;
+        fe.pawn_offset[2] = inst.cz - c->point_.z;
         fe.target_x = fe.pawn_offset[0];
         fe.target_z = fe.pawn_offset[2];
     } else {
         // Anchor arm: the param is anchor.xz, written above from the
-        // same spawn position — unless a formation stands, in which case
-        // the seat is ABSOLUTE (K1's second arm): the anchor IS the ring
-        // seat in world coordinates, planted where the point stood.
+        // spawn position — and it STAYS that, formation or not (THE
+        // SPAWN LAW). K1's absolute-seat arm is retired: it planted
+        // newborns where the point stood.
         fe.follow_pawn = 0u;
         fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
-        if (born_seated) {
-            fe.anchor[0] = c->point_.x + st.off_x;
-            fe.anchor[2] = c->point_.z + st.off_z;
-            fe.target_x = fe.anchor[0];
-            fe.target_z = fe.anchor[2];
-        } else {
-            fe.target_x = inst.cx;
-            fe.target_z = inst.cz;
-        }
+        fe.target_x = inst.cx;
+        fe.target_z = inst.cz;
     }
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 
