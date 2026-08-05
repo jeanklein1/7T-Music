@@ -2251,8 +2251,10 @@ const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
 // still zeroing its class independently.
 // config.field_occupier_gain scales the standing-geometry terms
 //  (shafts + arch legs) before the FMAX clamp — zeroing it mutes
-//  FIELD_3 exactly. Applies to floater subscribers only; agents'
-//  occupier law stays occupier_contact.
+//  standing geometry for EVERY subscriber (FIELD_B4a/b: floaters
+//  and free agents alike). The possessed pawn is the exception and
+//  always was: it never subscribes, and meets these bodies through
+//  occupier_contact in its candidate.
 // Authored emitters (FIELD_4): SHELL attractors — spring toward
 // radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0;
 // config.field_authored_gain is their mute. Tiebreak band: 900+i.
@@ -7966,16 +7968,12 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         // field — walkers part by field law; point←sphere stays in
         // update_player_agent, the point's own reflex.)
 
-        // ── OCCUPIERS PUSH WALKERS (BATCH F-B) ────────────────────
-        // The standing bodies' word — columns, antennas, arch legs.
-        // Immovable (yield 1.0); ONE shared fn, called from both
-        // kernels — the twin call is in update_player_agent.
-        {
-            let o_r = occupier_contact(
-                vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
-            agent.vel_x += o_r.x;
-            agent.vel_z += o_r.y;
-        }
+        // (FIELD_B4b: the occupier row migrated to the field — free
+        // agents part around shafts and arch legs by field law, summed
+        // in field_sum since B4a ungated it. occupier_contact lives on
+        // for its OTHER consumer: the possessed pawn's candidate, which
+        // never subscribes to the field — ruling 3. One law, two
+        // consumers, and now only one of them is a row.)
 
         // ── THE POINT SOURCE (CONTACT_5 P1b): flee is the point's ──
         // Presence, not a body: agents part around the POINT within the bubble.
