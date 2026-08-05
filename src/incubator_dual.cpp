@@ -115,6 +115,78 @@ using RenderCartridge = render_ns::Cartridge;
 constexpr const char* RENDER_NAME = STRINGIFY(INCUBATE_RENDER);
 
 // =========================================================================
+// APP -- the loop-carried state (PORT_1a)
+// =========================================================================
+//
+// The six locals that persisted across frame-loop iterations, homed in
+// one struct so the loop body can live in frame() and be driven either
+// by main()'s while (native) or by the browser's rAF (PORT_1c).
+// Member order IS the old construction order; init calls stay in
+// main(), verbatim and in sequence.
+
+struct App {
+    t7::Console console;
+    t7::BeatClock clock;
+    RenderCartridge render;
+    FileWatcher watcher;
+    int reload_frame_counter = 0;
+    wgpu::Queue queue;
+};
+
+static App* app = nullptr;
+
+// =========================================================================
+// FRAME -- the loop body, verbatim (the one token change: the acquire
+// failure's `continue` is `return` here — same skip-this-frame meaning)
+// =========================================================================
+
+static void frame() {
+    float dt = app->console.begin_frame();
+
+    // --- Hot Reload Check (every ~30 frames) ----------------------------
+    if (++app->reload_frame_counter >= 30) {
+        app->reload_frame_counter = 0;
+        // The progress dot is on the instruments dial: it is an explicit
+        // FLUSH — a blocking console write — twice a second, forever, and
+        // it reports only that the loop is still looping. The reload
+        // itself still announces itself, loudly, when it happens.
+        if constexpr (t7::INSTRUMENTS.watcher_ticks) {
+            std::cout << "." << std::flush;
+        }
+        if (app->watcher.check()) {
+            std::cout << "\n[FileWatcher] Change detected!\n";
+            app->render.reload_shaders();
+        }
+    }
+
+    // --- Input (all of it is the world's) --------------------------------
+    for (const auto& event : app->console.input_events()) {
+        app->render.on_input(event);
+    }
+    app->console.clear_input_events();
+
+    // --- Update ---------------------------------------------------------
+    app->clock.update(dt);
+    app->render.update(app->clock.output(), app->console.aspect_ratio(), app->queue);
+
+    // --- Render ---------------------------------------------------------
+    if (!app->console.acquire_surface_texture()) {
+        return;
+    }
+
+    wgpu::CommandEncoderDescriptor encDesc{};
+    wgpu::CommandEncoder encoder = app->console.device().CreateCommandEncoder(&encDesc);
+
+    app->render.render(encoder, app->console.backbuffer(), app->console.depth_view());
+
+    wgpu::CommandBufferDescriptor cmdDesc{};
+    wgpu::CommandBuffer commands = encoder.Finish(&cmdDesc);
+    app->queue.Submit(1, &commands);
+
+    app->console.present();
+}
+
+// =========================================================================
 // MAIN
 // =========================================================================
 
@@ -128,27 +200,27 @@ int main(int argc, char* argv[]) {
     std::cout << "\n";
 
     // --- Initialize Console -------------------------------------------------
-    t7::Console console;
-    if (!console.init("Incubator Dual", 1280, 720)) {
+    app = new App();
+    if (!app->console.init("Incubator Dual", 1280, 720)) {
         std::cerr << "Failed to initialize console\n";
+        delete app;
         return 1;
     }
-    console.set_cursor_grab(true);   // the exhibition holds the pointer
+    app->console.set_cursor_grab(true);   // the exhibition holds the pointer
 
     // --- The Clock -----------------------------------------------------------
     // BeatClock needs no initialization: it starts at zero and advances
     // from dt alone. No command-line input either.
-    t7::BeatClock clock;
     (void)argc; (void)argv;
 
-    std::cout << "[Incubator] BeatClock ready (bpm " << clock.bpm << ")\n";
+    std::cout << "[Incubator] BeatClock ready (bpm " << app->clock.bpm << ")\n";
 
     // --- Initialize Render Cartridge ----------------------------------------
-    RenderCartridge render;
-    render.initialize(console.device());
+    app->render.initialize(app->console.device());
 
-    if (!render.init_renderer(console.color_format(), console.depth_format())) {
+    if (!app->render.init_renderer(app->console.color_format(), app->console.depth_format())) {
         std::cerr << "Failed to initialize " << RENDER_NAME << " renderer\n";
+        delete app;
         return 1;
     }
 
@@ -157,64 +229,21 @@ int main(int argc, char* argv[]) {
     // Publish the slot map once. The BeatClock's layout is EMPTY by design
     // (CUT_1c): every render-side resolve misses, warns once on stderr, and
     // leaves its coupling disabled — the graceful path in signal_layout.hpp.
-    render.bind_signal_layout(clock.stat_layout());
+    app->render.bind_signal_layout(app->clock.stat_layout());
 
     // --- Setup File Watcher -------------------------------------------------
-    FileWatcher watcher;
-    watcher.watch(render.shader_path());
-    std::cout << "[Incubator] Hot reload enabled: " << render.shader_path() << "\n\n";
+    app->watcher.watch(app->render.shader_path());
+    std::cout << "[Incubator] Hot reload enabled: " << app->render.shader_path() << "\n\n";
     std::cout << "Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit\n\n";
 
-    int reload_frame_counter = 0;
-    wgpu::Queue queue = console.queue();
+    app->queue = app->console.queue();
 
     // --- Main Loop ----------------------------------------------------------
-    while (console.running()) {
-        float dt = console.begin_frame();
-
-        // --- Hot Reload Check (every ~30 frames) ----------------------------
-        if (++reload_frame_counter >= 30) {
-            reload_frame_counter = 0;
-            // The progress dot is on the instruments dial: it is an explicit
-            // FLUSH — a blocking console write — twice a second, forever, and
-            // it reports only that the loop is still looping. The reload
-            // itself still announces itself, loudly, when it happens.
-            if constexpr (t7::INSTRUMENTS.watcher_ticks) {
-                std::cout << "." << std::flush;
-            }
-            if (watcher.check()) {
-                std::cout << "\n[FileWatcher] Change detected!\n";
-                render.reload_shaders();
-            }
-        }
-
-        // --- Input (all of it is the world's) --------------------------------
-        for (const auto& event : console.input_events()) {
-            render.on_input(event);
-        }
-        console.clear_input_events();
-
-        // --- Update ---------------------------------------------------------
-        clock.update(dt);
-        render.update(clock.output(), console.aspect_ratio(), queue);
-
-        // --- Render ---------------------------------------------------------
-        if (!console.acquire_surface_texture()) {
-            continue;
-        }
-
-        wgpu::CommandEncoderDescriptor encDesc{};
-        wgpu::CommandEncoder encoder = console.device().CreateCommandEncoder(&encDesc);
-
-        render.render(encoder, console.backbuffer(), console.depth_view());
-
-        wgpu::CommandBufferDescriptor cmdDesc{};
-        wgpu::CommandBuffer commands = encoder.Finish(&cmdDesc);
-        queue.Submit(1, &commands);
-
-        console.present();
+    while (app->console.running()) {
+        frame();
     }
 
     std::cout << "[Incubator] Shutdown\n";
+    delete app;
     return 0;
 }
