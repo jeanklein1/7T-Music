@@ -433,7 +433,6 @@ namespace t7 {
             float t_beats;
             float dt;
             float aspect_ratio;
-            std::array<float, 64> stats;
             float move_x;
             float move_z;
             float look_az_delta;
@@ -1597,7 +1596,7 @@ namespace t7 {
             uint32_t entries[Dim::MAX_ACTIVE_PATCHES];
         };
 
-        static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
+        static_assert(sizeof(GPUFrameSignal) == 80, "GPUFrameSignal must be 80 bytes (CUT_1f: the 256 B dead stats mirror left both rooms)");
         // FIELD_2b: the field's eight dials graduated from WGSL consts to
         // this struct (the panel authors their rests). Eight floats where
         // two tail pads stood, plus two fresh pads to land the 16-byte
@@ -2083,7 +2082,7 @@ namespace t7 {
             // submission-order dance: the drain and the sky author write DISJOINT
             // regions of the buffer.
             void upload_signal(wgpu::Queue& queue, const GPUFrameSignal& signal) {
-                static_assert(offsetof(GPUFrameSignal, sky_mode) == 304,
+                static_assert(offsetof(GPUFrameSignal, sky_mode) == 48,
                     "sky_* must be the trailing 32 bytes for the split (sky-less) signal drain");
                 queue.WriteBuffer(signalBuffer_, 0, &signal, offsetof(GPUFrameSignal, sky_mode));
             }

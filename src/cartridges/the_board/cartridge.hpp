@@ -770,10 +770,6 @@ namespace t7 {
                 gpuSignal.dt = signal.dt;
                 gpuSignal.aspect_ratio = aspect_ratio;
 
-                for (size_t i = 0; i < gpuSignal.stats.size(); ++i) {
-                    gpuSignal.stats[i] = signal.stats[i];
-                }
-
                 gpuSignal.move_x = inputState_.move_x;
                 gpuSignal.move_z = inputState_.move_z;
                 gpuSignal.look_az_delta = inputState_.look_az_delta;
