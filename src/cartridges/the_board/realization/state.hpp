@@ -76,9 +76,9 @@ namespace t7 {
             constexpr float    PATCH_CELL_SIZE = PATCH_EXTENT / (float)PATCH_CELL_N;  // 3.125
             constexpr uint32_t PATCH_GRID_RADIUS = 3;       // inner priority radius (7×7)
             constexpr uint32_t PATCH_GRID_SIDE = 2 * PATCH_GRID_RADIUS + 1;       // 7
-            constexpr uint32_t PATCH_PREGEN_RADIUS = 8;                                // deep pre-gen buffer (17×17, 400 world units)
-            constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 17
-            constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 289
+            constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units; OPT_1b — fits default maxTextureArrayLayers, veil chain holds exactly: 7·50 = EXIST_RADIUS)
+            constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
+            constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
 
             // ── THE LIVE CARD (GROUND_CARD_1) ──
             // One 2D RGBA16F field over the ground window, point-centered,
@@ -690,8 +690,8 @@ namespace t7 {
         };
         static_assert(sizeof(GPUTileGridEntry) == 16, "GPUTileGridEntry must be 16 bytes");
 
-        static constexpr uint32_t TILE_GRID_SIDE = 2 * (Dim::PATCH_PREGEN_RADIUS + 1) + 1;  // 19 (pregen + 1 pad each side)
-        static constexpr uint32_t TILE_GRID_MAX = TILE_GRID_SIDE * TILE_GRID_SIDE;  // 361
+        static constexpr uint32_t TILE_GRID_SIDE = 2 * (Dim::PATCH_PREGEN_RADIUS + 1) + 1;  // 17 (pregen + 1 pad each side)
+        static constexpr uint32_t TILE_GRID_MAX = TILE_GRID_SIDE * TILE_GRID_SIDE;  // 289
         static_assert(TILE_GRID_MAX <= Dim::TILE_GRID_CAPACITY,
             "TILE_GRID ceiling exceeded: raise TILE_GRID_CAPACITY in BOTH "
             "rooms (state.hpp Dim + world.wgsl) — the pair is pinned, not "
@@ -1849,12 +1849,12 @@ namespace t7 {
             // lifts are zero, so either flip timing is safe.
             bool curtainsActive_ = true;
 
-            // Patch heightfield texture array (289 layers × 256×256, RGBA16Float)
+            // Patch heightfield texture array (MAX_ACTIVE_PATCHES = 225 layers × 256×256, RGBA16Float)
             wgpu::Texture patchHeightfieldArrayTexture_;
             wgpu::TextureView patchHeightfieldArrayWriteView_;  // full array for storage write
             wgpu::TextureView patchHeightfieldArrayReadView_;   // full array for sampling
 
-            // Patch cell color texture array (289 layers × 16×16, RGBA8Unorm)
+            // Patch cell color texture array (MAX_ACTIVE_PATCHES = 225 layers × 16×16, RGBA8Unorm)
             // RGB = cell color, A = mode (0=smooth, 1=discrete)
             wgpu::Texture patchCellColorArrayTexture_;
             wgpu::TextureView patchCellColorArrayWriteView_;
@@ -4083,7 +4083,7 @@ namespace t7 {
 
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Patch Heightfield Array (289x256x256, RGBA16Float; 289 = Dim::MAX_ACTIVE_PATCHES)";
+                    desc.label = "Patch Heightfield Array (225x256x256, RGBA16Float; 225 = Dim::MAX_ACTIVE_PATCHES)";
                     desc.size = { Dim::PATCH_HEIGHTFIELD_N, Dim::PATCH_HEIGHTFIELD_N, Dim::MAX_ACTIVE_PATCHES };
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA16Float;
@@ -4102,7 +4102,7 @@ namespace t7 {
 
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Patch Cell Color Array (289x16x16, RGBA8Unorm; 289 = Dim::MAX_ACTIVE_PATCHES)";
+                    desc.label = "Patch Cell Color Array (225x16x16, RGBA8Unorm; 225 = Dim::MAX_ACTIVE_PATCHES)";
                     desc.size = { Dim::PATCH_CELL_N, Dim::PATCH_CELL_N, Dim::MAX_ACTIVE_PATCHES };
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA8Unorm;

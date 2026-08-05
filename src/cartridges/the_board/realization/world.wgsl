@@ -7589,8 +7589,8 @@ const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RAD
 // The eviction radius MUST exceed the patch allocation radius, or every
 // floater committed at the streaming frontier is evicted the frame it
 // spawns — silently, since per-patch spawn is idempotent and never retries.
-// Allocation reaches active_radius (<= PATCH_PREGEN_RADIUS 8) x
-// PATCH_EXTENT 50 = 400 wu at the near edge, ~566 at the diagonal corner.
+// Allocation reaches active_radius (<= PATCH_PREGEN_RADIUS 7, OPT_1b) x
+// PATCH_EXTENT 50 = 350 wu at the near edge, ~495 at the diagonal corner.
 // 800 clears it with margin at the current radius. NOT DERIVED: this is a
 // CPU quantity (active_radius x PATCH_EXTENT) and a GPU const in different
 // rooms, so the relation cannot be asserted in either. Raising the render
