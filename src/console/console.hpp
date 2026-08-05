@@ -28,6 +28,12 @@
 #include "core/input_event.hpp"
 
 #include <webgpu/webgpu_cpp.h>
+
+// ── PORT_1b Region 1: platform includes ──────────────────────────
+// Native links dawn::native and exposes the OS window handle for the
+// surface. Web (emdawnwebgpu) has neither; contrib.glfw3 ships no
+// glfw3native.h, so the whole expose block is native-only too.
+#ifndef __EMSCRIPTEN__
 #include <dawn/native/DawnNative.h>
 #include <dawn/dawn_proc.h>
 #if __has_include("dawn/common/Version_autogen.h")
@@ -36,8 +42,10 @@
 #else
 #define T7_DAWN_VERSION 0
 #endif
+#endif
 #include <GLFW/glfw3.h>
 
+#ifndef __EMSCRIPTEN__
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #elif defined(__linux__)
@@ -46,7 +54,12 @@
 #define GLFW_EXPOSE_NATIVE_COCOA
 #endif
 #include <GLFW/glfw3native.h>
+#else
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
 
+#include <algorithm>
 #include <vector>
 #include <chrono>
 #include <iostream>
@@ -67,6 +80,30 @@ namespace t7 {
         Console(const Console&) = delete;
         Console& operator=(const Console&) = delete;
 
+        // ── PORT_1b: the boot grammar ────────────────────────────
+        // Boot is a state machine. Native traverses it synchronously
+        // inside init() (RequestingAdapter..Configuring never observed;
+        // init() ends at Ready). Web starts an async request chain in
+        // init() and the frame gate pumps Configuring → Ready once the
+        // device callback lands. Failed is terminal — the cause has
+        // already printed.
+        enum class BootState { RequestingAdapter, RequestingDevice, Configuring, Ready, Failed };
+
+        BootState boot_state() const { return bootState_; }
+
+        // Advance Configuring → Ready: runs the existing surface +
+        // depth-buffer path once the device exists, then seeds the
+        // frame clock. Native never needs it (init() reaches Ready
+        // synchronously) but it is callable there harmlessly: every
+        // other state is a no-op.
+        void pump_boot() {
+            if (bootState_ != BootState::Configuring) return;
+            if (!initSurface()) { bootState_ = BootState::Failed; return; }
+            createDepthBuffer(currentWidth_, currentHeight_);
+            lastTime_ = std::chrono::high_resolution_clock::now();
+            bootState_ = BootState::Ready;
+        }
+
 
         // ═══ §2 INITIALIZATION ═══════════════════════════════════
         //
@@ -80,12 +117,19 @@ namespace t7 {
             currentWidth_ = width;
             currentHeight_ = height;
 
-            if (!initGLFW(title)) return false;
-            if (!initWebGPU()) return false;
-            if (!initSurface()) return false;
+            if (!initGLFW(title))   { bootState_ = BootState::Failed; return false; }
+            if (!initWebGPU())      { bootState_ = BootState::Failed; return false; }
+#ifndef __EMSCRIPTEN__
+            // Native: the device exists synchronously — finish boot here,
+            // exactly the pre-PORT_1b sequence, ending Ready.
+            if (!initSurface())     { bootState_ = BootState::Failed; return false; }
             createDepthBuffer(width, height);
 
             lastTime_ = std::chrono::high_resolution_clock::now();
+            bootState_ = BootState::Ready;
+#endif
+            // Web: initWebGPU only STARTED the request chain; the frame
+            // gate pumps Configuring → Ready when the device lands.
             return true;
         }
 
@@ -114,10 +158,13 @@ namespace t7 {
                 auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
                 if (!console) return;
 
+#ifndef __EMSCRIPTEN__
+                // Native-only: the browser owns ESC (pointer-lock exit).
                 if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
                     console->request_close();
                     return;
                 }
+#endif
 
                 // Numpad * — the pointer door. A window command of the same
                 // class as ESC: it never reaches the cartridge fan, and the
@@ -162,6 +209,71 @@ namespace t7 {
         }
 
         bool initWebGPU() {
+#ifdef __EMSCRIPTEN__
+            // ── PORT_1b Region 2 (web): the async boot grammar ────
+            // emdawnwebgpu (P0-verified): AllowSpontaneous callbacks fire
+            // from the browser event loop between rAF turns — no pump
+            // needed for the request chain itself. Adapter::GetLimits
+            // exists, so the limits request is the full-adapter
+            // passthrough exactly as native. Descriptor locals are
+            // serialized during the RequestDevice call, so stack
+            // lifetime suffices.
+            instance_ = wgpu::CreateInstance(nullptr);
+            if (!instance_) {
+                std::cerr << "Failed to create WebGPU instance\n";
+                return false;
+            }
+            bootState_ = BootState::RequestingAdapter;
+            instance_.RequestAdapter(nullptr, wgpu::CallbackMode::AllowSpontaneous,
+                [this](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter,
+                       wgpu::StringView message) {
+                    if (status != wgpu::RequestAdapterStatus::Success) {
+                        std::cerr << "RequestAdapter failed: "
+                            << std::string_view(message.data, message.length) << "\n";
+                        bootState_ = BootState::Failed;
+                        return;
+                    }
+                    adapter_ = std::move(adapter);
+                    bootState_ = BootState::RequestingDevice;
+
+                    wgpu::DeviceDescriptor deviceDesc{};
+                    deviceDesc.label = "7T Device";
+                    // Deliberately unguarded — boot wants verbose errors.
+                    deviceDesc.SetUncapturedErrorCallback(
+                        [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) {
+                            std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
+                                << std::string_view(msg.data, msg.length) << std::endl;
+                        });
+
+                    // Full-adapter limits passthrough, exactly as native
+                    // (covers the two known exceedances: 9 storage
+                    // buffers/compute stage, 289 texture array layers).
+                    wgpu::Limits adapterLimits{};
+                    adapter_.GetLimits(&adapterLimits);
+                    deviceDesc.requiredLimits = &adapterLimits;
+
+                    wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
+                    if (adapter_.HasFeature(wgpu::FeatureName::TimestampQuery)) {
+                        deviceDesc.requiredFeatures = requiredFeatures;
+                        deviceDesc.requiredFeatureCount = 1;
+                    }
+
+                    adapter_.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
+                        [this](wgpu::RequestDeviceStatus status, wgpu::Device device,
+                               wgpu::StringView message) {
+                            if (status != wgpu::RequestDeviceStatus::Success) {
+                                std::cerr << "RequestDevice failed: "
+                                    << std::string_view(message.data, message.length) << "\n";
+                                bootState_ = BootState::Failed;
+                                return;
+                            }
+                            device_ = std::move(device);
+                            queue_ = device_.GetQueue();
+                            bootState_ = BootState::Configuring;
+                        });
+                });
+            return true;
+#else
             dawnProcSetProcs(&dawn::native::GetProcs());
 
             // Construct instance in place (non-copyable, non-movable)
@@ -319,10 +431,22 @@ namespace t7 {
             adapter_ = adapter;
 
             return true;
+#endif // __EMSCRIPTEN__
         }
 
         bool initSurface() {
             wgpu::SurfaceDescriptor surfaceDesc{};
+#ifdef __EMSCRIPTEN__
+            // ── PORT_1b Region 3 (web): the canvas surface ────────
+            // P0-verified spelling: wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector
+            // (dawn.json "emscripten surface source canvas HTML selector",
+            // chained into the surface descriptor; member `selector`).
+            wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvasSource{};
+            canvasSource.selector = "#canvas";
+            surfaceDesc.nextInChain = &canvasSource;
+
+            surface_ = instance_.CreateSurface(&surfaceDesc);
+#else
 #if defined(_WIN32)
             wgpu::SurfaceSourceWindowsHWND hwndSource{};
             hwndSource.hwnd = glfwGetWin32Window(window_);
@@ -336,6 +460,7 @@ namespace t7 {
 #endif
 
             surface_ = wgpu::Instance(instance_->Get()).CreateSurface(&surfaceDesc);
+#endif // __EMSCRIPTEN__
 
             wgpu::SurfaceCapabilities caps;
             surface_.GetCapabilities(adapter_, &caps);
@@ -394,6 +519,13 @@ namespace t7 {
             float dt = std::chrono::duration<float>(currentTime - lastTime_).count();
             lastTime_ = currentTime;
 
+            // PORT_1b: the dt clamp, lifted verbatim from the dormant
+            // core/clock.hpp (retired this commit) — "Clamp dt to avoid
+            // spiral of death", cap 0.1f (100 ms). Inert at native frame
+            // rates; essential across a browser tab-suspend, where rAF
+            // hands back a multi-second gap.
+            dt = std::clamp(dt, 0.0f, 0.1f);
+
             return dt;
         }
 
@@ -408,7 +540,14 @@ namespace t7 {
         }
 
         void present() {
+#ifndef __EMSCRIPTEN__
             surface_.Present();
+#endif
+            // ── PORT_1b Region 4 (web): no-op — presentation is implicit
+            // at rAF return. P0-verified: emdawnwebgpu's wgpuSurfacePresent
+            // exists but ABORTS ("wgpuSurfacePresent is unsupported (use
+            // requestAnimationFrame via html5.h instead)"), so it must not
+            // be called.
         }
 
         bool running() const {
@@ -597,10 +736,17 @@ namespace t7 {
         uint32_t currentHeight_ = 0;
 
         // ── Gpu Device ───────────────────────────────────────────
+#ifndef __EMSCRIPTEN__
         std::optional<dawn::native::Instance> instance_;
+#else
+        wgpu::Instance instance_;   // portable handle; owns the async request chain
+#endif
         wgpu::Adapter adapter_;
         wgpu::Device device_;
         wgpu::Queue queue_;
+
+        // ── Boot (PORT_1b) ───────────────────────────────────────
+        BootState bootState_ = BootState::RequestingAdapter;
 
         // ── Surface & Presentation ───────────────────────────────
         wgpu::Surface surface_;
