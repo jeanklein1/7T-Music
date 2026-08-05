@@ -61,6 +61,14 @@ arc is undesigned.
 - Gates B1/B2 are RE-PRICINGS: field reach = SLACK×3 vs old
   one-body-width CONTACT shells. Contingencies named, unbuilt:
   FIELD_SLACK_AGENT (distance), subscriber-mass division (yield).
+  Also changed SHAPE: tier mass is EMITTER-side only in the field,
+  where the retired contact row divided by BOTH masses — heavies
+  now push harder but yield the same as anyone. This is a fidelity
+  gap in the succession, not a tuning preference. Judge it at gate
+  B2; subscriber-mass division is the fix if authority reads flat.
+  The code layer was cleaned thoroughly as the campaign ran; the
+  PERCEPT layer was deferred entirely — the gates are where the
+  succession is actually verified.
 - SPAWN_3 parked: F6 newborns seat inside render radius on move.
 
 ## QUEUE (fresh session picks from here)
