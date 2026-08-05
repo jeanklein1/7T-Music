@@ -2227,16 +2227,17 @@ const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
 // dimensionless -- the pawn's emitter authority. Not a radius.
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — consumed by field_sum's emitter scale since FIELD_B2 (the possessed emits, never yields)
 
-// --- The avoidance field (FIELD_2, phase A) -------------------------
+// --- The avoidance field (FIELD_2; the phase-B succession landed) ---
 // One summation loop (field_sum, hosted in update_other_agents)
 // writes field_forces: one vec4 per subscriber. INDEX MAP (mirrors
 // Dim::FIELD_SUBSCRIBER_CAP, state.hpp): [0..31] agents by slot ·
 // [32..39] spheres · [40..295] cubes — for floaters, lane − 32 is the
-// floating_entities index. Beside the influence law: pairs a row
-// still owns are SKIPPED (phase B migrates them commit by commit —
-// sphere→agent B1, agent↔agent presence B2); the possessed pawn
-// emits to agents only (×PAWN_CONTACT_MASS_MULT, B2b) and never
-// subscribes.
+// floating_entities index. Body-class presence lives HERE
+// (sphere→agent B1, agent↔agent B2, standing geometry B4); the
+// point's rows and every flee-dodge stay the influence law's (the
+// point arc is undesigned — THE FIELD LAW banner above field_pair
+// is the register); the possessed pawn emits to agents only
+// (×PAWN_CONTACT_MASS_MULT, B2b) and never subscribes.
 // FIELD_SUBSCRIBERS is a DIMENSION, not a dial: it sizes the
 // field_forces array, and an array size cannot come from a uniform.
 // It stays a const here and is pinned to Dim::FIELD_SUBSCRIBER_CAP by
@@ -7726,20 +7727,44 @@ fn update_player_agent() {
 // 32 threads, one per slot. Skips the possessed slot (handled by
 // update_player_agent). Runs algorithmic behaviors only — the heavy
 // walker-policy path never inlines here.
-// ─── THE FIELD (FIELD_2, phase A) ────────────────────────────────
-// One pair law, one summation body — the influence-law shape ("one
-// body, many callers") at field scale. field_pair is the quadratic
-// shell; field_sum resolves one subscriber lane and walks the
-// emitter classes under the PHASE-A FEEL MATRIX: pairs the influence
-// law / boids already own are skipped (point↔agent, point→cube,
-// agent←occupier; sphere→agent migrated FIELD_B1, agent↔agent
-// presence FIELD_B2 — the flee-dodge stays), the possessed pawn
-// EMITS to agents only (×PAWN_CONTACT_MASS_MULT, FIELD_B2b;
-// floaters no* — row_cube_push owns cube←point) and never
-// subscribes. Authored emitters (FIELD_4): floaters YES; agents
-// no* (the point-rows own them); possessed no. Loops are flat and constant- or uniform-bounded
-// (banner rule 2); no textures (rule 3); outside every collision/
-// ground chain.
+// ─── THE FIELD — ONE PRESENCE LAW (FIELD_2 → FIELD_B) ────────────
+// THE ENDPOINT, AS LAW: not one mechanism — ONE PRESENCE LAW. The
+// body arc is CLOSED (every body-class presence pair lives here);
+// the point arc is OPEN and undesigned. The rulings below bind any
+// edit to this block; they were paid for at the phase-B gates.
+// (Durable home per the L2-banner precedent: the law lives where
+// it binds. audit/FIELD_BRIDGE.md indexes it.)
+//  R1  Presence migrates; APPROACH stays behavioral — the
+//      flee/dodge personalities and the boids' desire (alignment,
+//      cohesion) are never field terms.
+//  R2  The POINT's rows are a separate arc, undesigned:
+//      row_cube_push, row_sphere_push (+camera twin),
+//      row_point_flee / agents-part. Migrate-vs-permanent is
+//      Jean's ruling, not an executor's.
+//  R3  The possessed EMITS (×PAWN_CONTACT_MASS_MULT, to agent
+//      lanes only — the B2b lane ruling) and NEVER subscribes;
+//      floater←possessed stays row_cube_push's until the point
+//      arc rules.
+//  R4  ONE LAW, TWO TRANSPORTS: the field_forces buffer where
+//      classes must hear each other; the direct field_pair call
+//      where a subsystem is closed (orb separation is the
+//      precedent).
+//  R5  The lure (authored→ribbon) is LATERAL ONLY; the pen owns
+//      altitude (B0's floor clamp makes the guarantee true).
+//  R6  No anti-windup mechanism exists because no standing fy
+//      source remains — build one only when a measurement asks.
+//
+// The shape: one pair law, one summation body — the influence-law
+// shape ("one body, many callers") at field scale. field_pair is
+// the quadratic shell; field_sum resolves one subscriber lane and
+// walks the emitter classes under the FEEL MATRIX (phase A's
+// table, amended through B4): body-class presence is all here —
+// sphere→agent B1, agent↔agent B2, standing geometry B4
+// (occupier_contact survives solely as the possessed candidate's
+// row). Authored emitters (FIELD_4): floaters YES; agents no*
+// (the point-rows own them); possessed no. Loops are flat and
+// constant- or uniform-bounded (banner rule 2); no textures
+// (rule 3); outside every collision/ground chain.
 
 fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
               r_s: f32, r_e: f32, sub_i: u32, emit_i: u32) -> vec3<f32> {
@@ -7783,8 +7808,8 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // the influence law's). Authority enters the field: each
     // emitter's term scales by its contact_mass, and the possessed
     // emits at og_mass × PAWN_CONTACT_MASS_MULT — to AGENT lanes
-    // only (FIELD_B2b: floater lanes keep Phase A's discipline;
-    // cube←point stays row_cube_push's until the point arc rules).
+    // only (the FIELD_B2b lane ruling, permanent: cube←point stays
+    // row_cube_push's until the point arc rules).
     // It still never yields: its subscriber lane stays rest.
     for (var k = 0u; k < 32u; k++) {
         if (sub_i < 32u && k == sub_i) { continue; }   // self

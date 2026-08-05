@@ -935,8 +935,11 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             const float mag = FIELD_K * depth * depth;
             fx += ux * mag; fy += uy * mag; fz += uz * mag;
         };
-        // Free agents emit (the possessed pawn neither emits nor
-        // subscribes in phase A); radius = the CONTACT rows' source.
+        // Free agents emit. The possessed is skipped PERMANENTLY by
+        // the lane ruling (FIELD_B2b): it emits to AGENT lanes only,
+        // and the head is not an agent lane — the same skip the
+        // floater lanes carry, not a phase artifact. Radius = the
+        // tier vocabulary (contact_radius), the field's agent source.
         for (uint32_t i = 0; i < Dim::MAX_AGENTS; i++) {
             if (i == c->player_.possessed_slot) continue;
             const auto& a = c->agent_state_.slots[i];
