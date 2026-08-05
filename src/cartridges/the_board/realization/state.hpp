@@ -1814,7 +1814,6 @@ namespace t7 {
             wgpu::Buffer spotLightArrayBuffer_;
             wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
             wgpu::Buffer portalArrayBuffer_;
-            wgpu::Buffer ribbonReadbackStaging_; // ring transform readback (diagnostic)
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
             // (created only when the device carries timestamp-query) and the
@@ -2933,9 +2932,7 @@ namespace t7 {
                     configDirty_ = true;
                 }
             }
-            wgpu::Buffer ribbon_readback_staging() const { return ribbonReadbackStaging_; }
             wgpu::Buffer ring_transforms_buffer() const { return ringTransformsBuffer_; }
-            static constexpr size_t ribbon_ring_readback_size() { return sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS; }
 
             // ─── THE FRAME METER — GPU half (arming + resolve plumbing) ───
             // arm fills the next writes struct { querySet, i, i+1 }, records
@@ -3314,13 +3311,6 @@ namespace t7 {
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     cameraStateReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
-                {
-                    wgpu::BufferDescriptor sd{};
-                    sd.label = "Ribbon Ring Readback Staging";
-                    sd.size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-                    ribbonReadbackStaging_ = device_.CreateBuffer(&sd);
-                }
                 // THE FRAME METER — GPU half. Created only when the
                 // instruments dial arms the meter AND the device carries
                 // timestamp-query (the cartridge prints the loud boot line
@@ -3415,7 +3405,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && ribbonReadbackStaging_ && cameraStateReadbackStaging_ &&
+                    portalArrayBuffer_ && cameraStateReadbackStaging_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 

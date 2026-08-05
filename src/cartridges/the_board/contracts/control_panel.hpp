@@ -71,16 +71,6 @@ inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 // and antennas share occupier_cmg. Ribbon-only: these do not touch
 // what floaters and agents feel.
 //
-// CLASSICAL COLUMNS: MUTED (Jean's ruling). A column is a short thick
-// post — PILLAR is r 1.8 at h 6.5 — and against the head's shell
-// (slack 3.0) it deflected a body that flies well above the capital.
-// Antennas and arch legs still speak: the tall thin masts are what a
-// flying ribbon must actually thread, and the arch's legs are what
-// keep its SPAN honest. Restore by raising this to 1.0.
-inline constexpr float RIBBON_FIELD_COLUMN_GAIN  = 0.0f;
-inline constexpr float RIBBON_FIELD_ANTENNA_GAIN = 1.0f;
-inline constexpr float RIBBON_FIELD_ARCHLEG_GAIN = 1.0f;
-
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination (F5): 0 / 0.5 / 1.0 — the
 // knob's first visible meaning in open_sunset. R0 sits outside the
