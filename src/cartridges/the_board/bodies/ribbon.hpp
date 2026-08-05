@@ -968,24 +968,47 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         // before joining the one clamp.
         {
             const float flt_x = fx, flt_y = fy, flt_z = fz;
-            for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-                const auto& col = c->entities_state_.columns[i];
-                if (!col.active) continue;
-                field_add(col.world_x, hy, col.world_z, col.shaft_radius);
+            // Each family carries its own ribbon-side gain (the panel):
+            // the head weighs standing bodies by KIND, which the GPU
+            // cannot — columns and antennas share one buffer there.
+            // Each block scales only its own contribution, so a muted
+            // family compiles away entirely.
+            if constexpr (RIBBON_FIELD_COLUMN_GAIN != 0.0f) {
+                const float c0x = fx, c0y = fy, c0z = fz;
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
+                    const auto& col = c->entities_state_.columns[i];
+                    if (!col.active) continue;
+                    field_add(col.world_x, hy, col.world_z, col.shaft_radius);
+                }
+                fx = c0x + (fx - c0x) * RIBBON_FIELD_COLUMN_GAIN;
+                fy = c0y + (fy - c0y) * RIBBON_FIELD_COLUMN_GAIN;
+                fz = c0z + (fz - c0z) * RIBBON_FIELD_COLUMN_GAIN;
             }
-            for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-                const auto& ant = c->entities_state_.antennas[i];
-                if (!ant.active) continue;
-                field_add(ant.world_x, hy, ant.world_z, ant.shaft_radius);
+            if constexpr (RIBBON_FIELD_ANTENNA_GAIN != 0.0f) {
+                const float a0x = fx, a0y = fy, a0z = fz;
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+                    const auto& ant = c->entities_state_.antennas[i];
+                    if (!ant.active) continue;
+                    field_add(ant.world_x, hy, ant.world_z, ant.shaft_radius);
+                }
+                fx = a0x + (fx - a0x) * RIBBON_FIELD_ANTENNA_GAIN;
+                fy = a0y + (fy - a0y) * RIBBON_FIELD_ANTENNA_GAIN;
+                fz = a0z + (fz - a0z) * RIBBON_FIELD_ANTENNA_GAIN;
             }
-            for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                const auto& ar = c->entities_state_.arches[i];
-                if (!ar.active) continue;
-                const float leg_r = std::max(ar.thickness, ar.depth) * 0.5f;
-                const float lx = std::cos(ar.rotation) * ar.half_span;
-                const float lz = std::sin(ar.rotation) * ar.half_span;
-                field_add(ar.world_x + lx, hy, ar.world_z + lz, leg_r);
-                field_add(ar.world_x - lx, hy, ar.world_z - lz, leg_r);
+            if constexpr (RIBBON_FIELD_ARCHLEG_GAIN != 0.0f) {
+                const float g0x = fx, g0y = fy, g0z = fz;
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                    const auto& ar = c->entities_state_.arches[i];
+                    if (!ar.active) continue;
+                    const float leg_r = std::max(ar.thickness, ar.depth) * 0.5f;
+                    const float lx = std::cos(ar.rotation) * ar.half_span;
+                    const float lz = std::sin(ar.rotation) * ar.half_span;
+                    field_add(ar.world_x + lx, hy, ar.world_z + lz, leg_r);
+                    field_add(ar.world_x - lx, hy, ar.world_z - lz, leg_r);
+                }
+                fx = g0x + (fx - g0x) * RIBBON_FIELD_ARCHLEG_GAIN;
+                fy = g0y + (fy - g0y) * RIBBON_FIELD_ARCHLEG_GAIN;
+                fz = g0z + (fz - g0z) * RIBBON_FIELD_ARCHLEG_GAIN;
             }
             fx = flt_x + (fx - flt_x) * FIELD_OCCUPIER_GAIN;
             fy = flt_y + (fy - flt_y) * FIELD_OCCUPIER_GAIN;
