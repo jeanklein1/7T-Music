@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>the_board — first light</title>
+  <style>
+    /* Dark full-viewport page, one canvas. No framework, no CSS files. */
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%;
+                 background: #0a0a0c; overflow: hidden; }
+    #canvas { display: block; width: 100%; height: 100%; outline: none; }
+    #hint { position: fixed; left: 12px; bottom: 10px; color: #6a6a72;
+            font: 12px/1.4 system-ui, sans-serif; user-select: none;
+            pointer-events: none; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hint">click to capture the cursor &middot; WASD moves &middot; 5&ndash;8 change moods</div>
+  <script>
+    // contrib.glfw3 convention: its default canvas selector is literally
+    // "Module['canvas']" (emscripten-glfw Config.h kDefaultCanvasSelector),
+    // so handing the canvas to Module wires the GLFW window to it.
+    // Pointer Lock is requested by contrib.glfw3 on the first user
+    // gesture — the browser requires one; hence the hint above.
+    var Module = {
+      canvas: document.getElementById('canvas'),
+      print: function (t) { console.log(t); },
+      printErr: function (t) { console.error(t); }
+    };
+  </script>
+  <script src="the_board.js"></script>
+</body>
+</html>

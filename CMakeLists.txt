@@ -30,8 +30,12 @@ else()
 endif()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# DAWN CONFIGURATION
+# DAWN CONFIGURATION — NATIVE ONLY (PORT_1c)
+# The web build gets its WebGPU from the emdawnwebgpu port and its GLFW
+# from contrib.glfw3; none of the Dawn/Tint/abseil static libraries
+# below exist there, and dawn_lib() would FATAL_ERROR on their absence.
 # ═══════════════════════════════════════════════════════════════════════════════
+if(NOT EMSCRIPTEN)
 
 set(DAWN_DIR "C:/dev/dawn" CACHE PATH "Dawn source directory")
 set(DAWN_BUILD "C:/dev/dawn/out" CACHE PATH "Dawn build directory")
@@ -481,6 +485,8 @@ set(MSVC_LINK_OPTS
     "$<$<CONFIG:Release>:/INCREMENTAL:NO>")
 set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 
+endif() # NOT EMSCRIPTEN — end of the native Dawn section
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILD INFO
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -533,12 +539,55 @@ if(MSVC)
     )
 endif()
 
-add_custom_command(TARGET incubator_dual POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:incubator_dual>/assets
-    COMMENT "Copying assets for incubator_dual..."
-)
+if(EMSCRIPTEN)
+    # ── PORT_1c: the web twin ────────────────────────────────────────────
+    # GLFW verbatim via contrib.glfw3 (emscripten ports registry,
+    # >= 3.1.55). WebGPU via emdawnwebgpu; the default is Emscripten's
+    # built-in "remote" port (--use-port=emdawnwebgpu, auto-downloads a
+    # pinned package). Override with a downloaded port file from a Dawn
+    # release: -DEMDAWNWEBGPU_PORT=path/to/emdawnwebgpu.port.py
+    # (the source-tree port file is NOT usable un-built — it checks for
+    # generated headers; use the release package or the remote port).
+    set(EMDAWNWEBGPU_PORT "emdawnwebgpu" CACHE STRING
+        "emdawnwebgpu port for --use-port: the built-in remote port name, or a path to emdawnwebgpu.port.py from a Dawn release")
+    set(T7_WEB_PORTS
+        "--use-port=contrib.glfw3"
+        "--use-port=${EMDAWNWEBGPU_PORT}"
+    )
+
+    # Identical defines to the native target (MSVC block above does not
+    # apply under the emscripten toolchain).
+    target_compile_definitions(incubator_dual PRIVATE
+        INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
+        INCUBATE_DEMO=${THE_BOARD_DEMO}
+        T7_INSTRUMENTS=${T7_INSTRUMENTS}
+    )
+    target_compile_options(incubator_dual PRIVATE ${T7_WEB_PORTS} -O2)
+    # MEMFS preload mappings chosen so the EXISTING relative reads
+    # resolve verbatim from CWD "/": gallery reads "assets/paintings"
+    # (hits /assets), the shader loader's 2nd search entry is
+    # "src/cartridges/the_board/realization/world.wgsl" (hits the
+    # explicit file mapping; verified renderer.hpp:1250-1251).
+    target_link_options(incubator_dual PRIVATE
+        ${T7_WEB_PORTS}
+        "-sALLOW_MEMORY_GROWTH=1"
+        -O2
+        "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@/assets"
+        "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl@/src/cartridges/the_board/realization/world.wgsl"
+    )
+    set_target_properties(incubator_dual PROPERTIES
+        OUTPUT_NAME "the_board"
+        SUFFIX ".js"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"
+    )
+else()
+    add_custom_command(TARGET incubator_dual POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets
+        $<TARGET_FILE_DIR:incubator_dual>/assets
+        COMMENT "Copying assets for incubator_dual..."
+    )
+endif()
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}"
     PREFIX "Render Cartridge"

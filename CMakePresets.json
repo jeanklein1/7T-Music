@@ -45,6 +45,15 @@
       "cacheVariables": {
         "T7_INSTRUMENTS": "meter"
       }
+    },
+    {
+      "name": "the-board-web",
+      "displayName": "the_board — web (Emscripten, first light)",
+      "inherits": "the-board-full",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -66,6 +75,11 @@
     {
       "name": "the-board-full-release-meter",
       "configurePreset": "the-board-full-release-meter",
+      "targets": [ "incubator_dual" ]
+    },
+    {
+      "name": "the-board-web",
+      "configurePreset": "the-board-web",
       "targets": [ "incubator_dual" ]
     }
   ]

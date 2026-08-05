@@ -62,11 +62,16 @@
 #include <filesystem>
 #include <system_error>   // std::error_code — the watcher's non-throwing stat
 #include <chrono>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>   // emscripten_set_main_loop / cancel — the rAF driver
+#endif
 
 // =========================================================================
 // FILE WATCHER -- Detects shader file changes for hot reload
+// (R6: a native instrument — the browser has no mtime to watch)
 // =========================================================================
 
+#ifndef __EMSCRIPTEN__
 class FileWatcher {
 public:
     void watch(const std::string& path) {
@@ -102,6 +107,7 @@ private:
     std::string path_;
     std::filesystem::file_time_type lastWriteTime_;
 };
+#endif // __EMSCRIPTEN__
 
 // =========================================================================
 // ACTIVE CARTRIDGE TYPES -- Derived from defines
@@ -128,12 +134,56 @@ struct App {
     t7::Console console;
     t7::BeatClock clock;
     RenderCartridge render;
+#ifndef __EMSCRIPTEN__
     FileWatcher watcher;
     int reload_frame_counter = 0;
+#endif
     wgpu::Queue queue;
+    bool world_ready = false;   // PORT_1c: init_world() ran (post-device init)
 };
 
 static App* app = nullptr;
+
+// =========================================================================
+// WORLD INIT -- everything that needs the DEVICE (PORT_1c binding)
+// =========================================================================
+//
+// One home for the post-console init sequence, verbatim from main().
+// Native calls it from main() exactly where those lines were — same
+// calls, same order, same failure handling. Web cannot: the device
+// arrives asynchronously, so frame() calls this ONCE when boot reaches
+// Ready. (The forced consequence of async boot: render.initialize
+// needs console.device(), which does not exist at web main().)
+
+static bool init_world() {
+    std::cout << "[Incubator] BeatClock ready (bpm " << app->clock.bpm << ")\n";
+
+    // --- Initialize Render Cartridge ----------------------------------------
+    app->render.initialize(app->console.device());
+
+    if (!app->render.init_renderer(app->console.color_format(), app->console.depth_format())) {
+        std::cerr << "Failed to initialize " << RENDER_NAME << " renderer\n";
+        return false;
+    }
+
+    std::cout << "[Incubator] " << RENDER_NAME << " renderer ready\n";
+
+    // Publish the slot map once. The BeatClock's layout is EMPTY by design
+    // (CUT_1c): every render-side resolve misses, warns once on stderr, and
+    // leaves its coupling disabled — the graceful path in signal_layout.hpp.
+    app->render.bind_signal_layout(app->clock.stat_layout());
+
+#ifndef __EMSCRIPTEN__
+    // --- Setup File Watcher (native instrument, R6) --------------------------
+    app->watcher.watch(app->render.shader_path());
+    std::cout << "[Incubator] Hot reload enabled: " << app->render.shader_path() << "\n\n";
+#endif
+    std::cout << "Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit\n\n";
+
+    app->queue = app->console.queue();
+    app->world_ready = true;
+    return true;
+}
 
 // =========================================================================
 // FRAME -- the loop body, verbatim (the one token change: the acquire
@@ -141,9 +191,27 @@ static App* app = nullptr;
 // =========================================================================
 
 static void frame() {
+    // --- Boot gate (PORT_1b/1c) ------------------------------------------
+    // Web: rAF turns pump the boot until the device lands, then the world
+    // initializes once. Native: boot_state() is Ready before the loop ever
+    // runs — falls through immediately.
+    if (app->console.boot_state() != t7::Console::BootState::Ready) {
+        app->console.pump_boot();
+        return;
+    }
+    if (!app->world_ready) {
+        if (!init_world()) {
+#ifdef __EMSCRIPTEN__
+            emscripten_cancel_main_loop();
+#endif
+            return;
+        }
+    }
+
     float dt = app->console.begin_frame();
 
-    // --- Hot Reload Check (every ~30 frames) ----------------------------
+#ifndef __EMSCRIPTEN__
+    // --- Hot Reload Check (every ~30 frames; native instrument, R6) ------
     if (++app->reload_frame_counter >= 30) {
         app->reload_frame_counter = 0;
         // The progress dot is on the instruments dial: it is an explicit
@@ -158,6 +226,7 @@ static void frame() {
             app->render.reload_shaders();
         }
     }
+#endif
 
     // --- Input (all of it is the world's) --------------------------------
     for (const auto& event : app->console.input_events()) {
@@ -213,30 +282,19 @@ int main(int argc, char* argv[]) {
     // from dt alone. No command-line input either.
     (void)argc; (void)argv;
 
-    std::cout << "[Incubator] BeatClock ready (bpm " << app->clock.bpm << ")\n";
-
-    // --- Initialize Render Cartridge ----------------------------------------
-    app->render.initialize(app->console.device());
-
-    if (!app->render.init_renderer(app->console.color_format(), app->console.depth_format())) {
-        std::cerr << "Failed to initialize " << RENDER_NAME << " renderer\n";
+#ifdef __EMSCRIPTEN__
+    // --- The rAF loop (PORT_1c) ----------------------------------------------
+    // Boot continues asynchronously from here; frame() pumps the boot state
+    // and runs init_world() once the device lands. 0 = rAF-paced; true =
+    // this call never returns.
+    emscripten_set_main_loop(frame, 0, true);
+    return 0;
+#else
+    // --- World init (device exists — native boot is synchronous) -------------
+    if (!init_world()) {
         delete app;
         return 1;
     }
-
-    std::cout << "[Incubator] " << RENDER_NAME << " renderer ready\n";
-
-    // Publish the slot map once. The BeatClock's layout is EMPTY by design
-    // (CUT_1c): every render-side resolve misses, warns once on stderr, and
-    // leaves its coupling disabled — the graceful path in signal_layout.hpp.
-    app->render.bind_signal_layout(app->clock.stat_layout());
-
-    // --- Setup File Watcher -------------------------------------------------
-    app->watcher.watch(app->render.shader_path());
-    std::cout << "[Incubator] Hot reload enabled: " << app->render.shader_path() << "\n\n";
-    std::cout << "Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit\n\n";
-
-    app->queue = app->console.queue();
 
     // --- Main Loop ----------------------------------------------------------
     while (app->console.running()) {
@@ -246,4 +304,5 @@ int main(int argc, char* argv[]) {
     std::cout << "[Incubator] Shutdown\n";
     delete app;
     return 0;
+#endif
 }
