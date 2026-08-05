@@ -2503,7 +2503,7 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
 // force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
 // new reachability, not a new fact.
-@group(2) @binding(2) var<storage, read> field_head_poses : array<vec4<f32>, 400>;
+@group(2) @binding(2) var<uniform> field_head_poses : array<vec4<f32>, 400>;
 @group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;
 @group(2) @binding(4) var<uniform> field_ribbon : RibbonState;
 // The authored table (FIELD_4) — mirrors GPUFieldAuthored in

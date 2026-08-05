@@ -166,7 +166,7 @@ namespace t7 {
                 inline constexpr uint32_t occupier_cmg               = 0;   // ColumnMeshParams[32] (columns 0-15, antennas 16-31)
                 inline constexpr uint32_t occupier_amg               = 1;   // ArchMeshParams[16]
                 // The field (FIELD_2) — emitter windows in, force sum out.
-                inline constexpr uint32_t field_head_poses           = 2;   // vec4<f32>[400] — read-only window onto headPosesBuffer_ (same buffer, new reachability; the occupier-window pattern)
+                inline constexpr uint32_t field_head_poses           = 2;   // vec4<f32>[400] — uniform window onto headPosesBuffer_ (C6: demoted from read-only storage for the 8-storage default fit; same buffer, new reachability; the occupier-window pattern)
                 inline constexpr uint32_t field_forces               = 3;   // vec4<f32>[FIELD_SUBSCRIBER_CAP] — read_write, the field's one output
                 inline constexpr uint32_t field_ribbon               = 4;   // RibbonState — uniform window onto ribbonBuffer_ (ring count / visibility / cube_size for the ring emitter loop; same pattern as g2:2)
                 // The authored table (FIELD_4): CPU-sovereign source terms;
