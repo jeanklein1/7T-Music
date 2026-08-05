@@ -7824,39 +7824,43 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
                             field_ribbon.cube_size * 0.5, sub_i, 296u + k);
         }
     }
-    // Standing geometry emits (FIELD_3) — floater subscribers only:
-    // agents already meet these bodies through occupier_contact (one
-    // pair, one law). Emitter y := subscriber y makes the pair test
-    // PLANAR — row_occupier's cylindrical ruling inherited verbatim
-    // ("a column is a vertical body"). Accepted percept v1: shafts
-    // are infinite columns to floaters, as they are to agents; if
-    // altitude phantoms ever read wrong, the deferral is a base_y
-    // cached at spawn (where ground is queried once), not a manifold
-    // query here. True radii, no skin — config.field_slack is the standoff.
-    // Flat, const-bounded loops; no textures; outside every
+    // Standing geometry emits (FIELD_3; FIELD_B4a: EVERY subscriber).
+    // The floater-only scope was never the design — it was the
+    // anti-double-application guard, holding while agents still met
+    // these bodies through occupier_contact's direct row. B4b retires
+    // that row; this ungating is what must precede it, or free agents
+    // would hear standing geometry from nothing at all.
+    // Emitter y := subscriber y makes the pair test PLANAR —
+    // row_occupier's cylindrical ruling inherited verbatim ("a column
+    // is a vertical body"). Accepted percept v1: shafts are infinite
+    // columns to floaters and agents alike; if altitude phantoms ever
+    // read wrong, the deferral is a base_y cached at spawn (where
+    // ground is queried once), not a manifold query here. True radii,
+    // no skin — config.field_slack is the standoff. Flat,
+    // const-bounded loops; no textures; outside every
     // collision/ground chain (banner rules 2, 3).
+    var occ = vec3(0.0);
+    for (var i = 0u; i < 32u; i++) {
+        let cm = occupier_cmg[i];
+        if (cm.is_active == 0u) { continue; }
+        occ += field_pair(sub_pos,
+                          vec3(cm.center_x, sub_pos.y, cm.center_z),
+                          r_s, cm.shaft_radius, sub_i, 700u + i);
+    }
+    for (var i = 0u; i < 16u; i++) {
+        let am = occupier_amg[i];
+        if (am.is_active == 0u) { continue; }
+        let leg_r = max(am.thickness, am.depth) * 0.5;
+        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
+        occ += field_pair(sub_pos,
+                          vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
+                          r_s, leg_r, sub_i, 740u + 2u * i);
+        occ += field_pair(sub_pos,
+                          vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
+                          r_s, leg_r, sub_i, 741u + 2u * i);
+    }
+    f += occ * config.field_occupier_gain;
     if (sub_i >= 32u) {
-        var occ = vec3(0.0);
-        for (var i = 0u; i < 32u; i++) {
-            let cm = occupier_cmg[i];
-            if (cm.is_active == 0u) { continue; }
-            occ += field_pair(sub_pos,
-                              vec3(cm.center_x, sub_pos.y, cm.center_z),
-                              r_s, cm.shaft_radius, sub_i, 700u + i);
-        }
-        for (var i = 0u; i < 16u; i++) {
-            let am = occupier_amg[i];
-            if (am.is_active == 0u) { continue; }
-            let leg_r = max(am.thickness, am.depth) * 0.5;
-            let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-            occ += field_pair(sub_pos,
-                              vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
-                              r_s, leg_r, sub_i, 740u + 2u * i);
-            occ += field_pair(sub_pos,
-                              vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
-                              r_s, leg_r, sub_i, 741u + 2u * i);
-        }
-        f += occ * config.field_occupier_gain;
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).
         let na = min(field_authored.count, 4u);
