@@ -284,8 +284,6 @@ namespace t7 {
             // camera-host — the camera's GPU position IS the point's, so
             // it must reach the CPU for the viewpoint set (streaming,
             // LOD, cull, orb). Pawn-host never arms this machine.
-            enum class CameraReadbackState { IDLE, COPIED, MAPPING };
-            CameraReadbackState cameraReadbackState_ = CameraReadbackState::IDLE;
             // THE FRAME METER's timestamp readback rides the same P5
             // grammar (skip-if-busy: at most one in flight; unsampled
             // frames still write timestamps, they just aren't resolved).
@@ -987,8 +985,6 @@ namespace t7 {
                             pawnReadbackState_ = PawnReadbackState::IDLE;
                         if (floaterReadbackState_ == FloaterReadbackState::COPIED)
                             floaterReadbackState_ = FloaterReadbackState::IDLE;
-                        if (cameraReadbackState_ == CameraReadbackState::COPIED)
-                            cameraReadbackState_ = CameraReadbackState::IDLE;
 
                         // Capture return seed + mood + radius before overwrite
                         mood_state_.back_portal_return_seed = world_state_.active_seed;
@@ -1240,40 +1236,6 @@ namespace t7 {
                                 gpuState_.floating_entity_readback_staging().Unmap();
                             }
                             floaterReadbackState_ = FloaterReadbackState::IDLE;
-                        });
-                }
-
-                // THE POINT's camera-host harvest (option A): when
-                // the camera hosts the point, its GPU-resident position is
-                // the point's position — read it back so the CPU viewpoint
-                // set (streaming center, recenter, LOD banding, lod stage,
-                // entity cull, orb anchor) follows the point. The pawn-host
-                // frame never encodes the copy, so that path stays
-                // byte-untouched (the binding pixel gate, by construction).
-                if (cameraReadbackState_ == CameraReadbackState::COPIED) {
-                    cameraReadbackState_ = CameraReadbackState::MAPPING;
-                    gpuState_.camera_state_readback_staging().MapAsync(
-                        wgpu::MapMode::Read, 0, GPUState::camera_state_buffer_size(),
-                        wgpu::CallbackMode::AllowSpontaneous,
-                        [this, gen = world_state_.world_gen](wgpu::MapAsyncStatus status, wgpu::StringView) {
-                            if (status == wgpu::MapAsyncStatus::Success) {
-                                // Drop stale callbacks from a previous world.
-                                if (gen == world_state_.world_gen) {
-                                    const auto* cam = static_cast<const GPUCameraState*>(
-                                        gpuState_.camera_state_readback_staging().GetConstMappedRange(
-                                            0, GPUState::camera_state_buffer_size()));
-                                    // Host re-checked at harvest: a toggle
-                                    // between copy and map must not let a
-                                    // stale camera pos overwrite the pawn's
-                                    // authorship.
-                                    if (cam && point_.host == PointHost::CAMERA) {
-                                        point_.x = cam->pos[0];
-                                        point_.z = cam->pos[2];
-                                    }
-                                }
-                                gpuState_.camera_state_readback_staging().Unmap();
-                            }
-                            cameraReadbackState_ = CameraReadbackState::IDLE;
                         });
                 }
             }
@@ -1560,18 +1522,6 @@ namespace t7 {
                         gpuState_.floating_entity_readback_staging(), 0,
                         GPUState::floating_entity_buffer_size());
                     floaterReadbackState_ = FloaterReadbackState::COPIED;
-                }
-
-                // The point readback copy: CAMERA-HOST ONLY — the
-                // pawn-host frame encodes no camera copy (option A; the
-                // pawn path stays byte-untouched).
-                if (point_.host == PointHost::CAMERA &&
-                    cameraReadbackState_ == CameraReadbackState::IDLE) {
-                    encoder.CopyBufferToBuffer(
-                        gpuState_.camera_state_buffer(), 0,
-                        gpuState_.camera_state_readback_staging(), 0,
-                        GPUState::camera_state_buffer_size());
-                    cameraReadbackState_ = CameraReadbackState::COPIED;
                 }
             }
 

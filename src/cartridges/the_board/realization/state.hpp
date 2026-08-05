@@ -1792,7 +1792,6 @@ namespace t7 {
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
-            wgpu::Buffer cameraStateReadbackStaging_;   // the point readback (camera-host only)
             // Agent registries — uploaded once at world-init from the C++
             // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
             // of truth lives in bodies/agents.hpp; the GPU side reads
@@ -2923,9 +2922,6 @@ namespace t7 {
             // only — the spine copies the camera state to staging and
             // harvests pos.xz as THE POINT's position. Pawn-host never
             // touches these (that path stays the agent readback).
-            wgpu::Buffer camera_state_buffer() const { return cameraBuffer_; }
-            wgpu::Buffer camera_state_readback_staging() const { return cameraStateReadbackStaging_; }
-            static constexpr size_t camera_state_buffer_size() { return sizeof(GPUCameraState); }
             void set_possessed_slot(uint32_t slot) {
                 if (config_.possessed_slot != slot) {
                     config_.possessed_slot = slot;
@@ -3304,13 +3300,6 @@ namespace t7 {
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     floatingEntityReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
-                {
-                    wgpu::BufferDescriptor sd{};
-                    sd.label = "Camera State Readback Staging";
-                    sd.size = sizeof(GPUCameraState);
-                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-                    cameraStateReadbackStaging_ = device_.CreateBuffer(&sd);
-                }
                 // THE FRAME METER — GPU half. Created only when the
                 // instruments dial arms the meter AND the device carries
                 // timestamp-query (the cartridge prints the loud boot line
@@ -3405,7 +3394,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && cameraStateReadbackStaging_ &&
+                    portalArrayBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
