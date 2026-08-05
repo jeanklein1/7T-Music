@@ -334,8 +334,15 @@ inline constexpr ColumnTierRow COLUMN_TIERS[] = {
                    {0.3f, 0.08f}, {1.5f, 0.3f},  {0.4f, 0.08f} }},
         0.85f, 1.0f, 0.25f, 16, 4
     },
+    // DORIC — the smallest classical tier (was μ h 6.4 / r 0.38, the
+    // thin short pole; ~1/23 of PILLAR's volume). Jean's ruling: the
+    // MEANS double — twice as tall, twice as thick. The σ columns are
+    // untouched, so the spread is now relatively tighter (h 12.8±1.2,
+    // r 0.76±0.06); scale σ too if the variety should hold its old
+    // proportion. Frozen biography: this re-shapes every Doric column
+    // ever born from a given seed.
     /* DORIC  */ {
-        { 0.20f, 0.0f, { {6.4f, 1.2f}, {0.38f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
+        { 0.20f, 0.0f, { {12.8f, 1.2f}, {0.76f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
                    {0.0f, 0.0f}, {0.00f, 0.00f}, {0.00f, 0.00f},
                    {2.0f, 0.5f}, {0.50f, 0.10f}, {0.15f, 0.04f},
                    {0.2f, 0.05f}, {1.0f, 0.2f},  {0.3f, 0.05f} }},
