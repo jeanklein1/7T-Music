@@ -59,6 +59,7 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
+#include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
 #include "cartridges/the_board/contracts/floaters.hpp"   // floater TYPES (ActiveSphere/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
@@ -837,15 +838,10 @@ namespace t7 {
             // through the canvas; fog is its first staged consumer. (Input was
             // harvested by the on_input callbacks; its deltas rode U1.)
             // ── FIELD_4: THE BEACON (the first authored emitter) ──
-            // S rides config.floater_coordination (F5): 0 / 0.5 / 1.0 —
-            // the knob's first visible meaning in open_sunset. R0 sits
-            // outside the point's bubble (20); S < FIELD_K so contact
-            // repulsion outranks the pull at the ring — the ring
-            // self-spaces.
-            static constexpr float FIELD_BEACON_R0   = 25.0f;
-            static constexpr float FIELD_BEACON_R    = 120.0f;
-            static constexpr float FIELD_BEACON_S    = 200.0f;
-            static constexpr float FIELD_BEACON_LIFT = 20.0f;
+            // The four dials moved to the panel
+            // (contracts/control_panel.hpp), where the S < FIELD_K
+            // self-spacing ruling compiles as a static_assert beside
+            // them — the writer below reads them from there (FIELD_2a).
 
             void phase_motion_drivers(UpdateCtx& c) {
                 auto& signal = c.signal;

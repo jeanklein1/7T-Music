@@ -1693,8 +1693,25 @@ struct DesignConfig {
     // (binding 112) is a render-VS uniform and no compute layout binds it.
     // Reuses the first tail pad in place; sizeof 592 unmoved. Was _pad592_0.
     fpv_eye_height: f32,
-    _pad592_1: f32,
-    _pad592_2: f32,
+    // ─── THE FIELD'S DIALS (FIELD_2b) ────────────────────────────────
+    // Mirror of GPUDesignConfig tail (state.hpp) — GROWTH LAW, same
+    // commit, same order, same types. These were module consts in this
+    // room and hand-copied constants in the ribbon's; both copies are
+    // gone. THE PANEL (contracts/control_panel.hpp) authors the rests
+    // and the boot pins them here, so the rooms cannot drift — the
+    // failure Gate E paid for is now structurally impossible.
+    // Two _pad592 floats consumed, six appended, two fresh pads to the
+    // boundary: sizeof 592 -> 624 (state.hpp carries the witness).
+    field_slack: f32,
+    field_k: f32,
+    field_fmax: f32,
+    field_occupier_gain: f32,
+    field_authored_gain: f32,
+    field_gain_cube: f32,
+    field_gain_sphere: f32,
+    field_gain_agent: f32,
+    _pad624_0: f32,
+    _pad624_1: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -2207,35 +2224,40 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 // CONTACT_SPRING/_IMPULSE_CAP are not radii -- units below.
 const CONTACT_SPRING: f32 = 40.0;        // impulse per wu overlap per s
 const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
-// dimensionless -- the pawn's yield authority in the pair weight
-// m_other/(m_self+m_other). Not a radius.
-const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
+// dimensionless -- the pawn's emitter authority. Not a radius.
+const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — consumed by field_sum's emitter scale since FIELD_B2 (the possessed emits, never yields)
 
 // --- The avoidance field (FIELD_2, phase A) -------------------------
 // One summation loop (field_sum, hosted in update_other_agents)
 // writes field_forces: one vec4 per subscriber. INDEX MAP (mirrors
 // Dim::FIELD_SUBSCRIBER_CAP, state.hpp): [0..31] agents by slot ·
 // [32..39] spheres · [40..295] cubes — for floaters, lane − 32 is the
-// floating_entities index. Additive beside the influence law: pairs an
-// influence_response / boids row already owns are SKIPPED (phase B
-// migrates them); the possessed pawn neither emits nor subscribes.
+// floating_entities index. Beside the influence law: pairs a row
+// still owns are SKIPPED (phase B migrates them commit by commit —
+// sphere→agent B1, agent↔agent presence B2); the possessed pawn
+// emits to agents only (×PAWN_CONTACT_MASS_MULT, B2b) and never
+// subscribes.
+// FIELD_SUBSCRIBERS is a DIMENSION, not a dial: it sizes the
+// field_forces array, and an array size cannot come from a uniform.
+// It stays a const here and is pinned to Dim::FIELD_SUBSCRIBER_CAP by
+// a static_assert in state.hpp (the L3 lockstep witness it never had).
+// The array bound below reads THIS name — one home in this room.
 const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
-const FIELD_SLACK: f32 = 3.0;         // shell factor over summed radii
-const FIELD_K: f32 = 300.0;             // accel per unit of quadratic shell depth
-const FIELD_FMAX: f32 = 600.0;          // magnitude clamp on the summed force
-// Jean's gate instrument — any subscriber class zeroes independently:
-const FIELD_GAIN_CUBE: f32 = 4.0;
-const FIELD_GAIN_SPHERE: f32 = 1.0;
-const FIELD_GAIN_AGENT: f32 = 4.0;
-// Emitter-side gain: scales the standing-geometry terms (shafts +
-//  arch legs) before the FMAX clamp — zeroing it mutes FIELD_3
-//  exactly. Applies to floater subscribers only; agents' occupier
-//  law stays occupier_contact.
-const FIELD_OCCUPIER_GAIN: f32 = 1.0;
+// The dials themselves live at THE PANEL (contracts/control_panel.hpp)
+// and arrive as config fields (FIELD_2b): config.field_slack /
+// field_k / field_fmax, the two emitter mutes field_occupier_gain /
+// field_authored_gain, and the subscriber-class gains
+// field_gain_cube / _sphere / _agent — Jean's gate instrument, each
+// still zeroing its class independently.
+// config.field_occupier_gain scales the standing-geometry terms
+//  (shafts + arch legs) before the FMAX clamp — zeroing it mutes
+//  standing geometry for EVERY subscriber (FIELD_B4a/b: floaters
+//  and free agents alike). The possessed pawn is the exception and
+//  always was: it never subscribes, and meets these bodies through
+//  occupier_contact in its candidate.
 // Authored emitters (FIELD_4): SHELL attractors — spring toward
-// radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0; the
-// mute switch below. Tiebreak band: 900+i.
-const FIELD_AUTHORED_GAIN: f32 = 1.0;
+// radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0;
+// config.field_authored_gain is their mute. Tiebreak band: 900+i.
 
 // --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
 // reference: mosaic cell PATCH_CELL_SIZE 3.125 wu -> ~1.3 cells of
@@ -2317,9 +2339,11 @@ const SPHERE_PUSH_GAIN: f32 = 40.0;
 //   cube push (update_cube) ..... other = point_pos()   [PRESENCE -> POINT]
 //   sphere push (player/camera) . self  = the point's HOST body; other = the
 //                                 sphere (fe.pos)        [emanation of the sphere]
-//   agent<->agent contact/flee .. other = agent_state[k] [BODY pair -- stays]
+//   agent<->agent flee .......... other = agent_state[k] [BODY pair -- stays;
+//                                 the contact half migrated to the field, FIELD_B2]
 //   contact mass weight ......... k == possessed_slot -> PAWN_CONTACT_MASS_MULT
-//                                 [the pawn BODY's yield authority -- stays]
+//                                 [the pawn BODY's yield authority -- consumed
+//                                 by field_sum's emitter scale since FIELD_B2]
 // The one remaining possessed-slot read for a point term is the point's
 // VELOCITY in the point-source flee's pawn-host branch (the point's velocity
 // IS its host's; camera-host uses the BUBBLE_PART_SPEED floor). The deferred
@@ -2442,11 +2466,6 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
 // (T1c gate: the kernels' backend SPIR-V is unchanged). FXC-safe -- a fn
 // returning a constructed struct is not the runtime-indexed const array the
 // banner forbids.
-fn row_agent_contact(g_self: AgentTierParams, og: AgentTierParams, m_self: f32, m_other: f32) -> InfluenceProfile {
-    return InfluenceProfile(g_self.contact_radius + og.contact_radius, 0.0,
-                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
-                            m_other / (m_self + m_other), 0.0, 0.0);
-}
 fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProfile {
     return InfluenceProfile((g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
                             0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6, 0.0);
@@ -2454,10 +2473,6 @@ fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProf
 fn row_sphere_push(fe: FloatingEntityState) -> InfluenceProfile {
     return InfluenceProfile(fe.influence_radius, 0.0,
                             SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
-}
-fn row_agent_sphere(g_self: AgentTierParams, fe: FloatingEntityState) -> InfluenceProfile {
-    return InfluenceProfile(g_self.contact_radius + fe.body_radius, 0.0,
-                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
 }
 fn row_point_flee(g_self: AgentTierParams, approach_floor: f32) -> InfluenceProfile {
     return InfluenceProfile(config.point_bubble_radius, 0.0,
@@ -2488,7 +2503,7 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
 // new reachability, not a new fact.
 @group(2) @binding(2) var<storage, read> field_head_poses : array<vec4<f32>, 400>;
-@group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, 296>;
+@group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;
 @group(2) @binding(4) var<uniform> field_ribbon : RibbonState;
 // The authored table (FIELD_4) — mirrors GPUFieldAuthored in
 // state.hpp BYTE-FOR-BYTE (144 B; the static_assert is the
@@ -2511,8 +2526,8 @@ struct FieldAuthored {
 const OCCUPIER_CONTACT_SKIN: f32 = 1.6;
 
 fn row_occupier(radius: f32) -> InfluenceProfile {
-    // The row_agent_sphere immovable-authority pattern verbatim
-    // (yield 1.0 on the agent, zero on the occupier), with the
+    // The immovable-authority pattern (yield 1.0 on the agent,
+    // zero on the occupier; retired row_agent_sphere's shape), with the
     // CYLINDRICAL gate: a column is a vertical body — an agent at any
     // height meets the shaft (the row_cube_push planar precedent).
     return InfluenceProfile(radius, INFLUENCE_PLANAR_ONLY,
@@ -2585,6 +2600,9 @@ fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
 //     const-expression, so no const_assert can see it. This is the first
 //     concrete cost of a value split across rooms: move the tier radii next to
 //     the caps and the row becomes checkable (T3 charter generalizes the rule).
+//     SUCCESSION (FIELD_B1/B2): agent<->agent and agent<-sphere presence
+//     migrated to the field (its ceiling is config.field_fmax, one clamp for the
+//     whole sum); the surviving CONTACT-cap consumer here is row_occupier.
 //   SPHERE row   -- LIVE LIMITER, not a guard. Max impulse is
 //     fe.influence_radius*SPHERE_PUSH_GAIN*dt; at the typical mu=8 that is 5.33
 //     at 60 Hz (under CONTACT_IMPULSE_CAP 6) but crosses it below 53.3 fps, and
@@ -7636,33 +7654,16 @@ fn update_player_agent() {
     // the disclosed softness: one-frame asymmetries the springs absorb.
     {
         let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
-        // The pawn's authority: the pair weight m_other/(m_self+m_other)
-        // stays small — the player feels a nudge, never a shove.
-        let m_self = g_self.contact_mass * PAWN_CONTACT_MASS_MULT;
-        // ── CONTACT_2 C1a — 3D gate, planar push ──────────────────
-        // The distance GATE is 3D (a sphere is a sphere: dy counts),
-        // but the RESPONSE stays planar (dx,dz via d_pl) — influence
-        // is vertically bounded (the bubble's portal-gate law,
-        // contracts/point.hpp): walkers are never pushed into the air;
-        // a cube overhead feels nothing from a pawn beneath. Overlap
-        // (r - d) uses the true 3D distance; direction uses d_pl.
+        // (FIELD_B2: the agent↔agent presence row migrated to the
+        // field — the possessed EMITS at ×PAWN_CONTACT_MASS_MULT in
+        // field_sum and yields to nothing; the flee-dodge stays.)
         for (var k = 0u; k < 32u; k++) {
             if (k == slot) { continue; }
             let other = agent_state[k];
             if (other.is_active == 0u) { continue; }
             let og = agent_tier_gains[min(other.tier_idx, 3u)];
-            var m_other = og.contact_mass;
-            if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
             let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
-            // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
-            // body, all pairs. Reproduces the C1a spring exactly (cap before
-            // the mass weight -- min() then * yield_share). Bit-proof: LOG.
-            let c_prof = row_agent_contact(g_self, og, m_self, m_other);
-            let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
-                                         c_prof, signal.dt);
-            agent.vel_x += c_r.x;
-            agent.vel_z += c_r.y;
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
             // pair. self_vel reads the POST-contact velocity (the same
             // sequential dependency the inline blocks had). falloff_mix 0 = the
@@ -7730,9 +7731,11 @@ fn update_player_agent() {
 // body, many callers") at field scale. field_pair is the quadratic
 // shell; field_sum resolves one subscriber lane and walks the
 // emitter classes under the PHASE-A FEEL MATRIX: pairs the influence
-// law / boids already own are skipped (agent↔agent, point↔agent,
-// sphere→agent, point→cube, agent←occupier), the possessed pawn
-// neither emits nor
+// law / boids already own are skipped (point↔agent, point→cube,
+// agent←occupier; sphere→agent migrated FIELD_B1, agent↔agent
+// presence FIELD_B2 — the flee-dodge stays), the possessed pawn
+// EMITS to agents only (×PAWN_CONTACT_MASS_MULT, FIELD_B2b;
+// floaters no* — row_cube_push owns cube←point) and never
 // subscribes. Authored emitters (FIELD_4): floaters YES; agents
 // no* (the point-rows own them); possessed no. Loops are flat and constant- or uniform-bounded
 // (banner rule 2); no textures (rule 3); outside every collision/
@@ -7741,7 +7744,7 @@ fn update_player_agent() {
 fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
               r_s: f32, r_e: f32, sub_i: u32, emit_i: u32) -> vec3<f32> {
     let dvec = sub_pos - emit_pos;
-    let shell = (r_s + r_e) * FIELD_SLACK;
+    let shell = (r_s + r_e) * config.field_slack;
     let len = length(dvec);
     if (len >= shell) { return vec3(0.0); }
     // Degenerate overlap: deterministic axis by index parity — no
@@ -7753,14 +7756,14 @@ fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
         dir = dvec / len;
     }
     let depth = 1.0 - len / shell;
-    return dir * (FIELD_K * depth * depth);
+    return dir * (config.field_k * depth * depth);
 }
 
 fn field_sum(sub_i: u32) -> vec3<f32> {
     // Subscriber resolve — lane map at the FIELD consts. Radii ride
-    // the sources the CONTACT rows already use: agents
-    // agent_tier_gains[...].contact_radius (row_agent_contact's
-    // reference), floaters fe.body_radius (row_agent_sphere's S2c).
+    // the CONTACT vocabulary: agents
+    // agent_tier_gains[...].contact_radius, floaters fe.body_radius
+    // (the S2c ruling: the sphere's OWN body).
     var sub_pos: vec3<f32>;
     var r_s: f32;
     if (sub_i < 32u) {
@@ -7775,24 +7778,33 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
         r_s = fe.body_radius;
     }
     var f = vec3(0.0);
-    if (sub_i >= 32u) {
-        // Free agents emit — floater subscribers only (agent↔agent and
-        // the point's rows own the rest; possessed never emits).
-        for (var k = 0u; k < 32u; k++) {
-            if (k == config.possessed_slot) { continue; }
-            let a = agent_state[k];
-            if (a.is_active == 0u) { continue; }
-            let r_e = agent_tier_gains[min(a.tier_idx, 3u)].contact_radius;
-            f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, r_e, sub_i, k);
+    // Agents emit — EVERY subscriber (FIELD_B2: the agent↔agent
+    // presence row migrated here; the flee-dodge personality stays
+    // the influence law's). Authority enters the field: each
+    // emitter's term scales by its contact_mass, and the possessed
+    // emits at og_mass × PAWN_CONTACT_MASS_MULT — to AGENT lanes
+    // only (FIELD_B2b: floater lanes keep Phase A's discipline;
+    // cube←point stays row_cube_push's until the point arc rules).
+    // It still never yields: its subscriber lane stays rest.
+    for (var k = 0u; k < 32u; k++) {
+        if (sub_i < 32u && k == sub_i) { continue; }   // self
+        let a = agent_state[k];
+        if (a.is_active == 0u) { continue; }
+        let og = agent_tier_gains[min(a.tier_idx, 3u)];
+        var og_mass = og.contact_mass;
+        if (k == config.possessed_slot) {
+            og_mass = select(0.0, og_mass * PAWN_CONTACT_MASS_MULT, sub_i < 32u);
         }
-        // Spheres emit — floater subscribers only (sphere→agent is
-        // row_agent_sphere's); skip self.
-        for (var k = 0u; k < SPHERE_SLOT_COUNT; k++) {
-            if (sub_i - 32u == k) { continue; }
-            let fe = floating_entities.entities[k];
-            if (fe.is_active == 0u) { continue; }
-            f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 32u + k);
-        }
+        f += field_pair(sub_pos, vec3(a.pos_x, a.pos_y, a.pos_z), r_s, og.contact_radius, sub_i, k) * og_mass;
+    }
+    // Spheres emit — EVERY subscriber (FIELD_B1: the agent←sphere
+    // presence row migrated here; point←sphere stays the influence
+    // law's — row_sphere_push, the point's own reflex); skip self.
+    for (var k = 0u; k < SPHERE_SLOT_COUNT; k++) {
+        if (sub_i >= 32u && sub_i - 32u == k) { continue; }
+        let fe = floating_entities.entities[k];
+        if (fe.is_active == 0u) { continue; }
+        f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 32u + k);
     }
     // Cubes emit — every subscriber; skip self.
     for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
@@ -7814,39 +7826,43 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
                             field_ribbon.cube_size * 0.5, sub_i, 296u + k);
         }
     }
-    // Standing geometry emits (FIELD_3) — floater subscribers only:
-    // agents already meet these bodies through occupier_contact (one
-    // pair, one law). Emitter y := subscriber y makes the pair test
-    // PLANAR — row_occupier's cylindrical ruling inherited verbatim
-    // ("a column is a vertical body"). Accepted percept v1: shafts
-    // are infinite columns to floaters, as they are to agents; if
-    // altitude phantoms ever read wrong, the deferral is a base_y
-    // cached at spawn (where ground is queried once), not a manifold
-    // query here. True radii, no skin — FIELD_SLACK is the standoff.
-    // Flat, const-bounded loops; no textures; outside every
+    // Standing geometry emits (FIELD_3; FIELD_B4a: EVERY subscriber).
+    // The floater-only scope was never the design — it was the
+    // anti-double-application guard, holding while agents still met
+    // these bodies through occupier_contact's direct row. B4b retires
+    // that row; this ungating is what must precede it, or free agents
+    // would hear standing geometry from nothing at all.
+    // Emitter y := subscriber y makes the pair test PLANAR —
+    // row_occupier's cylindrical ruling inherited verbatim ("a column
+    // is a vertical body"). Accepted percept v1: shafts are infinite
+    // columns to floaters and agents alike; if altitude phantoms ever
+    // read wrong, the deferral is a base_y cached at spawn (where
+    // ground is queried once), not a manifold query here. True radii,
+    // no skin — config.field_slack is the standoff. Flat,
+    // const-bounded loops; no textures; outside every
     // collision/ground chain (banner rules 2, 3).
+    var occ = vec3(0.0);
+    for (var i = 0u; i < 32u; i++) {
+        let cm = occupier_cmg[i];
+        if (cm.is_active == 0u) { continue; }
+        occ += field_pair(sub_pos,
+                          vec3(cm.center_x, sub_pos.y, cm.center_z),
+                          r_s, cm.shaft_radius, sub_i, 700u + i);
+    }
+    for (var i = 0u; i < 16u; i++) {
+        let am = occupier_amg[i];
+        if (am.is_active == 0u) { continue; }
+        let leg_r = max(am.thickness, am.depth) * 0.5;
+        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
+        occ += field_pair(sub_pos,
+                          vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
+                          r_s, leg_r, sub_i, 740u + 2u * i);
+        occ += field_pair(sub_pos,
+                          vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
+                          r_s, leg_r, sub_i, 741u + 2u * i);
+    }
+    f += occ * config.field_occupier_gain;
     if (sub_i >= 32u) {
-        var occ = vec3(0.0);
-        for (var i = 0u; i < 32u; i++) {
-            let cm = occupier_cmg[i];
-            if (cm.is_active == 0u) { continue; }
-            occ += field_pair(sub_pos,
-                              vec3(cm.center_x, sub_pos.y, cm.center_z),
-                              r_s, cm.shaft_radius, sub_i, 700u + i);
-        }
-        for (var i = 0u; i < 16u; i++) {
-            let am = occupier_amg[i];
-            if (am.is_active == 0u) { continue; }
-            let leg_r = max(am.thickness, am.depth) * 0.5;
-            let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-            occ += field_pair(sub_pos,
-                              vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
-                              r_s, leg_r, sub_i, 740u + 2u * i);
-            occ += field_pair(sub_pos,
-                              vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
-                              r_s, leg_r, sub_i, 741u + 2u * i);
-        }
-        f += occ * FIELD_OCCUPIER_GAIN;
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).
         let na = min(field_authored.count, 4u);
@@ -7864,14 +7880,14 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
             }
             let env = 1.0 - alen / a1.y;
             let e = clamp((alen - a1.x) / max(a1.x, 1.0), -1.0, 1.0);
-            f += adir * (-(a0.w) * e * env * env) * FIELD_AUTHORED_GAIN;
+            f += adir * (-(a0.w) * e * env * env) * config.field_authored_gain;
         }
     }
     let fl = length(f);
-    if (fl > FIELD_FMAX) { f = f * (FIELD_FMAX / fl); }
-    var gain = FIELD_GAIN_AGENT;
-    if (sub_i >= 40u) { gain = FIELD_GAIN_CUBE; }
-    else if (sub_i >= 32u) { gain = FIELD_GAIN_SPHERE; }
+    if (fl > config.field_fmax) { f = f * (config.field_fmax / fl); }
+    var gain = config.field_gain_agent;
+    if (sub_i >= 40u) { gain = config.field_gain_cube; }
+    else if (sub_i >= 32u) { gain = config.field_gain_sphere; }
     return f * gain;
 }
 
@@ -7924,25 +7940,16 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     // the disclosed softness: one-frame asymmetries the springs absorb.
     {
         let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
-        let m_self = g_self.contact_mass;
-        // 3D gate, planar push — CONTACT_2 C1a (see update_player_agent).
+        // (FIELD_B2: the agent↔agent presence row migrated to the
+        // field — crowd spacing is field_sum's now, mass-weighted;
+        // the flee-dodge personality stays here.)
         for (var k = 0u; k < 32u; k++) {
             if (k == slot) { continue; }
             let other = agent_state[k];
             if (other.is_active == 0u) { continue; }
             let og = agent_tier_gains[min(other.tier_idx, 3u)];
-            var m_other = og.contact_mass;
-            if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
             let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
-            // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
-            // body, all pairs. Reproduces the C1a spring exactly (cap before
-            // the mass weight -- min() then * yield_share). Bit-proof: LOG.
-            let c_prof = row_agent_contact(g_self, og, m_self, m_other);
-            let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
-                                         c_prof, signal.dt);
-            agent.vel_x += c_r.x;
-            agent.vel_z += c_r.y;
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
             // pair. self_vel reads the POST-contact velocity (the same
             // sequential dependency the inline blocks had). falloff_mix 0 = the
@@ -7957,32 +7964,16 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 agent.vel_z += f_r.y;
             }
         }
-        // spheres push walkers (celestial-massive: only self yields)
-        for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
-            let fe = floating_entities.entities[sph];
-            if (fe.is_active == 0u) { continue; }
-            // CONTACT_5 P1b: agent-vs-sphere contact (PRESENCE) through the one
-            // body. Reference is the sphere's OWN body (fe.body_radius, S2c);
-            // yield 1 -- the agent takes the whole push, the sphere is unmoved
-            // here (P2a gives the sphere authority over the POINT, not agents).
-            let s_prof = row_agent_sphere(g_self, fe);
-            let s_r = influence_response(
-                vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
-                fe.pos, vec2(0.0), s_prof, signal.dt);
-            agent.vel_x += s_r.x;
-            agent.vel_z += s_r.y;
-        }
+        // (FIELD_B1: the agent←sphere presence row migrated to the
+        // field — walkers part by field law; point←sphere stays in
+        // update_player_agent, the point's own reflex.)
 
-        // ── OCCUPIERS PUSH WALKERS (BATCH F-B) ────────────────────
-        // The standing bodies' word — columns, antennas, arch legs.
-        // Immovable (yield 1.0); ONE shared fn, called from both
-        // kernels — the twin call is in update_player_agent.
-        {
-            let o_r = occupier_contact(
-                vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
-            agent.vel_x += o_r.x;
-            agent.vel_z += o_r.y;
-        }
+        // (FIELD_B4b: the occupier row migrated to the field — free
+        // agents part around shafts and arch legs by field law, summed
+        // in field_sum since B4a ungated it. occupier_contact lives on
+        // for its OTHER consumer: the possessed pawn's candidate, which
+        // never subscribes to the field — ruling 3. One law, two
+        // consumers, and now only one of them is a row.)
 
         // ── THE POINT SOURCE (CONTACT_5 P1b): flee is the point's ──
         // Presence, not a body: agents part around the POINT within the bubble.
@@ -13136,14 +13127,23 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
         orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_flocking * dt);
 
-        let sep_r2 = orb_config.flock_sep_radius   * orb_config.flock_sep_radius;
         let ali_r2 = orb_config.flock_align_radius * orb_config.flock_align_radius;
         let coh_r2 = orb_config.flock_coh_radius   * orb_config.flock_coh_radius;
+
+        // FIELD_B3: separation calls the ONE LAW in place (field_pair,
+        //  module-scope) — the succession's second transport: the
+        //  buffer where classes must hear each other, the direct call
+        //  where a subsystem is closed (orb↔orb only; the snapshot
+        //  keeps it race-free). Radius mapping keeps the mood dial:
+        //  shell = 2r·config.field_slack = flock_sep_radius exactly — and the
+        //  shell gives separation a TRUE finite reach where 1/d² had an
+        //  infinite tail behind a gate. Magnitude ownership unchanged:
+        //  the sum is normalized below, the weight chain governs.
+        let sep_pair_r = orb_config.flock_sep_radius / (2.0 * config.field_slack);
 
         var sep_sum   = vec3<f32>(0.0, 0.0, 0.0);
         var ali_sum   = vec3<f32>(0.0, 0.0, 0.0);
         var coh_sum   = vec3<f32>(0.0, 0.0, 0.0);
-        var sep_count = 0.0;
         var ali_count = 0.0;
         var coh_count = 0.0;
 
@@ -13154,10 +13154,9 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
             let diff  = orb.pos - other.pos;
             let d2    = dot(diff, diff);
 
-            if (d2 < sep_r2 && d2 > 0.001) {
-                sep_sum = sep_sum + diff / d2;
-                sep_count = sep_count + 1.0;
-            }
+            sep_sum = sep_sum + field_pair(orb.pos, other.pos,
+                                           sep_pair_r, sep_pair_r,
+                                           i, j);
             if (d2 < ali_r2) {
                 ali_sum = ali_sum + other.vel;
                 ali_count = ali_count + 1.0;
@@ -13170,10 +13169,8 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
         // Separation: direction away from the distance-weighted sum.
         var sep_force = vec3<f32>(0.0, 0.0, 0.0);
-        if (sep_count > 0.0) {
-            let sl = length(sep_sum);
-            if (sl > 0.001) { sep_force = sep_sum / sl; }
-        }
+        let sl = length(sep_sum);
+        if (sl > 0.001) { sep_force = sep_sum / sl; }
 
         // Alignment: steer toward the average velocity.
         var ali_force = vec3<f32>(0.0, 0.0, 0.0);

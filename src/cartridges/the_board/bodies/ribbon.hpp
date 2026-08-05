@@ -5,6 +5,7 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
+#include "cartridges/the_board/contracts/control_panel.hpp"    // FIELD_SLACK/K/FMAX + the two emitter mutes — the one home
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
 // History: audit/LADDER.md
@@ -127,27 +128,17 @@ inline constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen
 // are Jean's dials; either zeroes its axis independently.
 inline constexpr float RIBBON_FIELD_GAIN_XZ  = 0.05f;   // yaw command per wu/s² of lateral field
 inline constexpr float RIBBON_FIELD_GAIN_Y   = 1.0f;    // alt_target wu per wu/s² of vertical field per s
-// LOCKSTEP MIRRORS of world.wgsl's FIELD_SLACK / FIELD_K /
-//  FIELD_FMAX. L3: edit BOTH rooms in the same commit — the
-//  2026-08 stamp edited the WGSL room live and this room froze at
-//  the pre-stamp values (the ribbon went numb; Gate E's lesson).
-//  Control-panel horizon: this trio is the newest exhibit for
-//  config-field migration — one home, both rooms read it.
-inline constexpr float RIBBON_FIELD_SLACK    = 3.0f;
-inline constexpr float RIBBON_FIELD_K        = 300.0f;
-inline constexpr float RIBBON_FIELD_FMAX     = 600.0f;
+// The pair law's shape — SLACK / K / FMAX and the two emitter-side
+//  mutes — is authored once, at the panel
+//  (contracts/control_panel.hpp), and read from there by this
+//  dialect and by the WGSL room alike. The mirrors that used to sit
+//  here are gone with their LOCKSTEP comments: there is nothing
+//  left to keep in step (FIELD_2a).
 // The whisper's grammar at ribbon scale: a body with R_MIN = 40
 //  cannot react to what it senses at 15 — the probe rides ahead of
 //  the head along motion so the turn begins in time. Jean's dial.
+//  Ribbon-only (no twin) — panel exhibit two.
 inline constexpr float RIBBON_FIELD_LOOKAHEAD = 40.0f;  // = R_MIN
-// The mute switch, mirroring FIELD_OCCUPIER_GAIN (world.wgsl):
-//  scales the standing-geometry terms before the FMAX clamp —
-//  zeroing it silences FIELD_3b.3 exactly.
-inline constexpr float RIBBON_FIELD_OCCUPIER_GAIN = 1.0f;
-// LOCKSTEP MIRROR of world.wgsl's FIELD_AUTHORED_GAIN — the lure's
-//  mute; the head reads the same authored table the GPU field does
-//  (the CPU-sovereign stage at the writer, FIELD_4).
-inline constexpr float RIBBON_FIELD_AUTHORED_GAIN = 1.0f;
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
@@ -933,7 +924,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
         auto field_add = [&](float ex, float ey, float ez, float r_e) {
             const float dx = px - ex, dy = hy - ey, dz = pz - ez;
-            const float shell = (r_head + r_e) * RIBBON_FIELD_SLACK;
+            const float shell = (r_head + r_e) * FIELD_SLACK;
             const float len = std::sqrt(dx * dx + dy * dy + dz * dz);
             if (len >= shell) return;
             // Degenerate overlap: deterministic +X (no per-pair index
@@ -941,7 +932,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             float ux = 1.0f, uy = 0.0f, uz = 0.0f;
             if (len >= 1e-4f) { ux = dx / len; uy = dy / len; uz = dz / len; }
             const float depth = 1.0f - len / shell;
-            const float mag = RIBBON_FIELD_K * depth * depth;
+            const float mag = FIELD_K * depth * depth;
             fx += ux * mag; fy += uy * mag; fz += uz * mag;
         };
         // Free agents emit (the possessed pawn neither emits nor
@@ -993,9 +984,9 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
                 field_add(ar.world_x + lx, hy, ar.world_z + lz, leg_r);
                 field_add(ar.world_x - lx, hy, ar.world_z - lz, leg_r);
             }
-            fx = flt_x + (fx - flt_x) * RIBBON_FIELD_OCCUPIER_GAIN;
-            fy = flt_y + (fy - flt_y) * RIBBON_FIELD_OCCUPIER_GAIN;
-            fz = flt_z + (fz - flt_z) * RIBBON_FIELD_OCCUPIER_GAIN;
+            fx = flt_x + (fx - flt_x) * FIELD_OCCUPIER_GAIN;
+            fy = flt_y + (fy - flt_y) * FIELD_OCCUPIER_GAIN;
+            fz = flt_z + (fz - flt_z) * FIELD_OCCUPIER_GAIN;
         }
         // The lure (FIELD_4): the head reads the authored table — the
         // same CPU-sovereign stage the beacon writer fills. The shell
@@ -1018,7 +1009,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
                 const float env = 1.0f - alen / a1[1];
                 float e = (alen - a1[0]) / ((a1[0] > 1.0f) ? a1[0] : 1.0f);
                 e = (e > 1.0f) ? 1.0f : (e < -1.0f) ? -1.0f : e;
-                const float mag = -(a0[3]) * e * env * env * RIBBON_FIELD_AUTHORED_GAIN;
+                const float mag = -(a0[3]) * e * env * env * FIELD_AUTHORED_GAIN;
                 // LATERAL ONLY — Gate F's stratosphere lesson: the
                 // beacon is the field's first STANDING source, and a
                 // sustained fy against the persistent alt_target
@@ -1032,8 +1023,8 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
             }
         }
         const float fmag = std::sqrt(fx * fx + fy * fy + fz * fz);
-        if (fmag > RIBBON_FIELD_FMAX) {
-            const float s = RIBBON_FIELD_FMAX / fmag;
+        if (fmag > FIELD_FMAX) {
+            const float s = FIELD_FMAX / fmag;
             fx *= s; fy *= s; fz *= s;
         }
         // Horizontal → the eased yaw command. +yaw rotates motion

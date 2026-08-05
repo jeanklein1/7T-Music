@@ -536,8 +536,9 @@ inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
 }
 
 // The body's word is the occupier rows (world.wgsl occupier_contact):
-// they push walkers off the shaft directly, and since BATCH G the
-// pawn's candidate consumes them too. The pier — the legacy baked
+// since FIELD_B4b the POSSESSED PAWN's candidate is their sole
+// consumer (BATCH G's wire) — free agents part around the shaft by
+// field law now, the same law the floaters have obeyed since FIELD_3. The pier — the legacy baked
 // wall these SOLID_* params once fed — left the program in BATCH G;
 // the params live on in the footprint (solid_half) and active state.
 inline constexpr EntityFamilyAdapter COLUMN_ADAPTER = {

@@ -34,6 +34,7 @@
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
 #include "cartridges/the_board/bodies/pawn_figures.hpp"            // typed figure registry (H1: PawnFigureDef / PAWN_FIGURES) — constexpr-only, self-contained
 #include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS — source of truth for the CONTACT_2 boot pin
+#include "cartridges/the_board/contracts/control_panel.hpp"         // THE PANEL — the field dials' rests, boot-pinned into the config
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
@@ -359,6 +360,17 @@ namespace t7 {
             // the WGSL field consts: [0..31] agents · [32..39] spheres ·
             // [40..295] cubes.
             constexpr uint32_t FIELD_SUBSCRIBER_CAP = MAX_AGENTS + MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 296
+            // L3 LOCKSTEP WITNESS (FIELD_2b) — the one this fact never had.
+            // world.wgsl declares `const FIELD_SUBSCRIBERS: u32 = 296u` and
+            // sizes field_forces by THAT name (one home in that room). A
+            // dimension cannot ride the config uniform — an array bound is
+            // not a runtime value — so the two rooms are pinned by this
+            // number instead. Change the population caps above and this
+            // fires; edit both rooms in the same commit.
+            static_assert(FIELD_SUBSCRIBER_CAP == 296,
+                "FIELD_SUBSCRIBER_CAP and world.wgsl's FIELD_SUBSCRIBERS are "
+                "one fact in two rooms (L3): update the WGSL const in the "
+                "same commit, then move this number.");
         }
 
         namespace Idle {
@@ -647,8 +659,29 @@ namespace t7 {
             // position, same type, sizeof 592 UNMOVED (the possessed_slot /
             // veil_dither / indoor_height_cap precedent). Was _pad592_0.
             float fpv_eye_height;
-            float _pad592_1;
-            float _pad592_2;
+            // ─── THE FIELD'S DIALS (FIELD_2b) — the panel's first
+            // graduation. Mirror of world.wgsl DesignConfig tail —
+            // GROWTH LAW (same commit, same order, same types).
+            // Rests: contracts/control_panel.hpp, boot-pinned below —
+            // the panel authors, this struct transports, both rooms
+            // read. The WGSL consts these replace are GONE, so the
+            // LOCKSTEP hazard they carried is gone with them.
+            // Tail-append per L4: the two _pad592 floats are consumed
+            // here and six more follow, so sizeof moves 592 -> 624
+            // (the witness below is the handshake). Appending anywhere
+            // above would shift a vec3 off its 16-byte boundary and
+            // diverge the rooms silently — the pawn_tilt_tau note
+            // states the law.
+            float field_slack;             // shell factor over summed radii (rest 3.0)
+            float field_k;                 // accel per unit of quadratic shell depth (rest 300.0)
+            float field_fmax;              // magnitude clamp on the summed force (rest 600.0)
+            float field_occupier_gain;     // mute: standing geometry (rest 1.0)
+            float field_authored_gain;     // mute: the authored table (rest 1.0)
+            float field_gain_cube;         // subscriber-class gain, applied after the clamp (rest 4.0)
+            float field_gain_sphere;       // (rest 1.0)
+            float field_gain_agent;        // (rest 4.0)
+            float _pad624_0;
+            float _pad624_1;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1566,8 +1599,12 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 592,
-            "GPUDesignConfig must be 592 bytes. PRUNING_1 P3 removed nine "
+        // FIELD_2b: the field's eight dials graduated from WGSL consts to
+        // this struct (the panel authors their rests). Eight floats where
+        // two tail pads stood, plus two fresh pads to land the 16-byte
+        // boundary: 592 - 8 + 32 + 8 = 624. Both rooms, same commit.
+        static_assert(sizeof(GPUDesignConfig) == 624,
+            "GPUDesignConfig must be 624 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
             "44 B moved all four vec3 members off their boundaries. "
@@ -1575,7 +1612,9 @@ namespace t7 {
             "offsetof asserts below are what prove it. "
             "(MOSAIC_0: +8 floats, 560 -> 592 — Jean OK'd at handoff. "
             "MOSAIC_2 re-cut that tail from six dials + two pads to FIVE + "
-            "THREE — still 8 floats, so 592 is unmoved.)");
+            "THREE — still 8 floats, so 592 is unmoved. FIELD_2b: the "
+            "field's eight dials land at the tail — two pads consumed, six "
+            "floats appended, two fresh pads to the boundary; 592 -> 624.)");
         // THE ALIGNMENT LAW (L4, src/docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -4967,7 +5006,7 @@ namespace t7 {
                 // kernels can update it; orb_state_prev is read-only because only the
                 // copy kernel writes it (through orbCopyLayout_).
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
                     entries[0].binding = bind::g0::orb_state;  // orb_state (storage, read_write)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4980,6 +5019,19 @@ namespace t7 {
                     entries[2].binding = bind::g0::orb_state_prev;  // orb_state_prev (storage, read-only)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    // FIELD_2b: the design config joins the orb room. Not a
+                    // new fact — the SAME config uniform every other compute
+                    // stage binds, reachable here now because B3 made
+                    // orb_dynamics a caller of field_pair, and field_pair
+                    // reads the field's dials from the config since the panel
+                    // migration. The window pattern (g2:2 / g2:4): same
+                    // buffer, new reachability. orb_init and orb_recolor
+                    // share this layout and ignore it — unused group members
+                    // are legal.
+                    entries[3].binding = bind::g0::config;  // config (uniform)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Orb Compute Layout";
@@ -5923,9 +5975,11 @@ namespace t7 {
                     if (!zoneMaskGroup_) return false;
                 }
 
-                // Orb compute bind group (3 entries: state storage rw + config uniform)
+                // Orb compute bind group (4 entries: orb state rw + orb config
+                // + prev snapshot + the design config — FIELD_2b, the field's
+                // dials reach field_pair here)
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
 
                     entries[0].binding = bind::g0::orb_state;
                     entries[0].buffer = orbStateBuffer_;
@@ -5938,6 +5992,10 @@ namespace t7 {
                     entries[2].binding = bind::g0::orb_state_prev;
                     entries[2].buffer = orbStatePrevBuffer_;
                     entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[3].binding = bind::g0::config;
+                    entries[3].buffer = configBuffer_;
+                    entries[3].size = sizeof(GPUDesignConfig);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Orb Compute BindGroup";
@@ -6157,6 +6215,18 @@ namespace t7 {
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
                 config_.point_bubble_radius = POINT_BUBBLE_RADIUS;  // CONTACT_2: boot-pin the bubble from contracts/point.hpp (source of truth); rest 20.0
                 config_.cube_plasticity = Idle::CUBE_PLASTICITY_DEFAULT;  // CONTACT_3 K2c: boot-pin the live λ master; rest 0.6
+                // FIELD_2b — the field's dials, boot-pinned from THE PANEL
+                // (contracts/control_panel.hpp). One home authors; this is
+                // the transport. The ribbon dialect reads the same names
+                // directly, so the two rooms cannot drift.
+                config_.field_slack         = FIELD_SLACK;
+                config_.field_k             = FIELD_K;
+                config_.field_fmax          = FIELD_FMAX;
+                config_.field_occupier_gain = FIELD_OCCUPIER_GAIN;
+                config_.field_authored_gain = FIELD_AUTHORED_GAIN;
+                config_.field_gain_cube     = FIELD_GAIN_CUBE;
+                config_.field_gain_sphere   = FIELD_GAIN_SPHERE;
+                config_.field_gain_agent    = FIELD_GAIN_AGENT;
                 config_.freeze_sphere = 0;
                 config_.fpv_mode = 0;
                 config_.world_seed = 42;
