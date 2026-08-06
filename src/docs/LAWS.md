@@ -46,7 +46,9 @@ its own gate, and no witness substitutes for another.
    `min(pyramid_instances.count, MAX_PYRAMID_INSTANCES)` in world.wgsl —
    and dispatch is by uniform function choice, never by branch.
 3. Texture-array stamps in the collision chain **hang FXC**. Do not add one.
-4. Storage buffers per stage = 10. Uniform buffers per stage = 12.
+4. Storage buffers per stage = 8. Uniform buffers per stage = 12. The
+   budget is WebGPU core defaults (L14) — no adapter grant is requested
+   above them.
 
 A violation does not fail on the developer's machine. It fails on Windows, at
 pipeline creation, in someone else's hands.
