@@ -199,6 +199,15 @@ static void frame() {
         app->console.pump_boot();
         return;
     }
+
+    // --- Device-loss gate (PORT_3a) --------------------------------------
+    // Once the device is lost every wgpu object below is dead. Driving
+    // them is what turns a normal web event into heap corruption, so the
+    // frame stops here — before begin_frame, before any encoder, before
+    // any submit. The reason already printed from the loss callback; this
+    // gate stays silent so a lost device does not spam the console once
+    // per rAF turn. No recovery attempt by design.
+    if (app->console.device_lost()) return;
     if (!app->world_ready) {
         if (!init_world()) {
 #ifdef __EMSCRIPTEN__

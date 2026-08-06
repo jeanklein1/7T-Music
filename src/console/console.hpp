@@ -91,6 +91,16 @@ namespace t7 {
 
         BootState boot_state() const { return bootState_; }
 
+        // ── PORT_3a: the device can be lost ──────────────────────
+        // On the web, device loss is NORMAL: tab backgrounding, GPU
+        // resets, driver updates. A gallery installation running for
+        // hours will see it. Once lost, every wgpu object the program
+        // holds is dead, and continuing to drive them is what turns a
+        // recoverable event into heap corruption. The policy is visible,
+        // honest death — no recovery attempt: the frame gate stops
+        // issuing GPU work and the reason is on the console verbatim.
+        bool device_lost() const { return deviceLost_; }
+
         // Advance Configuring → Ready: runs the existing surface +
         // depth-buffer path once the device exists, then seeds the
         // frame clock. Native never needs it (init() reaches Ready
@@ -244,6 +254,18 @@ namespace t7 {
                             std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
                                 << std::string_view(msg.data, msg.length) << std::endl;
                         });
+                    // PORT_3a — the loss door. AllowSpontaneous so it fires
+                    // from the browser event loop without a pump, exactly
+                    // like the request chain above. `this` is safe to
+                    // capture: App is heap-allocated and never deleted on
+                    // the web path, so Console outlives every callback.
+                    deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
+                        [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
+                               wgpu::StringView msg) {
+                            deviceLost_ = true;
+                            std::cerr << "[Device] LOST reason=" << static_cast<int>(reason)
+                                << " : " << std::string_view(msg.data, msg.length) << std::endl;
+                        });
 
                     // Full-adapter limits passthrough, exactly as native
                     // (covers the two known exceedances: 9 storage
@@ -370,6 +392,17 @@ namespace t7 {
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
                     std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
                         << std::string_view(message.data, message.length) << std::endl;
+                });
+            // PORT_3a — the loss door, installed on BOTH twins. Native
+            // loss is rarer but real (TDR, GPU reset, driver update), the
+            // honest-death policy is the same, and one shape in two
+            // branches is cheaper to keep true than two policies.
+            deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
+                [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
+                       wgpu::StringView message) {
+                    deviceLost_ = true;
+                    std::cerr << "[Device] LOST reason=" << static_cast<int>(reason)
+                        << " : " << std::string_view(message.data, message.length) << std::endl;
                 });
 
             // Query adapter limits and request the full capacity.
@@ -747,6 +780,7 @@ namespace t7 {
 
         // ── Boot (PORT_1b) ───────────────────────────────────────
         BootState bootState_ = BootState::RequestingAdapter;
+        bool deviceLost_ = false;   // PORT_3a — set by the loss callback, read by the frame gate
 
         // ── Surface & Presentation ───────────────────────────────
         wgpu::Surface surface_;
