@@ -609,6 +609,12 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 }, true);
             generate_selected_patches(c, genCands, genCount,
                 encoder, queue, patchStagingOffset, tileGridDirty, tile_world_state, tile_world_deps);
+
+            // THE DOOR GUARANTEE (U2) — after the synchronous population
+            // above, so Channel A's DOORWAY portals are countable: a world
+            // that populated doorless gets one forced door; every other
+            // world sees a no-op (the count-gate is inside).
+            force_spawn_door_fallback(&mood_deps, queue, *c);
         }
     }
 

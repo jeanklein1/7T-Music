@@ -18,9 +18,10 @@
 // vocabulary — CeilingType, MoodProfile, MOOD_TABLE, the portal color
 // table, the indoor wall palettes (the indoor treatment — sizes,
 // bounds, dials — graduated to contracts/indoor_module.hpp) — and
-// the DECLARATIONS of the six doors
+// the DECLARATIONS of the seven doors
 // (apply_mood, request_mood_transition, force_spawn_back_portal,
-// upload_lights, upload_portal_array, mood_name) plus the appliers and
+// force_spawn_door_fallback, upload_lights, upload_portal_array,
+// mood_name) plus the appliers and
 // derivers. The Mood IDs are file-scope vocabulary
 // (mood_constants.hpp), consumed here. MOOD OWNS NO INSTANCE: struct
 // MoodState's TYPE lives in contracts/spine_state.hpp; the instance
@@ -203,6 +204,7 @@ void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
 // Portals (door; the internals route through entities' force_spawn_portal_arch
 // — the arch's owner writes, so the machine face rides the tail param)
 void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
+void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
 // Per-frame uploads (doors)
 void upload_lights(MoodDeps* c, wgpu::Queue& queue);
 void upload_portal_array(MoodDeps* c, wgpu::Queue& queue);
@@ -1106,6 +1108,54 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     }
 
     std::cout << "[Portal] Finite world: " << spawned << " forward portals + 1 back-portal\n";
+}
+
+// ── force_spawn_door_fallback ──
+//
+// THE DOOR GUARANTEE (U2). Runs once per world, after the synchronous
+// population, behind a count-gate over the live arches: if any active
+// portal already stands — the finite machinery's back portal, or a
+// Channel A DOORWAY arch (PORTAL_DENSITY 1.0, entity_pipeline.hpp) —
+// this is a no-op and the world changes by nothing. Only a world that
+// populated DOORLESS gets one forced door: an open-world roll can
+// commit zero DOORWAY arches in the priority window, and the boot
+// world raises no back_portal_pending. No new placement grammar: the
+// destination is the forward-portal grammar (pick_portal_mood +
+// derive_finite_radius, fresh 88xx salts beside the 66xx/77xx series),
+// and the spot is a seeded bearing at twice the back-portal grammar's
+// MIN_FROM_ORIGIN — 60 wu, inside the LOD0 core and the bootstrap
+// tile ring — with the opening facing the spawn anchor.
+inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
+    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+        const auto& aa = c->entities_state_.arches[i];
+        if (aa.active && aa.is_portal) return;   // a door already stands
+    }
+
+    const float door_r = 60.0f;   // 2 x MIN_FROM_ORIGIN
+    float bearing = cpu_hash_f(c->world_state_.active_seed, 8810u) * 2.0f * 3.14159f;
+    float cx = std::cos(bearing) * door_r;
+    float cz = std::sin(bearing) * door_r;
+    float rotation = bearing + 3.14159f;   // face the spawn anchor
+
+    uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 8800u);
+    uint32_t mood = pick_portal_mood(&machine_ctx, c->world_state_.active_seed, 8900u);
+    const auto& mp = MOOD_TABLE[mood];
+    PortalDestination dest{};
+    dest.seed = dest_seed;
+    dest.mood = mood;
+    dest.finite = mp.finite;
+    dest.finite_radius = derive_finite_radius(dest_seed, mp);
+
+    uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, rotation, dest, false, machine_ctx);
+    if (slot != UINT32_MAX) {
+        std::cout << "[Portal] Door fallback at (" << cx << "," << cz
+            << ") -> seed=" << dest_seed
+            << " mood=" << mood_name(mood)
+            << (dest.finite ? " FINITE" : " open") << "\n";
+    }
+    else {
+        std::cout << "[Portal] WARNING: no free arch slot for door fallback\n";
+    }
 }
 
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════

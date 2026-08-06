@@ -245,7 +245,7 @@ namespace t7 {
             //   mood_state_ and kin — are DECLARED SPINE-OWNED
             //   ORCHESTRATION per the §2 residency law, the same legitimacy
             //   class as the P5 readbacks. Mood (direction/mood.hpp) supplies
-            //   vocabulary + appliers + six doors and owns NO instance;
+            //   vocabulary + appliers + seven doors and owns NO instance;
             //   struct MoodState's TYPE lives in contracts/spine_state.hpp.
             //   Constitution §2 carries the K4 line.
             // SEAM[spine:portal-system] consumed by the mood module
