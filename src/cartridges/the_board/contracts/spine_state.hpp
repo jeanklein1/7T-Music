@@ -136,6 +136,12 @@ struct MoodState {
 
     // ── Back-portal return state ──
     bool     back_portal_pending       = false;
+    // One-shot arm for the door-guarantee fallback (U2). TRUE at boot
+    // (the boot world runs no teardown) and re-armed at every teardown;
+    // consumed by the world's FIRST fullRegen. NOT tied to fullRegen
+    // itself: request_recenter re-arms fullRegen mid-world (the
+    // render-radius keys), and the guarantee is AT POPULATION only.
+    bool     door_fallback_pending     = true;
     uint32_t back_portal_return_seed   = 0;
     uint32_t back_portal_return_mood   = 0;
     uint32_t back_portal_return_radius = 2;

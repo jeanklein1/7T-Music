@@ -1074,6 +1074,9 @@ namespace t7 {
                             release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
                         // Schedule guaranteed back-portal in finite worlds
                         mood_state_.back_portal_pending = world_state_.finite_mode;
+                        // Re-arm the door guarantee for the new world (one
+                        // shot, consumed by its first fullRegen).
+                        mood_state_.door_fallback_pending = true;
 
                         transitionPhase_ = TransitionPhase::FADE_IN;
                         mood_state_.transition_timer = 0.0f;

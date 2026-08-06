@@ -1126,6 +1126,15 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
 // MIN_FROM_ORIGIN — 60 wu, inside the LOD0 core and the bootstrap
 // tile ring — with the opening facing the spawn anchor.
 inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
+    // ONE SHOT per world, mirroring back_portal_pending: fullRegen is
+    // NOT once-per-world — request_recenter re-arms it mid-world (the
+    // render-radius keys) — and a re-fired gate in a world whose doors
+    // have streamed out would force a door 60 wu from ORIGIN: outside
+    // the live window, over unloaded terrain, on no patch record. The
+    // guarantee is AT POPULATION; it does not re-run.
+    if (!c->mood_state_.door_fallback_pending) return;
+    c->mood_state_.door_fallback_pending = false;
+
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         const auto& aa = c->entities_state_.arches[i];
         if (aa.active && aa.is_portal) return;   // a door already stands
