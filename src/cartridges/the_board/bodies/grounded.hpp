@@ -797,6 +797,17 @@ inline void evict_arch(MachineCtx* self,
 {
     unregister_footprint_for(self, PopFamily::ARCH, slot);   // the hand that claims is the hand that frees
     self->entities_state_.arches[slot].active = false;
+    // THE STALE-DESTINATION LATCH. A freed slot keeps its bytes, and the
+    // spawn preamble re-reserves by setting active=true ALONE
+    // (run_spawn_preamble) — arch_write_active rewrites the portal
+    // fields only at commit. In that window an evicted portal's
+    // is_portal/destination would read as a LIVE portal on the reserved
+    // slot to every active && is_portal scan (upload_portal_array, the
+    // trigger validation, the census, the door-guarantee gate). Portal
+    // identity dies with the arch.
+    self->entities_state_.arches[slot].is_portal = false;
+    self->entities_state_.arches[slot].is_back_portal = false;
+    self->entities_state_.arches[slot].destination = PortalDestination{};
     self->mood_state_.portals_dirty = true;
     { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.arch_mesh_gen_pending = true;
