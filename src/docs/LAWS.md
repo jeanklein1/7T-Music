@@ -33,7 +33,10 @@ The Windows D3D12 backend compiles through FXC, which has hard limits the
 Vulkan/Metal backends do not. The shader honors them **by structure**, so
 nothing in it looks like a workaround and everything is one. The law states
 the principle; the operational home of the specifics is the world.wgsl FXC
-banner — the banner owns the constraints, this law owns why they bind.
+banner — the banner owns the constraints, this law owns why they bind. The
+banner also states the **witness protocol**: a shader-shape change is proven by
+witnesses, never by argument — the native FXC gate first, then each browser at
+its own gate, and no witness substitutes for another.
 
 1. Instance structs in hot loops stay lean and byte-pinned — the pattern's
    live exemplar is the `GPUSpotLightArray` pin (`static_assert` in
@@ -331,3 +334,10 @@ makes identical to "this fragment is ≥99.9% fog." A seam hidden by a
 coincidence is a bug; a seam placed deliberately, where the placement is a
 consequence of the design rather than of tuning, is engineering. The
 distinction is whether you can say *why* nothing can see it.
+
+## L14 — THE DEFAULT-LIMITS LAW
+
+The lean build requests no WebGPU limit above core defaults and fits them:
+storage buffers 8/stage (C6), texture array layers 225 of 256 (OPT_1b).
+Exceeding a default requires Jean's stamp and a recorded reason; the
+full-adapter passthrough at boot is a convenience, not a dependency.

@@ -12,6 +12,10 @@
 // THE LAWS THAT GOVERN THIS FILE — src/docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
 // ─── FXC BANNER (L2's operational home; L2 owns the why) ────
+// Witness protocol: shader-shape changes are proven by witnesses, not argument.
+//   FXC witness  — Jean's native gate (glaw1 + boot; Dawn / D3D12 / FXC).
+//   Web witnesses — each browser at its own gate (Chrome first).
+//   A Chromium/Tint pass is not an FXC pass; no witness substitutes for another.
 // Windows D3D12 compiles through FXC. Honored BY STRUCTURE:
 //  1. Hot-loop instance structs stay lean and byte-pinned
 //     (exemplar: GPUSpotLightArray static_assert, state.hpp).
@@ -20,7 +24,8 @@
 //     (min(count, MAX_...)); dispatch by uniform function
 //     choice, never by branch.
 //  3. NO texture-array stamps in or near the collision chain.
-//  4. Storage buffers per stage = 10. Uniforms per stage = 12.
+//   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage; the room
+//   family sits at 8/8 storage — no new storage binding without a demotion plan.
 // A violation does not fail here. It fails on Windows, at
 // pipeline creation, in someone else's hands. The kernel-split
 // banner (above the agent kernels) prices the inlining cliff.
