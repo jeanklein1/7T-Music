@@ -63,6 +63,20 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "the-board-web-debug",
+      "displayName": "the_board — web (Emscripten, diagnostics armed)",
+      "inherits": "the-board",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "$env{EMSDK}",
+        "rhs": ""
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     }
   ],
   "buildPresets": [
@@ -89,6 +103,11 @@
     {
       "name": "the-board-web",
       "configurePreset": "the-board-web",
+      "targets": [ "incubator_dual" ]
+    },
+    {
+      "name": "the-board-web-debug",
+      "configurePreset": "the-board-web-debug",
       "targets": [ "incubator_dual" ]
     }
   ]

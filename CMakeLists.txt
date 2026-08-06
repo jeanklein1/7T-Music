@@ -562,6 +562,24 @@ if(EMSCRIPTEN)
         "--use-port=${EMDAWNWEBGPU_PORT}"
     )
 
+    # PORT_2c — THE DIAGNOSTIC TWIN. -O2 strips the checks that would
+    # have NAMED the PORT_2a stack overflow in one line instead of
+    # costing a hypothesis; Debug arms them. The split rides the CONFIG
+    # AXIS that already exists (Debug|Release, enforced at the head of
+    # this file) rather than a new dial — one fact, one home. Debug is
+    # slow by construction: SAFE_HEAP instruments every load and store.
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(T7_WEB_OPT -O0 -g)
+        set(T7_WEB_DIAG
+            "-sASSERTIONS=2"           # verbose runtime checks + stack trace on abort
+            "-sSTACK_OVERFLOW_CHECK=2" # full canary + guard page; names the overflow
+            "-sSAFE_HEAP=1"            # traps out-of-bounds / misaligned heap access
+        )
+    else()
+        set(T7_WEB_OPT -O2)
+        set(T7_WEB_DIAG)
+    endif()
+
     # Identical defines to the native target (MSVC block above does not
     # apply under the emscripten toolchain).
     target_compile_definitions(incubator_dual PRIVATE
@@ -569,7 +587,7 @@ if(EMSCRIPTEN)
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
     )
-    target_compile_options(incubator_dual PRIVATE ${T7_WEB_PORTS} -O2)
+    target_compile_options(incubator_dual PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
     # MEMFS preload mappings chosen so the EXISTING relative reads
     # resolve verbatim from CWD "/": gallery reads "assets/paintings"
     # (hits /assets), the shader loader's 2nd search entry is
@@ -587,7 +605,8 @@ if(EMSCRIPTEN)
         ${T7_WEB_PORTS}
         "-sALLOW_MEMORY_GROWTH=1"
         "-sSTACK_SIZE=4MB"
-        -O2
+        ${T7_WEB_OPT}
+        ${T7_WEB_DIAG}
         "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@/assets"
         "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl@/src/cartridges/the_board/realization/world.wgsl"
     )
