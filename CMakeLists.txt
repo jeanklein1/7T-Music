@@ -575,9 +575,18 @@ if(EMSCRIPTEN)
     # (hits /assets), the shader loader's 2nd search entry is
     # "src/cartridges/the_board/realization/world.wgsl" (hits the
     # explicit file mapping; verified renderer.hpp:1250-1251).
+    # PORT_2a — THE STACK. Emscripten's default STACK_SIZE dropped from
+    # 5MB to 64KB in 3.1.27; Windows gives the native twin 1MB. At -O2
+    # stack-overflow checking is OFF, so an overflow does not abort — it
+    # writes past the stack into the heap and dlmalloc's metadata is the
+    # first casualty, which is why the fault surfaces inside $malloc from
+    # unrelated call sites. 4MB restores native parity with headroom.
+    # Costs address space, not runtime: with ALLOW_MEMORY_GROWTH the
+    # stack is a reservation carved out of the initial memory.
     target_link_options(incubator_dual PRIVATE
         ${T7_WEB_PORTS}
         "-sALLOW_MEMORY_GROWTH=1"
+        "-sSTACK_SIZE=4MB"
         -O2
         "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@/assets"
         "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl@/src/cartridges/the_board/realization/world.wgsl"
