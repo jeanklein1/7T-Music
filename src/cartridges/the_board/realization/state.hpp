@@ -2049,6 +2049,8 @@ namespace t7 {
                 if (!createSamplers()) return false;
                 if (!createBindGroups()) return false;
                 if (!initializeState()) return false;
+                // PORT_3b — every maker has run; the budget is complete.
+                report_gpu_budget();
                 return true;
             }
 
@@ -2412,12 +2414,11 @@ namespace t7 {
                     wgpu::TextureUsage usage) -> wgpu::Texture
                     {
                         wgpu::TextureDescriptor desc{};
-                        desc.label = label;
                         desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, layers };
                         desc.dimension = wgpu::TextureDimension::e2D;
                         desc.format = colorFormat;
                         desc.usage = usage;
-                        return device_.CreateTexture(&desc);
+                        return makeTexture(label, desc);
                     };
 
                 auto makeArrayView = [&](wgpu::Texture tex, const char* label, uint32_t layers) -> wgpu::TextureView {
@@ -2455,21 +2456,19 @@ namespace t7 {
                 // Offscreen snapshot render target
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Offscreen Snapshot Color";
                     desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
                     desc.format = colorFormat;
                     desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
-                    offscreenColorTexture_ = device_.CreateTexture(&desc);
+                    offscreenColorTexture_ = makeTexture("Offscreen Snapshot Color", desc);
                     if (!offscreenColorTexture_) return false;
                     offscreenColorView_ = offscreenColorTexture_.CreateView();
                 }
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Offscreen Snapshot Depth";
                     desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
                     desc.format = wgpu::TextureFormat::Depth24Plus;
                     desc.usage = wgpu::TextureUsage::RenderAttachment;
-                    offscreenDepthTexture_ = device_.CreateTexture(&desc);
+                    offscreenDepthTexture_ = makeTexture("Offscreen Snapshot Depth", desc);
                     if (!offscreenDepthTexture_) return false;
                     offscreenDepthView_ = offscreenDepthTexture_.CreateView();
                 }
@@ -3242,9 +3241,112 @@ namespace t7 {
 
         private:
 
+            // ═══ PORT_3b — THE GPU BUDGET ════════════════════════════
+            //
+            // What we ASK the GPU for, summed where the asking happens.
+            // Not a bookkeeping system: two counters, a five-slot
+            // leaderboard, and one call inside each of the two makers
+            // every allocation already routes through. Adding a resource
+            // without its bytes landing here now requires bypassing the
+            // maker, which is the thing to notice anyway.
+            //
+            // IT IS AN ESTIMATE, and the report says so: logical texel
+            // bytes, uncompressed, with no driver padding, no alignment
+            // rounding, and no view/descriptor overhead. Real footprint
+            // is somewhat higher. The number's job is to make a class of
+            // decision (does this fit a phone?) possible at all — it was
+            // previously unmeasured, and an approximate measurement beats
+            // an exact guess.
+            uint64_t gpuBufferBytes_  = 0;
+            uint64_t gpuTextureBytes_ = 0;
+            struct AllocNote { const char* label = nullptr; uint64_t bytes = 0; };
+            static constexpr uint32_t GPU_TOP_N = 5;
+            AllocNote gpuTop_[GPU_TOP_N]{};
+            uint32_t  gpuUnknownFormats_ = 0;   // texels we could not size; reported, never hidden
+
+            void noteAlloc(const char* label, uint64_t bytes, bool is_texture) {
+                if (is_texture) gpuTextureBytes_ += bytes;
+                else            gpuBufferBytes_  += bytes;
+                // Insertion sort into the five-slot leaderboard.
+                for (uint32_t i = 0; i < GPU_TOP_N; i++) {
+                    if (bytes > gpuTop_[i].bytes) {
+                        for (uint32_t j = GPU_TOP_N - 1; j > i; j--) gpuTop_[j] = gpuTop_[j - 1];
+                        gpuTop_[i] = AllocNote{ label, bytes };
+                        return;
+                    }
+                }
+            }
+
+            // Bytes per texel for the formats this cartridge actually
+            // creates. Returns 0 for anything else — counted and reported
+            // rather than silently undercounted.
+            static uint64_t texel_bytes(wgpu::TextureFormat f) {
+                switch (f) {
+                    case wgpu::TextureFormat::RGBA16Float:  return 8;
+                    case wgpu::TextureFormat::RGBA8Unorm:   return 4;
+                    case wgpu::TextureFormat::BGRA8Unorm:   return 4;
+                    case wgpu::TextureFormat::R32Float:     return 4;
+                    case wgpu::TextureFormat::Depth32Float: return 4;
+                    case wgpu::TextureFormat::Depth24Plus:  return 4;
+                    default:                                return 0;
+                }
+            }
+
             wgpu::Buffer makeBuffer(const char* label, uint64_t size, wgpu::BufferUsage usage) {
                 wgpu::BufferDescriptor d{}; d.label = label; d.size = size; d.usage = usage;
+                noteAlloc(label, size, /*is_texture=*/false);
                 return device_.CreateBuffer(&d);
+            }
+
+            // The texture twin of makeBuffer, same shape: the label is a
+            // parameter and this is its ONE home, so the report can never
+            // name a texture differently from the descriptor.
+            wgpu::Texture makeTexture(const char* label, wgpu::TextureDescriptor& desc) {
+                desc.label = label;
+                const uint64_t bpp = texel_bytes(desc.format);
+                if (bpp == 0) gpuUnknownFormats_++;
+                const uint32_t mips = desc.mipLevelCount ? desc.mipLevelCount : 1u;
+                const uint32_t samples = desc.sampleCount ? desc.sampleCount : 1u;
+                uint64_t bytes = 0;
+                for (uint32_t m = 0; m < mips; m++) {
+                    // Ternary, not std::max: this file includes no
+                    // <algorithm> of its own, and std::max(1u, uint32_t)
+                    // is a deduction hazard where uint32_t is not `unsigned
+                    // int`. Mip clamp, spelled without a dependency.
+                    const uint32_t mw = desc.size.width  >> m;
+                    const uint32_t mh = desc.size.height >> m;
+                    const uint64_t w = (mw > 0u) ? mw : 1u;
+                    const uint64_t h = (mh > 0u) ? mh : 1u;
+                    bytes += w * h * desc.size.depthOrArrayLayers * bpp;
+                }
+                noteAlloc(label, bytes * samples, /*is_texture=*/true);
+                return device_.CreateTexture(&desc);
+            }
+
+            static void print_mib(const char* what, uint64_t bytes) {
+                std::cout << "[GPU Budget] " << what << " "
+                    << (static_cast<double>(bytes) / (1024.0 * 1024.0)) << " MiB\n";
+            }
+
+            void report_gpu_budget() const {
+                std::cout << "\n[GPU Budget] ---- allocation request, boot ----\n";
+                print_mib("buffers ", gpuBufferBytes_);
+                print_mib("textures", gpuTextureBytes_);
+                print_mib("TOTAL   ", gpuBufferBytes_ + gpuTextureBytes_);
+                std::cout << "[GPU Budget] largest single allocations:\n";
+                for (uint32_t i = 0; i < GPU_TOP_N; i++) {
+                    if (!gpuTop_[i].label) break;
+                    std::cout << "[GPU Budget]   " << (i + 1) << ". "
+                        << (static_cast<double>(gpuTop_[i].bytes) / (1024.0 * 1024.0))
+                        << " MiB  " << gpuTop_[i].label << "\n";
+                }
+                if (gpuUnknownFormats_ > 0) {
+                    std::cout << "[GPU Budget] WARNING: " << gpuUnknownFormats_
+                        << " texture(s) of unsized format — total is an UNDERCOUNT\n";
+                }
+                std::cout << "[GPU Budget] estimate: logical texels, uncompressed, "
+                    "no driver padding. Excludes the surface backbuffer and the "
+                    "console depth texture (host-owned).\n\n";
             }
 
             bool createBuffers() {
@@ -3303,20 +3405,16 @@ namespace t7 {
                     MAX_SPOT_LIGHTS * 64,
                     wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 portalArrayBuffer_ = makeBuffer("Portal Array", sizeof(GPUPortalArray), UU);
-                {
-                    wgpu::BufferDescriptor sd{};
-                    sd.label = "Agent State Readback Staging";
-                    sd.size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-                    agentStateReadbackStaging_ = device_.CreateBuffer(&sd);
-                }
-                {
-                    wgpu::BufferDescriptor sd{};
-                    sd.label = "Floating Entity Readback Staging";
-                    sd.size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
-                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-                    floatingEntityReadbackStaging_ = device_.CreateBuffer(&sd);
-                }
+                // PORT_3b — routed through makeBuffer like every other
+                // buffer, so the budget sees them. Same label, size and
+                // usage; the descriptor was hand-rolled only because
+                // makeBuffer post-dates these two lines.
+                agentStateReadbackStaging_ = makeBuffer("Agent State Readback Staging",
+                    Dim::MAX_AGENTS * sizeof(GPUAgentState),
+                    wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
+                floatingEntityReadbackStaging_ = makeBuffer("Floating Entity Readback Staging",
+                    Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
+                    wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 // THE FRAME METER — GPU half. Created only when the
                 // instruments dial arms the meter AND the device carries
                 // timestamp-query (the cartridge prints the loud boot line
@@ -3335,11 +3433,9 @@ namespace t7 {
                     meterResolveBuffer_ = makeBuffer("Frame Meter Resolve",
                         METER_QUERY_COUNT * sizeof(uint64_t),
                         wgpu::BufferUsage::QueryResolve | wgpu::BufferUsage::CopySrc);
-                    wgpu::BufferDescriptor sd{};
-                    sd.label = "Frame Meter Readback Staging";
-                    sd.size = METER_QUERY_COUNT * sizeof(uint64_t);
-                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-                    meterReadbackStaging_ = device_.CreateBuffer(&sd);
+                    meterReadbackStaging_ = makeBuffer("Frame Meter Readback Staging",
+                        METER_QUERY_COUNT * sizeof(uint64_t),
+                        wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 }
                 patchParamsBuffer_ = makeBuffer("Patch Params", sizeof(GPUPatchParams), UU);
                 patchStagingBuffer_ = makeBuffer("Patch Params Staging",
@@ -3964,12 +4060,11 @@ namespace t7 {
                 // Zone life texture: 32×32 × MAX_ZONES, R32Float (R = the cell's spring visual)
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "GoL Zone Life Texture Array";
                     desc.size = { Dim::GOL_ZONE_GRID, Dim::GOL_ZONE_GRID, Dim::MAX_GOL_ZONES };
                     desc.format = wgpu::TextureFormat::R32Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
                     desc.dimension = wgpu::TextureDimension::e2D;
-                    zoneLifeTexture_ = device_.CreateTexture(&desc);
+                    zoneLifeTexture_ = makeTexture("GoL Zone Life Texture Array", desc);
                     if (!zoneLifeTexture_) return false;
 
                     // Write view (compute, storage texture)
@@ -4059,11 +4154,10 @@ namespace t7 {
                 // Pawn aura texture (64×64 RGBA16Float — compute writes, FS reads)
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Pawn Aura (RGBA16Float)";
                     desc.size = { PAWN_AURA_N, PAWN_AURA_N, 1 };
                     desc.format = wgpu::TextureFormat::RGBA16Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    pawnAuraTexture_ = device_.CreateTexture(&desc);
+                    pawnAuraTexture_ = makeTexture("Pawn Aura (RGBA16Float)", desc);
                     if (!pawnAuraTexture_) return false;
                     pawnAuraWriteView_ = pawnAuraTexture_.CreateView();
                     pawnAuraReadView_ = pawnAuraTexture_.CreateView();
@@ -4073,11 +4167,10 @@ namespace t7 {
                 // rewrites it per frame, render + compute sample it)
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Live Card (RGBA16Float — GROUND_CARD_1)";
                     desc.size = { Dim::LIVE_CARD_SIZE, Dim::LIVE_CARD_SIZE, 1 };
                     desc.format = wgpu::TextureFormat::RGBA16Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    liveCardTexture_ = device_.CreateTexture(&desc);
+                    liveCardTexture_ = makeTexture("Live Card (RGBA16Float — GROUND_CARD_1)", desc);
                     if (!liveCardTexture_) return false;
                     liveCardWriteView_ = liveCardTexture_.CreateView();
                     liveCardView_ = liveCardTexture_.CreateView();
@@ -4086,14 +4179,13 @@ namespace t7 {
                 // Entity ground atlas (r32float 256×1 — compute writes ground_y, VS textureLoad)
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Entity Ground Atlas (r32float 256x1)";
                     desc.size = { Dim::GROUND_ATLAS_WIDTH, 1, 1 };
                     desc.format = wgpu::TextureFormat::R32Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.mipLevelCount = 1;
                     desc.sampleCount = 1;
-                    entityGroundAtlasTexture_ = device_.CreateTexture(&desc);
+                    entityGroundAtlasTexture_ = makeTexture("Entity Ground Atlas (r32float 256x1)", desc);
                     if (!entityGroundAtlasTexture_) return false;
                     entityGroundAtlasWriteView_ = entityGroundAtlasTexture_.CreateView();
                     entityGroundAtlasReadView_ = entityGroundAtlasTexture_.CreateView();
@@ -4101,12 +4193,11 @@ namespace t7 {
 
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Patch Heightfield Array (225x256x256, RGBA16Float; 225 = Dim::MAX_ACTIVE_PATCHES)";
                     desc.size = { Dim::PATCH_HEIGHTFIELD_N, Dim::PATCH_HEIGHTFIELD_N, Dim::MAX_ACTIVE_PATCHES };
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA16Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    patchHeightfieldArrayTexture_ = device_.CreateTexture(&desc);
+                    patchHeightfieldArrayTexture_ = makeTexture("Patch Heightfield Array (225x256x256, RGBA16Float; 225 = Dim::MAX_ACTIVE_PATCHES)", desc);
                     if (!patchHeightfieldArrayTexture_) return false;
 
                     wgpu::TextureViewDescriptor viewDesc{};
@@ -4120,12 +4211,11 @@ namespace t7 {
 
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Patch Cell Color Array (225x16x16, RGBA8Unorm; 225 = Dim::MAX_ACTIVE_PATCHES)";
                     desc.size = { Dim::PATCH_CELL_N, Dim::PATCH_CELL_N, Dim::MAX_ACTIVE_PATCHES };
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA8Unorm;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    patchCellColorArrayTexture_ = device_.CreateTexture(&desc);
+                    patchCellColorArrayTexture_ = makeTexture("Patch Cell Color Array (225x16x16, RGBA8Unorm; 225 = Dim::MAX_ACTIVE_PATCHES)", desc);
                     if (!patchCellColorArrayTexture_) return false;
 
                     wgpu::TextureViewDescriptor viewDesc{};
@@ -4143,11 +4233,10 @@ namespace t7 {
                 // directional-only; render_shadow_pass picks it for li < 2.
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Shadow Map";
                     desc.size = { Dim::SHADOW_MAP_SIZE, Dim::SHADOW_MAP_SIZE, 1 };
                     desc.format = wgpu::TextureFormat::Depth32Float;
                     desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
-                    shadowMapTexture_ = device_.CreateTexture(&desc);
+                    shadowMapTexture_ = makeTexture("Shadow Map", desc);
                     if (!shadowMapTexture_) return false;
                     shadowMapView_ = shadowMapTexture_.CreateView();
                 }
@@ -4160,11 +4249,10 @@ namespace t7 {
                 // banner names as "the old single-texture 2×2 grid".)
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Spot Shadow Atlas";
                     desc.size = { Dim::SHADOW_MAP_SIZE, Dim::SHADOW_MAP_SIZE, 1 };
                     desc.format = wgpu::TextureFormat::Depth32Float;
                     desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
-                    spotShadowMapTexture_ = device_.CreateTexture(&desc);
+                    spotShadowMapTexture_ = makeTexture("Spot Shadow Atlas", desc);
                     if (!spotShadowMapTexture_) return false;
                     spotShadowMapView_ = spotShadowMapTexture_.CreateView();
                 }
