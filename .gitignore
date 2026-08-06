@@ -390,3 +390,11 @@ CASE/
 # package-lock.json
 # Visual Studio encoding-save artifacts
 enc_temp_folder/
+
+# Emscripten build output (PORT_1d). The web target writes into the tracked
+# web/ directory (RUNTIME_OUTPUT_DIRECTORY), so its artifacts land beside
+# source. web/index.html is SOURCE and stays tracked; these three are build
+# output — the .data alone carries the whole preloaded asset payload.
+web/the_board.js
+web/the_board.wasm
+web/the_board.data
