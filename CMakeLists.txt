@@ -30,6 +30,39 @@ else()
 endif()
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ACTIVE CARTRIDGE SELECTION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Controls which render cartridge the incubator target includes.
+# IntelliSense will only index it — no noise from other cartridges.
+#
+# Change here to switch focus. No need to edit .cpp files.
+#
+#   Render cartridges:   src/cartridges/<name>/cartridge.hpp
+#
+#   Available render cartridges: the_board
+#
+# The analysis side is the BeatClock (src/analysis/beat_clock.hpp,
+# CUT_1c) — no analysis cartridge selection exists anymore.
+#
+# ABOVE THE EMSCRIPTEN GUARD, deliberately. Both twins paste these values
+# into enumerators (INCUBATE_DEMO into demos/matrix.hpp, T7_INSTRUMENTS into
+# core/instruments.hpp). CMake drops an empty ENTRY but keeps an entry whose
+# VALUE is empty, so a dial left unset arrives DEFINED AND EMPTY: #ifndef
+# never fires and the paste names an enumerator that does not exist. An
+# unset value here is a compile error in every TU, never a fallback.
+
+set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
+set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
+set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
+
+message(STATUS "")
+message(STATUS "Active cartridges:")
+message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
+message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
+message(STATUS "")
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DAWN CONFIGURATION — NATIVE ONLY (PORT_1c)
 # The web build gets its WebGPU from the emdawnwebgpu port and its GLFW
 # from contrib.glfw3; none of the Dawn/Tint/abseil static libraries
@@ -265,32 +298,6 @@ dawn_lib_optional(LIB_ABSEIL_EXPONENTIAL "third_party/abseil/absl/profiling/$<CO
 dawn_lib(LIB_SPIRV_TOOLS        "third_party/spirv-tools/source/$<CONFIG>/SPIRV-Tools.lib")
 dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/$<CONFIG>/SPIRV-Tools-opt.lib")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ACTIVE CARTRIDGE SELECTION
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# Controls which render cartridge the incubator target includes.
-# IntelliSense will only index it — no noise from other cartridges.
-#
-# Change here to switch focus. No need to edit .cpp files.
-#
-#   Render cartridges:   src/cartridges/<name>/cartridge.hpp
-#
-#   Available render cartridges: the_board
-#
-# The analysis side is the BeatClock (src/analysis/beat_clock.hpp,
-# CUT_1c) — no analysis cartridge selection exists anymore.
-
-set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
-set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
-set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
-
-message(STATUS "")
-message(STATUS "Active cartridges:")
-message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
-message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
-message(STATUS "")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINK LIBRARIES
