@@ -1,47 +1,86 @@
-The reformed contract is understood — EXECUTE / RESOLVE / STOP, outcome invariants, blast radii, bindings reported. My plan: bind and land all four inline (last round's census is still fresh and exact), commit each locally, then run an adversarial verification pass over the four diffs before pushing anything. Starting with sync and U1's three binding questions: the spine row order (the carried finding, re-verified by content), the zone death path (does lift ever outlive `active=false`? — the conservatism crux), and any existing zone-count helper.
+Reading the tree before any edit — the recon and the three gates.
 
-cartridge.hpp:248 carries the same count in a live file — updating it (past reports stay historical):
+Recon anchors — re-running with correct regex (my first pass used `-F`, which made `^` literal):
 
-All four LANDING units are committed locally on master — `599aca5` (OPT_1e), `878fc30` (door fallback), `e499aef` (evict latch), `2e2eb51` (L2 residue) — with encoding checks clean and the compile-order binding confirmed. Two adversarial verifiers are now running over the diffs (one attacking the OPT_1e rest predicate, one attacking the two portal commits). I'll push and deliver the campaign report once their verdicts come back — if either confirms a defect, I fix before pushing.
+All three gates pass. Recording and executing.
 
-Pushed — `7fae19e..2e2eb51` is on `origin/master`, all four LANDING commits. The two adversarial verifiers are still running; when their verdicts arrive I'll either confirm the round clean and deliver the campaign report, or land corrective commits for anything they refute.
+U2 — the preset ancestry. Note: the handoff says replacement content is "supplied alongside," but no content arrived with the message; the prose specifies the ancestry completely, so I'm authoring it from that spec and reporting it as a RESOLVE.
 
-The U1 verifier came back clean: no defects on `599aca5` across all five attack surfaces — the false-rest hazard is structurally closed (every `active=false` path zeroes the GPU `transition_fraction` the same frame, so no lift outlives deactivation), all three LOD1 consumers are converted with no stragglers, spine order holds, and the cull kernel never touches slot C's indexCount. It flagged two pre-existing, non-blocking observations (a latent stale-derive corner shared by E1/OPT_1a that requires a teleport bypassing `teardown_gol`, and a stale `curtainsActive_` comment) — neither chargeable to this round; I'll note both in the campaign report.
+cmake 3.28.3 is present — I can run the U2 acceptance directly (listing presets only; no configure, no build):
 
-Still waiting on the second verifier covering the two portal commits (`878fc30`, `e499aef`) before I write the final report.
+Acceptance met exactly — 4 presets without EMSDK, 5 with.
 
-The second verifier confirmed one real defect in `878fc30`: the FULLREGEN block is not once-per-world — `request_recenter` (wired to the `[`/`]` render-radius keys) re-arms it mid-world, and a re-fired count-gate in a world whose doors streamed out would force a door 60 wu from world origin: outside the live window, over unloaded terrain, on no patch record so it never evicts. The fix is the tree's own idiom — a one-shot flag mirroring `back_portal_pending`. Binding the two splice sites:
+Push rejected — the remote moved. Fetching to see what landed:
 
-The corrective commit `33c920a` is in, and a three-lens verification workflow is now running over it (struct-layout safety of the new `MoodState` field, the one-shot lifecycle across boot/teardown/recenter, and compile/const-correctness). I'll push it and deliver the full campaign report once the lenses come back clean — or fix again if one refutes.
+Jean pushed `0b07c6c "CMake json updated"` — touching the same file U2 rewrote. Reading it before I merge anything:
 
-Pushed — `33c920a` is on `origin/master`. The verification workflow over it is still running; when its three lenses report I'll deliver the campaign report (or a further correction if one refutes).
+Jean's commit contains the "replacement content" the handoff referenced. Comparing it against what I authored:
 
-All three lenses returned NOT REFUTED — the corrective commit is clean, and everything is already on `origin/master`. The round is complete.
+My authored file is **byte-identical** to Jean's supplied replacement — the RESOLVE reconstructed it exactly. Rebasing onto his commit; U2 will go empty, so I'll keep it as the unit's binding record:
 
----
+U2 is retained as an empty commit. Rewriting its message to record honestly that Jean's push landed the identical content first:
 
-# THE LANDING ROUND — campaign report
+# PORT_1d — THE BUILD CROSSES THE GUARD — campaign report
 
-**Four units contracted, four landed, plus one correction found by this round's own adversarial pass. Five commits on master: `7fae19e..33c920a`, all pushed.** Jean's gates remain: `glaw1` + native boot, then the web build for first light.
+**Four units, all EXECUTE, no STOP. Pushed: `0b07c6c..7be03c7`.** Every expected line number in the handoff was wrong (the tree had moved), so everything below was bound by content.
 
-## U1 — EXECUTE · `599aca5` — OPT_1e: LOD1 draws the clean prefix at true rest
+| unit | commit | file |
+|---|---|---|
+| U1 dial above the guard | `c006e94` | `CMakeLists.txt` |
+| U2 preset ancestry | `30912ff` (empty — see below) | `CMakePresets.json` |
+| U3 artifacts ignored | `c676f71` | `.gitignore` |
+| U4 message truth | `7be03c7` | `CMakeLists.txt` |
 
-Bound as contracted: a **global** zone-count predicate, deliberately not geometric. `zones_active_anywhere()` lives beside `zone_rects_in_core()` in cartridge.hpp, staged in `phase_frustum_cull` (R17) beside the E1 curtain switch — R17 < R18 < R19 in the spine, so slot C's indirect reset and both sun terrain draws read the same fresh value with no latch. The carrier mirrors E1's pair exactly (`set_zones_active_anywhere` + `patch_index_count_lod1_live()` in state.hpp; one buffer, two counts, so buffer/count can never split). No WGSL moved — the cull kernel only writes the instanceCount atomics. P6 witness: `[Ground] zones active anywhere: N` on change. **Divergence resolved in passing:** the shadow FORK comment still described `bacc1a5`'s clean-prefix state, which `345628b` ("the slab walls enter the shadow map") had deliberately reverted in code only — rewritten to carry that commit's warning that the curtain tail is the walls.
+## RECON — anchors, quoted
 
-## U2 — EXECUTE + correction · `878fc30` + `33c920a` — the door guarantee
+```
+38:  if(NOT EMSCRIPTEN)
+488: endif() # NOT EMSCRIPTEN — end of the native Dawn section
+270: # ACTIVE CARTRIDGE SELECTION
+285: set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"  CACHE STRING …)
+286: set(THE_BOARD_DEMO                    "full"       CACHE STRING …)
+287: set(T7_INSTRUMENTS                    "off"        CACHE STRING …)
+19:      set(DAWN_CHECK_CONFIGS Debug Release)
+29:      set(DAWN_CHECK_CONFIGS ${CMAKE_BUILD_TYPE})
+```
 
-The fallback (`force_spawn_door_fallback`, mood.hpp's seventh door) is count-gated on the same `active && is_portal` scan the portal array and census use; finite worlds and door-rolling open worlds are strict no-ops. Both granted RESOLVEs were exercised: **splice point** at the end of FULLREGEN *after* the synchronous population (counting before it would have fired in every open world — Channel A's DOORWAY arches, portal density 1.0, are committed by then), and **placement** with no new grammar — forward-portal destination pieces, fresh 88xx salts, a seeded bearing at 60 wu (twice `MIN_FROM_ORIGIN`), opening facing spawn.
+The premise holds exactly: the block sat at 269–293, **inside** 38…488. Your diagnosis of the failure mode is confirmed — `T7_INSTRUMENTS=` arrives defined-and-empty, `#ifndef` never fires, the paste names a nonexistent enumerator. I found **two more consumers** failing the same way, both fixed by the same move: the header `file(GLOB_RECURSE)` collapsed to `src/cartridges//*.hpp` (matching nothing), and the `source_group(TREE …)` root.
 
-**The verifier refuted my lifecycle premise before it could reach a build:** FULLREGEN is not once-per-world — the `[`/`]` render-radius keys re-arm it via `request_recenter`, and a re-fired gate in a world whose doors had streamed out would have forced a door 60 wu from *origin*, outside the live window, on no patch record. `33c920a` fixes it with the tree's own idiom: `door_fallback_pending` on MoodState, default true for the boot world, re-armed at TEARDOWN beside `back_portal_pending`, consumed once. A follow-up three-lens pass confirmed the fix clean (MoodState has no byte-layout consumers; no teardown-skipping path exists; pawn is provably at origin at every consuming FULLREGEN, and the worst-case finite ensured ring still encloses the 60 wu placement).
+## R1 — the interval read: CLEAN
 
-## U3 — EXECUTE · `e499aef` — evict clears portal identity
+Reads of the three dials across the whole file: 285–287 (the sets), 291–292 (the status lines, inside the block itself), then 507, 515, 536–538, 561–563, 592 — **every one at or after the guard's `endif()` at 488**. Zero reads in the vacated interval [31, 284]. The file contains **no** `if(DEFINED …)`, no `STREQUAL`, and no `NOT`-test against any of the three, anywhere. Nothing could observe the earlier declaration; the move is inert for native.
 
-Three lines: `is_portal`, `is_back_portal`, `destination` die with the arch. The latch was real — `run_spawn_preamble` re-reserves a freed slot by setting `active=true` alone, and until `arch_write_active` commits, an evicted portal's slot read as a live door with a dead world-exit to every consumer. All other freeing paths were audited clean (teardown resets whole structs; place-fail and host-gone paths release slots that never gained identity). **The optional overflow-break RESOLVE was declined and reported:** with identity cleared at evict, a leaked reservation can never read as a portal, and a proper leak fix needs a per-family release hook plus a queue parameter `select_entities_for_patch` doesn't have — a unit of its own, not a minimal correction.
+## R2 — the web target name: AGREES, no correction needed
 
-## U4 — EXECUTE · `2e2eb51` — L2 item 4 aligned
+One `add_executable(incubator_dual …)` at 518, **outside** the guard — the target is `incubator_dual` on both twins. The Emscripten branch only sets properties on it: `OUTPUT_NAME "the_board"`, `SUFFIX ".js"`. The build preset's `"targets": [ "incubator_dual" ]` was already correct, so no RESOLVE fired and build presets stayed untouched.
 
-That line only: the stale adapter grant ("storage = 10") now states the default-limits budget — storage 8 / uniforms 12 per stage, citing L14. L14 stays L14; the banner untouched.
+## R3 — the output directory: U3 FIRES
 
-## Verification ledger
+`RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"`. `web/index.html` exists, is tracked, and loads `<script src="the_board.js">`. `git check-ignore` confirmed all three artifacts were reachable by `git add` — `[Oo]ut/`, `build/`, `out/build/` never covered them.
 
-Two adversarial reviewers over the four unit diffs plus a three-lens workflow over the correction: **one defect found (the U2 refire), fixed and re-verified; everything else held.** Two pre-existing, non-blocking observations for the record: a latent stale-derive corner shared by E1/OPT_1a (unreachable without a teleport that bypasses `teardown_gol`), and the `curtainsActive_` comment in state.hpp misdescribing E1's live staging as "any zone anywhere" when the staged flag is the geometric rev2 — both predate this round and neither was touched.
+## RESOLVEs taken
+
+- **U1 insertion point** (granted): after the CONFIG AXIS `endif()`, **above** the DAWN CONFIGURATION banner — the banner documents the guard and belongs with it. Moved by byte-slicing the file, never retyped: the U+2550 runs (`e2 95 90`) are preserved, and the block travelled whole, so the web configure now prints the same `Active cartridges:` report.
+- **U2 replacement content**: the handoff said it was "supplied alongside," but nothing accompanied the message. Rather than STOP, I authored it from the prose spec (which names every preset, parent, and payload). **Mid-round you pushed `0b07c6c` carrying the real file — my version is byte-identical to yours, `diff` clean.** The rebase left U2 with nothing to apply; I kept it as an empty commit so the unit's bindings and acceptance survive, and its subject says so plainly.
+
+## Acceptance, executed here (cmake 3.28.3, listing only — no configure, no build)
+
+```
+cmake --list-presets   without EMSDK → 4 presets, the-board-web ABSENT
+cmake --list-presets   with EMSDK    → 5 presets, the-board-web present
+```
+
+Native presets were also resolved through the new ancestry field-by-field: all four keep exactly their previous effective cache sets. `the-board-web` is the only one that changes, by exactly the two `DAWN_*` variables it should never have had.
+
+## Your build path, unambiguous
+
+- **target** `incubator_dual` → **output** `web/the_board.js` + `.wasm` + `.data` → **ignored** by the three new `.gitignore` lines; `web/index.html` stays tracked and already loads `the_board.js`.
+- `cmake --preset the-board-web && cmake --build --preset the-board-web`, then serve `web/` and open it.
+
+## Recorded, not fixed
+
+- A build preset is **not** disabled by its configure preset's condition — `--list-presets=build` shows `the-board-web` in both shells. Harmless (no binaryDir without a configure), and touching it would exceed U2's radius.
+- The CONFIG AXIS **header comment** and the `CMAKE_BUILD_TYPE` cache docstring still carry the native-only "configs Dawn provides" framing. U4's radius was the message string alone; a comment-truth pass can take all three together.
+- Preset restatement (`the-board` duplicating dials the CMakeLists now supplies to both twins) stands as you recorded it — behavior-neutral, left for a leanness pass.
+
+One thing I did not do: **nothing here was compiled.** U1 removes the only *known* web compile-stopper, but the first real Emscripten build is still the first time this tree meets clang — `glaw1` proves native is unchanged, and the web configure+build is the gate that finds what's next.
