@@ -262,7 +262,15 @@ static void frame() {
 int main(int argc, char* argv[]) {
     std::cout << "\n";
     std::cout << "========================================\n";
+    // PORT_2d — one line per twin, and each states what its own build
+    // actually has. The FileWatcher class, the member, the watch() call
+    // and the per-frame check are all #ifndef __EMSCRIPTEN__ (PORT_1c),
+    // so the web twin has no hot reload to announce.
+#ifdef __EMSCRIPTEN__
+    std::cout << "  INCUBATOR DUAL (web twin — no hot reload)\n";
+#else
     std::cout << "  INCUBATOR DUAL (Hot Reload Enabled)\n";
+#endif
     std::cout << "  Clock:    BeatClock\n";
     std::cout << "  Render:   " << RENDER_NAME << "\n";
     std::cout << "========================================\n";
