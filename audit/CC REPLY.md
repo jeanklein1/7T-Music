@@ -1,44 +1,47 @@
-PORT_1 accepted. Starting with P0 recon — no edits: locate the Dawn checkout / emdawnwebgpu / emsdk in this environment, then the HEAD censuses. One flag upfront: the native build's `DAWN_DIR` is `C:/dev/dawn` — a Windows path on your design machine — so the container may not hold the checkout; I'll search broadly and, if absent, fetch a current Dawn release archive purely to *read* the emdawnwebgpu headers for the VERIFY bindings (the build-time package placement stays yours).
+The reformed contract is understood — EXECUTE / RESOLVE / STOP, outcome invariants, blast radii, bindings reported. My plan: bind and land all four inline (last round's census is still fresh and exact), commit each locally, then run an adversarial verification pass over the four diffs before pushing anything. Starting with sync and U1's three binding questions: the spine row order (the carried finding, re-verified by content), the zone death path (does lift ever outlive `active=false`? — the conservatism crux), and any existing zone-count helper.
 
-The proxy gates GitHub per-repo — requesting read access to `google/dawn`:
+cartridge.hpp:248 carries the same count in a live file — updating it (past reports stay historical):
 
-Clone landed. Searching the checkout for the emdawnwebgpu package and port:
+All four LANDING units are committed locally on master — `599aca5` (OPT_1e), `878fc30` (door fallback), `e499aef` (evict latch), `2e2eb51` (L2 residue) — with encoding checks clean and the compile-order binding confirmed. Two adversarial verifiers are now running over the diffs (one attacking the OPT_1e rest predicate, one attacking the two portal commits). I'll push and deliver the campaign report once their verdicts come back — if either confirms a defect, I fix before pushing.
 
-C++ shapes bound. Now the contrib.glfw3 canvas convention and P0.4's HEAD censuses:
+Pushed — `7fae19e..2e2eb51` is on `origin/master`, all four LANDING commits. The two adversarial verifiers are still running; when their verdicts arrive I'll either confirm the round clean and deliver the campaign report, or land corrective commits for anything they refute.
 
-`a6e7d96` pushed — but bash backtick substitution may have mangled the commit message body. Checking:
+The U1 verifier came back clean: no defects on `599aca5` across all five attack surfaces — the false-rest hazard is structurally closed (every `active=false` path zeroes the GPU `transition_fraction` the same frame, so no lift outlives deactivation), all three LOD1 consumers are converted with no stragglers, spine order holds, and the cull kernel never touches slot C's indexCount. It flagged two pre-existing, non-blocking observations (a latent stale-derive corner shared by E1/OPT_1a that requires a teleport bypassing `teardown_gol`, and a stale `curtainsActive_` comment) — neither chargeable to this round; I'll note both in the campaign report.
 
-All edits in. Verifying guard balance, the clock's zero-includer status, and committing via message file (no more backtick casualties):
+Still waiting on the second verifier covering the two portal commits (`878fc30`, `e499aef`) before I write the final report.
 
-Now the main() split — native tail calls `init_world()` in place; web tail hands the loop to rAF:
+The second verifier confirmed one real defect in `878fc30`: the FULLREGEN block is not once-per-world — `request_recenter` (wired to the `[`/`]` render-radius keys) re-arms it mid-world, and a re-fired count-gate in a world whose doors streamed out would force a door 60 wu from world origin: outside the live window, over unloaded terrain, on no patch record so it never evicts. The fix is the tree's own idiom — a one-shot flag mirroring `back_portal_pending`. Binding the two splice sites:
 
-# PORT_1 — CAMPAIGN REPORT
+The corrective commit `33c920a` is in, and a three-lens verification workflow is now running over it (struct-layout safety of the new `MoodState` field, the one-shot lifecycle across boot/teardown/recenter, and compile/const-correctness). I'll push it and deliver the full campaign report once the lenses come back clean — or fix again if one refutes.
 
-**Landed on master (all pushed):**
+Pushed — `33c920a` is on `origin/master`. The verification workflow over it is still running; when its three lenses report I'll deliver the campaign report (or a further correction if one refutes).
 
-| Commit | Unit |
-|---|---|
-| `a6e7d96` | `PORT_1a: frame() extracted; loop-carried state homed in App` — native-green, gate with `glaw1` + boot |
-| `1e7aede` | `PORT_1b: console boot grammar (async-capable, native-synchronous); dt clamp homed; core/clock.hpp retired` — native-green, gate with `glaw1` + boot |
-| `15b975a` | `PORT_1c: web build preset + host page; watcher native-only` — gate with the wasm build + Chrome witness |
-| — | **`PORT_1d` does not exist**: AllowSpontaneous is verified supported in emdawnwebgpu (`webgpu.cpp:403/666/691`; Dawn's own `InitOnlySample` uses it) — the three MapAsync sites carry unchanged |
+All three lenses returned NOT REFUTED — the corrective commit is clean, and everything is already on `origin/master`. The round is complete.
 
-**P0 recon — no STOP fired, one environmental deviation reported:** the native Dawn checkout (`DAWN_DIR=C:/dev/dawn`) lives on your design machine and could not be searched from this container. I verified against a fresh shallow clone of `google/dawn` @ `da44df7da` instead: **emdawnwebgpu exists** (`src/emdawnwebgpu/pkg/emdawnwebgpu.port.py` + `third_party/emdawnwebgpu/pkg`), and per its own `pkg/README` the easiest consumption is **Emscripten's built-in remote port** — so the preset defaults to `--use-port=emdawnwebgpu`, with `-DEMDAWNWEBGPU_PORT=path/to/emdawnwebgpu.port.py` to pin a Dawn-release package instead (note: the *source-tree* port file is unusable un-built — it self-checks for generated headers). emsdk is absent in this environment; your one-time install stands as written. contrib.glfw3 confirmed in the ports registry since Emscripten 3.1.55 (upstream currently 3.4.0.20260301 / GLFW 3.4).
+---
 
-**Every VERIFY binding:**
-- **CallbackMode**: `WaitAnyOnly / AllowProcessEvents / AllowSpontaneous` all defined; AllowSpontaneous supported → boot chain and readbacks use it.
-- **`Surface::GetCapabilities`**: exists (`webgpu.cpp:2157`) → the shared `caps.formats[0]` tail runs on web; **no BGRA8Unorm fallback was needed**.
-- **`Surface::Present`**: exists but **aborts at runtime** ("use requestAnimationFrame via html5.h instead") → web `present()` is a hard no-op.
-- **Canvas source**: `wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector{ .selector = "#canvas" }` — Emscripten-prefixed, *not* the unprefixed name the handoff expected.
-- **`Adapter::GetLimits`**: exists (`library_webgpu.js:775`) → **full-adapter limits passthrough verbatim as native**, covering both known exceedances (9 storage/compute stage, 289 layers).
-- **Request shapes**: `CreateInstance()` → `RequestAdapter(nullptr, mode, λ(status, Adapter, StringView))` → `RequestDevice(&desc, mode, λ(status, Device, StringView))`.
+# THE LANDING ROUND — campaign report
 
-**dt clamp**: `std::clamp(dt, 0.0f, 0.1f)` — the dormant clock's exact 100 ms "spiral of death" cap, now in `begin_frame()` both platforms; `core/clock.hpp` removed (re-verified zero includers).
+**Four units contracted, four landed, plus one correction found by this round's own adversarial pass. Five commits on master: `7fae19e..33c920a`, all pushed.** Jean's gates remain: `glaw1` + native boot, then the web build for first light.
 
-**Preload mapping as landed** (P0 re-verified the live search list, `renderer.hpp:1250-1251` — the handoff's mapping stood unchanged): `assets@/assets` + `world.wgsl@/src/cartridges/the_board/realization/world.wgsl`; the loader's second entry resolves verbatim from MEMFS CWD `/`. Output: `web/the_board.{js,wasm,data}` beside the committed `web/index.html` (dark page, `#canvas`, `Module.canvas` handoff — contrib.glfw3's default selector is literally `Module['canvas']`, its Config.h:37 — plus the pointer-lock hint).
+## U1 — EXECUTE · `599aca5` — OPT_1e: LOD1 draws the clean prefix at true rest
 
-**Forced bindings beyond the letter, each reported in its commit body:** (1) `GLFW_EXPOSE_NATIVE_*` + `glfw3native.h` joined Region 1's native guard — contrib.glfw3 ships no `glfw3native.h`; (2) the post-console init sequence became `static bool init_world()` (one home) because web `main()` has no device yet — native calls it exactly where those lines were, web `frame()` calls it once at Ready; (3) P1a's one token change: the acquire-failure `continue` is `return` in `frame()` (the P1a commit body has two words eaten by a shell-quoting slip — this sentence is the correction; later commits used message files).
+Bound as contracted: a **global** zone-count predicate, deliberately not geometric. `zones_active_anywhere()` lives beside `zone_rects_in_core()` in cartridge.hpp, staged in `phase_frustum_cull` (R17) beside the E1 curtain switch — R17 < R18 < R19 in the spine, so slot C's indirect reset and both sun terrain draws read the same fresh value with no latch. The carrier mirrors E1's pair exactly (`set_zones_active_anywhere` + `patch_index_count_lod1_live()` in state.hpp; one buffer, two counts, so buffer/count can never split). No WGSL moved — the cull kernel only writes the instanceCount atomics. P6 witness: `[Ground] zones active anywhere: N` on change. **Divergence resolved in passing:** the shadow FORK comment still described `bacc1a5`'s clean-prefix state, which `345628b` ("the slab walls enter the shadow map") had deliberately reverted in code only — rewritten to carry that commit's warning that the curtain tail is the walls.
 
-**Re-anchors (post-CUT_1)**: loop locals were `incubator_dual.cpp` main() :131/:141/:147/:164/:169/:170 → `struct App`; MapAsync census 3 = agent `cartridge.hpp:1169` + floater `:1212` live, meter `:1921` folded; ESC handler `console.hpp:117-120`; surface seam `initSurface`; frame clock `begin_frame` 393-395 region.
+## U2 — EXECUTE + correction · `878fc30` + `33c920a` — the door guarantee
 
-**For your gates**: `glaw1` + boot after P1a (`a6e7d96`) and P1b (`1e7aede`) — identical behavior both times; then emsdk env → `cmake --preset the-board-web && cmake --build --preset the-board-web` → serve `web/` → Chrome. First light = world renders, click captures, WASD moves, ~20 one-time `[SignalLayout]` warns in devtools. A black canvas reads its cause in the console — paste it back verbatim. Still open in parallel: the C8 shell stamp, and the `f62c519` limits-fit note for the next design session.
+The fallback (`force_spawn_door_fallback`, mood.hpp's seventh door) is count-gated on the same `active && is_portal` scan the portal array and census use; finite worlds and door-rolling open worlds are strict no-ops. Both granted RESOLVEs were exercised: **splice point** at the end of FULLREGEN *after* the synchronous population (counting before it would have fired in every open world — Channel A's DOORWAY arches, portal density 1.0, are committed by then), and **placement** with no new grammar — forward-portal destination pieces, fresh 88xx salts, a seeded bearing at 60 wu (twice `MIN_FROM_ORIGIN`), opening facing spawn.
+
+**The verifier refuted my lifecycle premise before it could reach a build:** FULLREGEN is not once-per-world — the `[`/`]` render-radius keys re-arm it via `request_recenter`, and a re-fired gate in a world whose doors had streamed out would have forced a door 60 wu from *origin*, outside the live window, on no patch record. `33c920a` fixes it with the tree's own idiom: `door_fallback_pending` on MoodState, default true for the boot world, re-armed at TEARDOWN beside `back_portal_pending`, consumed once. A follow-up three-lens pass confirmed the fix clean (MoodState has no byte-layout consumers; no teardown-skipping path exists; pawn is provably at origin at every consuming FULLREGEN, and the worst-case finite ensured ring still encloses the 60 wu placement).
+
+## U3 — EXECUTE · `e499aef` — evict clears portal identity
+
+Three lines: `is_portal`, `is_back_portal`, `destination` die with the arch. The latch was real — `run_spawn_preamble` re-reserves a freed slot by setting `active=true` alone, and until `arch_write_active` commits, an evicted portal's slot read as a live door with a dead world-exit to every consumer. All other freeing paths were audited clean (teardown resets whole structs; place-fail and host-gone paths release slots that never gained identity). **The optional overflow-break RESOLVE was declined and reported:** with identity cleared at evict, a leaked reservation can never read as a portal, and a proper leak fix needs a per-family release hook plus a queue parameter `select_entities_for_patch` doesn't have — a unit of its own, not a minimal correction.
+
+## U4 — EXECUTE · `2e2eb51` — L2 item 4 aligned
+
+That line only: the stale adapter grant ("storage = 10") now states the default-limits budget — storage 8 / uniforms 12 per stage, citing L14. L14 stays L14; the banner untouched.
+
+## Verification ledger
+
+Two adversarial reviewers over the four unit diffs plus a three-lens workflow over the correction: **one defect found (the U2 refire), fixed and re-verified; everything else held.** Two pre-existing, non-blocking observations for the record: a latent stale-derive corner shared by E1/OPT_1a (unreachable without a teleport that bypasses `teardown_gol`), and the `curtainsActive_` comment in state.hpp misdescribing E1's live staging as "any zone anywhere" when the staged flag is the geometric rev2 — both predate this round and neither was touched.

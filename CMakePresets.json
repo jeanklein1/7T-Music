@@ -2,10 +2,19 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "base",
+      "name": "the-board",
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
+        "THE_BOARD_DEMO": "full"
+      }
+    },
+    {
+      "name": "native",
+      "hidden": true,
+      "inherits": "the-board",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "DAWN_DIR": "C:/dev/dawn",
@@ -15,11 +24,7 @@
     {
       "name": "the-board-full",
       "displayName": "the_board — full",
-      "inherits": "base",
-      "cacheVariables": {
-        "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
-        "THE_BOARD_DEMO": "full"
-      }
+      "inherits": "native"
     },
     {
       "name": "the-board-full-release",
@@ -32,9 +37,8 @@
     {
       "name": "the-board-minimal",
       "displayName": "the_board — minimal",
-      "inherits": "base",
+      "inherits": "native",
       "cacheVariables": {
-        "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
         "THE_BOARD_DEMO": "minimal"
       }
     },
@@ -49,8 +53,13 @@
     {
       "name": "the-board-web",
       "displayName": "the_board — web (Emscripten, first light)",
-      "inherits": "the-board-full",
+      "inherits": "the-board",
       "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "$env{EMSDK}",
+        "rhs": ""
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
