@@ -24,7 +24,7 @@ else()
     endif()
     if(NOT CMAKE_BUILD_TYPE MATCHES "^(Debug|Release)$")
         message(FATAL_ERROR
-            "CMAKE_BUILD_TYPE '${CMAKE_BUILD_TYPE}' — Dawn provides only Debug and Release")
+            "CMAKE_BUILD_TYPE '${CMAKE_BUILD_TYPE}' — the axis is Debug or Release for both twins. Native links Dawn's prebuilt static libraries, which exist in exactly those two configurations; the web twin links no Dawn at all and pins -O2 in its own compile and link options regardless of config, so there the two names are a convention this check keeps honest.")
     endif()
     set(DAWN_CHECK_CONFIGS ${CMAKE_BUILD_TYPE})
 endif()
