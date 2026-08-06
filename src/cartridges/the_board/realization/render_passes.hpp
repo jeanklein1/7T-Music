@@ -357,10 +357,12 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool cast_terrain) {
     // FORK — terrain, both bands at LOD1 density (ECONOMY_1 E2): the
     // shadow target resolves coarser than even the half mesh, and the
-    // decode is patch-agnostic, so band 0 draws the LOD0 patches with
-    // the ring IB's CLEAN PREFIX (CELL_1 rev2) — caps and skirt, no
-    // curtain tail. Caps still lift as slabs, so lifted zones cast
-    // their tops; their walls do not cast (pre-CELL_1 behavior).
+    // decode is patch-agnostic. Both bands take the ring IB at the LIVE
+    // LOD1 count (OPT_1e): prefix + curtain tail while any zone is
+    // active anywhere — the tail is the slab WALLS, the only thing
+    // connecting a lifted cell's shadow to its base (the clean-prefix
+    // cut detached them and the caps' shadows floated free) — and the
+    // clean prefix at true rest, when no cell anywhere can lift.
     //
     // THE CASTER LOD PIN (UMBRA_3, ruled here rather than re-cut). The
     // ladder is two rungs, both terrain-mesh densities of a 50 wu patch:
@@ -400,13 +402,13 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
             c->gpuState_.render_entity_group(),
             c->gpuState_.shadow_texture_group(),
             c->gpuState_.patch_index_buffer_lod1(),
-            c->gpuState_.patch_index_count_ring_zoned(),
+            c->gpuState_.patch_index_count_lod1_live(),
             c->world_state_.lod0_patch_count
         );
         if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
             // Band 1 — same IB, already bound by the band-0 helper; the
             // redundant re-bind collapsed (trivially adjacent).
-            pass.DrawIndexed(c->gpuState_.patch_index_count_ring_zoned(),
+            pass.DrawIndexed(c->gpuState_.patch_index_count_lod1_live(),
                 c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
         }
     }

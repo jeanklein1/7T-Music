@@ -1640,6 +1640,7 @@ namespace t7 {
             }
 
             uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
+            uint32_t zonesActiveAnywherePrev_ = 0;   // OPT_1e witness memory
 
             // THE COUNT, one home — the draw plan's classifier input and the
             // P6 witness read the SAME function, so the log can never
@@ -1662,6 +1663,21 @@ namespace t7 {
                     const float dz = std::max(0.0f, std::max(minz - pz, pz - maxz));
                     if (dx * dx + dz * dz <= r * r) n++;
                 }
+                return n;
+            }
+
+            // OPT_1e — THE GLOBAL COUNT. The LOD1 ring's two counts (clean
+            // prefix / zoned) select on "any zone active ANYWHERE",
+            // deliberately NOT geometric: zones outlive the LOD0 core
+            // (EXIST reaches past the veil ring) and the curtain tail is
+            // the only thing sealing lifted slab walls in the 175–325 wu
+            // annulus, so any distance-scoped predicate would open them.
+            // Conservative by construction: the prefix draws only at true
+            // rest, when no cell anywhere can lift.
+            uint32_t zones_active_anywhere() const {
+                uint32_t n = 0;
+                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++)
+                    if (gol_state_.zones[i].active) n++;
                 return n;
             }
 
@@ -1705,6 +1721,19 @@ namespace t7 {
                     // the photographer culls against its own frustum and
                     // cannot read the plan; it keeps the flag-locked pair.
                     gpuState_.set_curtains_active(in_core > 0);
+                }
+                // OPT_1e — the LOD1 count switch, staged beside the curtain
+                // switch: this dispatch's slot-C reset reads it, and so do
+                // the sun's two LOD1 draws (R18 follows R17, so the flag is
+                // fresh for both same-frame). P6: witness the INPUT that
+                // drives the switch, on change of N only.
+                {
+                    const uint32_t anywhere = zones_active_anywhere();
+                    if (anywhere != zonesActiveAnywherePrev_) {
+                        std::cout << "[Ground] zones active anywhere: " << anywhere << "\n";
+                        zonesActiveAnywherePrev_ = anywhere;
+                    }
+                    gpuState_.set_zones_active_anywhere(anywhere > 0);
                 }
                 dispatch_frustum_cull(&machine_ctx_, encoder, queue);
             }

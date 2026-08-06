@@ -1848,6 +1848,13 @@ namespace t7 {
             // is always correct; the cap-only IB is correct exactly when all
             // lifts are zero, so either flip timing is safe.
             bool curtainsActive_ = true;
+            // OPT_1e — the LOD1 rest switch: false only when ZERO zone
+            // slots are active anywhere (true rest). Global by design —
+            // zones outlive the veil ring's reach, and the curtain tail is
+            // the only thing sealing lifted slab walls in the 175–325 wu
+            // annulus, so RingZoned is always correct and the clean prefix
+            // is correct exactly at rest. Defaults zoned (conservative).
+            bool zonesActiveAnywhere_ = true;
 
             // Patch heightfield texture array (MAX_ACTIVE_PATCHES = 225 layers × 256×256, RGBA16Float)
             wgpu::Texture patchHeightfieldArrayTexture_;
@@ -2790,6 +2797,15 @@ namespace t7 {
             wgpu::Buffer patch_index_buffer_lod1() const { return patchIndexBufferLOD1_; }
             uint32_t patch_index_count_ring_clean() const { return patchIndexCountRingClean_; }
             uint32_t patch_index_count_ring_zoned() const { return patchIndexCountRingZoned_; }
+            // OPT_1e — flag + the flag-selected LOD1 count (ONE buffer;
+            // the clean count is a prefix of the zoned IB, so only the
+            // count moves and the pair can never split). Staged once per
+            // frame in R17, read by slot C's indirect reset and the sun's
+            // two LOD1 draws (R18 follows R17 in the spine).
+            void set_zones_active_anywhere(bool a) { zonesActiveAnywhere_ = a; }
+            uint32_t patch_index_count_lod1_live() const {
+                return zonesActiveAnywhere_ ? patchIndexCountRingZoned_ : patchIndexCountRingClean_;
+            }
 
             // --- GPU frustum culling ---
             wgpu::Buffer frustum_indirect_lod0() const { return frustumIndirectLOD0_; }
@@ -2800,13 +2816,15 @@ namespace t7 {
 
             void reset_frustum_indirect(wgpu::Queue& queue) {
                 // THE DRAW PLAN: three 5-u32 arg slots — A full IB, B
-                // cap-only IB, C LOD1 IB. indexCounts are constants of the
-                // buffers; instanceCounts are the kernel's three atomics
+                // cap-only IB, C LOD1 IB. A and B's indexCounts are
+                // constants of their buffers; C's is the LIVE LOD1 count
+                // (OPT_1e — clean prefix at true rest, zoned otherwise);
+                // instanceCounts are the kernel's three atomics
                 // (indices 1 / 6 / 11).
                 uint32_t args[15] = {
                     patchIndexCount_,        0, 0, 0, 0,
                     patchIndexCountCapOnly_, 0, 0, 0, 0,
-                    patchIndexCountRingZoned_, 0, 0, 0, 0,
+                    patch_index_count_lod1_live(), 0, 0, 0, 0,
                 };
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
             }
