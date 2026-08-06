@@ -7071,20 +7071,13 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
     //
     // THE POINT'S BUBBLE: the portal is the bubble's FIRST
-    // SENSOR — the probe is host-sourced. When the pawn hosts, the
-    // probe is the body's pos THIS FRAME (agent.pos, the local —
-    // byte-identical to the pre-point test; point_pos() is deliberately
-    // NOT used here: it reads the storage copy, one frame stale).
-    // When the camera hosts, the probe is the point (the camera) and
-    // the bubble's VERTICAL GATE applies: the arch must sit within
-    // POINT_BUBBLE_RADIUS of the point's altitude — skim over a portal
-    // and it fires; fly high above its xz and the arch is outside the
-    // bubble, no fire (Jean's altitude ruling). The ground query runs
-    // only on an xz-hit (at most one per frame). The trigger stays on
-    // the possessed slot's wire, harvested by the same P5 path.
+    // SENSOR — the probe is the body's pos THIS FRAME (agent.pos, the
+    // local — byte-identical to the pre-point test; point_pos() is
+    // deliberately NOT used here: it reads the storage copy, one frame
+    // stale). The trigger stays on the possessed slot's wire, harvested
+    // by the same P5 path.
     agent.portal_trigger = -1;
-    var probe = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
-    if (point_camera_hosted()) { probe = camera_state.pos; }
+    let probe = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
     for (var pi = 0u; pi < portal_array.count; pi++) {
         let p = portal_array.portals[pi];
         let dx = probe.x - p.x;
@@ -7093,16 +7086,8 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         let fwd = -dx * p.facing_sin + dz * p.facing_cos;
         let e = lat * lat * p.inv_span_sq + fwd * fwd * p.inv_depth_sq;
         if (e < 1.0) {
-            var in_bubble = true;
-            if (point_camera_hosted()) {
-                let qi = QueryInputs(vec3(p.x, 0.0, p.z), signal.t_seconds);
-                let arch_ground = manifold_position(vec3(p.x, 0.0, p.z), POLICY_FLYER, qi).y;
-                in_bubble = abs(probe.y - arch_ground) < config.point_bubble_radius;
-            }
-            if (in_bubble) {
-                agent.portal_trigger = i32(p.arch_index);
-                break;
-            }
+            agent.portal_trigger = i32(p.arch_index);
+            break;
         }
     }
 
