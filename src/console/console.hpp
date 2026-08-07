@@ -280,10 +280,16 @@ namespace t7 {
         // 128 MiB; the widest workgroup is 16x16 = 256 invocations,
         // exactly the default and not over; texture array layers peak at
         // 225 of 256 (OPT_1b) and 2D dimension at 2048 of 8192
-        // (PORT_5a). EXACTLY ONE limit exceeds a core default:
-        // maxStorageBuffersPerShaderStage, which needs 9 against a
-        // default of 8. C6 closes that too; when it merges, the `9`
-        // below becomes an 8 and this becomes a pure defaults request.
+        // (PORT_5a). The last exceedance was
+        // maxStorageBuffersPerShaderStage at 9 against a default of 8;
+        // C6 (merged) demoted the field's head-pose window from
+        // read-only storage to uniform and the room family now counts 8.
+        //
+        // SO THIS IS NOW A PURE DEFAULTS REQUEST: nothing is named, and
+        // a value-initialised wgpu::Limits means "every limit undefined,
+        // use the default". If a future piece ever needs a ceiling above
+        // a default, name it here — one line, beside this sentence, so
+        // the exception is never silent.
         //
         // SAFETY: a mis-censused limit must degrade to today's behavior,
         // never to a black screen. Two nets. (1) If requestDevice fails,
@@ -319,10 +325,9 @@ namespace t7 {
             wgpu::Limits limits{};
             if (passthrough) {
                 adapter_.GetLimits(&limits);          // the old behavior, kept as the net
-            } else {
-                // Everything not named here stays at its default.
-                limits.maxStorageBuffersPerShaderStage = 9;
             }
+            // else: every field stays undefined == every limit at its
+            // core default. Post-C6 the program needs no exception.
             deviceDesc.requiredLimits = &limits;
 
             wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
@@ -354,7 +359,7 @@ namespace t7 {
                         wgpu::Limits got{};
                         device.GetLimits(&got);
                         if (got.maxTextureDimension2D < 2048u ||
-                            got.maxStorageBuffersPerShaderStage < 9u ||
+                            got.maxStorageBuffersPerShaderStage < 8u ||
                             got.maxUniformBufferBindingSize < 65536u) {
                             std::cerr << "[Device] modest request returned limits below the"
                                          " censused floor — discarding, retrying passthrough\n";
