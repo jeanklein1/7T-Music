@@ -636,6 +636,18 @@ namespace t7 {
                     zoneRectsInCorePrev_ = zone_rects_in_core();
                     std::cout << "[Ground] zone rects in core: "
                               << zoneRectsInCorePrev_ << " (boot)\n";
+                    // OPT_1e's switch and OPT_1a's landed with transition
+                    // logs but no boot line — the exact half of P6 the
+                    // Release boot paid for. Both seeded here from the same
+                    // functions their gates read, so frame 1 can only print
+                    // a REAL transition.
+                    zonesActiveAnywherePrev_ = zones_active_anywhere();
+                    std::cout << "[Ground] zones active anywhere: "
+                              << zonesActiveAnywherePrev_ << " (boot)\n";
+                    liveCardLivePrev_ = live_card_is_live();
+                    std::cout << "[Card] live-card field: "
+                              << live_card_state_label(liveCardLivePrev_)
+                              << " (boot)\n";
                 }
 
                 // THE FRAME METER: boot ends here — restamp the window so
@@ -1520,12 +1532,20 @@ namespace t7 {
             void phase_live_card_write(RenderCtx& c) {
                 auto& encoder = c.encoder;
 
-                bool card_live = gpuState_.config().pulse_count > 0
-                              || gpuState_.config().terrain_time > 0.0f;
-                if (!card_live) {
-                    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                        if (gol_state_.zones[i].active) { card_live = true; break; }
-                    }
+                const bool card_live = live_card_is_live();
+
+                // PROCESS P6 — every switch has a witness. This is the arm
+                // ECONOMY_1 E1 taught the campaign to distrust: a rest skip
+                // that never fires and a rest skip that works produce the
+                // SAME silent log, and the difference is the entire unit.
+                // Witness the INPUT that drives it (the zone_rects_in_core
+                // form), on change of state only, never per frame; the boot
+                // state prints once at init (P6 corollary), so silence here
+                // means "no transition", not "no witness".
+                if (card_live != liveCardLivePrev_) {
+                    std::cout << "[Card] live-card field: "
+                              << live_card_state_label(card_live) << "\n";
+                    liveCardLivePrev_ = card_live;
                 }
 
                 if (card_live) {
@@ -1655,6 +1675,29 @@ namespace t7 {
 
             uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
             uint32_t zonesActiveAnywherePrev_ = 0;   // OPT_1e witness memory
+            bool     liveCardLivePrev_ = false;      // OPT_1a witness memory
+
+            // OPT_1a — THE REST LAW, one home. The dispatch gate and the P6
+            // witness read the SAME function, so the log can never disagree
+            // with the skip (the zone_rects_in_core precedent). The three
+            // conjuncts in occurrence order, short-circuiting: the two config
+            // reads are free, the zone scan only runs if they clear.
+            // Conservative by construction — any doubt is LIVE, and LIVE
+            // writes.
+            bool live_card_is_live() const {
+                if (gpuState_.config().pulse_count > 0) return true;
+                if (gpuState_.config().terrain_time > 0.0f) return true;
+                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++)
+                    if (gol_state_.zones[i].active) return true;
+                return false;
+            }
+
+            // The witness's words, one home, so the boot line and the
+            // transition line cannot describe the same state differently.
+            static const char* live_card_state_label(bool live) {
+                return live ? "LIVE — writer runs every frame"
+                            : "AT REST — one clearing write, then skipped";
+            }
 
             // THE COUNT, one home — the draw plan's classifier input and the
             // P6 witness read the SAME function, so the log can never
