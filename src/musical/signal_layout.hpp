@@ -40,7 +40,15 @@ struct SourceBinding {
 
 class SignalLayout {
 public:
-    void bind(StatLayoutView v) { view_ = v; }
+    void bind(StatLayoutView v) { view_ = v; misses_ = 0; }
+
+    // PORT_4c — how many resolves missed since the last bind(). The
+    // release twin prints ONE summary line from this instead of one
+    // line per source: with no audio source every resolve misses, and
+    // twenty stderr lines read like twenty faults to a visitor who
+    // opened DevTools out of curiosity. It is one fact — the socket is
+    // empty — so it gets one line. The debug twin still names each.
+    uint32_t misses() const { return misses_; }
 
     // Look up a source by name. Returns {valid=false} and warns on stderr
     // if the name is absent — callers leave the coupling disabled rather
@@ -52,9 +60,16 @@ public:
                 return SourceBinding{ g.channel, g.slot_base, g.count, true };
             }
         }
+        ++misses_;
+#ifndef NDEBUG
+        // Debug twin only (the-board-web-debug / native Debug): the full
+        // list, one line per source, unchanged. NDEBUG is the gate
+        // because CMake defines it for Release and not for Debug, which
+        // is exactly the two-preset split PORT_2c installed.
         std::fprintf(stderr,
             "[SignalLayout] source '%.*s' not in layout (coupling disabled)\n",
             (int)name.size(), name.data());
+#endif
         return SourceBinding{};              // valid = false
     }
 
@@ -63,6 +78,7 @@ public:
 
 private:
     StatLayoutView view_{ nullptr, 0 };
+    mutable uint32_t misses_ = 0;   // resolve() is const; the tally is not state the caller owns
 };
 
 } // namespace t7

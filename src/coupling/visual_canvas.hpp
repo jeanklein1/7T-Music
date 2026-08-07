@@ -348,6 +348,19 @@ namespace t7 {
                 std::fprintf(stderr, "[Zoetrope] ears bound: %d of %d (mask 0x%02X)\n",
                     bound, zoetrope_ear_count_, ZOETROPE_EARS);
             }
+
+            // PORT_4c — THE SOCKET, in one line. Every signal-side
+            // resolve above happens here, and with the BeatClock's empty
+            // layout (CUT_1c) every one of them misses. The release twin
+            // prints this summary; the debug twin has already printed
+            // each source by name. Placed last, after the resolves it
+            // counts, beside the Zoetrope witness it deliberately does
+            // not replace — that line reports a different fact.
+            if (signal_layout_.misses() > 0) {
+                std::fprintf(stderr,
+                    "[SignalLayout] %u sources unbound (no audio source)\n",
+                    signal_layout_.misses());
+            }
         }
 
         // One frame: run every coupling — read its source, decode inline, carry the
