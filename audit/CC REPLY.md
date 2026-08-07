@@ -1,86 +1,66 @@
-Reading the tree before any edit — the recon and the three gates.
+Four units. Starting with U1 — reading the function I'm about to make speak:
 
-Recon anchors — re-running with correct regex (my first pass used `-F`, which made `^` literal):
+Implementing U1's five lines — diagnostic only, no behavioral change:
 
-All three gates pass. Recording and executing.
+The removed lines are the same condition, split into three named checks — behavior identical. Committing U1:
 
-U2 — the preset ancestry. Note: the handoff says replacement content is "supplied alongside," but no content arrived with the message; the prose specifies the ancestry completely, so I'm authoring it from that spec and reporting it as a RESOLVE.
+**U3** — the measurement. First confirming the law's ordinal, since the handoff says L11:
 
-cmake 3.28.3 is present — I can run the U2 acceptance directly (listing presets only; no configure, no build):
+Confirmed — **L11 is THE PAINT ANCHOR LAW; the default-limits law is L14**. Same ordinal divergence as the LANDING ROUND, resolving the same way:
 
-Acceptance met exactly — 4 presets without EMSDK, 5 with.
+**U4** — census before any edit. The handoff's premise is that transitions budget while boot blocks; that needs verifying:
 
-Push rejected — the remote moved. Fetching to see what landed:
+# PORT_6 — campaign report
 
-Jean pushed `0b07c6c "CMake json updated"` — touching the same file U2 rewrote. Reading it before I merge anything:
+**Two landed, one deferred, one STOP.** Pushed `ce015cb..017367e`.
 
-Jean's commit contains the "replacement content" the handoff referenced. Comparing it against what I authored:
-
-My authored file is **byte-identical** to Jean's supplied replacement — the RESOLVE reconstructed it exactly. Rebasing onto his commit; U2 will go empty, so I'll keep it as the unit's binding record:
-
-U2 is retained as an empty commit. Rewriting its message to record honestly that Jean's push landed the identical content first:
-
-# PORT_1d — THE BUILD CROSSES THE GUARD — campaign report
-
-**Four units, all EXECUTE, no STOP. Pushed: `0b07c6c..7be03c7`.** Every expected line number in the handoff was wrong (the tree had moved), so everything below was bound by content.
-
-| unit | commit | file |
+| unit | commit | state |
 |---|---|---|
-| U1 dial above the guard | `c006e94` | `CMakeLists.txt` |
-| U2 preset ancestry | `30912ff` (empty — see below) | `CMakePresets.json` |
-| U3 artifacts ignored | `c676f71` | `.gitignore` |
-| U4 message truth | `7be03c7` | `CMakeLists.txt` |
+| U1 limits path speaks | `271cc1b` | EXECUTE |
+| U2 discard not news | — | **awaiting U1's log** |
+| U3 measurement recorded | `017367e` | EXECUTE (L11→L14 resolve) |
+| U4 boot streams | — | **STOP — premise falsified** |
 
-## RECON — anchors, quoted
+## U1 — the exact log shape
 
-```
-38:  if(NOT EMSCRIPTEN)
-488: endif() # NOT EMSCRIPTEN — end of the native Dawn section
-270: # ACTIVE CARTRIDGE SELECTION
-285: set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"  CACHE STRING …)
-286: set(THE_BOARD_DEMO                    "full"       CACHE STRING …)
-287: set(T7_INSTRUMENTS                    "off"        CACHE STRING …)
-19:      set(DAWN_CHECK_CONFIGS Debug Release)
-29:      set(DAWN_CHECK_CONFIGS ${CMAKE_BUILD_TYPE})
-```
-
-The premise holds exactly: the block sat at 269–293, **inside** 38…488. Your diagnosis of the failure mode is confirmed — `T7_INSTRUMENTS=` arrives defined-and-empty, `#ifndef` never fires, the paste names a nonexistent enumerator. I found **two more consumers** failing the same way, both fixed by the same move: the header `file(GLOB_RECURSE)` collapsed to `src/cartridges//*.hpp` (matching nothing), and the `source_group(TREE …)` root.
-
-## R1 — the interval read: CLEAN
-
-Reads of the three dials across the whole file: 285–287 (the sets), 291–292 (the status lines, inside the block itself), then 507, 515, 536–538, 561–563, 592 — **every one at or after the guard's `endif()` at 488**. Zero reads in the vacated interval [31, 284]. The file contains **no** `if(DEFINED …)`, no `STREQUAL`, and no `NOT`-test against any of the three, anywhere. Nothing could observe the earlier declaration; the move is inert for native.
-
-## R2 — the web target name: AGREES, no correction needed
-
-One `add_executable(incubator_dual …)` at 518, **outside** the guard — the target is `incubator_dual` on both twins. The Emscripten branch only sets properties on it: `OUTPUT_NAME "the_board"`, `SUFFIX ".js"`. The build preset's `"targets": [ "incubator_dual" ]` was already correct, so no RESOLVE fired and build presets stayed untouched.
-
-## R3 — the output directory: U3 FIRES
-
-`RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"`. `web/index.html` exists, is tracked, and loads `<script src="the_board.js">`. `git check-ignore` confirmed all three artifacts were reachable by `git add` — `[Oo]ut/`, `build/`, `out/build/` never covered them.
-
-## RESOLVEs taken
-
-- **U1 insertion point** (granted): after the CONFIG AXIS `endif()`, **above** the DAWN CONFIGURATION banner — the banner documents the guard and belongs with it. Moved by byte-slicing the file, never retyped: the U+2550 runs (`e2 95 90`) are preserved, and the block travelled whole, so the web configure now prints the same `Active cartridges:` report.
-- **U2 replacement content**: the handoff said it was "supplied alongside," but nothing accompanied the message. Rather than STOP, I authored it from the prose spec (which names every preset, parent, and payload). **Mid-round you pushed `0b07c6c` carrying the real file — my version is byte-identical to yours, `diff` clean.** The rebase left U2 with nothing to apply; I kept it as an empty commit so the unit's bindings and acceptance survive, and its subject says so plainly.
-
-## Acceptance, executed here (cmake 3.28.3, listing only — no configure, no build)
+Five lines, in occurrence order, all inside the web device request. No behavioral change: the only non-comment lines that moved are the three-clause `if`, now three separately-named checks feeding one `below` flag — same predicate, same branches.
 
 ```
-cmake --list-presets   without EMSDK → 4 presets, the-board-web ABSENT
-cmake --list-presets   with EMSDK    → 5 presets, the-board-web present
+[Device] requesting CORE DEFAULTS; exceptions carried: none (C6 cleared maxStorageBuffersPerShaderStage 9->8)
+[Device] granted vs floor: maxTextureDimension2D=N/2048 maxStorageBuffersPerShaderStage=N/8 maxUniformBufferBindingSize=N/65536
+[Device] BELOW FLOOR: <limit> granted X, floor Y          ← only on disagreement, one per failing limit
+[Device] modest device accepted — NO DISCARD              ← or:
+[Device] DISCARDING the modest device — its `lost` promise will resolve as a CONSEQUENCE of this discard, not as a failure
+[Device] REISSUING request with full adapter passthrough  ← both reissue branches, each saying which
+[Device] KEEPING the device from: <path> (this is the one the frame loop runs on)
 ```
 
-Native presets were also resolved through the new ancestry field-by-field: all four keep exactly their previous effective cache sets. `the-board-web` is the only one that changes, by exactly the two `DAWN_*` variables it should never have had.
+**A defect I noticed while reading, reported and not fixed** (it is U2's subject, and this was a diagnostic unit): the device-lost callback is installed on *every* requested device, including one that would be discarded, and it sets the shared `deviceLost_` flag. So if a discard occurs, the discarded device's lost promise sets `deviceLost_ = true` and PORT_3a's frame gate stops all GPU work — on a healthy device — producing a black screen whose only explanation is a `[Device] LOST` line. That is a real latent bug independent of the current hypothesis.
 
-## Your build path, unambiguous
+## U2 — deferred, not decided
 
-- **target** `incubator_dual` → **output** `web/the_board.js` + `.wasm` + `.data` → **ignored** by the three new `.gitignore` lines; `web/index.html` stays tracked and already loads `the_board.js`.
-- `cmake --preset the-board-web && cmake --build --preset the-board-web`, then serve `web/` and open it.
+I cannot execute this: it is conditional on a log only you can produce. I won't guess which branch it takes. What I can say is that reading the code, the sanity check compares granted-vs-floor at 2048/8/65536 — values a browser granting core defaults meets comfortably (8192/8/65536) — so on that reading no discard should occur and the loss has another cause. But that is the fourth hypothesis from the same source, and the previous three were all falsified by census. Send the log; the `NO DISCARD` / `DISCARDING` line decides it in one read.
 
-## Recorded, not fixed
+## U3 — recorded in both rooms
 
-- A build preset is **not** disabled by its configure preset's condition — `--list-presets=build` shows `the-board-web` in both shells. Harmless (no binaryDir without a configure), and touching it would exceed U2's radius.
-- The CONFIG AXIS **header comment** and the `CMAKE_BUILD_TYPE` cache docstring still carry the native-only "configs Dawn provides" framing. U4's radius was the message string alone; a comment-truth pass can take all three together.
-- Preset restatement (`the-board` duplicating dials the CMakeLists now supplies to both twins) stands as you recorded it — behavior-neutral, left for a leanness pass.
+Numbers stated plainly at the request site (opening with **DO NOT SIMPLIFY THIS BACK**) and as a new paragraph in the law: 62,517 ms with adapter-maximum limits vs 5,609 ms with core defaults, same machine and build, Intel HD 5500 via D3D12.
 
-One thing I did not do: **nothing here was compiled.** U1 removes the only *known* web compile-stopper, but the first real Emscripten build is still the first time this tree meets clang — `glaw1` proves native is unchanged, and the web configure+build is the gate that finds what's next.
+**Ordinal divergence, resolved:** the handoff cites "the L11 default-limits law". L11 is THE PAINT ANCHOR LAW; the default-limits law is **L14**. The preamble's permanence rule settles it — same correction the LANDING ROUND made to the same citation.
+
+## U4 — STOP, and the premise is wrong in an interesting way
+
+The census contradicts the handoff on both halves:
+
+**Boot does not pre-generate its whole ring.** `fullRegen` generates only the **priority window** — `in_priority_window` = `PATCH_GRID_RADIUS` = 3, so **7×7 = 49 patches** synchronously. The other **176** of the 15×15 pregen ring already stream at `ALLOC_BUDGET_PER_FRAME`/`SPAWN_BUDGET_PER_FRAME` = 4/frame.
+
+**Transitions do not budget differently — they run the identical code.** `reset_surface` sets `last_center_x = INT32_MAX`, and it is called from exactly two places: `cartridge.hpp:526` (boot) and `cartridge.hpp:1018` (TEARDOWN). Both force the same `fullRegen` block on the next frame. The tree says so itself at the boot call site: *"The same door the transition machine uses."*
+
+So there is **no separate transition budget to reuse** — the thing U4 was told to adopt does not exist. `generate_selected_patches` has no internal budget either; it processes every candidate handed to it.
+
+The useful consequence, and why this is worth a design conversation rather than an edit: **the fade does not cover streaming — it covers a freeze.** A mood change pays the same ~5.6 s synchronous block boot does; it is simply camouflaged by fade-out → frozen black → fade-in. Making boot stream means budgeting the `fullRegen` block itself, which changes transition behavior too. That is squarely outside "reuse the transition budget, do not write a second one", so I stopped rather than reaching for it.
+
+If you want it, the shape is one unit: give `fullRegen` a per-frame budget and let the existing `FADE_IN` cover the fill — it would fix boot and transitions together. But it needs your ruling, because it changes how every mood change feels.
+
+## Housekeeping
+
+The orphan rescue (`git branch rescue-175fd17 175fd17`) is yours to run — I'd need you to confirm before I create branches. Both stale branches (`claude/cut-1-limits-fit`, `claude/port-0-seam-census-5z0at8`) are still on the remote awaiting your go.
