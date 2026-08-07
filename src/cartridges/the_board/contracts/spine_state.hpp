@@ -192,7 +192,13 @@ struct MoodProfile {
     // ─── Feature selection (per-mood) ───────────────────────
     bool   allow_gol_zones;        // GoL zone spawning + visualization
     bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
-    bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
+    bool   allow_frustum_cull;     // STATUS: LATENT[mood_cull_opt_out] — INERT.
+                                   // Reaches renderer_.set_frustum_cull_active
+                                   // and stops: the flag's reader was retired
+                                   // when the draw plan took every mood, so
+                                   // indoor terrain IS culled despite the two
+                                   // `false` rows below. See renderer.hpp for
+                                   // the full note and the cut (OPT_1 O0-f).
 
 };
 

@@ -741,8 +741,19 @@ namespace t7 {
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
 
-            // Frustum cull activation — typically driven by world type (walled vs open).
-            // Walled worlds (small, finite) benefit less from culling; open worlds do.
+            // STATUS: LATENT[mood_cull_opt_out] — the flag is WRITTEN every
+            // mood change (mood.hpp apply_mood, from MoodProfile::
+            // allow_frustum_cull) and READ BY NOBODY. Its one reader was
+            // render_passes.hpp's `if (!use_indirect_terrain()) return;`
+            // early-out, retired with the direct indoor path when the draw
+            // plan took every mood ("the kernel runs in EVERY mood now",
+            // dispatch_frustum_cull). So the two indoor MOOD_TABLE rows say
+            // allow_frustum_cull = false and their terrain is culled anyway
+            // — the table reads as a knob and is not one. Found by OPT_1's
+            // O0-f recensus; the cut (this pair, the MoodProfile column, its
+            // two drift asserts, and the apply_mood poke) is a positional-
+            // table edit and wants a build, so it is Jean's ruling, not a
+            // residue sweep's. Revive-or-rewire when this region is worked.
             void set_frustum_cull_active(bool active) { useIndirectTerrainPipeline_ = active; }
             bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
 
