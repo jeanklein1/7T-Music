@@ -1,4 +1,6 @@
-# STREAM_0 — DECISION BRIEF (awaiting Jean's stamp)
+# STREAM_0 — DECISION BRIEF (PARKED per Jean's 2026-08-07 directive:
+# no optimization before the piece runs on phones. Re-open after the
+# phone verdict.)
 
 One question: does `fullRegen` die?
 
