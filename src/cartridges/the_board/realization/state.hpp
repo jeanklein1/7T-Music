@@ -269,7 +269,17 @@ namespace t7 {
             // layer. A second, smaller one was tried and reverted: it made
             // promotion a PARTIAL write, and partial writes do not erase the
             // layer's previous occupant. See promote_to_exhibition.
-            constexpr uint32_t PAINTING_RESOLUTION = 1024;
+            //
+            // PORT_5b — 1024 -> 512 (Jean's stamp). This one number sizes
+            // FIVE textures, which is the point of the ruling above and the
+            // reason the diet is a single edit: Exhibition (160 -> 40 MiB),
+            // Authored Staging (128 -> 32), Snapshot Staging (128 -> 32),
+            // and the two offscreen snapshot targets (4 -> 1 each). It also
+            // sizes the CPU scale-to-fit box in the authored loader
+            // (bodies/gallery.hpp, `RES`), which reads THIS constant — so
+            // the fit box and the destination cannot drift apart. Layer
+            // counts are untouched; only the per-layer resolution moves.
+            constexpr uint32_t PAINTING_RESOLUTION = 512;
             // Both raised by SUPPLY. The old 16 capped `to_load` at a sixteenth
             // of the paintings on disk and made content, not geometry, the
             // thing that ended a row — one wall would take the whole pool and
