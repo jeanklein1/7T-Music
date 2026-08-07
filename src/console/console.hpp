@@ -330,6 +330,15 @@ namespace t7 {
             // core default. Post-C6 the program needs no exception.
             deviceDesc.requiredLimits = &limits;
 
+            // PORT_6a (1) — the request being issued, with its exceptions.
+            if (passthrough) {
+                std::cout << "[Device] requesting FULL ADAPTER PASSTHROUGH limits"
+                             " (fallback path)\n";
+            } else {
+                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried: none"
+                             " (C6 cleared maxStorageBuffersPerShaderStage 9->8)\n";
+            }
+
             wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
             if (adapter_.HasFeature(wgpu::FeatureName::TimestampQuery)) {
                 deviceDesc.requiredFeatures = requiredFeatures;
@@ -346,7 +355,9 @@ namespace t7 {
                         std::cerr << "RequestDevice failed (" << which << "): "
                             << std::string_view(message.data, message.length) << "\n";
                         if (!passthrough) {
-                            std::cerr << "[Device] retrying with full adapter passthrough\n";
+                            // PORT_6a (4) — the reissue, failure branch.
+                            std::cerr << "[Device] REISSUING request with full adapter"
+                                         " passthrough (modest request was rejected)\n";
                             request_device_web(true);
                             return;
                         }
@@ -358,18 +369,53 @@ namespace t7 {
                     if (!passthrough) {
                         wgpu::Limits got{};
                         device.GetLimits(&got);
-                        if (got.maxTextureDimension2D < 2048u ||
-                            got.maxStorageBuffersPerShaderStage < 8u ||
-                            got.maxUniformBufferBindingSize < 65536u) {
-                            std::cerr << "[Device] modest request returned limits below the"
-                                         " censused floor — discarding, retrying passthrough\n";
+                        // PORT_6a (2) — granted vs the censused floor, always
+                        // printed, so the numbers are on the record whether or
+                        // not they disagree.
+                        std::cout << "[Device] granted vs floor:"
+                            << " maxTextureDimension2D=" << got.maxTextureDimension2D << "/2048"
+                            << " maxStorageBuffersPerShaderStage="
+                            << got.maxStorageBuffersPerShaderStage << "/8"
+                            << " maxUniformBufferBindingSize="
+                            << got.maxUniformBufferBindingSize << "/65536\n";
+                        bool below = false;
+                        if (got.maxTextureDimension2D < 2048u) {
+                            std::cerr << "[Device] BELOW FLOOR: maxTextureDimension2D granted "
+                                << got.maxTextureDimension2D << ", floor 2048\n";
+                            below = true;
+                        }
+                        if (got.maxStorageBuffersPerShaderStage < 8u) {
+                            std::cerr << "[Device] BELOW FLOOR: maxStorageBuffersPerShaderStage"
+                                         " granted " << got.maxStorageBuffersPerShaderStage
+                                << ", floor 8\n";
+                            below = true;
+                        }
+                        if (got.maxUniformBufferBindingSize < 65536u) {
+                            std::cerr << "[Device] BELOW FLOOR: maxUniformBufferBindingSize"
+                                         " granted " << got.maxUniformBufferBindingSize
+                                << ", floor 65536\n";
+                            below = true;
+                        }
+                        // PORT_6a (3) — the discard decision, BOTH ways. The
+                        // no-discard line is the informative one: it is what
+                        // says a [Device] LOST later did not come from here.
+                        if (below) {
+                            std::cerr << "[Device] DISCARDING the modest device — its `lost`"
+                                         " promise will resolve as a CONSEQUENCE of this"
+                                         " discard, not as a failure\n";
+                            // PORT_6a (4) — the reissue, discard branch.
+                            std::cerr << "[Device] REISSUING request with full adapter"
+                                         " passthrough\n";
                             request_device_web(true);
                             return;
                         }
+                        std::cout << "[Device] modest device accepted — NO DISCARD\n";
                     }
                     device_ = std::move(device);
                     queue_ = device_.GetQueue();
-                    std::cout << "[Device] limits path: " << which << "\n";
+                    // PORT_6a (5) — the device the program actually keeps.
+                    std::cout << "[Device] KEEPING the device from: " << which
+                        << " (this is the one the frame loop runs on)\n";
                     bootState_ = BootState::Configuring;
                 });
         }
