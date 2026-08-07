@@ -265,6 +265,111 @@ namespace t7 {
             return true;
         }
 
+#ifdef __EMSCRIPTEN__
+        // ═══ PORT_5d — THE DEVICE REQUEST, TWICE IF NEEDED ═══════════
+        //
+        // The web twin asked for the adapter's MAXIMUM limits, the same
+        // full passthrough native uses. On a desktop that is harmless;
+        // on a constrained device it is backwards — it tells the browser
+        // to provision every ceiling at once when the program needs one.
+        //
+        // THE CENSUS behind the modest set (against WebGPU core
+        // defaults; full table in this unit's commit body): the largest
+        // uniform binding is GPUTileGrid at 16,400 B of 65,536; the
+        // largest storage binding is Live Card Scratch at ~3.3 MiB of
+        // 128 MiB; the widest workgroup is 16x16 = 256 invocations,
+        // exactly the default and not over; texture array layers peak at
+        // 225 of 256 (OPT_1b) and 2D dimension at 2048 of 8192
+        // (PORT_5a). EXACTLY ONE limit exceeds a core default:
+        // maxStorageBuffersPerShaderStage, which needs 9 against a
+        // default of 8. C6 closes that too; when it merges, the `9`
+        // below becomes an 8 and this becomes a pure defaults request.
+        //
+        // SAFETY: a mis-censused limit must degrade to today's behavior,
+        // never to a black screen. Two nets. (1) If requestDevice fails,
+        // the reason prints verbatim and the request is made again with
+        // full passthrough. (2) If it SUCCEEDS but comes back below the
+        // floor we censused — the failure mode if a value-initialised
+        // wgpu::Limits ever meant "zero" rather than "undefined, use
+        // default" — the device is discarded and the passthrough request
+        // made anyway, because a device whose ceilings are zero fails at
+        // pipeline creation later, far from this line and with nothing
+        // pointing back here.
+        void request_device_web(bool passthrough) {
+            wgpu::DeviceDescriptor deviceDesc{};
+            deviceDesc.label = "7T Device";
+            // Deliberately unguarded — boot wants verbose errors.
+            deviceDesc.SetUncapturedErrorCallback(
+                [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) {
+                    std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
+                        << std::string_view(msg.data, msg.length) << std::endl;
+                });
+            // PORT_3a — the loss door. AllowSpontaneous so it fires from
+            // the browser event loop without a pump. `this` is safe to
+            // capture: App is heap-allocated and never deleted on the web
+            // path, so Console outlives every callback.
+            deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
+                [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
+                       wgpu::StringView msg) {
+                    deviceLost_ = true;
+                    std::cerr << "[Device] LOST reason=" << static_cast<int>(reason)
+                        << " : " << std::string_view(msg.data, msg.length) << std::endl;
+                });
+
+            wgpu::Limits limits{};
+            if (passthrough) {
+                adapter_.GetLimits(&limits);          // the old behavior, kept as the net
+            } else {
+                // Everything not named here stays at its default.
+                limits.maxStorageBuffersPerShaderStage = 9;
+            }
+            deviceDesc.requiredLimits = &limits;
+
+            wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
+            if (adapter_.HasFeature(wgpu::FeatureName::TimestampQuery)) {
+                deviceDesc.requiredFeatures = requiredFeatures;
+                deviceDesc.requiredFeatureCount = 1;
+            }
+
+            adapter_.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
+                [this, passthrough](wgpu::RequestDeviceStatus status, wgpu::Device device,
+                       wgpu::StringView message) {
+                    const char* which = passthrough
+                        ? "full adapter passthrough"
+                        : "core defaults + censused exceptions";
+                    if (status != wgpu::RequestDeviceStatus::Success) {
+                        std::cerr << "RequestDevice failed (" << which << "): "
+                            << std::string_view(message.data, message.length) << "\n";
+                        if (!passthrough) {
+                            std::cerr << "[Device] retrying with full adapter passthrough\n";
+                            request_device_web(true);
+                            return;
+                        }
+                        bootState_ = BootState::Failed;
+                        return;
+                    }
+                    // Net (2) — verify before adopting, while `device` is
+                    // still the local (it is moved from just below).
+                    if (!passthrough) {
+                        wgpu::Limits got{};
+                        device.GetLimits(&got);
+                        if (got.maxTextureDimension2D < 2048u ||
+                            got.maxStorageBuffersPerShaderStage < 9u ||
+                            got.maxUniformBufferBindingSize < 65536u) {
+                            std::cerr << "[Device] modest request returned limits below the"
+                                         " censused floor — discarding, retrying passthrough\n";
+                            request_device_web(true);
+                            return;
+                        }
+                    }
+                    device_ = std::move(device);
+                    queue_ = device_.GetQueue();
+                    std::cout << "[Device] limits path: " << which << "\n";
+                    bootState_ = BootState::Configuring;
+                });
+        }
+#endif // __EMSCRIPTEN__
+
         bool initWebGPU() {
 #ifdef __EMSCRIPTEN__
             // ── PORT_1b Region 2 (web): the async boot grammar ────
@@ -297,54 +402,9 @@ namespace t7 {
                     }
                     adapter_ = std::move(adapter);
                     bootState_ = BootState::RequestingDevice;
-
-                    wgpu::DeviceDescriptor deviceDesc{};
-                    deviceDesc.label = "7T Device";
-                    // Deliberately unguarded — boot wants verbose errors.
-                    deviceDesc.SetUncapturedErrorCallback(
-                        [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) {
-                            std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
-                                << std::string_view(msg.data, msg.length) << std::endl;
-                        });
-                    // PORT_3a — the loss door. AllowSpontaneous so it fires
-                    // from the browser event loop without a pump, exactly
-                    // like the request chain above. `this` is safe to
-                    // capture: App is heap-allocated and never deleted on
-                    // the web path, so Console outlives every callback.
-                    deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
-                        [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
-                               wgpu::StringView msg) {
-                            deviceLost_ = true;
-                            std::cerr << "[Device] LOST reason=" << static_cast<int>(reason)
-                                << " : " << std::string_view(msg.data, msg.length) << std::endl;
-                        });
-
-                    // Full-adapter limits passthrough, exactly as native
-                    // (covers the two known exceedances: 9 storage
-                    // buffers/compute stage, 289 texture array layers).
-                    wgpu::Limits adapterLimits{};
-                    adapter_.GetLimits(&adapterLimits);
-                    deviceDesc.requiredLimits = &adapterLimits;
-
-                    wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
-                    if (adapter_.HasFeature(wgpu::FeatureName::TimestampQuery)) {
-                        deviceDesc.requiredFeatures = requiredFeatures;
-                        deviceDesc.requiredFeatureCount = 1;
-                    }
-
-                    adapter_.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
-                        [this](wgpu::RequestDeviceStatus status, wgpu::Device device,
-                               wgpu::StringView message) {
-                            if (status != wgpu::RequestDeviceStatus::Success) {
-                                std::cerr << "RequestDevice failed: "
-                                    << std::string_view(message.data, message.length) << "\n";
-                                bootState_ = BootState::Failed;
-                                return;
-                            }
-                            device_ = std::move(device);
-                            queue_ = device_.GetQueue();
-                            bootState_ = BootState::Configuring;
-                        });
+                    // PORT_5d — ask modestly first; the helper owns the
+                    // descriptor, the limits census and the one retry.
+                    request_device_web(/*passthrough=*/false);
                 });
             return true;
 #else
