@@ -99,10 +99,12 @@ namespace t7 {
             // What it must cover is NOT the EXIST ring. Agents and floaters
             // are EXIST-gated at 350, but flora, columns, arches and outdoor
             // paintings are PATCH-lifetime: they live as long as their host
-            // patch, out to the allocation window, which reaches 450 wu per
-            // axis (patches span [pawnGX−8, pawnGX+8] and the pawn sits
-            // anywhere inside its own cell), 453.125 with the snap.
-            // Slack 43.75 wu. Outside the window a sample returns the
+            // patch, out to the allocation window, which reaches
+            // (PATCH_PREGEN_RADIUS + 1) · PATCH_EXTENT = 400 wu per axis
+            // (patches span [pawnGX−7, pawnGX+7] and the pawn sits anywhere
+            // inside its own cell), 403.125 with the snap.
+            // Slack 93.75 wu — was 43.75 at pregen radius 8; OPT_1b's one
+            // ring less widened it. Outside the window a sample returns the
             // ClampToEdge texel — sample_live_card does no bounds test.
 
             // CELL-EXACTNESS — the relation the nearest .a fetch stands on: one
@@ -149,8 +151,9 @@ namespace t7 {
             //     — draw-set joins materialize inside the fade. Cosmetic
             //     only; no geometry relies on it for concealment.
             //   LOD0 (175): the full-mesh/half-mesh terrain split (unchanged).
-            //   EXIST (350; the pregen ring now reaches 400 — the
-            //     deepened buffer): existence eviction (agents unified at
+            //   EXIST (350; the pregen ring reaches exactly 350 since
+            //     OPT_1b — PREGEN·EXTENT == EXIST, the assert below is now
+            //     tight, not slack): existence eviction (agents unified at
             //     350 — V1; floaters 400, the flagged spawn-headroom fork).
             // LIVE values ride config (veil_ring/veil_icing/lod0_radius,
             // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
@@ -719,7 +722,7 @@ namespace t7 {
         struct alignas(16) GPUTileGrid {
             int32_t origin_x;          // grid-space X of entry [0][0]
             int32_t origin_z;          // grid-space Z of entry [0][0]
-            uint32_t side;             // grid dimension (19)
+            uint32_t side;             // grid dimension (runtime; ≤ TILE_GRID_SIDE)
             float cell_extent;         // world units per cell (50.0)
             // Capacity-sized (the pinned ceiling); the live extent is
             // side² — slots beyond are uploaded as zeros, never read.

@@ -398,3 +398,9 @@ enc_temp_folder/
 web/the_board.js
 web/the_board.wasm
 web/the_board.data
+
+# SHIP_0 U4 — the deployable folder. tools/web_dist.py assembles it from
+# web/ on demand; it is a COPY of build output plus the tracked
+# index.html, so nothing here is a source of truth. Rebuildable in one
+# command, and 14 MiB of it is the .data.
+dist/

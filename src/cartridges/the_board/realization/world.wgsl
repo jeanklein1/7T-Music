@@ -1076,7 +1076,7 @@ const TILE_GRID_CAPACITY: u32 = 1024u;
 struct TileGrid {
     origin_x: i32,         // grid-space X of entry [0][0]
     origin_z: i32,         // grid-space Z of entry [0][0]
-    side: u32,             // grid dimension (up to 19)
+    side: u32,             // grid dimension (runtime; ceiling = state.hpp TILE_GRID_SIDE)
     cell_extent: f32,      // world units per cell (50.0)
     entries: array<TileGridEntry, TILE_GRID_CAPACITY>,
 }

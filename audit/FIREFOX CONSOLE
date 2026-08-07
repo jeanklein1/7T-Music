@@ -1,0 +1,37 @@
+
+GET
+http://localhost:8000/favicon.ico
+[HTTP/1 404 File not found 0ms]
+<empty string> localhost:8000:27:37
+======================================== localhost:8000:27:37
+  INCUBATOR DUAL (web twin — no hot reload) localhost:8000:27:37
+  Clock:    BeatClock localhost:8000:27:37
+  Render:   the_board localhost:8000:27:37
+======================================== localhost:8000:27:37
+<empty string> localhost:8000:27:37
+RequestAdapter failed: WebGPU not available on this browser (requestAdapter returned null) localhost:8000:28:40
+    printErr http://localhost:8000/:28
+    put_char http://localhost:8000/the_board.js:1
+    write http://localhost:8000/the_board.js:1
+    write http://localhost:8000/the_board.js:1
+    doWritev http://localhost:8000/the_board.js:1
+    _fd_write http://localhost:8000/the_board.js:1
+    <anonymous> http://localhost:8000/the_board.wasm:460191
+    <anonymous> http://localhost:8000/the_board.wasm:465232
+    <anonymous> http://localhost:8000/the_board.wasm:465386
+    <anonymous> http://localhost:8000/the_board.wasm:499817
+    <anonymous> http://localhost:8000/the_board.wasm:31989
+    <anonymous> http://localhost:8000/the_board.wasm:323882
+    <anonymous> http://localhost:8000/the_board.wasm:454825
+    <anonymous> http://localhost:8000/the_board.wasm:445449
+    _emwgpuInstanceRequestAdapter http://localhost:8000/the_board.js:1
+    callUserCallback http://localhost:8000/the_board.js:1
+    _emwgpuInstanceRequestAdapter http://localhost:8000/the_board.js:1
+    (Async: promise callback)
+    _emwgpuInstanceRequestAdapter http://localhost:8000/the_board.js:1
+    <anonymous> http://localhost:8000/the_board.wasm:30582
+    callMain http://localhost:8000/the_board.js:1
+    run http://localhost:8000/the_board.js:1
+    <anonymous> http://localhost:8000/the_board.js:1
+    (Async: promise callback)
+    <anonymous> http://localhost:8000/the_board.js:1
