@@ -3756,7 +3756,7 @@ struct SpotLightArray {
 // TWIN: state.hpp Dim::SHADOW_MAP_SIZE (// Lighting) — sizes the
 // two depth textures and the atlas tiles. Change BOTH rooms
 // together. (L3 MIRROR.)
-const SHADOW_MAP_SIZE: f32 = 4096.0;
+const SHADOW_MAP_SIZE: f32 = 2048.0;
 
 // SHADOW_BIAS_MIN/MAX deleted (UMBRA_6) — depth bias now lives once, in
 // the shared shadow pipeline's depth-stencil state (renderer.hpp). The
@@ -4024,9 +4024,10 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_ind
     //       open a new L3 mirror.)
     //   distance — radial, not axial. Slightly over-estimates inside the cone,
     //       which is the conservative direction for an offset.
-    //   tile texels — the X axis, 2048 of them. P1-D found the projection
+    //   tile texels — the X axis, 1024 of them (PORT_5a: SHADOW_MAP_SIZE/2).
+    //       P1-D found the projection
     //       carries NO aspect term (proj[0] == proj[5] == f) while the tile is
-    //       2048 x 4096, so spot texels are non-square by exactly 2x. The
+    //       1024 x 2048, so spot texels are non-square by exactly 2x. The
     //       handoff's rule for that case is to take the LARGER texel
     //       world-size, and X is the coarser axis. Over-offsets on one axis
     //       rather than under-offsetting on the other. The aspect itself is a

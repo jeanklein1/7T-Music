@@ -240,10 +240,20 @@ namespace t7 {
             // as well as the sun map, because the sun map IS the spot
             // atlas's first texture during indoor moods (it is idle then).
             // Splitting the constant would give the two halves of one
-            // atlas different tile widths. At 4096 the pair costs 134.2 MB
-            // of VRAM, up from 33.6 MB — the spot half of that spend buys
-            // 2048x4096 indoor tiles, which is not waste, but it is real.
-            constexpr uint32_t SHADOW_MAP_SIZE = 4096;
+            // atlas different tile widths. At 2048 the pair costs 33.6 MB
+            // of VRAM — the spot half of that spend buys 1024x2048 indoor
+            // tiles, which is not waste, but it is real.
+            //
+            // PORT_5a — 4096 -> 2048 (Jean's stamp). The pair was 134.2 MB
+            // of a 681 MiB boot request that a shared-memory GPU could not
+            // make resident; this returns 96 MiB. The texel doubles from
+            // 0.20508 to 0.41016 wu (2*SUN_HALF_EXTENT/SHADOW_MAP_SIZE),
+            // and everything expressed in TEXELS follows automatically —
+            // SHADOW_TEXEL_WORLD, TEXEL_UV, both normal offsets, the snap
+            // lattice, the spot PCF grid. What does NOT follow is
+            // depthBiasClamp (renderer.hpp), a WORLD quantity tuned at the
+            // old texel; see this unit's commit body.
+            constexpr uint32_t SHADOW_MAP_SIZE = 2048;
             constexpr uint32_t MAX_POINT_LIGHTS = 8;
 
             // Indoor shell (ceiling + walls for finite indoor scenes)
