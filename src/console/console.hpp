@@ -86,6 +86,36 @@ namespace t7 {
     // a very large value = uncapped, the pre-PORT_3c behavior.
     inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
 
+#ifdef __EMSCRIPTEN__
+    // ═══ THE INSTANCE ANCHOR (PORT_4a) ═══════════════════════════════
+    //
+    // A SECOND external reference to the WebGPU Instance, in static
+    // storage, DELIBERATELY NEVER RELEASED. It exists so that no
+    // lifetime accident anywhere in the program can take the external
+    // count to zero — Dawn destroys every device made from an instance
+    // whose last EXTERNAL reference drops, and a device torn out from
+    // under a running frame loop is heap corruption a few frames later.
+    //
+    // This is a BELT, and the reason it is a belt and not a fix is
+    // worth recording. PORT_4's census found NO drop in our code:
+    // Console::instance_ is assigned once, never released, never moved;
+    // Console is non-copyable AND non-movable (a user-declared deleted
+    // copy suppresses the implicit move), ~Console() is unreachable on
+    // the web path because App is heap-allocated and never deleted, and
+    // initWebGPU() has exactly one reachable call. The one raw-handle
+    // construction in this file is native-only and refcount-neutral
+    // (Dawn's ObjectBase(CType) AddRefs on construction; only Acquire()
+    // adopts). So this anchor should be redundant — and if the
+    // "[Device] LOST" line survives it, that is PROOF the loss comes
+    // from outside this program and the search moves to the browser.
+    //
+    // Shape borrowed from Dawn's own cross-platform sample, which holds
+    // `static wgpu::Instance instance;` for exactly this reason.
+    // Nothing releases it: Emscripten does not run static destructors
+    // (EXIT_RUNTIME is off and main never returns — it unwinds).
+    inline wgpu::Instance g_instanceAnchor;
+#endif
+
     class Console {
 
         // ═══ §1 IDENTITY ═════════════════════════════════════════
@@ -250,6 +280,11 @@ namespace t7 {
                 std::cerr << "Failed to create WebGPU instance\n";
                 return false;
             }
+            // PORT_4a — arm the anchor (see its banner above). Copy, not
+            // move: the member keeps its own reference and the anchor
+            // adds a second one that outlives every object in the
+            // program. Both are external references by Dawn's counting.
+            g_instanceAnchor = instance_;
             bootState_ = BootState::RequestingAdapter;
             instance_.RequestAdapter(nullptr, wgpu::CallbackMode::AllowSpontaneous,
                 [this](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter,
