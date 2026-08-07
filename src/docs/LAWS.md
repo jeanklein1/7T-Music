@@ -344,11 +344,58 @@ storage buffers 8/stage (C6), texture array layers 225 of 256 (OPT_1b).
 Exceeding a default requires Jean's stamp and a recorded reason; the
 full-adapter passthrough at boot is a convenience, not a dependency.
 
-**Modest limits are a PERFORMANCE requirement, not only a compatibility
-one.** Measured, same machine and same build otherwise, Intel HD 5500 via
-D3D12: patch generation took **62,517 ms** with adapter-maximum limits and
-**5,609 ms** with core defaults plus the one censused exception — an 11×
-slowdown bought by asking for ceilings the program does not use. Requesting
-the adapter's maximum is therefore not a harmless superset of requesting
-what we need, and restoring passthrough as a "simplification" is a
-regression with a number attached.
+The rationale is **compatibility**: a program that asks only for what it
+uses runs on the widest set of devices, and the phone is the target that
+decides. Requesting the adapter's maximum is not a harmless superset — it
+narrows the device set for nothing — so restoring passthrough as a
+"simplification" is a regression.
+
+**No timing evidence backs this law, and none is claimed.** A previous
+revision cited a single-run bisect on the development laptop (62,517 ms vs
+5,609 ms, "an 11× slowdown") as proof that modest limits are also a
+PERFORMANCE requirement. That claim is **withdrawn**: timing on that machine
+varies by an order of magnitude between runs, so no single-run comparison
+from it is evidence. Brackets on identical code:
+
+| measurement | observed range |
+|---|---|
+| native pipeline creation | 70,459 → 205,527 ms |
+| native patch system | 1,223 → 62,000 ms (era-dependent) |
+| web total boot | 5.6 → 73.6 s |
+
+The limits choice may or may not affect performance; this machine cannot
+answer it, and the law does not need it to. Compatibility is sufficient
+ground.
+
+---
+
+### CANDIDATE (unnumbered) — WHERE A TIMER POINTS
+
+*Filed by SHIP_0 U1. Unnumbered pending Jean's ruling — numbers here are
+permanent, so this does not take one until it is adopted.*
+
+**A timer names where the wait surfaced, not where the cost lives.**
+
+Web per-pipeline times are **wire-enqueue latency**, not compile cost. The
+backend compile executes in-order in the browser's GPU process and lands on
+the first phase that waits. Witness, from one capture pair on the same
+tree (`audit/THE BOARD FULL RELEASE CONSOLE.md`):
+
+| phase | web twin | native twin |
+|---|---|---|
+| `Total pipelines` | **14 ms** | 205,527 ms (Renderer init) |
+| `Patch system` | **56,887 ms** | 1,413 ms |
+| `Total init` | 56,945 ms | 206,941 ms |
+
+Neither twin is lying and neither is measuring what its label says. One
+cost, two attributions: the web's near-zero pipeline times are enqueues
+that returned immediately, and its 56.9 s "patch" phase is where the
+deferred compile storm came due. The native twin shows the reverse, and its
+patch phase — 1.4 s — is the honest cost of patch generation.
+
+**Corollary.** Chromium disk-caches compiled pipelines per origin, so a
+fast revisit (5.5 s observed) is expected and is not evidence that the
+first visit was mismeasured.
+
+The rule: before attributing a cost to the phase whose timer moved, ask
+what that phase is the first thing to WAIT on.

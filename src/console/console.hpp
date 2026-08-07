@@ -329,19 +329,21 @@ namespace t7 {
             // else: every field stays undefined == every limit at its
             // core default. Post-C6 the program needs no exception.
             //
-            // DO NOT "SIMPLIFY" THIS BACK TO PASSTHROUGH (PORT_6c). It is
-            // not only a compatibility choice — it is the difference
-            // between a usable boot and an unusable one, measured by
-            // bisect on the same machine and the same build otherwise
-            // (Intel HD 5500, D3D12):
+            // DO NOT "SIMPLIFY" THIS BACK TO PASSTHROUGH (PORT_6c). The
+            // ground is COMPATIBILITY: a program that asks only for what
+            // it uses runs on the widest set of devices, and the phone is
+            // the target that decides. Asking the adapter for its maximum
+            // narrows that set and buys nothing — the program never uses
+            // the ceilings. L14 carries this as law.
             //
-            //     adapter-maximum limits   patch system  62,517 ms
-            //     core defaults + census   patch system   5,609 ms
-            //
-            // An 11x slowdown, bought by asking for ceilings the program
-            // never uses. Requesting the adapter's maximum is not a
-            // harmless superset of requesting what we need. L14 carries
-            // this measurement as law.
+            // SHIP_0 U1 — the 11x timing claim that used to sit here
+            // (62,517 vs 5,609 ms, "usable boot vs unusable") is
+            // WITHDRAWN. It was one bisect on a machine whose runs vary
+            // by an order of magnitude on identical code (native pipeline
+            // creation has been observed at 70,459 and 205,527 ms). One
+            // run from it is not evidence. Compatibility stands on its
+            // own; do not re-argue this line with a number from this
+            // laptop.
             deviceDesc.requiredLimits = &limits;
 
             // PORT_6a (1) — the request being issued, with its exceptions.
