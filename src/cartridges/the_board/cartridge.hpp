@@ -586,6 +586,17 @@ namespace t7 {
                 std::cout << "[Cartridge] Total init:       "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
 
+                // PORT_4b — THE BUDGET, once, after the LAST allocation.
+                // Every GPU maker has now run: GPUState::init's five
+                // creators, initOffscreenResources (the three painting
+                // arrays — the 416 MiB family the old call site missed
+                // entirely), and load_authored_textures' staging above.
+                // Placed after the timings so it reads beneath "Total
+                // init", and BEFORE the ROSTER + [Ground] block so that
+                // block's claim to be the cartridge's last init line
+                // stays true.
+                gpuState_.report_gpu_budget();
+
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
                     auto mark = [&](bool enabled, const char* name) {

@@ -2049,8 +2049,12 @@ namespace t7 {
                 if (!createSamplers()) return false;
                 if (!createBindGroups()) return false;
                 if (!initializeState()) return false;
-                // PORT_3b — every maker has run; the budget is complete.
-                report_gpu_budget();
+                // PORT_4b — the budget report USED to fire here, and it was
+                // wrong by 62 per cent: initOffscreenResources (the three
+                // painting arrays, 416 MiB) runs LATER, from the cartridge's
+                // init_renderer, so the largest family in the program was
+                // absent from its own leaderboard. The report now fires at
+                // the end of init_renderer, after the last allocation.
                 return true;
             }
 
@@ -3328,6 +3332,11 @@ namespace t7 {
                     << (static_cast<double>(bytes) / (1024.0 * 1024.0)) << " MiB\n";
             }
 
+        public:
+            // PORT_4b — public: the correct call site is the END of the
+            // cartridge's init_renderer, after initOffscreenResources and
+            // after the authored paintings are staged. The budget's job is
+            // to be complete, so it is called from wherever "complete" is.
             void report_gpu_budget() const {
                 std::cout << "\n[GPU Budget] ---- allocation request, boot ----\n";
                 print_mib("buffers ", gpuBufferBytes_);
@@ -3349,6 +3358,7 @@ namespace t7 {
                     "console depth texture (host-owned).\n\n";
             }
 
+        private:   // PORT_4b — the makers and creators stay private
             bool createBuffers() {
                 auto SU = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst;
                 auto UU = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
