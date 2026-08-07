@@ -458,7 +458,15 @@ namespace t7 {
             // program. Both are external references by Dawn's counting.
             g_instanceAnchor = instance_;
             bootState_ = BootState::RequestingAdapter;
-            instance_.RequestAdapter(nullptr, wgpu::CallbackMode::AllowSpontaneous,
+            // SHIP_0 U2 — ASK FOR THE REAL GPU. Harmless on single-GPU
+            // phones (the only adapter is the only answer); correct for a
+            // real-time artwork; on dual-GPU Windows modern Chromium
+            // honors it. Stack lifetime suffices for the same reason the
+            // device descriptor's does, stated in the banner above: the
+            // options are serialized during the call, not held.
+            wgpu::RequestAdapterOptions adapterOpts{};
+            adapterOpts.powerPreference = wgpu::PowerPreference::HighPerformance;
+            instance_.RequestAdapter(&adapterOpts, wgpu::CallbackMode::AllowSpontaneous,
                 [this](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter,
                        wgpu::StringView message) {
                     if (status != wgpu::RequestAdapterStatus::Success) {
@@ -468,6 +476,32 @@ namespace t7 {
                         return;
                     }
                     adapter_ = std::move(adapter);
+                    // SHIP_0 U2 — WITNESS IDENTITY, web half. Native
+                    // enumerates every adapter and logs its pick
+                    // (PROBE_1 C1); the web twin could not name its own
+                    // silicon, so "the browser runs the HD 5500" was a
+                    // presumption and every web METER number was
+                    // uninterpretable without it. Now it is a logged fact
+                    // or it is overturned.
+                    //
+                    // Empty fields print "?" rather than nothing: some
+                    // builds redact these strings, and a blank field is
+                    // indistinguishable from a line that never ran. A
+                    // capture reading all "?" is the RESOLVE case — report
+                    // it, do not plumb a fallback.
+                    {
+                        wgpu::AdapterInfo info{};
+                        adapter_.GetInfo(&info);
+                        auto sv = [](wgpu::StringView s) {
+                            return (s.data && s.length)
+                                ? std::string_view(s.data, s.length)
+                                : std::string_view("?");
+                        };
+                        std::cout << "[Device] adapter: " << sv(info.vendor)
+                                  << " | " << sv(info.architecture)
+                                  << " | " << sv(info.device)
+                                  << " | " << sv(info.description) << "\n";
+                    }
                     bootState_ = BootState::RequestingDevice;
                     // PORT_5d — ask modestly first; the helper owns the
                     // descriptor, the limits census and the one retry.
