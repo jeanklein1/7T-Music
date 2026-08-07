@@ -271,7 +271,7 @@ the empty socket; nothing else in the tree can lift the term off zero.
 > was wrong. It stopped at "a writer runs every frame" and read that as "the
 > value can be non-zero"; the writer runs and writes zero. The missing hop was
 > the coupling's *source* resolve, which is the only thing that can lift the
-> value, and the socket is empty by construction. Corrected in `ea797e6`. The
+> value, and the socket is empty by construction. Corrected in `25fdb5a`. The
 > tell was available and I walked past it: the same file carries a witness whose
 > entire job is to announce that every signal-side resolve missed.
 
