@@ -328,6 +328,20 @@ namespace t7 {
             }
             // else: every field stays undefined == every limit at its
             // core default. Post-C6 the program needs no exception.
+            //
+            // DO NOT "SIMPLIFY" THIS BACK TO PASSTHROUGH (PORT_6c). It is
+            // not only a compatibility choice — it is the difference
+            // between a usable boot and an unusable one, measured by
+            // bisect on the same machine and the same build otherwise
+            // (Intel HD 5500, D3D12):
+            //
+            //     adapter-maximum limits   patch system  62,517 ms
+            //     core defaults + census   patch system   5,609 ms
+            //
+            // An 11x slowdown, bought by asking for ceilings the program
+            // never uses. Requesting the adapter's maximum is not a
+            // harmless superset of requesting what we need. L14 carries
+            // this measurement as law.
             deviceDesc.requiredLimits = &limits;
 
             // PORT_6a (1) — the request being issued, with its exceptions.

@@ -343,3 +343,12 @@ The lean build requests no WebGPU limit above core defaults and fits them:
 storage buffers 8/stage (C6), texture array layers 225 of 256 (OPT_1b).
 Exceeding a default requires Jean's stamp and a recorded reason; the
 full-adapter passthrough at boot is a convenience, not a dependency.
+
+**Modest limits are a PERFORMANCE requirement, not only a compatibility
+one.** Measured, same machine and same build otherwise, Intel HD 5500 via
+D3D12: patch generation took **62,517 ms** with adapter-maximum limits and
+**5,609 ms** with core defaults plus the one censused exception — an 11×
+slowdown bought by asking for ceilings the program does not use. Requesting
+the adapter's maximum is therefore not a harmless superset of requesting
+what we need, and restoring passthrough as a "simplification" is a
+regression with a number attached.
