@@ -249,7 +249,7 @@ inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t cen
 inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz) {
     static constexpr int32_t TILE_PAD = 1;
     // Q8: TILE_GRID capacity guard. The GPUTileGrid DTO (state.hpp) sizes
-    // entries[] for radius PATCH_PREGEN_RADIUS + 1 (TILE_GRID_SIDE = 19), and
+    // entries[] for radius PATCH_PREGEN_RADIUS + 1 (TILE_GRID_SIDE), and
     // active_radius is runtime-clamped to <= PATCH_PREGEN_RADIUS
     // (set_render_radius; the finite cap goes lower). The built window radius
     // is active_radius + TILE_PAD, so it fits the DTO iff TILE_PAD <= 1 (the
