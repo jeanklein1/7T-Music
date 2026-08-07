@@ -229,19 +229,51 @@ post-CUT_1 (O0-g decides)"*). It decides the other way.
 | `config.mode_color_shift` | `set_mode_color_shift` — **one** caller, the boot rest-pin | driverless |
 | `config.mode_checker_scatter` | `set_mode_checker_scatter` — **one** caller, the boot rest-pin | driverless |
 | `config.mode_palette_intensity` | `set_mode_palette_drift` — **one** caller, the boot rest-pin | driverless |
-| `config.checker_music_amount` | `set_checker_color_field` — boot rest-pin **AND `phase_motion_drivers`, every frame** | **LIVE** |
+| `config.checker_music_amount` | `set_checker_color_field` — boot rest-pin **and `phase_motion_drivers`, every frame** — but the frame writer writes **0.0** (below) | driverless |
 
-The live writer is the CHECKER-REBUILD flush in `phase_motion_drivers`: gated
-on `checker_mean_dst_.valid && checker_var_dst_.valid`, it pushes
-`cp.get(checker_var_dst_.base)` — `music_amount` — from the visual canvas each
-frame. Post-CUT_1c the canvas is ticked by the BeatClock-fed signal spine, so
-the amount can and does rise off zero.
+The fourth term needs the extra hop, and it is the hop that decides the
+question. `phase_motion_drivers` really does call `set_checker_color_field`
+every frame: its gate is `checker_mean_dst_.valid && checker_var_dst_.valid`,
+and those are **target** resolves against the canvas's own `PARAM_LAYOUT`,
+where both names are authored — so the gate is open and the writer fires.
 
-**So the per-pixel `animated_cell_color` recompute is reachable through one
-live term of four.** E3 is a real cost, not a dead branch. No edit here — the
-handoff asked for a report and forbade one ("report, no edit") — but the entry
-in CLOSED/DEFERRED that reads *"E3: likely unreachable post-CUT_1"* is wrong
-and should not be carried forward as settled.
+But what it writes is `cp.get(checker_var_dst_.base)`, i.e. whatever the canvas
+holds in the `terrain.checker_var` slot, and *that* is moved only by the
+CHECKER-REBUILD coupling, which is gated on its **source**:
+
+```
+// visual_canvas.hpp, tick()
+if (checker_win_.valid && checker_mean_.valid && checker_var_.valid) {
+    ...
+    checker_amount_goal_ = present ? 1.0f : 0.0f;
+```
+
+and `checker_win_ = signal_layout_.resolve(CHECKER_VOICE ".window_length")`
+resolves against the **analysis** layout, which post-CUT_1c is
+`BeatClock::stat_layout()` → `StatLayoutView{ nullptr, 0 }` — empty by
+construction. `beat_clock.hpp` states it outright: *"an EMPTY layout... the
+render side resolves 12 live source names against it ... and every resolve
+misses and disables its coupling."* `visual_canvas.hpp` states it again at the
+PORT_4c socket witness: *"with the BeatClock's empty layout (CUT_1c) every one
+of them misses."*
+
+So `checker_amount_goal_` never leaves its bind-time 0.0, the segment never
+moves, and the per-frame writer pushes **0.0 every frame, forever**.
+
+**RULING: all four terms are at rest. `has_mode_bias` is provably false at
+runtime, and E3's per-pixel `animated_cell_color` recompute is unreachable —
+exactly as the handoff predicted.** To re-arm it, a real audio source must
+publish `<CHECKER_VOICE>.window_length` through a live `StatLayoutView` into
+the empty socket; nothing else in the tree can lift the term off zero.
+
+> **CORRECTION, on the record.** The first version of this report claimed the
+> opposite — that E3 was reachable and the handoff's hypothesis falsified. That
+> was wrong. It stopped at "a writer runs every frame" and read that as "the
+> value can be non-zero"; the writer runs and writes zero. The missing hop was
+> the coupling's *source* resolve, which is the only thing that can lift the
+> value, and the socket is empty by construction. Corrected in `ea797e6`. The
+> tell was available and I walked past it: the same file carries a witness whose
+> entire job is to announce that every signal-side resolve missed.
 
 ### O0-h — the radius facts, post-OPT_1b
 
@@ -510,10 +542,12 @@ session.
      come back, and the honest home is the draw plan's classifier, not a
      pipeline swap.
    Either way the table should stop advertising a knob it does not have.
-2. **E3 is reachable** (§O0-g). The CLOSED/DEFERRED line *"E3: likely
-   unreachable post-CUT_1"* is falsified — `checker_music_amount` has a live
-   per-frame writer. Either the per-pixel recompute is a real cost worth a unit,
-   or the entry gets struck. It should not be carried forward as settled.
+2. **E3 is unreachable — the CLOSED/DEFERRED line stands** (§O0-g). Nothing
+   wants your ruling here; it is listed because an earlier version of this
+   report told you the opposite and you may have read that one. `has_mode_bias`
+   is provably false: the fourth term's coupling is dead at its source, because
+   the audio socket is empty by construction. E3 re-arms only when a real
+   `StatLayoutView` publishes `<CHECKER_VOICE>.window_length`.
 3. **The veil chain has zero margin** (§O0-h). `7·50 = 350 >= 350`. Correct
    today and one dial-click from a compile error. Worth knowing before the next
    radius conversation.
