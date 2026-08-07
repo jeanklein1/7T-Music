@@ -8,7 +8,7 @@ hints; the symbols are the authority (P2).
 **Both handoffs were largely executed before this session.** What this report
 adds is the O0 recensus the campaign demanded and never filed, the ruling on
 the one conditional unit, the C6 gate re-proof against a HEAD that moved
-eleven commits after C6 landed, and three follow-on units: two sweeping
+thirty-nine commits after C6 landed, and three follow-on units: two sweeping
 residue the landed commits left behind, one tagging a defect the recensus
 found.
 
@@ -285,8 +285,8 @@ alone, and the non-findings matter as much as the findings:
 
 ## C6 — THE FOUR GATES, RE-PROVED AT HEAD
 
-C6 landed at `af839dd` and eleven commits landed after it. All four gates still
-pass.
+C6 landed at `af839dd` and **thirty-nine** commits landed after it
+(`git rev-list --count af839dd..4c1a804`). All four gates still pass.
 
 **Gate 1 — alignment.** The room bind group's `entries[2]` sets `.buffer =
 headPosesBuffer_` and `.size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS`
