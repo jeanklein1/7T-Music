@@ -1,6 +1,6 @@
 # SHIP_0 — CAMPAIGN REPORT
 
-Executes `src/docs/HANDOFFS/WEB/SHIP_0_HANDOFF.md` (v2). Reformed register:
+Executes `docs/HANDOFFS/past campaigns/WEB 1/SHIP_0_HANDOFF.md` (v2). Reformed register:
 outcome invariants named, mechanisms bound by reading the tree, bindings
 reported. Every claim carries file + symbol; absences were verified over whole
 files (P11).

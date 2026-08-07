@@ -1,6 +1,6 @@
 # OPT_1 + C6 — CAMPAIGN REPORT
 
-Closes the two WEB handoffs (`src/docs/HANDOFFS/WEB/C6_8FIT_HANDOFF.md`,
+Closes the two WEB handoffs (`docs/HANDOFFS/past campaigns/WEB 1/C6_8FIT_HANDOFF.md`,
 `OPT_1_HANDOFF.md`). Every claim carries file + symbol at HEAD. Absences are
 stated plainly and were verified over whole files (P11). Line numbers are
 hints; the symbols are the authority (P2).

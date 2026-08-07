@@ -5,7 +5,7 @@
 // Canonical registry for the ground query architecture: contributors,
 // explicit dependency DAG, and policies.
 //
-// L3 (src/docs/LAWS.md) governs this file: CONTRIBUTOR_COUNT,
+// L3 (docs/LAWS.md) governs this file: CONTRIBUTOR_COUNT,
 // POLICY_COUNT, the enum values, and the POLICIES bitmasks are
 // mirrored by const values in world.wgsl. Drift means
 // query_ground_<policy> evaluates a different contributor set on the

@@ -13,7 +13,7 @@
 //   Idle:: / Coupling::  boot-rest values / the mute-bit registry
 //   GPUFrameSignal       the per-frame hot uniform (sky tail: E-3)
 //   GPUDesignConfig      the design mirror — paneled by ─── system
-//                        groups; grown per L5/L4 (src/docs/LAWS.md)
+//                        groups; grown per L5/L4 (docs/LAWS.md)
 //   GPU* DTO region      the mirror vocabulary, per-family banners,
 //                        every struct sizeof-witnessed
 //   class GPUState
@@ -484,7 +484,7 @@ namespace t7 {
 
         // Field ORDER is the cross-room contract — world.wgsl's
         // DesignConfig mirrors this struct field-for-field. Adding a
-        // knob: THE GROWTH LAW, L5 in src/docs/LAWS.md. Choosing where
+        // knob: THE GROWTH LAW, L5 in docs/LAWS.md. Choosing where
         // to put it: THE ALIGNMENT LAW, L4.
         struct alignas(16) GPUDesignConfig {
             // ─── Debug mutes ────────────────────────────────────────
@@ -1636,7 +1636,7 @@ namespace t7 {
             "THREE — still 8 floats, so 592 is unmoved. FIELD_2b: the "
             "field's eight dials land at the tail — two pads consumed, six "
             "floats appended, two fresh pads to the boundary; 592 -> 624.)");
-        // THE ALIGNMENT LAW (L4, src/docs/LAWS.md). These four are the only
+        // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
         // pad. The trailing 4-byte pad is spent, so the next knob meets this.

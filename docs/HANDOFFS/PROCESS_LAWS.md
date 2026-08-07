@@ -1,6 +1,6 @@
 # THE PROCESS LAWS
 
-Repo home: `src/docs/HANDOFFS/`. Sibling of `src/docs/LAWS.md` — that file is
+Repo home: `docs/HANDOFFS/`. Sibling of `docs/LAWS.md` — that file is
 the LAWS OF PRACTICE (what breaks in the program if you don't); this one is the
 LAWS OF METHOD (what breaks in the *campaign* if you don't).
 

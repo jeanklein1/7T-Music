@@ -39,7 +39,7 @@ STATE = "src/cartridges/the_board/realization/state.hpp"
 REGISTRY = "src/cartridges/the_board/realization/binding_registry.hpp"
 PASSES = "src/cartridges/the_board/realization/render_passes.hpp"
 GROUND_ARCH = "src/cartridges/the_board/contracts/ground_architecture.hpp"
-CONSTITUTION = "src/docs/old docs/cartridge_constitution.md"
+CONSTITUTION = "docs/past docs/cartridge_constitution.md"
 CMAKE = "CMakeLists.txt"
 CANVAS = "src/coupling/visual_canvas.hpp"
 WEB_UNIFORMS = "web/js/uniforms.js"
@@ -54,7 +54,7 @@ SELF_PATHS = {TOOL, OUT}
 # Comment-mass census scope (the handoff's §6 scope).
 MASS_DIRS = ["src/cartridges/the_board", "src/coupling", "src/musical"]
 # Tree-wide scans never enter these.
-SKIP_DIRS = {".git", "src/external", "node_modules", "build", "src/docs/old docs"}
+SKIP_DIRS = {".git", "src/external", "node_modules", "build", "docs/past docs"}
 SRC_EXT = {".hpp", ".cpp", ".h", ".wgsl"}
 
 # ───────────────────────────────────────────────────────────────────────
@@ -2784,7 +2784,7 @@ def main():
         # census would never reach a fixed point and could not be diffed.
         if path in SELF_PATHS:
             return "self"
-        if path.startswith("audit/") or path.startswith("src/docs/"):
+        if path.startswith("audit/") or path.startswith("docs/"):
             return "archival"
         # `CLAUDE CODE/` is the campaign-log room: same status as audit/,
         # EXCEPT CLAUDE.md, which §5.3 elevates to a live governing document
@@ -2857,11 +2857,11 @@ def main():
     R("**Rooms are split, and the split is the point.** The constitution's own")
     R("line is *\"git keeps every word; audit/ is the sole map.\"* An audit report")
     R("that records a file which used to exist is **not** a dangling reference —")
-    R("it is the map. So `audit/` and `src/docs/` (past handoffs, past reports)")
+    R("it is the map. So `audit/` and `docs/` (past handoffs, past reports)")
     R("are counted below and then left alone. What P1+ acts on is the")
     R("**load-bearing** room: code, code comments, `CMakeLists.txt`, and the")
     R("living docs. Routed to archival, stated so the split is auditable:")
-    R("`audit/**`, `src/docs/**`, `CLAUDE CODE/**` *except* `CLAUDE.md` (which")
+    R("`audit/**`, `docs/**`, `CLAUDE CODE/**` *except* `CLAUDE.md` (which")
     R("§5.3 elevates to a live governing document), `web/PORT_MAP.md`, every")
     R("`*.json`, and any `*.txt` whose name contains \"handoff\" or \"recon\"")
     R("wherever it sits — a past transcript is a record, not a reference.")
@@ -3640,7 +3640,7 @@ def main():
     # The baseline is recorded as "G-LAW 1: GREEN in 24.7 s" — no "build" or
     # "compile" word anywhere near it, so key on the law's own name.
     baseline = None
-    for p in walk_src(exts={".md"}, roots=("audit", "CLAUDE CODE", "src/docs")):
+    for p in walk_src(exts={".md"}, roots=("audit", "CLAUDE CODE", "docs")):
         m = re.search(r"[^\n]{0,60}(?:g-?law\s*1|glaw1|baseline)[^\n]{0,40}?"
                       r"(\d+\.\d+)\s*s\b[^\n]{0,20}", read(p), re.I)
         if m:

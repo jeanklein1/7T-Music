@@ -1,10 +1,10 @@
 # THE LAWS
 
-Repo home: `src/docs/`. Sibling of `7t_program_theory_v3.md` — that file is
+Repo home: `docs/`. Sibling of `7t_program_theory_v3.md` — that file is
 THE LENS (how to think about the program); this one is the LAWS OF PRACTICE
 (what breaks if you don't). Created by PRUNING_1 P4 because there was no
-live one: `src/docs/old docs/cartridge_constitution.md` and
-`src/docs/old docs/terrain_program_charter.md` are archived by their folder,
+live one: `docs/past docs/cartridge_constitution.md` and
+`docs/past docs/terrain_program_charter.md` are archived by their folder,
 and the theory explicitly holds itself apart from law.
 
 **What belongs here.** A rule that survives every line of code it currently

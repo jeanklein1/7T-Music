@@ -1,6 +1,6 @@
 # THE 7T PROGRAM THEORY — v3 (the governing lens)
 Supersedes v2 (same week; the demo-era model crystallizes). Repo home:
-src/docs/. READ FIRST. Document strata hold: RECORDS OF FACT, LAWS OF
+docs/. READ FIRST. Document strata hold: RECORDS OF FACT, LAWS OF
 PRACTICE, THE LENS (this; framing conflicts resolve here; facts stay
 facts).
 v3 delta: §0 gains the bridge sentence; §1 gains the grammar law; §3

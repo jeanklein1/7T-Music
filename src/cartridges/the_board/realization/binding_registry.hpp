@@ -1,7 +1,7 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════
 // THE BINDING REGISTRY (C6) — the single source of truth for GPU binding
-// NUMBERS. Governed by L6, src/docs/LAWS.md; read it before adding,
+// NUMBERS. Governed by L6, docs/LAWS.md; read it before adding,
 // moving, or reusing a number.
 //
 // The shape of the table, so it reads correctly: numbers are GROUP-SCOPED
