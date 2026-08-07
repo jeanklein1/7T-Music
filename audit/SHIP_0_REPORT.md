@@ -410,3 +410,81 @@ browser actually chose (`[Device] adapter:`), whether the rest skip ever fires
 (`[Card] live-card field`), and whether `powerPreference` moved the answer.
 That is three open questions closed by one line each, on a build you have not
 run yet.
+
+---
+
+## ADDENDUM — THE MERGE, AND THE LABEL THAT LIED
+
+The merge landed: `origin/master` `4c1a804 → 68e52c2`, fast-forward, all 13
+commits. But the first attempt failed in a way worth writing down, because the
+next session in a fresh container will meet it too.
+
+```
+$ git switch master && git pull --ff-only origin master
+  ... have 65 and 92 different commits each, respectively.
+  fatal: Not possible to fast-forward, aborting.
+$ git merge --ff-only claude/web-handoffs-review-u1aalo
+  fatal: refusing to merge unrelated histories
+```
+
+**The local `master` branch pointed at `cab1a0f` — a line with NO common
+ancestor with `origin/master`.** Not a divergence: `git merge-base master
+origin/master` returned nothing at all.
+
+The cause is in this session's very first fetch, which reported it plainly and
+which I read past:
+
+```
++ cab1a0f...4c1a804  master -> origin/master  (forced update)
+```
+
+The container cloned while master was `cab1a0f`; Jean force-pushed master to
+`4c1a804` — a rewrite, not a rebase — some time after. The clone-time **local
+branch** `master` was never updated by that, because a fetch moves
+remote-tracking refs and leaves local branches alone. So the label sat there,
+stale, pointing at a superseded history, and `git switch master` checked out a
+July tree: `L2 item 4` still read *"Storage buffers per stage = 10"* (pre-C6),
+`PATCH_PREGEN_RADIUS` was still 8 (pre-OPT_1b).
+
+**This is P9's sibling, and it is worth its own line in the process laws.** P9
+says the *remote-tracking* ref is a cached label that lies. This was the
+**local branch** label lying, after a force-push, and it fails in the opposite
+direction: P9's original victim reported "merging is structurally impossible"
+about a stale ref; here the tooling said the same words and they were true of
+the label rather than of the question. The tell is identical — *no common
+ancestor* between two things that obviously share one — and so is the cure:
+
+```
+git fetch origin
+git merge-base --is-ancestor origin/master <branch>   # ask origin, never the local label
+git switch master && git reset --hard origin/master   # the fix, when the label is stale
+```
+
+**Nothing was lost.** Before moving the label I checked where `cab1a0f` still
+lives: it is reachable from **six** remote branches (`BIG_MESS`,
+`claude/compute-performance-optimization-osawx7`,
+`claude/curtain-shadow-detachment-7r6orw`, `claude/flora-1`,
+`claude/mosaic-handoff-1pu4bd`, `claude/shadows-handoff-docs-dnzrz4`), so the
+old line is preserved on the remote independently of any local label. `4c1a804`
+was reachable from exactly two refs — `origin/master` and this branch — which
+is what identified it as the live line.
+
+### Final state
+
+| ref | at | note |
+|---|---|---|
+| `origin/master` | `68e52c2` | **merged, pushed** — fast-forward, 13 commits |
+| `origin/claude/web-handoffs-review-u1aalo` | `68e52c2` | identical to master; **delete is proxy-blocked** |
+| `claude/cut-1-limits-fit` | — | **gone** |
+| `claude/port-0-seam-census-5z0at8` | — | gone (already was) |
+
+Post-merge sanity, against the merged tree rather than the report: L2 item 4
+reads `= 8` (C6), `PATCH_PREGEN_RADIUS = 7` (OPT_1b), `live_card_is_live`
+present (the P6 unit). The live line, not the July one.
+
+**One thing still needs Jean's hands** — the branch delete, blocked here the
+same way tags are:
+
+```
+git push origin --delete claude/web-handoffs-review-u1aalo
+```
