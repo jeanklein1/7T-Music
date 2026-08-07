@@ -69,6 +69,23 @@
 
 namespace t7 {
 
+    // ═══ WEB PRESENTATION CONSTANTS (PORT_3c) ════════════════════════
+    //
+    // THE PIXEL CAP — the largest mobile lever this program has, and it
+    // is a scalar. A phone at 390x844 CSS px with devicePixelRatio 3
+    // renders 1170x2532 = 2.96 M pixels, nearly TRIPLE a 1366x768
+    // laptop: a device three times faster can present itself as slower.
+    // The ratio multiplies fragment work, the surface backbuffer, and
+    // every full-screen attachment together, so it is also a memory
+    // dial, not only a speed one.
+    //
+    // 1.5 keeps edges visibly crisper than 1.0 at 2.25x the pixels
+    // rather than 9x. PANEL-ELIGIBLE and deliberately alone up here:
+    // this is the number to move when a device cannot keep up, and
+    // moving it changes nothing else. 1.0 = CSS-pixel rendering;
+    // a very large value = uncapped, the pre-PORT_3c behavior.
+    inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
+
     class Console {
 
         // ═══ §1 IDENTITY ═════════════════════════════════════════
@@ -528,6 +545,38 @@ namespace t7 {
         //   begin_frame() → [update cartridges] → acquire_surface_texture()
         //   → [encode & submit] → present() → [back to running()]
 
+    private:
+#ifdef __EMSCRIPTEN__
+        // PORT_3c — clamp the EFFECTIVE device-pixel ratio, web only.
+        //
+        // Under contrib.glfw3 the GLFW contract holds: window size is CSS
+        // pixels, framebuffer size is CSS x devicePixelRatio. Their ratio
+        // IS the DPR, so the cap needs no browser API of its own — and if
+        // Hi-DPI is not in play the two are equal, the ratio is 1, and
+        // this is a no-op. That is the 1x-display acceptance, structurally.
+        //
+        // Applied BEFORE the change comparison in begin_frame, which is
+        // load-bearing: the capped size is what lands in currentWidth_,
+        // so the next frame compares capped against capped and the
+        // resize branch stays quiet. Capping after the comparison would
+        // reconfigure the surface every single frame.
+        //
+        // The canvas ELEMENT still fills the page — web/index.html sizes
+        // it with CSS (width/height 100%), which is independent of the
+        // backing-store size this configures. Fewer pixels, same layout.
+        void apply_pixel_cap(int& fbWidth, int& fbHeight) const {
+            int winW = 0, winH = 0;
+            glfwGetWindowSize(window_, &winW, &winH);
+            if (winW <= 0 || winH <= 0 || fbWidth <= 0 || fbHeight <= 0) return;
+            const float ratio = static_cast<float>(fbWidth) / static_cast<float>(winW);
+            if (ratio <= MAX_DEVICE_PIXEL_RATIO) return;
+            fbWidth  = static_cast<int>(static_cast<float>(winW) * MAX_DEVICE_PIXEL_RATIO);
+            fbHeight = static_cast<int>(static_cast<float>(winH) * MAX_DEVICE_PIXEL_RATIO);
+            if (fbWidth  < 1) fbWidth  = 1;
+            if (fbHeight < 1) fbHeight = 1;
+        }
+#endif
+
     public:
         float begin_frame() {
             glfwPollEvents();
@@ -535,6 +584,9 @@ namespace t7 {
             // Handle resize
             int fbWidth, fbHeight;
             glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
+#ifdef __EMSCRIPTEN__
+            apply_pixel_cap(fbWidth, fbHeight);   // PORT_3c — before the compare
+#endif
             if (fbWidth > 0 && fbHeight > 0 &&
                 (static_cast<uint32_t>(fbWidth) != currentWidth_ ||
                     static_cast<uint32_t>(fbHeight) != currentHeight_)) {
