@@ -16,7 +16,7 @@
 (index):27 [GPUState] Column buffers (GPU mesh gen): 48000 vert, 192000 index capacity
 (index):27 [GPUState] Shell buffers: 2048 vert, 8192 index capacity
 (index):27 [GPUState] GoL zone buffers: 8 zones × 32×32 grid
-(index):27 [Cartridge] GPUState init:    14 ms
+(index):27 [Cartridge] GPUState init:    15 ms
 (index):27 [SPINE] validated: 9 update rows + 22 render rows + 12 dispatch rows name-checked; O-#/RC laws static-asserted
 (index):27 Loaded shader from: ../../../src/cartridges/the_board/realization/world.wgsl
 (index):27 [Renderer] Shader compile:    15 ms
@@ -141,9 +141,9 @@
 (index):27          0 ms  shadow_wall_painting
 (index):27          0 ms  update_camera
 (index):27 
-(index):27 [Renderer] Compute pipelines: 7 ms
-(index):27 [Renderer] Render pipelines:  6 ms
-(index):27 [Renderer] Total pipelines:   14 ms
+(index):27 [Renderer] Compute pipelines: 12 ms
+(index):27 [Renderer] Render pipelines:  17 ms
+(index):27 [Renderer] Total pipelines:   29 ms
 (index):27 [Orbs] Configured: count=128 palette=jwst_deep drag=0.4 noise=0.3 rule=brownian rot=0.012 orbital=0.15 tiers=jwst_stars
 (index):27 [Mood] Applied: open_sunset (mood=0 outdoor)
 (index):27 [Agents] Spawned 10 for mood 0 around (0,0)
@@ -242,9 +242,9 @@
 (index):27 [Authored] Loaded: assets/paintings/PAINTING_109.jpeg (940x1280) → staging 31
 (index):27 [Authored] Scaled → 376x512 (aspect 0.7)
 (index):27 [Authored] Staged 32/57 images
-(index):27 [Cartridge] Renderer init:    57 ms
-(index):27 [Cartridge] Patch system:     56887 ms
-(index):27 [Cartridge] Total init:       56945 ms
+(index):27 [Cartridge] Renderer init:    113 ms
+(index):27 [Cartridge] Patch system:     51801 ms
+(index):27 [Cartridge] Total init:       51915 ms
 (index):27 
 (index):27 [GPU Budget] ---- allocation request, boot ----
 (index):27 [GPU Budget] buffers  13.2 MiB
@@ -262,12 +262,236 @@
 (index):27 [Incubator] the_board renderer ready
 (index):28 [Zoetrope] ears bound: 0 of 7 (mask 0x7F)
 printErr @ (index):28
+put_char @ the_board.js:1
+write @ the_board.js:1
+write @ the_board.js:1
+doWritev @ the_board.js:1
+_fd_write @ the_board.js:1
+$func749 @ the_board.wasm:0x7040c
+$func784 @ the_board.wasm:0x71952
+$func753 @ the_board.wasm:0x70848
+$func114 @ the_board.wasm:0xbc0b
+callUserCallback @ the_board.js:1
+runIter @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+setMainLoop @ the_board.js:1
+_emscripten_set_main_loop @ the_board.js:1
+$__main_argc_argv @ the_board.wasm:0x7b18
+callMain @ the_board.js:1
+run @ the_board.js:1
+await in run
+(anonymous) @ the_board.js:1
+Promise.then
+(anonymous) @ the_board.js:1
 (index):28 [SignalLayout] 12 sources unbound (no audio source)
 printErr @ (index):28
+put_char @ the_board.js:1
+write @ the_board.js:1
+write @ the_board.js:1
+doWritev @ the_board.js:1
+_fd_write @ the_board.js:1
+$func749 @ the_board.wasm:0x7040c
+$func784 @ the_board.wasm:0x71952
+$func753 @ the_board.wasm:0x70848
+$func114 @ the_board.wasm:0xbc27
+callUserCallback @ the_board.js:1
+runIter @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+setMainLoop @ the_board.js:1
+_emscripten_set_main_loop @ the_board.js:1
+$__main_argc_argv @ the_board.wasm:0x7b18
+callMain @ the_board.js:1
+run @ the_board.js:1
+await in run
+(anonymous) @ the_board.js:1
+Promise.then
+(anonymous) @ the_board.js:1
 (index):28 [the_board] fog.density base=0 valid=1 | fog.color base=1 count=3 valid=1
 printErr @ (index):28
+put_char @ the_board.js:1
+write @ the_board.js:1
+write @ the_board.js:1
+doWritev @ the_board.js:1
+_fd_write @ the_board.js:1
+$func749 @ the_board.wasm:0x7040c
+$func784 @ the_board.wasm:0x71952
+$func753 @ the_board.wasm:0x70848
+$func114 @ the_board.wasm:0xc309
+callUserCallback @ the_board.js:1
+runIter @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+setMainLoop @ the_board.js:1
+_emscripten_set_main_loop @ the_board.js:1
+$__main_argc_argv @ the_board.wasm:0x7b18
+callMain @ the_board.js:1
+run @ the_board.js:1
+await in run
+(anonymous) @ the_board.js:1
+Promise.then
+(anonymous) @ the_board.js:1
 (index):28 [the_board] terrain.checker_mean base=10 count=3 valid=1 | terrain.checker_var base=13 valid=1
 printErr @ (index):28
+put_char @ the_board.js:1
+write @ the_board.js:1
+write @ the_board.js:1
+doWritev @ the_board.js:1
+_fd_write @ the_board.js:1
+$func749 @ the_board.wasm:0x7040c
+$func784 @ the_board.wasm:0x71952
+$func753 @ the_board.wasm:0x70848
+$func114 @ the_board.wasm:0xc350
+callUserCallback @ the_board.js:1
+runIter @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+MainLoop_runner @ the_board.js:1
+requestAnimationFrame
+requestAnimationFrame @ the_board.js:1
+MainLoop_scheduler_rAF @ the_board.js:1
+setMainLoop @ the_board.js:1
+_emscripten_set_main_loop @ the_board.js:1
+$__main_argc_argv @ the_board.wasm:0x7b18
+callMain @ the_board.js:1
+run @ the_board.js:1
+await in run
+(anonymous) @ the_board.js:1
+Promise.then
+(anonymous) @ the_board.js:1
 (index):27 Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit
 (index):27 
 (index):27 [Ribbon] SPAWN slot=0 at (-22.7, -27.1) tier=0 len=562.0 near=(-1,-1) far=(1,-12)
@@ -275,4 +499,43 @@ printErr @ (index):28
 (index):1 A valid external Instance reference no longer exists.
 (index):28 [Device] LOST reason=1 : A valid external Instance reference no longer exists.
 printErr @ (index):28
-[NEW] Explain Console errors by using Copilot in Edge: click  to explain an error. Learn moreDon't show again
+put_char @ the_board.js:1
+write @ the_board.js:1
+write @ the_board.js:1
+doWritev @ the_board.js:1
+_fd_write @ the_board.js:1
+$func749 @ the_board.wasm:0x7040c
+$func782 @ the_board.wasm:0x717bd
+$func783 @ the_board.wasm:0x71857
+$func960 @ the_board.wasm:0x79f35
+$func848 @ the_board.wasm:0x77543
+$func882 @ the_board.wasm:0x77da0
+$func883 @ the_board.wasm:0x77df2
+$func401 @ the_board.wasm:0x4f621
+$func714 @ the_board.wasm:0x6ea9e
+$emwgpuOnDeviceLostCompleted @ the_board.wasm:0x6c562
+(anonymous) @ the_board.js:1
+callUserCallback @ the_board.js:1
+(anonymous) @ the_board.js:1
+Promise.then
+(anonymous) @ the_board.js:1
+callUserCallback @ the_board.js:1
+(anonymous) @ the_board.js:1
+Promise.then
+_emwgpuAdapterRequestDevice @ the_board.js:1
+$func398 @ the_board.wasm:0x4f4b5
+$func396 @ the_board.wasm:0x4ef6d
+$func726 @ the_board.wasm:0x6ef16
+$emwgpuOnRequestAdapterCompleted @ the_board.wasm:0x6ca76
+(anonymous) @ the_board.js:1
+callUserCallback @ the_board.js:1
+(anonymous) @ the_board.js:1
+Promise.then
+_emwgpuInstanceRequestAdapter @ the_board.js:1
+$__main_argc_argv @ the_board.wasm:0x7776
+callMain @ the_board.js:1
+run @ the_board.js:1
+await in run
+(anonymous) @ the_board.js:1
+Promise.then
+(anonymous) @ the_board.js:1
