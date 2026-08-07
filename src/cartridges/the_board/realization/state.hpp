@@ -3418,7 +3418,9 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
                     sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform);
+                    // C6: + Uniform for the g2 field_head_poses window; the
+                    // g0:122 ribbon-render window still binds as storage.
                 fieldForcesBuffer_ = makeBuffer("Field Forces",
                     sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP,
                     wgpu::BufferUsage::Storage);
@@ -5228,9 +5230,9 @@ namespace t7 {
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g2::field_head_poses;  // field_head_poses (read-only storage)
+                    entries[2].binding = bind::g2::field_head_poses;  // field_head_poses (uniform window — C6: demoted from read-only storage so the room family fits the 8-storage default; 6,400 B, well under the 64 KiB uniform cap)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[3].binding = bind::g2::field_forces;  // field_forces (read_write storage)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
