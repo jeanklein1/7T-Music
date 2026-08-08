@@ -59,6 +59,21 @@ ARTIFACTS = ["index.html", "the_board.js", "the_board.wasm", "the_board.data"]
 PAINTING_CAP = 512
 PAINTING_QUALITY = 82
 
+# THE OTHER NUMBER THE PROGRAM PINS, and unlike PAINTING_CAP this one is
+# a CEILING rather than a target. rotate_authored_staging (src/cartridges/
+# the_board/bodies/gallery.hpp) tracks which paintings are already in a
+# staging slot with `bool disk_in_use[256]`, and every read of it is
+# guarded `disk_idx < 256 && disk_in_use[disk_idx]` — so a manifest index
+# at or past the array does not overflow it, it SHORT-CIRCUITS to "not in
+# use". The dedupe fails open.
+#
+# It was a safe assumption while the manifest was a directory this repo
+# owned. EXHIBIT_0 made the manifest a deploy-time input, so the number
+# is worth stating on the side that can actually count the files. It is
+# declared here to be compared, not to be enforced: the array in
+# gallery.hpp is the source, this is its echo, and they move together.
+MANIFEST_DEDUPE_CAP = 256
+
 # The scan the program does, restated: name starts PAINTING_, extension
 # .jpg or .jpeg case-insensitively (gallery.hpp, scan_paintings_folder).
 PAINTING_EXTS = (".jpg", ".jpeg")
@@ -204,6 +219,25 @@ def main():
     if not paintings:
         print("  (no PAINTING_*.jpg|.jpeg under assets/paintings — the dist will")
         print("   carry an empty exhibition, which the program reads as no paintings.)")
+
+    if len(paintings) > MANIFEST_DEDUPE_CAP:
+        over = len(paintings) - MANIFEST_DEDUPE_CAP
+        print("")
+        print("  !! %d PAINTINGS — %d PAST THE ROTATION'S DEDUPE CAP OF %d"
+              % (len(paintings), over, MANIFEST_DEDUPE_CAP))
+        print("     Nothing here fails and the dist is still written: every painting")
+        print("     ships and every one of them hangs. What stops working is the")
+        print("     rotation's no-duplicates rule, and it stops SILENTLY.")
+        print("     rotate_authored_staging guards its bookkeeping with")
+        print("     `disk_idx < %d && disk_in_use[disk_idx]`, so an index past the"
+              % MANIFEST_DEDUPE_CAP)
+        print("     array reads as 'not in use' — fail-OPEN, not fail-safe. The")
+        print("     cursor can then hand painting #%d+ to two staging slots at once"
+              % MANIFEST_DEDUPE_CAP)
+        print("     and the same canvas hangs twice on one wall.")
+        print("     Curate under %d, or raise the array in gallery.hpp and this"
+              % MANIFEST_DEDUPE_CAP)
+        print("     constant together — they are one number in two files.")
 
     if missing:
         print("")

@@ -1719,6 +1719,32 @@ inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
     std::cout << "[Authored] Loaded: " << ctx->url
         << " (" << width << "x" << height << ") → staging " << ctx->staging_layer << "\n";
 
+    // ── THE DEVICE-LOST EXEMPTION, NAMED ─────────────────────────
+    // The call below ends in a queue WriteTexture, and this is the one
+    // GPU write in the program that does NOT sit under the frame gate
+    // (incubator_dual.cpp: `if (app->console.device_lost()) return;`).
+    // A fetch completion is a browser event, not a frame, so a painting
+    // that lands after the device is lost writes through a dead queue.
+    //
+    // That is allowed here, deliberately, and the reasoning is the
+    // whole comment:
+    //   · The gate's own warning is about NATIVE Dawn, where the loss
+    //     destroys the objects and driving them afterwards is heap
+    //     corruption. This path is __EMSCRIPTEN__-only and cannot reach
+    //     that case.
+    //   · On this twin the queue is a JS WebGPU handle. Per the spec,
+    //     work submitted to a lost device is dropped — a no-op, not a
+    //     fault.
+    //   · By the time it could happen the visitor is already looking at
+    //     the LOST card: console.hpp's loss callback prints
+    //     "[Device] LOST", and web/index.html treats that line as
+    //     terminal and replaces the world with the card.
+    //   · The exposure is bounded by AUTHORED_FETCH_INFLIGHT_CAP —
+    //     at most four uploads, once, into a page that is already over.
+    //
+    // So: NO SIGNAL, NO PLUMBING. Carrying a device-lost flag down to
+    // this callback would add a second source of truth about the
+    // device's health to buy nothing a dead page can spend.
     authored_stage_decoded_image(*ctx->gs, *ctx->gpu, ctx->queue,
         ctx->staging_layer, ctx->disk_index, data, width, height);
     stbi_image_free(data);
@@ -2046,6 +2072,16 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
 
     // Collect disk indices currently in unconsumed (surviving) slots
     // to avoid loading duplicates
+    // THE CAP FAILS OPEN, and that is worth naming where it lives. Every
+    // read below is guarded `disk_idx < 256 && disk_in_use[disk_idx]`, so
+    // an index past the array does not overflow — it short-circuits to
+    // "not in use", and the no-duplicates rule quietly stops applying to
+    // the overflow. A manifest of 300 can hang one canvas twice.
+    // "Generous" was true while this was a directory the repo owned;
+    // EXHIBIT_0 made the manifest a deploy-time input, so
+    // tools/web_dist.py mirrors this number as MANIFEST_DEDUPE_CAP and
+    // warns loudly when a dist exceeds it. THIS array is the source —
+    // raise it and that constant together.
     bool disk_in_use[256]{};  // generous upper bound
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed) {
