@@ -214,9 +214,9 @@ namespace t7 {
             constexpr float    PI = 3.14159265359f;
 
             // Atmosphere
-            constexpr float    FOG_COLOR_R = 0.85f;
-            constexpr float    FOG_COLOR_G = 0.78f;
-            constexpr float    FOG_COLOR_B = 0.72f;
+            constexpr float    FOG_COLOR_R = 0.62f;
+            constexpr float    FOG_COLOR_G = 0.52f;
+            constexpr float    FOG_COLOR_B = 0.42f;
 
             // Lighting
             // TWIN: world.wgsl `const SHADOW_MAP_SIZE: f32` (— Shadow

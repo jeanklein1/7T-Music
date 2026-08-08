@@ -299,7 +299,7 @@ inline constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 0: Serpentine — long, massive, slow motion
     {    70.0f,  7.0f,      // cube_count
           8.0f,  1.0f,      // cube_size
-         60.0f, 15.0f,      // height
+         110.0f, 15.0f,      // height
          10.0f,  0.6f,      // lateral_amp
           1.2f,  0.3f,      // lateral_cycles
           5.0f,  0.8f,      // vertical_amp
@@ -308,7 +308,7 @@ inline constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 1: Helix — tight sway, small cubes, slowest propagation
     {    85.0f, 12.0f,      // cube_count
           5.0f,  0.8f,      // cube_size
-         55.0f, 12.0f,      // height
+         105.0f, 12.0f,      // height
           3.5f,  0.6f,      // lateral_amp
           1.8f,  0.5f,      // lateral_cycles
           2.5f,  0.5f,      // vertical_amp
@@ -317,7 +317,7 @@ inline constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 2: Streamer — tall vertical form, deep breathing
     {    90.0f,  9.0f,      // cube_count
           6.0f,  0.8f,      // cube_size
-         70.0f, 20.0f,      // height
+         120.0f, 20.0f,      // height
           5.5f,  0.8f,      // lateral_amp
           1.5f,  0.4f,      // lateral_cycles
           8.0f,  1.2f,      // vertical_amp
