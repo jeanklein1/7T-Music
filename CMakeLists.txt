@@ -588,11 +588,20 @@ if(EMSCRIPTEN)
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
     )
     target_compile_options(incubator_dual PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
-    # MEMFS preload mappings chosen so the EXISTING relative reads
-    # resolve verbatim from CWD "/": gallery reads "assets/paintings"
-    # (hits /assets), the shader loader's 2nd search entry is
-    # "src/cartridges/the_board/realization/world.wgsl" (hits the
-    # explicit file mapping; verified renderer.hpp:1250-1251).
+    # ONE PRELOAD, AND IT IS PROGRAM (EXHIBIT_0 U3). The MEMFS mapping
+    # left is the shader: the loader's 2nd search entry is
+    # "src/cartridges/the_board/realization/world.wgsl" and it hits this
+    # explicit file mapping verbatim from CWD "/" (verified
+    # renderer.hpp:1250-1251). world.wgsl is rebuilt when the PROGRAM
+    # changes, so it belongs in the bundle the program ships as.
+    #
+    # The assets@/assets mapping is GONE. It put the entire exhibition
+    # inside the_board.data, which meant every repainted wall and every
+    # new canvas cost a link — the compiler woken by a curator. The
+    # paintings and the soundtrack are now plain files beside the
+    # program, assembled by tools/web_dist.py and fetched by URL at
+    # runtime (gallery.hpp, the __EMSCRIPTEN__ forms). Nothing else read
+    # /assets: the gallery scan was its only consumer on this twin.
     # PORT_2a — THE STACK. Emscripten's default STACK_SIZE dropped from
     # 5MB to 64KB in 3.1.27; Windows gives the native twin 1MB. At -O2
     # stack-overflow checking is OFF, so an overflow does not abort — it
@@ -613,7 +622,6 @@ if(EMSCRIPTEN)
         "-sFETCH"
         ${T7_WEB_OPT}
         ${T7_WEB_DIAG}
-        "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@/assets"
         "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl@/src/cartridges/the_board/realization/world.wgsl"
     )
     set_target_properties(incubator_dual PROPERTIES
