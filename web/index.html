@@ -122,10 +122,54 @@
        the sticks; until then the hint would be a lie on a phone. */
     @media (pointer: coarse) { #hint { display: none; } }
     @media (prefers-reduced-motion: reduce) { #veil.lifting { transition: none; } }
+
+    /* ── STATE 4 — READY ──────────────────────────────────────────
+       ATMOS_0. Not a new card: the SAME veil, one line different. The
+       poster and the wordmark do not move, because nothing about the
+       piece changed — only what the visitor is being told. The status
+       line stops being a report and becomes a door, in the button
+       vocabulary this file already speaks (.btn, below). Placeholder
+       wording and placeholder weight; the aesthetic pass owns both.
+
+       The whole veil is the target, so the gesture is the one a phone
+       actually makes. The log toggle and its pane opt out in JS. */
+    #veil.ready { cursor: pointer; }
+    #veil.ready #status {
+      color: var(--ink);
+      border: 1px solid #33323c; border-radius: 2px;
+      padding: 11px 22px;
+      letter-spacing: .06em;
+    }
+    #veil.ready #status:focus-visible { border-color: var(--dim); outline: none; }
+
+    /* SHORT VIEWPORTS — a phone held sideways. The overlay column is
+       poster + wordmark + line + toggle, and at 340px the poster alone
+       is most of a landscape phone's height: everything under it fell
+       off the bottom. Pre-existing, and cosmetic while the clipped line
+       was a status report — but in READY that line is the DOOR, and in
+       FALLBACK/LOST the same clip takes "Open it again" with it.
+       The poster yields first, because it is the part that carries no
+       instruction. Portrait is untouched: at 844px tall none of this
+       matches. (The frame itself was never the problem — the canvas
+       fills both orientations by construction, PORT_3c + --app-h.) */
+    @media (max-height: 560px) {
+      .poster { width: min(340px, 74vw, 42vh); }
+      .layer  { gap: 14px; padding: 16px 24px; }
+    }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
+
+  <!-- ATMOS_0 — THE SOUNDTRACK, AND THE ONLY AUDIO PATH IN THE PIECE.
+       preload="none" and no src attribute: nothing crosses the wire
+       until the entry gesture assigns data-src and calls play(), which
+       is also the only moment iOS will accept. The URL has ONE home,
+       here, and EXHIBIT_0's web_dist.py is what puts the file at it.
+       This element is the future AnalyserNode socket — when the piece
+       starts listening to itself, it listens here. Nothing else in the
+       shell may create or touch audio. -->
+  <audio id="music" loop preload="none" data-src="music/samsara.mp3"></audio>
   <div id="hint" hidden>click to capture the cursor &middot; WASD moves &middot; 5&ndash;8 change moods</div>
 
   <!-- ── STATE 1 — LOADING ─────────────────────────────────────── -->
@@ -174,6 +218,7 @@
     var hint    = document.getElementById('hint');
     var logEl   = document.getElementById('log');
     var logEl2  = document.getElementById('log2');
+    var music   = document.getElementById('music');
 
     // TWO flags, not one. `terminal` means a designed END was reached —
     // FALLBACK or LOST — and nothing may override it. `shown` merely
@@ -184,6 +229,23 @@
     var terminal = false;
     var shown    = false;
     var lines    = [];            // the raw log, for the tap-to-open panel
+
+    // ATMOS_0 — TWO MORE, AND NEITHER OUTRANKS ANYTHING. `entered` is
+    // "the visitor has made the gesture", which is a fact about the
+    // VISITOR and survives every state change. `ready` is "the veil is
+    // currently offering the door", which is a fact about the SCREEN and
+    // any card takes it away. They are separate because the gesture can
+    // arrive before the offer does — an eager visitor mid-boot — and
+    // that gesture must not be thrown away: audio and fullscreen are
+    // only grantable inside it.
+    var entered = false;
+    var ready   = false;
+
+    // Audio state. `musicWasPlaying` is the ONLY thing that decides a
+    // resume, so a visitor who was given silence stays in silence.
+    var musicWasPlaying = false;
+    var wakeLock        = null;
+    var wakeLockPending = false;
 
     // CONTACT — Jean's, and deliberately a placeholder. This page is
     // built to be deployed publicly; publishing a personal address is
@@ -245,9 +307,39 @@
       setTimeout(function () { if (!terminal) veil.hidden = true; }, 950);
     }
 
+    // ATMOS_0 — LOADING -> READY. The world is ALREADY LIVE behind this;
+    // the tap reveals it, it does not boot it. L10 stands: there is still
+    // exactly one way for the world to come into being, and this is not
+    // a second one.
+    //
+    // Shaped as present()'s sibling on purpose — same terminal guard,
+    // same card-clearing. A watchdog card may be on screen (it sets
+    // `shown` without `terminal`, and hides the veil), and the boot
+    // arriving is exactly the moment that card stops being true.
+    function showReady() {
+      if (terminal) return;               // a real end outranks the door
+      card.hidden = true;                 // clears a watchdog card, if any
+      veil.hidden = false;                // ...which had hidden the veil
+      ready = true;
+      // Set BEFORE the wording, so no late boot line can overwrite it:
+      // say() writes only while !shown. It also disarms the watchdog,
+      // correctly — the watchdog fires when a boot neither presents nor
+      // fails, and this boot presented.
+      shown = true;
+      statusEl.textContent = ENTRY_WORDS;
+      statusEl.setAttribute('role', 'button');
+      statusEl.setAttribute('tabindex', '0');
+      veil.classList.add('ready');
+    }
+
     function showCard(say, sub, offerReload) {
       shown = true;
       veil.hidden = true;
+      // The door is gone with the veil that carried it. Clearing the
+      // class as well as the element keeps a hidden node from holding an
+      // interactive state it can no longer honour.
+      ready = false;
+      veil.classList.remove('ready');
       cardSay.textContent = say;
       cardSub.innerHTML = sub;
       reload.hidden = !offerReload;
@@ -284,6 +376,147 @@
     // L10 — the world has exactly one way to come into being. A reload
     // is the honest retry; an auto-retry would be a second door.
     reload.addEventListener('click', function () { window.location.reload(); });
+
+    // ═══ ATMOS_0 — THE ENTRY GESTURE ═══════════════════════════════
+    //
+    // Three things a browser will only grant inside a real gesture, and
+    // one that needs no permission at all. Each is INDEPENDENT and
+    // non-fatal: a phone with no Fullscreen API, no Wake Lock, or a
+    // codec it will not play still gets the piece. Every failure is
+    // recorded to the log panel rather than swallowed, because "the
+    // music did not start" is a thing a visitor may want to look up.
+
+    var ENTRY_WORDS = 'tap to enter';   // placeholder; the aesthetic pass owns the words
+
+    // 1 — THE SOUNDTRACK. src is assigned HERE, not in the markup: with
+    // preload="none" and no src the element costs nothing until this
+    // moment, and this moment is the one iOS accepts.
+    function startMusic() {
+      if (!music) { record('[shell] audio: no element'); return; }
+      try {
+        if (!music.getAttribute('src')) music.setAttribute('src', music.dataset.src || '');
+        // THE INTENT IS RECORDED SYNCHRONOUSLY, before the promise. A
+        // visitor who taps and immediately pockets the phone would
+        // otherwise be read as "was not playing" by the visibility
+        // handler — play() has not resolved yet, so the element is still
+        // paused — and the piece would sing on, unpaused, in a pocket.
+        // This flag means "sound is wanted", which is knowable now;
+        // whether a decoder has caught up is not.
+        musicWasPlaying = true;
+        var p = music.play();
+        if (p && p.then) {
+          p.then(function () {
+            // ...and the same race from the other side: if the tab went
+            // away while the decoder was starting, honour it on arrival.
+            if (document.hidden) music.pause();
+          }, function (err) {
+            musicWasPlaying = false;      // it never started; nothing to resume
+            record('[shell] audio did not start: ' + err);
+          });
+        }
+      } catch (err) {
+        musicWasPlaying = false;
+        record('[shell] audio did not start: ' + err);
+      }
+    }
+
+    // 2 — FULLSCREEN, coarse pointers only. The same gate the hint uses
+    // (@media (pointer: coarse)). A desktop visitor's entry is already
+    // the pointer-lock hint, and taking their window away would be a
+    // second, louder answer to a question they did not ask.
+    function goFullscreen() {
+      try {
+        if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+        var el = document.documentElement;
+        var req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) { record('[shell] fullscreen: unavailable (older iOS stays in-page)'); return; }
+        var r = req.call(el);
+        if (r && r.catch) r.catch(function (err) { record('[shell] fullscreen refused: ' + err); });
+      } catch (err) { record('[shell] fullscreen refused: ' + err); }
+    }
+
+    // 3 — WAKE LOCK. Absent API is a silent skip, not a log line: a
+    // browser that never had the feature is not a failure to report.
+    // The lock is dropped by the browser whenever the page hides, so
+    // the visibility handler below re-asks rather than assuming.
+    function requestWakeLock() {
+      if (!navigator.wakeLock || !navigator.wakeLock.request) return;
+      if (wakeLock || wakeLockPending) return;
+      wakeLockPending = true;
+      try {
+        navigator.wakeLock.request('screen').then(function (sentinel) {
+          wakeLockPending = false;
+          wakeLock = sentinel;
+          sentinel.addEventListener('release', function () { wakeLock = null; });
+        }, function (err) {
+          wakeLockPending = false;
+          record('[shell] wake lock refused: ' + err);
+        });
+      } catch (err) {
+        wakeLockPending = false;
+        record('[shell] wake lock refused: ' + err);
+      }
+    }
+
+    // ONE HANDLER. It is bound before the boot even starts, so an eager
+    // visitor who taps mid-load is not ignored: the gesture is spent on
+    // 1-3 immediately (it cannot be banked — the browser only honours it
+    // now) and the reveal still waits for the world, arriving on the
+    // "Controls:" line exactly as it does today.
+    function onEntryGesture(e) {
+      if (terminal) return;
+      // The details toggle and its pane are controls, not the door.
+      if (e && e.target && e.target.closest && e.target.closest('.logToggle, .log')) return;
+      if (!entered) {
+        entered = true;
+        startMusic();
+        goFullscreen();
+        requestWakeLock();
+      }
+      if (ready) {
+        ready = false;
+        veil.classList.remove('ready');
+        statusEl.removeAttribute('role');
+        statusEl.removeAttribute('tabindex');
+        present();
+      }
+    }
+
+    // pointerdown, not click: it is the earliest event the browser will
+    // accept as a gesture, and on a phone the difference is the gap
+    // between the finger landing and the piece answering.
+    veil.addEventListener('pointerdown', onEntryGesture);
+    // The keyboard's way in. A gesture is a gesture — this unlocks audio
+    // and fullscreen exactly as the finger does.
+    statusEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        onEntryGesture(e);
+      }
+    });
+
+    // ── ATMOS_0 U2 — THE PIECE DOES NOT SING FROM A POCKET ────────
+    // Hidden pauses unconditionally; visible resumes ONLY if it was
+    // playing, so silence chosen (or never granted) stays chosen. The
+    // wake lock is re-asked here because the browser drops it on hide —
+    // and only if the visitor ever entered, so a backgrounded LOADING
+    // tab does not quietly hold the screen awake.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        // Unconditional: pausing something already paused costs nothing,
+        // and musicWasPlaying is not re-derived from element state here
+        // — it is the visitor's standing answer, set at the gesture.
+        if (music) { try { music.pause(); } catch (err) { /* nothing to pause */ } }
+        return;
+      }
+      if (music && musicWasPlaying) {
+        try {
+          var p = music.play();
+          if (p && p.catch) p.catch(function (err) { record('[shell] audio did not resume: ' + err); });
+        } catch (err) { record('[shell] audio did not resume: ' + err); }
+      }
+      if (entered) requestWakeLock();
+    });
 
     // ── STATUS: boot phases -> plain words ───────────────────────
     //
@@ -350,7 +583,15 @@
       // the cleanest "world visible" moment the log offers. Boot's
       // FADE_IN covers the rest, so the veil cross-dissolves into the
       // fade rather than cutting to a finished frame.
-      if (text.indexOf('Controls:') === 0) { present(); return; }
+      //
+      // ATMOS_0 forks the destination, not the trigger: a visitor who
+      // already tapped gets the world now, exactly as before; one who
+      // has not gets the door. Either way the world is live from this
+      // line onward — the veil is the only thing still deciding.
+      if (text.indexOf('Controls:') === 0) {
+        if (entered) present(); else showReady();
+        return;
+      }
 
       classify(text);
     }
