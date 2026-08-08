@@ -26,19 +26,26 @@ inline constexpr float THEME_BASE_WEIGHT = 10.0f;
 
 // ═══ MOOD × FAMILY SPAWN MULTIPLIERS ═══════════════════════════════
 // WHAT: the mood term of the composition law — presence × proportion
-//   per family per mood. The table currently rests at IDENTITY: the
-//   one row that carried zeros was the reference mood, and it was
-//   cut. It stays as a live control surface — 0 would still mean
-//   absent, and the veto path (veto_on_zero_mood) is live, just
-//   unexercised.
+//   per family per mood. A live control surface: 0 means absent. The
+//   veto path (veto_on_zero_mood) is live but the generic preamble
+//   declines it and multiplies through instead — MIN1 clamps the top
+//   only, so a zero survives the stack to the gate.
 // AXES: row = mood id (mood_constants order, F-3 kin); column =
 //   PopFamily order, PINNED by F-1 (roster.hpp).
 // Frozen biography: values feed the spawn gates.
+//
+// RIBBON × the two indoor moods is this table's only departure from
+// identity, and it is HELD, not ruled. Two faults, one cause: the
+// miniature never sat inside the mood's clamps, and propagation_speed
+// is authored in outdoor units/s, so shrinking the body raised the
+// head's oscillation rate by 1/scale. The indoor treatment in
+// bodies/ribbon.hpp stays, dormant behind these two cells. Raise them
+// and both faults return with them.
 //                              pyr   arch  col   ant   palm  cact  blade sph   rib   cube  gol   gal
 inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
     /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
 };
 
