@@ -8049,23 +8049,39 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     agent_state[slot] = agent;
 }
 
-// ─── Indoor bounds resolve — THE ONE LAW (walls + ceiling) ───────
-// The exact clamp math extracted from update_camera's indoor
-// boundary block, margins unchanged (wall 2.0, ceiling 3.0 — the
-// camera's own; per-body margins wait for a percept to ask). The
-// has-bounds / ceiling > 0 gates live INSIDE, so the function is
-// identity outdoors and every caller stays one line. Readers:
-// update_camera, update_sphere, update_cube.
-fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
-    var p = pos;
+// ─── THE WORLD BOX — one spelling of the finite-bounds inset ─────
+// [bmin + margin, bmax - margin] on both axes; identity outdoors.
+// The vec2's .y IS THE Z AXIS — config.world_bound_min/max are (x, z),
+// as the vec3 callers' `bmin.y → p.z` line already was.
+//
+// THE BOX IS HALF-OPEN. bmax is the EXCLUSIVE edge of the outermost
+// patch: bmax = (finite_radius + 1) * PATCH_EXTENT, and patches run to
+// finite_radius. floor(bmax / PATCH_EXTENT) indexes a cell that does not
+// exist; sample_terrain_y_at answers 0.0 there, the walker stands on it,
+// and the slope law then reads the way back as a cliff. A caller passing
+// margin = 0 puts a body on that coordinate. Every caller passes a
+// positive margin, and that is the law — not a coincidence.
+fn world_box_clamp_xz(xz: vec2<f32>, margin: f32) -> vec2<f32> {
+    var p = xz;
     let bmin = config.world_bound_min;
     let bmax = config.world_bound_max;
     let has_bounds = (bmin.x != 0.0 || bmin.y != 0.0 || bmax.x != 0.0 || bmax.y != 0.0);
     if (has_bounds) {
-        let wall_margin = 2.0;       // don't let the body press into walls
-        p.x = clamp(p.x, bmin.x + wall_margin, bmax.x - wall_margin);
-        p.z = clamp(p.z, bmin.y + wall_margin, bmax.y - wall_margin);
+        p.x = clamp(p.x, bmin.x + margin, bmax.x - margin);
+        p.y = clamp(p.y, bmin.y + margin, bmax.y - margin);
     }
+    return p;
+}
+
+// ─── Indoor bounds resolve — walls (via the box) + ceiling ───────
+// Readers: update_camera, update_sphere, update_cube. The 2.0 is the
+// CAMERA'S OWN margin, now stated at the call site instead of inside
+// the law — which is what let the pawn pass its own.
+fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
+    var p = pos;
+    let cxz = world_box_clamp_xz(vec2(p.x, p.z), 2.0);  // don't let the body press into walls
+    p.x = cxz.x;
+    p.z = cxz.y;
     // Ceiling clamp (works for any mood with a ceiling_height > 0)
     if (config.ceiling_height > 0.0) {
         let ceiling_margin = 3.0;
