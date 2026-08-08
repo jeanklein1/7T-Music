@@ -4933,9 +4933,10 @@ fn pawn_profile_radius(t: f32) -> f32 {
 
 
 // --- Pawn figure helpers (CLOSURE_PAWN) --------------------------------
-// Placed below pawn_profile_radius / pawn_profile_normal_2d (WGSL requires
-// declaration-before-use; eval_profile_radius calls pawn_profile_radius) and
-// above pawn_vs / shadow_pawn_vs so both entry points see them.
+// Between the primitive they call (pawn_profile_radius — eval_profile_radius
+// calls it) and the two entry points that consume them (pawn_vs,
+// shadow_pawn_vs). Locality, not a constraint: module-scope declarations are
+// order-independent in WGSL, and this file relies on that in ~40 places.
 
 // Segment shape vocabulary — mirrors STACKED_SHAPES / PawnShape (H1).
 fn profile_shape(shape: u32, u: f32, rb: f32, rt: f32) -> f32 {
@@ -5010,8 +5011,10 @@ fn eval_profile_radius(fig: PawnFigure, is_regular: bool, t: f32) -> f32 {
     return smooth_profile_radius(fig, t);
 }
 
-// Profile normal in (t, r) space — same finite-diff scheme as
-// pawn_profile_normal_2d (normalized; aspect-correct normals are a later nicety).
+// Profile normal in (t, r) space — central finite difference on
+// eval_profile_radius, normalized (aspect-correct normals are a later nicety).
+// There is no regular-pawn twin to match: that branch folds in through
+// eval_profile_radius's is_regular arm rather than standing as its own function.
 fn eval_profile_normal_2d(fig: PawnFigure, is_regular: bool, t: f32) -> vec2<f32> {
     let eps = 0.005;
     let t0 = max(0.0, t - eps);
