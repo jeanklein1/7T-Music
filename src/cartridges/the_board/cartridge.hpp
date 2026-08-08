@@ -810,6 +810,19 @@ namespace t7 {
                 // (CLOSURE_PAWN [6]). Idempotent: set_pawn_tilt_tau only dirties on a
                 // real change, so the per-frame call costs nothing while the figure
                 // stays put.
+                //
+                // NOT A GATED BLOCK — the braces are scope, not a condition, and
+                // no enclosing one exists. All three fields below are authored on
+                // every frame the update spine runs: this is UPDATE_SPINE[0]
+                // (FillSignal) behind a literal-true roster gate, upload_config
+                // rides UPDATE_SPINE[6] (StageFadeUpload) behind another, and the
+                // agent kernels dispatch later still from the RENDER spine. No
+                // dispatch can therefore read a value this block did not author,
+                // and config_{}'s zero-init is unreachable by the GPU — the same
+                // ordering the fpv_eye_height rest pin in initialize() already
+                // states. Recorded here because for pawn_body_radius a zero is
+                // not a degraded margin, it IS HEM_0's defect, and the next
+                // reader should not have to re-derive that it cannot happen.
                 {
                     const uint32_t sid = agent_state_.slots[player_.possessed_slot].skin_id;
                     gpuState_.set_pawn_tilt_tau(
@@ -822,8 +835,14 @@ namespace t7 {
                     // EXCLUSIVE edge of the patch set. Derived here for the
                     // same reason the eye height below is: the compute stage
                     // cannot see agent_figure_profiles.
+                    // The out-of-range arm reads figure 0's radius rather than a
+                    // literal: pawn_figures.hpp's static_assert proves every ROW
+                    // of the table positive, and a bare 0.0f would sit outside
+                    // that proof's reach — the guard belongs inside the thing
+                    // that makes the law true.
                     gpuState_.set_pawn_body_radius(
-                        sid < PAWN_FIGURE_COUNT ? PAWN_FIGURES[sid].radius : 0.0f);
+                        sid < PAWN_FIGURE_COUNT ? PAWN_FIGURES[sid].radius
+                                                : PAWN_FIGURES[0].radius);
 
                     // FPV eye height follows the possessed figure (TUNE_1 A3).
                     // Derived here and not in the shader because
