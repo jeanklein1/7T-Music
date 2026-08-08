@@ -62,6 +62,7 @@
 #include <algorithm>
 #include <vector>
 #include <chrono>
+#include <cstdint>     // uint64_t / UINT64_MAX — the touch table's birth counter (SHIP_1)
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -114,6 +115,69 @@ namespace t7 {
     // Nothing releases it: Emscripten does not run static destructors
     // (EXIT_RUNTIME is off and main never returns — it unwinds).
     inline wgpu::Instance g_instanceAnchor;
+#endif
+
+#ifdef __EMSCRIPTEN__
+    // ═══ SHIP_1 — TOUCH ══════════════════════════════════════════════
+    //
+    // THE PANEL. CameraControls' form, one module over: one organized
+    // block, clear names, editable without hunting. It lives HERE and
+    // not beside CameraControls because the gesture machine lives here —
+    // the console owns the hand, the cartridge owns what the hand means.
+    //
+    // EVERY LENGTH IS CSS PIXELS. EmscriptenTouchPoint::targetX/targetY
+    // are CSS px (clientX minus the canvas rect), and glfwGetWindowSize
+    // reports CSS px too, so the midline and the stick are measured in
+    // the same units the finger moves in. Feel therefore survives
+    // devicePixelRatio — a 3x phone does not get a 3x-twitchy stick,
+    // which is exactly the trap PORT_3c's cap comment warns about from
+    // the other side.
+    struct TouchControls {
+        // The stick's throw: the drag at which the move vector reaches
+        // full magnitude. About a thumb's comfortable arc.
+        static constexpr float STICK_RADIUS    = 64.0f;
+        // Below this the vector is exactly ZERO, not small — a resting
+        // thumb must not walk the pawn.
+        static constexpr float STICK_DEAD_ZONE = 8.0f;
+        // Radians per CSS pixel. SEPARATE from the mouse's
+        // CameraControls::look_sensitivity by design: a thumb sweeps a
+        // fraction of the arc a mouse does, so one number cannot serve
+        // both hands.
+        static constexpr float LOOK_SENS_TOUCH = 0.006f;
+        // Zoom units per CSS pixel of separation change. Feeds the same
+        // zoom_delta channel the scroll wheel feeds.
+        static constexpr float PINCH_SENS      = 0.06f;
+        // A tap declares itself by a clean quick release; a pinch
+        // declares itself by separation change OR by outliving this.
+        static constexpr double TAP_MS         = 220.0;
+        // Movement past this and the touch was never a tap.
+        static constexpr float TAP_SLOP        = 12.0f;
+        // Separation change past this declares a pinch immediately,
+        // without waiting out TAP_MS.
+        static constexpr float PINCH_DECLARE   = 8.0f;
+    };
+
+    // ONE TRACKED FINGER. `left` is decided once, at birth, and never
+    // again — a thumb that slides across the midline keeps the identity
+    // it was born with, so a wide drag cannot silently become a
+    // different gesture halfway through.
+    struct TouchPoint {
+        int      id      = -1;
+        bool     active  = false;
+        bool     left    = false;
+        uint64_t seq     = 0;       // birth order: who is primary, who is second
+        float    x = 0.0f,  y = 0.0f;    // current, CSS px, canvas-relative
+        float    x0 = 0.0f, y0 = 0.0f;   // where it landed
+        double   t0 = 0.0;               // when it landed, ms
+        bool     slopped = false;        // has moved past TAP_SLOP since landing
+    };
+
+    // The port's default canvas selector (Config.h kDefaultCanvasSelector).
+    // lib_emscripten_glfw3.js registers it into specialHTMLTargets at
+    // glfwInit, so findEventTarget resolves this exact string to the exact
+    // element the port registered its own touch handlers on. That identity
+    // is what makes the deregistration below hit its target.
+    inline constexpr const char* TOUCH_TARGET = "Module['canvas']";
 #endif
 
     class Console {
@@ -262,6 +326,11 @@ namespace t7 {
                 if (console) console->inject_scroll(static_cast<float>(yoffset));
                 });
 
+#ifdef __EMSCRIPTEN__
+            // SHIP_1 U1 — after the window exists, because the port
+            // registered ITS touch handlers inside glfwCreateWindow.
+            claim_touch_stream();
+#endif
             return true;
         }
 
@@ -878,6 +947,22 @@ namespace t7 {
         // tree consumes only deltas, so the previous position is console
         // state — not a static hiding in a callback body.
         void feed_cursor(double x, double y) {
+#ifdef __EMSCRIPTEN__
+            // SHIP_1 U1 — THE BACKSTOP. claim_touch_stream() removed the
+            // port's touch handlers, so nothing should synthesize a
+            // cursor from a finger any more. Should is not a guarantee:
+            // the port re-registers its listeners whenever it rebuilds
+            // them, and ATMOS_0 made a fullscreen transition part of the
+            // normal entry. If that ever resurrects the emulation, this
+            // turns a silent double-drive — two consumers fighting over
+            // one look delta — into nothing at all. The origin is kept
+            // current so a real mouse afterwards does not jump.
+            if (any_touch_active()) {
+                lastCursorX_ = x;
+                lastCursorY_ = y;
+                return;
+            }
+#endif
             if (!cursorPrimed_) {
                 lastCursorX_ = x;
                 lastCursorY_ = y;
@@ -902,6 +987,9 @@ namespace t7 {
         }
 
         void inject_mouse_button(int button, bool pressed) {
+#ifdef __EMSCRIPTEN__
+            if (any_touch_active()) return;   // the backstop's other half
+#endif
             InputEvent event{};
             event.type = InputEvent::Type::MouseButton;
             event.button = button;
@@ -915,6 +1003,184 @@ namespace t7 {
             event.y = delta;
             inputEvents_.push_back(event);
         }
+
+#ifdef __EMSCRIPTEN__
+        // ═══ SHIP_1 U1 — THE TOUCH STREAM, CLAIMED ═══════════════
+        //
+        // THE PROBLEM, precisely. contrib.glfw3 registers its own
+        // touchstart/move/end/cancel handlers on the canvas inside
+        // glfwCreateWindow and converts each one to setCursorPos +
+        // mouse-button-left — which is why a drag already rotates the
+        // camera on a phone today, by accident. The port exposes NO
+        // lever to turn that off: not a port option (disableWarning,
+        // disableJoystick, disableMultiWindow, disableWebGL2,
+        // optimizationLevel — that is the whole list), not a window
+        // hint, not a function in emscripten_glfw3.h.
+        //
+        // THE LEVER IS HTML5.H'S OWN. In JSEvents.registerOrRemoveHandler
+        // a NON-null callback appends a listener and leaves any existing
+        // one in place — so simply registering ours would give two live
+        // consumers of one finger, which is the failure this whole unit
+        // exists to prevent. A NULL callback takes the other branch and
+        // removes every handler matching (target, eventType), unbinding
+        // with the useCapture each was stored with. So: null first, ours
+        // second.
+        //
+        // The target string is load-bearing. lib_emscripten_glfw3.js
+        // does specialHTMLTargets["Module['canvas']"] = Module.canvas at
+        // glfwInit, and findEventTarget checks specialHTMLTargets before
+        // querySelector — so this literal resolves to the same element
+        // the port used, which is the only reason the removal matches.
+        void claim_touch_stream() {
+            // 1 — the port's handlers, off.
+            emscripten_set_touchstart_callback(TOUCH_TARGET, nullptr, true, nullptr);
+            emscripten_set_touchmove_callback(TOUCH_TARGET, nullptr, true, nullptr);
+            emscripten_set_touchend_callback(TOUCH_TARGET, nullptr, true, nullptr);
+            emscripten_set_touchcancel_callback(TOUCH_TARGET, nullptr, true, nullptr);
+
+            // 2 — ours, on. Every handler returns true, which makes
+            // html5.h call preventDefault — and THAT is what suppresses
+            // the browser's compatibility mouse events. Without it the
+            // emulation would come back through the port's MOUSE door
+            // after we closed its touch one.
+            emscripten_set_touchstart_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
+            emscripten_set_touchmove_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
+            emscripten_set_touchend_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
+            emscripten_set_touchcancel_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
+
+            std::cout << "[Touch] Claimed the canvas touch stream ("
+                << TOUCH_TARGET << ")\n";
+        }
+
+        bool any_touch_active() const {
+            for (const TouchPoint& t : touches_) if (t.active) return true;
+            return false;
+        }
+
+    private:
+        // ── The table ────────────────────────────────────────────
+        // Four slots: two per half is every named gesture, and the
+        // vocabulary says extras are ignored rather than queued.
+        static constexpr int MAX_TRACKED_TOUCHES = 4;
+
+        TouchPoint* find_touch(int id) {
+            for (TouchPoint& t : touches_) if (t.active && t.id == id) return &t;
+            return nullptr;
+        }
+
+        // Primary = earliest born in that half; secondary = next.
+        // Birth order, not slot order: a lifted finger frees its slot and
+        // the survivors must not be reshuffled by who happens to sit
+        // where.
+        TouchPoint* half_touch(bool left, int rank) {
+            TouchPoint* out = nullptr;
+            uint64_t best = UINT64_MAX;
+            uint64_t floor_seq = 0;
+            for (int r = 0; r <= rank; r++) {
+                out = nullptr; best = UINT64_MAX;
+                for (TouchPoint& t : touches_) {
+                    if (!t.active || t.left != left) continue;
+                    if (t.seq < floor_seq) continue;
+                    if (t.seq < best) { best = t.seq; out = &t; }
+                }
+                if (!out) return nullptr;
+                floor_seq = best + 1;
+            }
+            return out;
+        }
+
+        int half_count(bool left) const {
+            int n = 0;
+            for (const TouchPoint& t : touches_) if (t.active && t.left == left) n++;
+            return n;
+        }
+
+        // THE MIDLINE, in the same CSS pixels the touch reports. Read
+        // per event rather than cached: a rotation changes it, and a
+        // stale midline would classify a thumb into the wrong half for
+        // one gesture — the exact bug the born-in rule exists to avoid.
+        float midline_css() const {
+            int w = 0, h = 0;
+            glfwGetWindowSize(window_, &w, &h);
+            (void)h;
+            return w > 0 ? static_cast<float>(w) * 0.5f : 0.0f;
+        }
+
+        void clear_all_touches() {
+            for (TouchPoint& t : touches_) t = TouchPoint{};
+        }
+
+        static bool touch_cb(int eventType, const EmscriptenTouchEvent* e, void* userData) {
+            auto* self = static_cast<Console*>(userData);
+            if (self && e) self->on_touch(eventType, *e);
+            return true;   // preventDefault — see claim_touch_stream
+        }
+
+        void on_touch(int eventType, const EmscriptenTouchEvent& e) {
+            if (eventType == EMSCRIPTEN_EVENT_TOUCHCANCEL) {
+                // U1's rule, flat: cancel clears EVERYTHING. A cancelled
+                // gesture has no ending to interpret, so the only honest
+                // reading is that no finger is down.
+                clear_all_touches();
+                return;
+            }
+
+            const float mid = midline_css();
+
+            for (int i = 0; i < e.numTouches; i++) {
+                const EmscriptenTouchPoint& p = e.touches[i];
+                if (!p.isChanged) continue;
+
+                const float px = static_cast<float>(p.targetX);
+                const float py = static_cast<float>(p.targetY);
+
+                if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART) {
+                    if (find_touch(p.identifier)) continue;      // already tracked
+                    TouchPoint* slot = nullptr;
+                    for (TouchPoint& t : touches_) if (!t.active) { slot = &t; break; }
+                    if (!slot) continue;                          // extras are ignored
+                    slot->id      = p.identifier;
+                    slot->active  = true;
+                    slot->left    = (px < mid);                   // decided ONCE
+                    slot->seq     = nextTouchSeq_++;
+                    slot->x = slot->x0 = px;
+                    slot->y = slot->y0 = py;
+                    slot->t0      = e.timestamp;
+                    slot->slopped = false;
+                    continue;
+                }
+
+                TouchPoint* t = find_touch(p.identifier);
+                if (!t) continue;
+
+                if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE) {
+                    t->x = px;
+                    t->y = py;
+                    const float ddx = t->x - t->x0, ddy = t->y - t->y0;
+                    if (ddx * ddx + ddy * ddy >
+                        TouchControls::TAP_SLOP * TouchControls::TAP_SLOP) {
+                        t->slopped = true;   // never a tap again
+                    }
+                    continue;
+                }
+
+                if (eventType == EMSCRIPTEN_EVENT_TOUCHEND) {
+                    t->x = px;
+                    t->y = py;
+                    on_touch_lift(*t, e.timestamp);
+                    *t = TouchPoint{};
+                    continue;
+                }
+            }
+        }
+
+        // U1 has no gestures yet — the table is claimed and maintained,
+        // and nothing reads it. U2 (stick), U3 (look), U4 (pinch) and
+        // U5 (taps) each add one reader.
+        void on_touch_lift(TouchPoint& t, double now_ms) { (void)t; (void)now_ms; }
+
+    public:
+#endif   // __EMSCRIPTEN__
 
         // ── Consumer (main loop reads then clears) ───────────────
 
@@ -1011,6 +1277,11 @@ namespace t7 {
     private:
         // ── Window ───────────────────────────────────────────────
         GLFWwindow* window_ = nullptr;
+#ifdef __EMSCRIPTEN__
+        // ── SHIP_1 — the claimed touch stream ────────────────────
+        TouchPoint touches_[MAX_TRACKED_TOUCHES]{};
+        uint64_t   nextTouchSeq_ = 1;   // 0 stays "never born"
+#endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;
         uint32_t currentWidth_ = 0;
