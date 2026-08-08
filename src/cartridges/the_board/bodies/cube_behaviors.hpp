@@ -669,29 +669,34 @@ struct CubeTierRow {
 //   s; ASPECT_Y/Z / FACE_VARIANCE = multipliers; spin_tilt_sigma =
 //   radians. CONSUMERS: cube_get_tier_profile (generic sampling);
 //   spin_tilt_sigma at cube write_gpu.
+// BOB_PERIOD σ (TEMPO_0): held at CV ≈ 0.15. Bob frequency is 1/period, so a
+// wide σ is asymmetric in the percept — −1σ speeds a cube more than +1σ slows
+// it, and the low tail ran into the 0.5 s CUBE_PARAM_DEFS floor. A narrow σ
+// keeps the Gaussian locally linear in frequency. For a slower field, raise μ;
+// do not widen σ.
 // Biography determinant — frozen biography (§12).
 inline constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
     /* 0: SmallCube */ {
         { 0.40f, 0.0f, { {1.8f, 0.5f}, {25.0f, 20.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
-                   {1.0f, 0.3f}, {5.0f, 1.5f},
+                   {1.0f, 0.3f}, {5.0f, 0.6f},
                    {1.0f, 0.15f}, {1.0f, 0.15f}, {0.18f, 0.06f} }},
         0.12f
     },
     /* 1: MedCube   */ {
         { 0.32f, 0.0f, { {4.0f, 1.2f}, {45.0f, 30.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
-                   {1.5f, 0.4f}, {6.0f, 2.0f},
+                   {1.5f, 0.4f}, {6.0f, 0.9f},
                    {1.0f, 0.20f}, {1.0f, 0.20f}, {0.20f, 0.07f} }},
         0.10f
     },
     /* 2: LargeCube */ {
         { 0.20f, 0.0f, { {8.0f, 2.5f}, {75.0f, 45.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
-                   {2.0f, 0.5f}, {8.0f, 2.5f},
+                   {2.0f, 0.5f}, {8.0f, 1.4f},
                    {1.0f, 0.25f}, {1.0f, 0.25f}, {0.16f, 0.05f} }},
         0.08f
     },
     /* 3: Monolith  */ {
         { 0.08f, 0.0f, { {3.0f, 0.8f}, {12.0f, 8.0f}, {12.0f, 3.0f}, {0.015f, 0.005f},
-                   {1.2f, 0.3f}, {6.0f, 2.0f},
+                   {1.2f, 0.3f}, {6.0f, 0.9f},
                    {5.0f, 1.2f}, {0.15f, 0.03f}, {0.20f, 0.06f} }},
         0.10f
     },
