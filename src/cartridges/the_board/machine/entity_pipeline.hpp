@@ -1027,7 +1027,10 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
     aa.is_back_portal = false;
     aa.position_hash = cpu_hash(inst.seed, ArchProp::ROTATION + 100u);
     aa.destination = PortalDestination{};
-    if (inst.tier_idx == static_cast<uint32_t>(ArchTier::DOORWAY)) {
+    if (inst.tier_idx == static_cast<uint32_t>(ArchTier::DOORWAY)
+        && !c->world_state_.finite_mode) {
+        // PORTAL_2 — the triad is a finite world's whole roster. A
+        // dispatch DOORWAY indoors stays an arch; it opens nowhere.
         float portal_roll = cpu_hash_f(inst.seed, ArchProp::ROTATION + 200u);
         if (portal_roll < PORTAL_DENSITY) {
             aa.is_portal = true;
