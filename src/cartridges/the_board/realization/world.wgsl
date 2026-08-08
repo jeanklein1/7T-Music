@@ -7009,10 +7009,16 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         agent.pos_z += o_push.y * signal.dt;
     }
 
-    // --- Finite world boundary clamp
-    if (config.world_bound_max.x > 0.0) {
-        agent.pos_x = clamp(agent.pos_x, config.world_bound_min.x, config.world_bound_max.x);
-        agent.pos_z = clamp(agent.pos_z, config.world_bound_min.y, config.world_bound_max.y);
+    // --- Finite world boundary clamp — THE BODY, NOT THE POINT (HEM_0).
+    // The legal box is inset by the possessed figure's own radius
+    // (config.pawn_body_radius, CPU-authored from PAWN_FIGURES[skin] on the
+    // wire pawn_tilt_tau already rides). The inset is not cosmetic: see
+    // world_box_clamp_xz for why bmax is not a coordinate a body may hold.
+    {
+        let cxz = world_box_clamp_xz(vec2(agent.pos_x, agent.pos_z),
+                                     config.pawn_body_radius);
+        agent.pos_x = cxz.x;
+        agent.pos_z = cxz.y;
     }
 
     // --- Ground resolve: single query_ground_walker call.
