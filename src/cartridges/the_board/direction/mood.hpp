@@ -114,6 +114,16 @@ inline constexpr float PORTAL_COLORS[MOOD_COUNT][3] = {
     { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
 };
 inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
+// PORTAL_1 — THE ONE DERIVATION. A portal's colour is a fact about its
+// DESTINATION, so it is derived from the destination and never stored twice.
+// Every producer of a portal's appearance calls this; none of them reads the
+// tables directly. Cohort: mood.hpp precedes the machine natives, which is
+// why they can. grounded.hpp precedes THIS file and therefore cannot — the
+// force-spawn channel receives the result as a parameter, computed here by
+// force_spawn_portal_at on its behalf.
+inline const float* portal_color_for(const PortalDestination& dest, bool is_back) {
+    return is_back ? PORTAL_COLOR_BACK : PORTAL_COLORS[dest.mood % MOOD_COUNT];
+}
 
 // ═══ INDOOR WALL PALETTE ═════════════════════════════════════════
 //
@@ -880,9 +890,7 @@ inline uint32_t force_spawn_portal_at(MoodDeps* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal,
     MachineCtx& machine_ctx) {
-    const float* pc = is_back_portal
-        ? PORTAL_COLOR_BACK
-        : PORTAL_COLORS[dest.mood % MOOD_COUNT];
+    const float* pc = portal_color_for(dest, is_back_portal);
 
     uint32_t slot = force_spawn_portal_arch(machine_ctx.entities_state_, &machine_ctx, queue,
         cx, cz, rotation, dest, is_back_portal, pc);
