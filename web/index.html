@@ -70,6 +70,12 @@
          bigger than this box on any phone. Clipped here rather than
          left to the body. */
       overflow: hidden;
+      /* The library measures this box with parseInt and TRUNCATES, while
+         --app-h comes from a routinely fractional visualViewport.height —
+         so the canvas can sit up to a pixel short of the frame. That
+         strip is #frame, not #canvas, and would otherwise be the one
+         place on screen without the piece's gesture suppression. */
+      touch-action: none;
     }
     #canvas {
       display: block; outline: none;
@@ -88,6 +94,15 @@
       box-sizing: border-box; text-align: center;
       background: var(--bg);
       z-index: 10;
+      /* The same suppression the canvas has, for the same reason — and
+         FRAME_0 is what made it matter. sizeToViewport writes --app-h on
+         visualViewport 'scroll' too, and an iOS pinch-zoom moves that
+         continuously. Before FRAME_0 those writes reached nothing; now
+         each one resizes #frame, the canvas, the framebuffer, and costs
+         a surface Configure plus a fresh depth texture. The veil covers
+         the whole screen for the entire boot, so without this the boot
+         is pinch-zoomable and every pixel of it is a GPU reallocation. */
+      touch-action: none;
     }
     .layer[hidden] { display: none; }
     #veil.lifting { opacity: 0; pointer-events: none; transition: opacity 900ms ease; }
@@ -445,7 +460,16 @@
             // away while the decoder was starting, honour it on arrival.
             if (document.hidden) music.pause();
           }, function (err) {
-            musicWasPlaying = false;      // it never started; nothing to resume
+            // AbortError IS OUR OWN pause(). Per spec, pausing while a
+            // play promise is pending rejects it — and the visibility
+            // handler pauses unconditionally on hide. So the exact
+            // sequence this design exists to survive, tap-then-pocket,
+            // arrives here as a rejection. Reading it as "the visitor
+            // never got audio" would clear the intent, skip the resume
+            // AND skip the gesture rearm: the pocket would cost the
+            // soundtrack for the rest of the session. Only a refusal
+            // that is not ours withdraws consent.
+            if (!err || err.name !== 'AbortError') musicWasPlaying = false;
             record('[shell] audio did not start: ' + err);
           });
         }
@@ -565,7 +589,10 @@
         if (retrying) return;          // one tap, one attempt (both events fire)
         // The visitor may have hidden the tab again, or asked for
         // silence some other way, between the refusal and this touch.
-        if (!music || !musicWasPlaying || document.hidden) { disarm(); return; }
+        // `terminal` for the same reason onEntryGesture checks it: after
+        // LOST or FALLBACK the visitor is looking at an apology, and the
+        // soundtrack must not start over a dead world.
+        if (terminal || !music || !musicWasPlaying || document.hidden) { disarm(); return; }
         retrying = true;
         try {
           var p = music.play();
@@ -575,16 +602,27 @@
               record('[shell] audio restored by gesture');
               disarm();
             }, function (err) {
-              // Stay armed: another refusal is another chance, and the
-              // listener is already installed.
               retrying = false;
               record('[shell] audio still refused: ' + err);
+              // ONLY A MISSING GESTURE IS CURABLE BY A GESTURE. Stay
+              // armed for NotAllowedError — another touch is another
+              // chance. Anything else (an unsupported codec, a decode
+              // failure, a dead audio route) will refuse identically
+              // forever, and these listeners are capture-phase on
+              // document: in a piece driven by touch they would spend a
+              // play() and a log line on EVERY finger-down for the rest
+              // of the session.
+              if (!err || err.name !== 'NotAllowedError') disarm();
             });
           } else {
             retrying = false;
             disarm();
           }
-        } catch (err) { retrying = false; record('[shell] audio still refused: ' + err); }
+        } catch (err) {
+          retrying = false;
+          record('[shell] audio still refused: ' + err);
+          disarm();   // a throw is not a refusal a gesture can cure
+        }
       }
       // Capture phase, so a gesture consumed elsewhere (the entry tap,
       // a control) still counts as the gesture that pays for this.
