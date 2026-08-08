@@ -57,6 +57,7 @@
 #else
 #include <emscripten.h>
 #include <emscripten/html5.h>
+#include <GLFW/emscripten_glfw3.h>   // emscripten_glfw_make_canvas_resizable (FRAME_0)
 #endif
 
 #include <algorithm>
@@ -328,8 +329,64 @@ namespace t7 {
                 });
 
 #ifdef __EMSCRIPTEN__
+            // ═══ FRAME_0 — THE LINK THAT WAS NEVER MADE ══════════════
+            //
+            // The fluid frame was a contract with a missing middle. The
+            // shell tracked visualViewport into --app-h correctly; this
+            // file reconfigured the surface on any framebuffer change
+            // correctly, PORT_3c-capped. Between them, nothing: the
+            // library pins the canvas at glfwCreateWindow's size and
+            // enforces it with INLINE width/height
+            // (lib_emscripten_glfw3.js, emglfw3w_set_size — its own
+            // comment says "this will (on purpose) override any css
+            // setting"; it asks for !important and does not get it,
+            // because ctx.setCSSValue is a two-parameter arrow that
+            // drops the priority — which changes nothing, since a plain
+            // inline declaration already outranks a non-important author
+            // rule). A stylesheet rule cannot win that, so the
+            // canvas never moved, glfwGetFramebufferSize never changed,
+            // and the per-frame compare below had nothing to compare.
+            // One defect, three symptoms: a phone that fills neither
+            // orientation, and an F11 that grows the browser but not
+            // the world.
+            //
+            // This is the whole fix. The library observes #frame and
+            // sizes the canvas from it, so the chain finally runs end
+            // to end:
+            //   #frame  <- CSS, from --app-h (the shell, unchanged)
+            //   canvas  <- the library, from #frame
+            //   backing <- the library, canvas x devicePixelRatio
+            //   surface <- begin_frame's compare, PORT_3c-capped
+            //
+            // NO DPR HINT IS NEEDED, and that was worth checking rather
+            // than assuming: GLFW_SCALE_FRAMEBUFFER already defaults to
+            // GLFW_TRUE in the pinned port (Config.h:46), so the
+            // framebuffer is floor(css x monitorScale) (Window.cpp:326)
+            // and glfwGetWindowSize stays CSS px — exactly the two units
+            // apply_pixel_cap's ratio math already assumes. Setting the
+            // hint would have been a no-op; NOT having checked would
+            // have risked a phone rendering at CSS resolution.
+            //
+            // Failure is non-fatal by choice: a missing #frame leaves
+            // the pre-FRAME_0 behaviour (a fixed canvas), which is a
+            // worse frame but still a world.
+            if (emscripten_glfw_make_canvas_resizable(window_, "#frame", nullptr)
+                != EMSCRIPTEN_RESULT_SUCCESS) {
+                std::cerr << "[Frame] #frame not found — the canvas cannot track the page\n";
+            }
+            else {
+                std::cout << "[Frame] Canvas tracks #frame\n";
+            }
+
             // SHIP_1 U1 — after the window exists, because the port
             // registered ITS touch handlers inside glfwCreateWindow.
+            // Order against the resizable call above is IMMATERIAL, and
+            // the reason is worth stating so nobody preserves a
+            // constraint that does not exist: that call only QUEUES a
+            // resize request (Window.h, fResizeRequest), applied at the
+            // first glfwPollEvents; and the port registers its canvas
+            // listeners exactly once, at window creation, so no resize
+            // path can land between our deregistration and our claim.
             claim_touch_stream();
 #endif
             return true;
@@ -785,8 +842,16 @@ namespace t7 {
 
             surfaceConfig_.device = device_;
             surfaceConfig_.format = colorFormat_;
-            surfaceConfig_.width = initialWidth_;
-            surfaceConfig_.height = initialHeight_;
+            // FRAME_0 — CURRENT, not initial. pump_boot allocates the
+            // depth buffer from currentWidth_/currentHeight_, so reading
+            // a different pair here is a divergence waiting for someone
+            // to poll events during boot. Today nothing does and the two
+            // are seeded equal in init(), so this is a no-op — but
+            // FRAME_0 is what makes a resize reachable before this line,
+            // and initialWidth_/Height_ now have exactly one job:
+            // glfwCreateWindow's arguments.
+            surfaceConfig_.width = currentWidth_;
+            surfaceConfig_.height = currentHeight_;
             surfaceConfig_.presentMode = wgpu::PresentMode::Fifo;
             surfaceConfig_.alphaMode = wgpu::CompositeAlphaMode::Opaque;
             surface_.Configure(&surfaceConfig_);
@@ -827,9 +892,11 @@ namespace t7 {
         // resize branch stays quiet. Capping after the comparison would
         // reconfigure the surface every single frame.
         //
-        // The canvas ELEMENT still fills the page — web/index.html sizes
-        // it with CSS (width/height 100%), which is independent of the
-        // backing-store size this configures. Fewer pixels, same layout.
+        // The canvas ELEMENT is sized by the library from #frame
+        // (FRAME_0, in initGLFW above) — NOT by a CSS rule on the canvas,
+        // which is what this comment used to claim and what the element's
+        // own inline style always overrode. That CSS size is independent
+        // of the backing-store size this caps. Fewer pixels, same layout.
         void apply_pixel_cap(int& fbWidth, int& fbHeight) const {
             int winW = 0, winH = 0;
             glfwGetWindowSize(window_, &winW, &winH);
@@ -1020,6 +1087,22 @@ namespace t7 {
         // disableJoystick, disableMultiWindow, disableWebGL2,
         // optimizationLevel — that is the whole list), not a window
         // hint, not a function in emscripten_glfw3.h.
+        //
+        // WHAT THIS ACTUALLY REMOVES, corrected against the pinned port
+        // (FRAME_0 recon). Window.cpp registers exactly ONE touch
+        // listener on the canvas — touchstart — while Context.cpp
+        // registers touchstart/move/cancel/end on
+        // EMSCRIPTEN_EVENT_TARGET_DOCUMENT. Nulling the canvas target
+        // therefore removes one handler and leaves four live, so the
+        // port's emulation is NOT gone: what actually prevents the
+        // double-drive is the any_touch_active() backstop below, plus
+        // the ordering. The port's document listeners are BUBBLE phase
+        // (Events.h passes useCapture=false), and ours sit on the canvas
+        // — the target — so ours run FIRST and the table is populated
+        // before the port's synthesis reaches feed_cursor. Jean's
+        // ruling to keep the backstop was not a belt; it is the load-
+        // bearing half. Nulling the document target as well is a real
+        // option and a separate decision, not a silent one.
         //
         // THE LEVER IS HTML5.H'S OWN. In JSEvents.registerOrRemoveHandler
         // a NON-null callback appends a listener and leaves any existing

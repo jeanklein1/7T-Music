@@ -30,15 +30,48 @@
       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    /* THE CANVAS. Sized by CSS at 100% and NOTHING ELSE — console.hpp's
-       PORT_3c pixel cap reads glfwGetWindowSize (CSS px) against the
-       framebuffer size and derives the DPR from their ratio, and its
-       banner states the contract: "The canvas ELEMENT still fills the
-       page — web/index.html sizes it with CSS (width/height 100%)."
-       Setting .width/.height here would fight the cap. Do not. */
-    #canvas {
+    /* ── THE FRAME (FRAME_0) ──────────────────────────────────────
+       THE CANVAS IS NOT SIZED HERE, AND THE OLD COMMENT THAT SAID IT
+       WAS DESCRIBED AN INTENT THE LIBRARY WAS NEVER ASKED TO HONOR.
+       contrib.glfw3 writes width/height as INLINE styles on the canvas
+       element every time it sets a size (lib_emscripten_glfw3.js,
+       emglfw3w_set_size: "this will (on purpose) override any css
+       setting"). It asks for !important and does not get it — the call
+       passes a third argument to ctx.setCSSValue, which is a
+       two-parameter arrow, so the priority is dropped and the
+       declaration lands plain. It does not matter: a plain inline
+       declaration already outranks a non-important author rule by
+       cascade order, so a `#canvas { width: 100% }` here never applied
+       at all: the canvas stayed pinned at glfwCreateWindow's size,
+       glfwGetFramebufferSize never changed, and console.hpp's
+       per-frame reconfigure — real,
+       correct, PORT_3c-capped — was simply never fed. That is one
+       defect wearing three faces: a phone canvas that ignores both
+       orientations, and an F11 that grows the browser but not the world.
+
+       THIS DIV is the fix's other half. console.hpp calls
+       emscripten_glfw_make_canvas_resizable(window, "#frame", nullptr),
+       which puts a ResizeObserver on it; the library then sizes the
+       canvas from THIS element's computed size. So the chain is:
+
+         #frame  <- CSS, from --app-h (visualViewport, unchanged)
+         canvas  <- the library, from #frame
+         backing <- the library, canvas x devicePixelRatio
+         surface <- console.hpp's begin_frame compare, PORT_3c-capped
+
+       Every link is now present. The canvas keeps only what is NOT
+       size: display, and the gesture suppression SHIP_1 depends on. */
+    #frame {
       position: fixed; inset: 0;
       width: 100%; height: var(--app-h);
+      /* The canvas is an in-flow child now, and it carries the
+         library's inline size. Between glfwCreateWindow (1280x720) and
+         the first glfwPollEvents that applies the container size, it is
+         bigger than this box on any phone. Clipped here rather than
+         left to the body. */
+      overflow: hidden;
+    }
+    #canvas {
       display: block; outline: none;
       touch-action: none;                 /* no scroll/zoom hijacking the piece */
       -webkit-user-select: none; user-select: none;
@@ -159,7 +192,9 @@
   </style>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
+  <!-- FRAME_0 — the canvas's size comes from this container, not from a
+       CSS rule on the canvas the library overrides. See #frame above. -->
+  <div id="frame"><canvas id="canvas"></canvas></div>
 
   <!-- ATMOS_0 — THE SOUNDTRACK, AND THE ONLY AUDIO PATH IN THE PIECE.
        preload="none" and no src attribute: nothing crosses the wire
