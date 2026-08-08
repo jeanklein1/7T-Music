@@ -1048,6 +1048,13 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
             // correct value (MOSAIC_2b: the guard had two homes and they
             // disagreed across a cull cycle).
             aa.mosaic_seed = 0u;
+            // PORTAL_1 — the SAME decision, for the same reason, one line
+            // later. This is the only point in the tree that knows this arch
+            // is a portal while its appearance is still being set. col_* is
+            // now the ONE home of an arch's colour; every mesh-param producer
+            // reads it and asks nothing.
+            const float* pc = portal_color_for(aa.destination, aa.is_back_portal);
+            aa.col_r = pc[0]; aa.col_g = pc[1]; aa.col_b = pc[2];
         }
     }
 
