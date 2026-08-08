@@ -1030,9 +1030,16 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         margin = 8.0f;
     }
 
-    uint32_t count = 1;
-    if (c->world_state_.finite_radius >= 2) count = 2;
-    if (c->world_state_.finite_radius >= 3) count = 3;
+    // PORTAL_2 — THE TRIAD. A finite world offers exactly three
+    // doors: deeper in (one of the two rooms, seed's coin), out (the
+    // open field), and back (already standing). Two forwards here;
+    // the radius no longer buys doors.
+    constexpr uint32_t count = 2;
+    const uint32_t fwd_moods[2] = {
+        (cpu_hash_f(c->world_state_.active_seed, 7950u) < 0.5f)
+            ? MOOD_INDOOR_FLAT : MOOD_INDOOR_VAULT,
+        MOOD_OPEN_SUNSET,
+    };
 
     // Perimeter positions: distribute along the 4 walls
     struct PortalSpot {
@@ -1060,6 +1067,21 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         candidates[j] = tmp;
     }
 
+    // The back portal stands on one of these same four walls (its own
+    // WALL_MARGIN formula is this margin's twin), jittered ALONG that
+    // wall by at most room_half * 0.2 — far under the gap to any other
+    // wall, so the nearest candidate names its wall unambiguously.
+    uint32_t back_wall = 0;
+    {
+        float best = 3.4e38f;
+        for (uint32_t j = 0; j < num_candidates; j++) {
+            float dx = candidates[j].x - c->backPortalPosition_[0];
+            float dz = candidates[j].z - c->backPortalPosition_[1];
+            float d2 = dx * dx + dz * dz;
+            if (d2 < best) { best = d2; back_wall = j; }
+        }
+    }
+
     uint32_t spawned = 0;
     for (uint32_t i = 0; i < num_candidates && spawned < count; i++) {
         auto& spot = candidates[i];
@@ -1075,14 +1097,13 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
             jz += jitter;  // east/west wall: jitter along Z
         }
 
-        // Don't collide with back-portal (at backPortalPosition_)
-        float dbx = jx - c->backPortalPosition_[0];
-        float dbz = jz - c->backPortalPosition_[1];
-        if (dbx * dbx + dbz * dbz < 10.0f * 10.0f) continue;
+        // PORTAL_2 — three doors, three walls. The back portal owns
+        // its wall; forwards take the others.
+        if (i == back_wall) continue;
 
-        // Generate destination
+        // Fixed destinations by order: [0] deeper in, [1] the way out
         uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7800u + i);
-        uint32_t mood = pick_portal_mood(&machine_ctx, c->world_state_.active_seed, 7900u + i);
+        uint32_t mood = fwd_moods[spawned];
         const auto& mp = MOOD_TABLE[mood];
         PortalDestination dest{};
         dest.seed = dest_seed;
