@@ -875,8 +875,15 @@
       // the version has to reach them through the one hook Emscripten
       // offers. Same id as the script tag below: one program, one name.
       locateFile: function (path, prefix) { return prefix + path + '?v=' + BUILD; },
-      print:    function (t) { console.log(t);   onLine(t); },
-      printErr: function (t) { console.error(t); onLine(t); }
+      print:    function (t) { console.log(t); onLine(t); },
+      // console.log, not console.error, for BOTH streams. The program
+      // writes ordinary progress to stderr — every line the wasm prints
+      // through printErr was arriving decorated with a thirty-frame
+      // stack trace that describes the Emscripten glue and never the
+      // program. It halves the length of a phone session's log and
+      // costs nothing: the lines that matter are matched by text in
+      // onLine(), not by which stream carried them.
+      printErr: function (t) { console.log(t); onLine(t); }
     };
 
     // A wasm that never arrives is the other white page. 404, a broken
