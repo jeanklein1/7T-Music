@@ -62,6 +62,7 @@
 #include <algorithm>
 #include <vector>
 #include <chrono>
+#include <cmath>       // std::sqrt — the stick's magnitude (SHIP_1)
 #include <cstdint>     // uint64_t / UINT64_MAX — the touch table's birth counter (SHIP_1)
 #include <iostream>
 #include <string>
@@ -845,6 +846,9 @@ namespace t7 {
     public:
         float begin_frame() {
             glfwPollEvents();
+#ifdef __EMSCRIPTEN__
+            emit_touch_intents();   // SHIP_1 — the frame tick consumes the gestures
+#endif
 
             // Handle resize
             int fbWidth, fbHeight;
@@ -1174,10 +1178,58 @@ namespace t7 {
             }
         }
 
-        // U1 has no gestures yet — the table is claimed and maintained,
-        // and nothing reads it. U2 (stick), U3 (look), U4 (pinch) and
-        // U5 (taps) each add one reader.
         void on_touch_lift(TouchPoint& t, double now_ms) { (void)t; (void)now_ms; }
+
+        // ── U2: THE STICK ────────────────────────────────────────
+        // FLOATING ORIGIN: the stick is born where the thumb lands, so
+        // there is no fixed pad to find and no chrome to draw. The
+        // vector is the drag from that birthplace.
+        //
+        // The dead zone RESCALES rather than truncating: past its edge
+        // the magnitude starts at 0 and climbs to 1 at STICK_RADIUS. A
+        // plain truncation would make the first pixel past the dead zone
+        // jump straight to STICK_DEAD_ZONE/STICK_RADIUS of full speed —
+        // a lurch exactly where the thumb is trying to be gentle.
+        //
+        // Screen y grows downward and W is move_z -= 1, so a thumb
+        // pushed UP is forward with no sign flip: the drag IS the
+        // vector. Camera-relativity is the kernel's
+        // (coupling_input_to_pawn_velocity rotates by camera azimuth),
+        // and it does not renormalize — so this magnitude survives all
+        // the way to the step.
+        void stick_vector(float& out_x, float& out_z) {
+            out_x = 0.0f; out_z = 0.0f;
+            TouchPoint* s = half_touch(true, 0);
+            if (!s) return;
+            const float dx = s->x - s->x0;
+            const float dy = s->y - s->y0;
+            const float len = std::sqrt(dx * dx + dy * dy);
+            if (len <= TouchControls::STICK_DEAD_ZONE) return;   // exactly zero, not small
+            const float span = TouchControls::STICK_RADIUS - TouchControls::STICK_DEAD_ZONE;
+            float m = (len - TouchControls::STICK_DEAD_ZONE) / span;
+            if (m > 1.0f) m = 1.0f;                              // clamped at STICK_RADIUS
+            const float inv = m / len;
+            out_x = dx * inv;
+            out_z = dy * inv;
+        }
+
+        // Called once per frame from begin_frame, before the main loop
+        // drains the queue — the ledger's sampling law: a delta
+        // accumulated in a browser callback is consumed exactly once,
+        // on the frame tick.
+        void emit_touch_intents() {
+            // MOVE speaks every frame it is held, PLUS exactly one zero
+            // on release. A vector that only spoke when it changed would
+            // leave the pawn walking after the thumb left the glass.
+            const bool stick_live = (half_touch(true, 0) != nullptr);
+            if (stick_live || stickWasLive_) {
+                InputEvent e{};
+                e.type = InputEvent::Type::TouchMove;
+                stick_vector(e.x, e.y);
+                inputEvents_.push_back(e);
+            }
+            stickWasLive_ = stick_live;
+        }
 
     public:
 #endif   // __EMSCRIPTEN__
@@ -1281,6 +1333,7 @@ namespace t7 {
         // ── SHIP_1 — the claimed touch stream ────────────────────
         TouchPoint touches_[MAX_TRACKED_TOUCHES]{};
         uint64_t   nextTouchSeq_ = 1;   // 0 stays "never born"
+        bool       stickWasLive_ = false;   // so the release emits its zero exactly once
 #endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;

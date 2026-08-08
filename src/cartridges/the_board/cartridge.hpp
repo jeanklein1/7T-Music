@@ -166,6 +166,7 @@ namespace t7 {
             InputState inputState_;
             KeyState keys_;
             MouseState mouse_;
+            TouchMoveState touch_;   // SHIP_1 — the stick's organ; never written on native
             CameraControls camera_;   // the panel: look_sensitivity is live (KP_+/KP_-)
 
             // ═══ TIME STATE ═════════════════════════════════════════════
@@ -408,7 +409,7 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, sunDirection_, clearColor_ }
-                , input_deps_{ inputState_, keys_, mouse_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, camera_ }
+                , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, camera_ }
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
@@ -2208,6 +2209,17 @@ namespace t7 {
                 case InputEvent::Type::Scroll:
                     on_scroll(&input_deps_, event.y);
                     break;
+                // SHIP_1 — the touch doors. Each lands on the organ its
+                // mouse/key sibling lands on; the console already
+                // resolved which gesture this was.
+                case InputEvent::Type::TouchMove:
+                    on_touch_move(&input_deps_, event.x, event.y);
+                    break;
+                case InputEvent::Type::TouchLook:
+                case InputEvent::Type::TouchZoom:
+                case InputEvent::Type::TouchTapLeft:
+                case InputEvent::Type::TouchTapRight:
+                    break;   // U3/U4/U5
                 }
             }
 

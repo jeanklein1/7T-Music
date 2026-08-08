@@ -15,13 +15,26 @@
 
 namespace t7 {
 
+// SHIP_1 — THE TOUCH TYPES CARRY INTENT, NOT A DEVICE. A mouse event
+// says "the pointer moved by dx"; the console then decides, from a drag
+// flag, whether that meant look or pan. A finger has no buttons to hold,
+// so the console resolves the gesture first and the event that crosses
+// this boundary is already the ANSWER: this much move, this much look,
+// this much zoom. That is why there are no synthetic mouse or key events
+// here — a synthesized keypress would be a second home for an intent the
+// analog axes already hold.
 struct InputEvent {
     enum class Type {
         KeyDown,
         KeyUp,
         MouseMove,
         MouseButton,
-        Scroll
+        Scroll,
+        TouchMove,      // x, y = analog move vector, already dead-zoned and unit-clamped
+        TouchLook,      // x, y = look delta, LOOK_SENS_TOUCH already applied
+        TouchZoom,      // y    = zoom delta, PINCH_SENS already applied
+        TouchTapLeft,   // a clean two-finger-left tap  — the aura verb
+        TouchTapRight   // a clean two-finger-right tap — the possession verb
     };
     
     Type type;

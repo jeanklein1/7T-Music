@@ -106,6 +106,22 @@ struct MouseState {
     bool right_dragging = false;
 };
 
+// SHIP_1 — THE THUMB'S HALF OF THE UNIVERSAL MOVE CHANNEL. The stick
+// is analog where the keys are a four-way fold, so it cannot be
+// expressed as held-key booleans without inventing a synthetic
+// keypress — which would be a SECOND home for an intent move_x/move_z
+// already holds. It gets its own organ instead, and
+// update_movement_intent folds both hands into the one channel.
+//
+// The console writes this already dead-zoned and unit-clamped, in the
+// same axis convention the keys use (x right, z forward-negative).
+// Native never writes it — there are no touch callbacks there — so the
+// fold below is native-identical by construction, not by care.
+struct TouchMoveState {
+    float x = 0.0f;
+    float z = 0.0f;
+};
+
 // ═══ THE DEPS FACE ═══════════════════════════════════════════════
 //
 // Input's own organs plus its true reaches — the driver's face (v3
@@ -120,6 +136,7 @@ struct InputDeps {
     InputState&   inputState_;
     KeyState&     keys_;
     MouseState&   mouse_;
+    TouchMoveState& touch_;       // SHIP_1 — the stick's analog vector (zero on native)
     PlayerState&  player_;        // fpv — the anchor toggle (v3 §9 Act III)
     WorldState&   world_state_;   // active_radius — the radius command
     RibbonState&  ribbon_state_;  // unused since CUT_1e — the possession door (possess()) is retired; member kept: aggregate shape
@@ -143,6 +160,9 @@ void on_key_down(InputDeps* c, int key,
     MoodState& mood_state);
 void on_key_up(InputDeps* c, int key);
 void on_mouse_move(InputDeps* c, float dx, float dy);
+// SHIP_1 — the touch doors. Each writes the SAME organ its mouse/key
+// sibling writes; none of them invents a channel.
+void on_touch_move(InputDeps* c, float x, float z);
 void on_mouse_button(InputDeps* c, int button, bool pressed);
 void on_scroll(InputDeps* c, float delta);
 // Per-frame
@@ -285,6 +305,18 @@ inline void on_scroll(InputDeps* c, float delta) {
     c->inputState_.zoom_delta -= delta * CameraControls::SCROLL_ZOOM_SCALE;
 }
 
+// ═══ TOUCH (SHIP_1) ══════════════════════════════════════════════
+
+// The stick moved (or lifted — a lift is the zero vector, and it
+// arrives as an ordinary event so the release is not a special case).
+// Re-folds the move channel immediately, exactly as a key edge does:
+// the thumb has no key-up to piggyback on.
+inline void on_touch_move(InputDeps* c, float x, float z) {
+    c->touch_.x = x;
+    c->touch_.z = z;
+    update_movement_intent(c);
+}
+
 // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════
 
 inline void update_movement_intent(InputDeps* c) {
@@ -305,6 +337,25 @@ inline void update_movement_intent(InputDeps* c) {
     if (len > 1.0f) {
         c->inputState_.move_x /= len;
         c->inputState_.move_z /= len;
+    }
+
+    // SHIP_1 — THE SECOND HAND ON THE SAME WHEEL. The keys fold to a
+    // unit-or-less vector above; the stick arrives already dead-zoned
+    // and unit-clamped. Summing them lets both hands drive at once
+    // (a thumb walking while a key strafes) and the clamp below keeps
+    // the total honest — two hands cannot buy more than full speed.
+    //
+    // NATIVE: touch_ is never written there, so this adds 0, `total`
+    // equals `len` which the branch above already brought to <= 1, and
+    // the clamp cannot fire. WASD is equivalent before and after, by
+    // construction rather than by inspection.
+    c->inputState_.move_x += c->touch_.x;
+    c->inputState_.move_z += c->touch_.z;
+    float total = std::sqrt(c->inputState_.move_x * c->inputState_.move_x +
+        c->inputState_.move_z * c->inputState_.move_z);
+    if (total > 1.0f) {
+        c->inputState_.move_x /= total;
+        c->inputState_.move_z /= total;
     }
 }
 
