@@ -29,6 +29,7 @@
 # reason they are the candidates.
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -46,8 +47,25 @@ DIST_PAINTINGS = os.path.join(DIST, "paintings")
 DIST_MUSIC = os.path.join(DIST, "music")
 
 # index.html is SOURCE (tracked); the other three are build output
-# (.gitignore'd). All four ship.
+# (.gitignore'd). All four ship — but index.html is the only one that is
+# TRANSFORMED on the way (BUILDID_0), not copied.
 ARTIFACTS = ["index.html", "the_board.js", "the_board.wasm", "the_board.data"]
+
+# ── BUILDID_0 — THE STALE PAIR ───────────────────────────────────
+# The three build files always move together on disk, but their URLs
+# were constant across every deploy. A browser holding one from a
+# previous visit could therefore pair it with a fresh sibling — old glue
+# against new wasm, imports landing undefined. Cloudflare's
+# must-revalidate + ETag makes that rare, not impossible: a 304 on one
+# file and a 200 on another is the whole failure, and it lands on a
+# stranger's phone weeks later with no way to reproduce it.
+#
+# The id is the wasm's own hash, TRUNCATED ONLY FOR THE URL — so it
+# changes exactly when the program changes, and cannot drift from it.
+# A date stamp would have been a second fact about the same thing, and
+# would have busted every cache on a rebuild that changed nothing.
+BUILD_ID_PLACEHOLDER = "__BUILD_ID__"
+BUILD_ID_LEN = 12
 
 # THE SAME NUMBER THE PROGRAM STAGES AT. The authored loader scales every
 # painting to fit Dim::PAINTING_RESOLUTION (src/cartridges/the_board/
@@ -306,11 +324,36 @@ def main():
         print("(--check: nothing written)")
         return 0
 
+    # THE REFUSAL COMES FIRST, before rmtree — a shell that cannot be
+    # versioned must not cost the previous dist. Without this check a
+    # future edit to index.html silently restores the stale-pair defect
+    # and the symptom reappears weeks later on someone else's phone.
+    shell_src_path = os.path.join(WEB, "index.html")
+    with open(shell_src_path, "r", encoding="utf-8", newline="") as fh:
+        shell_src = fh.read()
+    if BUILD_ID_PLACEHOLDER not in shell_src:
+        print("")
+        print("REFUSING TO SHIP AN UNVERSIONED SHELL.")
+        print("  %s carries no %s placeholder." % (shell_src_path, BUILD_ID_PLACEHOLDER))
+        print("  Without it the .js/.wasm/.data URLs are constant across deploys and a")
+        print("  browser can pair a cached file with a fresh sibling — old glue against")
+        print("  new wasm. Restore `var BUILD = '%s';` in the shell." % BUILD_ID_PLACEHOLDER)
+        return 4
+
     if os.path.isdir(DIST):
         shutil.rmtree(DIST)
     os.makedirs(DIST)
     for f in ARTIFACTS:
         shutil.copy2(os.path.join(WEB, f), os.path.join(DIST, f))
+
+    # dist/index.html is GENERATED from here on, not copied. The hash is
+    # taken from the file that actually shipped, so the id names the
+    # bytes a visitor will run.
+    with open(os.path.join(DIST, "the_board.wasm"), "rb") as fh:
+        build_id = hashlib.sha256(fh.read()).hexdigest()[:BUILD_ID_LEN]
+    shell_out = shell_src.replace(BUILD_ID_PLACEHOLDER, build_id)
+    with open(os.path.join(DIST, "index.html"), "w", encoding="utf-8", newline="") as fh:
+        fh.write(shell_out)
 
     print("")
     print("EXHIBITION — assembling %d painting(s), %d track(s)" % (len(paintings), len(music)))
@@ -346,6 +389,9 @@ def main():
               % (mib(paintings_src_bytes), mib(paintings_dist_bytes),
                  100.0 * paintings_dist_bytes / paintings_src_bytes))
     print("  %s: %d painting(s), %d track(s)" % (EXHIBITION_JSON, len(paintings), len(music)))
+    print("  %-18s %s   <- sha256(the_board.wasm)[:%d]; the .js/.wasm/.data query"
+          % ("build id", build_id, BUILD_ID_LEN))
+    print("  %-18s %s" % ("", "Deploy twice without rebuilding and this must not change."))
 
     # The verdict above already weighed these, from source sizes. This is
     # the confirmation on the bytes actually written — and it is a hard

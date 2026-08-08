@@ -749,6 +749,26 @@
       return;
     }
 
+    // ── BUILDID_0 — A NAME THAT CHANGES WHEN THE PROGRAM CHANGES ──
+    //
+    // THIS FILE IS A SOURCE FILE AND IT DOES NOT BOOT. The three build
+    // artifacts always move together on disk, but their URLs were
+    // constant across every deploy — so a browser holding one from a
+    // previous visit could pair it with a fresh sibling: old glue
+    // against new wasm, imports landing undefined. Cloudflare's
+    // must-revalidate + ETag makes that rare, not impossible; a 304 on
+    // one file and a 200 on another is the whole failure.
+    //
+    // tools/web_dist.py substitutes the placeholder below with the first
+    // 12 hex of sha256(the_board.wasm) and writes the result to
+    // dist/index.html. dist/index.html is GENERATED; this copy is not a
+    // deployable page. Opening it directly asks for a script whose query
+    // is still the unsubstituted placeholder, and fails — correct and
+    // intended. The placeholder appears exactly ONCE in this file, on
+    // the next line, so the substitution has one target and the dist
+    // script's refusal-to-ship check has one thing to count.
+    var BUILD = '__BUILD_ID__';
+
     // contrib.glfw3 convention: its default canvas selector is literally
     // "Module['canvas']" (emscripten-glfw Config.h kDefaultCanvasSelector),
     // so handing the canvas to Module wires the GLFW window to it.
@@ -756,6 +776,10 @@
     // gesture — the browser requires one; hence the hint.
     window.Module = {
       canvas: document.getElementById('canvas'),
+      // The .wasm and the .data are fetched by the glue, not by us, so
+      // the version has to reach them through the one hook Emscripten
+      // offers. Same id as the script tag below: one program, one name.
+      locateFile: function (path, prefix) { return prefix + path + '?v=' + BUILD; },
       print:    function (t) { console.log(t);   onLine(t); },
       printErr: function (t) { console.error(t); onLine(t); }
     };
@@ -769,7 +793,7 @@
     });
 
     var s = document.createElement('script');
-    s.src = 'the_board.js';
+    s.src = 'the_board.js?v=' + BUILD;
     s.async = true;
     s.onerror = function () { fallback('the_board.js failed to load'); };
     document.body.appendChild(s);
