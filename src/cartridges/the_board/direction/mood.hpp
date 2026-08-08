@@ -279,7 +279,8 @@ struct LightSlotDef {
     float hfrac_mean, hfrac_sigma;    // ceiling: Z; walls: height
 };
 
-inline constexpr float SCHEME_WEIGHTS[] = { 0.35f, 0.35f, 0.15f, 0.15f };
+// Vault adds an uplight when count < 4, so MOOD_INDOOR_VAULT reads one row up.
+inline constexpr float SCHEME_WEIGHTS[] = { 0.42f, 0.43f, 0.10f, 0.05f };
 inline constexpr uint32_t SCHEME_COUNT = 4;
 inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
 inline constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
