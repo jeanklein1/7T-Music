@@ -1116,6 +1116,14 @@ namespace t7 {
             // half a look delta behind to arrive on the next tick.
             touchLookDx_ = 0.0f;
             touchLookDy_ = 0.0f;
+            touchZoomAccum_ = 0.0f;
+            pinchDeclared_ = false;
+        }
+
+        // ── U4: the right-half pair ──────────────────────────────
+        static float separation(const TouchPoint& a, const TouchPoint& b) {
+            const float dx = a.x - b.x, dy = a.y - b.y;
+            return std::sqrt(dx * dx + dy * dy);
         }
 
         static bool touch_cb(int eventType, const EmscriptenTouchEvent* e, void* userData) {
@@ -1155,6 +1163,20 @@ namespace t7 {
                     slot->y = slot->y0 = py;
                     slot->t0      = e.timestamp;
                     slot->slopped = false;
+
+                    // U4 — THE PAIR FORMS. Undecided on purpose: two
+                    // fingers on the right half are a pinch, a possess
+                    // tap, or nothing yet, and which one is not knowable
+                    // at the moment they land. The pair is born PENDING
+                    // and declares itself later, by separating or by
+                    // outliving TAP_MS.
+                    if (!slot->left && half_count(false) == 2) {
+                        TouchPoint* a = half_touch(false, 0);
+                        TouchPoint* b = half_touch(false, 1);
+                        rightPairT0_   = e.timestamp;
+                        rightPairSep_  = (a && b) ? separation(*a, *b) : 0.0f;
+                        pinchDeclared_ = false;
+                    }
                     continue;
                 }
 
@@ -1189,6 +1211,51 @@ namespace t7 {
                         touchLookDy_ += step_y;
                     }
 
+                    // ── U4: PINCH ───────────────────────────────
+                    // Only the right half, only as a pair. Separation is
+                    // read from the pair as a whole rather than from
+                    // either finger's motion, so sliding both fingers
+                    // across the glass together zooms nothing.
+                    if (!t->left && half_count(false) == 2) {
+                        TouchPoint* a = half_touch(false, 0);
+                        TouchPoint* b = half_touch(false, 1);
+                        if (a && b) {
+                            const float sep = separation(*a, *b);
+                            if (!pinchDeclared_) {
+                                // THE DISAMBIGUATOR. A pinch declares
+                                // itself two ways — by moving enough to
+                                // mean it, or by lasting longer than a
+                                // tap could. Until one of them fires the
+                                // pair is still a possible tap, and
+                                // nothing zooms.
+                                if (std::fabs(sep - rightPairSep_) > TouchControls::PINCH_DECLARE
+                                    || (e.timestamp - rightPairT0_) > TouchControls::TAP_MS) {
+                                    pinchDeclared_ = true;
+                                    // NO RE-BASELINE. The travel that
+                                    // proved this was a pinch is real
+                                    // pinch travel, and it is spent
+                                    // below against the separation the
+                                    // pair was BORN with. Discarding it
+                                    // would be a dead zone rather than a
+                                    // classifier: a browser that
+                                    // coalesces a whole fast spread into
+                                    // one touchmove would declare the
+                                    // pinch and zoom nothing, and the
+                                    // faster the gesture the more of it
+                                    // would vanish.
+                                }
+                            }
+                            if (pinchDeclared_) {
+                                const float dsep = sep - rightPairSep_;
+                                rightPairSep_ = sep;
+                                // SPREAD = IN. zoom_delta adds to camera
+                                // distance and closer IS zoomed in, so
+                                // growing separation must go negative.
+                                touchZoomAccum_ += -dsep * TouchControls::PINCH_SENS;
+                            }
+                        }
+                    }
+
                     const float ddx = t->x - t->x0, ddy = t->y - t->y0;
                     if (ddx * ddx + ddy * ddy >
                         TouchControls::TAP_SLOP * TouchControls::TAP_SLOP) {
@@ -1207,7 +1274,14 @@ namespace t7 {
             }
         }
 
-        void on_touch_lift(TouchPoint& t, double now_ms) { (void)t; (void)now_ms; }
+        void on_touch_lift(TouchPoint& t, double now_ms) {
+            (void)now_ms;
+            // A right finger leaving ends whatever the pair was. The
+            // survivor's look resumes on its own (U3 measures each
+            // finger's delta from its own last report), so there is
+            // nothing to re-origin here — only the verdict to forget.
+            if (!t.left) pinchDeclared_ = false;
+        }
 
         // ── U2: THE STICK ────────────────────────────────────────
         // FLOATING ORIGIN: the stick is born where the thumb lands, so
@@ -1272,6 +1346,16 @@ namespace t7 {
                 inputEvents_.push_back(e);
                 touchLookDx_ = 0.0f;
                 touchLookDy_ = 0.0f;
+            }
+
+            // ZOOM — the same channel the scroll wheel feeds, already
+            // signed and scaled.
+            if (touchZoomAccum_ != 0.0f) {
+                InputEvent e{};
+                e.type = InputEvent::Type::TouchZoom;
+                e.y = touchZoomAccum_;
+                inputEvents_.push_back(e);
+                touchZoomAccum_ = 0.0f;
             }
         }
 
@@ -1380,6 +1464,10 @@ namespace t7 {
         bool       stickWasLive_ = false;   // so the release emits its zero exactly once
         float      touchLookDx_ = 0.0f;     // raw CSS px, accumulated between ticks
         float      touchLookDy_ = 0.0f;
+        float      touchZoomAccum_ = 0.0f;  // already signed + scaled by PINCH_SENS
+        double     rightPairT0_ = 0.0;      // when the right-half pair formed
+        float      rightPairSep_ = 0.0f;    // its separation at the last reading
+        bool       pinchDeclared_ = false;  // pinch, or still a possible tap
 #endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;

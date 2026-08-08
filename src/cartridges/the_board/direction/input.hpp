@@ -164,6 +164,7 @@ void on_mouse_move(InputDeps* c, float dx, float dy);
 // sibling writes; none of them invents a channel.
 void on_touch_move(InputDeps* c, float x, float z);
 void on_touch_look(InputDeps* c, float dx, float dy);
+void on_touch_zoom(InputDeps* c, float delta);
 void on_mouse_button(InputDeps* c, int button, bool pressed);
 void on_scroll(InputDeps* c, float delta);
 // Per-frame
@@ -328,6 +329,15 @@ inline void on_touch_move(InputDeps* c, float x, float z) {
 inline void on_touch_look(InputDeps* c, float dx, float dy) {
     c->inputState_.look_az_delta += dx;
     c->inputState_.look_el_delta += dy;
+}
+
+// The pinch. ONE zoom channel: this is the same zoom_delta the scroll
+// wheel writes, clamped downstream by the kernel's CAMERA_MIN/MAX_DISTANCE
+// — no second dial, no touch-only range. The console already signed it
+// (spread = in) and scaled it by PINCH_SENS, so the only thing left is
+// which accumulator it belongs to.
+inline void on_touch_zoom(InputDeps* c, float delta) {
+    c->inputState_.zoom_delta += delta;
 }
 
 // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════
