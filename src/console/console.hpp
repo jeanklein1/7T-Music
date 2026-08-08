@@ -1118,6 +1118,9 @@ namespace t7 {
             touchLookDy_ = 0.0f;
             touchZoomAccum_ = 0.0f;
             pinchDeclared_ = false;
+            rightTapPending_ = false;
+            tapAuraPending_ = false;
+            tapPossessPending_ = false;
         }
 
         // ── U4: the right-half pair ──────────────────────────────
@@ -1206,9 +1209,17 @@ namespace t7 {
                     // from each finger's OWN previous position, the
                     // survivor of a lift resumes with a small step
                     // instead of a jump. No origin to reset by hand.
-                    if (!t->left && half_count(false) == 1) {
+                    if (!t->left && half_count(false) == 1 && !rightTapPending_) {
                         touchLookDx_ += step_x;
                         touchLookDy_ += step_y;
+                    }
+                    // The tap window closes on its own: once the pair
+                    // has outlived TAP_MS the survivor is just a look
+                    // again. Checked on movement because that is the
+                    // only moment the answer can matter.
+                    if (rightTapPending_
+                        && (e.timestamp - rightPairT0_) > TouchControls::TAP_MS) {
+                        rightTapPending_ = false;
                     }
 
                     // ── U4: PINCH ───────────────────────────────
@@ -1274,13 +1285,48 @@ namespace t7 {
             }
         }
 
+        // ── U5: THE CLEAN TAPS ───────────────────────────────────
+        // Both fire on RELEASE, not on press. A press-fired toggle
+        // commits before the gesture has said what it is — and the
+        // right-half tap in particular shares its opening frames with a
+        // pinch, so there is nothing to commit to yet.
+        //
+        // Called while `t` is still active, so half_count includes it.
         void on_touch_lift(TouchPoint& t, double now_ms) {
-            (void)now_ms;
-            // A right finger leaving ends whatever the pair was. The
-            // survivor's look resumes on its own (U3 measures each
-            // finger's delta from its own last report), so there is
-            // nothing to re-origin here — only the verdict to forget.
-            if (!t.left) pinchDeclared_ = false;
+            const bool clean = !t.slopped
+                && (now_ms - t.t0) <= TouchControls::TAP_MS;
+
+            if (t.left) {
+                // AURA — the SECOND left finger. Never the stick: the
+                // primary is the stick whether it is dragging or resting,
+                // so a tap is only ever a finger that is not it. That is
+                // what "the stick is never disturbed by the tap" means
+                // mechanically.
+                TouchPoint* primary = half_touch(true, 0);
+                if (clean && primary != &t) tapAuraPending_ = true;
+                return;
+            }
+
+            // POSSESS — both of a pair, clean, within one TAP_MS window
+            // measured from when the PAIR formed (not from each finger),
+            // and only if the pinch never declared itself.
+            if (pinchDeclared_) { rightTapPending_ = false; pinchDeclared_ = false; return; }
+
+            const bool in_window = (now_ms - rightPairT0_) <= TouchControls::TAP_MS;
+            if (half_count(false) == 2) {
+                // First of the pair. Arm, and hold the survivor's look
+                // for the rest of the window so a possess cannot nudge
+                // the camera on its way out.
+                TouchPoint* a = half_touch(false, 0);
+                TouchPoint* b = half_touch(false, 1);
+                rightTapPending_ = in_window && a && b && !a->slopped && !b->slopped;
+            }
+            else if (rightTapPending_) {
+                // Second of the pair.
+                if (in_window && !t.slopped) tapPossessPending_ = true;
+                rightTapPending_ = false;
+            }
+            pinchDeclared_ = false;
         }
 
         // ── U2: THE STICK ────────────────────────────────────────
@@ -1356,6 +1402,22 @@ namespace t7 {
                 e.y = touchZoomAccum_;
                 inputEvents_.push_back(e);
                 touchZoomAccum_ = 0.0f;
+            }
+
+            // THE TAPS — one event per recognized tap, then the flag is
+            // spent. Edge-fired by construction: the flag is only ever
+            // set by a release.
+            if (tapAuraPending_) {
+                InputEvent e{};
+                e.type = InputEvent::Type::TouchTapLeft;
+                inputEvents_.push_back(e);
+                tapAuraPending_ = false;
+            }
+            if (tapPossessPending_) {
+                InputEvent e{};
+                e.type = InputEvent::Type::TouchTapRight;
+                inputEvents_.push_back(e);
+                tapPossessPending_ = false;
             }
         }
 
@@ -1468,6 +1530,9 @@ namespace t7 {
         double     rightPairT0_ = 0.0;      // when the right-half pair formed
         float      rightPairSep_ = 0.0f;    // its separation at the last reading
         bool       pinchDeclared_ = false;  // pinch, or still a possible tap
+        bool       rightTapPending_ = false;// one of a clean pair has lifted; waiting on the other
+        bool       tapAuraPending_ = false; // edge-fired verbs, spent on the next tick
+        bool       tapPossessPending_ = false;
 #endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;

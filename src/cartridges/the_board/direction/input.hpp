@@ -165,6 +165,11 @@ void on_mouse_move(InputDeps* c, float dx, float dy);
 void on_touch_move(InputDeps* c, float x, float z);
 void on_touch_look(InputDeps* c, float dx, float dy);
 void on_touch_zoom(InputDeps* c, float delta);
+// The two clean-tap verbs. Shaped like on_key_down: the TARGET organs
+// ride the parameters, because the driver owns neither of them and the
+// root addresses them at the call site through the owner doors.
+void on_touch_tap_left(InputDeps* c, PawnState& pawn_state, PawnDeps& pawn_deps);
+void on_touch_tap_right(InputDeps* c, AgentState& agent_state, AgentsDeps& agents_deps);
 void on_mouse_button(InputDeps* c, int button, bool pressed);
 void on_scroll(InputDeps* c, float delta);
 // Per-frame
@@ -338,6 +343,24 @@ inline void on_touch_look(InputDeps* c, float dx, float dy) {
 // which accumulator it belongs to.
 inline void on_touch_zoom(InputDeps* c, float delta) {
     c->inputState_.zoom_delta += delta;
+}
+
+// ── The reserved taps, bound (SHIP_1 U5) ─────────────────────────
+// Recon found both verbs already in the kernel with desktop bindings, so
+// both slots bind rather than staying reserved. These call the SAME
+// owner doors the keys call — key 3 and CAPS_LOCK — so a thumb and a
+// keyboard reach one implementation, not two.
+
+// LEFT, second finger, clean tap — the aura (key 3's door).
+inline void on_touch_tap_left(InputDeps* c, PawnState& pawn_state, PawnDeps& pawn_deps) {
+    (void)c;
+    toggle_aura(pawn_state, &pawn_deps);
+}
+
+// RIGHT, two fingers, clean tap — possession (CAPS_LOCK's door).
+inline void on_touch_tap_right(InputDeps* c, AgentState& agent_state, AgentsDeps& agents_deps) {
+    wgpu::Queue q = c->device_.GetQueue();
+    try_possess_nearest(agent_state, &agents_deps, q);
 }
 
 // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════

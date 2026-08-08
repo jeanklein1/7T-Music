@@ -2222,8 +2222,11 @@ namespace t7 {
                     on_touch_zoom(&input_deps_, event.y);
                     break;
                 case InputEvent::Type::TouchTapLeft:
+                    on_touch_tap_left(&input_deps_, pawn_state_, pawn_deps_);
+                    break;
                 case InputEvent::Type::TouchTapRight:
-                    break;   // U3/U4/U5
+                    on_touch_tap_right(&input_deps_, agent_state_, agents_deps_);
+                    break;
                 }
             }
 
