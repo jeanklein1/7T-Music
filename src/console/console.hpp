@@ -1112,6 +1112,10 @@ namespace t7 {
 
         void clear_all_touches() {
             for (TouchPoint& t : touches_) t = TouchPoint{};
+            // Every accumulator too: a cancelled gesture must not leave
+            // half a look delta behind to arrive on the next tick.
+            touchLookDx_ = 0.0f;
+            touchLookDy_ = 0.0f;
         }
 
         static bool touch_cb(int eventType, const EmscriptenTouchEvent* e, void* userData) {
@@ -1158,8 +1162,33 @@ namespace t7 {
                 if (!t) continue;
 
                 if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE) {
+                    // The step since this finger's own last report. Taken
+                    // BEFORE the position is updated, and per-finger — so
+                    // a second touch arriving cannot inject a phantom
+                    // jump into the first one's delta.
+                    const float step_x = px - t->x;
+                    const float step_y = py - t->y;
                     t->x = px;
                     t->y = py;
+
+                    // ── U3: LOOK ────────────────────────────────
+                    // RIGHT half, ONE touch. The deltas are RAW here and
+                    // scaled at consumption (the ledger's sampling law:
+                    // accumulate in the callback, spend once on the frame
+                    // tick), so a browser that fires three touchmoves in
+                    // one frame turns them into one look, not three.
+                    //
+                    // The one-touch gate is also the pinch suspension:
+                    // while two fingers hold the right half this stops
+                    // accumulating, and because the delta is measured
+                    // from each finger's OWN previous position, the
+                    // survivor of a lift resumes with a small step
+                    // instead of a jump. No origin to reset by hand.
+                    if (!t->left && half_count(false) == 1) {
+                        touchLookDx_ += step_x;
+                        touchLookDy_ += step_y;
+                    }
+
                     const float ddx = t->x - t->x0, ddy = t->y - t->y0;
                     if (ddx * ddx + ddy * ddy >
                         TouchControls::TAP_SLOP * TouchControls::TAP_SLOP) {
@@ -1229,6 +1258,21 @@ namespace t7 {
                 inputEvents_.push_back(e);
             }
             stickWasLive_ = stick_live;
+
+            // LOOK — spent once, then zeroed. Silence when there is
+            // nothing to say: an unchanged camera needs no event.
+            if (touchLookDx_ != 0.0f || touchLookDy_ != 0.0f) {
+                InputEvent e{};
+                e.type = InputEvent::Type::TouchLook;
+                // LOOK_SENS_TOUCH applies HERE, at consumption — one
+                // multiply per frame instead of one per browser event,
+                // and one place to look when the feel is wrong.
+                e.x = touchLookDx_ * TouchControls::LOOK_SENS_TOUCH;
+                e.y = touchLookDy_ * TouchControls::LOOK_SENS_TOUCH;
+                inputEvents_.push_back(e);
+                touchLookDx_ = 0.0f;
+                touchLookDy_ = 0.0f;
+            }
         }
 
     public:
@@ -1334,6 +1378,8 @@ namespace t7 {
         TouchPoint touches_[MAX_TRACKED_TOUCHES]{};
         uint64_t   nextTouchSeq_ = 1;   // 0 stays "never born"
         bool       stickWasLive_ = false;   // so the release emits its zero exactly once
+        float      touchLookDx_ = 0.0f;     // raw CSS px, accumulated between ticks
+        float      touchLookDy_ = 0.0f;
 #endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;

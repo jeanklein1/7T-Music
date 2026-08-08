@@ -163,6 +163,7 @@ void on_mouse_move(InputDeps* c, float dx, float dy);
 // SHIP_1 — the touch doors. Each writes the SAME organ its mouse/key
 // sibling writes; none of them invents a channel.
 void on_touch_move(InputDeps* c, float x, float z);
+void on_touch_look(InputDeps* c, float dx, float dy);
 void on_mouse_button(InputDeps* c, int button, bool pressed);
 void on_scroll(InputDeps* c, float delta);
 // Per-frame
@@ -315,6 +316,18 @@ inline void on_touch_move(InputDeps* c, float x, float z) {
     c->touch_.x = x;
     c->touch_.z = z;
     update_movement_intent(c);
+}
+
+// The thumb's look. Lands on the SAME two deltas the mouse drag lands
+// on, with the same signs, so the camera cannot tell which hand moved
+// it. No drag gate: the mouse needs a held button to distinguish look
+// from an idle pointer, and a finger on the glass IS the held button.
+// Already scaled by LOOK_SENS_TOUCH at the console's frame tick — the
+// touch sensitivity is deliberately not CameraControls::look_sensitivity,
+// because a thumb sweeps a fraction of the arc a mouse does.
+inline void on_touch_look(InputDeps* c, float dx, float dy) {
+    c->inputState_.look_az_delta += dx;
+    c->inputState_.look_el_delta += dy;
 }
 
 // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════

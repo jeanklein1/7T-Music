@@ -2216,6 +2216,8 @@ namespace t7 {
                     on_touch_move(&input_deps_, event.x, event.y);
                     break;
                 case InputEvent::Type::TouchLook:
+                    on_touch_look(&input_deps_, event.x, event.y);
+                    break;
                 case InputEvent::Type::TouchZoom:
                 case InputEvent::Type::TouchTapLeft:
                 case InputEvent::Type::TouchTapRight:
