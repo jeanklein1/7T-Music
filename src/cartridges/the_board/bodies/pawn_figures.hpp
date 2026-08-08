@@ -311,6 +311,16 @@ inline constexpr uint32_t figure_family_base(PawnFamilyId fam) {
 
 // ── Witnesses ────────────────────────────────────────────────────────────────
 static_assert(PAWN_FIGURE_COUNT == 14, "PAWN_FIGURES must declare 14 figures");
+// HEM_0: the boundary clamp insets the legal box by the possessed figure's own
+// radius. A zero row would put a body on bmax — the EXCLUSIVE edge of the patch
+// set, where the baked sampler answers 0.0 and the walker believes it. Proved
+// here rather than guarded at the clamp.
+static_assert([] {
+    for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; i++)
+        if (!(PAWN_FIGURES[i].radius > 0.0f)) return false;
+    return true;
+}(), "every PAWN_FIGURES row needs a positive radius — HEM_0's inset is only "
+     "strictly interior to the patch set while that holds");
 static_assert(FIGURE_SHARES[FAM_REGULAR].share_pct
             + FIGURE_SHARES[FAM_SMOOTH].share_pct
             + FIGURE_SHARES[FAM_HERALDIC].share_pct == 100.0f,

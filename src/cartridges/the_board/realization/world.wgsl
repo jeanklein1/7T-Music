@@ -1706,7 +1706,12 @@ struct DesignConfig {
     field_gain_cube: f32,
     field_gain_sphere: f32,
     field_gain_agent: f32,
-    _pad624_0: f32,
+    // HEM_0 — the possessed figure's boundary inset (world units). Mirror of
+    // GPUDesignConfig.pawn_body_radius (state.hpp) — GROWTH LAW, same commit,
+    // same order, same type. Reuses the first FIELD_2b tail pad in place, so
+    // sizeof 624 is unmoved. Read by behavior_player_controlled's box clamp.
+    // Was _pad624_0.
+    pawn_body_radius: f32,
     _pad624_1: f32,
 }
 

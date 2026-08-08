@@ -815,6 +815,16 @@ namespace t7 {
                     gpuState_.set_pawn_tilt_tau(
                         sid < PAWN_FIGURE_COUNT ? PAWN_FIGURES[sid].tilt_tau : 0.0f);
 
+                    // The possessed figure's own radius, on the same wire and
+                    // the same guard (HEM_0). The boundary clamp insets the
+                    // legal box by this, so the body — not its centre — stops
+                    // at the wall, and the sample never lands on bmax, the
+                    // EXCLUSIVE edge of the patch set. Derived here for the
+                    // same reason the eye height below is: the compute stage
+                    // cannot see agent_figure_profiles.
+                    gpuState_.set_pawn_body_radius(
+                        sid < PAWN_FIGURE_COUNT ? PAWN_FIGURES[sid].radius : 0.0f);
+
                     // FPV eye height follows the possessed figure (TUNE_1 A3).
                     // Derived here and not in the shader because
                     // agent_figure_profiles (binding 112) is a render-VS

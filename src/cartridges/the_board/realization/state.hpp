@@ -701,7 +701,14 @@ namespace t7 {
             float field_gain_cube;         // subscriber-class gain, applied after the clamp (rest 4.0)
             float field_gain_sphere;       // (rest 1.0)
             float field_gain_agent;        // (rest 4.0)
-            float _pad624_0;
+            // HEM_0 — the possessed figure's own radius, world units. CPU-derived
+            // from PAWN_FIGURES[skin] each frame on the wire pawn_tilt_tau /
+            // fpv_eye_height already ride. It is the BOUNDARY INSET, not a
+            // collision radius: nothing in the contact chain reads it. Reuses the
+            // first FIELD_2b tail pad in place — same position, same type, sizeof
+            // 624 UNMOVED (the fpv_eye_height / veil_dither precedent).
+            // Was _pad624_0.
+            float pawn_body_radius;
             float _pad624_1;
         };
 
@@ -2624,6 +2631,14 @@ namespace t7 {
             void set_pawn_tilt_tau(float tau) {
                 if (config_.pawn_tilt_tau != tau) {
                     config_.pawn_tilt_tau = tau;
+                    configDirty_ = true;
+                }
+            }
+            // Possessed body's boundary inset (HEM_0) — its own radius, not a
+            // collision radius. Same cadence and same guard as the tilt above.
+            void set_pawn_body_radius(float r) {
+                if (config_.pawn_body_radius != r) {
+                    config_.pawn_body_radius = r;
                     configDirty_ = true;
                 }
             }
