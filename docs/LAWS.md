@@ -367,6 +367,39 @@ The limits choice may or may not affect performance; this machine cannot
 answer it, and the law does not need it to. Compatibility is sufficient
 ground.
 
+## L15 — A REFERENCE OUTLIVES ITS REFERENT
+
+**A reference outlives its referent. Cite the symbol, not the line; name the
+witness, not its value. And when a comment names a symbol, it has taken on a
+debt the compiler will never collect.**
+
+Ratified by HEM_1 from two misses in the same campaign — one in a handoff,
+one standing in the tree:
+
+| citation | claimed | actual | drift |
+|---|---|---|---|
+| the `sizeof(GPUDesignConfig)` witness, quoted as a value | 560 | 624 | two campaigns (MOSAIC_0, FIELD_2b) |
+| `pawn_profile_normal_2d`, named by two `world.wgsl` comments | a function beside `pawn_profile_radius` | never defined, in any commit | the whole history |
+
+These are one failure, not two. A line number, a quoted `sizeof`, and a symbol
+in prose are all references to something that moves or was never there, and
+nothing checks any of them. The symbol `GPUDesignConfig` survives every edit
+that moves its size, while the number 560 was true once and then silently was
+not. `pawn_profile_normal_2d` named a symmetry that was planned and not built,
+and went on asserting it long after the code folded that branch into
+`eval_profile_normal_2d` behind `is_regular`.
+
+**The debt.** The compiler collects on a renamed function and never on a
+renamed function *inside a comment*. Prose that names a symbol is load-bearing
+with no test behind it: it must be re-read whenever the symbol moves, and
+nothing will remind you. Name symbols anyway — vague prose is worse — but know
+that naming one is a commitment, and that grepping the comment corpus before a
+rename is the only collection mechanism there is.
+
+**In practice.** In a handoff or a report, cite the symbol and let the reader
+read its current value. Carry line numbers as hints, marked as hints, and
+verify every one by symbol before editing.
+
 ---
 
 ### CANDIDATE (unnumbered) — WHERE A TIMER POINTS
