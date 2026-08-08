@@ -208,7 +208,7 @@ void upload_portal_array(MoodDeps* c, wgpu::Queue& queue);
 // Derivers (door + the portal-detection pipeline's shared helpers)
 const char* mood_name(uint32_t mood);
 uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
-uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop);
+uint32_t pick_portal_mood(uint32_t seed, uint32_t prop);
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
@@ -1162,7 +1162,7 @@ inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCt
     float rotation = bearing + 3.14159f;   // face the spawn anchor
 
     uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 8800u);
-    uint32_t mood = pick_portal_mood(&machine_ctx, c->world_state_.active_seed, 8900u);
+    uint32_t mood = pick_portal_mood(c->world_state_.active_seed, 8900u);
     const auto& mp = MOOD_TABLE[mood];
     PortalDestination dest{};
     dest.seed = dest_seed;
@@ -1285,15 +1285,19 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
     return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
 }
 
-inline uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop) {
+// PORTAL_2 — the OPEN-WORLD destination law. Finite worlds no
+// longer roll: their roster is the fixed triad
+// (force_spawn_finite_portals). The finite outdoors is a rare
+// feature of the open field only.
+inline constexpr float FINITE_OUTDOOR_CHANCE = 0.10f;
+
+inline uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) {
     float roll = cpu_hash_f(seed, prop);
-    if (c->world_state_.finite_mode) {
-        if (roll < 0.40f) return 0;   // open_sunset    — the way out
-        if (roll < 0.55f) return 1;   // indoor_flat
-        if (roll < 0.70f) return 2;   // indoor_vault
-        return 3;                     // finite_outdoor
-    }
-    return cpu_hash(seed, prop) % MOOD_COUNT;
+    if (roll < FINITE_OUTDOOR_CHANCE) return MOOD_FINITE_OUTDOOR;
+    float span = (1.0f - FINITE_OUTDOOR_CHANCE) / 3.0f;
+    if (roll < FINITE_OUTDOOR_CHANCE + span)        return MOOD_OPEN_SUNSET;
+    if (roll < FINITE_OUTDOOR_CHANCE + 2.0f * span) return MOOD_INDOOR_FLAT;
+    return MOOD_INDOOR_VAULT;
 }
 
 } // namespace the_board
