@@ -530,6 +530,68 @@
       }
     });
 
+    // ── ATMOS_0 R — WHEN THE OS REVOKES THE SESSION ───────────────
+    // Field, iPhone 14: leave the browser long enough and Safari tears
+    // the media session down. The play() on return is then a play()
+    // WITHOUT a gesture, and it is refused — correctly, by the rules
+    // the entry tap existed to satisfy in the first place.
+    //
+    // So this does not fight the refusal, it waits for the next
+    // gesture and spends it. One shot: the listeners remove themselves
+    // the moment audio is sounding again, and `resumeArmed` keeps a
+    // second refusal from stacking a second pair. If the visitor never
+    // touches again, two idle listeners on a page they have left is
+    // the entire cost.
+    //
+    // pointerdown AND touchstart, because iOS is the case this exists
+    // for and its pointer events are not guaranteed to be the ones the
+    // audio unlock rides on. Both DO fire for one tap — they are not
+    // alternatives — so `retrying` makes one tap buy exactly one
+    // play(), which matters because the second would be a second
+    // refusal line in the log for a single gesture.
+    var resumeArmed = false;
+    var retrying = false;
+    function armResumeOnGesture() {
+      if (resumeArmed) return;
+      resumeArmed = true;
+      record('[shell] audio resume needs a gesture — the next touch will restore it');
+
+      function disarm() {
+        resumeArmed = false;
+        document.removeEventListener('pointerdown', retry, true);
+        document.removeEventListener('touchstart', retry, true);
+      }
+      function retry() {
+        if (retrying) return;          // one tap, one attempt (both events fire)
+        // The visitor may have hidden the tab again, or asked for
+        // silence some other way, between the refusal and this touch.
+        if (!music || !musicWasPlaying || document.hidden) { disarm(); return; }
+        retrying = true;
+        try {
+          var p = music.play();
+          if (p && p.then) {
+            p.then(function () {
+              retrying = false;
+              record('[shell] audio restored by gesture');
+              disarm();
+            }, function (err) {
+              // Stay armed: another refusal is another chance, and the
+              // listener is already installed.
+              retrying = false;
+              record('[shell] audio still refused: ' + err);
+            });
+          } else {
+            retrying = false;
+            disarm();
+          }
+        } catch (err) { retrying = false; record('[shell] audio still refused: ' + err); }
+      }
+      // Capture phase, so a gesture consumed elsewhere (the entry tap,
+      // a control) still counts as the gesture that pays for this.
+      document.addEventListener('pointerdown', retry, true);
+      document.addEventListener('touchstart', retry, true);
+    }
+
     // ── ATMOS_0 U2 — THE PIECE DOES NOT SING FROM A POCKET ────────
     // Hidden pauses unconditionally; visible resumes ONLY if it was
     // playing, so silence chosen (or never granted) stays chosen. The
@@ -547,8 +609,14 @@
       if (music && musicWasPlaying) {
         try {
           var p = music.play();
-          if (p && p.catch) p.catch(function (err) { record('[shell] audio did not resume: ' + err); });
-        } catch (err) { record('[shell] audio did not resume: ' + err); }
+          if (p && p.catch) p.catch(function (err) {
+            record('[shell] audio did not resume: ' + err);
+            armResumeOnGesture();       // ATMOS_0 R — honour the refusal
+          });
+        } catch (err) {
+          record('[shell] audio did not resume: ' + err);
+          armResumeOnGesture();
+        }
       }
       if (entered) requestWakeLock();
     });
