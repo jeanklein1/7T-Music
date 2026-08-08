@@ -347,6 +347,20 @@
       if (pane) { pane.textContent = lines.join('\n'); pane.scrollTop = pane.scrollHeight; }
     }
 
+    // ATMOS_1 — A SHELL DIAGNOSTIC GOES TO BOTH PLACES. record() writes
+    // to the panel and nowhere else, which is right for the visitor and
+    // was wrong for the phone on the end of a cable: every refusal the
+    // entry gesture collected was filed where only an opened log panel
+    // could show it. A remote DevTools session therefore watched
+    // fullscreen complain — Chrome logs that one itself — while the
+    // audio path, refused in the same breath for the same reason, said
+    // nothing. That asymmetry is what cost the first pass.
+    //
+    // The wasm's own lines keep using record(): Module.print and
+    // printErr have already put them on the console, and routing them
+    // through here would print each one twice.
+    function note(text) { console.log(text); record(text); }
+
     // ── STATE TRANSITIONS ────────────────────────────────────────
     function present() {                    // LOADING -> the world
       if (terminal) return;                 // a real end outranks the world
@@ -442,7 +456,7 @@
     // preload="none" and no src the element costs nothing until this
     // moment, and this moment is the one iOS accepts.
     function startMusic() {
-      if (!music) { record('[shell] audio: no element'); return; }
+      if (!music) { note('[shell] audio: no element'); return; }
       try {
         if (!music.getAttribute('src')) music.setAttribute('src', music.dataset.src || '');
         // THE INTENT IS RECORDED SYNCHRONOUSLY, before the promise. A
@@ -470,12 +484,12 @@
             // soundtrack for the rest of the session. Only a refusal
             // that is not ours withdraws consent.
             if (!err || err.name !== 'AbortError') musicWasPlaying = false;
-            record('[shell] audio did not start: ' + err);
+            note('[shell] audio did not start: ' + err);
           });
         }
       } catch (err) {
         musicWasPlaying = false;
-        record('[shell] audio did not start: ' + err);
+        note('[shell] audio did not start: ' + err);
       }
     }
 
@@ -488,10 +502,10 @@
         if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
         var el = document.documentElement;
         var req = el.requestFullscreen || el.webkitRequestFullscreen;
-        if (!req) { record('[shell] fullscreen: unavailable (older iOS stays in-page)'); return; }
+        if (!req) { note('[shell] fullscreen: unavailable (older iOS stays in-page)'); return; }
         var r = req.call(el);
-        if (r && r.catch) r.catch(function (err) { record('[shell] fullscreen refused: ' + err); });
-      } catch (err) { record('[shell] fullscreen refused: ' + err); }
+        if (r && r.catch) r.catch(function (err) { note('[shell] fullscreen refused: ' + err); });
+      } catch (err) { note('[shell] fullscreen refused: ' + err); }
     }
 
     // 3 — WAKE LOCK. Absent API is a silent skip, not a log line: a
@@ -509,12 +523,58 @@
           sentinel.addEventListener('release', function () { wakeLock = null; });
         }, function (err) {
           wakeLockPending = false;
-          record('[shell] wake lock refused: ' + err);
+          note('[shell] wake lock refused: ' + err);
         });
       } catch (err) {
         wakeLockPending = false;
-        record('[shell] wake lock refused: ' + err);
+        note('[shell] wake lock refused: ' + err);
       }
+    }
+
+    // ── ATMOS_1 — NOT EVERY GESTURE EVENT IS A GESTURE ────────────
+    //
+    // The three grants above are all spent inside a user activation, and
+    // the HTML Standard's list of activation triggering input events is
+    // both short and ASYMMETRIC:
+    //
+    //     keydown      always (bar Esc and reserved shortcuts)
+    //     mousedown    always
+    //     touchend     always
+    //     pointerdown  ONLY when pointerType is "mouse"
+    //     pointerup    ONLY when pointerType is NOT "mouse"
+    //
+    // So on a finger, pointerdown IS NOT A GESTURE, and everything asked
+    // for inside it is refused. This file asked for all three there, and
+    // the old comment on the binding — "the earliest event the browser
+    // will accept" — was true of a mouse and false of a thumb.
+    //
+    // It survived because the two platforms disagree and only one of
+    // them complains out loud. WebKit hands its activation to the whole
+    // touch sequence, pointerdown included, so an iPhone ran the same
+    // bytes and sang. Chromium implements the list as written: measured
+    // in a real engine, a synthesized touch tap reports
+    // navigator.userActivation.isActive === false throughout pointerdown
+    // and true from pointerup on, and the two grants that need one —
+    // play() and requestFullscreen() — are refused with NotAllowedError
+    // at pointerdown and resolve at pointerup. (The wake lock happens
+    // not to require an activation in Chromium and resolved either way.
+    // It is issued with the others because the spec permits requiring
+    // one, not because it is observed to.)
+    //
+    // Of the two that failed, only fullscreen has a console voice —
+    // Chrome logs that refusal itself. So a Pixel on a cable showed
+    // exactly one error, from the grant nobody was hunting, and silence
+    // from the one that mattered. note(), above, is the other half of
+    // this repair: the next refusal says so where the cable can hear it.
+    //
+    // The test below is on the EVENT, never on the platform. A mouse
+    // still pays at pointerdown, which is the earliest it can; a finger
+    // pays at pointerup, which is the earliest it may.
+    function carriesActivation(e) {
+      if (!e || !e.type) return false;
+      if (e.type === 'pointerdown') return e.pointerType === 'mouse';
+      if (e.type === 'pointerup')   return e.pointerType !== 'mouse';
+      return true;                    // click, touchend, keydown
     }
 
     // ONE HANDLER. It is bound before the boot even starts, so an eager
@@ -522,10 +582,21 @@
     // 1-3 immediately (it cannot be banked — the browser only honours it
     // now) and the reveal still waits for the world, arriving on the
     // "Controls:" line exactly as it does today.
+    //
+    // ATMOS_1: the reveal rides the SAME event as the grants rather than
+    // an earlier one. Lifting the veil at pointerdown and granting at
+    // pointerup would buy a phone the ~80 ms between them and cost the
+    // correctness this function exists for — `entered` is one-shot, so
+    // whichever event reaches it first is the only one that ever gets to
+    // ask for audio, and on a finger that event must be the one holding
+    // the activation.
     function onEntryGesture(e) {
       if (terminal) return;
       // The details toggle and its pane are controls, not the door.
       if (e && e.target && e.target.closest && e.target.closest('.logToggle, .log')) return;
+      // Not a refusal — a wait. On a finger the activation is two frames
+      // out, on pointerup, and this same handler is bound there.
+      if (!carriesActivation(e)) return;
       if (!entered) {
         entered = true;
         startMusic();
@@ -541,10 +612,15 @@
       }
     }
 
-    // pointerdown, not click: it is the earliest event the browser will
-    // accept as a gesture, and on a phone the difference is the gap
-    // between the finger landing and the piece answering.
+    // Both pointer halves are bound and carriesActivation picks whichever
+    // one can actually pay. `click` is the floor beneath both: it is
+    // activation-triggering everywhere and fires even where pointer
+    // events do not. It costs nothing when it is not needed — after a
+    // successful entry the veil is already pointer-events:none, and the
+    // `entered`/`ready` guards make a second arrival a no-op regardless.
     veil.addEventListener('pointerdown', onEntryGesture);
+    veil.addEventListener('pointerup',   onEntryGesture);
+    veil.addEventListener('click',       onEntryGesture);
     // The keyboard's way in. A gesture is a gesture — this unlocks audio
     // and fullscreen exactly as the finger does.
     statusEl.addEventListener('keydown', function (e) {
@@ -563,30 +639,48 @@
     // So this does not fight the refusal, it waits for the next
     // gesture and spends it. One shot: the listeners remove themselves
     // the moment audio is sounding again, and `resumeArmed` keeps a
-    // second refusal from stacking a second pair. If the visitor never
-    // touches again, two idle listeners on a page they have left is
+    // second refusal from stacking a second set. If the visitor never
+    // touches again, three idle listeners on a page they have left is
     // the entire cost.
     //
-    // pointerdown AND touchstart, because iOS is the case this exists
-    // for and its pointer events are not guaranteed to be the ones the
-    // audio unlock rides on. Both DO fire for one tap — they are not
-    // alternatives — so `retrying` makes one tap buy exactly one
-    // play(), which matters because the second would be a second
-    // refusal line in the log for a single gesture.
+    // ATMOS_1 — THE SAME ACTIVATION LAW, AND THIS PATH BROKE THE SAME
+    // WAY. This waited on pointerdown and touchstart. Neither appears on
+    // the list above — touchstart is absent from it outright, and
+    // pointerdown counts only for a mouse — so on Chromium a refusal
+    // that a touch was supposed to cure could be touched forever and
+    // stay refused. It read as correct because iOS is the platform it
+    // was written for and WebKit does honour both.
+    //
+    // pointerup and touchend replace them, with pointerdown kept for the
+    // mouse, and carriesActivation deciding which one pays. touchend is
+    // not redundant with pointerup: it is the second activating event of
+    // a single tap, so iOS gets two independent chances at the same
+    // finger — and `retrying` still makes that tap buy exactly one
+    // play(), which matters because the second would be a second refusal
+    // line in the log for one gesture.
+    //
+    // (`click` is the entry gesture's floor but not this one's: these
+    // are capture-phase on document for the whole session, and a click
+    // is synthesized by things a touch is not.)
     var resumeArmed = false;
     var retrying = false;
     function armResumeOnGesture() {
       if (resumeArmed) return;
       resumeArmed = true;
-      record('[shell] audio resume needs a gesture — the next touch will restore it');
+      note('[shell] audio resume needs a gesture — the next touch will restore it');
 
       function disarm() {
         resumeArmed = false;
         document.removeEventListener('pointerdown', retry, true);
-        document.removeEventListener('touchstart', retry, true);
+        document.removeEventListener('pointerup',   retry, true);
+        document.removeEventListener('touchend',    retry, true);
       }
-      function retry() {
-        if (retrying) return;          // one tap, one attempt (both events fire)
+      function retry(e) {
+        if (retrying) return;          // one tap, one attempt (two of these fire)
+        // A gesture that grants nothing cannot cure a refusal that only
+        // a grant will lift. Spending a play() on it would buy a second
+        // NotAllowedError and a log line saying so.
+        if (!carriesActivation(e)) return;
         // The visitor may have hidden the tab again, or asked for
         // silence some other way, between the refusal and this touch.
         // `terminal` for the same reason onEntryGesture checks it: after
@@ -599,11 +693,11 @@
           if (p && p.then) {
             p.then(function () {
               retrying = false;
-              record('[shell] audio restored by gesture');
+              note('[shell] audio restored by gesture');
               disarm();
             }, function (err) {
               retrying = false;
-              record('[shell] audio still refused: ' + err);
+              note('[shell] audio still refused: ' + err);
               // ONLY A MISSING GESTURE IS CURABLE BY A GESTURE. Stay
               // armed for NotAllowedError — another touch is another
               // chance. Anything else (an unsupported codec, a decode
@@ -620,14 +714,15 @@
           }
         } catch (err) {
           retrying = false;
-          record('[shell] audio still refused: ' + err);
+          note('[shell] audio still refused: ' + err);
           disarm();   // a throw is not a refusal a gesture can cure
         }
       }
       // Capture phase, so a gesture consumed elsewhere (the entry tap,
       // a control) still counts as the gesture that pays for this.
       document.addEventListener('pointerdown', retry, true);
-      document.addEventListener('touchstart', retry, true);
+      document.addEventListener('pointerup',   retry, true);
+      document.addEventListener('touchend',    retry, true);
     }
 
     // ── ATMOS_0 U2 — THE PIECE DOES NOT SING FROM A POCKET ────────
@@ -648,11 +743,11 @@
         try {
           var p = music.play();
           if (p && p.catch) p.catch(function (err) {
-            record('[shell] audio did not resume: ' + err);
+            note('[shell] audio did not resume: ' + err);
             armResumeOnGesture();       // ATMOS_0 R — honour the refusal
           });
         } catch (err) {
-          record('[shell] audio did not resume: ' + err);
+          note('[shell] audio did not resume: ' + err);
           armResumeOnGesture();
         }
       }
