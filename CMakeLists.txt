@@ -601,10 +601,16 @@ if(EMSCRIPTEN)
     # unrelated call sites. 4MB restores native parity with headroom.
     # Costs address space, not runtime: with ALLOW_MEMORY_GROWTH the
     # stack is a reservation carved out of the initial memory.
+    # EXHIBIT_0 U2 — THE NETWORK IS A BYTE SOURCE. -sFETCH arms
+    # emscripten_fetch, which is how the web twin reads exhibition.json
+    # and each painting: the bundle carries the program, the network
+    # carries the exhibition. Native is unaffected — this whole block is
+    # behind if(EMSCRIPTEN).
     target_link_options(incubator_dual PRIVATE
         ${T7_WEB_PORTS}
         "-sALLOW_MEMORY_GROWTH=1"
         "-sSTACK_SIZE=4MB"
+        "-sFETCH"
         ${T7_WEB_OPT}
         ${T7_WEB_DIAG}
         "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@/assets"

@@ -41,6 +41,10 @@
 #include <iostream>    // capture / gallery / authored logs   // (impl, merged)
 #include <string>      // manifest paths, std::stoi   // (impl, merged)
 #include <vector>      // manifest + pixel staging   // (impl, merged)
+#ifdef __EMSCRIPTEN__
+#include <cstring>            // std::strncpy — emscripten_fetch_attr_t::requestMethod   (EXHIBIT_0)
+#include <emscripten/fetch.h> // the web twin's byte source: the network, not a filesystem (EXHIBIT_0)
+#endif
 
 namespace t7 {
 namespace the_board {
@@ -545,6 +549,17 @@ struct AuthoredStagingRecord {
     float uv_scale_y = 1.0f;
     bool valid = false;
     bool consumed = false;
+#ifdef __EMSCRIPTEN__
+    // EXHIBIT_0 — A REQUEST IS NOT A PICTURE. On the native twin a load
+    // either fills this record or fails, inside one call; over the
+    // network the two are separated by a round trip. `pending` names
+    // that gap: the slot is spoken for (disk_index is already set, so
+    // the rotation cursor will not hand the same painting to a second
+    // slot) and it is NOT valid, so no gallery can pick it. Cleared on
+    // arrival AND on failure — a slot that never clears is a slot the
+    // rotation can never reuse.
+    bool pending = false;
+#endif
 };
 
 // Pending texture promotions (staging → exhibition, executed in render)
@@ -610,6 +625,28 @@ struct GalleryState {
     uint32_t              authored_staged_count = 0;
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
+
+#ifdef __EMSCRIPTEN__
+    // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
+    // The native twin has no state here because its loads are calls
+    // that return with the picture. The web twin's do not, so the two
+    // facts that only exist BETWEEN a request and its answer live
+    // here: how many are out, and which ones are still waiting for a
+    // free lane.
+    struct AuthoredFetchRequest {
+        uint32_t staging_layer;
+        uint32_t disk_index;
+        std::string url;
+    };
+    std::vector<AuthoredFetchRequest> authored_fetch_queue;
+    uint32_t authored_fetch_inflight = 0;
+    // The manifest is requested once per session, at the earliest
+    // instant a GalleryState exists (the cartridge constructor).
+    bool authored_manifest_requested = false;
+    // "No paintings folder found" is a true sentence every time it is
+    // asked before the manifest lands; it is only worth SAYING once.
+    bool authored_absence_logged = false;
+#endif
 
     // The occupancy array is the whole record. A companion count used to
     // ride beside it, incremented at every claim and decremented at every
@@ -1500,24 +1537,43 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
 
 // ═══ AUTHORED IMAGE LOADING ══════════════════════════════════════
 
-// ── Authored Image Loading (staging model) ──
+// ═══ THE PLATFORM SEAM (EXHIBIT_0) ═══════════════════════════════
+//
+// LAW: the bundle carries the program; the network carries the
+// exhibition. The two twins differ in exactly one thing — WHERE THE
+// BYTES COME FROM. Native walks a directory and reads files; the web
+// twin fetches a manifest and then each painting by URL. Everything
+// downstream of the decode is one body, shared, because everything
+// downstream is the same act.
+//
+// The two facts the seam must not fork are the ORDER the paintings
+// hang in and the RECORD a hung painting is described by. They get one
+// home each below, and both twins call them.
 
-inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
-    int width = 0, height = 0, channels = 0;
-    unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
-    if (!data) {
-        // Try fallback paths
-        std::string alt = std::string("7t/") + path;
-        data = stbi_load(alt.c_str(), &width, &height, &channels, 4);
-    }
-    if (!data) {
-        std::cerr << "[Authored] Failed to load: " << path << "\n";
-        return;
-    }
+// ── THE NUMERIC SORT KEY — one rule, both twins ──
+// PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100, which is not
+// what a lexicographic sort says. Semantics are the native lambda's,
+// unchanged: the stem, the text after the FIRST '_', std::stoi (leading
+// digits, and its throw caught as 0).
+inline int authored_extract_number(const std::string& path) {
+    namespace fs = std::filesystem;
+    std::string name = fs::path(path).stem().string();  // "PAINTING_12"
+    size_t pos = name.find('_');
+    if (pos == std::string::npos || pos + 1 >= name.size()) return 0;
+    try { return std::stoi(name.substr(pos + 1)); }
+    catch (...) { return 0; }
+}
 
-    std::cout << "[Authored] Loaded: " << path
-        << " (" << width << "x" << height << ") → staging " << staging_layer << "\n";
-
+// ── THE SCALE / PAD / UPLOAD — one body, both twins ──
+// The decode differs (a path vs a buffer); everything after it does
+// not. This body is also where aspect_ratio and the two uv_scale
+// fields are DERIVED from dst_w/dst_h — a second copy would be a
+// second place for the frame's shape to disagree with its texture.
+// The caller owns `data` and frees it; the caller also prints the
+// "[Authored] Loaded:" line, because only the caller knows the name.
+inline void authored_stage_decoded_image(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t staging_layer, uint32_t disk_index,
+    const unsigned char* data, int width, int height) {
     constexpr uint32_t RES = Dim::PAINTING_RESOLUTION;
     float scale = std::min((float)RES / width, (float)RES / height);
     if (scale > 1.0f) scale = 1.0f;
@@ -1549,7 +1605,6 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
     }
 
     gpu.upload_authored_painting(queue, staging_layer, padded.data(), RES, RES);
-    stbi_image_free(data);
 
     auto& rec = gs.authored_staging[staging_layer];
     rec.disk_index = disk_index;
@@ -1563,7 +1618,281 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
         << " (aspect " << rec.aspect_ratio << ")\n";
 }
 
+#ifdef __EMSCRIPTEN__
+
+// ═══ THE EXHIBITION ARRIVES OVER THE NETWORK ═════════════════════
+
+// The manifest the dist script writes beside the program. NOT
+// manifest.json — that name stays reserved for the PWA web manifest.
+inline constexpr const char* EXHIBITION_MANIFEST_URL = "exhibition.json";
+// The folder the manifest's bare filenames hang under. One place
+// decides the layout; tools/web_dist.py writes to the same one.
+inline constexpr const char* EXHIBITION_PAINTINGS_DIR = "paintings/";
+
+// HOW MANY PAINTINGS MAY BE IN THE AIR AT ONCE. Above this the browser
+// queues them anyway, and every request past the browser's own limit
+// only makes the FIRST one land later — which is the one a gallery is
+// waiting on. The rest wait here instead, in a queue this file can see.
+inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 4;
+
+// The fetch's own copy of everything the answer will need. The two
+// pointers outlive every fetch by construction: GalleryState and
+// GPUState are members of the Cartridge, which is a member of App,
+// heap-allocated in main() and never destroyed on this twin. The queue
+// is a REFERENCE, not a pointer — wgpu handles are refcounted, so this
+// copy keeps the queue alive on its own account.
+struct AuthoredFetchCtx {
+    GalleryState* gs;
+    GPUState*     gpu;
+    wgpu::Queue   queue;
+    uint32_t      staging_layer;
+    uint32_t      disk_index;
+    std::string   url;
+};
+
+inline void pump_authored_fetches(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);
+
+// authored_staged_count is a tally of valid records, and on this twin
+// records become valid at arrival time rather than at call time — so
+// the tally is RECOMPUTED where it changes, never incremented at a
+// call site that cannot yet know the answer.
+inline void recount_authored_staged(GalleryState& gs) {
+    gs.authored_staged_count = 0;
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+        if (gs.authored_staging[i].valid) gs.authored_staged_count++;
+}
+
+// One exit for both outcomes: the lane is freed, the context is
+// destroyed, and the queue is pumped so the next painting starts the
+// instant this one is done with its lane.
+inline void authored_fetch_finish(AuthoredFetchCtx* ctx) {
+    GalleryState& gs = *ctx->gs;
+    GPUState& gpu = *ctx->gpu;
+    wgpu::Queue queue = ctx->queue;
+    gs.authored_staging[ctx->staging_layer].pending = false;
+    if (gs.authored_fetch_inflight > 0) gs.authored_fetch_inflight--;
+    recount_authored_staged(gs);
+    delete ctx;
+    pump_authored_fetches(gs, gpu, queue);
+}
+
+inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
+    AuthoredFetchCtx* ctx = (AuthoredFetchCtx*)fetch->userData;
+    int width = 0, height = 0, channels = 0;
+    // stb allocates its own pixels, so the fetch buffer is dead the
+    // moment the decode returns — closed here rather than later, so no
+    // path below can leak it.
+    unsigned char* data = stbi_load_from_memory(
+        (const stbi_uc*)fetch->data, (int)fetch->numBytes, &width, &height, &channels, 4);
+    emscripten_fetch_close(fetch);
+
+    if (!data) {
+        std::cerr << "[Authored] Failed to load: " << ctx->url << "\n";
+        authored_fetch_finish(ctx);
+        return;
+    }
+
+    std::cout << "[Authored] Loaded: " << ctx->url
+        << " (" << width << "x" << height << ") → staging " << ctx->staging_layer << "\n";
+
+    authored_stage_decoded_image(*ctx->gs, *ctx->gpu, ctx->queue,
+        ctx->staging_layer, ctx->disk_index, data, width, height);
+    stbi_image_free(data);
+    authored_fetch_finish(ctx);
+}
+
+inline void authored_image_onerror(emscripten_fetch_t* fetch) {
+    AuthoredFetchCtx* ctx = (AuthoredFetchCtx*)fetch->userData;
+    std::cerr << "[Authored] Failed to load: " << ctx->url
+        << " (HTTP " << fetch->status << ")\n";
+    emscripten_fetch_close(fetch);
+    // The record stays invalid — a slot nothing can pick is the same
+    // already-legal state a native decode failure leaves behind.
+    authored_fetch_finish(ctx);
+}
+
+inline void start_authored_fetch(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue,
+    const GalleryState::AuthoredFetchRequest& req) {
+    AuthoredFetchCtx* ctx = new AuthoredFetchCtx{
+        &gs, &gpu, queue, req.staging_layer, req.disk_index, req.url
+    };
+
+    emscripten_fetch_attr_t attr;
+    emscripten_fetch_attr_init(&attr);
+    std::strncpy(attr.requestMethod, "GET", sizeof(attr.requestMethod) - 1);
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.onsuccess = authored_image_onsuccess;
+    attr.onerror = authored_image_onerror;
+    attr.userData = ctx;
+
+    gs.authored_fetch_inflight++;
+    emscripten_fetch(&attr, ctx->url.c_str());
+}
+
+inline void pump_authored_fetches(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
+    // Front-erase on a vector, deliberately: the queue is bounded by
+    // STAGING_LAYERS (32), so the copy is a rounding error next to a
+    // container choice that would need its own include.
+    while (gs.authored_fetch_inflight < AUTHORED_FETCH_INFLIGHT_CAP
+        && !gs.authored_fetch_queue.empty()) {
+        GalleryState::AuthoredFetchRequest req = gs.authored_fetch_queue.front();
+        gs.authored_fetch_queue.erase(gs.authored_fetch_queue.begin());
+        start_authored_fetch(gs, gpu, queue, req);
+    }
+}
+
+// ── Authored Image Loading (staging model) — the web twin ──
+// SAME NAME, SAME CONTRACT, one word weaker: "this slot will hold this
+// painting" instead of "this slot holds this painting". Every consumer
+// already reads the slot through `valid`, so the weakening is invisible
+// to all of them — a not-yet-arrived painting is the no-content case
+// they have always handled.
+inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
+    if (staging_layer >= Dim::STAGING_LAYERS) return;
+    auto& rec = gs.authored_staging[staging_layer];
+    if (rec.pending) return;   // already spoken for; a second request would race its own slot
+
+    // THE OLD PICTURE STOPS COUNTING NOW, not when the new one lands.
+    // The upload overwrites this staging layer, so a record left valid
+    // would describe a texture that is about to change under it —
+    // teardown's `consumed = false` sweep would then hand the stale
+    // record back to a gallery just in time for the swap.
+    rec.valid = false;
+    rec.pending = true;
+    rec.disk_index = disk_index;   // the slot advertises its claim to the rotation cursor
+
+    gs.authored_fetch_queue.push_back({ staging_layer, disk_index, std::string(path) });
+    pump_authored_fetches(gs, gpu, queue);
+}
+
+#else
+
+// ── Authored Image Loading (staging model) ──
+
+inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
+    int width = 0, height = 0, channels = 0;
+    unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
+    if (!data) {
+        // Try fallback paths
+        std::string alt = std::string("7t/") + path;
+        data = stbi_load(alt.c_str(), &width, &height, &channels, 4);
+    }
+    if (!data) {
+        std::cerr << "[Authored] Failed to load: " << path << "\n";
+        return;
+    }
+
+    std::cout << "[Authored] Loaded: " << path
+        << " (" << width << "x" << height << ") → staging " << staging_layer << "\n";
+
+    authored_stage_decoded_image(gs, gpu, queue, staging_layer, disk_index, data, width, height);
+    stbi_image_free(data);
+}
+
+#endif   // __EMSCRIPTEN__ — the byte source, and only the byte source
+
 // ── Paintings folder scan ──
+
+#ifdef __EMSCRIPTEN__
+
+// THE MANIFEST PARSE, BY HAND. exhibition.json is a flat object of
+// string arrays that tools/web_dist.py in THIS repo writes — a JSON
+// library would be a dependency taken on for one shape. Find the key,
+// take its bracket, read the quoted strings. No escape handling
+// because the strings are filenames the same script emitted; anything
+// else in the file is ignored rather than rejected, so a manifest that
+// grows a field later cannot stop the paintings arriving.
+inline void parse_exhibition_paintings(const char* data, size_t len,
+    std::vector<std::string>& out) {
+    std::string s(data, len);
+    size_t key = s.find("\"paintings\"");
+    if (key == std::string::npos) return;
+    size_t open = s.find('[', key);
+    if (open == std::string::npos) return;
+    size_t close = s.find(']', open);
+    if (close == std::string::npos) return;
+
+    size_t i = open + 1;
+    while (i < close) {
+        size_t q0 = s.find('"', i);
+        if (q0 == std::string::npos || q0 >= close) break;
+        size_t q1 = s.find('"', q0 + 1);
+        if (q1 == std::string::npos || q1 > close) break;
+        if (q1 > q0 + 1) out.push_back(s.substr(q0 + 1, q1 - q0 - 1));
+        i = q1 + 1;
+    }
+}
+
+// THE ONE LINE THE SHELL COUNTS. web/index.html reads "found N
+// paintings" off this sentence to size its progress (SHIP_0 U3), so
+// the wording is the native wording, verbatim — only the place it
+// names changes, because on this twin the place IS the manifest.
+inline void exhibition_manifest_onsuccess(emscripten_fetch_t* fetch) {
+    GalleryState* gs = (GalleryState*)fetch->userData;
+    std::vector<std::string> names;
+    parse_exhibition_paintings(fetch->data, (size_t)fetch->numBytes, names);
+    emscripten_fetch_close(fetch);
+
+    gs->authored_disk_manifest.clear();
+    gs->authored_disk_manifest.reserve(names.size());
+    for (const std::string& n : names)
+        gs->authored_disk_manifest.push_back(std::string(EXHIBITION_PAINTINGS_DIR) + n);
+
+    // Sorted here and not trusted from the file: the ORDER paintings
+    // hang in is the program's rule, and a hand-edited manifest must
+    // not be able to change it.
+    std::sort(gs->authored_disk_manifest.begin(), gs->authored_disk_manifest.end(),
+        [](const std::string& a, const std::string& b) {
+            return authored_extract_number(a) < authored_extract_number(b);
+        });
+
+    std::cout << "[Authored] Scanned " << EXHIBITION_MANIFEST_URL
+        << " — found " << gs->authored_disk_manifest.size() << " paintings\n";
+}
+
+inline void exhibition_manifest_onerror(emscripten_fetch_t* fetch) {
+    long status = fetch->status;
+    emscripten_fetch_close(fetch);
+    // An exhibition that did not arrive is an exhibition that is not
+    // there — the same sentence, and the same already-legal state, as
+    // a missing folder on the native twin.
+    std::cout << "[Authored] No paintings folder found"
+        << " (" << EXHIBITION_MANIFEST_URL << ", HTTP " << status << ")\n";
+}
+
+// ONE FETCH, AT THE EARLIEST INSTANT THERE IS A GalleryState TO FILL.
+// Called from the cartridge's constructor — which on this twin runs in
+// main() BEFORE the console asks the browser for an adapter, so the
+// manifest travels while the device request is still outstanding and
+// is normally parsed before anything can want it.
+inline void kick_exhibition_manifest_fetch(GalleryState& gs) {
+    if (gs.authored_manifest_requested) return;
+    gs.authored_manifest_requested = true;
+
+    emscripten_fetch_attr_t attr;
+    emscripten_fetch_attr_init(&attr);
+    std::strncpy(attr.requestMethod, "GET", sizeof(attr.requestMethod) - 1);
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.onsuccess = exhibition_manifest_onsuccess;
+    attr.onerror = exhibition_manifest_onerror;
+    attr.userData = &gs;
+    emscripten_fetch(&attr, EXHIBITION_MANIFEST_URL);
+}
+
+// SAME NAME, SAME CONTRACT: "make authored_disk_manifest current".
+// There is no directory to walk on this twin, so the honest answer is
+// whatever the fetch has delivered so far — and before it lands, that
+// is nothing. Not an error: the empty manifest is the already-legal
+// no-paintings state, and the sentence that names it is the native
+// one. Said once, because it stays true until it stops being asked.
+inline void scan_paintings_folder(GalleryState& gs) {
+    if (!gs.authored_disk_manifest.empty()) return;
+    if (gs.authored_absence_logged) return;
+    gs.authored_absence_logged = true;
+    std::cout << "[Authored] No paintings folder found\n";
+}
+
+#else
 
 inline void scan_paintings_folder(GalleryState& gs) {
     namespace fs = std::filesystem;
@@ -1600,22 +1929,18 @@ inline void scan_paintings_folder(GalleryState& gs) {
 
     // Sort by numeric value after PAINTING_ (not lexicographic)
     // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100
-    auto extract_number = [](const std::string& path) -> int {
-        namespace fs = std::filesystem;
-        std::string name = fs::path(path).stem().string();  // "PAINTING_12"
-        size_t pos = name.find('_');
-        if (pos == std::string::npos || pos + 1 >= name.size()) return 0;
-        try { return std::stoi(name.substr(pos + 1)); }
-        catch (...) { return 0; }
-        };
+    // The rule itself now lives at authored_extract_number, above —
+    // the web twin sorts its manifest by the same one.
     std::sort(gs.authored_disk_manifest.begin(), gs.authored_disk_manifest.end(),
-        [&](const std::string& a, const std::string& b) {
-            return extract_number(a) < extract_number(b);
+        [](const std::string& a, const std::string& b) {
+            return authored_extract_number(a) < authored_extract_number(b);
         });
 
     std::cout << "[Authored] Scanned " << found_dir.string()
         << " — found " << gs.authored_disk_manifest.size() << " paintings\n";
 }
+
+#endif   // __EMSCRIPTEN__ — the manifest's source, and only its source
 
 inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
     if (gs.authored_textures_loaded) return;
@@ -1625,7 +1950,24 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         scan_paintings_folder(gs);
     }
     if (gs.authored_disk_manifest.empty()) {
+#ifndef __EMSCRIPTEN__
         gs.authored_textures_loaded = true;
+#endif
+        // WEB: THE FLAG DOES NOT LATCH ON AN EMPTY MANIFEST. Native's
+        // "empty" is a verdict — the folder was walked and there is
+        // nothing there — so latching is right: a second walk would
+        // find the same nothing. This twin's "empty" is "the fetch has
+        // not landed yet", and boot ALWAYS reads it before it can
+        // (init_world runs the whole boot inside one rAF turn, so no
+        // fetch callback can fire in the middle of it). Latching here
+        // would lock the exhibition out for the session. Left false,
+        // the next caller re-enters and finds the manifest.
+        //
+        // Leaving it false also wakes commit_gallery's demotion at the
+        // top of this file (site_type != SNAPSHOT_ONLY && !loaded ->
+        // SNAPSHOT_ONLY), which is dead code on native and correct
+        // here: with no manifest there is no authored content, and
+        // snapshot-only is exactly what such a gallery should be.
         return;
     }
 
@@ -1634,6 +1976,9 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
     for (uint32_t i = 0; i < to_load; i++) {
         load_authored_image_to_staging(gs, gpu, queue, i, i, gs.authored_disk_manifest[i].c_str());
+        // WEB: adds nothing here — the record cannot be valid yet, and
+        // the tally is recomputed at each arrival instead. The line
+        // stays because on native it IS the tally.
         if (gs.authored_staging[i].valid) gs.authored_staged_count++;
     }
     gs.authored_write_cursor = to_load % Dim::STAGING_LAYERS;
@@ -1655,6 +2000,14 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
             if (gs.authored_staging[i].disk_index < 256)
                 disk_in_use[gs.authored_staging[i].disk_index] = true;
         }
+#ifdef __EMSCRIPTEN__
+        // A SLOT IN FLIGHT ALREADY OWNS ITS PAINTING. It is not valid
+        // yet, so the test above cannot see it — and without this the
+        // cursor would hand the same disk index to a second slot and
+        // the wall would hang the same picture twice.
+        if (gs.authored_staging[i].pending && gs.authored_staging[i].disk_index < 256)
+            disk_in_use[gs.authored_staging[i].disk_index] = true;
+#endif
     }
 
     uint32_t rotated = 0;

@@ -414,6 +414,22 @@ namespace t7 {
                 // here, not via in-struct defaults — no include-order cable).
                 world_state_.active_seed = DEMO.seed;
                 mood_state_.active = DEMO.boot_mood;
+
+#ifdef __EMSCRIPTEN__
+                // EXHIBIT_0 — THE EXHIBITION IS A FETCH, AND IT STARTS HERE.
+                // This is the earliest instant a GalleryState exists to fill,
+                // and on the web twin it runs inside main() BEFORE
+                // console.init asks the browser for an adapter — so the
+                // manifest travels while the device request is still
+                // outstanding, over rAF turns that pump nothing else. It is
+                // therefore normally parsed before the boot's eager
+                // load_authored_textures below, and always before the first
+                // gallery. A manifest that is still in flight is an empty
+                // manifest, which is the already-legal no-paintings state.
+                // No device, no queue, no GPU touched: this fetch fills a
+                // vector of names and nothing more.
+                kick_exhibition_manifest_fetch(gallery_state_);
+#endif
             }
 
             Cartridge(const Cartridge&) = delete;
