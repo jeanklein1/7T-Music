@@ -211,7 +211,7 @@ struct MoodProfile {
 //   design lands.
 //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       wall_h  amp_c  clear_color            zones  aura   cull
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.90f,-0.42f,-0.12f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.94f,-0.29f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
     /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
     /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
     /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.56f,-0.82f,-0.11f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
