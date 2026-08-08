@@ -908,6 +908,50 @@ namespace t7 {
             if (fbWidth  < 1) fbWidth  = 1;
             if (fbHeight < 1) fbHeight = 1;
         }
+
+        // ═══ FRAME_1 U0 — TEMPORARY INSTRUMENTATION ══════════════════
+        //
+        // REMOVABLE. This whole method, the two locals that feed it in
+        // begin_frame, and its one call site come out together once the
+        // phone numbers have named the defect. Nothing depends on it.
+        //
+        // It prints through out() — Emscripten's Module.print — and NOT
+        // console.log, deliberately: index.html's onLine() feeds
+        // Module.print into the "details" panel, so these numbers are
+        // readable ON THE PHONE by tapping DETAILS. A devtools-only line
+        // would be useless on the device that has the defect.
+        //
+        // Fires only inside the resize branch, so a steady frame loop
+        // prints nothing.
+        void frame1_report(int fbPreW, int fbPreH, int fbPostW, int fbPostH) const {
+            int winW = 0, winH = 0;
+            glfwGetWindowSize(window_, &winW, &winH);
+            EM_ASM({
+                var f  = document.getElementById('frame');
+                var c  = document.getElementById('canvas');
+                var vv = window.visualViewport;
+                var r2 = function (n) { return Math.round(n * 100) / 100; };
+                // out() is Emscripten's Module.print. Guarded because this
+                // block's only job is to produce numbers on a device that
+                // cannot be tested from here — if the symbol is ever
+                // absent the line must still reach devtools rather than
+                // throw and take the frame with it.
+                var say = (typeof out === 'function') ? out : console.log;
+                say('[FRAME_1]'
+                  + ' glfwWin='   + $0 + 'x' + $1
+                  + ' fbPreCap='  + $2 + 'x' + $3
+                  + ' fbPostCap=' + $4 + 'x' + $5
+                  + ' inner='     + window.innerWidth + 'x' + window.innerHeight
+                  + ' visualVP='  + (vv ? r2(vv.width) + 'x' + r2(vv.height) : 'absent')
+                  + ' dpr='       + window.devicePixelRatio
+                  + ' appH='      + getComputedStyle(document.documentElement)
+                                      .getPropertyValue('--app-h').trim()
+                  + ' frameClient=' + (f ? f.clientWidth + 'x' + f.clientHeight : 'ABSENT')
+                  + ' canvasCSS='   + (c ? (c.style.width || '(none)') + 'x'
+                                          + (c.style.height || '(none)') : 'ABSENT')
+                  + ' canvasBuf='   + (c ? c.width + 'x' + c.height : 'ABSENT'));
+            }, winW, winH, fbPreW, fbPreH, fbPostW, fbPostH);
+        }
 #endif
 
     public:
@@ -921,6 +965,7 @@ namespace t7 {
             int fbWidth, fbHeight;
             glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
 #ifdef __EMSCRIPTEN__
+            const int fbPreCapW = fbWidth, fbPreCapH = fbHeight;   // FRAME_1 (temporary)
             apply_pixel_cap(fbWidth, fbHeight);   // PORT_3c — before the compare
 #endif
             if (fbWidth > 0 && fbHeight > 0 &&
@@ -933,6 +978,9 @@ namespace t7 {
                 surfaceConfig_.height = currentHeight_;
                 surface_.Configure(&surfaceConfig_);
                 createDepthBuffer(currentWidth_, currentHeight_);
+#ifdef __EMSCRIPTEN__
+                frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 (temporary)
+#endif
             }
 
             // Delta time
