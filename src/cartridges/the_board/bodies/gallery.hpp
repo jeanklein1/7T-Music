@@ -1635,6 +1635,11 @@ inline constexpr const char* EXHIBITION_PAINTINGS_DIR = "paintings/";
 // waiting on. The rest wait here instead, in a queue this file can see.
 inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 4;
 
+// A request that never answers holds its lane forever, so every request
+// is given an end. Generous, because a phone on a slow connection
+// fetching a half-megabyte JPEG is the normal case this must not kill.
+inline constexpr unsigned long AUTHORED_FETCH_TIMEOUT_MS = 30000;
+
 // The fetch's own copy of everything the answer will need. The two
 // pointers outlive every fetch by construction: GalleryState and
 // GPUState are members of the Cartridge, which is a member of App,
@@ -1660,6 +1665,24 @@ inline void recount_authored_staged(GalleryState& gs) {
     gs.authored_staged_count = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
         if (gs.authored_staging[i].valid) gs.authored_staged_count++;
+}
+
+// A SLOT THAT FAILED MUST STAY REACHABLE. Native's failure is final and
+// harmless — the file is on disk or it is not, and a second read would
+// fail the same way. A network failure is a different animal: a 502, a
+// dropped connection on a phone, a name that lost its file between two
+// dist runs. Left as {valid=false, pending=false, consumed=false} the
+// slot would be unreachable forever: load_authored_textures has latched,
+// and rotate only revisits CONSUMED slots. So a failure marks the slot
+// consumed — still invalid, so nothing can pick it, but now exactly the
+// shape the rotation is looking for, and the next world change re-asks.
+// The disk claim is dropped with it so the cursor is free to hand that
+// painting to whichever slot comes up.
+inline void authored_fetch_release_slot(GalleryState& gs, uint32_t staging_layer) {
+    auto& rec = gs.authored_staging[staging_layer];
+    rec.valid = false;
+    rec.consumed = true;
+    rec.disk_index = UINT32_MAX;
 }
 
 // One exit for both outcomes: the lane is freed, the context is
@@ -1688,6 +1711,7 @@ inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
 
     if (!data) {
         std::cerr << "[Authored] Failed to load: " << ctx->url << "\n";
+        authored_fetch_release_slot(*ctx->gs, ctx->staging_layer);
         authored_fetch_finish(ctx);
         return;
     }
@@ -1706,8 +1730,9 @@ inline void authored_image_onerror(emscripten_fetch_t* fetch) {
     std::cerr << "[Authored] Failed to load: " << ctx->url
         << " (HTTP " << fetch->status << ")\n";
     emscripten_fetch_close(fetch);
-    // The record stays invalid — a slot nothing can pick is the same
-    // already-legal state a native decode failure leaves behind.
+    // The record stays invalid, and it is handed back to the rotation
+    // rather than abandoned — see authored_fetch_release_slot.
+    authored_fetch_release_slot(*ctx->gs, ctx->staging_layer);
     authored_fetch_finish(ctx);
 }
 
@@ -1721,12 +1746,29 @@ inline void start_authored_fetch(GalleryState& gs, GPUState& gpu, wgpu::Queue& q
     emscripten_fetch_attr_init(&attr);
     std::strncpy(attr.requestMethod, "GET", sizeof(attr.requestMethod) - 1);
     attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    // A LANE MUST ALWAYS COME BACK. With no timeout a request that is
+    // accepted and then stalls — a captive portal, a proxy holding the
+    // connection open — never calls either callback, so its lane and its
+    // slot are gone for the session. Four of those and the cap is
+    // exhausted with the rest of the exhibition sitting in the queue,
+    // silently, forever. The timeout routes to onerror, which is a path
+    // that already frees everything.
+    attr.timeoutMSecs = AUTHORED_FETCH_TIMEOUT_MS;
     attr.onsuccess = authored_image_onsuccess;
     attr.onerror = authored_image_onerror;
     attr.userData = ctx;
 
     gs.authored_fetch_inflight++;
-    emscripten_fetch(&attr, ctx->url.c_str());
+    // THE START CAN FAIL, AND THEN NO CALLBACK EVER RUNS. Unwound here
+    // by hand rather than through authored_fetch_finish, which would
+    // re-enter the pump loop that is calling us.
+    if (!emscripten_fetch(&attr, ctx->url.c_str())) {
+        std::cerr << "[Authored] Failed to load: " << ctx->url << " (fetch not started)\n";
+        if (gs.authored_fetch_inflight > 0) gs.authored_fetch_inflight--;
+        gs.authored_staging[req.staging_layer].pending = false;
+        authored_fetch_release_slot(gs, req.staging_layer);
+        delete ctx;
+    }
 }
 
 inline void pump_authored_fetches(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
@@ -1975,6 +2017,16 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
     uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
     for (uint32_t i = 0; i < to_load; i++) {
+#ifdef __EMSCRIPTEN__
+        // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR. Today the flag
+        // below makes this loop run exactly once, so nothing can be
+        // valid or pending yet — but the flag no longer latches on an
+        // empty manifest, and a re-entered fill would otherwise drop
+        // rec.valid on a texture already uploaded and re-download it.
+        // One line, and the interlock stops being the only thing
+        // standing between this loop and thrown-away work.
+        if (gs.authored_staging[i].valid || gs.authored_staging[i].pending) continue;
+#endif
         load_authored_image_to_staging(gs, gpu, queue, i, i, gs.authored_disk_manifest[i].c_str());
         // WEB: adds nothing here — the record cannot be valid yet, and
         // the tally is recomputed at each arrival instead. The line
@@ -2013,6 +2065,17 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
     uint32_t rotated = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         if (!gs.authored_staging[i].consumed) continue;  // keep unconsumed
+#ifdef __EMSCRIPTEN__
+        // A SLOT ALREADY IN FLIGHT IS NOT ROTATED. The loop below reads
+        // the disk cursor, ADVANCES it, and then assumes the load took —
+        // it marks the painting in use and counts a rotation. On this
+        // twin the load can decline (the pending guard), and the cursor
+        // would have moved anyway: that manifest entry would be skipped
+        // for a full lap and the log would report a rotation that never
+        // happened. Skipping here costs the slot nothing; its fetch is
+        // already on its way.
+        if (gs.authored_staging[i].pending) continue;
+#endif
 
         // Find next disk image not already in a surviving slot
         uint32_t attempts = 0;

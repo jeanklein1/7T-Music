@@ -289,7 +289,19 @@ int main(int argc, char* argv[]) {
     app = new App();
     if (!app->console.init("Incubator Dual", 1280, 720)) {
         std::cerr << "Failed to initialize console\n";
+#ifndef __EMSCRIPTEN__
         delete app;
+#else
+        // EXHIBIT_0 — A REFERENCE OUTLIVES ITS REFERENT (LAWS L15), and
+        // here the reference is a fetch. The cartridge constructor ran
+        // inside `new App()` above, BEFORE this init — and on this twin
+        // it started the exhibition.json request, holding &gallery_state_
+        // as its userdata. Returning from main does not tear the browser
+        // runtime down, so that request still lands, and freeing App
+        // first would make it land in freed memory. The App is
+        // deliberately leaked: the page is over, the leak is the last
+        // thing that dies, and it is what keeps the callback honest.
+#endif
         return 1;
     }
     app->console.set_cursor_grab(true);   // the exhibition holds the pointer

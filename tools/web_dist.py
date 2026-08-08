@@ -230,23 +230,41 @@ def main():
     print("  wire, so the number a phone actually pays is lower than the figure above.")
     print("  RECORD IT. Do not optimize it (SHIP_0 U4).")
 
-    biggest = max(sizes, key=lambda k: sizes[k])
+    # THE RULE SAYS EVERY FILE, AND dist/ IS NO LONGER FOUR FILES. The
+    # exhibition ships in the same folder under the same per-file cap, so
+    # it is weighed by the same three-way branch — not printed beside it
+    # as a remark the verdict ignores. Source sizes, because the verdict
+    # runs before the write and must also hold under --check: music is
+    # copied verbatim so its source size IS its dist size, and paintings
+    # only ever shrink, so a source size is a safe upper bound.
+    verdict_sizes = dict(sizes)
+    for f in paintings:
+        verdict_sizes["paintings/" + f] = os.path.getsize(os.path.join(SRC_PAINTINGS, f))
+    for f in music:
+        verdict_sizes["music/" + f] = os.path.getsize(os.path.join(SRC_MUSIC, f))
+
+    biggest = max(verdict_sizes, key=lambda k: verdict_sizes[k])
+    biggest_n = verdict_sizes[biggest]
     print("")
     print("HOST VERDICT (by the numbers)")
-    print("  largest single file: %s at %.2f MiB" % (biggest, mib(sizes[biggest])))
-    if sizes[biggest] <= CF_LIMIT:
+    print("  largest single file: %s at %.2f MiB   (of %d files in dist/)"
+          % (biggest, mib(biggest_n), len(verdict_sizes) + 1))
+    if biggest_n <= CF_LIMIT:
         print("  -> CLOUDFLARE PAGES. Every file is within its 25 MiB per-file limit.")
         host = "cloudflare"
-    elif sizes[biggest] <= GH_LIMIT:
+    elif biggest_n <= GH_LIMIT:
         print("  -> GITHUB PAGES. %s exceeds Cloudflare's 25 MiB; GitHub's ~100 MiB holds."
               % biggest)
         host = "github"
     else:
-        print("  -> RESOLVE. %s exceeds BOTH limits (%.2f MiB)." % (biggest, mib(sizes[biggest])))
+        print("  -> RESOLVE. %s exceeds BOTH limits (%.2f MiB)." % (biggest, mib(biggest_n)))
         print("     Not repackaging on my own authority. Options, for Jean's ruling:")
         print("       a. split the preload — ship a starter asset set, fetch the rest at runtime")
         print("       b. drop the preload and fetch assets over HTTP (needs a loader path)")
         print("       c. a host with no per-file cap (S3/R2 + CDN)")
+        print("     If the offender is an exhibition file, a fourth option exists that the")
+        print("     other three did not have: re-encode or split THAT FILE. It is not")
+        print("     welded into the bundle any more.")
         return 3
 
     if args.check:
@@ -271,8 +289,14 @@ def main():
     # THE MANIFEST IS FILENAMES, NOT PATHS. The program joins the folder
     # itself (paintings/<name>, music/<name>), so a path here would be a
     # second place that decides the layout.
+    # ensure_ascii=False, and it is load-bearing. The default escapes any
+    # non-ASCII character as \uXXXX, and the program's manifest parse is
+    # a by-hand string scan with no unescaping — it would hand
+    # "PAINTING_café.jpeg" to the fetch verbatim and take a 404 for
+    # a file that is sitting right there. The handle is already utf-8 and
+    # the C++ side reads raw bytes.
     with open(os.path.join(DIST, EXHIBITION_JSON), "w", encoding="utf-8", newline="\n") as fh:
-        json.dump({"paintings": paintings, "music": music}, fh, indent=2)
+        json.dump({"paintings": paintings, "music": music}, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
 
     paintings_dist_bytes = dir_bytes(painting_paths)
@@ -289,16 +313,27 @@ def main():
                  100.0 * paintings_dist_bytes / paintings_src_bytes))
     print("  %s: %d painting(s), %d track(s)" % (EXHIBITION_JSON, len(paintings), len(music)))
 
-    # The host rule applies to EVERY file in dist/, and dist/ now holds
-    # more than the four. Stated on its own line rather than folded into
-    # the verdict above, which reads the build output alone.
+    # The verdict above already weighed these, from source sizes. This is
+    # the confirmation on the bytes actually written — and it is a hard
+    # stop, not a remark: a dist/ that cannot be deployed must not print
+    # deploy instructions.
     exhibition_paths = painting_paths + music_paths
     if exhibition_paths:
         biggest_ex = max(exhibition_paths, key=os.path.getsize)
         ex_n = os.path.getsize(biggest_ex)
-        verdict = "within" if ex_n <= CF_LIMIT else "OVER — RESOLVE"
-        print("  largest exhibition file: %s at %.2f MiB (%s the 25 MiB per-file limit)"
-              % (os.path.basename(biggest_ex), mib(ex_n), verdict))
+        host_limit = CF_LIMIT if host == "cloudflare" else GH_LIMIT
+        print("  largest exhibition file (written): %s at %.2f MiB"
+              % (os.path.basename(biggest_ex), mib(ex_n)))
+        if ex_n > host_limit:
+            print("")
+            print("  -> RESOLVE. %s is %.2f MiB, past the %.0f MiB per-file limit of the"
+                  % (os.path.basename(biggest_ex), mib(ex_n), mib(host_limit)))
+            print("     host this run chose. The verdict above weighed SOURCE sizes; this")
+            print("     is the written byte count, and it disagrees.")
+            print("     dist/ is written but NOT deployable as-is. Re-encode or split")
+            print("     that file — it is an exhibition file, not the bundle, so that")
+            print("     costs a copy and not a compile.")
+            return 3
 
     print("")
     print("WROTE %s  (%d files)" % (DIST, file_count))
