@@ -176,6 +176,9 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::DispatchCompute);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
 
+    // The ribbon rings run FIRST and on their OWN group0 (the ribbon
+    // compute group) — outside the pass-head contract below, which is
+    // why it stays ahead of those binds.
     if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
         c->renderer_.dispatch_compute_ribbon_rings(
             compute,
@@ -184,44 +187,23 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
         );
     }
 
-    c->renderer_.dispatch_update_player_agent(
-        compute,
-        c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_WALKER
-        c->gpuState_.room_group()              // the room: occupier windows + field
-    );
+    // OIL_1 U11 (ledger: R10, C7) — THE PASS-HEAD BINDS. The six kernels
+    // below all took the SAME three groups and each re-bound them: ~12
+    // redundant SetBindGroup calls of unchanged state per frame. Bound
+    // once here; bind-group state is sticky for the rest of the pass
+    // (the codebase's own precedent is declared at the shadow band-1
+    // site). Group 2 is bound unconditionally — camera and VP do not
+    // read it, and a bound group their layout ignores is legal.
+    compute.SetBindGroup(0, c->gpuState_.compute_entity_group());
+    compute.SetBindGroup(1, c->gpuState_.compute_texture_group());  // aura + sampler (POLICY_WALKER / POLICY_FLYER)
+    compute.SetBindGroup(2, c->gpuState_.room_group());             // the room: occupier windows + field (FIELD_2)
 
-    c->renderer_.dispatch_update_other_agents(
-        compute,
-        c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_WALKER_AGENT
-        c->gpuState_.room_group()              // the room: occupier windows + field
-    );
-
-    c->renderer_.dispatch_update_camera(
-        compute,
-        c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
-    );
-
-    c->renderer_.dispatch_update_sphere(
-        compute,
-        c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_FLYER
-        c->gpuState_.room_group()              // the room: field bindings (FIELD_2)
-    );
-
-    c->renderer_.dispatch_update_cube(
-        compute,
-        c->gpuState_.compute_entity_group(),
-        c->gpuState_.compute_texture_group(),  // aura + sampler for POLICY_FLYER
-        c->gpuState_.room_group()              // the room: field bindings (FIELD_2)
-    );
-
-    c->renderer_.dispatch_compute_vp(
-        compute,
-        c->gpuState_.compute_entity_group()
-    );
+    c->renderer_.dispatch_update_player_agent(compute);
+    c->renderer_.dispatch_update_other_agents(compute);
+    c->renderer_.dispatch_update_camera(compute);
+    c->renderer_.dispatch_update_sphere(compute);
+    c->renderer_.dispatch_update_cube(compute);
+    c->renderer_.dispatch_compute_vp(compute);
 
     compute.End();
 }

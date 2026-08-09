@@ -358,78 +358,49 @@ namespace t7 {
                 return true;
             }
 
-            void dispatch_update_player_agent(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
-                wgpu::BindGroup occupierBindGroup
-            ) {
+            // ═══ OIL_1 U11 (ledger: R10, C7) — THE PASS-HEAD CONTRACT ═══
+            // The six kernel helpers below ride binds set ONCE by
+            // dispatch_compute at the pass head: group0 = the compute
+            // entity group, group1 = the compute texture group, group2 =
+            // the room — identical for every kernel (verified: each had
+            // exactly one caller, and all passed these same three
+            // objects). Bind-group state is sticky within a pass, and
+            // WebGPU permits bound groups a pipeline's layout does not
+            // use (camera reads 0/1, VP reads 0 — the extra binds are
+            // ignored, not faulted). Each helper keeps SetPipeline +
+            // dispatch. The ribbon-ring dispatch is NOT under this
+            // contract — it binds its own group0 and runs BEFORE the
+            // pass-head binds.
+            void dispatch_update_player_agent(wgpu::ComputePassEncoder& pass) {
                 pass.SetPipeline(updatePlayerAgentPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER)
-                pass.SetBindGroup(2, occupierBindGroup);  // THE AGENTS' ROOM (occupier windows)
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 1 thread = the possessed slot
             }
 
-            void dispatch_update_other_agents(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
-                wgpu::BindGroup occupierBindGroup
-            ) {
+            void dispatch_update_other_agents(wgpu::ComputePassEncoder& pass) {
                 if constexpr (!(ROSTER.wanderers)) return;  // ROSTER-GATE wanderers (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateOtherAgentsPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER_AGENT aura)
-                pass.SetBindGroup(2, occupierBindGroup);  // THE AGENTS' ROOM (occupier windows)
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 32 threads = all non-player slots
             }
 
-            void dispatch_update_camera(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup
-            ) {
+            void dispatch_update_camera(wgpu::ComputePassEncoder& pass) {
                 pass.SetPipeline(updateCameraPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_FLYER)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
-            void dispatch_update_sphere(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
-                wgpu::BindGroup roomBindGroup
-            ) {
+            void dispatch_update_sphere(wgpu::ComputePassEncoder& pass) {
                 if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateSpherePipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
-                pass.SetBindGroup(2, roomBindGroup);      // the room: field bindings (FIELD_2)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
-            void dispatch_update_cube(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
-                wgpu::BindGroup roomBindGroup
-            ) {
+            void dispatch_update_cube(wgpu::ComputePassEncoder& pass) {
                 if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateCubePipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
-                pass.SetBindGroup(2, roomBindGroup);      // the room: field bindings (FIELD_2)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
-            void dispatch_compute_vp(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup
-            ) {
+            void dispatch_compute_vp(wgpu::ComputePassEncoder& pass) {
                 pass.SetPipeline(computeVPPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
                 pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
             }
 
