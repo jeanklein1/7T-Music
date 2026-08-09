@@ -2584,12 +2584,19 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     // SHAFTS — 32 slots: columns 0–15, antennas 16–31. One field,
     // one law; is_active gates every test; the loop is bounded by the
     // Dim:: cap the array is declared with.
+    // EMITTER y := SUBJECT y (SHELL_1), the field's ruling inherited: a
+    // column is a vertical body, so the pair is planar and d3.y is 0. It
+    // read 0.0 before, which made d3.y the walker's ALTITUDE — and d3.y's
+    // only live consumer on this row is d2_3d, the degenerate-coincidence
+    // guard. The guard was testing height above sea level. It fired on flat
+    // ground by accident and never fired on a hill; since SHELL_0 opened the
+    // unconditional tangential path, not firing means normalize(vec2(0,0)).
     for (var i = 0u; i < 32u; i++) {
         let cm = occupier_cmg[i];
         if (cm.is_active == 0u) { continue; }
         let prof = row_occupier(cm.shaft_radius + body_radius);
         let r = influence_response(self_p, vec2(0.0),
-                                   vec3(cm.center_x, 0.0, cm.center_z), vec2(0.0),
+                                   vec3(cm.center_x, self_p.y, cm.center_z), vec2(0.0),
                                    prof, dt);
         dv += r;
     }
@@ -2606,10 +2613,10 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
         let c0 = vec2(am.center_x, am.center_z);
         let prof = row_occupier(leg_r);
         let r1 = influence_response(self_p, vec2(0.0),
-                                    vec3(c0.x + leg.x, 0.0, c0.y + leg.y), vec2(0.0),
+                                    vec3(c0.x + leg.x, self_p.y, c0.y + leg.y), vec2(0.0),
                                     prof, dt);
         let r2 = influence_response(self_p, vec2(0.0),
-                                    vec3(c0.x - leg.x, 0.0, c0.y - leg.y), vec2(0.0),
+                                    vec3(c0.x - leg.x, self_p.y, c0.y - leg.y), vec2(0.0),
                                     prof, dt);
         dv += r1 + r2;
     }
