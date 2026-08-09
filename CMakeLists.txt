@@ -56,10 +56,33 @@ set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render ca
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
 set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
 
+# THE PIN (DRAW_0). The one dial here whose EMPTY IS LEGAL — and empty
+# is the default. Empty means the world's master seed is DRAWN at boot
+# from the wall clock (cartridge.hpp, boot_seed), so the web twin draws
+# with no CMake change at all. A number PINS the world to that seed,
+# exactly reproducible: -DT7_WORLD_SEED=42 restores the authored world
+# (DEMO_SEED, demos/matrix.hpp).
+#
+# The paste law above does NOT apply to this one, and the guard below is
+# why: an unset value here is never pasted at all. The define is dropped
+# entirely, so the source reads #ifdef — not an empty paste that would
+# name nothing.
+set(T7_WORLD_SEED                     ""                 CACHE STRING "The world's master seed. EMPTY (the default) = DRAWN at boot from the wall clock — each visit is a new world. A number PINS the world to that seed and reproduces it exactly (42 is the authored world, DEMO_SEED in demos/matrix.hpp).")
+
+set(T7_WORLD_SEED_DEFS)
+if(NOT T7_WORLD_SEED STREQUAL "")
+    set(T7_WORLD_SEED_DEFS T7_WORLD_SEED=${T7_WORLD_SEED})
+endif()
+
 message(STATUS "")
 message(STATUS "Active cartridges:")
 message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
 message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
+if(T7_WORLD_SEED STREQUAL "")
+    message(STATUS "  World seed:     drawn at boot (wall clock)")
+else()
+    message(STATUS "  World seed:     pinned to ${T7_WORLD_SEED}")
+endif()
 message(STATUS "")
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -543,6 +566,7 @@ if(MSVC)
         INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
+        ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
     )
 endif()
 
@@ -586,6 +610,7 @@ if(EMSCRIPTEN)
         INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
+        ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
     )
     target_compile_options(incubator_dual PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
     # ONE PRELOAD, AND IT IS PROGRAM (EXHIBIT_0 U3). The MEMFS mapping

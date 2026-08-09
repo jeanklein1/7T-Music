@@ -99,6 +99,72 @@
 namespace t7 {
     namespace the_board {
 
+        // ═══ THE BOOT DRAW (DRAW_0) ══════════════════════════════════
+        //
+        // THE WORLD'S MASTER SEED IS CHOSEN AT BOOT, NOT AUTHORED AS A
+        // CONSTANT. Each visit is a draw from the same latent space, the
+        // way each painting is. One number changes and the generator
+        // does the rest: terrain, the activity lattice, the waves, GoL
+        // zone seeding, agent spawn and every entity placement all hang
+        // off world_state_.active_seed and follow it without a further
+        // edit anywhere.
+        //
+        // THE PIN (T7_WORLD_SEED, CMakeLists.txt) is empty by default,
+        // so this macro is UNDEFINED and the seed is DRAWN. A number
+        // defines it and the seed IS that number — the world becomes
+        // exactly reproducible. -DT7_WORLD_SEED=42 is the authored world
+        // (DEMO_SEED, demos/matrix.hpp) typed back in: the pin's default
+        // value, and the acceptance test for this campaign. The dial is
+        // a RESTORE, not a revert — there is nothing to undo.
+        //
+        // A DRAWN WORLD STAYS REPORTABLE because of the pin and the
+        // witness line the root prints beside this call. A visitor's
+        // "the ribbon speared something" is reproducible by reading the
+        // seed off the console and pinning it.
+        inline uint32_t boot_seed() {
+#ifdef T7_WORLD_SEED
+            return static_cast<uint32_t>(T7_WORLD_SEED);
+#else
+            // WALL TIME, AND THE REASON IS NOT STYLE. std::chrono::
+            // steady_clock is performance.now() on Emscripten, and that
+            // starts near ZERO at every page load — a steady_clock draw
+            // would hand nearly every visitor the same world, silently,
+            // and the only place the defect could surface is a user
+            // report. system_clock is Date.now() there and the real wall
+            // clock here: distinct per visit and per visitor.
+            const uint64_t t = static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count());
+
+            // THE MIX. The raw clock's low bits are ADJACENT between two
+            // visitors who arrive in the same second, and adjacent
+            // numbers are not different worlds: tile_seed and
+            // cpu_lattice_node_seed take the master seed through one xor
+            // before their finalizer, so near inputs stay near through
+            // the first round. cpu_hash (primitives/seed_utils.hpp) is
+            // the tree's existing two-input scalar mixer — the same
+            // multiply/xorshift idiom lattice_node_seed uses, three
+            // rounds — and is shaped for exactly this: fold the 64-bit
+            // clock's two halves into one avalanched u32. No new
+            // mechanism was invented here.
+            //
+            // DEMO.seed rides the fold, and that is what keeps it live:
+            // two demo columns with different authored seeds draw from
+            // different streams, and the column's seed stays the number
+            // the pin restores. XOR with a constant is a bijection, so
+            // it costs the draw no entropy.
+            return cpu_hash(static_cast<uint32_t>(t),
+                            static_cast<uint32_t>(t >> 32) ^ DEMO.seed);
+#endif
+        }
+
+        // The witness's second word. Boot-only; no frame reads it.
+#ifdef T7_WORLD_SEED
+        inline constexpr const char* BOOT_SEED_ORIGIN = "pinned";
+#else
+        inline constexpr const char* BOOT_SEED_ORIGIN = "drawn";
+#endif
+
         class Cartridge : public RenderCartridge {
 
             // COMPOSITION ROOT — ORGANS ARE PUBLIC: sight is free; writes pass
@@ -434,7 +500,18 @@ namespace t7 {
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
-                world_state_.active_seed = DEMO.seed;
+                // DRAW_0: the seed is DRAWN, not authored — boot_seed()
+                // (above this class) decides, and DEMO.seed is what the pin
+                // restores. This line is the campaign's whole edit site.
+                world_state_.active_seed = boot_seed();
+                // THE WITNESS (P6). One line, at boot, immediately after the
+                // choice and before any consumer — zero frame cost. It prints
+                // on both twins; on the web it reaches the DETAILS panel
+                // through Module.print (web/index.html routes every stdout
+                // line into the log), which is how Jean reads it. This line is
+                // what keeps a randomized world reportable.
+                std::cout << "[World] Boot seed=" << world_state_.active_seed
+                          << " (" << BOOT_SEED_ORIGIN << ")\n";
                 mood_state_.active = DEMO.boot_mood;
 
 #ifdef __EMSCRIPTEN__
