@@ -26,28 +26,25 @@ struct BeatClock {
     float bpm = 100.0f;   // variable BPM — Jean's amendment; one home
 
     void update(float dt) {
-        dt_ = dt;
-        seconds_ += dt;
-        beats_ += dt * (bpm / 60.0f);
+        signal_.dt = dt;
+        signal_.t_seconds += dt;
+        signal_.t_beats += dt * (bpm / 60.0f);
     }
 
     // Every time-bearing field of the surviving contract, from the
-    // clock; everything else (stats, pads) value-initialized to zero.
-    // AnalysisSignal carries no transport flag — nothing to default.
-    AnalysisSignal output() const {
-        AnalysisSignal s{};
-        s.t_seconds = seconds_;
-        s.t_beats   = beats_;
-        s.dt        = dt_;
-        return s;
-    }
+    // clock; everything else (stats, pads) stays at the zero it was
+    // value-initialized to ONCE, at construction (OIL_1 U2 — the
+    // 4128-byte per-frame re-fill retired; ledger: X BeatClock, C3).
+    // The stats plane has NO writer — that is the documented audio
+    // socket, and a future soundtrack writer now has a persistent
+    // home to fill instead of a per-frame temporary. AnalysisSignal
+    // carries no transport flag — nothing to default.
+    const AnalysisSignal& output() const { return signal_; }
 
     StatLayoutView stat_layout() const { return StatLayoutView{ nullptr, 0 }; }
 
 private:
-    float seconds_ = 0.0f;
-    float beats_   = 0.0f;
-    float dt_      = 0.0f;
+    AnalysisSignal signal_{};   // zero-filled once; update() writes the 3 live floats
 };
 
 } // namespace t7
