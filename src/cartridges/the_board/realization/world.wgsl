@@ -2631,16 +2631,13 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
 //     engages only on a hitch (~14.6 fps). All three terms are consts, so the
 //     claim ships as a `const_assert` at the CUBE_PUSH_CAP definition -- the one
 //     row that compiles its own feasibility proof.
-//   CONTACT rows -- UNASSERTABLE. The bound is contact_radius*CONTACT_SPRING*dt
-//     < CONTACT_IMPULSE_CAP, but contact_radius is a field of the
-//     agent_tier_gains UNIFORM (runtime, per-tier) while CONTACT_SPRING and
-//     CONTACT_IMPULSE_CAP are module consts. A uniform x const is not a
-//     const-expression, so no const_assert can see it. This is the first
-//     concrete cost of a value split across rooms: move the tier radii next to
-//     the caps and the row becomes checkable (T3 charter generalizes the rule).
-//     SUCCESSION (FIELD_B1/B2): agent<->agent and agent<-sphere presence
-//     migrated to the field (its ceiling is config.field_fmax, one clamp for the
-//     whole sum); the surviving CONTACT-cap consumer here is row_occupier.
+//   OCCUPIER row -- SUM-CLAMPED, not per-row capped (SHELL_0). The row carries
+//     INFLUENCE_NO_CAP and occupier_contact clamps the summed response once at
+//     OCCUPIER_SPEED_CAP -- the field's ceiling pattern, for the same reason:
+//     shells overlap, and N per-row caps bound nothing. Supersedes the CONTACT-
+//     rows entry: FIELD_B1/B2 had already migrated agent<->agent and
+//     agent<-sphere presence to the field, and row_occupier was the last
+//     CONTACT-cap consumer standing.
 //   SPHERE row   -- LIVE LIMITER, not a guard. Max impulse is
 //     fe.influence_radius*SPHERE_PUSH_GAIN*dt; at the typical mu=8 that is 5.33
 //     at 60 Hz (under CONTACT_IMPULSE_CAP 6) but crosses it below 53.3 fps, and
