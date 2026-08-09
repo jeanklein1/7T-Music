@@ -1453,8 +1453,39 @@ namespace t7 {
                             }
                             std::cout << line;
                         }
+                        // THE S BLOCK (OIL_1a) — the host rows, HostRow
+                        // order. An S row names where a wait SURFACES,
+                        // not where the cost lives (the timer law at the
+                        // enum). A frame that failed the acquire noted
+                        // nothing, so these means stay consistent with
+                        // window_frames (rendered frames only).
+                        static constexpr const char* S_NAMES[(size_t)HostRow::COUNT] = {
+                            "begin_frame", "acquire", "finish_submit", "present", "frame_total"
+                        };
+                        double s_partials = 0.0, s_frame_total = 0.0;
+                        for (size_t i = 0; i < (size_t)HostRow::COUNT; i++) {
+                            const auto& s = meter_.s_rows[i];
+                            const double mean = s.sum_ms / meter_.window_frames;
+                            if (i == (size_t)HostRow::FrameTotal) s_frame_total = mean;
+                            else                                  s_partials += mean;
+                            std::snprintf(line, sizeof line,
+                                "[METER] S %-22s  mean %.2f  max %.2f\n",
+                                S_NAMES[i], mean, (double)s.max_ms);
+                            std::cout << line;
+                        }
                         std::snprintf(line, sizeof line,
                             "[METER] U_SUM %.2f   R_SUM %.2f\n", u_sum, r_sum);
+                        std::cout << line;
+                        // The residue — the previously unattributable gap,
+                        // now named: what frame_total carries that no U, R,
+                        // or S bracket does (input drain, encoder create,
+                        // glue). Native backpressure surfaces in acquire/
+                        // present above; on the web twin the fps line's
+                        // remainder beyond frame_total is the rAF interval.
+                        std::snprintf(line, sizeof line,
+                            "[METER] residue %.2f  (frame_total %.2f - U_SUM - R_SUM - S_partials %.2f)\n",
+                            s_frame_total - (u_sum + r_sum + s_partials),
+                            s_frame_total, s_partials);
                         std::cout << line;
                         meter_.reset();
                     }
@@ -1929,11 +1960,27 @@ namespace t7 {
             // armed timestamp pair, no resolve, no readback, no table. The
             // structure is kept whole so a measurement session is one define
             // (T7_INSTRUMENTS=meter) and a rebuild, never a re-authoring.
+            // ═══ THE HOST S ROWS (OIL_1a; ledger: S0 host tail, C10) ═══
+            // The harness's stations — the frame's previously unmetered
+            // tail. The host feeds the meter through ONE narrow
+            // dial-gated door (meter_note_host below): one meter, one
+            // table, one printer.
+            // TIMER LAW: an S row names where a wait SURFACES, not where
+            // the cost lives — Begin carries the event pump, Acquire and
+            // Present carry swapchain backpressure, FinishSubmit carries
+            // command-buffer validation; FrameTotal brackets the whole
+            // frame() body, so the census's residue line is the gap no
+            // row carries.
+            enum class HostRow : uint32_t {
+                Begin, Acquire, FinishSubmit, Present, FrameTotal, COUNT
+            };
+
             struct FrameMeter {
                 static constexpr float FRAME_BUDGET_MS = 16.6f;   // the named budget
                 struct RowStat { double sum_ms = 0.0; float max_ms = 0.0f; };
                 RowStat u_rows[(size_t)UPhase::COUNT];
                 RowStat r_rows[(size_t)RPhase::COUNT];
+                RowStat s_rows[(size_t)HostRow::COUNT];   // the host S rows (OIL_1a)
                 uint32_t window_frames = 0;
                 std::chrono::steady_clock::time_point window_start =
                     std::chrono::steady_clock::now();   // for fps
@@ -1949,6 +1996,7 @@ namespace t7 {
                 void reset() {   // zero rows + frames, restamp window_start
                     for (auto& s : u_rows) s = RowStat{};
                     for (auto& s : r_rows) s = RowStat{};
+                    for (auto& s : s_rows) s = RowStat{};
                     for (auto& s : r_gpu) s = RowStat{};
                     window_frames = 0;
                     gpu_sampled_frames = 0;
@@ -1956,6 +2004,16 @@ namespace t7 {
                 }
             };
             FrameMeter meter_;
+
+            // The host door (OIL_1a): the harness clocks its own brackets
+            // and notes the ms here. Dial off: the body folds to an empty
+            // inline — the same zero-fold standard the ledger verified
+            // for the conductors' clock pairs (X meter-off fold, CLEAN).
+            void meter_note_host(HostRow row, float ms) {
+                if constexpr (!INSTRUMENTS.frame_meter) { (void)row; (void)ms; return; }
+                auto& s = meter_.s_rows[(size_t)row];
+                s.sum_ms += ms; if (ms > s.max_ms) s.max_ms = ms;
+            }
 
             // The meter_row registry (state.hpp — the GPU half's raw row
             // ids) is pinned to RPhase HERE, at the enum's home. Drift

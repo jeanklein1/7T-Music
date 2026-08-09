@@ -217,7 +217,26 @@ static void frame() {
         }
     }
 
+    // ═══ THE FRAME METER — S rows (OIL_1a; ledger: S0 host tail, C10) ══
+    // TIMER LAW: these rows name where a wait SURFACES, not where the
+    // cost lives — begin_frame carries the event pump, acquire and
+    // present carry swapchain backpressure, finish_submit carries
+    // command-buffer validation. Every clock pair sits behind the
+    // instruments dial (folds to zero off, locals unused) and behind
+    // world_ready (this line is below the boot and world-init gates).
+    // A frame that fails the acquire notes NOTHING, so the S means stay
+    // consistent with window_frames — which counts rendered frames only.
+    std::chrono::steady_clock::time_point s_frame0{}, s_t0{};
+    float s_begin = 0.0f, s_acquire = 0.0f, s_submit = 0.0f;
+    if constexpr (t7::INSTRUMENTS.frame_meter) {
+        s_frame0 = std::chrono::steady_clock::now();
+        s_t0 = s_frame0;
+    }
+
     float dt = app->console.begin_frame();
+    if constexpr (t7::INSTRUMENTS.frame_meter)
+        s_begin = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - s_t0).count();
 
 #ifndef __EMSCRIPTEN__
     // --- Hot Reload Check (every ~30 frames; native instrument, R6) ------
@@ -248,9 +267,13 @@ static void frame() {
     app->render.update(app->clock.output(), app->console.aspect_ratio(), app->queue);
 
     // --- Render ---------------------------------------------------------
+    if constexpr (t7::INSTRUMENTS.frame_meter) s_t0 = std::chrono::steady_clock::now();
     if (!app->console.acquire_surface_texture()) {
-        return;
+        return;   // skipped frame — no S notes (see the S-row comment above)
     }
+    if constexpr (t7::INSTRUMENTS.frame_meter)
+        s_acquire = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - s_t0).count();
 
     wgpu::CommandEncoderDescriptor encDesc{};
     wgpu::CommandEncoder encoder = app->console.device().CreateCommandEncoder(&encDesc);
@@ -258,10 +281,26 @@ static void frame() {
     app->render.render(encoder, app->console.backbuffer(), app->console.depth_view());
 
     wgpu::CommandBufferDescriptor cmdDesc{};
+    if constexpr (t7::INSTRUMENTS.frame_meter) s_t0 = std::chrono::steady_clock::now();
     wgpu::CommandBuffer commands = encoder.Finish(&cmdDesc);
     app->queue.Submit(1, &commands);
+    if constexpr (t7::INSTRUMENTS.frame_meter)
+        s_submit = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - s_t0).count();
 
+    if constexpr (t7::INSTRUMENTS.frame_meter) s_t0 = std::chrono::steady_clock::now();
     app->console.present();
+    if constexpr (t7::INSTRUMENTS.frame_meter) {
+        const auto s_end = std::chrono::steady_clock::now();
+        const float s_present = std::chrono::duration<float, std::milli>(s_end - s_t0).count();
+        const float s_total = std::chrono::duration<float, std::milli>(s_end - s_frame0).count();
+        using HostRow = RenderCartridge::HostRow;
+        app->render.meter_note_host(HostRow::Begin, s_begin);
+        app->render.meter_note_host(HostRow::Acquire, s_acquire);
+        app->render.meter_note_host(HostRow::FinishSubmit, s_submit);
+        app->render.meter_note_host(HostRow::Present, s_present);
+        app->render.meter_note_host(HostRow::FrameTotal, s_total);
+    }
 }
 
 // =========================================================================
