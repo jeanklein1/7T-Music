@@ -106,6 +106,11 @@ namespace t7 {
         public:
 
             wgpu::Device device_;
+            // OIL_1 U1: the queue, cached once at initialize() — the same
+            // singleton object device_.GetQueue() returns; render() reads
+            // this instead of re-fetching per frame (update() already
+            // rides the harness-cached queue).
+            wgpu::Queue queue_;
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
@@ -438,6 +443,7 @@ namespace t7 {
 
             void initialize(wgpu::Device device) override {
                 device_ = device;
+                queue_ = device_.GetQueue();   // OIL_1 U1 — one fetch, one home
                 auto tGpu0 = std::chrono::high_resolution_clock::now();
                 gpuState_.init(device);
                 auto tGpu1 = std::chrono::high_resolution_clock::now();
@@ -2131,8 +2137,7 @@ namespace t7 {
             void render(wgpu::CommandEncoder& encoder,
                 wgpu::TextureView backbuffer,
                 wgpu::TextureView depth) override {
-                wgpu::Queue queue = device_.GetQueue();
-                RenderCtx ctx{ encoder, queue, backbuffer, depth };
+                RenderCtx ctx{ encoder, queue_, backbuffer, depth };   // OIL_1 U1: the cached queue — no per-frame GetQueue
                 if constexpr (INSTRUMENTS.frame_meter) meter_.window_frames++;
 
                 // THE FRAME METER — GPU half, harvest side. Mirrors the
