@@ -2222,8 +2222,11 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 
 // --- Contact collision (TRUEBAND_CONTACT_1; the population panel owns
 //     these numbers' biography)
-// CONTACT_SPRING/_IMPULSE_CAP are not radii -- units below.
-const CONTACT_SPRING: f32 = 40.0;        // impulse per wu overlap per s
+// CONTACT_IMPULSE_CAP is not a radius -- units below. (CONTACT_SPRING retired
+// at SHELL_0: row_sphere_push already carried its own 40.0 as SPHERE_PUSH_GAIN,
+// and row_occupier -- its last consumer -- now reads OCCUPIER_PUSH_GAIN. One
+// name for two unshared facts, which is how the occupier row inherited a
+// stiffness sized for somebody else.)
 const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
 // dimensionless -- the pawn's emitter authority. Not a radius.
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — consumed by field_sum's emitter scale since FIELD_B2 (the possessed emits, never yields)
@@ -2323,8 +2326,8 @@ const CUBE_PUSH_CAP: f32 = 12.0;
 // itself; the other three rows are split across rooms (see the ledger below).
 const_assert CUBE_PUSH_RADIUS * CUBE_PUSH_GAIN < CUBE_PUSH_CAP * 60.0;
 
-// Spheres push the POINT (CONTACT_5 P2a). Presence gain authored 40.0 =
-// CONTACT_SPRING's shape, so the restored feel matches what Jean liked
+// Spheres push the POINT (CONTACT_5 P2a). Presence gain 40.0 — the shape the
+// retired CONTACT_SPRING carried, so the restored feel matches what Jean liked
 // pre-S2c. Not a radius (the shell is fe.influence_radius, per-instance).
 const SPHERE_PUSH_GAIN: f32 = 40.0;
 
