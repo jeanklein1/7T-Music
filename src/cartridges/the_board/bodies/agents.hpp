@@ -246,6 +246,26 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
               "AGENT_POPULATIONS must declare one row per mood");
 
+// OIL_1 U6 (ledger: R4, C4): the per-mood weight sums, summed at COMPILE
+// TIME in the SAME ascending order as the runtime loops they replace —
+// identical float values by construction. One home, beside the table
+// they summarize; the per-frame respawn reads these instead of
+// re-summing a constexpr row every frame.
+inline constexpr std::array<float, MOOD_COUNT> AGENT_BEH_SUMS = [] {
+    std::array<float, MOOD_COUNT> s{};
+    for (uint32_t m = 0; m < MOOD_COUNT; m++)
+        for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
+            s[m] += AGENT_POPULATIONS[m].behavior_weights[b];
+    return s;
+}();
+inline constexpr std::array<float, MOOD_COUNT> AGENT_TIER_SUMS = [] {
+    std::array<float, MOOD_COUNT> s{};
+    for (uint32_t m = 0; m < MOOD_COUNT; m++)
+        for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++)
+            s[m] += AGENT_POPULATIONS[m].tier_weights[t];
+    return s;
+}();
+
 // Row order must match the mood ids in MOOD_TABLE (mood.hpp).
 // Unfolded rather than a constexpr loop — the restyle is a named
 // later stage.
@@ -470,10 +490,11 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
     const auto& pop = AGENT_POPULATIONS[mood_id];
     if (pop.count == 0) return;
 
-    float beh_sum = 0.0f;
-    for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++) beh_sum += pop.behavior_weights[b];
-    float tier_sum = 0.0f;
-    for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++) tier_sum += pop.tier_weights[t];
+    // OIL_1 U6: the sums are compile-time table facts (AGENT_BEH_SUMS /
+    // AGENT_TIER_SUMS beside AGENT_POPULATIONS) — same order, identical
+    // values; the per-frame re-sum of a constexpr row retired.
+    const float beh_sum = AGENT_BEH_SUMS[mood_id];
+    const float tier_sum = AGENT_TIER_SUMS[mood_id];
     if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
 
     const uint32_t possessed = c->player_.possessed_slot;
