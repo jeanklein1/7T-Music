@@ -96,6 +96,20 @@ MANIFEST_DEDUPE_CAP = 256
 # .jpg or .jpeg case-insensitively (gallery.hpp, scan_paintings_folder).
 PAINTING_EXTS = (".jpg", ".jpeg")
 
+# POSTER_0 — THE SHELL KNOWS ROLES, THIS KNOWS PAINTINGS. web/index.html
+# names veil_poster.jpg and card_poster.jpg and nothing else; re-picking
+# a painting is one edit here and a redeploy, with no page change.
+POSTERS = {
+    "veil_poster.jpg": "PAINTING_50",    # STATE 1 LOADING + STATE 4 READY
+    "card_poster.jpg": "PAINTING_200",   # STATE 2 FALLBACK + STATE 3 LOST
+}
+# The .poster box is at most 340 CSS px wide. 640 covers it at DPR ~1.9
+# and at the widths a phone actually gives it under the 74vw and 34vh
+# caps. It is the one dial: 768 costs ~+52 KB on the veil, which is the
+# only poster on the boot's critical path.
+POSTER_WIDTH   = 640
+POSTER_QUALITY = 78
+
 # exhibition.json, NOT manifest.json — the root manifest.json name stays
 # reserved for the PWA web manifest.
 EXHIBITION_JSON = "exhibition.json"
@@ -195,6 +209,116 @@ def write_paintings(names):
     return [os.path.join(DIST_PAINTINGS, f) for f in names]
 
 
+def resolve_poster_sources():
+    """Turn each POSTERS role into a real file under assets/paintings/.
+
+    THE EXTENSION IS READ, NEVER ASSUMED. The folder mixes .jpg and .jpeg
+    because the program's scan takes both, so the table names STEMS and
+    this finds whichever one is actually there. The stem match is exact
+    and case-sensitive: Cloudflare's URLs are, and a poster that resolves
+    here but 404s in production is the worst of both.
+
+    Returns (resolved, missing) — resolved maps output name -> source
+    path, missing lists the (output name, role) pairs with nothing behind
+    them. Neither writes anything; the refusal is the caller's.
+    """
+    by_stem = {}
+    if os.path.isdir(SRC_PAINTINGS):
+        # Sorted, so a folder holding both PAINTING_50.jpg and
+        # PAINTING_50.jpeg resolves the same way on every run rather than
+        # following whatever order listdir happens to give.
+        for f in sorted(os.listdir(SRC_PAINTINGS)):
+            stem, ext = os.path.splitext(f)
+            if (ext.lower() in PAINTING_EXTS
+                    and os.path.isfile(os.path.join(SRC_PAINTINGS, f))):
+                by_stem.setdefault(stem, f)
+
+    resolved = {}
+    missing = []
+    for out_name in sorted(POSTERS):
+        role = POSTERS[out_name]
+        found = by_stem.get(role)
+        if found is None:
+            missing.append((out_name, role))
+        else:
+            resolved[out_name] = os.path.join(SRC_PAINTINGS, found)
+    return resolved, missing
+
+
+def write_posters(resolved):
+    """Bake the page's two posters into dist/, beside index.html.
+
+    NOT THE EXHIBITION, AND DELIBERATELY DUPLICATED. These never enter
+    exhibition.json, and PAINTING_50 and PAINTING_200 keep shipping
+    full-size under paintings/ as hung canvases — two consumers, two
+    sizes, on purpose. Anyone later "fixing" the duplication by pointing
+    the page at paintings/PAINTING_50.jpeg puts a half-megabyte
+    exhibition JPEG on the boot's critical path to fill a 340px box.
+
+    NATIVE ASPECT, NOT 2:3. The crop is a CSS decision (.poster in
+    index.html) and stays one, so it can change without re-running this
+    script or re-uploading anything.
+
+    NO BUILD-ID SUFFIX. BUILDID_0 exists because glue and wasm can pair
+    mismatched — a correctness failure. A stale poster is one old
+    painting for one revalidation. The reason does not extend, so the
+    mechanism does not.
+
+    Returns (paths, failures).
+    """
+    paths = []
+    failures = []
+    try:
+        from PIL import Image
+    except ImportError:
+        Image = None
+        print("  (Pillow absent — posters copied verbatim at their authored size.")
+        print("   pip install pillow   for the %dpx / q%d bake.)"
+              % (POSTER_WIDTH, POSTER_QUALITY))
+
+    for out_name in sorted(resolved):
+        role = POSTERS[out_name]
+        src = resolved[out_name]
+        dst = os.path.join(DIST, out_name)
+        try:
+            if Image is None:
+                # THE OPTIONAL STILL MUST NOT FAIL THE DIST — write_paintings
+                # rules the same way on the same library. A poster at its
+                # authored size is a heavier download, not a broken page, so
+                # it ships. Pillow does not become mandatory because POSTER_0
+                # arrived.
+                shutil.copy2(src, dst)
+            else:
+                with Image.open(src) as im:
+                    im = im.convert("RGB")
+                    w, h = im.size
+                    if w > POSTER_WIDTH:
+                        im = im.resize(
+                            (POSTER_WIDTH, max(1, int(round(h * POSTER_WIDTH / float(w))))),
+                            Image.LANCZOS)
+                    # Never scales UP, for the reason PAINTING_CAP already
+                    # gives: invented pixels are bytes over the wire that
+                    # carry no detail. A source narrower than the target
+                    # ships at the width it was authored at.
+                    im.save(dst, "JPEG", quality=POSTER_QUALITY,
+                            optimize=True, progressive=True)
+        except Exception as e:
+            # UNLIKE A PAINTING, A POSTER THAT FAILS IS A HOLE IN THE PAGE.
+            # write_paintings copies verbatim and moves on because one
+            # unreadable canvas is not a reason to ship no exhibition. Here
+            # the same fallback would push bytes that just refused to open
+            # into the slot whose entire job is looking intact.
+            failures.append((out_name, role, src, "%s: %s" % (type(e).__name__, e)))
+            continue
+
+        if not os.path.isfile(dst) or os.path.getsize(dst) == 0:
+            failures.append((out_name, role, src, "wrote 0 bytes"))
+            continue
+        paths.append(dst)
+
+    return paths, failures
+
+
 def main():
     ap = argparse.ArgumentParser(description="SHIP_0 U4 — web dist assembly + host verdict")
     ap.add_argument("--check", action="store_true", help="inventory and verdict only; write nothing")
@@ -222,6 +346,10 @@ def main():
     # the re-encoded dist figures print after the write.
     paintings = list_paintings()
     music = list_music()
+    # POSTER_0 — resolved here, refused later. This reads the directory and
+    # writes nothing, so it is safe this early and its answer is needed by
+    # the verdict below.
+    poster_src, poster_missing = resolve_poster_sources()
     paintings_src_bytes = dir_bytes([os.path.join(SRC_PAINTINGS, f) for f in paintings])
     music_src_bytes = dir_bytes([os.path.join(SRC_MUSIC, f) for f in music])
     print("")
@@ -294,6 +422,14 @@ def main():
         verdict_sizes["paintings/" + f] = os.path.getsize(os.path.join(SRC_PAINTINGS, f))
     for f in music:
         verdict_sizes["music/" + f] = os.path.getsize(os.path.join(SRC_MUSIC, f))
+    # POSTER_0 — the posters are files in dist/, and the rule says every
+    # file. Source size again, and an upper bound for the same reason: a
+    # poster only ever shrinks from the painting behind it, so a source
+    # that clears the cap guarantees the written poster does. At a few
+    # hundred KB they cannot move this verdict — they are counted so the
+    # file COUNT printed below is not a lie.
+    for out_name, src in poster_src.items():
+        verdict_sizes[out_name] = os.path.getsize(src)
 
     biggest = max(verdict_sizes, key=lambda k: verdict_sizes[k])
     biggest_n = verdict_sizes[biggest]
@@ -340,6 +476,23 @@ def main():
         print("  new wasm. Restore `var BUILD = '%s';` in the shell." % BUILD_ID_PLACEHOLDER)
         return 4
 
+    # POSTER_0 — THE SECOND REFUSAL, and before rmtree for the reason the
+    # first one is: a dist that cannot be completed must not cost the
+    # previous one. A renamed PAINTING_200 fails the build loudly here
+    # rather than shipping a hole on the page whose entire job is behaving
+    # when things are broken.
+    if poster_missing:
+        print("")
+        print("REFUSING TO SHIP A POSTER WITH NOTHING BEHIND IT.")
+        for out_name, role in poster_missing:
+            print("  %-16s  role %s — no %s{%s} under %s"
+                  % (out_name, role, role, ",".join(PAINTING_EXTS), SRC_PAINTINGS))
+        print("  The page hard-codes these filenames and knows nothing else; POSTERS in")
+        print("  this script is the only place that says which painting each one is.")
+        print("  Restore the file, or re-point the role in POSTERS and redeploy — either")
+        print("  way index.html does not change.")
+        return 5
+
     if os.path.isdir(DIST):
         shutil.rmtree(DIST)
     os.makedirs(DIST)
@@ -354,6 +507,25 @@ def main():
     shell_out = shell_src.replace(BUILD_ID_PLACEHOLDER, build_id)
     with open(os.path.join(DIST, "index.html"), "w", encoding="utf-8", newline="") as fh:
         fh.write(shell_out)
+
+    # POSTER_0 — written here, beside index.html, because that is what they
+    # belong to. The exhibition is assembled after them and separately.
+    print("")
+    print("POSTERS — baking %d page asset(s) at %dpx / q%d"
+          % (len(poster_src), POSTER_WIDTH, POSTER_QUALITY))
+    poster_paths, poster_failures = write_posters(poster_src)
+    if poster_failures:
+        print("")
+        print("REFUSING TO SHIP A BROKEN POSTER.")
+        for out_name, role, src, why in poster_failures:
+            print("  %-16s  role %s" % (out_name, role))
+            print("      source  %s" % src)
+            print("      %s" % why)
+        print("  dist/ is part-written and NOT deployable: the page would show a hole")
+        print("  where a painting belongs. Fix the source, or re-point the role in")
+        print("  POSTERS. A poster is not a painting — write_paintings survives one bad")
+        print("  file because the wall has others to hang; this slot has exactly one.")
+        return 5
 
     print("")
     print("EXHIBITION — assembling %d painting(s), %d track(s)" % (len(paintings), len(music)))
@@ -378,7 +550,9 @@ def main():
 
     paintings_dist_bytes = dir_bytes(painting_paths)
     music_dist_bytes = dir_bytes(music_paths)
-    file_count = len(ARTIFACTS) + len(painting_paths) + len(music_paths) + 1
+    poster_dist_bytes = dir_bytes(poster_paths)
+    file_count = (len(ARTIFACTS) + len(painting_paths) + len(music_paths)
+                  + len(poster_paths) + 1)
 
     print("  %-18s %14d  %9.2f  %7d" % ("paintings (dist)", paintings_dist_bytes,
                                         mib(paintings_dist_bytes), len(painting_paths)))
@@ -388,6 +562,18 @@ def main():
         print("  paintings re-encode: %.2f MiB -> %.2f MiB  (%.0f%% of source)"
               % (mib(paintings_src_bytes), mib(paintings_dist_bytes),
                  100.0 * paintings_dist_bytes / paintings_src_bytes))
+    # POSTER_0 — page assets, listed with the dist figures and named as not
+    # being the show. The per-file lines are here because the veil poster
+    # is the one image on the boot's critical path, and a number you have
+    # to go and measure is a number nobody measures.
+    print("  %-18s %14d  %9.2f  %7d   <- page assets, NOT in %s"
+          % ("posters (dist)", poster_dist_bytes, mib(poster_dist_bytes),
+             len(poster_paths), EXHIBITION_JSON))
+    for p in poster_paths:
+        out_name = os.path.basename(p)
+        n = os.path.getsize(p)
+        print("    %-16s %14d  %9.2f   <- %s"
+              % (out_name, n, mib(n), POSTERS[out_name]))
     print("  %s: %d painting(s), %d track(s)" % (EXHIBITION_JSON, len(paintings), len(music)))
     print("  %-18s %s   <- sha256(the_board.wasm)[:%d]; the .js/.wasm/.data query"
           % ("build id", build_id, BUILD_ID_LEN))
