@@ -66,6 +66,7 @@
 #include "musical/signal_layout.hpp"
 #include "analysis/analysis_signal.hpp"
 #include <string>    // casting-sheet name composition ("<voice>.present_count")
+#include <array>     // the hue unit-vector table (OIL_1 U5)
 #include <cmath>     // std::floor / cos / sin / sqrt / atan2 — decode math
 #include <algorithm> // std::min/std::max — decode clamps
 #include <cstdio>    // std::fprintf — the [CHECKER] witness line
@@ -424,16 +425,30 @@ namespace t7 {
             // flicker on chords); the Playhead GATES the mix (sounding ⇒
             // worn; silence ⇒ fades on its last hue).
             if (room_wagon_.valid && tint_stim_.valid && tint_mix_.valid) {
+                // Unit-vector seating: the SWAPPABLE TABLE (one line).
+                // Chromatic today (i·30°); circle of fifths ((7i mod 12)
+                // ·30°) or an authored ordering are one-line futures —
+                // the circle rework is PARKED with Jean's name on it; the
+                // swappable line is now the th expression in the fill.
+                // OIL_1 U5 (ledger: U4 hue loop, C4): the 12 angles are
+                // compile-time-stable, so the vectors are seated ONCE — a
+                // function-local static filled by the SAME std::cos/std::sin
+                // expressions (identical bits by construction; cos/sin are
+                // not constexpr in C++20). The per-frame loop reads the
+                // table; only the weights vary.
+                static const std::array<std::array<float, 2>, 12> PITCH_VECS = [] {
+                    std::array<std::array<float, 2>, 12> t{};
+                    for (int j = 0; j < 12; ++j) {
+                        const float th = PITCH_VEC_ORIGIN + (float)j * 0.523598776f;
+                        t[(size_t)j] = { std::cos(th), std::sin(th) };
+                    }
+                    return t;
+                }();
                 float vx = 0.0f, vy = 0.0f, energy = 0.0f;
                 for (int i = 0; i < 12; ++i) {
                     const float w = signal.stat(room_wagon_.channel, room_wagon_.base + i);
                     if (w <= 0.0f) continue;
-                    // Unit-vector seating: the SWAPPABLE TABLE (one line).
-                    // Chromatic today (i·30°); circle of fifths ((7i mod 12)
-                    // ·30°) or an authored ordering are one-line futures —
-                    // the circle rework is PARKED with Jean's name on it.
-                    const float th = PITCH_VEC_ORIGIN + (float)i * 0.523598776f;
-                    vx += w * std::cos(th); vy += w * std::sin(th);
+                    vx += w * PITCH_VECS[(size_t)i][0]; vy += w * PITCH_VECS[(size_t)i][1];
                     energy += w;
                 }
                 const float len = std::sqrt(vx * vx + vy * vy);
