@@ -2413,9 +2413,23 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
     // Explicit sum (NOT dot(d3,d3)) so the fma lowering matches the inline
     // sites' `dx*dx + dy*dy + dz*dz` bit-for-bit (CONTACT_5 P1 verify).
     let d2_3d = d3.x * d3.x + d3.y * d3.y + d3.z * d3.z;
-    // Degenerate coincidence -- every current site skips at d2 <= 0.0001.
-    if (d2_3d <= 0.0001) { return vec2<f32>(0.0, 0.0); }
-    let d_pl = sqrt(max(d3.x * d3.x + d3.z * d3.z, 0.0001));
+    let d2_pl = d3.x * d3.x + d3.z * d3.z;
+    // Degenerate coincidence. The test is PLANAR (SHELL_2). What degenerates
+    // is `dir`, and `dir` is built from d_pl, so a 3D test misses the case
+    // that matters: a body directly ABOVE another. It SUBSUMES the 3D test it
+    // replaces -- d2_3d = d2_pl + d3.y*d3.y, so d2_pl <= d2_3d always.
+    // What it catches: on a tangential row, dir = (0,0) reached
+    // normalize(vec2(0,0)) and returned NaN, uncapped, into a velocity -- and
+    // NaN fails every eviction comparison, so the slot never recycled.
+    // CONTACT_5 P1 found the neighbourhood ("a cube nearly overhead, |dir| <
+    // 1") and ruled for the radial rows: keep the raw dir, let it attenuate
+    // to nothing. Returning zero here IS that ruling at the limit.
+    if (d2_pl <= 0.0001) { return vec2<f32>(0.0, 0.0); }
+    // No max(): past the guard d2_pl > 0.0001 by construction, so the clamp
+    // that used to floor this sqrt is provably slack. Consequence worth
+    // knowing: |dir| is now exactly 1 on every row. The sub-unit dir P1
+    // documented lived only in the 0.01 wu disc this guard now returns from.
+    let d_pl = sqrt(d2_pl);
     // THE GATE -- spherical (a ball is a ball) or cylindrical (the column
     // beneath a hovering body: you shove a floating cube by walking under it).
     // Compared in SQUARED space (d2 >= r*r), exactly as the inline sites did
@@ -2425,7 +2439,7 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
     var d2_gate = d2_3d;
     if (p.vwindow > 0.0) {
         if (abs(d3.y) > p.vwindow) { return vec2<f32>(0.0, 0.0); }
-        d2_gate = d3.x * d3.x + d3.z * d3.z;             // cylindrical: planar
+        d2_gate = d2_pl;                                 // cylindrical: planar
     }
     if (d2_gate >= p.radius * p.radius) { return vec2<f32>(0.0, 0.0); }
     let d_gate = sqrt(d2_gate);
@@ -2446,9 +2460,12 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
                 mag += deficit;
                 // The matador tangential split ONLY when tangential > 0 (the
                 // flees, which normalize dir+tang). The cube parting is radial
-                // (tangential 0) and used the RAW dir, never re-normalized --
-                // leave esc = dir (CONTACT_5 P1 verify: normalize() diverged
-                // macroscopically when a cube sat nearly overhead, |dir| < 1).
+                // (tangential 0) and uses the RAW dir, never re-normalized --
+                // leave esc = dir. (CONTACT_5 P1 verify: normalize() diverged
+                // macroscopically for a cube nearly overhead, where |dir| < 1.
+                // SHELL_2's planar guard returns from that disc, so |dir| is
+                // now always 1 and the divergence is unreachable. The rule
+                // stands on its own: a radial row has no direction to split.)
                 if (p.tangential > 0.0) {
                     let tang = vec2<f32>(-dir.y, dir.x)
                              * sign(other_vel.x * dir.y - other_vel.y * dir.x + 0.000001);
