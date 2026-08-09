@@ -2054,6 +2054,14 @@ namespace t7 {
             wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — 3 x 5-u32 draw-args (the plan)
             wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
             wgpu::Buffer drawPlanBuffer_;                 // Uniform — counts + zone rects for the cull kernel
+            // OIL_1 U7 (ledger: R17, C1): the shadow of the last-uploaded
+            // plan + a first-upload flag. The plan's inputs move per band
+            // change and per zone commit but were re-shipped every frame;
+            // an event-only dirty flag would be WRONG (it would miss band
+            // crossings), so the gate is compare-before-write against the
+            // freshly packed plan.
+            GPUDrawPlanParams lastDrawPlan_{};
+            bool drawPlanEverUploaded_ = false;
             wgpu::Buffer visiblePatchIndicesBuffer_;      // MAX_ACTIVE_PATCHES × u32 — LOD0 visible list
             wgpu::BindGroupLayout frustumCullLayout_;
             wgpu::BindGroup frustumCullBindGroup_;
@@ -2870,6 +2878,18 @@ namespace t7 {
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
             }
             void upload_draw_plan(wgpu::Queue& queue, const GPUDrawPlanParams& p) {
+                // OIL_1 U7: skip on equality — the caller packs the plan
+                // fresh every frame (that recompute IS the change
+                // detector); the write fires only when the bytes moved.
+                // memcmp is total: the struct is padding-free (assert
+                // below) and the pack site zero-inits _pad0.
+                static_assert(sizeof(GPUDrawPlanParams) ==
+                    4 * sizeof(uint32_t) + sizeof(float) * 8 * 4,
+                    "draw plan must be padding-free for the memcmp gate");
+                if (drawPlanEverUploaded_ &&
+                    std::memcmp(&lastDrawPlan_, &p, sizeof(p)) == 0) return;
+                lastDrawPlan_ = p;
+                drawPlanEverUploaded_ = true;
                 queue.WriteBuffer(drawPlanBuffer_, 0, &p, sizeof(p));
             }
 
