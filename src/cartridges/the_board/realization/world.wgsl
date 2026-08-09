@@ -2530,21 +2530,35 @@ struct FieldAuthored {
 // that consumer to the field; the survivor knows its own radius.)
 //
 //   OCCUPIER_PUSH_GAIN — PRESENCE, wu/s of separation per wu of overlap.
-//     Standoff equilibrium is PAWN_SPEED / gain = 0.83 wu of overlap, so a
-//     body of radius r parks with (r − 0.83) wu of clear air at full
-//     walk-in. The FLOOR is PAWN_SPEED / r_body ≈ 9.4; below it the body
+//     The 0.6 tangential split costs the RADIAL direction cos 31° = 0.857 of
+//     every response, so the standoff solves 0.857 × (gain·o + floor) =
+//     PAWN_SPEED → o = 0.94 wu of overlap: a body of radius r parks with
+//     (r − 0.94) wu of clear air at full walk-in, 0.66 wu at r = 1.6. The
+//     FLOOR is PAWN_SPEED / (0.857 × r_body) ≈ 10.6; below it the body
 //     reaches the shaft and the shell is decorative. Ejection from dead
-//     centre of a shell of radius R is ln(R/0.2)/gain ≈ 0.16 s at R = 3.6.
+//     centre runs clamped at OCCUPIER_SPEED_CAP down to o = 1.64, then eases
+//     out — ≈0.34 s to FULL exit at R = 3.6 (shaft 2.0 + body 1.6).
+//     R-DEPENDENT: a fatter shaft spends longer in the clamped phase.
 //     CROSS-ROOM: keyed to PAWN_SPEED, which config.pawn_speed overrides at
 //     runtime — raise that and the standoff shrinks in proportion. Nothing
 //     but this line holds the two together.
-//   OCCUPIER_DODGE_FLOOR — the APPROACH branch's key. A standing body has no
-//     velocity field, so v_ap is 0 and the branch never opened. A small
-//     isotropic emanation opens it; the term's MAGNITUDE is then the
-//     walker's own closing speed, via the law's −dot(self_vel, dir). The
-//     dodge self-tunes — walk in harder, get refused harder — and the 0.6
-//     tangential split rotates the escape 31° off-radial: you slide AROUND
-//     the shaft instead of stalling against it.
+//   OCCUPIER_DODGE_FLOOR — the APPROACH branch's key, and NOTHING MORE than
+//     that. A standing body has no velocity field, so v_ap was 0 and the
+//     branch could not open. This opens it — but occupier_contact passes
+//     BOTH velocity arguments as vec2(0.0), so −dot(self_vel, dir) is
+//     identically zero and the term is a CONSTANT 0.5 wu/s outward. It does
+//     not read the walk. The 0.6 tangential split likewise has FIXED
+//     HANDEDNESS: sign() consults other_vel, which is zero, so it folds to
+//     +1 and every shaft is passed on the same rotational side.
+//     One thing the floor genuinely earns: it makes full exit FINITE. A pure
+//     presence term decays exponentially and only ever approaches the rim;
+//     the constant carries the body out.
+//     DEFERRED (SHELL_1): a closing-speed dodge costs one argument — pass
+//     other_vel = −(walker velocity), putting the column in the walker's rest
+//     frame, and magnitude and handedness both fall out with the shared law
+//     untouched. It moves the standoff from 0.94 wu of overlap to 0.14, which
+//     may read as an invisible wall rather than a dodge. Its own campaign,
+//     its own visual gate.
 //   OCCUPIER_SPEED_CAP — 2 × PAWN_SPEED. ONE clamp on the SUMMED response
 //     (config.field_fmax's pattern), not a per-row cap: columns cluster
 //     (PROXIMITY_RADIUS[COLUMN] 60, THRESHOLD 2), so overlapping shells are
@@ -2558,10 +2572,12 @@ fn row_occupier(radius: f32) -> InfluenceProfile {
     // zero on the occupier; retired row_agent_sphere's shape), with the
     // CYLINDRICAL gate: a column is a vertical body — an agent at any
     // height meets the shaft (the row_cube_push planar precedent).
-    // SHELL_0: PRESENCE **and** APPROACH. The three approach columns
-    // (gain, tangential, floor) were 0.0/0.0/0.0 — a dodge written into
-    // the law and unreachable, because v_ap is 0 for a body that does not
-    // move. Uncapped per row; the SUM is clamped once, in occupier_contact.
+    // SHELL_0: PRESENCE plus a CONSTANT approach term. The three approach
+    // columns were 0.0/0.0/0.0 — the branch could not open, because v_ap is
+    // 0 for a body that does not move. These open it, but occupier_contact
+    // passes both velocity arguments as zero, so the term is a fixed 0.5 wu/s
+    // and the split has fixed handedness (see OCCUPIER_DODGE_FLOOR).
+    // Uncapped per row; the SUM is clamped once, in occupier_contact.
     return InfluenceProfile(radius, INFLUENCE_PLANAR_ONLY,
                             OCCUPIER_PUSH_GAIN, 1.0, 0.0,
                             INFLUENCE_NO_CAP, 1.0, 0.6, OCCUPIER_DODGE_FLOOR);
