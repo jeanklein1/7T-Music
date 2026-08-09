@@ -33,7 +33,7 @@ Honorable mentions: the per-cycle MapAsync callback heap allocation (C2, verifie
 
 ## OIL_1 — the outcome (this batch)
 
-The `OIL_1` column on every FINDING row below carries its fate. Summary: **14 FIXED · 2 DEFERRED → OIL_2 · 2 STOPPED**. One commit per unit; OIL_1a landed on master, U1–U13 + V1/V2 on `claude/oil-1` (code only — this ledger's OIL_1 edits land on master post-merge, per Jean's ruling that the audit document has one home). Campaign invariant: zero visual delta, zero behavioral delta, nothing cut — every unit ships byte-identical GPU state, and a write is skipped only where its bytes are proven unchanged.
+The `OIL_1` column on every FINDING row below carries its fate. Summary: **15 FIXED · 2 DEFERRED → OIL_2 · 1 STOPPED** (U14 reopened as OIL_1c and landed on master after the merge). One commit per unit; OIL_1a landed on master, U1–U13 + V1/V2 on `claude/oil-1` (code only — this ledger's OIL_1 edits land on master post-merge, per Jean's ruling that the audit document has one home). Campaign invariant: zero visual delta, zero behavioral delta, nothing cut — every unit ships byte-identical GPU state, and a write is skipped only where its bytes are proven unchanged.
 
 | Unit | Ledger row | Commit |
 |---|---|---|
@@ -51,7 +51,7 @@ The `OIL_1` column on every FINDING row below carries its fate. Summary: **14 FI
 | U11 | R10 compute binds (C7) | `939b1e6` |
 | U12 | R18 shadow binds (C7) | `ef57a5d` |
 | U13 | R19 color binds (C7) | `39108a5` |
-| U14 | R1 MapAsync alloc (C2) | **STOPPED** — see below |
+| U14 → OIL_1c | R1 MapAsync alloc (C2) | `f8f3cbf` — landed post-merge once the grep confirmed the typed overload |
 | U15 | R3 quiet scans (C4) | **STOPPED** — see below |
 | V1 | hardening (U9 box raiser · ROSTER gate on the hoisted gallery binds · dead head bind) | `82f9279` |
 | V2 | the invariants the batch created, stated where they live | `939877c` |
@@ -68,7 +68,7 @@ Nothing on this branch was compiled — no toolchain or Dawn headers exist in th
 
 Two reading artifacts of the meter itself were found and left alone, both instrument-build-only: the census frame's own blocking print lands in the fresh window as `S frame_total max`, and the first window's S means divide N−1 samples by N (every later window is exact).
 
-### U14 — STOPPED: the pinned wrapper is not inspectable from here
+### U14 → OIL_1c — RESOLVED (the stop held exactly as long as it should have)
 
 The unit's precondition was to verify a **non-allocating MapAsync path in the pinned Dawn wrapper**. Neither wrapper version is knowable from this container: the native twin points `DAWN_DIR` at a local path (`C:/dev/dawn`) with no tag or commit, and the web twin takes `--use-port=emdawnwebgpu`, whose version follows the installed emsdk. Writing against an unverified signature would either fail to compile for both twins or bind a different overload with different lifetime semantics — so the unit holds, per the handoff's own condition.
 
@@ -76,9 +76,11 @@ The unit's precondition was to verify a **non-allocating MapAsync path in the pi
 
 **The design the conversion wants, if the pin carries that overload.** The callbacks capture two things (`this` and `gen`), but the typed overload carries one userdata. `this` becomes the userdata; the issued world-gen moves to a member beside its state machine (e.g. `pawnReadbackGen_`), written when the copy is armed and read in the callback. That is exact, not approximate: the skip-if-busy law already guarantees at most one readback per machine in flight, so a single member per machine cannot alias, and the gen is still captured at issue time — the P5 guard's meaning is unchanged.
 
-**To land it, Jean:** grep the pinned `webgpu_cpp.h` for `CppFTraits` and the two-argument `CallbackInfoHelper::Create`. If both are present in both twins' headers, the conversion is mechanical and OIL_2 can take it.
+**THE GREP CAME BACK, AND SO DID THE UNIT.** Jean ran it against both twins' generated headers (native `webgpu_cpp.h:8647`, emdawnwebgpu `:4672`) and the evidence was the definition body itself — `userdata1 = +callback`, `userdata2 = userdata`, the trampoline calling `(*cb)(status, StringView{...}, static_cast<T>(userdata))`. Landed as **OIL_1c, `f8f3cbf`**, on master after the merge.
 
-**Disposition (Jean's ruling):** stays STOPPED; the unblock is that one grep against `C:/dev/dawn`'s generated `webgpu_cpp`, and it rides any future session on the real tree. OIL_2 register.
+**One correction to the recon above, worth keeping.** The mechanism is NOT `CppFTraits<F>::capturing`: the pinned wrapper constrains on `std::is_convertible_v<F, Cb*>` and forces the conversion with unary `+` on the callback. Same guarantee by plain function-pointer conversion — and the consequence is the same requirement, that the lambda be captureless, with the failure loud and immediate at compile time. Overload selection is by arity, not SFINAE subtlety. A reader following the earlier paragraph would have hunted a helper that is not there.
+
+**And a count that was wrong.** The presence check that first suggested the allocating path searched `new F(` and returned 0 in both files; the allocating text is `new L(`. The context dump caught it. Recorded because this ledger leans on counts elsewhere: when a count is load-bearing, disambiguate the boundary — the same failure shape as the verification regex in OIL_1c that matched `agent_state_` inside `GPUState::agent_state_buffer_size`, caught by proving the pattern against the case that fooled it.
 
 ### U15 — STOPPED: the census is complete, and that is what stops it
 
@@ -209,7 +211,7 @@ Two artifacts of the meter reading itself, both instrument-build-only and left a
 
 ---
 
-## OIL_2 register — the deferred four
+## OIL_2 register — the deferred three
 
 Carried forward as a set, each with the gate that would open it.
 
@@ -217,7 +219,6 @@ Carried forward as a set, each with the gate that would open it.
 |---|---|---|
 | **D1** — floater witness copy width (C3) | R11 WitnessCapture | **Phone measurement.** 54,912 B per readback cycle against a ~5,280 B read-set. Note what the native receipt cannot say: this copy is **not a metered pass** — it is a `CopyBufferToBuffer` on the host encoder, so its cost does not appear as a row and hides inside `acquire` backpressure. No measuring mechanism exists for it today, and building one is itself a mechanism — so this is a phone question, and the narrowing needs a compaction kernel or a field re-grouping (a design ruling) once asked. |
 | **D2** — aura frame pair (C8) | R13 PawnAura | **Opportunistic.** Two 4-byte writes to one buffer, non-adjacent (`dt` @20, `t_beats` @56). The clean fix is field adjacency — a GPU-struct layout change mirrored in WGSL, glaw1 + FXC banner risk — which is above this batch's risk floor for one queue call per aura-active frame. Fold into any future aura-struct touch. |
-| **U14** — MapAsync callback allocation (C2) | R1 WitnessHarvest | **One grep on the real tree.** Does `C:/dev/dawn`'s generated `webgpu_cpp` carry the non-allocating path (function-pointer callback + userdata)? Design is written above; rides any future session with the pinned headers in reach. |
 | **U15-epoch** — R3 quiet-scan pre-check (C4) | R3 StreamPatches | **A phone reading of `stream_patches`.** Native says 0.08 / 0.53 — not worth a mechanism whose failure mode is a stalled stream. Reopen only if a phone shows the row fat; the completed transition census and the registry-epoch design are above. |
 
 ---
@@ -298,7 +299,7 @@ No anchor mismatch — **no ANCHOR DRIFT recorded**.
 |---|---|---|---|---|---|---|---|---|
 | R1 WitnessHarvest | phase_witness_harvest (agent MapAsync callback memcpy) | - | Copies the full 3072-B agent buffer (32 slots x 96-B GPUAgentState) into agent_state_.slots, and the full copy-set is consumed: respawn_evicted_agents scans is_active on slots 1..n each frame, try_possess_nearest reads pose/behavior/tier of all 32 slots and re-uploads whole 96-B slots FROM the mirror (a partial mirror would clobber GPU truth), dump_agent_census reads behavior/tier of all slots, and the possessed slot's pos/skin/color/tier feed the cartridge — refutes seed S2 for the agent half. | per readback cycle | CLEAN |  |  |  |
 | R1 WitnessHarvest | reconcile_sphere_mirror, reconcile_cube_mirror | - | The floater callback's only consumers read exactly three fields per slot — is_active (offset 124), pos[3] (0-11), body_radius (12) — across 8 sphere + 256 cube slots (~20 B of each 208-B GPUFloatingEntityState), writing live_pos/live_body_radius mirrors with the one-frame lag that is law E-4; the functions themselves are lean CPU loops. | per readback cycle | CLEAN |  |  |  |
-| R1 WitnessHarvest | agent/floater readback MapAsync (capturing lambdas) | C2 | Each readback cycle hands two capturing lambdas ([this, gen = world_gen]) to MapAsync; Dawn's C++ wrapper heap-allocates a callback record per call (CallbackInfoHelper::Create in the generated webgpu_cpp) — small, roughly every other frame, and the site comments cover only world_gen staleness, not the allocation. | per readback cycle | FINDING | A plain-function callback with member userdata (the state machines are already members) would make the cycle allocation-free; cadence and P5 grammar untouched. | STOPPED (U14 — pinned wrapper unverifiable here) |  |
+| R1 WitnessHarvest | agent/floater readback MapAsync (capturing lambdas) | C2 | Each readback cycle hands two capturing lambdas ([this, gen = world_gen]) to MapAsync; Dawn's C++ wrapper heap-allocates a callback record per call (CallbackInfoHelper::Create in the generated webgpu_cpp) — small, roughly every other frame, and the site comments cover only world_gen staleness, not the allocation. | per readback cycle | FINDING | A plain-function callback with member userdata (the state machines are already members) would make the cycle allocation-free; cadence and P5 grammar untouched. | FIXED @ f8f3cbf (OIL_1c) |  |
 | R2 PortalTrigger | phase_portal_trigger | - | Steady state is a single CPU branch (point_.portal_trigger >= 0 && transitionPhase_ == IDLE); the arch validation, transition arming, and the [Portal] cout all fire only on the GPU-reported trigger event, so the per-frame cost is one compare and the print is event-gated (C9-conformant). | per frame | CLEAN |  |  |  |
 | R3 StreamPatches | stream_patches steady-state scans (collect_sorted_patches x3 + patches_budget_this_frame) | C4 | On a frame with no boundary crossing and nothing pending, the conductor still runs three full collect_sorted_patches walks (each over up to 225 registry slots, with insertion sort) for eviction, ALLOCATED-spawn, and SPAWNED/NEEDS_REGEN generation — plus the budget helper's own pending-count walk — all yielding zero candidates; only the recenter/fullRegen branch is gated (gridChanged). | per frame | FINDING | A cheap emptiness pre-check (phase counters the registry already implies) could skip the quiet-frame scans; every populated frame walks exactly as today. | STOPPED (U15 — census reaches a cross-module raiser) |  |
 | R3 StreamPatches | band_patches / upload_patch_instances | C1 | Called unconditionally in the conductor tail: value-initializes four 225-slot GPUPatchInstance stack arrays (~14.4 KB zeroing per frame), re-bands every GENERATED patch against the point, and uploads w x 16 B (up to 3.6 KB) instances every frame — though the packed bytes change only when a patch crosses a band boundary or the set changes. | per frame | FINDING | The re-band already computes the fresh packing — gating the upload on changed bytes/counts ships identical data on every frame that differs; the four-array zero-init could shrink to the written prefix. | FIXED @ 636edc0 (U10) |  |
