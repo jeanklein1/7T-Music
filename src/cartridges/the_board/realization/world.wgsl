@@ -2551,7 +2551,8 @@ struct FieldAuthored {
 //     every response, so the standoff solves 0.857 × (gain·o + floor) =
 //     PAWN_SPEED → o = 0.94 wu of overlap: a body of radius r parks with
 //     (r − 0.94) wu of clear air at full walk-in, 0.66 wu at r = 1.6. The
-//     FLOOR is PAWN_SPEED / (0.857 × r_body) ≈ 10.6; below it the body
+//     FLOOR is (PAWN_SPEED/0.857 − OCCUPIER_DODGE_FLOOR) / r_body ≈ 10.6 at
+//     r_body = 1.6; below it the body
 //     reaches the shaft and the shell is decorative. Ejection from dead
 //     centre runs clamped at OCCUPIER_SPEED_CAP down to o = 1.64, then eases
 //     out — ≈0.34 s to FULL exit at R = 3.6 (shaft 2.0 + body 1.6).
