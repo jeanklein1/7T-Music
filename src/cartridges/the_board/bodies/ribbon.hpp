@@ -583,8 +583,14 @@ inline void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
         poses[4u * k + 2u] = pz;
         poses[4u * k + 3u] = h;        // yaw channel: the delayed heading
     }
+    // OIL_1 U3 (ledger: R7 upload width, C8): ship the FILLED prefix,
+    // not the 400-ring array — 4n floats is the exact GPU read-set.
+    // Every reader bounds by the live cube_count: compute_ribbon_rings
+    // early-outs at ring_idx >= cube_count, centerline/spine sample
+    // i0,i1 <= cube_count-1, and the field's ring loop runs to
+    // min(cube_count, 400). Bytes past 4n are unreachable.
     gpuState.upload_ribbon_head_poses(queue, poses.data(),
-                                      poses.size() * sizeof(float));
+                                      4ull * n * sizeof(float));
 }
 
 inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
