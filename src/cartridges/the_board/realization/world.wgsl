@@ -2520,34 +2520,62 @@ struct FieldAuthored {
 }
 @group(2) @binding(5) var<uniform> field_authored : FieldAuthored;
 
-// The body-agnostic row's stand-in for g_self.contact_radius: the
-// occupier push has zero per-kernel variation (no possession case, no
-// mass asymmetry), so the agent's body half rides this skin instead of
-// a per-tier read. Tier radii run 1.4–2.0 (worker 1.6); 1.6 is the
-// population's center. Jean-tunable.
-const OCCUPIER_CONTACT_SKIN: f32 = 1.6;
+// THE OCCUPIER SHELL (SHELL_0). The row answers in wu/s and the caller
+// integrates once; the body half is the CALLER's own radius, passed in.
+// (Retired: OCCUPIER_CONTACT_SKIN 1.6, a population average standing in
+// for a body, from when this row also served free agents. FIELD_B4b took
+// that consumer to the field; the survivor knows its own radius.)
+//
+//   OCCUPIER_PUSH_GAIN — PRESENCE, wu/s of separation per wu of overlap.
+//     Standoff equilibrium is PAWN_SPEED / gain = 0.83 wu of overlap, so a
+//     body of radius r parks with (r − 0.83) wu of clear air at full
+//     walk-in. The FLOOR is PAWN_SPEED / r_body ≈ 9.4; below it the body
+//     reaches the shaft and the shell is decorative. Ejection from dead
+//     centre of a shell of radius R is ln(R/0.2)/gain ≈ 0.16 s at R = 3.6.
+//     CROSS-ROOM: keyed to PAWN_SPEED, which config.pawn_speed overrides at
+//     runtime — raise that and the standoff shrinks in proportion. Nothing
+//     but this line holds the two together.
+//   OCCUPIER_DODGE_FLOOR — the APPROACH branch's key. A standing body has no
+//     velocity field, so v_ap is 0 and the branch never opened. A small
+//     isotropic emanation opens it; the term's MAGNITUDE is then the
+//     walker's own closing speed, via the law's −dot(self_vel, dir). The
+//     dodge self-tunes — walk in harder, get refused harder — and the 0.6
+//     tangential split rotates the escape 31° off-radial: you slide AROUND
+//     the shaft instead of stalling against it.
+//   OCCUPIER_SPEED_CAP — 2 × PAWN_SPEED. ONE clamp on the SUMMED response
+//     (config.field_fmax's pattern), not a per-row cap: columns cluster
+//     (PROXIMITY_RADIUS[COLUMN] 60, THRESHOLD 2), so overlapping shells are
+//     the ordinary case and N per-row caps are not a speed limit.
+const OCCUPIER_PUSH_GAIN:   f32 = 18.0;  // wu/s per wu of overlap
+const OCCUPIER_DODGE_FLOOR: f32 = 0.5;   // wu/s — opens the APPROACH branch
+const OCCUPIER_SPEED_CAP:   f32 = 30.0;  // = 2 × PAWN_SPEED; clamps the SUM
 
 fn row_occupier(radius: f32) -> InfluenceProfile {
     // The immovable-authority pattern (yield 1.0 on the agent,
     // zero on the occupier; retired row_agent_sphere's shape), with the
     // CYLINDRICAL gate: a column is a vertical body — an agent at any
     // height meets the shaft (the row_cube_push planar precedent).
+    // SHELL_0: PRESENCE **and** APPROACH. The three approach columns
+    // (gain, tangential, floor) were 0.0/0.0/0.0 — a dodge written into
+    // the law and unreachable, because v_ap is 0 for a body that does not
+    // move. Uncapped per row; the SUM is clamped once, in occupier_contact.
     return InfluenceProfile(radius, INFLUENCE_PLANAR_ONLY,
-                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
+                            OCCUPIER_PUSH_GAIN, 1.0, 0.0,
+                            INFLUENCE_NO_CAP, 1.0, 0.6, OCCUPIER_DODGE_FLOOR);
 }
 
-// ONE shared function, two consumers with different integration forms
-// (BATCH G1): update_other_agents' gather adds the Δv to persistent
-// velocity (a free agent's vel survives the frame, so the spring
-// accumulates); the possessed pawn consumes it IN THE CANDIDATE
-// (behavior_player_controlled, before pawn_ground_resolve — its vel is
-// overwritten from intent every frame, so velocity-consumption there
-// was a one-frame nudge the walk out-paced). The occupier push DOES
-// enter pawn_ground_resolve now — as a pushed candidate the slope law
-// resolves, which is the point: the body's word and the ground's word
-// compose. The push itself differs on nothing per consumer — no
-// possession case, no mass asymmetry — hence the single home.
-fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
+// ONE consumer since FIELD_B4b: the possessed pawn's candidate
+// (behavior_player_controlled, before the box clamp and before
+// pawn_ground_resolve, so the body's word and the ground's word compose
+// instead of racing). Free agents met these bodies here once; they meet
+// them in the field now. THAT RETIRED CONSUMER IS WHY THE ROW READ
+// CONTACT_SPRING × dt — a persistent velocity ACCUMULATES an impulse
+// across frames, and the candidate never does, so the survivor was
+// paying a second dt for a spring nobody re-derived. SHELL_0 re-derives
+// it. dt stays a PARAMETER (the cube's force-integrator precedent): the
+// caller passes 1.0 for a wu/s answer and integrates once itself.
+// body_radius is the caller's own half of the shell.
+fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     var dv = vec2<f32>(0.0, 0.0);
 
     // SHAFTS — 32 slots: columns 0–15, antennas 16–31. One field,
@@ -2556,7 +2584,7 @@ fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
     for (var i = 0u; i < 32u; i++) {
         let cm = occupier_cmg[i];
         if (cm.is_active == 0u) { continue; }
-        let prof = row_occupier(cm.shaft_radius + OCCUPIER_CONTACT_SKIN);
+        let prof = row_occupier(cm.shaft_radius + body_radius);
         let r = influence_response(self_p, vec2(0.0),
                                    vec3(cm.center_x, 0.0, cm.center_z), vec2(0.0),
                                    prof, dt);
@@ -2570,7 +2598,7 @@ fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
     for (var i = 0u; i < 16u; i++) {
         let am = occupier_amg[i];
         if (am.is_active == 0u) { continue; }
-        let leg_r = max(am.thickness, am.depth) * 0.5 + OCCUPIER_CONTACT_SKIN;
+        let leg_r = max(am.thickness, am.depth) * 0.5 + body_radius;
         let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
         let c0 = vec2(am.center_x, am.center_z);
         let prof = row_occupier(leg_r);
@@ -2583,7 +2611,15 @@ fn occupier_contact(self_p: vec3<f32>, dt: f32) -> vec2<f32> {
         dv += r1 + r2;
     }
 
-    return dv;
+    // ONE clamp on the SUM (config.field_fmax's pattern). Per-row caps
+    // summed are not a speed limit: columns cluster, so a body can sit
+    // inside three shells at once. BRANCHLESS — this function inlines into
+    // behavior_player_controlled, one line above the box clamp and two
+    // above pawn_ground_resolve; the banner forbids new runtime branching
+    // in that chain. At dv = 0 the quotient is 0/1e-4 = 0, so the identity
+    // holds without a test.
+    let m = length(dv);
+    return dv * (min(m, OCCUPIER_SPEED_CAP) / max(m, 1e-4));
 }
 
 // [TIDY_1 T1e] THE CAP LEDGER -- what each `cap` column guards, and whether the
@@ -7006,8 +7042,17 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // persists, so their path already consumes the rows.
     // A VALUE change on the existing candidate — no new branches (L2).
     {
+        // SHELL_0: 1.0 for the law's dt — occupier_contact answers in wu/s
+        // and the pos-add below integrates it ONCE. signal.dt here made the
+        // response overlap × gain × dt², an effective stiffness of gain/60
+        // that halved again at 30 fps: the collision was frame-rate
+        // dependent and nobody could see it. body_radius is the possessed
+        // figure's own (config.pawn_body_radius, HEM_0's wire) — the same
+        // radius that insets the world box two lines down now insets every
+        // shaft's shell, and a Colossal stands off proportionally.
         let o_push = occupier_contact(
-            vec3(agent.pos_x, agent.pos_y, agent.pos_z), signal.dt);
+            vec3(agent.pos_x, agent.pos_y, agent.pos_z),
+            config.pawn_body_radius, 1.0);
         agent.pos_x += o_push.x * signal.dt;
         agent.pos_z += o_push.y * signal.dt;
     }
