@@ -1863,6 +1863,11 @@ namespace t7 {
             wgpu::Buffer patchParamsBuffer_;
             wgpu::Buffer patchStagingBuffer_;    // N×GPUPatchParams for batched generation
             wgpu::Buffer patchInstancesBuffer_;
+            // OIL_1 U10: shadow of the last-uploaded instance packing +
+            // first-upload flag — the upload_patch_instances gate.
+            GPUPatchInstance lastPatchInstances_[Dim::MAX_ACTIVE_PATCHES] = {};
+            uint32_t lastPatchInstanceCount_ = 0;
+            bool patchInstancesEverUploaded_ = false;
             wgpu::Buffer patchGridBuffer_;         // GPUPatchGrid — O(1) spatial index for sample_terrain_y_at
             wgpu::Buffer patchHeightScratchBuffer_;  // 256×256×2 floats (height+complexity) for two-pass heightfield gen
             wgpu::Buffer patchIndexBuffer_;
@@ -2248,6 +2253,23 @@ namespace t7 {
             }
 
             void upload_patch_instances(wgpu::Queue& queue, const GPUPatchInstance* instances, uint32_t count) {
+                // OIL_1 U10 (ledger: R3 band_patches, C1): the caller
+                // re-bands every frame (that recompute is the change
+                // detector — band membership must track the moving
+                // point); the WRITE fires only when the packed bytes
+                // moved. Same compare-before-write pattern as the draw
+                // plan (U7). memcmp is total: GPUPatchInstance is four
+                // 4-byte members, padding-free (static_assert'd at the
+                // struct), every field assigned at the pack site. Sole
+                // caller: band_patches.
+                if (patchInstancesEverUploaded_ &&
+                    count == lastPatchInstanceCount_ &&
+                    std::memcmp(lastPatchInstances_, instances,
+                                (size_t)count * sizeof(GPUPatchInstance)) == 0) return;
+                std::memcpy(lastPatchInstances_, instances,
+                            (size_t)count * sizeof(GPUPatchInstance));
+                lastPatchInstanceCount_ = count;
+                patchInstancesEverUploaded_ = true;
                 writeArray(queue, patchInstancesBuffer_, instances, count);
             }
 

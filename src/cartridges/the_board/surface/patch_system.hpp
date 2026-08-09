@@ -367,15 +367,21 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 // build_patch_grid (different consumer/offer-face); they only coincided
 // in the same tail block.
 inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
-    GPUPatchInstance instances[Dim::MAX_ACTIVE_PATCHES]{};
+    // OIL_1 U10 (ledger: R3 band_patches, C1): the four arrays carry no
+    // value-init — ~14.4 KB of per-frame stack zeroing retired. Safe by
+    // the prefix proof: each band array is written [0, count) before the
+    // memcpy reads [0, count), instances is written [0, w) by the three
+    // memcpys before the upload reads [0, w), and every GPUPatchInstance
+    // field is assigned at the pack site (inst carries its own init).
+    GPUPatchInstance instances[Dim::MAX_ACTIVE_PATCHES];
     uint32_t lod0Count = 0;
     uint32_t lod1Count = 0;
     uint32_t pregenCount = 0;
 
     // Temporary arrays for each band
-    GPUPatchInstance lod0[Dim::MAX_ACTIVE_PATCHES]{};
-    GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES]{};
-    GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES]{};
+    GPUPatchInstance lod0[Dim::MAX_ACTIVE_PATCHES];
+    GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES];
+    GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES];
 
     float point_wx = c->point_.x;   // THE POINT (1-frame stale by law E-4)
     float point_wz = c->point_.z;
