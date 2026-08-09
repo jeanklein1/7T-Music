@@ -293,6 +293,12 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
             wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
+            // OIL_1 U12 (ledger: R18, C7) — the pass-head binds. Each
+            // atlas tile is a FRESH pass, so this is the tile's one real
+            // bind; the draws that follow re-set nothing.
+            pass.SetBindGroup(0, c->gpuState_.render_entity_group());
+            pass.SetBindGroup(1, c->gpuState_.shadow_texture_group());
+
             float vx = static_cast<float>(within * TILE_W);
             pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
             pass.SetScissorRect(within * TILE_W, 0, TILE_W, TILE_H);
@@ -319,6 +325,10 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
+
+        // OIL_1 U12 — the pass-head binds (see the atlas arm above).
+        pass.SetBindGroup(0, c->gpuState_.render_entity_group());
+        pass.SetBindGroup(1, c->gpuState_.shadow_texture_group());
 
         draw_shadow_all(c, pass, /*cast_terrain=*/true);
         pass.End();
@@ -381,8 +391,6 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     if (cast_terrain) {
         c->renderer_.draw_shadow_patch_terrain(
             pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.shadow_texture_group(),
             c->gpuState_.patch_index_buffer_lod1(),
             c->gpuState_.patch_index_count_lod1_live(),
             c->world_state_.lod0_patch_count
@@ -406,17 +414,18 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // test. The mood selects which LIGHT this pass runs for; it does not
     // select what exists. Each form self-culls in its VS, so outdoors the
     // wall draw is near-degenerate and indoors the quad draw is.
+    // OIL_1 U12: the gallery pair, bound ONCE for both draws (they
+    // share galleryShadowLayout, and nothing draws after them in this
+    // pass, so the pass-head pair above is not needed again).
+    pass.SetBindGroup(0, c->gpuState_.gallery_entity_group());
+    pass.SetBindGroup(1, c->gpuState_.gallery_texture_group());
     c->renderer_.draw_shadow_wall_paintings(
         pass,
-        c->gpuState_.gallery_entity_group(),
-        c->gpuState_.gallery_texture_group(),
         c->gallery_state_.wall_frame_count,
         c->gallery_state_.slot_high_water
     );
     c->renderer_.draw_shadow_gallery_frames(
         pass,
-        c->gpuState_.gallery_entity_group(),
-        c->gpuState_.gallery_texture_group(),
         c->gallery_state_.active_painting_count,
         c->gallery_state_.slot_high_water
     );

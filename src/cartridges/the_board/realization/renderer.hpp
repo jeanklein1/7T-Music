@@ -957,11 +957,22 @@ namespace t7 {
 
             // Shared helper for all "indexed mesh" shadow draws. Per-family
             // wrappers below differ only in pipeline + (rarely) instance count.
+            // ═══ OIL_1 U12 (ledger: R18, C7) — THE SHADOW PASS-HEAD CONTRACT
+            // Every draw_shadow_* below rides binds set ONCE at the pass
+            // head by render_shadow_pass: group0 = the render entity
+            // group, group1 = the shadow texture group. They were
+            // identical at every call (the DrawBind pair), so each
+            // helper's own pair was a redundant re-set of unchanged
+            // state — ~18-22 per pass, and per atlas tile indoors.
+            // Bind-group state is sticky within a pass and all these
+            // pipelines share ONE layout (shadowRenderLayout), so every
+            // draw sees exactly the groups it saw before. The two
+            // gallery draws are NOT under this contract: they carry
+            // their own layout and bind their own pair, once, at the
+            // tail of draw_shadow_all.
             void draw_shadow_indexed_mesh(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::RenderPipeline pipeline,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount,
@@ -970,8 +981,6 @@ namespace t7 {
             ) {
                 if (indexCount == 0) return;
                 pass.SetPipeline(pipeline);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
@@ -979,141 +988,108 @@ namespace t7 {
 
             void draw_shadow_patch_terrain(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount,
                 uint32_t instanceCount
             ) {
                 pass.SetPipeline(shadowPatchTerrainPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount);
             }
 
             void draw_shadow_pawn(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 uint32_t vertexCount
             ) {
                 pass.SetPipeline(shadowPawnPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.Draw(vertexCount, /*instanceCount=*/ Dim::MAX_AGENTS);
             }
 
             void draw_shadow_sphere(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowSpherePipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount,
                     Dim::MAX_SPHERE_INSTANCES);
             }
 
             void draw_shadow_monolith(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowMonolithPipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount,
                     Dim::MAX_CUBE_INSTANCES, Dim::CUBE_SLOT_OFFSET);
             }
 
             void draw_shadow_ribbon(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 uint32_t vertexCount
             ) {
                 if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(shadowRibbonPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.Draw(vertexCount);
             }
 
             void draw_shadow_arch(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowArchPipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_column(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowColumnPipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_palm(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowPalmPipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_cactus(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowCactusPipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_blade(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
                 draw_shadow_indexed_mesh(pass, shadowBladePipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
             }
 
@@ -1121,8 +1097,6 @@ namespace t7 {
 
             void draw_shadow_shell(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
@@ -1131,29 +1105,25 @@ namespace t7 {
                 // Helper's `if (indexCount == 0) return;` covers the early-out
                 // that the original draw_shadow_shell had explicitly.
                 draw_shadow_indexed_mesh(pass, shadowShellPipeline_,
-                    entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
             }
 
+            // OIL_1 U12: the gallery pair is bound ONCE by the caller
+            // before these two draws (they share galleryShadowLayout and
+            // sit at the tail of draw_shadow_all).
             void draw_shadow_gallery_frames(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t activePaintingCount,
                 uint32_t slotHighWater          // one past the highest ACTIVE slot
             ) {
                 if constexpr (!(ROSTER.gallery)) return;
                 if (activePaintingCount == 0 || slotHighWater == 0) return;
                 pass.SetPipeline(shadowGalleryFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
                 pass.Draw(Dim::PAINTING_QUAD_VERTS, slotHighWater);
             }
 
             void draw_shadow_wall_paintings(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t wallFrameCount,
                 uint32_t slotHighWater          // one past the highest ACTIVE slot
             ) {
@@ -1162,8 +1132,6 @@ namespace t7 {
                 // ONE draw where the color pass needs two: with no fragment
                 // stage the canvas/frame split has nothing to distinguish.
                 pass.SetPipeline(shadowWallPaintingPipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
                 pass.Draw(slotHighWater * Dim::PAINTING_FRAME_VERTS_PER);
             }
 

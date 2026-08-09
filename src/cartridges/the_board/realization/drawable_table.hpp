@@ -64,45 +64,45 @@ struct Drawable {
 // ── The thunks: each knows its buffers and picks draw_X vs draw_shadow_X ──
 inline void dt_pawn(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     (void)g;
-    if (b.shadow) r.draw_shadow_pawn(p, b.entity, b.texture, GPUState::pawn_vertex_count());
+    if (b.shadow) r.draw_shadow_pawn(p, GPUState::pawn_vertex_count());   // OIL_1 U12: pass-head binds
     else          r.draw_pawn       (p, b.entity, b.texture, GPUState::pawn_vertex_count());
 }
 inline void dt_sphere(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_sphere(p, b.entity, b.texture, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
+    if (b.shadow) r.draw_shadow_sphere(p, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
     else          r.draw_sphere       (p, b.entity, b.texture, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
 }
 inline void dt_monolith(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_monolith(p, b.entity, b.texture, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
+    if (b.shadow) r.draw_shadow_monolith(p, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
     else          r.draw_monolith       (p, b.entity, b.texture, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
 }
 inline void dt_ribbon(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     (void)g;
     if (!b.ribbon_active) return;
-    if (b.shadow) r.draw_shadow_ribbon(p, b.entity, b.texture, GPUState::ribbon_vertex_count());
+    if (b.shadow) r.draw_shadow_ribbon(p, GPUState::ribbon_vertex_count());
     else          r.draw_ribbon       (p, b.entity, b.texture, GPUState::ribbon_vertex_count());
 }
 inline void dt_arch(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_arch(p, b.entity, b.texture, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
+    if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
     else          r.draw_arch       (p, b.entity, b.texture, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
 }
 inline void dt_column(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_column(p, b.entity, b.texture, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
+    if (b.shadow) r.draw_shadow_column(p, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
     else          r.draw_column       (p, b.entity, b.texture, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
 }
 inline void dt_palm(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_palm(p, b.entity, b.texture, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
+    if (b.shadow) r.draw_shadow_palm(p, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
     else          r.draw_palm       (p, b.entity, b.texture, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
 }
 inline void dt_cactus(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_cactus(p, b.entity, b.texture, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
+    if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
     else          r.draw_cactus       (p, b.entity, b.texture, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
 }
 inline void dt_blade(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_blade(p, b.entity, b.texture, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
+    if (b.shadow) r.draw_shadow_blade(p, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
     else          r.draw_blade       (p, b.entity, b.texture, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
 }
 inline void dt_shell(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_shell(p, b.entity, b.texture, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
+    if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
     else          r.draw_shell       (p, b.entity, b.texture, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
 }
 
