@@ -170,6 +170,7 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
     c->world_state_.placement_dirty = true;
+    c->world_state_.alloc_scan_pending = true;   // OIL_1 U9 — a fresh pool is all demand
 }
 
 // ── Patch generation ───────────────────────────────────────────────
@@ -536,6 +537,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         int32_t oldCZ = c->world_state_.last_center_z;
         c->world_state_.last_center_x = centerX;
         c->world_state_.last_center_z = centerZ;
+        c->world_state_.alloc_scan_pending = true;   // OIL_1 U9 — the window moved: new cells may be empty
 
         bool fullRegen = (oldCX == INT32_MAX);  // first frame
 
@@ -641,12 +643,21 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             }
             c->world_state_.active_patch_count = write;
             c->world_state_.patch_instances_dirty = true;
+            // OIL_1 U9 — layers were freed: a capacity-blocked vacancy
+            // (counted as zero candidates while free_layer_count was 0)
+            // can now allocate, so the scan must run again.
+            c->world_state_.alloc_scan_pending = true;
         }
     }
 
     // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
     //
-    {
+    // OIL_1 U9 (ledger: R3 continuous allocation, C2): the scan — a
+    // fresh unordered_set heap build plus the 15x15 window walk — runs
+    // only while demand can exist (alloc_scan_pending; raiser census at
+    // the flag's home in surface_services.hpp). Steady frames skip it;
+    // a budget-capped pass re-arms itself below.
+    if (c->world_state_.alloc_scan_pending) {
         int32_t pawnGX = (int32_t)std::floor(c->point_.x / Dim::PATCH_EXTENT);
         int32_t pawnGZ = (int32_t)std::floor(c->point_.z / Dim::PATCH_EXTENT);
         int32_t rr = (int32_t)c->world_state_.active_radius;
@@ -713,6 +724,15 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             tileGridDirty = true;
             c->world_state_.patch_instances_dirty = true;
         }
+
+        // OIL_1 U9 — the backlog carry: a pass capped by
+        // ALLOC_BUDGET_PER_FRAME leaves live candidates, so the scan
+        // stays armed; a drained pass (every candidate allocated, or
+        // none found) disarms it. A vacancy blocked by zero capacity
+        // counts no candidate and disarms too — the eviction that
+        // eventually frees a layer is the raiser that re-arms (see the
+        // eviction block above).
+        c->world_state_.alloc_scan_pending = (candidateCount > allocThisFrame);
     }
 
     // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────

@@ -60,6 +60,13 @@ struct WorldState {
     bool ground_entries_dirty   = true;   // defer upload_ground_entries (true at boot)
     bool patch_instances_dirty  = true;   // defer LOD sort + upload_patch_instances
     bool placement_dirty        = true;   // defer dispatch_placement_correction
+    // OIL_1 U9 (ledger: R3 continuous allocation, C2): the allocation
+    // scan runs only when demand can exist. Raisers (exhaustive): boot
+    // (this default), init_patch_system (reset), gridChanged (the window
+    // moved), a freed layer (the eviction block — free_layer's one
+    // caller is evict_patch, whose one caller is that block), and the
+    // budget backlog (candidates exceeded ALLOC_BUDGET_PER_FRAME).
+    bool alloc_scan_pending     = true;   // gate on the continuous-allocation scan
 
     // ── Free-layer pool ──
     uint32_t free_layer_count = Dim::MAX_ACTIVE_PATCHES;
