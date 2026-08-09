@@ -26,8 +26,9 @@
 // SEAM[spine:P5] readback state machines + world_state_.world_gen counter are
 //   pattern P5 (release-pending sentinel) at the spine level. Pawn +
 //   floater readbacks each protect against stale callbacks from
-//   previous worlds via world_state_.world_gen capture in the closure. Genuinely
-//   spine-owned, not a leak.
+//   previous worlds via the issue-time generation recorded at the
+//   machine (pawnReadbackGen_ / floaterReadbackGen_ — OIL_1c moved it
+//   out of the closure). Genuinely spine-owned, not a leak.
 // SEAM[spine:P8] PlayerState's commented "Future (deferred)" fields
 //   are explicit latent infrastructure: aura_presence is live here;
 //   the other deferred fields await the unified entity layer.
@@ -282,17 +283,32 @@ namespace t7 {
             // SEAM[spine:P5] readback state machines + world_state_.world_gen counter are
             //   pattern P5 (release-pending sentinel) at the spine level.
             //   Pawn + floater readbacks each protect against stale callbacks
-            //   from previous worlds via world_state_.world_gen capture in the closure.
+            //   from previous worlds via the issue-time generation recorded
+            //   at the machine (the *ReadbackGen_ members below — OIL_1c
+            //   moved it out of the closure, where nothing could address it).
             //   Genuinely spine-owned, not a leak.
 
             enum class PawnReadbackState { IDLE, COPIED, MAPPING };
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
+            // OIL_1c — THE GENERATION BELONGS TO THE MACHINE, not to a
+            // closure. Written at ISSUE time (the COPIED→MAPPING arm),
+            // read in the callback: the same fact the capture carried,
+            // now somewhere addressable, beside the state it qualifies.
+            // EQUIVALENT TO THE CAPTURE ONLY BECAUSE AT MOST ONE READBACK
+            // PER MACHINE IS EVER IN FLIGHT — only IDLE arms a copy, only
+            // COPIED issues a map, and the callback restores IDLE on its
+            // way out, so no second issue can overwrite this while a
+            // callback is pending. If that ever became two-in-flight, the
+            // second issue would hand its gen to the first callback and
+            // the P5 stale-world guard would pass where it must drop.
+            uint32_t pawnReadbackGen_ = 0;
 
             // OPT_1a: true while the live card holds a clean rest field
             // (skip the writer); boots false so the first frame writes.
             bool liveCardRestClean_ = false;
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
+            uint32_t floaterReadbackGen_ = 0;   // OIL_1c — same grammar as pawnReadbackGen_ above
             // The point readback (option A): runs ONLY in
             // camera-host — the camera's GPU position IS the point's, so
             // it must reach the CPU for the viewpoint set (streaming,
@@ -1254,25 +1270,34 @@ namespace t7 {
             void phase_witness_harvest(RenderCtx&) {
                 if (pawnReadbackState_ == PawnReadbackState::COPIED) {
                     pawnReadbackState_ = PawnReadbackState::MAPPING;
+                    pawnReadbackGen_ = world_state_.world_gen;   // OIL_1c — the issue-time generation, at its machine
+                    // OIL_1c: CAPTURELESS by requirement, not by taste. The
+                    // wrapper's typed-userdata overload converts the callback
+                    // with unary + to a plain function pointer, so a capture
+                    // would fail the conversion — loudly, at compile time.
+                    // `this` rides the trailing userdata slot; the lambda is
+                    // written inside a member function, so it keeps the
+                    // class's access rights and reaches privates through
+                    // `self` with no friend declaration.
                     gpuState_.agent_state_readback_staging().MapAsync(
                         wgpu::MapMode::Read, 0, GPUState::agent_state_buffer_size(),
                         wgpu::CallbackMode::AllowSpontaneous,
-                        [this, gen = world_state_.world_gen](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                        [](wgpu::MapAsyncStatus status, wgpu::StringView, Cartridge* self) {
                             if (status == wgpu::MapAsyncStatus::Success) {
-                                // Drop stale callbacks from a previous world: gen
-                                // captured at issue time differs from current
-                                // world_state_.world_gen if a teardown happened in between.
-                                // Buffer is still successfully mapped though, so
-                                // we Unmap unconditionally (mapping contract is
-                                // independent of whether we read the data).
-                                if (gen == world_state_.world_gen) {
+                                // Drop stale callbacks from a previous world: the
+                                // generation recorded at issue time differs from
+                                // world_state_.world_gen if a teardown happened in
+                                // between. Buffer is still successfully mapped
+                                // though, so we Unmap unconditionally (mapping
+                                // contract is independent of whether we read).
+                                if (self->pawnReadbackGen_ == self->world_state_.world_gen) {
                                     const auto* data = static_cast<const GPUAgentState*>(
-                                        gpuState_.agent_state_readback_staging().GetConstMappedRange(
+                                        self->gpuState_.agent_state_readback_staging().GetConstMappedRange(
                                             0, GPUState::agent_state_buffer_size()));
                                     if (data) {
-                                        std::memcpy(agent_state_.slots, data,
+                                        std::memcpy(self->agent_state_.slots, data,
                                             GPUState::agent_state_buffer_size());
-                                        const auto& p = agent_state_.slots[player_.possessed_slot];
+                                        const auto& p = self->agent_state_.slots[self->player_.possessed_slot];
                                         // THE POINT: point_.x/z is the
                                         // POINT's position — the body authors it
                                         // whenever the body hosts (PAWN, or
@@ -1281,46 +1306,49 @@ namespace t7 {
                                         // it in camera-host. The portal trigger is
                                         // the point's BUBBLE sensor, riding the
                                         // possessed slot's wire in every host.
-                                        if (point_.host != PointHost::CAMERA) {
-                                            point_.x = p.pos_x;
-                                            point_.z = p.pos_z;
+                                        if (self->point_.host != PointHost::CAMERA) {
+                                            self->point_.x = p.pos_x;
+                                            self->point_.z = p.pos_z;
                                         }
-                                        point_.portal_trigger = p.portal_trigger;
+                                        self->point_.portal_trigger = p.portal_trigger;
                                     }
                                 }
-                                gpuState_.agent_state_readback_staging().Unmap();
+                                self->gpuState_.agent_state_readback_staging().Unmap();
                             }
-                            pawnReadbackState_ = PawnReadbackState::IDLE;
-                        });
+                            self->pawnReadbackState_ = PawnReadbackState::IDLE;
+                        },
+                        this);
                 }
 
                 //
                 if (floaterReadbackState_ == FloaterReadbackState::COPIED) {
                     floaterReadbackState_ = FloaterReadbackState::MAPPING;
+                    floaterReadbackGen_ = world_state_.world_gen;   // OIL_1c — see the pawn arm above
                     gpuState_.floating_entity_readback_staging().MapAsync(
                         wgpu::MapMode::Read, 0, GPUState::floating_entity_buffer_size(),
                         wgpu::CallbackMode::AllowSpontaneous,
-                        [this, gen = world_state_.world_gen](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                        [](wgpu::MapAsyncStatus status, wgpu::StringView, Cartridge* self) {
                             if (status == wgpu::MapAsyncStatus::Success) {
                                 // Drop stale callbacks from a previous world.
                                 // Buffer is still mapped, so Unmap unconditionally.
-                                if (gen == world_state_.world_gen) {
+                                if (self->floaterReadbackGen_ == self->world_state_.world_gen) {
                                     const auto* data = static_cast<const GPUFloatingEntityState*>(
-                                        gpuState_.floating_entity_readback_staging().GetConstMappedRange(
+                                        self->gpuState_.floating_entity_readback_staging().GetConstMappedRange(
                                             0, GPUState::floating_entity_buffer_size()));
                                     if (data) {
                                         // Owner mirror reconciliation (funnels
                                         // live with spheres / cube_behaviors).
                                         if constexpr (ROSTER.sphere)  // ROSTER-GATE sphere (b) — no spheres, no mirror to release
-                                            reconcile_sphere_mirror(sphere_state_, &sphere_deps_, data);
+                                            reconcile_sphere_mirror(self->sphere_state_, &self->sphere_deps_, data);
                                         if constexpr (ROSTER.cube)    // ROSTER-GATE cube (b)
-                                            reconcile_cube_mirror(cube_behaviors_state_, &cube_deps_, data);
+                                            reconcile_cube_mirror(self->cube_behaviors_state_, &self->cube_deps_, data);
                                     }
                                 }
-                                gpuState_.floating_entity_readback_staging().Unmap();
+                                self->gpuState_.floating_entity_readback_staging().Unmap();
                             }
-                            floaterReadbackState_ = FloaterReadbackState::IDLE;
-                        });
+                            self->floaterReadbackState_ = FloaterReadbackState::IDLE;
+                        },
+                        this);
                 }
             }
 
@@ -2156,10 +2184,13 @@ namespace t7 {
                         gpuState_.meter_readback_staging().MapAsync(
                             wgpu::MapMode::Read, 0, GPUState::meter_readback_size(),
                             wgpu::CallbackMode::AllowSpontaneous,
-                            [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                            // OIL_1c: captureless, `this` on the userdata slot.
+                            // No generation member here — timing rows are
+                            // world-agnostic, so this machine never carried one.
+                            [](wgpu::MapAsyncStatus status, wgpu::StringView, Cartridge* self) {
                                 if (status == wgpu::MapAsyncStatus::Success) {
                                     const auto* ts = static_cast<const uint64_t*>(
-                                        gpuState_.meter_readback_staging().GetConstMappedRange(
+                                        self->gpuState_.meter_readback_staging().GetConstMappedRange(
                                             0, GPUState::meter_readback_size()));
                                     if (ts) {
                                         // METER_1.1: group pair dts by row into a
@@ -2169,26 +2200,27 @@ namespace t7 {
                                         // otherwise printed a per-pass max below their
                                         // per-frame mean.
                                         double frame_ms[(size_t)RPhase::COUNT] = {};
-                                        for (uint32_t p = 0; p < meter_.snap_pair_count; p++) {
-                                            const uint64_t t0 = ts[meter_.snap_pairs[p].begin_idx];
-                                            const uint64_t t1 = ts[meter_.snap_pairs[p].begin_idx + 1];
+                                        for (uint32_t p = 0; p < self->meter_.snap_pair_count; p++) {
+                                            const uint64_t t0 = ts[self->meter_.snap_pairs[p].begin_idx];
+                                            const uint64_t t1 = ts[self->meter_.snap_pairs[p].begin_idx + 1];
                                             if (t1 <= t0) continue;               // counter-reset garbage
                                             const double ms = (double)(t1 - t0) * 1e-6;   // u64 ns per index
                                             if (ms > 100.0) continue;             // same discard law
-                                            frame_ms[meter_.snap_pairs[p].row] += ms;
+                                            frame_ms[self->meter_.snap_pairs[p].row] += ms;
                                         }
                                         for (size_t r = 0; r < (size_t)RPhase::COUNT; r++) {
                                             if (frame_ms[r] <= 0.0) continue;
-                                            auto& s = meter_.r_gpu[r];
+                                            auto& s = self->meter_.r_gpu[r];
                                             s.sum_ms += frame_ms[r];
                                             if ((float)frame_ms[r] > s.max_ms) s.max_ms = (float)frame_ms[r];
                                         }
-                                        meter_.gpu_sampled_frames++;
+                                        self->meter_.gpu_sampled_frames++;
                                     }
-                                    gpuState_.meter_readback_staging().Unmap();
+                                    self->gpuState_.meter_readback_staging().Unmap();
                                 }
-                                meterReadbackState_ = MeterReadbackState::IDLE;
-                            });
+                                self->meterReadbackState_ = MeterReadbackState::IDLE;
+                            },
+                            this);
                     }
                     gpuState_.meter_frame_begin();   // rebuild this frame's arming table
                 }
