@@ -745,7 +745,17 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
 
     // The conductor tail as a sequence of named units (was one inline block).
     band_patches(c, queue);
-    build_patch_grid(c, queue);
+    // OIL_1 U8 (ledger: R3 build_patch_grid, C1): the grid reads only the
+    // patch registry — no point input — so it rebuilds and re-uploads only
+    // when the registry changed. patch_instances_dirty is read HERE, before
+    // its consumption-and-clear below, and its raiser set covers every
+    // grid-content change (re-verified at edit time): boot/reset
+    // (init_patch_system, and the flag boots true), a patch entering the
+    // grid set (generation -> GENERATED), and a patch leaving it (eviction
+    // compaction). GENERATED -> NEEDS_REGEN keeps both phases inside the
+    // set with identical (gx,gz,layer), so the grid bytes cannot move on
+    // that transition.
+    if (c->world_state_.patch_instances_dirty) build_patch_grid(c, queue);
     // GPU Y-correction is additive (ground_y += terrain), so ground
     // entries must be re-uploaded with offset-only values whenever
     // the heightfield changes. Tie groundEntriesDirty to patch changes.
