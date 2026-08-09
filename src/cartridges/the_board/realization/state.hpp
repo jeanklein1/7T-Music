@@ -3130,8 +3130,13 @@ namespace t7 {
                 writeStruct(queue, orbConfigBuffer_, cfg);
             }
             void upload_orb_frame(wgpu::Queue& queue, float dt, float t_seconds) {
-                queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, dt), &dt, sizeof(float));
-                queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, t_seconds), &t_seconds, sizeof(float));
+                // OIL_1 U4 (ledger: R14, C8): t_seconds rides dt — adjacent
+                // (36/40), one 8-byte write, the same packed grammar as the
+                // cube aspect/glide writers. Byte-identical payload.
+                static_assert(offsetof(GPUOrbConfig, t_seconds) == offsetof(GPUOrbConfig, dt) + 4,
+                    "orb frame pair: t_seconds must ride dt for the coalesced write");
+                float frame[2] = { dt, t_seconds };
+                queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, dt), frame, sizeof(frame));
             }
             void upload_orb_force(wgpu::Queue& queue, float radial) {
                 queue.WriteBuffer(orbConfigBuffer_,
