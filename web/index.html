@@ -119,9 +119,12 @@
        trim is 1% and 6%, and it falls sideways, where both paintings
        carry only background. That is why there is no object-position
        here: at 6% centred there is nothing left to steer.
-       34vh caps the poster's HEIGHT near half the viewport in either
-       orientation. It replaces a breakpoint that capped the same thing
-       while assuming height equalled width — see SHORT VIEWPORTS below.
+       34vh CAPS THE WIDTH, and at 2:3 that is 51vh of height — near
+       half the viewport in either orientation. Read it as a height cap
+       and it lies by half: the box was square when this clamp lived in
+       a breakpoint, so width and height were one number there, and they
+       are two numbers now. Short viewports keep their own tighter term
+       for exactly that reason — see SHORT VIEWPORTS below.
        THE GRADIENT STAYS, and is now load-bearing in a way it was not
        before: it is what a visitor sees if an image never arrives, and
        what a <video> will sit against later. The img/video rule below
@@ -206,16 +209,31 @@
     }
     #veil.ready #status:focus-visible { border-color: var(--dim); outline: none; }
 
-    /* SHORT VIEWPORTS — a phone held sideways. The overlay column is
-       poster + wordmark + line + toggle, and everything under the
-       poster fell off the bottom: in READY that clipped line is the
-       DOOR, and in FALLBACK/LOST the same clip takes "Open it again"
-       with it. The poster's own share of that fix moved into its 34vh
-       term (POSTER_0), which holds in BOTH orientations, so this
-       breakpoint now only tightens the column around it. (The frame
-       was never the problem — the canvas fills both orientations by
-       construction, PORT_3c + --app-h.) */
-    @media (max-height: 560px) {
+    /* SHORT VIEWPORTS — a phone held sideways, and a small phone held
+       upright. The overlay column is poster + wordmark + line + toggle,
+       and everything under the poster falls off the bottom: in READY
+       that clipped line is the DOOR, and in FALLBACK/LOST the same clip
+       takes "Open it again" with it. The layer centres its column, so
+       the overflow is spent at BOTH ends — the poster loses its top in
+       the same breath.
+       28vh, NOT the 34vh above and NOT the 42vh this rule used to
+       carry. A width cap is a height cap times 3/2 now: 34vh is 51vh
+       of height, and the old 42vh was 42vh of height only because the
+       box was square. 28vh x 3/2 puts that 42vh back. Measured on the
+       CARD, the taller of the two columns and the one that fails
+       first: at 34vh it clipped 844x390 by 15px, 915x412 by 10px and
+       320x568 by 8px, and at 28vh none of the three does.
+       600px, NOT 560px: 320x568 is a portrait phone that clears the
+       old cut-off and still cannot hold a 51vh poster.
+       BELOW ~370px OF HEIGHT the card's column overflows anyway — 6px
+       at 640x360, 18px at 568x320 — and it did so identically before
+       POSTER_0, at 1:1 under the 42vh clamp. Left alone: closing it
+       means taking more off the poster on every short viewport, which
+       is a different trade from the one this rule makes.
+       (The frame was never the problem — the canvas fills both
+       orientations by construction, PORT_3c + --app-h.) */
+    @media (max-height: 600px) {
+      .poster { width: min(340px, 74vw, 28vh); }
       .layer  { gap: 14px; padding: 16px 24px; }
     }
   </style>
