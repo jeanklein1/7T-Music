@@ -1482,6 +1482,14 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
+    // OIL_1 U13 (ledger: R19, C7) — this pass's head binds. The
+    // photographer's entity window + the render texture group serve the
+    // terrain fork AND every table draw below (the helpers no longer
+    // bind their own). Bound before the first draw so the terrain fork
+    // keeps its own bindings byte-for-byte.
+    pass.SetBindGroup(0, c->gpuState_.photographer_render_entity_group());
+    pass.SetBindGroup(1, c->gpuState_.render_texture_group());
+
     c->renderer_.draw_patch_terrain_direct(pass,
         c->gpuState_.photographer_render_entity_group(),
         c->gpuState_.render_texture_group(),
@@ -1492,8 +1500,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // The drawable table — snapshot members, canonical order (the photographer's
     // own entity group). Terrain above is the per-pass FORK (a single direct
     // draw over render_patch_count, no LOD split). Zone is not a snapshot member.
-    DrawBind b{ c->gpuState_.photographer_render_entity_group(), c->gpuState_.render_texture_group(),
-                /*shadow=*/false,
+    DrawBind b{ /*shadow=*/false,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SNAPSHOT);
 
@@ -1504,17 +1511,17 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // leaves a rectangle of shade lying on empty sand. The nesting this
     // opens is bounded — the sampled layer is already flat and resolved,
     // and R20 reads the exhibition texture before R21 writes it.
+    // OIL_1 U13: the gallery pair (photographer VP window), bound ONCE
+    // for both draws.
+    pass.SetBindGroup(0, c->gpuState_.gallery_photographer_entity_group());
+    pass.SetBindGroup(1, c->gpuState_.gallery_texture_group());
     c->renderer_.draw_wall_paintings(
         pass,
-        c->gpuState_.gallery_photographer_entity_group(),
-        c->gpuState_.gallery_texture_group(),
         gs.wall_frame_count,
         gs.slot_high_water
     );
     c->renderer_.draw_gallery_frames(
         pass,
-        c->gpuState_.gallery_photographer_entity_group(),
-        c->gpuState_.gallery_texture_group(),
         gs.active_painting_count,
         gs.slot_high_water
     );

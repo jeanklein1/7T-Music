@@ -679,17 +679,23 @@ namespace t7 {
             // THE DRAW PLAN: one helper, three invocations — the entity
             // group carries the list window, the args slot rides the
             // offset (0 / 20 / 40 bytes into the 3 x 5-u32 args buffer).
+            // OIL_1 U13 (ledger: R19, C7): the three plan slots shared one
+            // pipeline and one texture group and re-set both — the pipeline
+            // is now set ONCE by begin_patch_terrain_plan and group1 rides
+            // the pass head. Group 0 stays per-slot: the plan A/B/C windows
+            // ARE three different bind groups, the one genuinely varying
+            // piece of state here.
+            void begin_patch_terrain_plan(wgpu::RenderPassEncoder& pass) {
+                pass.SetPipeline(patchTerrainIndirectPipeline_);
+            }
             void draw_patch_terrain_plan_slot(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer indirectArgs,
                 uint64_t indirectOffset
             ) {
-                pass.SetPipeline(patchTerrainIndirectPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
@@ -728,15 +734,21 @@ namespace t7 {
             void set_frustum_cull_active(bool active) { useIndirectTerrainPipeline_ = active; }
             bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
 
+            // ═══ OIL_1 U13 (ledger: R19, C7) — THE COLOR PASS-HEAD CONTRACT
+            // The entity draw helpers below ride group0 (the pass's entity
+            // window — render_entity_group in the main pass, the
+            // photographer's in the snapshot pass) and group1 (the render
+            // texture group) bound ONCE by the caller before draw_table.
+            // They were identical at every call within a pass and every
+            // helper re-set them. All these pipelines share ONE layout
+            // (renderLayout), so every draw sees the groups it saw before.
+            // The gallery draws keep their own layout and bind their own
+            // pair, once, at their call site.
             void draw_pawn(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 uint32_t vertexCount
             ) {
                 pass.SetPipeline(pawnPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 // One instance per agent slot. Inactive slots collapse via a
                 // zero-scale local mesh in pawn_vs (see is_active branch).
                 pass.Draw(vertexCount, /*instanceCount=*/ Dim::MAX_AGENTS);
@@ -744,16 +756,12 @@ namespace t7 {
 
             void draw_sphere(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(spherePipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, Dim::MAX_SPHERE_INSTANCES);
@@ -761,16 +769,12 @@ namespace t7 {
 
             void draw_monolith(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(monolithPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, Dim::MAX_CUBE_INSTANCES, 0, 0, Dim::CUBE_SLOT_OFFSET);
@@ -778,29 +782,21 @@ namespace t7 {
 
             void draw_ribbon(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 uint32_t vertexCount
             ) {
                 if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(ribbonPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.Draw(vertexCount);
             }
 
             void draw_arch(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(archPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount);
@@ -808,16 +804,12 @@ namespace t7 {
 
             void draw_column(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(columnPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount);
@@ -825,16 +817,12 @@ namespace t7 {
 
             void draw_palm(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(palmPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount);
@@ -842,16 +830,12 @@ namespace t7 {
 
             void draw_cactus(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(cactusPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount);
@@ -859,16 +843,12 @@ namespace t7 {
 
             void draw_blade(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(bladePipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount);
@@ -878,8 +858,6 @@ namespace t7 {
 
             void draw_shell(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
@@ -887,25 +865,21 @@ namespace t7 {
                 if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates
                 if (indexCount == 0) return;
                 pass.SetPipeline(shellPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount);
             }
 
+            // OIL_1 U13: the gallery pair is bound ONCE by the caller
+            // before the wall/frame draws (they share the gallery layout).
             void draw_gallery_frames(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t activePaintingCount,
                 uint32_t slotHighWater          // one past the highest ACTIVE slot
             ) {
                 if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
                 if (activePaintingCount == 0 || slotHighWater == 0) return;
                 pass.SetPipeline(galleryFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
                 // Instance count is the live mark, not Dim::PAINTING_MAX_SLOTS.
                 // The shader culls per slot either way, so the constant meant
                 // paying for the ceiling every frame; gallery_frame_vs's bounds
@@ -915,8 +889,6 @@ namespace t7 {
 
             void draw_wall_paintings(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t wallFrameCount,
                 uint32_t slotHighWater          // one past the highest ACTIVE slot
             ) {
@@ -931,14 +903,10 @@ namespace t7 {
 
                 // Canvas pass (textured surface)
                 pass.SetPipeline(wallPaintingCanvasPipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
                 pass.Draw(verts);
 
-                // Frame pass (solid color)
+                // Frame pass (solid color) — same pair, already bound.
                 pass.SetPipeline(wallPaintingFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
                 pass.Draw(verts);
             }
 

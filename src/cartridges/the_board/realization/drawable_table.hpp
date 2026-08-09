@@ -43,14 +43,17 @@ namespace the_board {
 
 enum DrawPass : uint32_t { DRAW_SHADOW = 1u, DRAW_MAIN = 2u, DRAW_SNAPSHOT = 4u };
 
-// Per-pass binding context: the entity group differs by pass (render vs
-// photographer), the texture group by pass (shadow vs render), and the two
-// runtime data-guards ride here (precomputed by the pass) so the thunks stay
+// Per-pass context for the thunks: which draw family to call, plus the
+// runtime data-guards (precomputed by the pass) so the thunks stay
 // ctx-agnostic — MachineCtx (shadow/main) and GalleryDeps (snapshot) both
 // expose Renderer&/GPUState&, nothing more is needed.
+//
+// OIL_1 U11-U13: the entity/texture group pair LEFT this struct. Each
+// pass now binds its own groups ONCE at its head (group0 = that pass's
+// entity window, group1 = its texture group) and the thunks set only
+// pipeline + vertex/index buffers — so the pair is pass state, named
+// where the pass begins, not a parameter re-set at every draw.
 struct DrawBind {
-    wgpu::BindGroup entity;     // render_entity_group | photographer_render_entity_group
-    wgpu::BindGroup texture;    // shadow_texture_group | render_texture_group
     bool shadow;                // shadow pass -> draw_shadow_X ; else draw_X
     bool ribbon_active;         // ribbon_state_.rendered_slot != UINT32_MAX
 };
@@ -65,45 +68,45 @@ struct Drawable {
 inline void dt_pawn(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     (void)g;
     if (b.shadow) r.draw_shadow_pawn(p, GPUState::pawn_vertex_count());   // OIL_1 U12: pass-head binds
-    else          r.draw_pawn       (p, b.entity, b.texture, GPUState::pawn_vertex_count());
+    else          r.draw_pawn       (p, GPUState::pawn_vertex_count());   // OIL_1 U13: pass-head binds
 }
 inline void dt_sphere(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_sphere(p, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
-    else          r.draw_sphere       (p, b.entity, b.texture, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
+    else          r.draw_sphere       (p, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
 }
 inline void dt_monolith(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_monolith(p, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
-    else          r.draw_monolith       (p, b.entity, b.texture, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
+    else          r.draw_monolith       (p, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
 }
 inline void dt_ribbon(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     (void)g;
     if (!b.ribbon_active) return;
     if (b.shadow) r.draw_shadow_ribbon(p, GPUState::ribbon_vertex_count());
-    else          r.draw_ribbon       (p, b.entity, b.texture, GPUState::ribbon_vertex_count());
+    else          r.draw_ribbon       (p, GPUState::ribbon_vertex_count());
 }
 inline void dt_arch(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
-    else          r.draw_arch       (p, b.entity, b.texture, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
+    else          r.draw_arch       (p, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
 }
 inline void dt_column(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_column(p, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
-    else          r.draw_column       (p, b.entity, b.texture, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
+    else          r.draw_column       (p, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
 }
 inline void dt_palm(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_palm(p, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
-    else          r.draw_palm       (p, b.entity, b.texture, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
+    else          r.draw_palm       (p, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
 }
 inline void dt_cactus(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
-    else          r.draw_cactus       (p, b.entity, b.texture, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
+    else          r.draw_cactus       (p, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
 }
 inline void dt_blade(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_blade(p, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
-    else          r.draw_blade       (p, b.entity, b.texture, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
+    else          r.draw_blade       (p, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
 }
 inline void dt_shell(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
-    else          r.draw_shell       (p, b.entity, b.texture, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
+    else          r.draw_shell       (p, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
 }
 
 // THE CANONICAL ORDER (== the shadow order). Membership is which passes a

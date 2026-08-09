@@ -404,8 +404,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     }
 
     // The drawable table — shadow members, canonical order.
-    DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.shadow_texture_group(),
-                /*shadow=*/true,
+    DrawBind b{ /*shadow=*/true,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 
@@ -458,6 +457,14 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
+    // OIL_1 U13 (ledger: R19, C7) — THE PASS-HEAD BINDS. group1 (the
+    // render texture group) is the same for every entity draw in this
+    // pass, plan slots included, so it is bound once here. group0 is
+    // bound here for plan slot A and re-bound per window by slots B/C,
+    // then restored before the table (see below).
+    pass.SetBindGroup(0, c->gpuState_.render_entity_group());
+    pass.SetBindGroup(1, c->gpuState_.render_texture_group());
+
     // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel
     // authored three lists; the pass executes them as three indirect
     // draws. Outdoor AND finite/indoor go through the same plan (the
@@ -465,27 +472,27 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // is RETIRED here — the plan is per-patch; the flag survives only
     // for the snapshot pass (R6), which culls against the
     // photographer's frustum and cannot read this plan.
+    c->renderer_.begin_patch_terrain_plan(pass);   // OIL_1 U13: one SetPipeline for the three slots
     c->renderer_.draw_patch_terrain_plan_slot(pass,
         c->gpuState_.render_entity_group(),          // plan A window
-        c->gpuState_.render_texture_group(),
         c->gpuState_.patch_index_buffer(),           // full IB (zone-overlapped)
         c->gpuState_.frustum_indirect_lod0(), 0);
     c->renderer_.draw_patch_terrain_plan_slot(pass,
         c->gpuState_.render_entity_group_plan_b(),   // plan B window
-        c->gpuState_.render_texture_group(),
         c->gpuState_.patch_index_buffer_cap_only(),  // cap-only IB (clean LOD0)
         c->gpuState_.frustum_indirect_lod0(), 20);
     c->renderer_.draw_patch_terrain_plan_slot(pass,
         c->gpuState_.render_entity_group_plan_c(),   // plan C window
-        c->gpuState_.render_texture_group(),
         c->gpuState_.patch_index_buffer_lod1(),      // LOD1 IB (culled at last)
         c->gpuState_.frustum_indirect_lod0(), 40);
+    // Plan C left its window bound: restore the entity group the table
+    // draws read (group1 is untouched by the slots).
+    pass.SetBindGroup(0, c->gpuState_.render_entity_group());
 
     // The drawable table — main members, canonical order. All opaque and
     // depth-tested, so order among them is immaterial; this is where the
     // ribbon's ordinal drift dies (it now draws with the entities, not late).
-    DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.render_texture_group(),
-                /*shadow=*/false,
+    DrawBind b{ /*shadow=*/false,
                 c->ribbon_state_.rendered_slot != UINT32_MAX };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
@@ -494,10 +501,11 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // pair, LAST and in order: orbs (additive), fade (alpha, no depth write).
 
     // Wall-mounted framed paintings (indoor)
+    // OIL_1 U13: the gallery pair, bound ONCE for both draws.
+    pass.SetBindGroup(0, c->gpuState_.gallery_entity_group());
+    pass.SetBindGroup(1, c->gpuState_.gallery_texture_group());
     c->renderer_.draw_wall_paintings(
         pass,
-        c->gpuState_.gallery_entity_group(),
-        c->gpuState_.gallery_texture_group(),
         c->gallery_state_.wall_frame_count,
         c->gallery_state_.slot_high_water
     );
@@ -505,8 +513,6 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // Gallery frames (self-portrait paintings on terrain)
     c->renderer_.draw_gallery_frames(
         pass,
-        c->gpuState_.gallery_entity_group(),
-        c->gpuState_.gallery_texture_group(),
         c->gallery_state_.active_painting_count,
         c->gallery_state_.slot_high_water
     );
