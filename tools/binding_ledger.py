@@ -1220,6 +1220,37 @@ def phase_ext1(w, wgsl, cen, layouts):
              % (len(raw_rows), len(comp_eps),
                 sum(1 for r in raw_rows if r["hazard"]), all_pairs, all_nonempty))
 
+    # ─── 1a-ii — THE UNORDERED CLOSURE. Table E's ordered rows answer
+    #     "is this sequence safe as written". Fusion asks a different
+    #     question: a fused kernel has NO ordering — its threads run
+    #     concurrently inside one dispatch — so a pair is fusable only if
+    #     BOTH orderings are hazard-free. Taking the closure is what turns
+    #     a hazard table into a fusability answer.
+    seen_pairs, unordered = set(), []
+    for r in raw_rows:
+        key = tuple(sorted((r["a"], r["b"])))
+        if key in seen_pairs:
+            continue
+        seen_pairs.add(key)
+        fwd = next((x for x in raw_rows if x["a"] == key[0] and x["b"] == key[1]), None)
+        rev = next((x for x in raw_rows if x["a"] == key[1] and x["b"] == key[0]), None)
+        dirs = []
+        if fwd and fwd["hazard"]:
+            dirs.append(("%s -> %s" % (key[0], key[1]), fwd["hazard"]))
+        if rev and rev["hazard"]:
+            dirs.append(("%s -> %s" % (key[1], key[0]), rev["hazard"]))
+        unordered.append({"pair": key, "clean": not dirs, "barred_dirs": dirs})
+    unordered.sort(key=lambda x: (not x["clean"], x["pair"]))
+
+    clean_pairs = [u for u in unordered if u["clean"]]
+    w.record("W1-4", True,
+             "unordered closure: %d fusion-eligible unordered pairs; %d are hazard-free "
+             "in BOTH directions%s. RAW-clean is necessary, not sufficient — cadence is "
+             "the second gate and it lives in the dispatch schedule, not the shader."
+             % (len(unordered), len(clean_pairs),
+                (" — " + ", ".join("{%s, %s}" % u["pair"] for u in clean_pairs))
+                if clean_pairs else ""))
+
     # ─── 1b — A4, OVER-PRIVILEGED. Declared read_write, never written.
     a4 = []
     for d in wgsl["decls"]:
@@ -1229,7 +1260,7 @@ def phase_ext1(w, wgsl, cen, layouts):
         if touch and all(k == "r" for k in touch.values()):
             a4.append({"decl": d, "readers": sorted(touch),
                        "layout_rows": [], "vertex_hazard": None})
-    return {"ep_use": ep_use, "raw": raw_rows, "a4": a4,
+    return {"ep_use": ep_use, "raw": raw_rows, "a4": a4, "unordered": unordered,
             "raw_all_pairs": all_pairs, "raw_all_nonempty": all_nonempty,
             "compute_eps": sorted(comp_eps)}
 
@@ -2696,6 +2727,32 @@ def phase_ext4(w, wgsl, layouts, cen):
              "%d trigger tokens, emitted verbatim into the artifact: %s"
              % (len(TRIGGERS), ", ".join(n for n, _ in TRIGGERS)))
 
+    # ─── W4-3 — the guard on W4-2. Two triggers were ADDED to make the
+    #     control pass, which is what a control is for — but an instrument
+    #     that can grant the variable under test is not an instrument.
+    #     Per-token site counts make overfitting visible rather than
+    #     inferred: a token contributing exactly one site, that site being
+    #     a control, is a token written to pass the test.
+    per_token = {}
+    for f in found:
+        for t in f.triggers:
+            per_token.setdefault(t, []).append(f)
+    controls = {"update_player_agent", "update_other_agents", "pawn_ground_resolve",
+                "(file banner)", "Render Entity Layout entries[16]",
+                "Render Entity Layout entries[17]"}
+    overfit = []
+    for t, fs in per_token.items():
+        sole = [f for f in fs if f.triggers == [t]]
+        if len(fs) == 1 and fs[0].symbol in controls:
+            overfit.append("%s: 1 site, and it is a control (%s)" % (t, fs[0].symbol))
+    w.record("W4-3", not overfit,
+             "no trigger is overfitted to the control — site counts: "
+             + ", ".join("%s %d (sole trigger at %d)"
+                         % (t, len(per_token.get(t, [])),
+                            sum(1 for f in per_token.get(t, []) if f.triggers == [t]))
+                         for t, _ in TRIGGERS)
+             if not overfit else "; ".join(overfit))
+
     # ─── W4-2 — the POSITIVE CONTROL. An instrument that cannot find what
     #     we already know is there is not an instrument.
     have = {(f.symbol, f.file) for f in found}
@@ -2713,7 +2770,7 @@ def phase_ext4(w, wgsl, layouts, cen):
              if not missing else "MISSED: " + ", ".join(missing) + " — widen the triggers")
 
     found.sort(key=lambda f: (f.file, f.line))
-    return {"sites": found, "triggers": TRIGGERS}
+    return {"sites": found, "triggers": TRIGGERS, "per_token": per_token}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -2978,6 +3035,17 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("kernels, and `field_forces` across the divide. Fusing deletes the implicit")
     A("inter-dispatch barrier that makes the ordering correct, and WGSL has no")
     A("device-wide barrier to put back. Table E has the pairs.")
+    A("")
+    A("**8b. The program has ZERO fusable pairs, and the ordered table alone")
+    A("does not say so.** A fused kernel has no ordering — its threads run")
+    A("concurrently inside one dispatch — so fusability needs the UNORDERED")
+    A("closure, not the ordered hazard list. Of %d unordered fusion-eligible"
+      % len(e1["unordered"]))
+    A("pairs, **%d survive RAW in both directions**, and both couple an on-demand"
+      % len([u for u in e1["unordered"] if u["clean"]]))
+    A("pass with a per-frame one — fusing either would change WHEN work runs, not")
+    A("just how it is dispatched. RAW-clean is necessary, not sufficient: cadence")
+    A("is the second gate and it lives in the dispatch schedule, not the shader.")
     A("")
     A("**9. The vertex-buffer candidates are not the ones that were proposed.**")
     A("`visible_patch_indices` IS eligible — one site, `[patch_id]`, sequential in")
@@ -3284,6 +3352,59 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
           % (r["a"], r["b"], ", ".join("`%s`" % x for x in r["hazard"]) or "—",
              "**BARRED**" if r["hazard"] else "no hazard on this ordering"))
     A("")
+    A("### The unordered closure — and why the ordered table alone is the wrong question")
+    A("")
+    A("**A fused kernel has no ordering.** Its threads run concurrently inside one")
+    A("dispatch. The table above answers *\"is this sequence safe as written\"*;")
+    A("fusion asks *\"is this pair safe in either direction\"*, and those are")
+    A("different questions. A pair is fusable only if BOTH orderings are")
+    A("hazard-free, so the ordered table has to be asked twice and closed.")
+    A("")
+    clean = [u for u in e1["unordered"] if u["clean"]]
+    A("| unordered pair | fusable on RAW? | barred direction(s) |")
+    A("|---|---|---|")
+    for u in e1["unordered"]:
+        A("| {`%s`, `%s`} | %s | %s |"
+          % (u["pair"][0], u["pair"][1],
+             "**yes**" if u["clean"] else "no",
+             md_escape("; ".join("`%s` on %s" % (d, ", ".join(h))
+                                 for d, h in u["barred_dirs"])) or "—"))
+    A("")
+    A("%d unordered pairs; **%d survive RAW in both directions**." % (len(e1["unordered"]),
+                                                                      len(clean)))
+    if clean:
+        A("")
+        A("### The second gate: cadence")
+        A("")
+        A("**RAW-clean is necessary, not sufficient.** The second gate is CADENCE,")
+        A("and it lives in the dispatch schedule, not the shader — which means the")
+        A("census cannot decide it. It can only put the evidence next to the")
+        A("survivors:")
+        A("")
+        A("| survivor pair | pipeline labels |")
+        A("|---|---|")
+        lbl = {}
+        for p_ in cen["pipelines"]:
+            if p_.kind == "compute":
+                lbl[cen["entry_const"].get(p_.cs_entry)] = p_.label
+        for u in clean:
+            A("| {`%s`, `%s`} | %s |"
+              % (u["pair"][0], u["pair"][1],
+                 " / ".join(md_escape(lbl.get(x, "?")) for x in u["pair"])))
+        A("")
+        A("Every surviving pair couples an **on-demand** pass with a **per-frame**")
+        A("one. Fusing them would make the on-demand pass run every frame — a")
+        A("behaviour change, not a barrier change, and outside anything Tier A")
+        A("can authorise.")
+        A("")
+        A("And the three patch-gen passes cannot all merge regardless: the pair")
+        A("`{generate_patch_gradients, generate_patch_heights}` is barred on")
+        A("`patch_height_scratch`, so the maximal RAW-clean set is a pair, never")
+        A("the triple.")
+        A("")
+        A("**Net: the program has zero fusable pairs.** Not one that survives both")
+        A("gates.")
+        A("")
 
     # ─── 7. TABLE F — vertex-buffer eligibility (BUDGET_0f-2) ─────────
     A("## Table F — vertex-buffer eligibility")
@@ -3319,6 +3440,65 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
              md_escape("; ".join(x["override_gates"])) if x["override_gates"] else "—",
              "**ELIGIBLE (%s-step)**" % x["step"] if x["eligible"] else "blocked",
              md_escape("; ".join(x["blockers"])) or "—"))
+    A("")
+    A("### What an eligible move costs")
+    A("")
+    A("Eligibility is not freeness. A vertex buffer removes a bind-group binding")
+    A("and spends vertex-buffer and vertex-attribute slots instead, and the")
+    A("underlying buffer needs `BufferUsage::Vertex` alongside `Storage` — the")
+    A("same class of program edit that A2 needs `BufferUsage::Uniform` for, and")
+    A("the reason neither is free. Attribute count assumes vec4 packing,")
+    A("`ceil(stride / 16)`.")
+    A("")
+    A("| symbol | pipelines reaching it | vertex buffers | vertex attributes | buffer usage |")
+    A("|---|---|---|---|---|")
+    prog_vb = max(p.vertex_buffer_count for p in cen["pipelines"])
+    prog_va = max(p.vertex_attribute_count or 0 for p in cen["pipelines"])
+    for x in e2["eligibility"]:
+        if not x["eligible"]:
+            continue
+        sym = x["decl"].symbol
+        touch = [p for p in cen["pipelines"]
+                 for cc, _ in p.entries()
+                 if sym in wgsl["reach"].get(cen["entry_const"].get(cc), (set(), set()))[1]]
+        touch = sorted({p.label: p for p in touch}.items())
+        need = -(-x["stride"] // 16)
+        vb = ["%s %d→%d" % (lbl, p.vertex_buffer_count, p.vertex_buffer_count + 1)
+              for lbl, p in touch]
+        va = ["%s %s→%s" % (lbl, p.vertex_attribute_count,
+                            (p.vertex_attribute_count or 0) + need) for lbl, p in touch]
+        A("| `%s` | %s | %s | %s | `Storage` + **`Vertex`** |"
+          % (sym, ", ".join(md_escape(lbl) for lbl, _ in touch) or "—",
+             md_escape("; ".join(vb)), md_escape("; ".join(va))))
+    A("")
+    post_vb, post_va = prog_vb, prog_va
+    for x in e2["eligibility"]:
+        if not x["eligible"]:
+            continue
+        sym = x["decl"].symbol
+        need = -(-x["stride"] // 16)
+        for p in cen["pipelines"]:
+            if any(sym in wgsl["reach"].get(cen["entry_const"].get(cc), (set(), set()))[1]
+                   for cc, _ in p.entries()):
+                post_vb = max(post_vb, p.vertex_buffer_count + 1)
+                post_va = max(post_va, (p.vertex_attribute_count or 0) + need)
+    A("Program-wide today: **%d of 8** vertex buffers, **%d of 16** vertex"
+      % (prog_vb, prog_va))
+    A("attributes. With both eligible moves taken, the maxima would read **%d of 8**"
+      % post_vb)
+    A("and **%d of 16** — the per-pipeline cost lands on the Orb Sky Layer, which"
+      % post_va)
+    A("goes from 1 attribute to %d, not on the arch family that holds today's"
+      % ((1 + max((-(-x["stride"] // 16)) for x in e2["eligibility"]
+                  if x["eligible"] and x["decl"].symbol == "render_orb_state")) or 6))
+    A("maximum of %d." % prog_va)
+    A("")
+    A("Two facts in `render_orb_state`'s favour that belong in its row. There is")
+    A("no Shadow Orb pipeline, so exactly one pipeline in the program reaches it —")
+    A("a move touches one vertex signature, not a family. And its slot is one of")
+    A("the sites the registry banner names as sharing a buffer under several")
+    A("names (`orb_state` / `render_orb_state` / `orb_state_ro`), so retiring it")
+    A("retires a registry site rather than relocating one.")
     A("")
 
     # ─── 8. TABLE G — call shapes (BUDGET_0f-3) ───────────────────────
@@ -3395,7 +3575,13 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("function; B recovers the two agent kernels, whose 48-second banner sits")
     A("several declarations upstream.")
     A("")
-    A("| symbol | kind | file | line | triggers | matched via |")
+    A("The `line` column is **non-authoritative**: it is true for the commit in")
+    A("the provenance header and stale for any other. Cite the SYMBOL. The line is")
+    A("a convenience for finding it, not a reference to it — this table cites and")
+    A("does not quote precisely so it cannot go stale, and a line number is the")
+    A("one column that can.")
+    A("")
+    A("| symbol | kind | file | line (non-authoritative) | triggers | matched via |")
     A("|---|---|---|---|---|---|")
     for f in e4["sites"]:
         A("| `%s` | %s | `%s` | %d | %s | %s |"

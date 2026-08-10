@@ -86,6 +86,7 @@ matters only where a binding is a window onto a shared buffer.
 | `0d-2` | **PASS** | no row is reached by a stage its visibility mask excludes |
 | `W1-1` | **PASS** | no write recorded on any binding the WGSL declares non-writable, and no read on any write-only storage texture, across all 65 entry points |
 | `W1-3` | **PASS** | RAW table: 32 fusion-eligible ordered pairs (same pipeline layout) of 29 compute entry points; 22 carry a hazard. Unrestricted matrix: 812 ordered pairs, 47 with a non-empty write∩read. |
+| `W1-4` | **PASS** | unordered closure: 16 fusion-eligible unordered pairs; 2 are hazard-free in BOTH directions — {generate_patch_cells, generate_patch_gradients}, {generate_patch_cells, generate_patch_heights}. RAW-clean is necessary, not sufficient — cadence is the second gate and it lives in the dispatch schedule, not the shader. |
 | `W2-1` | **PASS** | 950 access sites classified, every one on a declared binding |
 | `W2-2` | **PASS** | classification total: builtin_derived 137, builtin_sequential 5, indirected 16, other 93, scalar 699; `other` rows enumerated below |
 | `W2-3` | **PASS** | positive control: patch_terrain_vs reads visible_patch_indices[patch_id] as builtin_sequential(instance) and patch_instances[actual_id] as indirected(visible_patch_indices) |
@@ -94,6 +95,7 @@ matters only where a binding is a window onto a shared buffer.
 | `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (9 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 13 (arch_mesh_gen, blade_cluster_mesh_gen, cactus_mesh_gen, column_mesh_gen, compute_entity_placement, compute_photographer_vp, compute_vp, palm_mesh_gen, update_camera, update_cube, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 8 (compute_entity_placement, compute_photographer_vp, compute_vp, update_camera, update_cube, update_other_agents, update_player_agent, update_sphere). The 7 that differ: arch_mesh_gen (wg1=True, single-dispatch=False), blade_cluster_mesh_gen (wg1=True, single-dispatch=False), cactus_mesh_gen (wg1=True, single-dispatch=False), column_mesh_gen (wg1=True, single-dispatch=False), palm_mesh_gen (wg1=True, single-dispatch=False), update_other_agents (wg1=False, single-dispatch=True), zone_derive_params (wg1=True, single-dispatch=False). |
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
+| `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 7 (sole trigger at 0), FXC 56 (sole trigger at 40), law-ref 55 (sole trigger at 23), measured 12 (sole trigger at 2), witness 18 (sole trigger at 1), hangs 0 (sole trigger at 0), compile-time 8 (sole trigger at 0), landed-at 4 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 7 (sole trigger at 1), per-stage 8 (sole trigger at 1), slot-cap 7 (sole trigger at 3) |
 | `W4-2` | **PASS** | positive control: all 6 known-defended sites found — update_player_agent; update_other_agents; (file banner); pawn_ground_resolve; Render Entity Layout entries[16]; Render Entity Layout entries[17] |
 
 `gate` is the RECONCILIATION GATE. The web twin boots on a pure-defaults
@@ -178,6 +180,15 @@ between the agent kernels, `floating_entities` between the floater
 kernels, and `field_forces` across the divide. Fusing deletes the implicit
 inter-dispatch barrier that makes the ordering correct, and WGSL has no
 device-wide barrier to put back. Table E has the pairs.
+
+**8b. The program has ZERO fusable pairs, and the ordered table alone
+does not say so.** A fused kernel has no ordering — its threads run
+concurrently inside one dispatch — so fusability needs the UNORDERED
+closure, not the ordered hazard list. Of 16 unordered fusion-eligible
+pairs, **2 survive RAW in both directions**, and both couple an on-demand
+pass with a per-frame one — fusing either would change WHEN work runs, not
+just how it is dispatched. RAW-clean is necessary, not sufficient: cadence
+is the second gate and it lives in the dispatch schedule, not the shader.
 
 **9. The vertex-buffer candidates are not the ones that were proposed.**
 `visible_patch_indices` IS eligible — one site, `[patch_id]`, sequential in
@@ -657,6 +668,60 @@ that could not be fused for a different reason.
 | `zone_gol_sync` | `zone_derive_params` | — | no hazard on this ordering |
 | `zone_gol_sync` | `zone_gol_evolve` | `zone_life` | **BARRED** |
 
+### The unordered closure — and why the ordered table alone is the wrong question
+
+**A fused kernel has no ordering.** Its threads run concurrently inside one
+dispatch. The table above answers *"is this sequence safe as written"*;
+fusion asks *"is this pair safe in either direction"*, and those are
+different questions. A pair is fusable only if BOTH orderings are
+hazard-free, so the ordered table has to be asked twice and closed.
+
+| unordered pair | fusable on RAW? | barred direction(s) |
+|---|---|---|
+| {`generate_patch_cells`, `generate_patch_gradients`} | **yes** | — |
+| {`generate_patch_cells`, `generate_patch_heights`} | **yes** | — |
+| {`generate_patch_gradients`, `generate_patch_heights`} | no | `generate_patch_heights -> generate_patch_gradients` on patch_height_scratch |
+| {`orb_dynamics`, `orb_init`} | no | `orb_init -> orb_dynamics` on orb_state |
+| {`orb_dynamics`, `orb_recolor`} | no | `orb_dynamics -> orb_recolor` on orb_state; `orb_recolor -> orb_dynamics` on orb_state |
+| {`orb_init`, `orb_recolor`} | no | `orb_init -> orb_recolor` on orb_state |
+| {`update_cube`, `update_other_agents`} | no | `update_cube -> update_other_agents` on floating_entities; `update_other_agents -> update_cube` on agent_state, field_forces |
+| {`update_cube`, `update_player_agent`} | no | `update_cube -> update_player_agent` on floating_entities; `update_player_agent -> update_cube` on agent_state |
+| {`update_cube`, `update_sphere`} | no | `update_cube -> update_sphere` on floating_entities; `update_sphere -> update_cube` on floating_entities |
+| {`update_other_agents`, `update_player_agent`} | no | `update_other_agents -> update_player_agent` on agent_state; `update_player_agent -> update_other_agents` on agent_state |
+| {`update_other_agents`, `update_sphere`} | no | `update_other_agents -> update_sphere` on agent_state, field_forces; `update_sphere -> update_other_agents` on floating_entities |
+| {`update_player_agent`, `update_sphere`} | no | `update_player_agent -> update_sphere` on agent_state; `update_sphere -> update_player_agent` on floating_entities |
+| {`write_live_card_heights`, `write_live_card_resolve`} | no | `write_live_card_heights -> write_live_card_resolve` on live_card_scratch |
+| {`zone_derive_params`, `zone_gol_evolve`} | no | `zone_derive_params -> zone_gol_evolve` on zone_config |
+| {`zone_derive_params`, `zone_gol_sync`} | no | `zone_derive_params -> zone_gol_sync` on zone_config |
+| {`zone_gol_evolve`, `zone_gol_sync`} | no | `zone_gol_evolve -> zone_gol_sync` on zone_life; `zone_gol_sync -> zone_gol_evolve` on zone_life |
+
+16 unordered pairs; **2 survive RAW in both directions**.
+
+### The second gate: cadence
+
+**RAW-clean is necessary, not sufficient.** The second gate is CADENCE,
+and it lives in the dispatch schedule, not the shader — which means the
+census cannot decide it. It can only put the evidence next to the
+survivors:
+
+| survivor pair | pipeline labels |
+|---|---|
+| {`generate_patch_cells`, `generate_patch_gradients`} | Generate Patch Cells (2D, on demand) / Generate Patch Gradients (2D, pass 2) |
+| {`generate_patch_cells`, `generate_patch_heights`} | Generate Patch Cells (2D, on demand) / Generate Patch Heights (2D, pass 1) |
+
+Every surviving pair couples an **on-demand** pass with a **per-frame**
+one. Fusing them would make the on-demand pass run every frame — a
+behaviour change, not a barrier change, and outside anything Tier A
+can authorise.
+
+And the three patch-gen passes cannot all merge regardless: the pair
+`{generate_patch_gradients, generate_patch_heights}` is barred on
+`patch_height_scratch`, so the maximal RAW-clean set is a pair, never
+the triple.
+
+**Net: the program has zero fusable pairs.** Not one that survives both
+gates.
+
 ## Table F — vertex-buffer eligibility
 
 Vertex buffers are the one wallet that can absorb a RUNTIME-SIZED ARRAY,
@@ -782,6 +847,33 @@ point. `visible_patch_indices` is the row this applies to.
 | `zone_life_read` | `texture_2d_array<f32>` | — | `scalar((no index))` | — | blocked | indexed scalar((no index)), not sequential in a builtin; no array element stride (not an array binding) |
 | `zone_life_tex_write` | `texture_storage_2d_array<r32float, write>` | — | `scalar((no index))` | — | blocked | indexed scalar((no index)), not sequential in a builtin; no array element stride (not an array binding) |
 | `zone_params` | `GoLZoneArray` | — | `scalar((no index))` | — | blocked | indexed scalar((no index)), not sequential in a builtin; no array element stride (not an array binding) |
+
+### What an eligible move costs
+
+Eligibility is not freeness. A vertex buffer removes a bind-group binding
+and spends vertex-buffer and vertex-attribute slots instead, and the
+underlying buffer needs `BufferUsage::Vertex` alongside `Storage` — the
+same class of program edit that A2 needs `BufferUsage::Uniform` for, and
+the reason neither is free. Attribute count assumes vec4 packing,
+`ceil(stride / 16)`.
+
+| symbol | pipelines reaching it | vertex buffers | vertex attributes | buffer usage |
+|---|---|---|---|---|
+| `visible_patch_indices` | Patch Terrain (instanced), Patch Terrain Indirect (VS indirection) | Patch Terrain (instanced) 0→1; Patch Terrain Indirect (VS indirection) 0→1 | Patch Terrain (instanced) 0→1; Patch Terrain Indirect (VS indirection) 0→1 | `Storage` + **`Vertex`** |
+| `render_orb_state` | Orb Sky Layer | Orb Sky Layer 1→2 | Orb Sky Layer 1→6 | `Storage` + **`Vertex`** |
+
+Program-wide today: **1 of 8** vertex buffers, **4 of 16** vertex
+attributes. With both eligible moves taken, the maxima would read **2 of 8**
+and **6 of 16** — the per-pipeline cost lands on the Orb Sky Layer, which
+goes from 1 attribute to 6, not on the arch family that holds today's
+maximum of 4.
+
+Two facts in `render_orb_state`'s favour that belong in its row. There is
+no Shadow Orb pipeline, so exactly one pipeline in the program reaches it —
+a move touches one vertex signature, not a family. And its slot is one of
+the sites the registry banner names as sharing a buffer under several
+names (`orb_state` / `render_orb_state` / `orb_state_ro`), so retiring it
+retires a registry site rather than relocating one.
 
 ## Table G — call shapes
 
@@ -919,7 +1011,13 @@ recovers `pawn_ground_resolve`, whose banner sits above an intervening
 function; B recovers the two agent kernels, whose 48-second banner sits
 several declarations upstream.
 
-| symbol | kind | file | line | triggers | matched via |
+The `line` column is **non-authoritative**: it is true for the commit in
+the provenance header and stale for any other. Cite the SYMBOL. The line is
+a convenience for finding it, not a reference to it — this table cites and
+does not quote precisely so it cannot go stale, and a line number is the
+one column that can.
+
+| symbol | kind | file | line (non-authoritative) | triggers | matched via |
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
 | `patch_params` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 41 | `law-ref` | A:proximity |
