@@ -853,7 +853,8 @@ def parse_wgsl_decls(w, src, structs, consts):
 # ─── 0b-ii — the reachability closure ────────────────────────────────
 
 class WgslFn:
-    __slots__ = ("name", "stage", "workgroup_size", "body", "start", "line", "calls", "refs")
+    __slots__ = ("name", "stage", "workgroup_size", "body", "params", "start", "line",
+                 "calls", "refs", "uses", "sites", "shadowed")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -861,6 +862,41 @@ class WgslFn:
 
 
 STAGE_OF_ATTR = {"vertex": "V", "fragment": "F", "compute": "C"}
+
+# One combined scanner so braces, local declarations and identifiers are
+# seen in a single offset-ordered pass.
+SCOPE_TOK = re.compile(
+    r"(?P<open>\{)|(?P<close>\})"
+    r"|\b(?:let|var|const)\b\s*(?:<[^>]*>)?\s*(?P<decl>[A-Za-z_]\w*)"
+    r"|(?<![\w.])(?P<id>[A-Za-z_]\w*)")
+
+
+def scoped_idents(fn, interesting):
+    """Yield (identifier, is_module_scope) for every occurrence in a body.
+
+    A name declared by `let`/`var`/`const`, or bound as a parameter,
+    shadows the module scope for the rest of its block. Without this, a
+    local named after a binding reads as a reference to that binding —
+    which is how `patch_terrain_fs` appeared to reach `patch_grid`.
+    """
+    scopes = [set(re.findall(r"(?<![\w.])(\w+)\s*:", fn.params or ""))]
+    for m in SCOPE_TOK.finditer(fn.body):
+        if m.group("open"):
+            scopes.append(set())
+        elif m.group("close"):
+            if len(scopes) > 1:
+                scopes.pop()
+        elif m.group("decl"):
+            name = m.group("decl")
+            scopes[-1].add(name)
+            if name in interesting:
+                yield name, False, m.start("decl"), m.end("decl")
+        else:
+            tok = m.group("id")
+            if tok not in interesting:
+                continue
+            yield (tok, not any(tok in sc for sc in scopes),
+                   m.start("id"), m.end("id"))
 
 
 def parse_wgsl_functions(w, src, decl_names):
@@ -907,7 +943,7 @@ def parse_wgsl_functions(w, src, decl_names):
             if re.search(r"@%s\b" % a, head):
                 stage = s
         wg = re.search(r"@workgroup_size\s*\(([^)]*)\)", head)
-        fns[name] = WgslFn(name=name, stage=stage,
+        fns[name] = WgslFn(name=name, stage=stage, params=src[m.end():p],
                            workgroup_size=("(%s)" % " ".join(wg.group(1).split())) if wg else "",
                            body=body, start=brace, line=line_of(src, m.start()),
                            calls=set(), refs=set())
@@ -915,14 +951,18 @@ def parse_wgsl_functions(w, src, decl_names):
     # Reference extraction. An identifier preceded by `.` is member
     # access, not a module-scope name; the `fn` keyword itself is a
     # definition, not a call. Everything else that matches a function
-    # name or a binding symbol counts as a reference. The direction of
-    # any residual error is OVER-approximation (a shadowing local named
-    # after a binding would add a reference, never remove one), which
-    # makes vis_actual generous and every A1 flag conservative.
-    ident = re.compile(r"(?<![\w.])([A-Za-z_]\w*)")
+    # name or a binding symbol counts as a reference — UNLESS a local
+    # declaration or parameter shadows it in scope. BUDGET_0b noted the
+    # shadowing hazard and accepted it as one-directional; extension 1's
+    # W1-1 then caught it live (`let patch_grid = vec2<i32>(…)` in two
+    # functions), so the closure now resolves scope properly rather than
+    # over-approximating.
     for fn in fns.values():
-        for im in ident.finditer(fn.body):
-            tok = im.group(1)
+        fn.shadowed = set()
+        for tok, is_ref, _s, _e in scoped_idents(fn, decl_names | set(fns)):
+            if not is_ref:
+                fn.shadowed.add(tok)
+                continue
             if tok in fns:
                 fn.calls.add(tok)
             elif tok in decl_names:
@@ -960,6 +1000,233 @@ def reachability(fns, entries):
     return out
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# EXTENSION 1 — READ/WRITE SEPARATION
+#
+# BUDGET_0 recorded that a binding is REFERENCED. This records what the
+# reference DOES. Two things turn on it: whether two dispatches can be
+# fused (a fused kernel deletes the inter-dispatch barrier that is making
+# the sequence correct today), and whether a `read_write` declaration
+# claims a capability it never exercises.
+# ═══════════════════════════════════════════════════════════════════════
+
+# Atomic builtins, by what they do to the atomic they are handed.
+ATOMIC_RW = ("atomicAdd", "atomicSub", "atomicMax", "atomicMin", "atomicAnd",
+             "atomicOr", "atomicXor", "atomicExchange", "atomicCompareExchangeWeak")
+ATOMIC_W = ("atomicStore",)
+ATOMIC_R = ("atomicLoad",)
+
+COMPOUND_ASSIGN = ("<<=", ">>=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=")
+
+
+def _skip_ws(s, i, step=1):
+    while 0 <= i < len(s) and s[i] in " \t\r\n":
+        i += step
+    return i
+
+
+def _consume_access_chain(s, i):
+    """From just past a symbol, consume `[…]` and `.ident` to the chain's end."""
+    while True:
+        j = _skip_ws(s, i)
+        if j < len(s) and s[j] == "[":
+            depth, k = 0, j
+            while k < len(s):
+                if s[k] == "[":
+                    depth += 1
+                elif s[k] == "]":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                k += 1
+            i = k + 1
+            continue
+        if j < len(s) and s[j] == "." and j + 1 < len(s) and (s[j + 1].isalpha() or s[j + 1] == "_"):
+            k = j + 1
+            while k < len(s) and (s[k].isalnum() or s[k] == "_"):
+                k += 1
+            i = k
+            continue
+        return i
+
+
+def classify_use(body, start, end):
+    """What does this reference to a binding DO? -> 'r' | 'w' | 'rw'.
+
+    Lexical and deliberately biased: an ambiguous site is called a WRITE.
+    Both consumers are safe in that direction — a spurious write adds a RAW
+    pair (a false bar on fusing, not a false blessing) and removes an A4
+    flag (a missed correction, not a wrong one).
+    """
+    # A builtin call wrapping the reference: textureStore(tex, …),
+    # atomicAdd(&buf[i], …). Look back past whitespace and an optional `&`.
+    b = _skip_ws(body, start - 1, -1)
+    if b >= 0 and body[b] == "&":
+        b = _skip_ws(body, b - 1, -1)
+    if b >= 0 and body[b] == "(":
+        k = _skip_ws(body, b - 1, -1)
+        e = k + 1
+        while k >= 0 and (body[k].isalnum() or body[k] == "_"):
+            k -= 1
+        callee = body[k + 1:e]
+        if callee == "textureStore":
+            return "w"
+        if callee in ATOMIC_W:
+            return "w"
+        if callee in ATOMIC_R:
+            return "r"
+        if callee in ATOMIC_RW:
+            return "rw"
+
+    # Otherwise: is the reference the target of an assignment?
+    i = _consume_access_chain(body, end)
+    j = _skip_ws(body, i)
+    tail = body[j:j + 3]
+    for op in COMPOUND_ASSIGN:
+        if tail.startswith(op):
+            return "rw"
+    if tail.startswith("++") or tail.startswith("--"):
+        return "rw"
+    if tail.startswith("=") and not tail.startswith("=="):
+        return "w"
+    return "r"
+
+
+def annotate_uses(w, src, fns, decls):
+    """Attach per-function {symbol: 'r'|'w'|'rw'} to every function.
+
+    Also records each access SITE (offset, index expression, enclosing
+    override gate) for extension 2, which asks a different question of the
+    same occurrences.
+    """
+    names = {d.symbol for d in decls}
+    for fn in fns.values():
+        fn.uses = {}
+        fn.sites = []
+        for tok, is_ref, st, en in scoped_idents(fn, names):
+            if not is_ref:
+                continue
+            kind = classify_use(fn.body, st, en)
+            prev = fn.uses.get(tok)
+            fn.uses[tok] = "rw" if (prev and prev != kind) or kind == "rw" else kind
+            fn.sites.append({"symbol": tok, "off": st, "end": en, "use": kind})
+
+    # ─── W1-0. The write detector is TEXTUAL: it sees an assignment or a
+    #     builtin call at the reference. A write reached through a pointer
+    #     parameter would be invisible to it. world.wgsl must therefore
+    #     contain no pointer types at all, or the detector is unsound.
+    ptrs = sorted(set(re.findall(r"\bptr\s*<[^>]*>", src)))
+    w.record("W1-0", not ptrs,
+             "world.wgsl declares no `ptr<…>` anywhere, so no write can reach a "
+             "binding except through an assignment or a builtin at the reference — "
+             "which is exactly what the detector sees"
+             if not ptrs else "pointer types present, write detection is unsound: "
+             + ", ".join(ptrs))
+    return fns
+
+
+def rw_closure(fns, entries, reach):
+    """entry point -> {symbol: 'r'|'w'|'rw'} over its whole call closure."""
+    out = {}
+    for name in entries:
+        acc = {}
+        for f in reach[name][0]:
+            for sym, kind in fns[f].uses.items():
+                prev = acc.get(sym)
+                acc[sym] = "rw" if (prev and prev != kind) or kind == "rw" else kind
+        out[name] = acc
+    return out
+
+
+def reads(u):
+    return {s for s, k in u.items() if k in ("r", "rw")}
+
+
+def writes(u):
+    return {s for s, k in u.items() if k in ("w", "rw")}
+
+
+def phase_ext1(w, wgsl, cen, layouts):
+    fns, entries, reach = wgsl["fns"], wgsl["entries"], wgsl["reach"]
+    ep_use = rw_closure(fns, entries, reach)
+    wgsl["ep_use"] = ep_use
+
+    # ─── W1-1 — a binding the WGSL declares non-writable must have an
+    #     empty write-set, and a write-only storage texture must have an
+    #     empty read-set. A violation is a detector bug, not a program
+    #     defect: the shader would not compile.
+    bad = []
+    for d in wgsl["decls"]:
+        writable = (d.address_space == "storage" and d.wgsl_access == "read_write") \
+                   or d.wgsl_type.startswith("texture_storage")
+        readable = not (d.wgsl_type.startswith("texture_storage")
+                        and re.search(r",\s*write\s*>", d.wgsl_type))
+        for ep, u in ep_use.items():
+            k = u.get(d.symbol)
+            if k is None:
+                continue
+            if not writable and k in ("w", "rw"):
+                bad.append("%s: write recorded in %s but declared %s %s"
+                           % (d.symbol, ep, d.address_space, d.wgsl_access))
+            if not readable and k in ("r", "rw"):
+                bad.append("%s: read recorded in %s but declared write-only"
+                           % (d.symbol, ep))
+    w.record("W1-1", not bad,
+             "no write recorded on any binding the WGSL declares non-writable, and no "
+             "read on any write-only storage texture, across all %d entry points"
+             % len(entries) if not bad else "; ".join(sorted(set(bad))[:6]))
+
+    # ─── 1a — the RAW table. Restricted to FUSION-ELIGIBLE pairs: a fused
+    #     kernel has ONE pipeline layout, so only compute entry points whose
+    #     pipelines carry identical group layouts could ever be fused. The
+    #     unrestricted matrix is counted too, so the restriction hides
+    #     nothing.
+    cs = [p for p in cen["pipelines"] if p.kind == "compute"]
+    ep_of = {}
+    for p in cs:
+        ep_of.setdefault(p.cs_entry and cen["entry_const"].get(p.cs_entry), []).append(p)
+    comp_eps = [e for e in ep_of if e]
+
+    raw_rows, all_pairs, all_nonempty = [], 0, 0
+    for a in sorted(comp_eps):
+        for b_ep in sorted(comp_eps):
+            if a == b_ep:
+                continue
+            all_pairs += 1
+            hazard = writes(ep_use[a]) & reads(ep_use[b_ep])
+            if hazard:
+                all_nonempty += 1
+            same = (ep_of[a][0].group_layouts == ep_of[b_ep][0].group_layouts)
+            if same:
+                raw_rows.append({"a": a, "b": b_ep, "hazard": sorted(hazard),
+                                 "layouts": ep_of[a][0].group_layouts})
+
+    # ─── W1-3 — the table exists whether or not it has rows, and its pair
+    #     count is stated. Silence and absence must be distinguishable.
+    w.record("W1-3",
+             len(raw_rows) == sum(1 for a in comp_eps for b_ep in comp_eps
+                                  if a != b_ep
+                                  and ep_of[a][0].group_layouts == ep_of[b_ep][0].group_layouts),
+             "RAW table: %d fusion-eligible ordered pairs (same pipeline layout) of %d "
+             "compute entry points; %d carry a hazard. Unrestricted matrix: %d ordered "
+             "pairs, %d with a non-empty write∩read."
+             % (len(raw_rows), len(comp_eps),
+                sum(1 for r in raw_rows if r["hazard"]), all_pairs, all_nonempty))
+
+    # ─── 1b — A4, OVER-PRIVILEGED. Declared read_write, never written.
+    a4 = []
+    for d in wgsl["decls"]:
+        if not (d.address_space == "storage" and d.wgsl_access == "read_write"):
+            continue
+        touch = {ep: u[d.symbol] for ep, u in ep_use.items() if d.symbol in u}
+        if touch and all(k == "r" for k in touch.values()):
+            a4.append({"decl": d, "readers": sorted(touch),
+                       "layout_rows": [], "vertex_hazard": None})
+    return {"ep_use": ep_use, "raw": raw_rows, "a4": a4,
+            "raw_all_pairs": all_pairs, "raw_all_nonempty": all_nonempty,
+            "compute_eps": sorted(comp_eps)}
+
+
 def phase_0b(w):
     raw = read(WORLD_WGSL)
     src = strip_wgsl_comments(raw)
@@ -967,6 +1234,7 @@ def phase_0b(w):
     structs = parse_wgsl_structs(src)
     decls, slots = parse_wgsl_decls(w, src, structs, consts)
     fns, entries = parse_wgsl_functions(w, src, {d.symbol for d in decls})
+    annotate_uses(w, src, fns, decls)
     reach = reachability(fns, entries)
     return {"src": src, "consts": consts, "structs": structs, "decls": decls,
             "slots": slots, "fns": fns, "entries": entries, "reach": reach}
@@ -2185,6 +2453,7 @@ def main():
 
     column = demo_column(w)
     d = phase_0d(w, layouts, b, c)
+    e1 = phase_ext1(w, b, c, layouts)
 
     print("")
     print("PHASE 0d — THE JOIN, THE STAGE BUDGET, TIER A")
@@ -2218,6 +2487,24 @@ def main():
     for kind, what, _ in d["a3"]:
         print("    A3  %s — %s" % (kind, what))
     print("  stale mirror rows (registry name != WGSL name): %d" % len(d["stale_mirror"]))
+
+    print("")
+    print("EXTENSION 1 — READ/WRITE SEPARATION")
+    shadow = {}
+    for fn in b["fns"].values():
+        for s in getattr(fn, "shadowed", ()) or ():
+            shadow.setdefault(s, []).append(fn.name)
+    print("  scope resolution: %d module-scope name(s) shadowed by a local — %s"
+          % (len(shadow), "; ".join("%s in %s" % (k, ", ".join(sorted(v)))
+                                    for k, v in sorted(shadow.items())) or "none"))
+    print("  RAW hazards, fusion-eligible ordered pairs (same pipeline layout):")
+    for r in e1["raw"]:
+        print("    %-24s -> %-24s %s"
+              % (r["a"], r["b"], ", ".join(r["hazard"]) or "EMPTY — no hazard"))
+    print("  A4 (OVER-PRIVILEGED, declared read_write and never written): %d"
+          % len(e1["a4"]))
+    for x in e1["a4"]:
+        print("    %-26s readers: %s" % (x["decl"].symbol, ", ".join(x["readers"])))
 
     print("")
     print("WITNESSES")
