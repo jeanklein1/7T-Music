@@ -42,6 +42,15 @@ The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
 hashes are the authoritative provenance.
 
+**Determinism is asserted at byte level, not by comparing two local runs.**
+Two runs on one host are byte-identical even if the write is
+host-translated, because both are translated the same way — Python's text
+mode rewrites `\n` to the platform terminator unless `newline` is pinned. So
+the writer pins `encoding="utf-8", newline="\n"` (witness `G2-eol`), and a
+binary read-back after every write asserts LF-only, no BOM, exactly one
+trailing newline. A violation stops the run instead of shipping a file that
+breaks the L1 encoding law on one platform and not another.
+
 ### The law this serves
 
 A slot is charged **once per stage named in `visibility`**, whether or not
@@ -97,6 +106,7 @@ matters only where a binding is a window onto a shared buffer.
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
 | `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 7 (sole trigger at 0), FXC 56 (sole trigger at 40), law-ref 55 (sole trigger at 23), measured 12 (sole trigger at 2), witness 18 (sole trigger at 1), hangs 0 (sole trigger at 0), compile-time 8 (sole trigger at 0), landed-at 4 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 7 (sole trigger at 1), per-stage 8 (sole trigger at 1), slot-cap 7 (sole trigger at 3) |
 | `W4-2` | **PASS** | positive control: all 6 known-defended sites found — update_player_agent; update_other_agents; (file banner); pawn_ground_resolve; Render Entity Layout entries[16]; Render Entity Layout entries[17] |
+| `G2-eol` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`, so no host can translate the terminator; a byte-level read-back runs after the write |
 
 `gate` is the RECONCILIATION GATE. The web twin boots on a pure-defaults
 device request (PORT_5d — a value-initialised `wgpu::Limits`, nothing
@@ -988,20 +998,41 @@ at that site before it argues with it.
 **The predicate, verbatim (W4-1).** A site is DEFENDED if its attached
 comment matches any of:
 
-| trigger | pattern |
-|---|---|
-| `time-cost` | `\b\d+(?:\.\d+)?\s*(?:ms\|s\|sec\|secs\|second\|seconds\|min\|minute\|minutes)\b` |
-| `FXC` | `\bFXC\b` |
-| `law-ref` | `\bL\d+\b\|\b[A-Z_]{3,} LAW\b\|docs/LAWS\.md` |
-| `measured` | `\bmeasured\b\|\bmeasurement\b` |
-| `witness` | `\bwitness\b` |
-| `hangs` | `\bhangs\b` |
-| `compile-time` | `\bcompile[ -]time\b` |
-| `landed-at` | `\blanded at\b` |
-| `regressed` | `\bregressed\b` |
-| `budget` | `\bbudget\b` |
-| `per-stage` | `\bper[- ]stage\b` |
-| `slot-cap` | `\b(?:storage\|uniform\|binding\|slot)[- ]?(?:buffer[- ]?)?(?:cap\|limit)\b` |
+| trigger | pattern | sites | sole trigger at |
+|---|---|---|---|
+| `time-cost` | `\b\d+(?:\.\d+)?\s*(?:ms\|s\|sec\|secs\|second\|seconds\|min\|minute\|minutes)\b` | 7 | 0 |
+| `FXC` | `\bFXC\b` | 56 | 40 |
+| `law-ref` | `\bL\d+\b\|\b[A-Z_]{3,} LAW\b\|docs/LAWS\.md` | 55 | 23 |
+| `measured` | `\bmeasured\b\|\bmeasurement\b` | 12 | 2 |
+| `witness` | `\bwitness\b` | 18 | 1 |
+| `hangs` | `\bhangs\b` | 0 — **prospective** | 0 |
+| `compile-time` | `\bcompile[ -]time\b` | 8 | 0 |
+| `landed-at` | `\blanded at\b` | 4 | 0 |
+| `regressed` | `\bregressed\b` | 0 — **prospective** | 0 |
+| `budget` | `\bbudget\b` | 7 | 1 |
+| `per-stage` | `\bper[- ]stage\b` | 8 | 1 |
+| `slot-cap` | `\b(?:storage\|uniform\|binding\|slot)[- ]?(?:buffer[- ]?)?(?:cap\|limit)\b` | 7 | 3 |
+
+Site counts are the guard on this predicate (`W4-3`). Two triggers were
+ADDED to make the positive control pass, which is what a control is for —
+but an instrument that can grant the variable under test is not an
+instrument. A token contributing exactly one site, that site being a
+control, would be a token written to pass the test; the witness fails on
+it. Both added tokens are general vocabulary and neither is close.
+
+**A zero-site trigger is PROSPECTIVE, not dead.** A trigger list is a
+predicate over FUTURE text, not a description of present data. Deleting a
+term that matches nothing today would not make the predicate leaner, only
+narrower — and this extension's whole posture is that over-flagging costs
+a glance while under-flagging costs a 48-second lesson relearned. They
+stay, marked, so the zero reads as intended rather than as a defect.
+
+Two readings worth keeping in view. `FXC` contributes 56 sites and is the
+sole trigger at 40 of them — that is where this program's expensive lessons
+actually cluster, and it is a map of the real risk surface. `time-cost`
+contributes 7 sites and is the sole trigger at 0, meaning every comment
+that records a measured duration also carries another trigger — the prose
+conventions are internally consistent.
 
 Attachment: **A** the nearest preceding comment block with no other block
 between it and the site (so a block covers the run that follows it);
@@ -1647,4 +1678,3 @@ builders are resolved, not recorded.
 | Shadow Gallery Frame | `shadowGalleryFramePipeline_` | render | `shadow_gallery_frame_vs` | — | — | `galleryEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
 | Shadow Wall Painting | `shadowWallPaintingPipeline_` | render | `shadow_wall_painting_vs` | — | — | `galleryEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
 | Fade Overlay | `fadeOverlayPipeline_` | render | `fade_overlay_vs` | `fade_overlay_fs` | — | `meshGenEntityBindGroupLayout_` | 0 | 0 | 1 | — |
-
