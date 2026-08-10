@@ -1241,6 +1241,270 @@ def phase_0b(w):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# EXTENSION 2 — ACCESS-PATTERN CLASSIFICATION
+#
+# The ledger records a binding's TYPE. Whether it can leave the storage
+# wallet for a vertex buffer turns on how it is INDEXED, which is a
+# different question — and the one the logistics survey got backwards in
+# both directions on the same pair of bindings.
+# ═══════════════════════════════════════════════════════════════════════
+
+SEQ_BUILTINS = {"instance_index": "instance", "vertex_index": "vertex"}
+OTHER_BUILTINS = ("global_invocation_id", "local_invocation_id", "workgroup_id",
+                  "num_workgroups", "local_invocation_index", "front_facing",
+                  "position", "sample_index", "sample_mask", "frag_depth",
+                  "subgroup_invocation_id", "subgroup_size")
+
+# Least-eligible wins when a variable is assigned more than once.
+CLASS_RANK = {"builtin_sequential": 0, "scalar": 1, "builtin_derived": 2,
+              "other": 3, "indirected": 4}
+
+
+class IdxClass:
+    __slots__ = ("cls", "source")
+
+    def __init__(self, cls, source=""):
+        self.cls, self.source = cls, source
+
+    def __repr__(self):
+        return "%s(%s)" % (self.cls, self.source) if self.source else self.cls
+
+
+def join_class(a, b):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a if CLASS_RANK[a.cls] >= CLASS_RANK[b.cls] else b
+
+
+AFFINE_OK = re.compile(r"^[\w\s\+\-\*\(\)\.]*$")
+
+
+def classify_expr(expr, env, bindings, consts, overrides, uniforms, params=()):
+    """Classify an index expression into the five-class taxonomy."""
+    e = " ".join(expr.split())
+    if not e:
+        return IdxClass("scalar", "(no index)")
+
+    # An index that is itself a load from another binding is an
+    # INDIRECTION, whatever it is indexed by. This test comes first
+    # because `visible_patch_indices[patch_id]` is sequential in
+    # patch_id and still makes its consumer random-access.
+    for m in re.finditer(r"(?<![\w.])([A-Za-z_]\w*)\s*\[", e):
+        if m.group(1) in bindings:
+            return IdxClass("indirected", m.group(1))
+
+    # `select`, `min`, `f32`… are CALLEES, not data sources — the
+    # arguments are. `true`/`false` are literals, not identifiers.
+    idents = [t for t in re.findall(r"(?<![\w.])([A-Za-z_]\w*)(?!\s*\()", e)
+              if t not in ("true", "false")]
+    tainted = [(t, env[t]) for t in idents if t in env and env[t] is not None]
+    if tainted:
+        worst = None
+        for _, k in tainted:
+            worst = join_class(worst, k)
+        if worst.cls == "builtin_sequential":
+            # Affine only: no division, modulo, member access, call or
+            # select. Anything else is many elements per primitive.
+            body = e
+            for t, _ in tainted:
+                body = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(t), " ", body)
+            if ("/" in e or "%" in e or "." in e or "select" in e
+                    or re.search(r"\w\s*\(", e) or not AFFINE_OK.match(e)):
+                return IdxClass("builtin_derived", worst.source)
+            return IdxClass("builtin_sequential", worst.source)
+        return worst
+    if any(t in uniforms for t in idents):
+        return IdxClass("scalar", next(t for t in idents if t in uniforms))
+    if all(t in consts or t in overrides or t in SCALARS for t in idents) or not idents:
+        src = ", ".join(t for t in idents if t in overrides) or "const"
+        return IdxClass("scalar", src)
+    unknown = [t for t in idents if t not in consts and t not in overrides]
+    if params and all(t in params for t in unknown):
+        # The index comes from this function's own parameters. The closure
+        # is not interprocedural, so say so rather than inventing a class.
+        return IdxClass("other", "callee parameter: " + ", ".join(sorted(set(unknown))))
+    return IdxClass("other", e[:60])
+
+
+ASSIGN_RE = re.compile(
+    r"(?:\b(?:let|var|const)\b\s*(?:<[^>]*>)?\s*(?P<decl>\w+)\s*(?::[^=;]+)?=\s*(?P<dexpr>[^;]+);)"
+    r"|(?:(?:^|(?<=[{};]))\s*(?P<lhs>[A-Za-z_]\w*)\s*(?P<op>[+\-*/%&|^]?=)(?!=)"
+    r"\s*(?P<aexpr>[^;]+);)", re.M)
+
+
+def taint_env(fn, bindings, consts, overrides, uniforms):
+    """Local dataflow: which locals carry a builtin, an indirection, or neither."""
+    env = {}
+    pnames = set(re.findall(r"(?<![\w.])(\w+)\s*:", fn.params or ""))
+    for pm in re.finditer(r"@builtin\s*\(\s*(\w+)\s*\)\s*(\w+)\s*:", fn.params or ""):
+        b, name = pm.group(1), pm.group(2)
+        if b in SEQ_BUILTINS:
+            env[name] = IdxClass("builtin_sequential", SEQ_BUILTINS[b])
+        else:
+            env[name] = IdxClass("builtin_derived", b)
+    for om in re.finditer(r"@builtin\s*\(\s*(\w+)\s*\)", fn.body[:0] or ""):
+        pass
+    for m in ASSIGN_RE.finditer(fn.body):
+        name = m.group("decl") or m.group("lhs")
+        expr = m.group("dexpr") or m.group("aexpr")
+        if not name or name in bindings:
+            continue
+        env[name] = join_class(env.get(name),
+                               classify_expr(expr, env, bindings, consts, overrides,
+                                             uniforms, pnames))
+        if m.group("op") and m.group("op") != "=":
+            env[name] = join_class(env[name], IdxClass("builtin_derived", "compound assign"))
+    return env
+
+
+def if_spans_wgsl(body):
+    """(start, end, condition) for every braced `if (...)` in a body."""
+    spans = []
+    for m in re.finditer(r"\bif\s*\(", body):
+        j = m.end() - 1
+        depth, k = 0, j
+        while k < len(body):
+            if body[k] == "(":
+                depth += 1
+            elif body[k] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        cond = body[j + 1:k]
+        rest = re.match(r"\s*\{", body[k + 1:k + 40])
+        if not rest:
+            continue
+        b = k + 1 + rest.end() - 1
+        depth, p = 0, b
+        while p < len(body):
+            if body[p] == "{":
+                depth += 1
+            elif body[p] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        spans.append((m.start(), p, " ".join(cond.split())))
+    return spans
+
+
+def phase_ext2(w, wgsl):
+    decls = wgsl["decls"]
+    bindings = {d.symbol for d in decls}
+    uniforms = {d.symbol for d in decls if d.address_space == "uniform"}
+    consts = set(wgsl["consts"])
+    overrides = set(re.findall(r"^override\s+(\w+)", wgsl["src"], re.M))
+
+    sites = []
+    for fn in wgsl["fns"].values():
+        env = taint_env(fn, bindings, consts, overrides, uniforms)
+        ifs = if_spans_wgsl(fn.body)
+        for s in fn.sites:
+            i = _skip_ws(fn.body, s["end"])
+            if i < len(fn.body) and fn.body[i] == "[":
+                depth, k = 0, i
+                while k < len(fn.body):
+                    if fn.body[k] == "[":
+                        depth += 1
+                    elif fn.body[k] == "]":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    k += 1
+                idx = fn.body[i + 1:k]
+            else:
+                idx = ""
+            cls = classify_expr(idx, env, bindings, consts, overrides, uniforms,
+                                set(re.findall(r"(?<![\w.])(\w+)\s*:", fn.params or "")))
+            gates = [c for (a, b_, c) in ifs if a <= s["off"] <= b_
+                     and any(o in c for o in overrides)]
+            sites.append({"fn": fn.name, "symbol": s["symbol"], "use": s["use"],
+                          "index": " ".join(idx.split()), "cls": cls,
+                          "line": fn.line + fn.body.count("\n", 0, s["off"]),
+                          "override_gate": "; ".join(gates)})
+
+    # ─── W2-1 — every classified access resolves to a Table A binding.
+    stray = sorted({s["symbol"] for s in sites if s["symbol"] not in bindings})
+    w.record("W2-1", not stray,
+             "%d access sites classified, every one on a declared binding" % len(sites)
+             if not stray else "unknown symbols: " + ", ".join(stray))
+
+    # ─── W2-2 — classification is total, and `other` rows are listed
+    #     individually with their expression. Never counted in aggregate.
+    others = [s for s in sites if s["cls"].cls == "other"]
+    counts = {}
+    for s in sites:
+        counts[s["cls"].cls] = counts.get(s["cls"].cls, 0) + 1
+    w.record("W2-2", all(s["cls"].cls in CLASS_RANK for s in sites),
+             "classification total: " + ", ".join("%s %d" % (k, counts[k])
+                                                  for k in sorted(counts))
+             + ("; `other` rows enumerated below" if others else "; no `other` rows"))
+
+    # ─── W2-3 — the POSITIVE CONTROL. The classifier must call
+    #     visible_patch_indices[patch_id] sequential and
+    #     patch_instances[actual_id] indirected, in patch_terrain_vs.
+    #     If it does not, it is wrong in the exact way the survey was.
+    ctl = {}
+    for s in sites:
+        if s["fn"] == "patch_terrain_vs" and s["symbol"] in ("visible_patch_indices",
+                                                             "patch_instances"):
+            ctl[s["symbol"]] = s
+    ok = (ctl.get("visible_patch_indices") and
+          ctl["visible_patch_indices"]["cls"].cls == "builtin_sequential" and
+          ctl["visible_patch_indices"]["cls"].source == "instance" and
+          ctl.get("patch_instances") and
+          ctl["patch_instances"]["cls"].cls == "indirected")
+    w.record("W2-3", ok,
+             "positive control: patch_terrain_vs reads visible_patch_indices[%s] as %s "
+             "and patch_instances[%s] as %s"
+             % (ctl["visible_patch_indices"]["index"], ctl["visible_patch_indices"]["cls"],
+                ctl["patch_instances"]["index"], ctl["patch_instances"]["cls"])
+             if ok else "control FAILED: %s"
+             % {k: (v["index"], str(v["cls"])) for k, v in ctl.items()})
+
+    # ─── The vertex-buffer eligibility predicate. Every access in every
+    #     entry point that reaches the binding must be builtin_sequential
+    #     on the same builtin, and the element stride must fit
+    #     maxVertexBufferArrayStride. An override gate does NOT rescue a
+    #     mixed classification: an override selects a branch inside ONE
+    #     entry point, and one entry point has ONE signature.
+    by_symbol = {}
+    for s in sites:
+        by_symbol.setdefault(s["symbol"], []).append(s)
+    elig = []
+    for d in decls:
+        ss = by_symbol.get(d.symbol, [])
+        if not ss:
+            continue
+        classes = {(s["cls"].cls, s["cls"].source) for s in ss}
+        stride = d.layout.array_elem[2] if d.layout.array_elem else None
+        blockers = []
+        kind = None
+        if len(classes) > 1:
+            blockers.append("mixed classification across %d access sites: %s"
+                            % (len(ss), ", ".join(sorted("%s(%s)" % c for c in classes))))
+        only = next(iter(classes)) if len(classes) == 1 else None
+        if only and only[0] != "builtin_sequential":
+            blockers.append("indexed %s(%s), not sequential in a builtin" % only)
+        if only and only[0] == "builtin_sequential":
+            kind = only[1]
+        if stride is None:
+            blockers.append("no array element stride (not an array binding)")
+        elif stride > 2048:
+            blockers.append("element stride %d B exceeds maxVertexBufferArrayStride 2048"
+                            % stride)
+        gated = sorted({s["override_gate"] for s in ss if s["override_gate"]})
+        elig.append({"decl": d, "sites": ss, "classes": sorted(classes), "stride": stride,
+                     "blockers": blockers, "step": kind, "override_gates": gated,
+                     "eligible": not blockers})
+    return {"sites": sites, "eligibility": elig, "others": others,
+            "overrides": sorted(overrides)}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # PHASE 0c — THE PIPELINE CENSUS
 #
 # The shared builders (makeEntity, makeComputePipeline, computeLayoutFor,
@@ -2454,6 +2718,7 @@ def main():
     column = demo_column(w)
     d = phase_0d(w, layouts, b, c)
     e1 = phase_ext1(w, b, c, layouts)
+    e2 = phase_ext2(w, b)
 
     print("")
     print("PHASE 0d — THE JOIN, THE STAGE BUDGET, TIER A")
@@ -2505,6 +2770,29 @@ def main():
           % len(e1["a4"]))
     for x in e1["a4"]:
         print("    %-26s readers: %s" % (x["decl"].symbol, ", ".join(x["readers"])))
+
+    print("")
+    print("EXTENSION 2 — ACCESS-PATTERN CLASSIFICATION")
+    print("  overrides in world.wgsl: %s" % (", ".join(e2["overrides"]) or "none"))
+    elig = [x for x in e2["eligibility"] if x["eligible"]]
+    print("  vertex-buffer eligible bindings: %d" % len(elig))
+    for x in elig:
+        print("    %-24s %s-step, stride %s B, %d access site(s)"
+              % (x["decl"].symbol, x["step"], x["stride"], len(x["sites"])))
+    print("  the two bindings the survey named:")
+    for name in ("patch_instances", "render_ring_xforms", "visible_patch_indices"):
+        x = next((y for y in e2["eligibility"] if y["decl"].symbol == name), None)
+        if x:
+            print("    %-22s %-9s %s" % (name, "ELIGIBLE" if x["eligible"] else "blocked",
+                                         "; ".join(x["blockers"]) or "-"))
+    if e2["others"]:
+        grp = {}
+        for s_ in e2["others"]:
+            grp.setdefault((s_["symbol"], s_["cls"].source), []).append(s_["fn"])
+        print("  `other` access sites: %d, over %d (binding, provenance) groups — every"
+              " one enumerated individually in the artifact:" % (len(e2["others"]), len(grp)))
+        for (sym, src), fs in sorted(grp.items()):
+            print("    %-22s %-34s in %s" % (sym, src, ", ".join(sorted(set(fs)))[:60]))
 
     print("")
     print("WITNESSES")
