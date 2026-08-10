@@ -409,9 +409,6 @@ namespace t7 {
             constexpr float PAWN_POS_Y = 0.0f;
             constexpr float PAWN_POS_Z = 0.0f;
             constexpr float PAWN_HEADING = 0.0f;
-            constexpr float CAMERA_POS_X = 0.0f;
-            constexpr float CAMERA_POS_Y = 15.0f;
-            constexpr float CAMERA_POS_Z = 30.0f;
             constexpr float CAMERA_AZIMUTH = 0.0f;
             constexpr float CAMERA_ELEVATION = 0.4f;
             constexpr float CAMERA_DISTANCE = 15.0f;
@@ -6504,10 +6501,11 @@ namespace t7 {
                     queue.WriteBuffer(agentStateBuffer_, 0, agents, sizeof(agents));
                 }
 
+                // pos is UNSEEDED: update_camera composes it from
+                // azimuth/elevation/distance two dispatches before compute_vp
+                // reads it, on frame 1 and every frame after. A boot value
+                // here would be a second author for a fact the orbit owns.
                 GPUCameraState camera{};
-                camera.pos[0] = Idle::CAMERA_POS_X;
-                camera.pos[1] = Idle::CAMERA_POS_Y;
-                camera.pos[2] = Idle::CAMERA_POS_Z;
                 camera.azimuth = Idle::CAMERA_AZIMUTH;
                 camera.elevation = Idle::CAMERA_ELEVATION;
                 camera.distance = Idle::CAMERA_DISTANCE;
