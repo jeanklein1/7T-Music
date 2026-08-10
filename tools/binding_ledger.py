@@ -808,15 +808,26 @@ def parse_wgsl_decls(w, src, structs, consts):
         slots.setdefault((d.group, d.binding), []).append(d)
     aliases = sorted(s for k, v in slots.items() for s in [x.symbol for x in v][1:])
 
-    # ─── WITNESS 0b-1 — the registry banner asserts 100 declarations over
-    #     97 slots, with fc_config / fc_vp / fc_patches as the three
+    # ─── WITNESS 0b-1 — the registry banner asserts 99 declarations over
+    #     96 slots, with fc_config / fc_vp / fc_patches as the three
     #     aliases. Reproduce both numbers AND name exactly those three.
+    #
+    #     WAS 100 over 97. TETRIS ORB_V retired `render_orb_state`
+    #     (@group(0) @binding(400)) — one declaration, one slot — when the
+    #     orb state moved to an instance-step vertex buffer. The handoff
+    #     authorised this expectation to move ("0b-1 reproduced 100 over 97
+    #     at census — this commit makes it 98 over 95; T-CLOSE verifies")
+    #     and predicted 98 over 95 because it assumed WALLET_1 would land
+    #     first, merging the three light declarations into one. WALLET_1
+    #     STOPPED on its C3 reachability predicate and made no edit, so its
+    #     two declarations and two slots are still here and the number is
+    #     99 over 96. The banner in binding_registry.hpp says the same.
     expect_aliases = ["fc_config", "fc_patches", "fc_vp"]
-    ok = (len(decls) == 100 and len(slots) == 97 and aliases == expect_aliases)
+    ok = (len(decls) == 99 and len(slots) == 96 and aliases == expect_aliases)
     w.record("0b-1", ok,
              "banner reproduced: %d declarations over %d slots; aliases %s"
              % (len(decls), len(slots), ", ".join(aliases)) if ok else
-             "banner says 100 declarations over 97 slots with aliases %s; census found "
+             "banner says 99 declarations over 96 slots with aliases %s; census found "
              "%d over %d with aliases %s"
              % (", ".join(expect_aliases), len(decls), len(slots), ", ".join(aliases) or "none"))
 
@@ -1663,10 +1674,28 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
     for m in re.finditer(r"(\w+)\.attributeCount\s*=\s*(?:(\w+)\.size\(\)|(\d+))", src):
         vbl_attrs[m.group(1)] = attrs.get(m.group(2), 0) if m.group(2) else int(m.group(3))
 
+    # ─── Pipelines carrying MORE THAN ONE vertex buffer pass an ARRAY of
+    #     layouts rather than the address of a single one. Until TETRIS
+    #     ORB_V every render pipeline in the program had exactly one, so
+    #     the reader below only understood `&someVBL`; a `.data()` token
+    #     resolved to nothing and the pipeline silently counted 0 buffers
+    #     and 0 attributes. Map the array's NAME to (buffer count, summed
+    #     attributes) so both shapes read.
+    vbl_arrays = {}
+    for m in re.finditer(
+            r"std::array<\s*wgpu::VertexBufferLayout\s*,\s*(\d+)\s*>\s*(\w+)\s*\{\{([^}]*)\}\}",
+            src, re.S):
+        members = [x.strip() for x in m.group(3).split(",") if x.strip()]
+        vbl_arrays[m.group(2)] = (int(m.group(1)),
+                                  sum(vbl_attrs.get(x, 0) for x in members))
+
     def vbl_of(tok):
         tok = tok.strip()
         if tok == "nullptr":
             return 0, 0
+        if tok.endswith(".data()"):
+            n, va = vbl_arrays.get(tok[:-len(".data()")].strip(), (0, None))
+            return n, va
         name = tok.lstrip("&")
         return 1, vbl_attrs.get(name, None)
 
@@ -1746,13 +1775,19 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
         vbc = get(r"vertex\.bufferCount")
         vbuf = get(r"vertex\.buffers")
         va = 0
+        vbn = 0
         if vbuf and vbuf.strip() not in ("nullptr",):
-            va = vbl_attrs.get(vbuf.strip().lstrip("&"), None)
+            vbn, va = vbl_of(vbuf.strip())
+        # `bufferCount` is a literal on the single-buffer pipelines and
+        # `<array>.size()` on the multi-buffer ones; the layout token is the
+        # authority either way, so fall back to what vbl_of resolved.
+        if vbc and vbc.strip().isdigit():
+            vbn = int(vbc)
         pipelines.append(Pipeline(
             label=(get("label") or "").strip().strip('"'), member=cm.group(1), kind="render",
             vs_entry=entry_name(get(r"vertex\.entryPoint") or ""), fs_entry=fs,
             group_layouts=layouts_at((get("layout") or "").strip(), m.start()),
-            vertex_buffer_count=int(vbc) if vbc and vbc.strip().isdigit() else 0,
+            vertex_buffer_count=vbn,
             vertex_attribute_count=va, color_target_count=tc if tc is not None else 0,
             roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
             off=m.start()))
@@ -3112,6 +3147,10 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("nobody named: `render_orb_state`, eligible on access pattern AND drawn")
     A("instanced, and a runtime-sized array — the class A2 cannot touch.")
     A("")
+    A("*TETRIS ORB_V took that third candidate.* It is the only one of the four")
+    A("that has moved; `visible_patch_indices` is still eligible and still")
+    A("unspent, and the two blocked rows are blocked for the same reasons.")
+    A("")
     A("**10. The single-thread count is three numbers, not one.** %d entry points"
       % len(e3["wg1"]))
     A("declare `@workgroup_size(1)`; %d dispatches issue one workgroup; the"
@@ -3558,23 +3597,43 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
                    for cc, _ in p.entries()):
                 post_vb = max(post_vb, p.vertex_buffer_count + 1)
                 post_va = max(post_va, (p.vertex_attribute_count or 0) + need)
+    # This passage used to be written around `render_orb_state` by name and
+    # around a fixed count of "both" eligible moves. TETRIS ORB_V took that
+    # move, which emptied the filter the attribute arithmetic reduced over
+    # and left the prose describing a binding the program no longer has —
+    # finding 12's lesson (a reference outliving its referent) landing in
+    # the WRITER this time rather than in a witness key. Both are derived
+    # from the eligibility set now, so neither can go stale again.
+    n_elig = sum(1 for x in e2["eligibility"] if x["eligible"])
+    orb_row = [x for x in e2["eligibility"]
+               if x["eligible"] and x["decl"].symbol == "render_orb_state"]
     A("Program-wide today: **%d of 8** vertex buffers, **%d of 16** vertex"
       % (prog_vb, prog_va))
-    A("attributes. With both eligible moves taken, the maxima would read **%d of 8**"
-      % post_vb)
-    A("and **%d of 16** — the per-pipeline cost lands on the Orb Sky Layer, which"
-      % post_va)
-    A("goes from 1 attribute to %d, not on the arch family that holds today's"
-      % ((1 + max((-(-x["stride"] // 16)) for x in e2["eligibility"]
-                  if x["eligible"] and x["decl"].symbol == "render_orb_state")) or 6))
-    A("maximum of %d." % prog_va)
+    if n_elig:
+        A("attributes. With the %d remaining eligible move%s taken, the maxima would"
+          % (n_elig, "" if n_elig == 1 else "s"))
+        A("read **%d of 8** and **%d of 16**." % (post_vb, post_va))
+    else:
+        A("attributes. NO eligible move remains: every Table F candidate above is")
+        A("blocked, so these maxima are where the program stands rather than a")
+        A("floor under a reserve.")
     A("")
-    A("Two facts in `render_orb_state`'s favour that belong in its row. There is")
-    A("no Shadow Orb pipeline, so exactly one pipeline in the program reaches it —")
-    A("a move touches one vertex signature, not a family. And its slot is one of")
-    A("the sites the registry banner names as sharing a buffer under several")
-    A("names (`orb_state` / `render_orb_state` / `orb_state_ro`), so retiring it")
-    A("retires a registry site rather than relocating one.")
+    if orb_row:
+        A("Two facts in `render_orb_state`'s favour that belong in its row. There is")
+        A("no Shadow Orb pipeline, so exactly one pipeline in the program reaches it —")
+        A("a move touches one vertex signature, not a family. And its slot is one of")
+        A("the sites the registry banner names as sharing a buffer under several")
+        A("names (`orb_state` / `render_orb_state` / `orb_state_ro`), so retiring it")
+        A("retires a registry site rather than relocating one.")
+    else:
+        A("`render_orb_state` is absent from the table above because TETRIS ORB_V")
+        A("TOOK the move. The orb state reaches `orb_vs` through an instance-step")
+        A("vertex buffer — one attribute per `OrbState` field, offsets mirroring the")
+        A("struct — and the binding-400 seat is gone from the Render Entity Layout,")
+        A("from `world.wgsl` and from the registry, where the trio of names on that")
+        A("buffer is now the duo `orb_state` / `orb_state_ro`. The Orb Sky Layer is")
+        A("the pipeline that paid: it carries the program's vertex-attribute maximum")
+        A("of %d now, where the arch family's 4 stood before." % prog_va)
     A("")
 
     # ─── 8. TABLE G — call shapes (BUDGET_0f-3) ───────────────────────

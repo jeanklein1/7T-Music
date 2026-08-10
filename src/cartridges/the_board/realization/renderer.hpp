@@ -554,6 +554,7 @@ namespace t7 {
                 wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer quadVB,
                 wgpu::Buffer quadIB,
+                wgpu::Buffer orbStateVB,
                 uint32_t orbCount
             ) {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
@@ -562,6 +563,9 @@ namespace t7 {
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, quadVB);
+                // ORB_V: slot 1 is the instance-step OrbState stream that
+                // replaced the binding-400 storage read in orb_vs.
+                pass.SetVertexBuffer(1, orbStateVB);
                 pass.SetIndexBuffer(quadIB, wgpu::IndexFormat::Uint16);
                 pass.DrawIndexed(6, orbCount, 0, 0, 0);
             }
@@ -1759,6 +1763,59 @@ namespace t7 {
                     orbVBL.attributeCount = 1;
                     orbVBL.attributes = &orbAttr;
 
+                    // ORB_V: OrbState arrives as an INSTANCE-STEP vertex buffer
+                    // rather than a VS storage binding — one attribute per
+                    // OrbState field, offsets mirroring the struct (world.wgsl
+                    // `struct OrbState` / `GPUOrbState`, state.hpp, 80 B), so
+                    // orb_vs reconstructs the value it used to fetch. Frees the
+                    // vertex stage's binding 400 seat family-wide; see
+                    // BINDING_LEDGER Table F.
+                    std::array<wgpu::VertexAttribute, 12> orbStateAttrs{};
+                    orbStateAttrs[0].format = wgpu::VertexFormat::Float32x3;  // pos
+                    orbStateAttrs[0].offset = 0;
+                    orbStateAttrs[0].shaderLocation = 1;
+                    orbStateAttrs[1].format = wgpu::VertexFormat::Float32;    // _pad0
+                    orbStateAttrs[1].offset = 12;
+                    orbStateAttrs[1].shaderLocation = 2;
+                    orbStateAttrs[2].format = wgpu::VertexFormat::Float32x3;  // vel
+                    orbStateAttrs[2].offset = 16;
+                    orbStateAttrs[2].shaderLocation = 3;
+                    orbStateAttrs[3].format = wgpu::VertexFormat::Float32;    // _pad1
+                    orbStateAttrs[3].offset = 28;
+                    orbStateAttrs[3].shaderLocation = 4;
+                    orbStateAttrs[4].format = wgpu::VertexFormat::Float32x3;  // base_color
+                    orbStateAttrs[4].offset = 32;
+                    orbStateAttrs[4].shaderLocation = 5;
+                    orbStateAttrs[5].format = wgpu::VertexFormat::Float32;    // brightness
+                    orbStateAttrs[5].offset = 44;
+                    orbStateAttrs[5].shaderLocation = 6;
+                    orbStateAttrs[6].format = wgpu::VertexFormat::Float32x3;  // current_color
+                    orbStateAttrs[6].offset = 48;
+                    orbStateAttrs[6].shaderLocation = 7;
+                    orbStateAttrs[7].format = wgpu::VertexFormat::Float32;    // twinkle_phase
+                    orbStateAttrs[7].offset = 60;
+                    orbStateAttrs[7].shaderLocation = 8;
+                    orbStateAttrs[8].format = wgpu::VertexFormat::Float32;    // size
+                    orbStateAttrs[8].offset = 64;
+                    orbStateAttrs[8].shaderLocation = 9;
+                    orbStateAttrs[9].format = wgpu::VertexFormat::Float32;    // mass
+                    orbStateAttrs[9].offset = 68;
+                    orbStateAttrs[9].shaderLocation = 10;
+                    orbStateAttrs[10].format = wgpu::VertexFormat::Float32;   // drag
+                    orbStateAttrs[10].offset = 72;
+                    orbStateAttrs[10].shaderLocation = 11;
+                    orbStateAttrs[11].format = wgpu::VertexFormat::Uint32;    // tier_idx
+                    orbStateAttrs[11].offset = 76;
+                    orbStateAttrs[11].shaderLocation = 12;
+
+                    wgpu::VertexBufferLayout orbStateVBL{};
+                    orbStateVBL.arrayStride = 80;  // sizeof(GPUOrbState)
+                    orbStateVBL.stepMode = wgpu::VertexStepMode::Instance;
+                    orbStateVBL.attributeCount = orbStateAttrs.size();
+                    orbStateVBL.attributes = orbStateAttrs.data();
+
+                    std::array<wgpu::VertexBufferLayout, 2> orbVBLs{{ orbVBL, orbStateVBL }};
+
                     // Additive blend (premultiplied alpha in FS: out.rgb = color*intensity).
                     wgpu::BlendState orbBlend{};
                     orbBlend.color.srcFactor = wgpu::BlendFactor::One;
@@ -1791,8 +1848,8 @@ namespace t7 {
                     desc.layout = renderLayout;
                     desc.vertex.module = shaderModule_;
                     desc.vertex.entryPoint = Entry::ORB_VS;
-                    desc.vertex.bufferCount = 1;
-                    desc.vertex.buffers = &orbVBL;
+                    desc.vertex.bufferCount = orbVBLs.size();
+                    desc.vertex.buffers = orbVBLs.data();
                     desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
                     desc.primitive.cullMode = wgpu::CullMode::None;  // billboards face camera
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;

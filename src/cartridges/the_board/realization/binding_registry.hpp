@@ -11,9 +11,9 @@
 // source), and ONE CONSTANT PER SITE rather than per buffer — the same
 // buffer wears several names because each name is one (group, slot):
 // patch_instances(340) / fc_patches(340); orb_state(410) /
-// render_orb_state(400) / orb_state_ro(413).
+// orb_state_ro(413) — a duo since TETRIS ORB_V retired render_orb_state(400).
 //
-// The WGSL @binding literals in world.wgsl (100 declarations over 97 slots;
+// The WGSL @binding literals in world.wgsl (99 declarations over 96 slots;
 // three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
 // MIRROR of this file, kept in lockstep by the boot-time bind-group and
 // pipeline validation, not by the compiler. The names here deliberately
@@ -121,7 +121,9 @@ namespace t7 {
                 // atlas / cull outputs / orbs (390–501)
                 inline constexpr uint32_t entity_ground_atlas        = 390;
                 inline constexpr uint32_t visible_patch_indices      = 391;
-                inline constexpr uint32_t render_orb_state           = 400;
+                // 400 was render_orb_state, retired by TETRIS ORB_V — the orb
+                // state reaches the vertex stage as an instance-step vertex
+                // buffer now, so the render side holds no name on this buffer.
                 inline constexpr uint32_t orb_state                  = 410;
                 inline constexpr uint32_t orb_config                 = 411;
                 inline constexpr uint32_t orb_state_prev             = 412;

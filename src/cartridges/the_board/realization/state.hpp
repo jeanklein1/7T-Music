@@ -4207,9 +4207,13 @@ namespace t7 {
 
                 // Orb sky layer buffers
                 // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB + Orb Compute/Copy groups + 5 orb pipelines droppable, but orbStateBuffer_/orbConfigBuffer_ are read by the entity render + photographer passes → exclusive-in-Render-Entity + Photographer. Retire = re-section those groups.
+                // Vertex usage: ORB_V binds this buffer as the orb pipeline's
+                // instance-step vertex buffer (renderer.hpp, orbStateVBL); the
+                // orb compute kernels still reach it as storage.
                 orbStateBuffer_ = makeBuffer("Orb State",
                     Dim::MAX_ORBS * sizeof(GPUOrbState),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Vertex |
+                    wgpu::BufferUsage::CopyDst);
                 // Pass 9: previous-frame snapshot for flocking neighbor reads.
                 orbStatePrevBuffer_ = makeBuffer("Orb State Prev",
                     Dim::MAX_ORBS * sizeof(GPUOrbState),
@@ -4487,7 +4491,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 16> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -4550,26 +4554,23 @@ namespace t7 {
                     entries[13].visibility = wgpu::ShaderStage::Vertex;
                     entries[13].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Orb state (VS reads per-instance position/color/size for billboards)
-                    entries[14].binding = bind::g0::render_orb_state;
-                    entries[14].visibility = wgpu::ShaderStage::Vertex;
-                    entries[14].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
                     // Agent tier registry — same buffer as compute binding 111.
                     // Read by pawn_vs for entity color (tg.color_r/g/b).
                     // Uniform (not storage) to stay under the per-stage
                     // storage buffer cap; same buffer is bound as uniform
                     // on the compute side too.
-                    entries[15].binding = bind::g0::agent_tier_gains;
-                    entries[15].visibility = wgpu::ShaderStage::Vertex;
-                    entries[15].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[14].binding = bind::g0::agent_tier_gains;
+                    entries[14].visibility = wgpu::ShaderStage::Vertex;
+                    entries[14].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
                     // profile + palette. Uniform (not storage) for the same reason as
-                    // entry[17]: the VS storage-buffer cap is full. 4032 B, session-constant.
-                    entries[16].binding = bind::g0::agent_figure_profiles;
-                    entries[16].visibility = wgpu::ShaderStage::Vertex;
-                    entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
+                    // the tier registry above: it keeps the vertex stage off the
+                    // storage cap, which TETRIS ORB_V left standing at 6 of 8
+                    // (BINDING_LEDGER Table B). 4032 B, session-constant.
+                    entries[15].binding = bind::g0::agent_figure_profiles;
+                    entries[15].visibility = wgpu::ShaderStage::Vertex;
+                    entries[15].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -5479,7 +5480,7 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (17 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
+                // Render entity bind group (16 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
                 // THE DRAW PLAN: built THREE times — same layout, same
                 // entries, differing ONLY in the visible-list window
                 // (entries[13] offset/size): A full-IB, B cap-only, C LOD1.
@@ -5487,7 +5488,7 @@ namespace t7 {
                 auto build_render_entity_group = [&](const char* label,
                                                      uint32_t listOff,
                                                      uint32_t listBytes) -> wgpu::BindGroup {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 16> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -5548,24 +5549,19 @@ namespace t7 {
                     entries[13].offset = listOff;
                     entries[13].size = listBytes;
 
-                    // Orb state (VS reads per-instance)
-                    entries[14].binding = bind::g0::render_orb_state;
-                    entries[14].buffer = orbStateBuffer_;
-                    entries[14].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
-
                     // Agent tier gains — same buffer as compute binding 111.
                     // Read by pawn_vs in the vertex stage for entity color
                     // (tier_idx → tg.color_r/g/b). Single source of truth
                     // is the C++ AGENT_TIER_GAINS table in bodies/agents.hpp.
-                    entries[15].binding = bind::g0::agent_tier_gains;
-                    entries[15].buffer = agentTierGainsBuffer_;
-                    entries[15].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[14].binding = bind::g0::agent_tier_gains;
+                    entries[14].buffer = agentTierGainsBuffer_;
+                    entries[14].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     // Pawn figure table (uniform, binding 112). Shares the render
                     // entity layout, so this group MUST bind it or CreateBindGroup fails.
-                    entries[16].binding = bind::g0::agent_figure_profiles;
-                    entries[16].buffer = figureProfilesBuffer_;
-                    entries[16].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[15].binding = bind::g0::agent_figure_profiles;
+                    entries[15].buffer = figureProfilesBuffer_;
+                    entries[15].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = label;
@@ -5807,9 +5803,9 @@ namespace t7 {
                     if (!galleryPhotographerEntityBindGroup_) return false;
                 }
 
-                // Photographer render entity bind group (17 entries — same layout as main, different VP)
+                // Photographer render entity bind group (16 entries — same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 16> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5855,22 +5851,17 @@ namespace t7 {
                     entries[13].buffer = visiblePatchIndicesBuffer_;
                     entries[13].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
 
-                    // Orb state (VS reads per-instance) — same buffer as main path
-                    entries[14].binding = bind::g0::render_orb_state;
-                    entries[14].buffer = orbStateBuffer_;
-                    entries[14].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
-
                     // Agent tier gains — same buffer as main render path.
                     // Required because the shared layout carries it.
-                    entries[15].binding = bind::g0::agent_tier_gains;
-                    entries[15].buffer = agentTierGainsBuffer_;
-                    entries[15].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[14].binding = bind::g0::agent_tier_gains;
+                    entries[14].buffer = agentTierGainsBuffer_;
+                    entries[14].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     // Pawn figure table (uniform, binding 112) — same shared layout,
                     // so the photographer group must bind it too.
-                    entries[16].binding = bind::g0::agent_figure_profiles;
-                    entries[16].buffer = figureProfilesBuffer_;
-                    entries[16].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[15].binding = bind::g0::agent_figure_profiles;
+                    entries[15].buffer = figureProfilesBuffer_;
+                    entries[15].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";

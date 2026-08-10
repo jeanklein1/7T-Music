@@ -12646,7 +12646,9 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
 //   Render (orb_vs, orb_fs) — render_entity layout:
 //     @binding(201) render_vp         (already declared)
 //     @binding(280) render_camera     (already declared)
-//     @binding(400) render_orb_state  storage, read
+//   ORB_V: the orb state itself is no longer a binding here. It rides an
+//   instance-step VERTEX BUFFER (renderer.hpp, orbStateVBL), one attribute
+//   per field, and orb_vs rebuilds the struct from its @location inputs.
 
 struct OrbState {
     pos:            vec3<f32>,
@@ -12839,8 +12841,6 @@ fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
 @group(0) @binding(413) var<storage, read>       orb_state_ro:      array<OrbState>;
 @group(0) @binding(414) var<storage, read_write> orb_state_prev_rw: array<OrbState>;
 
-// Render-side read-only view of the same orb_state buffer.
-@group(0) @binding(400) var<storage, read> render_orb_state: array<OrbState>;
 
 fn orb_rgb_to_hsv(rgb: vec3<f32>) -> vec3<f32> {
     let max_c = max(rgb.r, max(rgb.g, rgb.b));
@@ -13428,9 +13428,28 @@ struct OrbVSOut {
 @vertex
 fn orb_vs(
     @location(0) quad_pos: vec2<f32>,
-    @builtin(instance_index) instance: u32
+    // ORB_V: OrbState arrives per-instance through an instance-step vertex
+    // buffer (renderer.hpp, orbStateVBL — stride 80, offsets mirroring the
+    // struct) instead of a VS storage binding. One @location per field, in
+    // declaration order, so the value below is the one binding 400 used to
+    // hand over. Demotion record: BINDING_LEDGER Table F.
+    @location(1)  in_pos:           vec3<f32>,
+    @location(2)  in_pad0:          f32,
+    @location(3)  in_vel:           vec3<f32>,
+    @location(4)  in_pad1:          f32,
+    @location(5)  in_base_color:    vec3<f32>,
+    @location(6)  in_brightness:    f32,
+    @location(7)  in_current_color: vec3<f32>,
+    @location(8)  in_twinkle_phase: f32,
+    @location(9)  in_size:          f32,
+    @location(10) in_mass:          f32,
+    @location(11) in_drag:          f32,
+    @location(12) in_tier_idx:      u32
 ) -> OrbVSOut {
-    let orb = render_orb_state[instance];
+    let orb = OrbState(in_pos, in_pad0, in_vel, in_pad1,
+                       in_base_color, in_brightness,
+                       in_current_color, in_twinkle_phase,
+                       in_size, in_mass, in_drag, in_tier_idx);
 
     // Build world-space camera basis from azimuth/elevation — matches
     // build_view_projection_matrix conventions exactly.

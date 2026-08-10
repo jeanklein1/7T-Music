@@ -807,6 +807,7 @@ inline void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pas
         c->gpuState_.render_texture_group(),
         c->gpuState_.orb_quad_vb(),
         c->gpuState_.orb_quad_ib(),
+        c->gpuState_.orb_state_buffer(),
         os.count);
 }
 
