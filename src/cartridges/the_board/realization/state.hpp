@@ -4485,7 +4485,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -4553,26 +4553,21 @@ namespace t7 {
                     entries[14].visibility = wgpu::ShaderStage::Vertex;
                     entries[14].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Orb config (radius/palette/tiers; dome_center dead wire — Pass 7)
-                    entries[15].binding = bind::g0::orb_config;
-                    entries[15].visibility = wgpu::ShaderStage::Vertex;
-                    entries[15].buffer.type = wgpu::BufferBindingType::Uniform;
-
                     // Agent tier registry — same buffer as compute binding 111.
                     // Read by pawn_vs for entity color (tg.color_r/g/b).
                     // Uniform (not storage) to stay under the per-stage
                     // storage buffer cap; same buffer is bound as uniform
                     // on the compute side too.
-                    entries[16].binding = bind::g0::agent_tier_gains;
-                    entries[16].visibility = wgpu::ShaderStage::Vertex;
-                    entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[15].binding = bind::g0::agent_tier_gains;
+                    entries[15].visibility = wgpu::ShaderStage::Vertex;
+                    entries[15].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
                     // profile + palette. Uniform (not storage) for the same reason as
                     // entry[17]: the VS storage-buffer cap is full. 4032 B, session-constant.
-                    entries[17].binding = bind::g0::agent_figure_profiles;
-                    entries[17].visibility = wgpu::ShaderStage::Vertex;
-                    entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[16].binding = bind::g0::agent_figure_profiles;
+                    entries[16].visibility = wgpu::ShaderStage::Vertex;
+                    entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -5490,7 +5485,7 @@ namespace t7 {
                 auto build_render_entity_group = [&](const char* label,
                                                      uint32_t listOff,
                                                      uint32_t listBytes) -> wgpu::BindGroup {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 17> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -5556,24 +5551,19 @@ namespace t7 {
                     entries[14].buffer = orbStateBuffer_;
                     entries[14].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    // Orb config (radius/palette/tiers; dome_center dead wire)
-                    entries[15].binding = bind::g0::orb_config;
-                    entries[15].buffer = orbConfigBuffer_;
-                    entries[15].size = sizeof(GPUOrbConfig);
-
                     // Agent tier gains — same buffer as compute binding 111.
                     // Read by pawn_vs in the vertex stage for entity color
                     // (tier_idx → tg.color_r/g/b). Single source of truth
                     // is the C++ AGENT_TIER_GAINS table in bodies/agents.hpp.
-                    entries[16].binding = bind::g0::agent_tier_gains;
-                    entries[16].buffer = agentTierGainsBuffer_;
-                    entries[16].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[15].binding = bind::g0::agent_tier_gains;
+                    entries[15].buffer = agentTierGainsBuffer_;
+                    entries[15].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     // Pawn figure table (uniform, binding 112). Shares the render
                     // entity layout, so this group MUST bind it or CreateBindGroup fails.
-                    entries[17].binding = bind::g0::agent_figure_profiles;
-                    entries[17].buffer = figureProfilesBuffer_;
-                    entries[17].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[16].binding = bind::g0::agent_figure_profiles;
+                    entries[16].buffer = figureProfilesBuffer_;
+                    entries[16].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = label;
