@@ -4813,7 +4813,7 @@ namespace t7 {
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[1].binding = bind::g0::render_vp;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
                     entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     entries[2].binding = bind::g0::render_camera;
