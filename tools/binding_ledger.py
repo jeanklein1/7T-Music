@@ -2773,7 +2773,7 @@ def check_comments():
     return [(frag, where, frag.lower() in low) for frag, where in CHECKED_COMMENTS]
 
 
-def emit(path, w, column, layouts, wgsl, cen, join):
+def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     sha, subj, hashes = provenance()
     rows, budget = join["rows"], join["budget"]
     o = []
@@ -2801,9 +2801,19 @@ def emit(path, w, column, layouts, wgsl, cen, join):
     for r, h in hashes:
         A("| `%s` | `sha256:%s` |" % (r, h))
     A("")
-    A("The source commit is the last commit touching any of the four inputs —")
-    A("not `HEAD`, which moves when this file is committed. The content hashes")
-    A("are the authoritative provenance.")
+    A("")
+    A("BUDGET_0f's call-shape census reads further files, for INVOCATION SITES")
+    A("only — `draw_orbs` is called from `bodies/orbs.hpp`, not from")
+    A("`realization/`. They are read-only and hashed here too:")
+    A("")
+    A("| caller file scanned | sha256 |")
+    A("|---|---|")
+    for cp in e3["callers"]:
+        A("| `%s` | `%s` |" % (os.path.relpath(cp, REPO), sha256(cp)))
+    A("")
+    A("The source commit is the last commit touching any of the four primary")
+    A("inputs — not `HEAD`, which moves when this file is committed. The content")
+    A("hashes are the authoritative provenance.")
     A("")
     A("### The law this serves")
     A("")
@@ -2950,6 +2960,49 @@ def emit(path, w, column, layouts, wgsl, cen, join):
     A("element type that was already vec4-strided. Table C still records the")
     A("required element type per A2 row, because for other candidates it is a")
     A("real cost — it just was not one there.")
+    A("")
+    A("**7. A4 is empty, so BUDGET_1 is the A1 sweep alone.** Every one of the")
+    A("%d `var<storage, read_write>` declarations is written by at least one entry"
+      % sum(1 for dd in wgsl["decls"] if dd.address_space == "storage"
+            and dd.wgsl_access == "read_write"))
+    A("point that reaches it. No binding claims write access it never exercises.")
+    A("")
+    A("**8. The room family cannot be fused, and the reason is mechanical.**")
+    barred_room = [r for r in e1["raw"]
+                   if r["a"].startswith("update_") and r["b"].startswith("update_")
+                   and r["hazard"]]
+    A("All %d ordered pairs among `update_player_agent`, `update_other_agents`,"
+      % len(barred_room))
+    A("`update_sphere` and `update_cube` carry a RAW hazard — `agent_state`")
+    A("between the agent kernels, `floating_entities` between the floater")
+    A("kernels, and `field_forces` across the divide. Fusing deletes the implicit")
+    A("inter-dispatch barrier that makes the ordering correct, and WGSL has no")
+    A("device-wide barrier to put back. Table E has the pairs.")
+    A("")
+    A("**9. The vertex-buffer candidates are not the ones that were proposed.**")
+    A("`visible_patch_indices` IS eligible — one site, `[patch_id]`, sequential in")
+    A("`instance_index`, stride 4 B. `patch_instances` is BLOCKED by a mixed")
+    A("classification inside ONE entry point: `patch_terrain_vs` reads it")
+    A("sequentially on the direct path and `indirected(visible_patch_indices)`")
+    A("under the `USE_PATCH_INDIRECTION` override. `render_ring_xforms` is blocked")
+    A("at `builtin_derived(vertex)` — segment arithmetic, many vertices per ring,")
+    A("and its pipeline draws with instanceCount 1 besides. A third candidate")
+    A("nobody named: `render_orb_state`, eligible on access pattern AND drawn")
+    A("instanced, and a runtime-sized array — the class A2 cannot touch.")
+    A("")
+    A("**10. The single-thread count is three numbers, not one.** %d entry points"
+      % len(e3["wg1"]))
+    A("declare `@workgroup_size(1)`; %d dispatches issue one workgroup; the"
+      % len(e3["single_dispatch"]))
+    A("intersection is %d. `update_other_agents` dispatches ONE workgroup at"
+      % len(set(e3["wg1"]) & set(e3["single_dispatch"])))
+    A("`@workgroup_size(32)` — which is exactly the shape the kernel-split banner")
+    A("prices at 48 seconds of FXC.")
+    A("")
+    A("**11. %d defended sites.** Table H marks where the program already paid to"
+      % len(e4["sites"]))
+    A("learn something. It cites and does not quote, so it cannot go stale against")
+    A("the prose it points at.")
     A("")
 
     # ─── 2. TABLE A ───────────────────────────────────────────────────
@@ -3137,6 +3190,30 @@ def emit(path, w, column, layouts, wgsl, cen, join):
     A("`(group, binding)` resolves to an access-compatible WGSL declaration.")
     A("")
 
+    A("### A4 — OVER-PRIVILEGED (declared `read_write`, never written)")
+    A("")
+    A("A binding whose WGSL declaration claims write access no entry point that")
+    A("reaches it ever exercises. Same species as A1: not an optimization, the")
+    A("removal of a false statement. `read_write` storage is also **illegal in")
+    A("the vertex stage**, so an over-privileged binding is a portability hazard")
+    A("the moment anything wants it vertex-visible — and A2 requires")
+    A("`ReadOnlyStorage`, so an A4 correction can unlock an A2 candidate.")
+    A("")
+    if e1["a4"]:
+        A("| symbol | wgsl_type | read by | unlocks A2 |")
+        A("|---|---|---|---|")
+        for x in e1["a4"]:
+            A("| `%s` | `%s` | %s |  |" % (x["decl"].symbol, md_escape(x["decl"].wgsl_type),
+                                           ", ".join("`%s`" % r for r in x["readers"])))
+    else:
+        A("**Empty.** All %d `var<storage, read_write>` declarations in the program"
+          % sum(1 for dd in wgsl["decls"] if dd.address_space == "storage"
+                and dd.wgsl_access == "read_write"))
+        A("are written by at least one entry point that reaches them. There is no")
+        A("over-privileged binding, so BUDGET_1 does not become an A1+A4 sweep —")
+        A("it stays the A1 sweep, seven rows.")
+    A("")
+
     # ─── 5. TABLE D ───────────────────────────────────────────────────
     A("## Table D — DEMAND")
     A("")
@@ -3144,23 +3221,186 @@ def emit(path, w, column, layouts, wgsl, cen, join):
     A("Nothing in Tier A needs a demand to justify it — a declaration that claims")
     A("a stage it cannot reach was never true. These are the items that DO.")
     A("")
-    A("| queued item | demand | what it buys | what it costs | ruling |")
-    A("|---|---|---|---|---|")
+    A("Three columns are new, and they are CENSUS FACTS, not judgments — 0f is")
+    A("what makes them computable. The judgment cells stay empty.")
+    A("")
+    A("| queued item | fusion barred? | can leave the storage wallet? | site defended? | demand | what it buys | what it costs | ruling |")
+    A("|---|---|---|---|---|---|---|---|")
     queued = []
     for x in join["a2"]:
         if x["pass"]:
-            queued.append("A2 demotion — `%s` @group(%s) @binding(%s) in %s (%s B)"
-                          % (x["row"]["primary"], x["row"]["group"],
-                             x["row"]["e"].binding_number, x["row"]["layout"]["label"],
-                             x["size"]))
+            queued.append(("A2 demotion — `%s` @group(%s) @binding(%s) in %s (%s B)"
+                           % (x["row"]["primary"], x["row"]["group"],
+                              x["row"]["e"].binding_number, x["row"]["layout"]["label"],
+                              x["size"]), x["row"]["primary"]))
     for kind, what, _ in join["a3"]:
-        queued.append("A3 removal — %s" % what)
-    queued.append("The room family's storage stage stands at %d of %d. Any new storage "
-                  "binding reachable from update_player_agent / update_other_agents / "
-                  "update_sphere / update_cube needs a demotion to pay for it."
-                  % (tight["declared"]["storage"], CORE["storage"]))
-    for q in queued:
-        A("| %s |  |  |  |  |" % md_escape(q))
+        queued.append(("A3 removal — %s" % what, what.split()[-2] if " " in what else what))
+    for x in e2["eligibility"]:
+        if x["eligible"]:
+            queued.append(("Vertex-buffer move — `%s` (%s-step, stride %s B); the only "
+                           "wallet that can hold a runtime-sized array"
+                           % (x["decl"].symbol, x["step"], x["stride"]), x["decl"].symbol))
+    queued.append(("The room family's storage stage stands at %d of %d. Any new storage "
+                   "binding reachable from update_player_agent / update_other_agents / "
+                   "update_sphere / update_cube needs a demotion to pay for it."
+                   % (tight["declared"]["storage"], CORE["storage"]), "update_player_agent"))
+    defended_syms = {f.symbol for f in e4["sites"]}
+    elig_syms = {x["decl"].symbol for x in e2["eligibility"] if x["eligible"]}
+    for q, sym in queued:
+        barred = "n/a"
+        if sym in {r["a"] for r in e1["raw"]} | {r["b"] for r in e1["raw"]}:
+            hz = sorted({h for r in e1["raw"] if sym in (r["a"], r["b"])
+                         for h in r["hazard"]})
+            barred = ("**yes** — " + ", ".join("`%s`" % h for h in hz)) if hz else "no"
+        A("| %s | %s | %s | %s |  |  |  |  |"
+          % (md_escape(q), barred,
+             ("**yes**, vertex buffer" if sym in elig_syms else "no"),
+             ("**yes** — see Table H" if sym in defended_syms else "no")))
+    A("")
+
+    # ─── 6. TABLE E — the RAW hazard table (BUDGET_0f-1) ──────────────
+    A("## Table E — RAW hazards, and what they bar")
+    A("")
+    A("**Why this is a hard bar.** WebGPU inserts an implicit memory barrier")
+    A("between dispatches in a compute pass. WGSL's own barriers are")
+    A("workgroup-scoped only. **Fusing two dispatches deletes the barrier that is")
+    A("currently making the sequence correct** — and there is no device-wide")
+    A("barrier to put back. A non-empty `write(A) ∩ read(B)` is therefore a bar on")
+    A("fusing that pair, regardless of any other argument.")
+    A("")
+    A("Restricted to FUSION-ELIGIBLE ordered pairs: a fused kernel has ONE")
+    A("pipeline layout, so only compute entry points whose pipelines carry")
+    A("identical group layouts could ever be fused. %d such ordered pairs, of %d"
+      % (len(e1["raw"]), len(e1["compute_eps"])))
+    A("compute entry points. The unrestricted matrix is %d ordered pairs with %d"
+      % (e1["raw_all_pairs"], e1["raw_all_nonempty"]))
+    A("non-empty intersections; the restriction hides nothing, it removes pairs")
+    A("that could not be fused for a different reason.")
+    A("")
+    A("| write(A) | read(B) | bindings in write(A) ∩ read(B) | verdict |")
+    A("|---|---|---|---|")
+    for r in e1["raw"]:
+        A("| `%s` | `%s` | %s | %s |"
+          % (r["a"], r["b"], ", ".join("`%s`" % x for x in r["hazard"]) or "—",
+             "**BARRED**" if r["hazard"] else "no hazard on this ordering"))
+    A("")
+
+    # ─── 7. TABLE F — vertex-buffer eligibility (BUDGET_0f-2) ─────────
+    A("## Table F — vertex-buffer eligibility")
+    A("")
+    A("Vertex buffers are the one wallet that can absorb a RUNTIME-SIZED ARRAY,")
+    A("which is the class A2 structurally cannot touch. Eligibility is decided by")
+    A("ACCESS PATTERN, not type: every access in every entry point that reaches")
+    A("the binding must be `builtin_sequential` on the same builtin, and the")
+    A("element stride must fit `maxVertexBufferArrayStride` (2048 B).")
+    A("")
+    A("**An `override` gate does not rescue a mixed classification.** An override")
+    A("selects a branch inside ONE entry point, and one entry point has ONE")
+    A("signature. A binding read both sequentially and indirected under an")
+    A("override is blocked; moving it needs a second entry point, which is")
+    A("another FXC compile. That cost is in the row, not omitted from it.")
+    A("")
+    A("A pipeline drawn with `instanceCount` 1 cannot host an instance-step")
+    A("buffer whatever its access pattern says — Table G carries the counts.")
+    A("")
+    A("An `override gate` on an ELIGIBLE row is not a blocker but is a cost:")
+    A("the access happens in only one pipeline variant, and the variants share")
+    A("the entry point and therefore the vertex signature. Moving such a binding")
+    A("obliges the sibling variant to bind the slot too, or splits the entry")
+    A("point. `visible_patch_indices` is the row this applies to.")
+    A("")
+    A("| symbol | wgsl_type | stride | access classes | override gate | **verdict** | blockers |")
+    A("|---|---|---|---|---|---|---|")
+    for x in sorted(e2["eligibility"], key=lambda y: (not y["eligible"], y["decl"].symbol)):
+        A("| `%s` | `%s` | %s | %s | %s | %s | %s |"
+          % (x["decl"].symbol, md_escape(x["decl"].wgsl_type),
+             "%s B" % x["stride"] if x["stride"] else "—",
+             ", ".join("`%s(%s)`" % c for c in x["classes"]),
+             md_escape("; ".join(x["override_gates"])) if x["override_gates"] else "—",
+             "**ELIGIBLE (%s-step)**" % x["step"] if x["eligible"] else "blocked",
+             md_escape("; ".join(x["blockers"])) or "—"))
+    A("")
+
+    # ─── 8. TABLE G — call shapes (BUDGET_0f-3) ───────────────────────
+    A("## Table G — call shapes")
+    A("")
+    A("What the HOST issues, against what the shader declares. Counts are")
+    A("resolved to a literal, a named constant, or the expression at the call")
+    A("site; a count spelled as a parameter name is the census failing to find")
+    A("the caller, and witness `W3-3` forbids it.")
+    A("")
+    A("| pipeline | kind | entry point(s) | call | count | @workgroup_size | source |")
+    A("|---|---|---|---|---|---|---|")
+    for r in e3["rows"]:
+        p_ = r["pipeline"]
+        eps = ", ".join("`%s`" % cen["entry_const"].get(cc, cc) for cc, _ in p_.entries())
+        wgz = ""
+        if p_.kind == "compute":
+            fnx = wgsl["entries"].get(cen["entry_const"].get(p_.cs_entry))
+            wgz = fnx.workgroup_size if fnx else ""
+        if not r["shapes"]:
+            A("| %s | %s | %s | **NEVER INVOKED** | — | %s | — |"
+              % (md_escape(p_.label), p_.kind, eps, wgz or "—"))
+        for sh in r["shapes"]:
+            A("| %s | %s | %s | `%s` | `%s` | %s | %s |"
+              % (md_escape(p_.label), p_.kind, eps, sh["variant"],
+                 md_escape(sh["count"]), wgz or "—",
+                 md_escape(sh["src"] or sh["note"] or sh["where"])))
+    A("")
+    A("### The single-thread reconciliation (G3)")
+    A("")
+    A("Two different facts that a single census column would have merged:")
+    A("`@workgroup_size(1)` is what the SHADER declares; a one-workgroup dispatch")
+    A("is what the HOST issues.")
+    A("")
+    A("| entry point | @workgroup_size(1) | dispatches ONE workgroup |")
+    A("|---|---|---|")
+    for ep, a_, b_ in e3["recon"]:
+        A("| `%s` | %s | %s |" % (ep, "yes" if a_ else "no", "yes" if b_ else "no"))
+    A("")
+    A("%d entry points declare `@workgroup_size(1)`; %d dispatches issue one"
+      % (len(e3["wg1"]), len(e3["single_dispatch"])))
+    A("workgroup; the intersection is %d. `update_other_agents` is the row that"
+      % len(set(e3["wg1"]) & set(e3["single_dispatch"])))
+    A("goes the other way — ONE workgroup at `@workgroup_size(32)`, which is why")
+    A("the kernel-split banner says FXC \"inlines both branch bodies for every one")
+    A("of 32 dispatched threads\".")
+    A("")
+
+    # ─── 9. TABLE H — the defended-site index (BUDGET_0f-4) ───────────
+    A("## Table H — the defended-site index")
+    A("")
+    A("Where the program already paid to learn something. **This table cites; it")
+    A("does not quote.** A reference outlives its referent, so the ledger carries")
+    A("the symbol and the matched trigger tokens, and the reader greps. Copying")
+    A("the prose in would give one fact two homes and guarantee the copy goes")
+    A("stale.")
+    A("")
+    A("A proposal that touches a row here is a proposal that must read the prose")
+    A("at that site before it argues with it.")
+    A("")
+    A("**The predicate, verbatim (W4-1).** A site is DEFENDED if its attached")
+    A("comment matches any of:")
+    A("")
+    A("| trigger | pattern |")
+    A("|---|---|")
+    for name, pat in e4["triggers"]:
+        A("| `%s` | `%s` |" % (name, md_escape(pat)))
+    A("")
+    A("Attachment: **A** the nearest preceding comment block with no other block")
+    A("between it and the site (so a block covers the run that follows it);")
+    A("**B** any block anywhere carrying a trigger AND naming the symbol; **C**")
+    A("body comments, for WGSL functions. Both A and B are load-bearing — A")
+    A("recovers `pawn_ground_resolve`, whose banner sits above an intervening")
+    A("function; B recovers the two agent kernels, whose 48-second banner sits")
+    A("several declarations upstream.")
+    A("")
+    A("| symbol | kind | file | line | triggers | matched via |")
+    A("|---|---|---|---|---|---|")
+    for f in e4["sites"]:
+        A("| `%s` | %s | `%s` | %d | %s | %s |"
+          % (f.symbol, f.kind, f.file, f.line,
+             ", ".join("`%s`" % t for t in f.triggers), ", ".join(f.rules)))
     A("")
 
     # ─── Appendices: 0b's two products, which A–D consume but do not show.
@@ -3194,14 +3434,44 @@ def emit(path, w, column, layouts, wgsl, cen, join):
     A("shadowing a binding name would ADD a reference, never remove one — so")
     A("every `vis_actual` here is generous and every A1 flag is conservative.")
     A("")
-    A("| entry_point | stage | workgroup_size | functions reached | bindings reached |")
+    A("Each binding carries what the closure DOES with it (BUDGET_0f-1):")
+    A("`r` read, `w` written, `rw` both. Scope is resolved, so a local shadowing")
+    A("a binding name is not counted as a reference to it.")
+    A("")
+    A("| entry_point | stage | workgroup_size | functions reached | bindings reached (use) |")
     A("|---|---|---|---|---|")
     for name in sorted(wgsl["entries"]):
         fn = wgsl["entries"][name]
         fns_reached, refs = wgsl["reach"][name]
+        use = wgsl.get("ep_use", {}).get(name, {})
         A("| `%s` | %s | %s | %d | %s |"
           % (name, fn.stage, fn.workgroup_size or "—", len(fns_reached),
-             ", ".join("`%s`" % s for s in sorted(refs)) or "— none"))
+             ", ".join("`%s`(%s)" % (s, use.get(s, "?")) for s in sorted(refs))
+             or "— none"))
+    A("")
+    A("## Appendix 4 — access-site classification (0f-2)")
+    A("")
+    A("Every access site whose index is NOT a plain scalar, plus every `other`")
+    A("row individually — W2-2 forbids counting those in aggregate. The %d"
+      % sum(1 for x in e2["sites"] if x["cls"].cls == "scalar"))
+    A("`scalar` sites (constant, override, or a value from a uniform) are")
+    A("summarised by binding rather than listed.")
+    A("")
+    A("| function | binding | index expression | class | use | override gate | line |")
+    A("|---|---|---|---|---|---|---|")
+    for x in sorted(e2["sites"], key=lambda y: (y["fn"], y["symbol"], y["line"])):
+        if x["cls"].cls == "scalar":
+            continue
+        A("| `%s` | `%s` | `%s` | `%s` | %s | %s | %d |"
+          % (x["fn"], x["symbol"], md_escape(x["index"]) or "(no index)",
+             x["cls"], x["use"], md_escape(x["override_gate"]) or "—", x["line"]))
+    A("")
+    scal = {}
+    for x in e2["sites"]:
+        if x["cls"].cls == "scalar":
+            scal[x["symbol"]] = scal.get(x["symbol"], 0) + 1
+    A("Scalar-indexed sites by binding: %s."
+      % ", ".join("`%s` %d" % (k, v) for k, v in sorted(scal.items())))
     A("")
     A("## Appendix 3 — pipelines and their group layouts (0c)")
     A("")
@@ -3433,7 +3703,7 @@ def main():
         print("--check: all witnesses pass, nothing written.")
         return 0
 
-    text = emit(args.out, w, column, layouts, b, c, d)
+    text = emit(args.out, w, column, layouts, b, c, d, e1, e2, e3, e4)
     print("")
     print("PHASE 0e — THE ARTIFACT")
     print("  wrote %s (%d lines, %d bytes)"
