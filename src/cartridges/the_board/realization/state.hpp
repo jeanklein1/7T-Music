@@ -4611,7 +4611,7 @@ namespace t7 {
                     entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
 
                     entries[1].binding = bind::g1::nearest_sampler;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
                     entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
 
                     entries[2].binding = bind::g1::patch_heightfield_array_read;
