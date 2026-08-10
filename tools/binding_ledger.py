@@ -2588,7 +2588,7 @@ def trigger_hits(text):
 
 
 class Defended:
-    __slots__ = ("symbol", "kind", "file", "line", "triggers", "rules")
+    __slots__ = ("symbol", "key", "kind", "file", "line", "triggers", "rules")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -2637,8 +2637,8 @@ def attach_and_scan(sites, blocks, src, path):
                     rules.append("C:body")
         hits = trigger_hits("\n".join(text))
         if hits:
-            out.append(Defended(symbol=s["symbol"], kind=s["kind"],
-                                file=os.path.relpath(path, REPO),
+            out.append(Defended(symbol=s["symbol"], key=s.get("key", s["symbol"]),
+                                kind=s["kind"], file=os.path.relpath(path, REPO),
                                 line=line_of(src, o), triggers=hits,
                                 rules=sorted(set(rules))))
     return out
@@ -2654,9 +2654,9 @@ def phase_ext4(w, wgsl, layouts, cen):
         if blocks and blocks[0][0] < 400:
             hits = trigger_hits(blocks[0][2])
             if hits:
-                found.append(Defended(symbol="(file banner)", kind="file",
-                                      file=os.path.relpath(path, REPO), line=1,
-                                      triggers=hits, rules=["banner"]))
+                found.append(Defended(symbol="(file banner)", key="(file banner)",
+                                      kind="file", file=os.path.relpath(path, REPO),
+                                      line=1, triggers=hits, rules=["banner"]))
 
     # ─── world.wgsl: binding declarations and every function.
     wraw = read(WORLD_WGSL)
@@ -2701,6 +2701,7 @@ def phase_ext4(w, wgsl, layouts, cen):
                            % (e.entry_index, re.escape(e.binding_const)), sraw)
             if em:
                 sites.append({"symbol": "%s entries[%d]" % (L["label"], e.entry_index),
+                              "key": "%s in %s" % (e.binding_const, L["label"]),
                               "kind": "layout entry", "off": em.start()})
     found += attach_and_scan(sites, sblocks, sraw, STATE_HPP)
 
@@ -2727,6 +2728,16 @@ def phase_ext4(w, wgsl, layouts, cen):
              "%d trigger tokens, emitted verbatim into the artifact: %s"
              % (len(TRIGGERS), ", ".join(n for n, _ in TRIGGERS)))
 
+    # The control set, defined ONCE. W4-3's overfit guard and W4-2's
+    # positive control read the same list; keeping two hand-written copies
+    # is how the index-keyed names drifted out of step with the tree.
+    want = [("update_player_agent", "world.wgsl"),
+            ("update_other_agents", "world.wgsl"),
+            ("(file banner)", "world.wgsl"),
+            ("pawn_ground_resolve", "world.wgsl"),
+            ("bind::g0::agent_tier_gains in Render Entity Layout", "state.hpp"),
+            ("bind::g0::agent_figure_profiles in Render Entity Layout", "state.hpp")]
+
     # ─── W4-3 — the guard on W4-2. Two triggers were ADDED to make the
     #     control pass, which is what a control is for — but an instrument
     #     that can grant the variable under test is not an instrument.
@@ -2737,13 +2748,10 @@ def phase_ext4(w, wgsl, layouts, cen):
     for f in found:
         for t in f.triggers:
             per_token.setdefault(t, []).append(f)
-    controls = {"update_player_agent", "update_other_agents", "pawn_ground_resolve",
-                "(file banner)", "Render Entity Layout entries[16]",
-                "Render Entity Layout entries[17]"}
+    controls = {k for k, _ in want}
     overfit = []
     for t, fs in per_token.items():
-        sole = [f for f in fs if f.triggers == [t]]
-        if len(fs) == 1 and fs[0].symbol in controls:
+        if len(fs) == 1 and fs[0].key in controls:
             overfit.append("%s: 1 site, and it is a control (%s)" % (t, fs[0].symbol))
     w.record("W4-3", not overfit,
              "no trigger is overfitted to the control — site counts: "
@@ -2755,19 +2763,25 @@ def phase_ext4(w, wgsl, layouts, cen):
 
     # ─── W4-2 — the POSITIVE CONTROL. An instrument that cannot find what
     #     we already know is there is not an instrument.
-    have = {(f.symbol, f.file) for f in found}
-    want = [("update_player_agent", "world.wgsl"),
-            ("update_other_agents", "world.wgsl"),
-            ("(file banner)", "world.wgsl"),
-            ("pawn_ground_resolve", "world.wgsl"),
-            ("Render Entity Layout entries[16]", "state.hpp"),
-            ("Render Entity Layout entries[17]", "state.hpp")]
-    missing = [s for s, f in want
-               if not any(s == hs and f in hf for hs, hf in have)]
+    # BUDGET_1 re-key: the two state.hpp sites were named
+    # `Render Entity Layout entries[16]` and `entries[17]`. Row 7 removed
+    # entries[15] and renumbered the survivors, and the control failed —
+    # not because the instrument stopped finding the prose, but because
+    # the CONTROL was itself a reference that outlived its referent. An
+    # index is a position; a binding is an identity. Keyed by binding, the
+    # control asserts what it always meant: that the defended prose
+    # attached to these two seats is still found, with its triggers intact.
+    hit = {}
+    for k, f in want:
+        hit[k] = next((x for x in found
+                       if x.key == k and f in x.file and x.triggers), None)
+    missing = [k for k, _ in want if hit[k] is None]
     w.record("W4-2", not missing,
-             "positive control: all %d known-defended sites found — %s"
-             % (len(want), "; ".join(s for s, _ in want))
-             if not missing else "MISSED: " + ", ".join(missing) + " — widen the triggers")
+             "positive control, keyed by symbol and by binding: all %d known-defended "
+             "sites found with a non-empty trigger set — %s"
+             % (len(want), "; ".join("%s [%s]" % (k.split(" in ")[0], ", ".join(hit[k].triggers))
+                                     for k, _ in want))
+             if not missing else "MISSED: " + ", ".join(missing))
 
     found.sort(key=lambda f: (f.file, f.line))
     return {"sites": found, "triggers": TRIGGERS, "per_token": per_token}
