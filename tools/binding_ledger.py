@@ -1305,6 +1305,294 @@ def phase_0c(w, layouts, wgsl):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# PHASE 0d — THE JOIN, THE STAGE BUDGET, THE TIER A PREDICATES
+# ═══════════════════════════════════════════════════════════════════════
+
+def demo_column(w):
+    """Which demo column this census is taken under.
+
+    The binding surface turns out not to vary with it (no bind group layout
+    creation is ROSTER-gated), but the PIPELINE set does, and every A3 row
+    has to say which column it was censused under or the flag could be a
+    false positive from a pipeline that column never creates.
+    """
+    demo = read(os.path.join(REPO, "src", "cartridges", "the_board", "demos", "demo.hpp"))
+    m = re.search(r"#\s*define\s+INCUBATE_DEMO\s+(\w+)", demo)
+    default = m.group(1) if m else "?"
+    cml = read(os.path.join(REPO, "CMakeLists.txt"))
+    cm = re.search(r'set\(THE_BOARD_DEMO\s+"(\w+)"', cml)
+    cmake = cm.group(1) if cm else "?"
+    w.record("0d-0", default == cmake,
+             "demo column: demo.hpp default `%s`, CMake THE_BOARD_DEMO default `%s`"
+             % (default, cmake))
+    return default
+
+
+def compatible(entry, decl):
+    """Can this WGSL declaration satisfy this layout entry?
+
+    WebGPU requires each shader declaration's access mode to match its
+    layout entry exactly — the reason orbCopyLayout_ exists at all. This
+    matters on the three ALIASED slots, where two declarations share one
+    (group, binding) and only one of them is legal against a given entry:
+    (0, 2) carries `vp_data` as read_write and `fc_vp` as read.
+    """
+    if entry.kind == "buffer":
+        if entry.access == "Uniform":
+            return decl.address_space == "uniform"
+        want = "read_write" if entry.access == "Storage" else "read"
+        return decl.address_space == "storage" and decl.wgsl_access == want
+    if entry.kind == "sampler":
+        return decl.wgsl_type.startswith("sampler")
+    if entry.kind == "storageTexture":
+        return decl.wgsl_type.startswith("texture_storage")
+    if entry.kind == "texture":
+        return (decl.wgsl_type.startswith("texture_")
+                and not decl.wgsl_type.startswith("texture_storage"))
+    return False
+
+
+def slot_category(row):
+    """Which of the five per-stage budgets this row spends."""
+    if row.kind == "buffer":
+        return "uniform" if row.access == "Uniform" else "storage"
+    if row.kind == "texture":
+        return "sampled"
+    if row.kind == "sampler":
+        return "samplers"
+    if row.kind == "storageTexture":
+        return "storagetex"
+    return None
+
+
+def phase_0d(w, layouts, wgsl, cen):
+    pipelines = cen["pipelines"]
+    gindex = cen["group_index"]
+    entry_const = cen["entry_const"]
+    by_member = {L["member"]: L for L in layouts}
+
+    # (group, binding) -> the WGSL declarations at that slot.
+    by_slot = {}
+    for d in wgsl["decls"]:
+        by_slot.setdefault((d.group, d.binding), []).append(d)
+
+    # Which pipelines bind each layout, and at which index.
+    binders = {}
+    for p in pipelines:
+        for i, g in enumerate(p.group_layouts):
+            binders.setdefault(g, []).append((p, i))
+
+    # ─── 0d-i — resolve vis_actual, row by row. ───────────────────────
+    rows = []
+    for L in layouts:
+        gi = gindex.get(L["member"])
+        for e in L["entries"]:
+            at_slot = by_slot.get((gi, e.binding_number), [])
+            decls = [x for x in at_slot if compatible(e, x)]
+            syms = {d.symbol for d in decls}
+            actual, reached_by = set(), []
+            for p, _ in binders.get(L["member"], []):
+                for const, stage in p.entries():
+                    ep = entry_const.get(const)
+                    fn_reach = wgsl["reach"].get(ep)
+                    if not fn_reach:
+                        continue
+                    if syms & fn_reach[1]:
+                        actual.add(stage)
+                        reached_by.append("%s/%s" % (p.label, ep))
+            vis_actual = "".join(s for s in STAGES if s in actual)
+            vis_delta = "".join(s for s in e.vis_declared if s not in actual)
+            # The registry states that its names deliberately equal the
+            # WGSL names, so a matched pair whose names differ is a STALE
+            # MIRROR — a finding, not a match failure.
+            const_name = e.binding_const.rsplit("::", 1)[1]
+            slot_syms = {x.symbol for x in at_slot}
+            mirror = "ok" if const_name in slot_syms else (
+                "no WGSL declaration" if not slot_syms else
+                "registry says %s, WGSL says %s" % (const_name, "/".join(sorted(slot_syms))))
+            rows.append({
+                "e": e, "layout": L, "group": gi,
+                "decls": decls, "at_slot": at_slot, "symbols": sorted(syms),
+                # On an aliased slot both names are the same slot; show the
+                # one the registry constant is spelled with.
+                "primary": (const_name if const_name in syms
+                            else (sorted(syms)[0] if syms else "—")),
+                "vis_actual": vis_actual, "vis_delta": vis_delta,
+                "mirror": mirror, "reached_by": sorted(set(reached_by)),
+                "binders": [p.label for p, _ in binders.get(L["member"], [])],
+            })
+
+    # REPORT — a layout entry whose (group, binding) has no WGSL declaration.
+    orphan_rows = [r for r in rows if not r["at_slot"]]
+
+    # A layout entry with declarations at its slot but none the entry can
+    # legally satisfy would be rejected at pipeline creation. Finding one
+    # means the join is wrong, not the program.
+    mismatch = ["%s entries[%d] %s wants %s/%s; slot (@group(%s), @binding(%s)) declares %s"
+                % (r["layout"]["label"], r["e"].entry_index, r["e"].binding_const,
+                   r["e"].kind, r["e"].access, r["group"], r["e"].binding_number,
+                   ", ".join("%s: %s %s" % (x.symbol, x.address_space, x.wgsl_access)
+                             for x in r["at_slot"]))
+                for r in rows if r["at_slot"] and not r["decls"]]
+    w.record("0d-3", not mismatch,
+             "every layout entry has at least one access-compatible WGSL declaration at its "
+             "(group, binding)" if not mismatch else "; ".join(mismatch))
+    # REPORT — a WGSL declaration with no layout entry in any pipeline that
+    # binds its group.
+    covered = {(r["group"], r["e"].binding_number) for r in rows}
+    orphan_decls = [d for d in wgsl["decls"] if (d.group, d.binding) not in covered]
+    # REPORT — a registry constant with no WGSL mirror.
+    ns_group = {"g0": 0, "g1": 1, "g2": 2}
+    registry = parse_registry(Witnesses())
+    orphan_consts = [(ns, n, v) for (ns, n), v in sorted(registry.items())
+                     if (ns_group[ns], v) not in by_slot]
+
+    # ─── 0d-ii — the stage budget. ────────────────────────────────────
+    row_of = {}
+    for r in rows:
+        row_of.setdefault(r["layout"]["member"], []).append(r)
+
+    budget = []
+    for p in pipelines:
+        stages = sorted({s for _, s in p.entries()}, key=STAGES.index)
+        reach_here = set()
+        for const, _ in p.entries():
+            ep = entry_const.get(const)
+            if ep in wgsl["reach"]:
+                reach_here |= wgsl["reach"][ep][1]
+        per_stage_reach = {}
+        for const, stage in p.entries():
+            ep = entry_const.get(const)
+            per_stage_reach.setdefault(stage, set())
+            if ep in wgsl["reach"]:
+                per_stage_reach[stage] |= wgsl["reach"][ep][1]
+        for stage in stages:
+            dec = dict.fromkeys(CORE, 0)
+            act = dict.fromkeys(CORE, 0)
+            hit = dict.fromkeys(CORE, 0)
+            detail = {k: [] for k in CORE}
+            for g in p.group_layouts:
+                for r in row_of.get(g, []):
+                    cat = slot_category(r["e"])
+                    if cat is None:
+                        continue
+                    if stage in r["e"].vis_declared:
+                        dec[cat] += 1
+                        detail[cat].append("%s[%d] %s" % (r["layout"]["label"],
+                                                          r["e"].entry_index, r["primary"]))
+                    if stage in r["vis_actual"]:
+                        act[cat] += 1
+                    if set(r["symbols"]) & per_stage_reach.get(stage, set()):
+                        hit[cat] += 1
+            budget.append({"pipeline": p, "stage": stage, "declared": dec,
+                           "actual": act, "reached": hit, "detail": detail,
+                           "dyn_uniform": sum(1 for g in p.group_layouts
+                                              for r in row_of.get(g, [])
+                                              if r["e"].has_dynamic_offset
+                                              and r["e"].access == "Uniform"),
+                           "dyn_storage": sum(1 for g in p.group_layouts
+                                              for r in row_of.get(g, [])
+                                              if r["e"].has_dynamic_offset
+                                              and r["e"].access != "Uniform")})
+
+    # ─── THE RECONCILIATION GATE. The web twin boots on a pure-defaults
+    #     device request (PORT_5d), which is a live external witness that
+    #     the real program fits inside the Core defaults. So every
+    #     (pipeline, stage) row counted against vis_declared MUST fit. If
+    #     one does not, the ledger is wrong — not the program.
+    over = []
+    for b in budget:
+        for cat, limit in CORE.items():
+            if b["declared"][cat] > limit:
+                over.append("%s/%s %s %d>%d [%s]"
+                            % (b["pipeline"].label, b["stage"], cat,
+                               b["declared"][cat], limit, "; ".join(b["detail"][cat])))
+    tight = max(budget, key=lambda b: max(b["declared"][c] / CORE[c] for c in CORE))
+    tight_cat = max(CORE, key=lambda c: tight["declared"][c] / CORE[c])
+    w.record("gate", not over,
+             "every (pipeline, stage) row fits the Core defaults; tightest is "
+             "%s / %s at %s %d of %d"
+             % (tight["pipeline"].label, tight["stage"], tight_cat,
+                tight["declared"][tight_cat], CORE[tight_cat])
+             if not over else "OVER Core defaults: " + " | ".join(over))
+
+    over_dyn = ["%s dyn_uniform %d>%d" % (b["pipeline"].label, b["dyn_uniform"], CORE_DYN_UNIFORM)
+                for b in budget if b["dyn_uniform"] > CORE_DYN_UNIFORM]
+    over_dyn += ["%s dyn_storage %d>%d" % (b["pipeline"].label, b["dyn_storage"], CORE_DYN_STORAGE)
+                 for b in budget if b["dyn_storage"] > CORE_DYN_STORAGE]
+    w.record("0d-1", not over_dyn,
+             "dynamic-offset bindings: %d of %d uniform, %d of %d storage, program-wide"
+             % (max((b["dyn_uniform"] for b in budget), default=0), CORE_DYN_UNIFORM,
+                max((b["dyn_storage"] for b in budget), default=0), CORE_DYN_STORAGE)
+             if not over_dyn else "; ".join(over_dyn))
+
+    # A row's vis_actual can never exceed its vis_declared: a stage that
+    # reaches a binding its layout does not expose to that stage would be a
+    # pipeline-creation error, and finding one means the join is wrong.
+    impossible = ["%s[%d] declares %s but reaches %s"
+                  % (r["layout"]["label"], r["e"].entry_index,
+                     r["e"].vis_declared or "-", r["vis_actual"])
+                  for r in rows if set(r["vis_actual"]) - set(r["e"].vis_declared)]
+    w.record("0d-2", not impossible,
+             "no row is reached by a stage its visibility mask excludes"
+             if not impossible else "; ".join(impossible))
+
+    # ─── 0d-iii — the Tier A predicates. Flags, not a plan. ───────────
+    a1 = [r for r in rows if r["vis_delta"]]
+
+    a2 = []
+    for r in rows:
+        e = r["e"]
+        if e.access != "ReadOnlyStorage":
+            continue
+        d = r["decls"][0] if r["decls"] else None
+        ev = {
+            "access": e.access == "ReadOnlyStorage",
+            "wgsl_access": bool(d) and d.wgsl_access == "read",
+            "not_runtime": bool(d) and not d.has_runtime_array,
+            "bytes": bool(d) and d.layout.size is not None
+                     and d.layout.size <= UNIFORM_BINDING_MAX_BYTES,
+            "uniform_legal": bool(d) and not d.layout.uniform_blockers,
+        }
+        a2.append({"row": r, "decl": d, "ev": ev, "pass": all(ev.values()),
+                   "element_note": uniform_element_note(d.layout) if d else "no WGSL declaration",
+                   "size": d.layout.size if d else None})
+
+    reached_any = set()
+    for _, refs in wgsl["reach"].values():
+        reached_any |= refs
+    a3 = []
+    for ns, n, v in orphan_consts:
+        a3.append(("registry constant with no WGSL mirror",
+                   "bind::%s::%s = %d" % (ns, n, v), ""))
+    for d in wgsl["decls"]:
+        if d.symbol not in reached_any:
+            a3.append(("WGSL declaration no entry point reaches",
+                       "%s @group(%d) @binding(%d)" % (d.symbol, d.group, d.binding), ""))
+    for d in orphan_decls:
+        a3.append(("WGSL declaration with no layout entry in any pipeline binding its group",
+                   "%s @group(%d) @binding(%d)" % (d.symbol, d.group, d.binding), ""))
+    for r in orphan_rows:
+        a3.append(("layout entry whose (group, binding) has no WGSL declaration",
+                   "%s entries[%d] %s -> (@group(%s), @binding(%s))"
+                   % (r["layout"]["label"], r["e"].entry_index, r["e"].binding_const,
+                      r["group"], r["e"].binding_number), ""))
+    for r in rows:
+        if not r["vis_actual"] and r["decls"]:
+            a3.append(("layout entry no reachable code touches in any pipeline that binds it",
+                       "%s entries[%d] %s (declares %s)"
+                       % (r["layout"]["label"], r["e"].entry_index,
+                          r["symbols"][0] if r["symbols"] else "?", r["e"].vis_declared), ""))
+
+    stale = [r for r in rows if r["mirror"] not in ("ok",) and r["decls"]]
+
+    return {"rows": rows, "budget": budget, "a1": a1, "a2": a2, "a3": a3,
+            "stale_mirror": stale, "orphan_rows": orphan_rows,
+            "orphan_decls": orphan_decls, "orphan_consts": orphan_consts,
+            "tightest": (tight, tight_cat)}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # REPORT
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1379,6 +1667,42 @@ def main():
     print("  group index of each bind group layout:")
     for g, i in sorted(c["group_index"].items(), key=lambda kv: (kv[1], kv[0])):
         print("    @group(%d)  %s" % (i, g))
+
+    column = demo_column(w)
+    d = phase_0d(w, layouts, b, c)
+
+    print("")
+    print("PHASE 0d — THE JOIN, THE STAGE BUDGET, TIER A")
+    print("  demo column censused: %s" % column)
+    print("")
+    print("  the four tightest (pipeline, stage) rows, declared / actual / limit:")
+    order = sorted(d["budget"], key=lambda r: -max(r["declared"][k] / CORE[k] for k in CORE))
+    for r in order[:4]:
+        print("    %-32s %s   %s" % (r["pipeline"].label, r["stage"],
+                                     "  ".join("%s %d/%d/%d" % (k, r["declared"][k],
+                                                                r["actual"][k], CORE[k])
+                                               for k in ("uniform", "storage", "sampled",
+                                                         "samplers", "storagetex"))))
+    main_v = next((r for r in d["budget"]
+                   if r["pipeline"].member == "pawnPipeline_" and r["stage"] == "V"), None)
+    if main_v:
+        print("")
+        print("  the main render family's VERTEX stage (renderEntityLayout_ + "
+              "renderTextureLayout_): storage %d of %d"
+              % (main_v["declared"]["storage"], CORE["storage"]))
+        for x in main_v["detail"]["storage"]:
+            print("      %s" % x)
+
+    print("")
+    print("  TIER A: %d A1 (over-visible), %d A2 candidates (%d pass all predicates), %d A3"
+          % (len(d["a1"]), len(d["a2"]), sum(1 for x in d["a2"] if x["pass"]), len(d["a3"])))
+    for r in d["a1"]:
+        print("    A1  %-30s [%2d] %-22s declared %-3s  actual %-3s  delta %s"
+              % (r["layout"]["label"], r["e"].entry_index, r["primary"],
+                 r["e"].vis_declared, r["vis_actual"] or "-", r["vis_delta"]))
+    for kind, what, _ in d["a3"]:
+        print("    A3  %s — %s" % (kind, what))
+    print("  stale mirror rows (registry name != WGSL name): %d" % len(d["stale_mirror"]))
 
     print("")
     print("WITNESSES")
