@@ -5477,7 +5477,7 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (18 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
+                // Render entity bind group (17 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
                 // THE DRAW PLAN: built THREE times — same layout, same
                 // entries, differing ONLY in the visible-list window
                 // (entries[13] offset/size): A full-IB, B cap-only, C LOD1.
@@ -5755,7 +5755,7 @@ namespace t7 {
                     if (!ribbonComputeBindGroup_) return false;
                 }
 
-                // Gallery entity bind group (4 entries: config + VP + camera + light)
+                // Gallery entity bind group (3 entries: config + VP + camera)
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
                     entries[0].binding = bind::g0::config;
