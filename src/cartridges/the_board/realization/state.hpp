@@ -5787,7 +5787,7 @@ namespace t7 {
                 // samples it, so an artwork that casts and is not drawn there
                 // leaves a rectangle of shade lying on empty sand.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5797,9 +5797,6 @@ namespace t7 {
                     entries[2].binding = bind::g0::render_camera;
                     entries[2].buffer = photographerCameraBuffer_;  // ← photographer pos for fog
                     entries[2].size = sizeof(GPUCameraState);
-                    entries[3].binding = bind::g0::render_light;
-                    entries[3].buffer = directionalLightBuffer_;
-                    entries[3].size = sizeof(GPUDirectionalLight);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Gallery Photographer Entity BindGroup";
@@ -5810,9 +5807,9 @@ namespace t7 {
                     if (!galleryPhotographerEntityBindGroup_) return false;
                 }
 
-                // Photographer render entity bind group (same layout as main, different VP)
+                // Photographer render entity bind group (17 entries — same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 17> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5863,22 +5860,17 @@ namespace t7 {
                     entries[14].buffer = orbStateBuffer_;
                     entries[14].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    // Orb config (dome_center dead wire) — same buffer as main path
-                    entries[15].binding = bind::g0::orb_config;
-                    entries[15].buffer = orbConfigBuffer_;
-                    entries[15].size = sizeof(GPUOrbConfig);
-
                     // Agent tier gains — same buffer as main render path.
-                    // Required because layout has it at index 18.
-                    entries[16].binding = bind::g0::agent_tier_gains;
-                    entries[16].buffer = agentTierGainsBuffer_;
-                    entries[16].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    // Required because the shared layout carries it.
+                    entries[15].binding = bind::g0::agent_tier_gains;
+                    entries[15].buffer = agentTierGainsBuffer_;
+                    entries[15].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     // Pawn figure table (uniform, binding 112) — same shared layout,
                     // so the photographer group must bind it too.
-                    entries[17].binding = bind::g0::agent_figure_profiles;
-                    entries[17].buffer = figureProfilesBuffer_;
-                    entries[17].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[16].binding = bind::g0::agent_figure_profiles;
+                    entries[16].buffer = figureProfilesBuffer_;
+                    entries[16].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
