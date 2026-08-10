@@ -410,7 +410,9 @@ namespace t7 {
         // (PORT_5a). The last exceedance was
         // maxStorageBuffersPerShaderStage at 9 against a default of 8;
         // C6 (merged) demoted the field's head-pose window from
-        // read-only storage to uniform and the room family now counts 8.
+        // read-only storage to uniform, and TETRIS WALLET_0 demoted the
+        // two occupier windows the same way — the room family now
+        // counts 6.
         //
         // SO THIS IS NOW A PURE DEFAULTS REQUEST: nothing is named, and
         // a value-initialised wgpu::Limits means "every limit undefined,

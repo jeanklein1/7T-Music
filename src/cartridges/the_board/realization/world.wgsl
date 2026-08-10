@@ -25,7 +25,8 @@
 //     choice, never by branch.
 //  3. NO texture-array stamps in or near the collision chain.
 //   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage; the room
-//   family sits at 8/8 storage — no new storage binding without a demotion plan.
+//   family sits at 6/8 storage — the two occupier windows ride uniform
+//   (TETRIS WALLET_0; demotion record: BINDING_LEDGER Table C).
 // A violation does not fail here. It fails on Windows, at
 // pipeline creation, in someone else's hands. The kernel-split
 // banner (above the agent kernels) prices the inlining cliff.
@@ -2519,8 +2520,8 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // The windows live in THE AGENTS' ROOM (group 2), read-only onto the
 // SAME mesh-param buffers the mesh-gen kernels read — one authored
 // geometry, one home; the rows and the mesh can never disagree.
-@group(2) @binding(0) var<storage, read> occupier_cmg: array<ColumnMeshParams, 32>;
-@group(2) @binding(1) var<storage, read> occupier_amg: array<ArchMeshParams, 16>;
+@group(2) @binding(0) var<uniform> occupier_cmg: array<ColumnMeshParams, 32>;
+@group(2) @binding(1) var<uniform> occupier_amg: array<ArchMeshParams, 16>;
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
 // force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
 // new reachability, not a new fact.

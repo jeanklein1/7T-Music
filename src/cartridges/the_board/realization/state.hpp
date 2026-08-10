@@ -3937,7 +3937,8 @@ namespace t7 {
                 // Mesh gen params buffer (16 × 80 bytes — MOSAIC_1 growth; size derives from sizeof below)
                 archMeshParamsBuffer_ = makeBuffer("Arch Mesh Params",
                     Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform |
+                    wgpu::BufferUsage::CopyDst);
 
                 if (!archVertexBuffer_ || !archIndexBuffer_ || !archGroundBuffer_ ||
                     !archMeshParamsBuffer_) return false;
@@ -3978,7 +3979,8 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 columnMeshParamsBuffer_ = makeBuffer("Column Mesh Params",
                     Dim::MAX_COLUMN_INSTANCES * sizeof(GPUColumnMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform |
+                    wgpu::BufferUsage::CopyDst);
 
                 if (!columnVertexBuffer_ || !columnIndexBuffer_ || !columnGroundBuffer_ ||
                     !columnMeshParamsBuffer_) return false;
@@ -4462,9 +4464,9 @@ namespace t7 {
                     // Agent registries (uniform — read-only, fixed size,
                     // never changes during a session). Originally tried as
                     // ReadOnlyStorage but pushed compute storage buffer
-                    // count past the 10-per-stage limit; uniform has its
-                    // own 12-per-stage budget and these tables (≤ 512 B
-                    // total) fit comfortably.
+                    // count past the 8-per-stage Core default; uniform has
+                    // its own 12-per-stage budget and these tables
+                    // (≤ 512 B total) fit comfortably.
                     entries[10].binding = bind::g0::agent_behaviors;  // agent_behaviors
                     entries[10].visibility = wgpu::ShaderStage::Compute;
                     entries[10].buffer.type = wgpu::BufferBindingType::Uniform;
@@ -5266,7 +5268,7 @@ namespace t7 {
                 // -- THE ROOM (Group 2) -- bindings g2:0-5 --
                 // Option B (Batch F; FIELD_2 amendment): the private third
                 // group, so tenant-side growth never touches the six
-                // pipelines sharing the entity layout. Two ReadOnlyStorage
+                // pipelines sharing the entity layout. Two Uniform
                 // occupier windows onto the SAME mesh-param buffers the
                 // mesh-gen groups bind — one fact, one home — plus the
                 // field trio: the ring-pose and ribbon-state windows in,
@@ -5275,13 +5277,13 @@ namespace t7 {
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
-                    entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (read-only storage)
+                    entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (uniform window — TETRIS WALLET_0: demoted from read-only storage so the room family drops to 6 of 8 storage; 4,096 B, well under the 64 KiB uniform cap)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g2::occupier_amg;  // occupier_amg (read-only storage)
+                    entries[1].binding = bind::g2::occupier_amg;  // occupier_amg (uniform window — TETRIS WALLET_0; 1,280 B)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[2].binding = bind::g2::field_head_poses;  // field_head_poses (uniform window — C6: demoted from read-only storage so the room family fits the 8-storage default; 6,400 B, well under the 64 KiB uniform cap)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
