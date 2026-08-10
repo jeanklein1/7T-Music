@@ -4589,7 +4589,7 @@ namespace t7 {
                     std::array<wgpu::BindGroupLayoutEntry, 1> entries{};
 
                     entries[0].binding = bind::g0::config;
-                    entries[0].visibility = wgpu::ShaderStage::Compute | wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[0].visibility = wgpu::ShaderStage::Fragment;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
