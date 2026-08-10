@@ -1523,7 +1523,7 @@ def phase_ext2(w, wgsl):
 class Pipeline:
     __slots__ = ("label", "member", "kind", "vs_entry", "fs_entry", "cs_entry",
                  "group_layouts", "vertex_buffer_count", "vertex_attribute_count",
-                 "color_target_count", "roster_gate", "line")
+                 "color_target_count", "roster_gate", "line", "off")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -1620,7 +1620,8 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             label=m.group(2), member=m.group(5), kind="compute",
             cs_entry=m.group(4), group_layouts=layouts_at(m.group(3), m.start()),
             vertex_buffer_count=0, vertex_attribute_count=0, color_target_count=0,
-            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
+            off=m.start()))
 
     # ─── Vertex buffer layouts: attribute counts by VBL variable. ─────
     attrs = {}
@@ -1650,7 +1651,8 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             vs_entry=entry_name(a[2]), fs_entry="ENTITY_FS",
             group_layouts=layouts_at("renderLayout", m.start()),
             vertex_buffer_count=vb, vertex_attribute_count=va, color_target_count=1,
-            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
+            off=m.start()))
 
     for m in re.finditer(r"makeShadow\(([^;]*?)\)\)\s*return\s+false", src, re.S):
         a = [x.strip() for x in split_top_level(m.group(1), ",")]
@@ -1662,7 +1664,8 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             vs_entry=entry_name(a[2]), fs_entry=None,       # depth-only: no FS
             group_layouts=layouts_at(plvar, m.start()),
             vertex_buffer_count=vb, vertex_attribute_count=va, color_target_count=0,
-            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
+            off=m.start()))
 
     # ─── Render, spelled out. Each block is delimited by its own
     #     RenderPipelineDescriptor; the two inside the shared builders are
@@ -1720,7 +1723,8 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             group_layouts=layouts_at((get("layout") or "").strip(), m.start()),
             vertex_buffer_count=int(vbc) if vbc and vbc.strip().isdigit() else 0,
             vertex_attribute_count=va, color_target_count=tc if tc is not None else 0,
-            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
+            off=m.start()))
 
     pipelines.sort(key=lambda p: p.line)
     return pipelines
@@ -2476,6 +2480,243 @@ def phase_0d(w, layouts, wgsl, cen):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# EXTENSION 4 — THE DEFENDED-SITE INDEX
+#
+# The program's expensive lessons live in prose, because prose is where a
+# measurement's REASON can live. A census cannot hold reasons. It can hold
+# a pointer to where they are.
+#
+# Emit the SYMBOL and the matched trigger tokens — never the prose. A
+# reference outlives its referent; a copy goes stale and gives one fact
+# two homes.
+# ═══════════════════════════════════════════════════════════════════════
+
+# W4-1: this list is the predicate, and it is emitted verbatim into the
+# artifact so it can be audited rather than trusted. Prefer FALSE
+# POSITIVES — over-flagging costs a glance, under-flagging costs a
+# 48-second lesson relearned.
+TRIGGERS = [
+    ("time-cost",
+     r"\b\d+(?:\.\d+)?\s*(?:ms|s|sec|secs|second|seconds|min|minute|minutes)\b"),
+    ("FXC", r"\bFXC\b"),
+    ("law-ref", r"\bL\d+\b|\b[A-Z_]{3,} LAW\b|docs/LAWS\.md"),
+    ("measured", r"\bmeasured\b|\bmeasurement\b"),
+    ("witness", r"\bwitness\b"),
+    ("hangs", r"\bhangs\b"),
+    ("compile-time", r"\bcompile[ -]time\b"),
+    ("landed-at", r"\blanded at\b"),
+    ("regressed", r"\bregressed\b"),
+    ("budget", r"\bbudget\b"),
+    # ─── ADDED beyond the handoff's list, and reported as such. Without
+    #     these two, W4-2's positive control MISSES the state.hpp
+    #     entries[16]/[17] comments: they say "per-stage storage buffer
+    #     cap" and "the VS storage-buffer cap is full", neither of which
+    #     is the literal string "per-stage limit".
+    ("per-stage", r"\bper[- ]stage\b"),
+    ("slot-cap", r"\b(?:storage|uniform|binding|slot)[- ]?(?:buffer[- ]?)?(?:cap|limit)\b"),
+]
+
+
+def comment_blocks(src, wgsl=False):
+    """Contiguous runs of `//` lines, and `/* … */` blocks, with spans."""
+    blocks, i, n = [], 0, len(src)
+    while i < n:
+        if src.startswith("//", i):
+            start = i
+            while i < n:
+                eol = src.find("\n", i)
+                if eol < 0:
+                    eol = n
+                i = eol + 1
+                nxt = i
+                while nxt < n and src[nxt] in " \t":
+                    nxt += 1
+                if not src.startswith("//", nxt):
+                    break
+                i = nxt
+            blocks.append((start, i, src[start:i]))
+            continue
+        if src.startswith("/*", i):
+            e = src.find("*/", i + 2)
+            e = n if e < 0 else e + 2
+            blocks.append((i, e, src[i:e]))
+            i = e
+            continue
+        j = src.find("//", i)
+        k = src.find("/*", i)
+        cand = [x for x in (j, k) if x >= 0]
+        if not cand:
+            break
+        i = min(cand)
+    return blocks
+
+
+def trigger_hits(text):
+    return sorted({name for name, pat in TRIGGERS
+                   if re.search(pat, text, re.I if name != "law-ref" else 0)})
+
+
+class Defended:
+    __slots__ = ("symbol", "kind", "file", "line", "triggers", "rules")
+
+    def __init__(self, **kw):
+        for k in self.__slots__:
+            setattr(self, k, kw.get(k))
+
+
+def attach_and_scan(sites, blocks, src, path):
+    """Attach comment blocks to declaration sites, then trigger-match.
+
+    Two rules, both conservative:
+      A — PROXIMITY. The nearest preceding block with no other block
+          between it and the site. A block therefore covers the RUN of
+          declarations that follows it, which is what recovers
+          `pawn_ground_resolve` — its banner sits above `slope_passable`,
+          a small function that was inserted between the two.
+      B — NAMING. Any block anywhere that carries a trigger AND names the
+          symbol as a whole word. This is what recovers
+          `update_player_agent` and `update_other_agents`: the 48-second
+          kernel-split banner names both, several declarations upstream
+          and behind three intervening comment blocks.
+    """
+    starts = [b[0] for b in blocks]
+    named = [(b, trigger_hits(b[2])) for b in blocks]
+    out = []
+    for s in sites:
+        o = s["off"]
+        text, rules = [], []
+        prev = None
+        for b in blocks:
+            if b[1] <= o:
+                prev = b
+            else:
+                break
+        if prev is not None and not any(prev[1] < st < o for st in starts):
+            text.append(prev[2])
+            rules.append("A:proximity")
+        for b, hits in named:
+            if hits and re.search(r"(?<![\w])%s(?![\w])" % re.escape(s["symbol"]), b[2]):
+                if b[2] not in text:
+                    text.append(b[2])
+                    rules.append("B:named")
+        for lo, hi in s.get("inner", []):
+            for b in blocks:
+                if lo <= b[0] and b[1] <= hi and b[2] not in text:
+                    text.append(b[2])
+                    rules.append("C:body")
+        hits = trigger_hits("\n".join(text))
+        if hits:
+            out.append(Defended(symbol=s["symbol"], kind=s["kind"],
+                                file=os.path.relpath(path, REPO),
+                                line=line_of(src, o), triggers=hits,
+                                rules=sorted(set(rules))))
+    return out
+
+
+def phase_ext4(w, wgsl, layouts, cen):
+    found = []
+
+    # ─── The four hashed inputs, plus their file banners.
+    for path in (WORLD_WGSL, STATE_HPP, RENDERER_HPP, REGISTRY_HPP):
+        raw = read(path)
+        blocks = comment_blocks(raw)
+        if blocks and blocks[0][0] < 400:
+            hits = trigger_hits(blocks[0][2])
+            if hits:
+                found.append(Defended(symbol="(file banner)", kind="file",
+                                      file=os.path.relpath(path, REPO), line=1,
+                                      triggers=hits, rules=["banner"]))
+
+    # ─── world.wgsl: binding declarations and every function.
+    wraw = read(WORLD_WGSL)
+    wblocks = comment_blocks(wraw)
+    sites = []
+    for d in wgsl["decls"]:
+        m = re.search(r"@group\(%d\)\s*@binding\(%d\)\s*var[^;]*?\b%s\b"
+                      % (d.group, d.binding, re.escape(d.symbol)), wraw)
+        if m:
+            sites.append({"symbol": d.symbol, "kind": "wgsl binding", "off": m.start()})
+    for name, fn in wgsl["fns"].items():
+        m = re.search(r"\bfn\s+%s\s*\(" % re.escape(name), wraw)
+        if not m:
+            continue
+        b = wraw.find("{", m.end())
+        depth, p = 0, b
+        while p < len(wraw) and b >= 0:
+            if wraw[p] == "{":
+                depth += 1
+            elif wraw[p] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        sites.append({"symbol": name,
+                      "kind": "wgsl entry point" if fn.stage else "wgsl function",
+                      "off": m.start(), "inner": [(b, p)] if b >= 0 else []})
+    found += attach_and_scan(sites, wblocks, wraw, WORLD_WGSL)
+
+    # ─── state.hpp: each layout creation block, and each layout ENTRY.
+    #     Entry granularity is required — the entries[16]/[17] comments
+    #     sit inside a block, attached to individual entries.
+    sraw = read(STATE_HPP)
+    sblocks = comment_blocks(sraw)
+    sites = []
+    for L in layouts:
+        m = re.search(r'desc\.label\s*=\s*"%s"' % re.escape(L["label"]), sraw)
+        if m:
+            sites.append({"symbol": L["label"], "kind": "layout", "off": m.start()})
+        for e in L["entries"]:
+            em = re.search(r"entries\[%d\]\.binding\s*=\s*%s\s*;"
+                           % (e.entry_index, re.escape(e.binding_const)), sraw)
+            if em:
+                sites.append({"symbol": "%s entries[%d]" % (L["label"], e.entry_index),
+                              "kind": "layout entry", "off": em.start()})
+    found += attach_and_scan(sites, sblocks, sraw, STATE_HPP)
+
+    # ─── binding_registry.hpp: each constant.
+    graw = read(REGISTRY_HPP)
+    gblocks = comment_blocks(graw)
+    gsites = []
+    for gm in re.finditer(r"inline\s+constexpr\s+uint32_t\s+(\w+)\s*=", graw):
+        gsites.append({"symbol": gm.group(1), "kind": "registry constant",
+                       "off": gm.start()})
+    found += attach_and_scan(gsites, gblocks, graw, REGISTRY_HPP)
+
+    # ─── renderer.hpp: each pipeline creation site.
+    rraw = read(RENDERER_HPP)
+    rblocks = comment_blocks(rraw)
+    sites = []
+    for p in cen["pipelines"]:
+        sites.append({"symbol": p.member, "kind": "pipeline", "off": p.off})
+    found += attach_and_scan(sites, rblocks, rraw, RENDERER_HPP)
+
+    # ─── W4-1 — the trigger list is emitted verbatim, so the predicate is
+    #     auditable rather than trusted.
+    w.record("W4-1", True,
+             "%d trigger tokens, emitted verbatim into the artifact: %s"
+             % (len(TRIGGERS), ", ".join(n for n, _ in TRIGGERS)))
+
+    # ─── W4-2 — the POSITIVE CONTROL. An instrument that cannot find what
+    #     we already know is there is not an instrument.
+    have = {(f.symbol, f.file) for f in found}
+    want = [("update_player_agent", "world.wgsl"),
+            ("update_other_agents", "world.wgsl"),
+            ("(file banner)", "world.wgsl"),
+            ("pawn_ground_resolve", "world.wgsl"),
+            ("Render Entity Layout entries[16]", "state.hpp"),
+            ("Render Entity Layout entries[17]", "state.hpp")]
+    missing = [s for s, f in want
+               if not any(s == hs and f in hf for hs, hf in have)]
+    w.record("W4-2", not missing,
+             "positive control: all %d known-defended sites found — %s"
+             % (len(want), "; ".join(s for s, _ in want))
+             if not missing else "MISSED: " + ", ".join(missing) + " — widen the triggers")
+
+    found.sort(key=lambda f: (f.file, f.line))
+    return {"sites": found, "triggers": TRIGGERS}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # PHASE 0e — THE ARTIFACT
 #
 # Table A's `purpose` column and the whole of Table D are JEAN'S. They are
@@ -3071,6 +3312,7 @@ def main():
     e1 = phase_ext1(w, b, c, layouts)
     e2 = phase_ext2(w, b)
     e3 = phase_ext3(w, c, b)
+    e4 = phase_ext4(w, b, layouts, c)
 
     print("")
     print("PHASE 0d — THE JOIN, THE STAGE BUDGET, TIER A")
@@ -3158,6 +3400,24 @@ def main():
             print("    %-38s %-20s count=%-28s %s"
                   % (p_.label, sh["variant"], sh["count"],
                      sh["note"] or sh["where"]))
+    print("")
+    print("EXTENSION 4 — THE DEFENDED-SITE INDEX")
+    print("  %d defended sites over %d files" % (len(e4["sites"]),
+          len({f.file for f in e4["sites"]})))
+    byfile = {}
+    for f in e4["sites"]:
+        byfile.setdefault(f.file, []).append(f)
+    for fl, items in sorted(byfile.items()):
+        print("    %s: %d" % (fl, len(items)))
+    print("  the six positive-control sites:")
+    for f in e4["sites"]:
+        if f.symbol in ("update_player_agent", "update_other_agents", "pawn_ground_resolve",
+                        "(file banner)", "Render Entity Layout entries[16]",
+                        "Render Entity Layout entries[17]"):
+            print("    %-36s %-16s %s:%d  [%s]  via %s"
+                  % (f.symbol, f.kind, f.file, f.line, ", ".join(f.triggers),
+                     ", ".join(f.rules)))
+
     print("")
     print("WITNESSES")
     w.report()
