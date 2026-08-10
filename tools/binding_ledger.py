@@ -973,6 +973,338 @@ def phase_0b(w):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# PHASE 0c — THE PIPELINE CENSUS
+#
+# The shared builders (makeEntity, makeComputePipeline, computeLayoutFor,
+# makeShadow) are RESOLVED, not recorded: a pipeline built through a
+# shared builder inherits that builder's pipeline layout, and the ledger
+# wants the layout, not the builder's name.
+# ═══════════════════════════════════════════════════════════════════════
+
+class Pipeline:
+    __slots__ = ("label", "member", "kind", "vs_entry", "fs_entry", "cs_entry",
+                 "group_layouts", "vertex_buffer_count", "vertex_attribute_count",
+                 "color_target_count", "roster_gate", "line")
+
+    def __init__(self, **kw):
+        for k in self.__slots__:
+            setattr(self, k, kw.get(k))
+
+    def entries(self):
+        return [(e, s) for e, s in ((self.vs_entry, "V"), (self.fs_entry, "F"),
+                                    (self.cs_entry, "C")) if e]
+
+
+def parse_layout_handles(w):
+    """renderer field name -> state.hpp bind group layout member.
+
+    Two hops: state.hpp's accessors (`x_layout() const { return xLayout_; }`)
+    and the renderer's init() assignments (`xLayout_ = gpuState.x_layout();`).
+    Resolving both means Table C can name the LAYOUT a pipeline binds, not
+    the renderer's private handle for it.
+    """
+    state = strip_cpp_comments(read(STATE_HPP))
+    acc = {}
+    for m in re.finditer(
+            r"wgpu::BindGroupLayout\s+(\w+)\s*\(\s*\)\s*const\s*\{\s*return\s+(\w+)\s*;\s*\}", state):
+        acc[m.group(1)] = m.group(2)
+    rend = strip_cpp_comments(read(RENDERER_HPP))
+    field = {}
+    for m in re.finditer(r"(\w+)\s*=\s*gpuState\.(\w+)\s*\(\s*\)\s*;", rend):
+        if m.group(2) in acc:
+            field[m.group(1)] = acc[m.group(2)]
+    w.record("0c-0", len(field) > 0,
+             "%d renderer layout handles resolve to state.hpp layout members "
+             "(via %d gpuState accessors)" % (len(field), len(acc)))
+    return field
+
+
+def parse_pipelines(w, src, spans, handles, layouts_by_member):
+    """Resolve every pipeline creation to (label, member, stages, group layouts)."""
+    # ─── Pipeline layouts, resolved in source order. Every variable is
+    #     reassigned inside its own block, so a running map with
+    #     last-write-wins is exact for this file's shape.
+    arrays, plds, pls = {}, {}, {}
+    events = []
+    for m in re.finditer(
+            r"std::array<\s*wgpu::BindGroupLayout\s*,\s*(\d+)\s*>\s*(\w+)\s*=\s*\{([^}]*)\}", src):
+        items = [x.strip() for x in m.group(3).split(",") if x.strip()]
+        events.append((m.start(), "array", m.group(2), items, int(m.group(1))))
+    for m in re.finditer(r"(\w+)\.bindGroupLayouts\s*=\s*(\w+)\.data\(\)", src):
+        events.append((m.start(), "pld", m.group(1), m.group(2), None))
+    for m in re.finditer(
+            r"wgpu::PipelineLayout\s+(\w+)\s*=\s*device_\.CreatePipelineLayout\(\s*&(\w+)\s*\)", src):
+        events.append((m.start(), "create", m.group(1), m.group(2), None))
+    for m in re.finditer(r"wgpu::PipelineLayout\s+(\w+)\s*=\s*computeLayoutFor\(\s*(\w+)\s*\)", src):
+        events.append((m.start(), "for", m.group(1), m.group(2), None))
+
+    bad_counts = []
+    for pos, kind, a, b, n in sorted(events):
+        if kind == "array":
+            arrays[a] = b
+            if n != len(b):
+                bad_counts.append("%s declares %d, lists %d" % (a, n, len(b)))
+        elif kind == "pld":
+            plds[a] = b
+        elif kind == "create":
+            pls[a] = list(arrays.get(plds.get(b, ""), []))
+        elif kind == "for":
+            pls[a] = [b]
+    w.record("0c-0b", not bad_counts,
+             "every std::array<BindGroupLayout, N> lists exactly N members"
+             if not bad_counts else "; ".join(bad_counts))
+
+    def resolve(plvar, at):
+        return [handles.get(h, h) for h in pls.get(plvar, [])]
+
+    # Snapshot the pipeline-layout map at each use site: the same variable
+    # name (`pl`, `layout`) is rebound in later blocks.
+    snapshots = []
+    for pos, kind, a, b, n in sorted(events):
+        if kind in ("create", "for"):
+            snapshots.append((pos, a, list(pls_at(events, pos, handles).get(a, []))))
+
+    def layouts_at(plvar, pos):
+        best = None
+        for p, name, val in snapshots:
+            if name == plvar and p <= pos:
+                best = val
+        return best if best is not None else []
+
+    pipelines = []
+
+    # ─── Compute: every one goes through makeComputePipeline. ─────────
+    for m in re.finditer(
+            r"makeComputePipeline\(\s*\"([^\"]*)\"\s*,\s*\"([^\"]*)\"\s*,\s*"
+            r"(\w+)\s*,\s*Entry::(\w+)\s*,\s*(\w+)\s*\)", src, re.S):
+        pipelines.append(Pipeline(
+            label=m.group(2), member=m.group(5), kind="compute",
+            cs_entry=m.group(4), group_layouts=layouts_at(m.group(3), m.start()),
+            vertex_buffer_count=0, vertex_attribute_count=0, color_target_count=0,
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+
+    # ─── Vertex buffer layouts: attribute counts by VBL variable. ─────
+    attrs = {}
+    for m in re.finditer(
+            r"std::array<\s*wgpu::VertexAttribute\s*,\s*(\d+)\s*>\s*(\w+)", src):
+        attrs[m.group(2)] = int(m.group(1))
+    vbl_attrs = {}
+    for m in re.finditer(r"(\w+)\.attributeCount\s*=\s*(?:(\w+)\.size\(\)|(\d+))", src):
+        vbl_attrs[m.group(1)] = attrs.get(m.group(2), 0) if m.group(2) else int(m.group(3))
+
+    def vbl_of(tok):
+        tok = tok.strip()
+        if tok == "nullptr":
+            return 0, 0
+        name = tok.lstrip("&")
+        return 1, vbl_attrs.get(name, None)
+
+    # ─── Render, through the two shared builders. makeEntity always uses
+    #     `renderLayout` and Entry::ENTITY_FS; makeShadow uses
+    #     `shadowRenderLayout` unless its trailing 8th argument overrides.
+    for m in re.finditer(r"makeEntity\(([^;]*?)\)\)\s*return\s+false", src, re.S):
+        a = [x.strip() for x in split_top_level(m.group(1), ",")]
+        a[0] = a[0].lstrip("!")
+        vb, va = vbl_of(a[3])
+        pipelines.append(Pipeline(
+            label=a[1].strip('"'), member=a[5], kind="render",
+            vs_entry=entry_name(a[2]), fs_entry="ENTITY_FS",
+            group_layouts=layouts_at("renderLayout", m.start()),
+            vertex_buffer_count=vb, vertex_attribute_count=va, color_target_count=1,
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+
+    for m in re.finditer(r"makeShadow\(([^;]*?)\)\)\s*return\s+false", src, re.S):
+        a = [x.strip() for x in split_top_level(m.group(1), ",")]
+        a[0] = a[0].lstrip("!")
+        vb, va = vbl_of(a[3])
+        plvar = a[7] if len(a) > 7 else "shadowRenderLayout"
+        pipelines.append(Pipeline(
+            label=a[1].strip('"'), member=a[5], kind="render",
+            vs_entry=entry_name(a[2]), fs_entry=None,       # depth-only: no FS
+            group_layouts=layouts_at(plvar, m.start()),
+            vertex_buffer_count=vb, vertex_attribute_count=va, color_target_count=0,
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+
+    # ─── Render, spelled out. Each block is delimited by its own
+    #     RenderPipelineDescriptor; the two inside the shared builders are
+    #     skipped, since their call sites are already recorded above.
+    builder_spans = []
+    for m in re.finditer(r"auto\s+(makeEntity|makeShadow)\s*=\s*\[&\]", src):
+        b = src.find("{", m.end())
+        depth, p = 0, b
+        while p < len(src):
+            if src[p] == "{":
+                depth += 1
+            elif src[p] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        builder_spans.append((m.start(), p))
+
+    for m in re.finditer(r"wgpu::RenderPipelineDescriptor\s+(\w+)\s*\{\s*\}\s*;", src):
+        if any(s <= m.start() <= e for s, e in builder_spans):
+            continue
+        d = m.group(1)
+        nxt = re.search(r"wgpu::(?:Render|Compute)PipelineDescriptor\s+\w+\s*\{\s*\}\s*;",
+                        src[m.end():])
+        stop = m.end() + (nxt.start() if nxt else len(src) - m.end())
+        cm = re.search(r"(\w+)\s*=\s*device_\.CreateRenderPipeline\(\s*&%s\s*\)" % re.escape(d),
+                       src[m.end():stop])
+        if not cm:
+            continue
+        # The FragmentState, ColorTargetState and VertexBufferLayout a
+        # descriptor points at are declared BEFORE it, in the same braced
+        # scope — so the block to read is the enclosing scope, not the
+        # descriptor's own tail.
+        blk = src[enclosing_block_start(src, m.start()):m.end() + cm.end()]
+        get = lambda f: (re.search(re.escape(d) + r"\." + f + r"\s*=\s*([^;]+);", blk) or [None, None])[1]
+        fsvar = get(r"fragment")
+        fs = None
+        if fsvar:
+            fm = re.search(re.escape(fsvar.strip().lstrip("&")) +
+                           r"\.entryPoint\s*=\s*Entry::(\w+)\s*;", blk)
+            fs = fm.group(1) if fm else None
+        tc = None
+        if fsvar:
+            tm = re.search(re.escape(fsvar.strip().lstrip("&")) +
+                           r"\.targetCount\s*=\s*(\d+)\s*;", blk)
+            tc = int(tm.group(1)) if tm else None
+        vbc = get(r"vertex\.bufferCount")
+        vbuf = get(r"vertex\.buffers")
+        va = 0
+        if vbuf and vbuf.strip() not in ("nullptr",):
+            va = vbl_attrs.get(vbuf.strip().lstrip("&"), None)
+        pipelines.append(Pipeline(
+            label=(get("label") or "").strip().strip('"'), member=cm.group(1), kind="render",
+            vs_entry=entry_name(get(r"vertex\.entryPoint") or ""), fs_entry=fs,
+            group_layouts=layouts_at((get("layout") or "").strip(), m.start()),
+            vertex_buffer_count=int(vbc) if vbc and vbc.strip().isdigit() else 0,
+            vertex_attribute_count=va, color_target_count=tc if tc is not None else 0,
+            roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start())))
+
+    pipelines.sort(key=lambda p: p.line)
+    return pipelines
+
+
+def enclosing_block_start(src, pos):
+    """Offset just inside the innermost `{` enclosing `pos`."""
+    depth, p = 0, pos
+    while p > 0:
+        p -= 1
+        if src[p] == "}":
+            depth += 1
+        elif src[p] == "{":
+            if depth == 0:
+                return p + 1
+            depth -= 1
+    return 0
+
+
+def pls_at(events, pos, handles):
+    """Replay the pipeline-layout events up to `pos`. Exact, and cheap enough."""
+    arrays, plds, pls = {}, {}, {}
+    for p, kind, a, b, n in sorted(events):
+        if p > pos:
+            break
+        if kind == "array":
+            arrays[a] = b
+        elif kind == "pld":
+            plds[a] = b
+        elif kind == "create":
+            pls[a] = [handles.get(h, h) for h in arrays.get(plds.get(b, ""), [])]
+        elif kind == "for":
+            pls[a] = [handles.get(b, b)]
+    return pls
+
+
+def entry_name(tok):
+    m = re.search(r"Entry::(\w+)", tok or "")
+    return m.group(1) if m else None
+
+
+def phase_0c(w, layouts, wgsl):
+    src = strip_cpp_comments(read(RENDERER_HPP))
+    spans = gate_map(src)
+    handles = parse_layout_handles(w)
+    by_member = {L["member"]: L for L in layouts}
+    pipelines = parse_pipelines(w, src, spans, handles, by_member)
+
+    # Entry:: constants -> the WGSL entry point names they carry verbatim.
+    entry_const = {}
+    for m in re.finditer(r'constexpr\s+const\s+char\*\s+(\w+)\s*=\s*"([^"]*)"\s*;', src):
+        entry_const[m.group(1)] = m.group(2)
+
+    # Every pipeline must resolve to at least one real bind group layout,
+    # and every named layout must be one state.hpp actually creates.
+    unresolved = ["%s -> %s" % (p.label, g) for p in pipelines
+                  for g in p.group_layouts if g not in by_member]
+    empty = [p.label for p in pipelines if not p.group_layouts]
+    w.record("0c-0c", not unresolved and not empty,
+             "every pipeline resolves to bind group layouts state.hpp creates"
+             if not unresolved and not empty else
+             "; ".join(filter(None, [
+                 ("unknown layout: " + ", ".join(unresolved)) if unresolved else "",
+                 ("no layouts resolved: " + ", ".join(empty)) if empty else ""])))
+
+    # ─── WITNESS 0c-1 — at most 4 bind groups per pipeline layout.
+    over = ["%s: %d" % (p.label, len(p.group_layouts)) for p in pipelines
+            if len(p.group_layouts) > CORE_BIND_GROUPS]
+    w.record("0c-1", not over,
+             "max bind groups per pipeline layout: %d of %d"
+             % (max((len(p.group_layouts) for p in pipelines), default=0), CORE_BIND_GROUPS)
+             if not over else "over maxBindGroups: " + ", ".join(over))
+
+    # ─── WITNESS 0c-2 — groups + vertex buffers ≤ 24.
+    worst = max(((len(p.group_layouts) + p.vertex_buffer_count, p.label)
+                 for p in pipelines), default=(0, "-"))
+    over2 = ["%s: %d" % (p.label, len(p.group_layouts) + p.vertex_buffer_count)
+             for p in pipelines
+             if len(p.group_layouts) + p.vertex_buffer_count > CORE_GROUPS_PLUS_VBS]
+    w.record("0c-2", not over2,
+             "max bindGroups+vertexBuffers: %d of %d (%s)"
+             % (worst[0], CORE_GROUPS_PLUS_VBS, worst[1])
+             if not over2 else "over maxBindGroupsPlusVertexBuffers: " + ", ".join(over2))
+
+    # ─── WITNESS 0c-3 — every Entry:: constant used is a real entry point
+    #     in the 0b census, with a matching stage.
+    problems = []
+    for p in pipelines:
+        for const, stage in p.entries():
+            name = entry_const.get(const)
+            if name is None:
+                problems.append("%s: Entry::%s is not declared" % (p.label, const))
+                continue
+            fn = wgsl["entries"].get(name)
+            if fn is None:
+                problems.append("%s: Entry::%s -> \"%s\" is not an entry point in world.wgsl"
+                                % (p.label, const, name))
+            elif fn.stage != stage:
+                problems.append("%s: \"%s\" used as %s but declared %s"
+                                % (p.label, name, stage, fn.stage))
+    used = {c for p in pipelines for c, _ in p.entries()}
+    w.record("0c-3", not problems,
+             "all %d Entry:: constants used by pipelines resolve to world.wgsl entry points "
+             "with a matching stage" % len(used)
+             if not problems else "; ".join(problems))
+
+    # A layout used at two different group indices would break the
+    # (group, binding) join in 0d outright.
+    idx = {}
+    clash = []
+    for p in pipelines:
+        for i, g in enumerate(p.group_layouts):
+            if idx.setdefault(g, i) != i:
+                clash.append("%s at index %d and %d" % (g, idx[g], i))
+    w.record("0c-4", not clash,
+             "every bind group layout is bound at ONE group index across all pipelines"
+             if not clash else "; ".join(sorted(set(clash))))
+
+    return {"pipelines": pipelines, "entry_const": entry_const,
+            "group_index": idx, "handles": handles}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # REPORT
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1027,6 +1359,26 @@ def main():
              if not dead else
              "%d declaration(s) reached by ZERO entry points — dead binding surface: %s"
              % (len(dead), ", ".join(dead))))
+
+    c = phase_0c(w, layouts, b)
+    print("")
+    print("PHASE 0c — THE PIPELINE CENSUS")
+    print("  %d pipelines (%d render, %d compute)"
+          % (len(c["pipelines"]),
+             sum(1 for p in c["pipelines"] if p.kind == "render"),
+             sum(1 for p in c["pipelines"] if p.kind == "compute")))
+    for p in c["pipelines"]:
+        print("    %-30s %-28s %-7s %-46s vb=%d/%s ct=%d%s"
+              % (p.label, p.member, p.kind,
+                 "+".join(e for e, _ in p.entries()),
+                 p.vertex_buffer_count,
+                 "-" if p.vertex_attribute_count is None else p.vertex_attribute_count,
+                 p.color_target_count,
+                 ("  [gate: %s]" % p.roster_gate) if p.roster_gate else ""))
+    print("")
+    print("  group index of each bind group layout:")
+    for g, i in sorted(c["group_index"].items(), key=lambda kv: (kv[1], kv[0])):
+        print("    @group(%d)  %s" % (i, g))
 
     print("")
     print("WITNESSES")
