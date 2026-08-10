@@ -2783,6 +2783,37 @@ def phase_ext4(w, wgsl, layouts, cen):
 INPUTS = [STATE_HPP, REGISTRY_HPP, RENDERER_HPP, WORLD_WGSL]
 
 
+def writer_pins_lf(w):
+    """Assert the artifact writer cannot let the host choose line endings.
+
+    G2 says two runs on an unchanged tree are byte-identical. Compared on
+    ONE host that holds trivially even if the write is host-translated —
+    Python's text mode rewrites "\n" to the platform terminator unless
+    `newline` is pinned. So the determinism claim is only cross-host if the
+    WRITER is pinned, and that is a static property worth asserting rather
+    than assuming.
+    """
+    src = read(os.path.abspath(__file__))
+    m = re.search(r"open\(path,\s*\"w\"[^)]*\)", src)
+    call = m.group(0) if m else ""
+    ok = 'newline="\\n"' in call and 'encoding="utf-8"' in call
+    w.record("G2-eol", ok,
+             "artifact writer pins `encoding=\"utf-8\", newline=\"\\n\"`, so no host can "
+             "translate the terminator; a byte-level read-back runs after the write"
+             if ok else "artifact writer does not pin the newline: %r" % call)
+    return ok
+
+
+def verify_bytes(path):
+    """Read the artifact back as bytes. LF-only, no BOM, one trailing LF."""
+    with open(path, "rb") as f:
+        d = f.read()
+    return {"crlf": d.count(b"\r\n"), "cr": d.count(b"\r"),
+            "lf": d.count(b"\n") - d.count(b"\r\n"),
+            "bom": d[:3] == b"\xef\xbb\xbf",
+            "trailing": d.endswith(b"\n") and not d.endswith(b"\n\n")}
+
+
 def provenance():
     """Commit SHA + content hashes of the four inputs.
 
@@ -2871,6 +2902,15 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("The source commit is the last commit touching any of the four primary")
     A("inputs — not `HEAD`, which moves when this file is committed. The content")
     A("hashes are the authoritative provenance.")
+    A("")
+    A("**Determinism is asserted at byte level, not by comparing two local runs.**")
+    A("Two runs on one host are byte-identical even if the write is")
+    A("host-translated, because both are translated the same way — Python's text")
+    A("mode rewrites `\\n` to the platform terminator unless `newline` is pinned. So")
+    A("the writer pins `encoding=\"utf-8\", newline=\"\\n\"` (witness `G2-eol`), and a")
+    A("binary read-back after every write asserts LF-only, no BOM, exactly one")
+    A("trailing newline. A violation stops the run instead of shipping a file that")
+    A("breaks the L1 encoding law on one platform and not another.")
     A("")
     A("### The law this serves")
     A("")
@@ -3562,10 +3602,40 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("**The predicate, verbatim (W4-1).** A site is DEFENDED if its attached")
     A("comment matches any of:")
     A("")
-    A("| trigger | pattern |")
-    A("|---|---|")
+    A("| trigger | pattern | sites | sole trigger at |")
+    A("|---|---|---|---|")
     for name, pat in e4["triggers"]:
-        A("| `%s` | `%s` |" % (name, md_escape(pat)))
+        fs = e4["per_token"].get(name, [])
+        sole = sum(1 for f in fs if f.triggers == [name])
+        A("| `%s` | `%s` | %s | %d |"
+          % (name, md_escape(pat),
+             "%d" % len(fs) if fs else "0 — **prospective**", sole))
+    A("")
+    A("Site counts are the guard on this predicate (`W4-3`). Two triggers were")
+    A("ADDED to make the positive control pass, which is what a control is for —")
+    A("but an instrument that can grant the variable under test is not an")
+    A("instrument. A token contributing exactly one site, that site being a")
+    A("control, would be a token written to pass the test; the witness fails on")
+    A("it. Both added tokens are general vocabulary and neither is close.")
+    A("")
+    A("**A zero-site trigger is PROSPECTIVE, not dead.** A trigger list is a")
+    A("predicate over FUTURE text, not a description of present data. Deleting a")
+    A("term that matches nothing today would not make the predicate leaner, only")
+    A("narrower — and this extension's whole posture is that over-flagging costs")
+    A("a glance while under-flagging costs a 48-second lesson relearned. They")
+    A("stay, marked, so the zero reads as intended rather than as a defect.")
+    A("")
+    A("Two readings worth keeping in view. `FXC` contributes %d sites and is the"
+      % len(e4["per_token"].get("FXC", [])))
+    A("sole trigger at %d of them — that is where this program's expensive lessons"
+      % sum(1 for f in e4["per_token"].get("FXC", []) if f.triggers == ["FXC"]))
+    A("actually cluster, and it is a map of the real risk surface. `time-cost`")
+    A("contributes %d sites and is the sole trigger at %d, meaning every comment"
+      % (len(e4["per_token"].get("time-cost", [])),
+         sum(1 for f in e4["per_token"].get("time-cost", [])
+             if f.triggers == ["time-cost"])))
+    A("that records a measured duration also carries another trigger — the prose")
+    A("conventions are internally consistent.")
     A("")
     A("Attachment: **A** the nearest preceding comment block with no other block")
     A("between it and the site (so a block covers the run that follows it);")
@@ -3680,6 +3750,8 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
              p.color_target_count, "`%s`" % p.roster_gate if p.roster_gate else "—"))
     A("")
 
+    while o and not o[-1].strip():
+        o.pop()                      # exactly one trailing LF, no blank tail
     text = "\n".join(o) + "\n"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -3769,6 +3841,7 @@ def main():
     e2 = phase_ext2(w, b)
     e3 = phase_ext3(w, c, b)
     e4 = phase_ext4(w, b, layouts, c)
+    writer_pins_lf(w)
 
     print("")
     print("PHASE 0d — THE JOIN, THE STAGE BUDGET, TIER A")
@@ -3894,6 +3967,16 @@ def main():
     print("PHASE 0e — THE ARTIFACT")
     print("  wrote %s (%d lines, %d bytes)"
           % (os.path.relpath(args.out, REPO), text.count("\n"), len(text.encode("utf-8"))))
+    bx = verify_bytes(args.out)
+    clean = bx["crlf"] == 0 and bx["cr"] == 0 and not bx["bom"] and bx["trailing"]
+    print("  byte check: %d CRLF, %d bare CR, %d LF, BOM %s, single trailing LF %s -> %s"
+          % (bx["crlf"], bx["cr"], bx["lf"], bx["bom"], bx["trailing"],
+             "LF-CLEAN" if clean else "FAIL"))
+    if not clean:
+        print("")
+        print("STOP — the artifact violates the LF-only encoding law (L1). "
+              "The file on disk is not what the tool intended to write.")
+        return 1
     return 0
 
 
