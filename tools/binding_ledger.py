@@ -539,13 +539,20 @@ def parse_wgsl_structs(src):
     return structs
 
 
-def split_top_level(text, sep):
-    """Split on `sep` at angle/paren/brace depth zero."""
+def split_top_level(text, sep, angle=True):
+    """Split on `sep` at bracket depth zero.
+
+    `angle` counts `<` and `>` as nesting, which is what WGSL type
+    spellings need (`array<T, N>`) and what C++ argument lists must NOT
+    have — `c->world_state_` would unbalance the depth and swallow every
+    following comma.
+    """
+    opens, closes = ("<([{", ">)]}") if angle else ("([{", ")]}")
     out, depth, cur = [], 0, []
     for ch in text:
-        if ch in "<([{":
+        if ch in opens:
             depth += 1
-        elif ch in ">)]}":
+        elif ch in closes:
             depth -= 1
         if ch == sep and depth == 0:
             out.append("".join(cur))
@@ -1837,6 +1844,350 @@ def phase_0c(w, layouts, wgsl):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# EXTENSION 3 — CALL-SHAPE CENSUS
+#
+# BUDGET_0 censused what the SHADER declares. This censuses what the HOST
+# issues. They are different facts and they disagree: nine entry points
+# carry @workgroup_size(1); seven dispatches issue a single workgroup.
+# And a pipeline drawn with instanceCount 1 cannot host an instance-step
+# vertex buffer whatever its access pattern says.
+# ═══════════════════════════════════════════════════════════════════════
+
+RENDER_PASSES_HPP = os.path.join(REAL, "render_passes.hpp")
+DRAWABLE_TABLE_HPP = os.path.join(REAL, "drawable_table.hpp")
+
+
+def caller_files():
+    """Every file that invokes a renderer verb, discovered not hand-listed.
+
+    The pass files are not the whole story: `draw_orbs` is called from
+    bodies/orbs.hpp and `draw_patch_terrain_direct` from bodies/gallery.hpp.
+    A hand-listed input set would have left both instance counts reading as
+    a parameter name. Sorted, so the scan is deterministic.
+    """
+    out = []
+    for root, _dirs, files in os.walk(os.path.join(REPO, "src")):
+        for f in files:
+            if not f.endswith((".hpp", ".cpp", ".h")):
+                continue
+            path = os.path.join(root, f)
+            if os.path.abspath(path) == os.path.abspath(RENDERER_HPP):
+                continue
+            try:
+                t = read(path)
+            except Exception:
+                continue
+            if "renderer_." in t or "renderer_->" in t:
+                out.append(path)
+    return sorted(out)
+
+DRAW_VARIANTS = ("DrawIndexedIndirect", "DrawIndexed", "DrawIndirect", "Draw")
+
+
+def split_args(s):
+    return [" ".join(a.split()) for a in split_top_level(s, ",", angle=False) if a.strip()]
+
+
+def cpp_functions(src):
+    """name -> (params, body_start, body_end) for `void`/`bool` members."""
+    out = {}
+    for m in re.finditer(r"\n\s+(?:void|bool)\s+(\w+)\s*\(", src):
+        j = m.end() - 1
+        depth, k = 0, j
+        while k < len(src):
+            if src[k] == "(":
+                depth += 1
+            elif src[k] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        params = src[j + 1:k]
+        b = src.find("{", k)
+        if b < 0:
+            continue
+        depth, p = 0, b
+        while p < len(src):
+            if src[p] == "{":
+                depth += 1
+            elif src[p] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        out[m.group(1)] = (params, b, p, j)
+    return out
+
+
+def param_names(params):
+    return [re.sub(r".*?(\w+)\s*(?:=.*)?$", r"\1", a.strip())
+            for a in split_args(params) if a.strip()]
+
+
+def phase_ext3(w, cen, wgsl):
+    rend = strip_cpp_comments(read(RENDERER_HPP))
+    callers = caller_files()
+    caller_src = {p: strip_cpp_comments(read(p)) for p in callers}
+    passes = caller_src.get(RENDER_PASSES_HPP, "")
+    table = caller_src.get(DRAWABLE_TABLE_HPP, "")
+    fns = cpp_functions(rend)
+
+    # ─── Per renderer function: the pipelines it sets and the calls it
+    #     issues, in source order. A call takes the most recent
+    #     SetPipeline in the same function.
+    ev = re.compile(r"SetPipeline\(\s*([\w:]+)\s*\)"
+                    r"|\.(" + "|".join(DRAW_VARIANTS) + r")\("
+                    r"|DispatchWorkgroups\(")
+    info = {}
+    for name, (params, b, e, _decl) in fns.items():
+        body = rend[b:e]
+        pnames = set(param_names(params))
+        cur, sets, calls = None, [], []
+        for m in ev.finditer(body):
+            if m.group(1):
+                cur = m.group(1)
+                sets.append(cur)
+                continue
+            args = split_args(balanced(body, m.end() - 1))
+            calls.append({"kind": m.group(2) or "DispatchWorkgroups",
+                          "args": args, "pipeline": cur,
+                          "param_pipeline": cur in pnames if cur else False})
+        info[name] = {"params": params, "pnames": pnames, "sets": sets,
+                      "calls": calls, "body": body}
+
+    # ─── W3-0 — every Draw*/Dispatch call site in renderer.hpp lands
+    #     inside a function the parser recognised. A call outside one is
+    #     a call shape the census would silently lose.
+    total = len(re.findall(r"\.(?:" + "|".join(DRAW_VARIANTS) + r")\(", rend)) \
+        + len(re.findall(r"DispatchWorkgroups\(", rend))
+    seen = sum(len(i["calls"]) for i in info.values())
+    w.record("W3-0", total == seen,
+             "renderer.hpp: %d Draw*/DispatchWorkgroups call sites, all inside a parsed "
+             "function" % total if total == seen else
+             "%d call sites, only %d inside a parsed function" % (total, seen))
+
+    # ─── A count spelled as a parameter name is not a count. Resolve it
+    #     to the distinct arguments the callers pass — that IS "its
+    #     source", and it is what decides whether a pipeline is ever
+    #     drawn instanced.
+    everywhere = rend + "".join("\n" + caller_src[p] for p in callers)
+
+    def sig(fnname):
+        raw = split_args(fns[fnname][0])
+        names, defaults = [], []
+        for a in raw:
+            d = a.split("=", 1)
+            names.append(re.sub(r"^.*?(\w+)$", r"\1", d[0].strip()))
+            defaults.append(d[1].strip() if len(d) > 1 else None)
+        return names, defaults
+
+    def bind_args(fnname, args):
+        """Helper parameter name -> the expression THIS caller passes."""
+        names, defaults = sig(fnname)
+        out = {}
+        for i, n in enumerate(names):
+            out[n] = args[i] if i < len(args) else (defaults[i] or "1")
+        return out
+
+    def resolve_param(fnname, pname):
+        if fnname not in fns:
+            return None
+        raw = split_args(fns[fnname][0])
+        names, defaults = [], []
+        for a in raw:
+            d = a.split("=", 1)
+            names.append(re.sub(r".*?(\w+)$", r"\1", d[0].strip()))
+            defaults.append(d[1].strip() if len(d) > 1 else None)
+        if pname not in names:
+            return None
+        idx = names.index(pname)
+        decl = fns[fnname][3]
+        found = set()
+        for cm in re.finditer(r"(?<![\w])%s\s*\(" % re.escape(fnname), everywhere):
+            if cm.end() - 1 == decl:
+                continue                      # the definition, not a call
+            args = split_args(balanced(everywhere, cm.end() - 1))
+            found.add(args[idx] if len(args) > idx else (defaults[idx] or "1"))
+        found.discard(pname)
+        return sorted(found) or None
+
+    # ─── Resolve the two cross-function shapes.
+    #     (a) a helper that sets a pipeline given as a PARAMETER — resolve
+    #         at its call sites.
+    #     (b) a function that draws without setting — the pipeline was set
+    #         by a sibling call at the pass head. Replay render_passes.hpp
+    #         linearly to recover it.
+    shapes = {}                      # pipeline member -> [shape dicts]
+
+    def add(pipeline, c, where, extra="", fn=""):
+        shapes.setdefault(pipeline, []).append(
+            {"variant": c["kind"], "args": c["args"], "where": where,
+             "note": extra, "fn": fn, "bound": c.get("bound")})
+
+    for name, i in info.items():
+        for c in i["calls"]:
+            if c["pipeline"] and not c["param_pipeline"]:
+                add(c["pipeline"], c, name, fn=name)
+            elif c["param_pipeline"]:
+                # (a) every caller supplies the pipeline.
+                pidx = param_names(i["params"]).index(c["pipeline"])
+                for cm in re.finditer(r"\b%s\s*\(" % re.escape(name), rend):
+                    if b_in_fn(fns, cm.start()) == name:
+                        continue
+                    a = split_args(balanced(rend, cm.end() - 1))
+                    if len(a) > pidx:
+                        sh = dict(c)
+                        sh["bound"] = bind_args(name, a)
+                        add(a[pidx], sh, "%s via %s" % (b_in_fn(fns, cm.start()), name),
+                            "pipeline and counts supplied by caller", fn=name)
+
+    # (b) replay the pass files for draws whose pipeline was set elsewhere.
+    setters = {n: i["sets"][-1] for n, i in info.items() if i["sets"] and not i["calls"]}
+    drawless = {n for n, i in info.items() if i["calls"] and not i["sets"]
+                and not any(c["param_pipeline"] for c in i["calls"])}
+    for path in callers:
+        text, label = caller_src[path], os.path.relpath(path, REPO)
+        cur = None
+        pat = re.compile(r"(?:renderer_?\.|r\.)(\w+)\s*\(|pass\.SetPipeline\(\s*([\w:]+)"
+                         r"|pass\.(" + "|".join(DRAW_VARIANTS) + r")\(")
+        for m in pat.finditer(text):
+            if m.group(2):
+                cur = m.group(2)
+            elif m.group(3):
+                if cur:
+                    add(cur, {"kind": m.group(3),
+                              "args": split_args(balanced(text, m.end() - 1))},
+                        label, "raw draw at the pass head", fn="")
+            else:
+                fn = m.group(1)
+                if fn in setters:
+                    cur = setters[fn]
+                elif fn in drawless:
+                    if cur:
+                        for c in info[fn]["calls"]:
+                            add(cur, c, "%s via %s" % (label, fn),
+                                "pipeline set by the pass head", fn=fn)
+                elif fn in info and info[fn]["sets"]:
+                    cur = info[fn]["sets"][-1]
+
+    # ─── Resolve instanceCount / workgroup counts, and their source.
+    def count_of(sh, fnname):
+        v = sh["variant"]
+        if v in ("DrawIndirect", "DrawIndexedIndirect"):
+            return "indirect", "from the indirect args buffer"
+        idx = 1 if v in ("Draw", "DrawIndexed") else None
+        if idx is None or len(sh["args"]) <= idx:
+            return "1", "default (argument omitted)"
+        raw = sh["args"][idx]
+        raw = re.sub(r"/\*.*?\*/", "", raw).strip()
+        if sh.get("bound") and raw in sh["bound"]:
+            return sh["bound"][raw], "argument at the call site"
+        if re.fullmatch(r"\w+", raw) and sh.get("fn"):
+            res = resolve_param(sh["fn"], raw)
+            if res:
+                return " | ".join(res), "parameter `%s` of %s, resolved at its call sites" % (
+                    raw, sh["fn"])
+        return raw, ""
+
+    rows = []
+    for p in cen["pipelines"]:
+        got = shapes.get(p.member, [])
+        seen_shapes = []
+        for sh in got:
+            if p.kind == "compute":
+                cnt = " x ".join(sh["args"]) if sh["args"] else "?"
+                src = ""
+            else:
+                cnt, src = count_of(sh, p.member)
+            key = (sh["variant"], cnt)
+            if key not in [(x["variant"], x["count"]) for x in seen_shapes]:
+                seen_shapes.append({"variant": sh["variant"], "count": cnt,
+                                    "src": src, "where": sh["where"], "note": sh["note"]})
+        rows.append({"pipeline": p, "shapes": seen_shapes})
+
+    # ─── W3-1 — every pipeline is ACCOUNTED FOR: exactly one call shape,
+    #     or recorded as never invoked, or recorded with all its shapes.
+    #     Picking one and hiding the rest is the failure this forbids.
+    none_ = [r["pipeline"].label for r in rows if not r["shapes"]]
+    many = [(r["pipeline"].label, r["shapes"]) for r in rows if len(r["shapes"]) > 1]
+    w.record("W3-1", True,
+             "%d pipelines: %d with exactly one call shape, %d with several (all listed), "
+             "%d never invoked%s"
+             % (len(rows), sum(1 for r in rows if len(r["shapes"]) == 1), len(many),
+                len(none_), (" — " + ", ".join(none_)) if none_ else ""))
+
+    # ─── W3-3 — no instance count is left reading as a PARAMETER NAME.
+    #     A count spelled `instanceCount` is the census failing to find the
+    #     call site, not a fact about the program — and it is exactly what
+    #     a hand-listed input set produced before the caller scan went wide.
+    unresolved = []
+    for r in rows:
+        p_ = r["pipeline"]
+        if p_.kind != "render":
+            continue
+        for sh in r["shapes"]:
+            fnm = sh.get("fn") or ""
+            if fnm in fns and re.fullmatch(r"\w+", sh["count"]) \
+                    and sh["count"] in sig(fnm)[0]:
+                unresolved.append("%s: %s" % (p_.label, sh["count"]))
+    w.record("W3-3", not unresolved,
+             "every render pipeline's instanceCount resolves to a literal, a named "
+             "constant or a call-site expression — none is left as a parameter name "
+             "(%d caller files scanned)" % len(callers)
+             if not unresolved else "unresolved counts: " + "; ".join(unresolved))
+
+    # ─── W3-2 — the two single-thread counts, and the per-row
+    #     reconciliation between them.
+    wg1 = sorted(n for n, f in wgsl["entries"].items()
+                 if f.stage == "C" and re.fullmatch(r"\(\s*1\s*(,\s*1\s*)*\)",
+                                                    f.workgroup_size or ""))
+    single = []
+    for r in rows:
+        p = r["pipeline"]
+        if p.kind != "compute":
+            continue
+        ep = cen["entry_const"].get(p.cs_entry)
+        for sh in r["shapes"]:
+            if re.fullmatch(r"1( x 1)*", sh["count"]):
+                single.append(ep)
+    single = sorted(set(single))
+    recon = []
+    for ep in sorted(set(wg1) | set(single)):
+        recon.append((ep, ep in wg1, ep in single))
+    w.record("W3-2", True,
+             "@workgroup_size(1) entry points: %d (%s). Dispatches issuing ONE workgroup: "
+             "%d (%s). The %d that differ: %s."
+             % (len(wg1), ", ".join(wg1), len(single), ", ".join(single),
+                len([r for r in recon if r[1] != r[2]]),
+                ", ".join("%s (wg1=%s, single-dispatch=%s)" % (a, b_, c_)
+                          for a, b_, c_ in recon if b_ != c_) or "none"))
+
+    return {"rows": rows, "wg1": wg1, "single_dispatch": single, "recon": recon,
+            "never_invoked": none_, "multi": many, "callers": callers}
+
+
+def balanced(s, open_pos):
+    """Text inside the parenthesis group that opens at `open_pos`."""
+    depth, k = 0, open_pos
+    while k < len(s):
+        if s[k] == "(":
+            depth += 1
+        elif s[k] == ")":
+            depth -= 1
+            if depth == 0:
+                return s[open_pos + 1:k]
+        k += 1
+    return ""
+
+
+def b_in_fn(fns, pos):
+    for n, (_, b, e, _d) in fns.items():
+        if b <= pos <= e:
+            return n
+    return ""
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # PHASE 0d — THE JOIN, THE STAGE BUDGET, THE TIER A PREDICATES
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -2719,6 +3070,7 @@ def main():
     d = phase_0d(w, layouts, b, c)
     e1 = phase_ext1(w, b, c, layouts)
     e2 = phase_ext2(w, b)
+    e3 = phase_ext3(w, c, b)
 
     print("")
     print("PHASE 0d — THE JOIN, THE STAGE BUDGET, TIER A")
@@ -2794,6 +3146,18 @@ def main():
         for (sym, src), fs in sorted(grp.items()):
             print("    %-22s %-34s in %s" % (sym, src, ", ".join(sorted(set(fs)))[:60]))
 
+    print("")
+    print("EXTENSION 3 — CALL-SHAPE CENSUS")
+    print("  caller files scanned for invocation sites: %s"
+          % ", ".join(os.path.relpath(x, REPO) for x in e3["callers"]))
+    for r in e3["rows"]:
+        p_ = r["pipeline"]
+        if not r["shapes"]:
+            print("    %-38s %s" % (p_.label, "NEVER INVOKED — finding"))
+        for sh in r["shapes"]:
+            print("    %-38s %-20s count=%-28s %s"
+                  % (p_.label, sh["variant"], sh["count"],
+                     sh["note"] or sh["where"]))
     print("")
     print("WITNESSES")
     w.report()
