@@ -4534,7 +4534,7 @@ namespace t7 {
                     // Tile grid (uniform — terrain wave delta needs amp_scale in VS,
                     // animated_cell_color needs archetype lookup in FS)
                     entries[11].binding = bind::g0::tile_grid;
-                    entries[11].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[11].visibility = wgpu::ShaderStage::Fragment;
                     entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // Entity ground atlas (r32float 256×1 — VS reads ground_y via textureLoad)
