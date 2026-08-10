@@ -294,7 +294,7 @@ inline void on_key_up(InputDeps* c, int key) {
 inline void on_mouse_move(InputDeps* c, float dx, float dy) {
     const float sensitivity = c->camera_.look_sensitivity;  // the panel dial, now live
     if (c->mouse_.left_dragging) {
-        c->inputState_.look_az_delta += dx * sensitivity;
+        c->inputState_.look_az_delta -= dx * sensitivity;
         c->inputState_.look_el_delta += dy * sensitivity;
     }
     if (c->mouse_.right_dragging) {
@@ -332,7 +332,7 @@ inline void on_touch_move(InputDeps* c, float x, float z) {
 // touch sensitivity is deliberately not CameraControls::look_sensitivity,
 // because a thumb sweeps a fraction of the arc a mouse does.
 inline void on_touch_look(InputDeps* c, float dx, float dy) {
-    c->inputState_.look_az_delta += dx;
+    c->inputState_.look_az_delta -= dx;
     c->inputState_.look_el_delta += dy;
 }
 

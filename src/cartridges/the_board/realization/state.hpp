@@ -414,7 +414,7 @@ namespace t7 {
             constexpr float CAMERA_POS_Z = 30.0f;
             constexpr float CAMERA_AZIMUTH = 0.0f;
             constexpr float CAMERA_ELEVATION = 0.4f;
-            constexpr float CAMERA_DISTANCE = 20.0f;
+            constexpr float CAMERA_DISTANCE = 15.0f;
             constexpr float PAWN_SPEED = 15.0f;
             constexpr float CUBE_PLASTICITY_DEFAULT = 1.0f;  // CONTACT_5 P2b: the live λ master;
                                                              // raised 0.6 -> 1.0 so a shove RELOCATES

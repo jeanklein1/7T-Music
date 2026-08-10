@@ -616,9 +616,15 @@ if(EMSCRIPTEN)
     # ONE PRELOAD, AND IT IS PROGRAM (EXHIBIT_0 U3). The MEMFS mapping
     # left is the shader: the loader's 2nd search entry is
     # "src/cartridges/the_board/realization/world.wgsl" and it hits this
-    # explicit file mapping verbatim from CWD "/" (verified
-    # renderer.hpp:1250-1251). world.wgsl is rebuilt when the PROGRAM
-    # changes, so it belongs in the bundle the program ships as.
+    # explicit file mapping verbatim from CWD "/". The search list lives
+    # in renderer.hpp; the quoted path above is its own anchor — grep it
+    # and you land on the entry, which a line number stops doing the next
+    # time anyone edits that file. The shader ships inside the program's
+    # bundle because the two are one artifact — but that was a claim
+    # about INTENT, and the graph only ever enforced it one way: a
+    # program change relinked and repackaged the shader; a shader change
+    # did nothing at all. LINK_DEPENDS below is what makes the other
+    # direction real.
     #
     # The assets@/assets mapping is GONE. It put the entire exhibition
     # inside the_board.data, which meant every repainted wall and every
@@ -640,6 +646,12 @@ if(EMSCRIPTEN)
     # and each painting: the bundle carries the program, the network
     # carries the exhibition. Native is unaffected — this whole block is
     # behind if(EMSCRIPTEN).
+    # The shader's path, once. It is a link INPUT (--preload-file) and a
+    # link DEPENDENCY (LINK_DEPENDS) — two different facts about one file,
+    # and the second was missing. The MEMFS target on the right of the @
+    # stays literal: it must match the loader's search string verbatim, so
+    # it is a different fact and does not share this home.
+    set(T7_WEB_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl")
     target_link_options(incubator_dual PRIVATE
         ${T7_WEB_PORTS}
         "-sALLOW_MEMORY_GROWTH=1"
@@ -647,12 +659,22 @@ if(EMSCRIPTEN)
         "-sFETCH"
         ${T7_WEB_OPT}
         ${T7_WEB_DIAG}
-        "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl@/src/cartridges/the_board/realization/world.wgsl"
+        "SHELL:--preload-file ${T7_WEB_SHADER}@/src/cartridges/the_board/realization/world.wgsl"
     )
+    # A --preload-file option is a COMMAND-LINE STRING: ninja hashes the
+    # command, not the file the command names. So editing world.wgsl left
+    # the link CLEAN and the_board.data stale — silently, no error, no
+    # rebuild, and the web twin shipped a shader fifteen hours older than
+    # its own source while native was correct. LINK_DEPENDS is what makes
+    # a shader edit dirty the link. Ninja and Makefile generators only.
+    # The native twin needs nothing: it reads world.wgsl off disk at
+    # runtime and has no bundle that can go stale — which is exactly why
+    # the twins disagreed about collisions and only one of them was wrong.
     set_target_properties(incubator_dual PROPERTIES
         OUTPUT_NAME "the_board"
         SUFFIX ".js"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"
+        LINK_DEPENDS "${T7_WEB_SHADER}"
     )
 else()
     add_custom_command(TARGET incubator_dual POST_BUILD
