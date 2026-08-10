@@ -427,6 +427,552 @@ def parse_layouts(w, registry):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# PHASE 0b — THE REACHABILITY CENSUS (WGSL)
+#
+# INSTRUMENT RULING (handoff): the call graph is built TEXTUALLY over the
+# one module. Not naga IR reflection — naga reflects per-module, so the
+# per-entry-point set still needs the closure, and an IR dependency buys
+# nothing the text does not already give.
+# ═══════════════════════════════════════════════════════════════════════
+
+def strip_wgsl_comments(src):
+    """Blank out // and (nestable) /* */ comments, preserving offsets."""
+    out = list(src)
+    i, n, depth = 0, len(src), 0
+    while i < n:
+        if depth == 0 and src.startswith("//", i):
+            while i < n and src[i] != "\n":
+                out[i] = " "
+                i += 1
+            continue
+        if src.startswith("/*", i):
+            depth += 1
+            out[i] = out[i + 1] = " "
+            i += 2
+            continue
+        if depth and src.startswith("*/", i):
+            depth -= 1
+            out[i] = out[i + 1] = " "
+            i += 2
+            continue
+        if depth and src[i] != "\n":
+            out[i] = " "
+        i += 1
+    return "".join(out)
+
+
+# ─── The const environment. Array counts are spelled with named
+#     constants (PAINTING_MAX_SLOTS, FIELD_SUBSCRIBERS), so a size
+#     calculator that cannot fold them cannot size the bindings that
+#     matter. Only integer-valued constants are folded; anything else
+#     is simply absent, and a type that needs it reports unresolved
+#     rather than guessing. ──────────────────────────────────────────
+
+def parse_wgsl_consts(src):
+    env = {}
+    for m in re.finditer(r"^const\s+(\w+)\s*(?::\s*([\w<>]+)\s*)?=\s*([^;]+);", src, re.M):
+        name, expr = m.group(1), m.group(3).strip()
+        v = eval_const(expr, env)
+        if v is not None:
+            env[name] = v
+    return env
+
+
+def eval_const(expr, env):
+    """Fold an integer-valued WGSL const expression, or return None.
+
+    Deliberately narrow: literals with u/i suffixes, the four arithmetic
+    operators, parentheses, u32()/i32() casts, and references to
+    already-folded constants. Anything else — floats, struct values,
+    array constructors, function calls — folds to None and the caller
+    reports the size as unresolved.
+    """
+    e = expr.strip()
+    if not e:
+        return None
+    e = re.sub(r"\b(?:u32|i32)\s*\(", "(", e)
+    e = re.sub(r"\b(\d+)[uif]\b", r"\1", e)
+    if not re.fullmatch(r"[\w\s+\-*/%()]+", e):
+        return None
+    if re.search(r"\b\d+\.\d*|\.\d+\b", e):
+        return None
+    for name in sorted(set(re.findall(r"[A-Za-z_]\w*", e)), key=len, reverse=True):
+        if name not in env:
+            return None
+        e = re.sub(r"\b%s\b" % re.escape(name), str(env[name]), e)
+    try:
+        v = eval(e, {"__builtins__": {}}, {})     # noqa: S307 — arithmetic only
+    except Exception:
+        return None
+    return int(v) if isinstance(v, (int, float)) and float(v).is_integer() else None
+
+
+def parse_wgsl_structs(src):
+    """name -> [(member_name, member_type, align_override, size_override)]"""
+    structs = {}
+    for m in re.finditer(r"^struct\s+(\w+)\s*\{", src, re.M):
+        depth, p = 0, m.end() - 1
+        while p < len(src):
+            if src[p] == "{":
+                depth += 1
+            elif src[p] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        body = src[m.end():p]
+        members = []
+        for line in split_top_level(body, ","):
+            line = line.strip()
+            if not line:
+                continue
+            al = re.search(r"@align\s*\(\s*(\d+)\s*\)", line)
+            sz = re.search(r"@size\s*\(\s*(\d+)\s*\)", line)
+            line = re.sub(r"@\w+\s*(\([^)]*\))?", "", line).strip()
+            mm = re.match(r"(\w+)\s*:\s*(.+)$", line, re.S)
+            if not mm:
+                continue
+            members.append((mm.group(1), " ".join(mm.group(2).split()),
+                            int(al.group(1)) if al else None,
+                            int(sz.group(1)) if sz else None))
+        structs[m.group(1)] = members
+    return structs
+
+
+def split_top_level(text, sep):
+    """Split on `sep` at angle/paren/brace depth zero."""
+    out, depth, cur = [], 0, []
+    for ch in text:
+        if ch in "<([{":
+            depth += 1
+        elif ch in ">)]}":
+            depth -= 1
+        if ch == sep and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur))
+    return out
+
+
+def round_up(k, n):
+    return ((n + k - 1) // k) * k
+
+
+SCALARS = {"f32": (4, 4), "i32": (4, 4), "u32": (4, 4), "f16": (2, 2)}
+
+
+class WgslType:
+    """A resolved WGSL store type: its layout, and whether uniform admits it.
+
+    `size` is None for anything containing a runtime-sized array or an
+    unfoldable element count — the census reports unresolved rather than
+    inventing a number.
+    """
+
+    def __init__(self, spelling):
+        self.spelling = spelling
+        self.align = None
+        self.size = None
+        self.runtime = False
+        self.unresolved = None            # why the size is unknown
+        self.uniform_blockers = []        # concrete reasons uniform refuses it
+        self.array_elem = None            # (elem WgslType, count, stride)
+
+
+def layout_of(spelling, structs, consts, cache=None, stack=()):
+    """Compute AlignOf/SizeOf and uniform-address-space legality for a type.
+
+    Rules are WGSL §"Memory Layout" and §"Address Space Layout Constraints":
+    array stride is roundUp(AlignOf(E), SizeOf(E)); a struct's size rounds up
+    to its own alignment; and in the UNIFORM address space
+
+      · an array's element STRIDE must be a multiple of 16,
+      · every struct member's offset must be a multiple of
+        RequiredAlignOf(member, uniform) — which is roundUp(16, AlignOf) when
+        the member is itself a struct or an array, and AlignOf otherwise,
+      · a struct-or-array member must be followed by roundUp(16, SizeOf) of
+        space before the next member,
+      · atomics and runtime-sized arrays are storage-only.
+
+    This is the predicate that actually decides a storage→uniform demotion,
+    and it is where a naive census goes wrong. Note what it does and does
+    NOT forbid: array<f32, N> (stride 4) and array<vec2<f32>, N> (stride 8)
+    are ILLEGAL; array<vec3<f32>, N> is LEGAL, because AlignOf(vec3<f32>) is
+    16 and the stride therefore rounds to 16 — it merely wastes 4 B per
+    element. A type's own alignment being under 16 is NOT a blocker: a
+    struct of eight f32 members has AlignOf 4, stride 32, and is perfectly
+    legal in uniform.
+    """
+    cache = {} if cache is None else cache
+    t = " ".join(spelling.split())
+    if t in cache:
+        return cache[t]
+    r = WgslType(t)
+
+    if t in SCALARS:
+        r.align, r.size = SCALARS[t]
+    elif re.fullmatch(r"vec([234])<(\w+)>", t):
+        n, base = re.fullmatch(r"vec([234])<(\w+)>", t).groups()
+        n = int(n)
+        if base not in SCALARS:
+            r.unresolved = "non-scalar vector element %s" % base
+        else:
+            bs = SCALARS[base][1]
+            r.align = (2 if n == 2 else 4) * bs
+            r.size = n * bs
+    elif re.fullmatch(r"mat([234])x([234])<(\w+)>", t):
+        c, rw, base = re.fullmatch(r"mat([234])x([234])<(\w+)>", t).groups()
+        col = layout_of("vec%s<%s>" % (rw, base), structs, consts, cache, stack)
+        if col.size is None:
+            r.unresolved = "column type unresolved"
+        else:
+            r.align = col.align
+            r.size = int(c) * round_up(col.align, col.size)
+    elif re.fullmatch(r"atomic<(\w+)>", t):
+        inner = layout_of(re.fullmatch(r"atomic<(\w+)>", t).group(1),
+                          structs, consts, cache, stack)
+        r.align, r.size, r.unresolved = inner.align, inner.size, inner.unresolved
+        r.uniform_blockers.append("atomic<> is not permitted in the uniform address space")
+    elif t.startswith("array<"):
+        inner = t[len("array<"):]
+        assert inner.endswith(">")
+        parts = [p.strip() for p in split_top_level(inner[:-1], ",")]
+        elem = layout_of(parts[0], structs, consts, cache, stack)
+        count = None
+        if len(parts) > 1:
+            count = eval_const(parts[1], consts)
+        else:
+            r.runtime = True
+        r.align = elem.align
+        if elem.size is None:
+            r.unresolved = "element type unresolved: %s" % (elem.unresolved or parts[0])
+        else:
+            stride = round_up(elem.align, elem.size)
+            r.array_elem = (elem, count, stride)
+            if r.runtime:
+                r.unresolved = "runtime-sized array"
+                r.uniform_blockers.append(
+                    "runtime-sized array is not permitted in the uniform address space")
+            elif count is None:
+                r.unresolved = "unfoldable element count %r" % parts[1]
+            else:
+                r.size = count * stride
+            if stride % 16 != 0:
+                r.uniform_blockers.append(
+                    "array element stride %d B is not a multiple of 16 "
+                    "(element %s: align %d, size %d)"
+                    % (stride, elem.spelling, elem.align, elem.size))
+        r.uniform_blockers += ["in element: " + b for b in elem.uniform_blockers]
+    elif t in structs:
+        if t in stack:
+            r.unresolved = "recursive struct %s" % t
+        else:
+            off, maxalign, blockers = 0, 1, []
+            members = structs[t]
+            for i, (mname, mtype, aov, sov) in enumerate(members):
+                mt = layout_of(mtype, structs, consts, cache, stack + (t,))
+                if mt.align is None:
+                    r.unresolved = "member %s: %s" % (mname, mt.unresolved or "unresolved")
+                    break
+                malign = aov or mt.align
+                msize = sov if sov is not None else mt.size
+                off = round_up(malign, off)
+                maxalign = max(maxalign, malign)
+                # UNIFORM: every member offset is a multiple of
+                # roundUp(16, align) for struct/array members.
+                req = round_up(16, malign) if (mt.array_elem is not None
+                                               or mtype in structs) else malign
+                if off % req:
+                    blockers.append("member %s.%s at offset %d is not a multiple of %d"
+                                    % (t, mname, off, req))
+                blockers += ["in %s.%s: %s" % (t, mname, b) for b in mt.uniform_blockers]
+                if msize is None:
+                    if i == len(members) - 1 and mt.runtime:
+                        r.runtime = True
+                        r.unresolved = "trailing runtime-sized array in %s.%s" % (t, mname)
+                    else:
+                        r.unresolved = "member %s: %s" % (mname, mt.unresolved or "unresolved")
+                    break
+                # UNIFORM: a struct/array member must be followed by
+                # roundUp(16, SizeOf) of space.
+                if i < len(members) - 1 and (mt.array_elem is not None or mtype in structs):
+                    nxt = members[i + 1]
+                    nt = layout_of(nxt[1], structs, consts, cache, stack + (t,))
+                    if nt.align is not None:
+                        nalign = nxt[2] or nt.align
+                        if round_up(nalign, off + msize) < off + round_up(16, msize):
+                            blockers.append(
+                                "member %s.%s (a %s) is followed by %s at offset %d; "
+                                "uniform requires the next member at %d or later"
+                                % (t, mname, "array" if mt.array_elem else "struct",
+                                   nxt[0], round_up(nalign, off + msize),
+                                   off + round_up(16, msize)))
+                off += msize
+            else:
+                r.align = maxalign
+                r.size = round_up(maxalign, off)
+            if r.align is None and r.runtime:
+                r.align = maxalign
+            r.uniform_blockers = blockers
+    elif t.startswith("texture_") or t.startswith("sampler"):
+        r.unresolved = "handle type (no host-shareable layout)"
+    else:
+        r.unresolved = "unknown type %s" % t
+
+    cache[t] = r
+    return r
+
+
+def uniform_element_note(ty):
+    """What a storage→uniform demotion of this type would COST in element type.
+
+    Table C's A2 rows carry this so the cost lands in the ledger rather than
+    in a later surprise. Where nothing is needed, say so — "none needed" is
+    the answer for most rows and it is worth stating.
+    """
+    if not ty.uniform_blockers:
+        return "none needed"
+    stride_hit = [b for b in ty.uniform_blockers if b.startswith("array element stride")]
+    if stride_hit and ty.array_elem:
+        elem, count, stride = ty.array_elem
+        need = round_up(16, stride)
+        if elem.spelling in SCALARS:
+            return ("element %s has stride %d B; uniform needs a multiple of 16 — "
+                    "widen to vec4<%s> (÷4 the count) or wrap in a @size(16) struct"
+                    % (elem.spelling, stride, elem.spelling))
+        if re.fullmatch(r"vec2<(\w+)>", elem.spelling):
+            base = re.fullmatch(r"vec2<(\w+)>", elem.spelling).group(1)
+            return ("element %s has stride %d B; uniform needs a multiple of 16 — "
+                    "widen to vec4<%s> (pack two per element) or pad to %d B"
+                    % (elem.spelling, stride, base, need))
+        return ("element %s has stride %d B; uniform needs a multiple of 16 — "
+                "pad the element to %d B (@size(%d) or an explicit tail member)"
+                % (elem.spelling, stride, need, need))
+    return "; ".join(ty.uniform_blockers)
+
+
+class WgslDecl:
+    __slots__ = ("symbol", "group", "binding", "address_space", "wgsl_access",
+                 "wgsl_type", "has_runtime_array", "line", "layout")
+
+    def __init__(self, **kw):
+        for k in self.__slots__:
+            setattr(self, k, kw.get(k))
+
+
+DECL_RE = re.compile(
+    r"@group\((\d+)\)\s*@binding\((\d+)\)\s*var\s*"
+    r"(?:<\s*([^>]*?)\s*>)?\s*(\w+)\s*:\s*([^;]+);")
+
+
+def parse_wgsl_decls(w, src, structs, consts):
+    decls = []
+    for m in DECL_RE.finditer(src):
+        space_clause = (m.group(3) or "").strip()
+        parts = [p.strip() for p in space_clause.split(",")] if space_clause else []
+        space = parts[0] if parts else ""
+        access = parts[1] if len(parts) > 1 else ""
+        if space == "storage" and not access:
+            access = "read"                # WGSL default for var<storage>
+        spelling = " ".join(m.group(5).split())
+        lay = layout_of(spelling, structs, consts)
+        decls.append(WgslDecl(
+            symbol=m.group(4),
+            group=int(m.group(1)),
+            binding=int(m.group(2)),
+            address_space=space or "handle",
+            wgsl_access=access or "n/a",
+            wgsl_type=spelling,
+            has_runtime_array=bool(lay.runtime),
+            line=line_of(src, m.start()),
+            layout=lay,
+        ))
+
+    # Every `@group` occurrence in the file must have produced a row — a
+    # declaration the regex skipped is a hole the census would never show.
+    raw_groups = len(re.findall(r"@group\s*\(", src))
+    w.record("0b-0", raw_groups == len(decls),
+             "%d @group( occurrences, %d declarations parsed" % (raw_groups, len(decls)))
+
+    slots = {}
+    for d in decls:
+        slots.setdefault((d.group, d.binding), []).append(d)
+    aliases = sorted(s for k, v in slots.items() for s in [x.symbol for x in v][1:])
+
+    # ─── WITNESS 0b-1 — the registry banner asserts 100 declarations over
+    #     97 slots, with fc_config / fc_vp / fc_patches as the three
+    #     aliases. Reproduce both numbers AND name exactly those three.
+    expect_aliases = ["fc_config", "fc_patches", "fc_vp"]
+    ok = (len(decls) == 100 and len(slots) == 97 and aliases == expect_aliases)
+    w.record("0b-1", ok,
+             "banner reproduced: %d declarations over %d slots; aliases %s"
+             % (len(decls), len(slots), ", ".join(aliases)) if ok else
+             "banner says 100 declarations over 97 slots with aliases %s; census found "
+             "%d over %d with aliases %s"
+             % (", ".join(expect_aliases), len(decls), len(slots), ", ".join(aliases) or "none"))
+
+    # ─── The layout calculator, checked against the PROGRAM's own prose.
+    #     Three byte counts are written down in state.hpp and
+    #     binding_registry.hpp by the people who sized the buffers. If the
+    #     calculator cannot reproduce all three, no A2 row it produces is
+    #     worth reading.
+    by_symbol = {d.symbol: d for d in decls}
+    stated = [("agent_figure_profiles", 4032, "state.hpp entries[17]: \"4032 B, session-constant\""),
+              ("field_head_poses", 6400, "binding_registry.hpp g2:2: \"6,400 B\""),
+              ("field_authored", 144, "binding_registry.hpp g2:5: \"uniform, 144 B\"")]
+    off = []
+    for sym, want, where in stated:
+        got = by_symbol[sym].layout.size if sym in by_symbol else None
+        if got != want:
+            off.append("%s: source says %s, calculator says %s (%s)" % (sym, want, got, where))
+    w.record("0b-4", not off,
+             "WGSL layout calculator reproduces all three byte counts the program states in "
+             "prose: agent_figure_profiles 4032 B, field_head_poses 6400 B, field_authored 144 B"
+             if not off else "; ".join(off))
+
+    # ─── The uniform-legality predicate, checked against the program.
+    #     Every declaration the program ALREADY places in the uniform
+    #     address space compiles today, so the predicate MUST judge every
+    #     one of them legal. A false positive here would let an A2 row
+    #     propose a demotion the compiler refuses — the exact failure G4
+    #     names.
+    already = [d for d in decls if d.address_space == "uniform"]
+    wrong = ["%s (%s): %s" % (d.symbol, d.wgsl_type, d.layout.uniform_blockers[0])
+             for d in already if d.layout.uniform_blockers]
+    w.record("0b-5", not wrong,
+             "the uniform-legality predicate clears all %d declarations the program already "
+             "places in the uniform address space" % len(already)
+             if not wrong else
+             "predicate rejects %d live uniform declaration(s): %s"
+             % (len(wrong), "; ".join(wrong)))
+    return decls, slots
+
+
+# ─── 0b-ii — the reachability closure ────────────────────────────────
+
+class WgslFn:
+    __slots__ = ("name", "stage", "workgroup_size", "body", "start", "line", "calls", "refs")
+
+    def __init__(self, **kw):
+        for k in self.__slots__:
+            setattr(self, k, kw.get(k))
+
+
+STAGE_OF_ATTR = {"vertex": "V", "fragment": "F", "compute": "C"}
+
+
+def parse_wgsl_functions(w, src, decl_names):
+    fns = {}
+    for m in re.finditer(r"\bfn\s+(\w+)\s*\(", src):
+        name = m.group(1)
+        p = m.end() - 1
+        depth = 0
+        while p < len(src):
+            if src[p] == "(":
+                depth += 1
+            elif src[p] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        brace = src.find("{", p)
+        if brace < 0:
+            continue
+        depth, q = 0, brace
+        while q < len(src):
+            if src[q] == "{":
+                depth += 1
+            elif src[q] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            q += 1
+        body = src[brace:q + 1]
+
+        # Attributes precede `fn`, on the same line or the lines above,
+        # separated only by whitespace.
+        head_start = m.start()
+        k = head_start - 1
+        while k >= 0:
+            back = src[:k + 1]
+            am = re.search(r"@\w+\s*(\([^)]*\))?\s*$", back)
+            if not am:
+                break
+            k = am.start() - 1
+        head = src[k + 1:head_start]
+        stage = None
+        for a, s in STAGE_OF_ATTR.items():
+            if re.search(r"@%s\b" % a, head):
+                stage = s
+        wg = re.search(r"@workgroup_size\s*\(([^)]*)\)", head)
+        fns[name] = WgslFn(name=name, stage=stage,
+                           workgroup_size=("(%s)" % " ".join(wg.group(1).split())) if wg else "",
+                           body=body, start=brace, line=line_of(src, m.start()),
+                           calls=set(), refs=set())
+
+    # Reference extraction. An identifier preceded by `.` is member
+    # access, not a module-scope name; the `fn` keyword itself is a
+    # definition, not a call. Everything else that matches a function
+    # name or a binding symbol counts as a reference. The direction of
+    # any residual error is OVER-approximation (a shadowing local named
+    # after a binding would add a reference, never remove one), which
+    # makes vis_actual generous and every A1 flag conservative.
+    ident = re.compile(r"(?<![\w.])([A-Za-z_]\w*)")
+    for fn in fns.values():
+        for im in ident.finditer(fn.body):
+            tok = im.group(1)
+            if tok in fns:
+                fn.calls.add(tok)
+            elif tok in decl_names:
+                fn.refs.add(tok)
+
+    entries = {n: f for n, f in fns.items() if f.stage}
+    w.record("0b-2", len(entries) > 0,
+             "%d functions, %d entry points (%d vertex, %d fragment, %d compute)"
+             % (len(fns), len(entries),
+                sum(1 for f in entries.values() if f.stage == "V"),
+                sum(1 for f in entries.values() if f.stage == "F"),
+                sum(1 for f in entries.values() if f.stage == "C")))
+    missing_wg = [n for n, f in entries.items() if f.stage == "C" and not f.workgroup_size]
+    w.record("0b-3", not missing_wg,
+             "every @compute entry point carries a @workgroup_size" if not missing_wg
+             else "no workgroup_size on: " + ", ".join(sorted(missing_wg)))
+    return fns, entries
+
+
+def reachability(fns, entries):
+    """entry point -> (reached function set, reached binding symbols)."""
+    out = {}
+    for name, fn in entries.items():
+        seen, stack = set(), [name]
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            stack.extend(fns[cur].calls - seen)
+        refs = set()
+        for f in seen:
+            refs |= fns[f].refs
+        out[name] = (seen, refs)
+    return out
+
+
+def phase_0b(w):
+    raw = read(WORLD_WGSL)
+    src = strip_wgsl_comments(raw)
+    consts = parse_wgsl_consts(src)
+    structs = parse_wgsl_structs(src)
+    decls, slots = parse_wgsl_decls(w, src, structs, consts)
+    fns, entries = parse_wgsl_functions(w, src, {d.symbol for d in decls})
+    reach = reachability(fns, entries)
+    return {"src": src, "consts": consts, "structs": structs, "decls": decls,
+            "slots": slots, "fns": fns, "entries": entries, "reach": reach}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # REPORT
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -459,6 +1005,29 @@ def main():
              if not gated else
              "%d layout(s) are ROSTER-gated: %s"
              % (len(gated), ", ".join(L["label"] for L in gated))))
+    b = phase_0b(w)
+    print("")
+    print("PHASE 0b — THE REACHABILITY CENSUS")
+    print("  %d module-scope binding declarations over %d (group, binding) slots"
+          % (len(b["decls"]), len(b["slots"])))
+    print("  %d functions, %d entry points"
+          % (len(b["fns"]), len(b["entries"])))
+    sized = [d for d in b["decls"] if d.layout.size is not None]
+    print("  %d declarations have a computable store size; %d do not "
+          "(runtime-sized arrays and handle types)"
+          % (len(sized), len(b["decls"]) - len(sized)))
+
+    reached_any = set()
+    for _, refs in b["reach"].values():
+        reached_any |= refs
+    dead = sorted(d.symbol for d in b["decls"] if d.symbol not in reached_any)
+    print("")
+    print("  REPORT: %s"
+          % ("every module-scope binding declaration is reached by at least one entry point"
+             if not dead else
+             "%d declaration(s) reached by ZERO entry points — dead binding surface: %s"
+             % (len(dead), ", ".join(dead))))
+
     print("")
     print("WITNESSES")
     w.report()
