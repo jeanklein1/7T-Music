@@ -4806,7 +4806,7 @@ namespace t7 {
 
                 // -- Gallery entity layout (Group 0) -- minimal for painting frames --
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — fog for FS, veil ring + LOD point for VS)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -4819,10 +4819,6 @@ namespace t7 {
                     entries[2].binding = bind::g0::render_camera;
                     entries[2].visibility = wgpu::ShaderStage::Fragment;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[3].binding = bind::g0::render_light;
-                    entries[3].visibility = wgpu::ShaderStage::Fragment;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Gallery Entity Layout";
@@ -5771,7 +5767,7 @@ namespace t7 {
 
                 // Gallery entity bind group (4 entries: config + VP + camera + light)
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5781,9 +5777,6 @@ namespace t7 {
                     entries[2].binding = bind::g0::render_camera;
                     entries[2].buffer = cameraBuffer_;
                     entries[2].size = sizeof(GPUCameraState);
-                    entries[3].binding = bind::g0::render_light;
-                    entries[3].buffer = directionalLightBuffer_;
-                    entries[3].size = sizeof(GPUDirectionalLight);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Gallery Entity BindGroup";
