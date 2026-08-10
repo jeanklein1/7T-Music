@@ -534,9 +534,17 @@ inline void ribbon_wander_inputs(ActiveRibbon& ar,
 // the GPU exactly once per frame, through
 // GPUState::upload_ribbon_head_poses (a dumb wire).
 
-inline void ribbon_history_sample(const RibbonState& rs, float age, float& h, float& y) {
+// t is NOW. Slot hist_head holds the state at hist_time — up to one
+// HIST_DT stale — so the read must subtract that lag, or the whole
+// heading field snaps a slot at a time instead of flowing.
+inline void ribbon_history_sample(const RibbonState& rs, float t, float age, float& h, float& y) {
     const RibbonHead& hd = rs.head;
-    float fidx = age / RibbonHead::HIST_DT;
+    float fidx = (age - (t - hd.hist_time)) / RibbonHead::HIST_DT;
+    // LOAD-BEARING since PHASE_0: the lag subtraction above sends fidx
+    // negative for any ring whose age is under the current lag (ring 1
+    // on tiers where spacing/P < HIST_DT). Without this floor, the
+    // (uint32_t) cast below takes a negative float and j0 wraps the
+    // ring index. Dead before PHASE_0; do not delete on that authority.
     if (fidx < 0.0f) fidx = 0.0f;
     const float fmax = static_cast<float>(RibbonHead::HIST_CAP - 2u);
     if (fidx > fmax) fidx = fmax;
@@ -559,7 +567,7 @@ inline void ribbon_history_sample(const RibbonState& rs, float age, float& h, fl
 // a bend is motion, not a mark on the floor.
 inline void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
                                        wgpu::Queue& queue, const GPURibbonState& ribbon,
-                                       float head_x, float head_y, float head_z) {
+                                       float t, float head_x, float head_y, float head_z) {
     const uint32_t n = std::min(ribbon.cube_count, Dim::RIBBON_MAX_RINGS);
     if (n < 2u) return;
     const float spacing = ribbon.cube_size;
@@ -575,7 +583,7 @@ inline void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
     for (uint32_t k = 1u; k < n; ++k) {
         const float age = (static_cast<float>(k) * spacing) * inv_p;
         float h, y;
-        ribbon_history_sample(rs, age, h, y);
+        ribbon_history_sample(rs, t, age, h, y);
         px += spacing * std::cos(h);   // tailward = +heading
         pz += spacing * std::sin(h);
         poses[4u * k + 0u] = px;
@@ -772,7 +780,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         hd.hist_time += RibbonHead::HIST_DT;
     }
 
-    ribbon_rebuild_body_upload(rs, gpuState, queue, ribbon, head_x, head_y, head_z);
+    ribbon_rebuild_body_upload(rs, gpuState, queue, ribbon, t, head_x, head_y, head_z);
 }
 
 inline void ribbon_invalidate_head(RibbonState& rs) { rs.head.seeded = false; }
