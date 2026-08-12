@@ -89,6 +89,38 @@ namespace t7 {
     // a very large value = uncapped, the pre-PORT_3c behavior.
     inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
 
+    // ═══ THE COMPILER PLAN (PIVOT_0, 2026-08-12) ═════════════════════
+    //
+    // PIVOT_0 — the native shader-compiler plan. The web twin's
+    // compiler is the browser's own; this constant governs native
+    // only. world.wgsl is single-source across all values.
+    //
+    // Why it exists: WALLET_0's occupier cbuffer arrays stalled
+    // update_player_agent at 20,227 ms under FXC and then
+    // D3DCompiler_47 access-violated on the next room kernel. Jean
+    // ruled the floor up rather than the shader down. The audience
+    // floor is WebGPU core through modern compilers — Tint→DXC
+    // (SM6.0+), Tint→MSL, Tint→SPIR-V, naga.
+    //
+    // D3D12_Fxc exists for ARCHAEOLOGY ONLY. It reproduces the retired
+    // gate so a historical result can be re-run; it is not a supported
+    // floor and nothing should be shaped to satisfy it. The laws it
+    // used to impose are in audit/FXC_LAWS_RECORD.md.
+    //
+    // Plan B is one line: if DXC fails on a given driver, set this to
+    // Vulkan, rebuild, boot. That IS the fallback, not a failure.
+    enum class CompilerPlan { D3D12_Dxc, Vulkan, D3D12_Fxc };
+    inline constexpr CompilerPlan kCompilerPlan = CompilerPlan::D3D12_Dxc;
+
+    inline constexpr const char* compiler_plan_name(CompilerPlan p) {
+        switch (p) {
+        case CompilerPlan::D3D12_Dxc: return "DXC";
+        case CompilerPlan::Vulkan:    return "VULKAN";
+        case CompilerPlan::D3D12_Fxc: return "FXC";
+        }
+        return "?";
+    }
+
 #ifdef __EMSCRIPTEN__
     // ═══ THE INSTANCE ANCHOR (PORT_4a) ═══════════════════════════════
     //
@@ -709,8 +741,17 @@ namespace t7 {
             }
 
             // Adapter selection (landed, PROBE_1): DiscreteGPU
-            // outranks integrated; D3D12 breaks ties. Falls back to
-            // index 0.
+            // outranks integrated; the backend breaks ties.
+            // Falls back to index 0.
+            //
+            // PIVOT_0: WHICH backend breaks the tie is now the compiler
+            // plan's to say. Native has no wgpu::RequestAdapterOptions to
+            // carry a backendType — it enumerates and scores — so the
+            // plan reaches the choice here, in the tie-breaker, which is
+            // the selection policy the plan actually meant.
+            constexpr wgpu::BackendType kPreferredBackend =
+                (kCompilerPlan == CompilerPlan::Vulkan) ? wgpu::BackendType::Vulkan
+                                                        : wgpu::BackendType::D3D12;
             size_t adapterPick = 0;
             {
                 int best = -1;
@@ -720,7 +761,7 @@ namespace t7 {
                     a.GetInfo(&info);
                     int score =
                         (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
-                      + (info.backendType == wgpu::BackendType::D3D12       ? 1 : 0);
+                      + (info.backendType == kPreferredBackend              ? 1 : 0);
                     if (score > best) { best = score; adapterPick = i; }
                 }
             }
@@ -730,6 +771,34 @@ namespace t7 {
 
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
+
+            // PIVOT_0 E2 — the compiler toggle, chained on the device.
+            // `use_dxc` routes Tint's HLSL through DXC (SM6.0+) instead
+            // of FXC. LIFETIME: the name array is static, and `toggles`
+            // is declared in the same scope as the CreateDevice call
+            // below, so nothing nextInChain points at dies before the
+            // device is made.
+            //
+            // ONE chain root, not two. The handoff asked for the adapter
+            // request as well; native has no wgpu::RequestAdapterOptions
+            // to chain onto (it enumerates), and dawn::native::Instance's
+            // descriptor is a Dawn internal this tree cannot open from
+            // the repo — P1 forbids asserting its shape. The device root
+            // is the one `use_dxc` is defined on and the one that decides
+            // pipeline compilation. If an adapter-time capability query
+            // ever needs the toggle, the instance descriptor is where it
+            // goes, and that is a Dawn-side fact to verify before use.
+            static const char* const kDxcToggle[] = { "use_dxc" };
+            wgpu::DawnTogglesDescriptor toggles{};
+            if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
+                toggles.enabledToggleCount = 1;
+                toggles.enabledToggles = kDxcToggle;
+                deviceDesc.nextInChain = &toggles;
+            }
+            // Vulkan and D3D12_Fxc chain nothing: Vulkan reaches SPIR-V
+            // through Tint with no toggle, and Fxc is today's untoggled
+            // path kept for archaeology.
+
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
                     std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
@@ -777,6 +846,12 @@ namespace t7 {
                 << " uniformBuffers/stage=" << adapterLimits.maxUniformBuffersPerShaderStage
                 << " bindingsPerGroup=" << adapterLimits.maxBindingsPerBindGroup
                 << "\n";
+
+            // PIVOT_0 E4 — every future log self-attributes. A [Pipeline]
+            // table with no compiler beside it is uninterpretable, and
+            // this campaign exists because one was.
+            std::cout << "[Console] Compiler plan: "
+                << compiler_plan_name(kCompilerPlan) << "\n";
 
             // PROBE_1 C1 — the full enumerated feature list (numeric;
             // settles LEDGER_1 F4-2 at zero cost). Nothing is

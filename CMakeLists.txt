@@ -683,6 +683,81 @@ else()
         $<TARGET_FILE_DIR:incubator_dual>/assets
         COMMENT "Copying assets for incubator_dual..."
     )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PIVOT_0 E3 — DXC RUNTIME LOGISTICS (Windows native only)
+    #
+    # Tint->DXC needs dxcompiler.dll and dxil.dll BESIDE THE EXE at runtime.
+    # Without dxil.dll the compiler produces unsigned DXIL and the driver
+    # refuses it; without dxcompiler.dll the `use_dxc` toggle has nothing to
+    # call. Both must land in the exe directory after a clean build.
+    #
+    # P1 — ASSERT-AND-GUARD. Dawn lives OUT OF TREE (DAWN_DIR, default
+    # C:/dev/dawn) and this repo cannot open it, so whether that build carries
+    # DXC is a HYPOTHESIS, not a checked fact. The Windows SDK path below is a
+    # hypothesis too. Therefore: search, and if nothing is found, SAY SO and
+    # keep configuring. A missing pair must not fail the build — it must
+    # produce a boot that fails loudly with a log line pointing back here.
+    #
+    # Set T7_DXC_DIR at configure time to override the search entirely.
+    if(WIN32)
+        set(T7_DXC_DIR "" CACHE PATH
+            "Directory holding dxcompiler.dll and dxil.dll (empty = search)")
+
+        set(T7_DXC_CANDIDATES "")
+        if(T7_DXC_DIR)
+            list(APPEND T7_DXC_CANDIDATES "${T7_DXC_DIR}")
+        endif()
+        # Dawn's own output first: if that build set DAWN_USE_BUILT_DXC, the
+        # pair sits beside the libs already and matches the Dawn being linked.
+        list(APPEND T7_DXC_CANDIDATES
+            "${DAWN_BUILD}/Debug"
+            "${DAWN_BUILD}/Release"
+            "${DAWN_BUILD}"
+        )
+        # Then the Windows SDK, which ships both. Newest first; the version
+        # segment is glob-expanded rather than pinned so a host with a
+        # different SDK still resolves.
+        file(GLOB T7_SDK_DXC_DIRS
+            "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
+        if(T7_SDK_DXC_DIRS)
+            list(SORT T7_SDK_DXC_DIRS)
+            list(REVERSE T7_SDK_DXC_DIRS)
+            list(APPEND T7_DXC_CANDIDATES ${T7_SDK_DXC_DIRS})
+        endif()
+
+        set(T7_DXC_FOUND_DIR "")
+        foreach(CAND IN LISTS T7_DXC_CANDIDATES)
+            if(EXISTS "${CAND}/dxcompiler.dll" AND EXISTS "${CAND}/dxil.dll")
+                set(T7_DXC_FOUND_DIR "${CAND}")
+                break()
+            endif()
+        endforeach()
+
+        if(T7_DXC_FOUND_DIR)
+            message(STATUS "  DXC runtime: ${T7_DXC_FOUND_DIR} (dxcompiler.dll + dxil.dll)")
+            add_custom_command(TARGET incubator_dual POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${T7_DXC_FOUND_DIR}/dxcompiler.dll"
+                    "${T7_DXC_FOUND_DIR}/dxil.dll"
+                    $<TARGET_FILE_DIR:incubator_dual>
+                COMMENT "PIVOT_0: copying DXC runtime (dxcompiler.dll, dxil.dll)..."
+            )
+        else()
+            # The honest else-branch P1 requires. Not FATAL_ERROR: a tree that
+            # will not configure teaches nothing, and the Vulkan plan needs
+            # neither dll.
+            message(WARNING
+                "PIVOT_0: dxcompiler.dll + dxil.dll NOT FOUND. Searched: "
+                "${T7_DXC_CANDIDATES}. "
+                "The CompilerPlan::D3D12_Dxc boot will fail at device or "
+                "pipeline creation until both sit beside the exe. Fixes, in "
+                "order of preference: rebuild Dawn with DAWN_USE_BUILT_DXC=ON; "
+                "or pass -DT7_DXC_DIR=<dir> naming a directory holding both; "
+                "or set kCompilerPlan to Vulkan in src/console/console.hpp, "
+                "which needs neither.")
+        endif()
+    endif()
 endif()
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}"
