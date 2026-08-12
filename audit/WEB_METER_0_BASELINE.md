@@ -8,6 +8,11 @@ This is a **baseline record**, not a campaign. Nothing was changed to
 produce it. Its job is to stop the next handoff reasoning about product
 performance from the 920M's numbers.
 
+**Two captures, same device, same build, same day.** Sections 1–6 are
+capture 1 (two outdoor windows, hands-off). **Section 7 is capture 2**
+(five windows, with a portal walk into `indoor_vault` at t≈93) and it
+closes the gap §6 named as this document's principal omission.
+
 ---
 
 ## 1. The device
@@ -171,6 +176,11 @@ roughly 0.8× `main_pass` here, and at roughly 0.47× natively
 relatively *heavier* on the phone. SHADOW_1's target is real on the
 audience floor — but its *size* is not measurable from this data.
 
+> **Amended by §7e.** That last sentence is too generous to SHADOW_1.
+> Capture 2 shows this row does not scale with light count on this device,
+> which is the specific redundancy SHADOW_1 exists to remove. Read §7b–7e
+> before quoting this paragraph.
+
 ---
 
 ## 5. Two anomalies worth recording
@@ -182,6 +192,12 @@ of pairs. A boot-adjacent frame that arms many patch-upload pairs can
 therefore post a max no individual pair could produce. Most likely that,
 not a defect — but the number is misleading on its face and the asymmetry
 between the per-pair discard and the per-frame max is real.
+
+> **Capture 2 reproduces it**: `stream_patches gpu 1.72/1198.06` in its
+> window 1, and `0.31/255.52` in the transition window — the two frames in
+> the whole session that arm the most patch pairs. Twice, in the two places
+> the explanation predicts, is enough to call the explanation confirmed and
+> the row not a defect. It is still a misleading number to publish.
 
 **`Draw with an index count of 0 is unusual`** — a Dawn warning from the
 "Rasterized Scene" pass, emitted once. Consistent with what SHADOW_0
@@ -210,11 +226,165 @@ browser-visible, and it will appear in every audience console.
 - **SHADOW_0's row 7** — the static/dynamic split inside `shadow_pass`.
   Still the measurement that bounds SHADOW_1, and this device cannot take
   it.
-- **Anything about indoor.** Both windows are outdoor (`open_sunset`); no
-  mood transition occurred. The 14 → 31 ms indoor multiplication SHADOW_0
-  derived has **no web counterpart on record**, and the loop that causes
-  it (one render pass per spot light) would be the single most interesting
-  thing to capture on a phone next — a tiler pays differently for N passes
-  than an immediate-mode GPU does.
+- ~~**Anything about indoor.**~~ **CLOSED by capture 2 — see §7.** Both
+  of capture 1's windows are outdoor (`open_sunset`) and no mood
+  transition occurred, so when this section was written the 14 → 31 ms
+  indoor multiplication SHADOW_0 derived had no web counterpart. Capture 2
+  walked a portal into `indoor_vault` and got one. **The prediction stated
+  here — "a tiler pays differently for N passes than an immediate-mode GPU
+  does" — held, and more strongly than expected.**
 - **Sustained thermal behaviour.** Two 30 s windows is not a session; a
-  phone throttles and this capture is too short to show it.
+  phone throttles and this capture is too short to show it. Capture 2's
+  five windows (150 s) do not show throttling either, but they do show an
+  unexplained upward drift in two GPU rows — §7d.
+
+---
+
+## 7. CAPTURE 2 — THE INDOOR WINDOWS
+
+Same device, same build, same day. Five windows instead of two, and at
+t≈93 Jean walked a portal:
+
+```
+[Portal] GPU trigger: arch 1 -> seed=1909815867 finite=1
+[Lighting] Quartet (4 lights, E/W walls)
+[Mood] Indoor palette: slate blue (idx=1)
+[Shell] Generated GROIN VAULT: 1105 verts, 6168 indices
+[Mood] Applied: indoor_vault (mood=2 INDOOR)
+```
+
+The trigger lands between window 3 and window 4, so windows 1–3 are
+`open_sunset` and windows 4–5 are `indoor_vault`. **Quartet = 4 lights =
+4 spot atlas tiles**, against outdoor's single sun pass.
+
+This is the exact case SHADOW_0 §Q4 flagged as unmeasured: it derived the
+native indoor number from `indoor_flat` / **Cathedral / 3 lights**, and
+closed by predicting *"`indoor_vault` (Quartet, 4 lights) should read ~41 ms
+on the same reasoning… a prediction the next meter boot can settle for
+free."* It is settled here on the wrong platform to confirm it, and that
+is the whole finding.
+
+### 7a. The rows, all five windows
+
+GPU means in ms (the caveats of §4 all still apply — quantized to 100 µs,
+non-additive).
+
+| row | w1 30.1 out | w2 60.1 out | w3 90.1 out | **w4 120.1 IN** | **w5 150.1 IN** |
+|---|---|---|---|---|---|
+| **fps** | **50.8** | **58.8** | **60.0** | **60.0** | **60.0** |
+| `frame_total` cpu | 1.21 | 1.24 | 1.20 | 1.28 | 1.26 |
+| `shadow_pass` gpu | 8.79 | 8.67 | 8.13 | **8.17** | **8.05** |
+| `shadow_pass` **cpu** | 0.12 | 0.15 | 0.14 | **0.29** | **0.28** |
+| `main_pass` gpu | 10.61 | 10.40 | 9.81 | 8.63 | 7.51 |
+| `orb_sky` gpu | 7.09 | 8.39 | 9.15 | 0.83 | **0.00** |
+| `gol_zone_compute` gpu | 7.02 | 8.31 | 9.07 | 5.91 | 5.04 |
+| `frustum_cull` gpu | 3.63 | 4.27 | 4.65 | 3.02 | 2.58 |
+| `dispatch_compute` gpu | 3.45 | 4.09 | 4.47 | 2.89 | 2.46 |
+| `live_card_write` gpu | 1.02 | 1.12 | 1.21 | 0.86 | 0.62 |
+| `stream_patches` gpu | 1.72 | 0.34 | 0.31 | 0.31 | — |
+
+### 7b. THE FINDING — the tiler does not pay the per-pass multiple
+
+**`shadow_pass` GPU is flat across the transition: 8.13 outdoor → 8.17 →
+8.05 indoor.** On the 920M the same row went **14.2 → 30.84 ms at three
+lights**, a 2.17× jump, with ~41 ms predicted at four.
+
+Restate it with the structure in view, because the flatness is stronger
+than the bare numbers look. `meter_arm_render` allocates a fresh timestamp
+pair per call and the callback does `frame_ms[row] += ms`, so:
+
+| | outdoor | indoor (`indoor_vault`) |
+|---|---|---|
+| render passes on this row | **1** | **4** |
+| what the number is | one bracket | the **sum of four** brackets |
+| target per pass | 2048 × 2048 | 1024 × 2048 |
+| total raster area | 4.19 Mpx | **8.39 Mpx** (2×) |
+| terrain casts | yes | no (UMBRA_4) |
+| **Pixel 8 reads** | **8.13** | **8.05–8.17** |
+| **920M reads (3 lights)** | 14.2 | 30.84 |
+
+Four summed brackets over twice the raster area come out equal to one
+bracket. Whatever the phone is charging for a shadow pass, it is not
+charging per pass.
+
+**The CPU column proves the four passes are really there.** `shadow_pass`
+cpu goes 0.14 → 0.28/0.29 — it roughly doubles, which is the encode cost
+of four pass records instead of one, and it is the only row in the table
+that moves *up* going indoors. So this is not a case of the indoor branch
+failing to run. It runs, the CPU pays for it, and the GPU column does not
+move.
+
+### 7c. What this does NOT establish
+
+Three confounds, all real, and none of them explain the platform contrast
+away:
+
+1. **It is not the same scene.** Indoor is a finite 9×9 world under a
+   groin vault with 4 spawned agents; outdoor is a streaming world with
+   11. Every other GPU row falls going indoors (`main_pass` 9.81 → 7.51,
+   `orb_sky` 9.15 → 0.00 — there is no sky under a vault). Some of
+   `shadow_pass`'s flatness is a lighter caster set, not tiler magic.
+2. **The spot tiles skip terrain** and each rasterizes half the map.
+3. **§4b bites hardest exactly here.** On a tiler a pass bracket is not
+   exclusive occupancy, and a *sum of four overlapping brackets* is less
+   trustworthy than a single one, not more. "4 passes cost what 1 costs"
+   is also consistent with "these brackets do not measure what you want."
+
+**But confounds 1 and 2 applied identically on the 920M, where the number
+still tripled.** SHADOW_0 did that arithmetic explicitly: it found the
+spot tile costs 72% of the full sun pass *despite* half the pixels and no
+terrain, and named the residue as per-caster fixed cost repeated per
+light. That residue is what the Pixel is not paying. The contrast between
+platforms is the datum; the absolute claim "N passes are free on a tiler"
+is not established and should not be quoted.
+
+### 7d. Two more things the five windows show
+
+**Mood transitions do not cost a frame.** Window 4 contains the whole
+portal walk — teardown, seed change, vault mesh generation, 25 wall
+paintings placed, agent respawn — and its `frame_total` **max is 9.60 ms**,
+the *lowest* max of the five windows (w1 20.00, w2 16.20, w3 15.60,
+w5 9.60). The most expensive single CPU tick in the capture is
+`transition_machine max 5.80 ms`, comfortably inside a 16.6 ms budget.
+The transition is invisible on the audience floor.
+
+**An upward drift across the three outdoor windows, unexplained.**
+`orb_sky` 7.09 → 8.39 → 9.15, `gol_zone_compute` 7.02 → 8.31 → 9.07,
+`frustum_cull` 3.63 → 4.27 → 4.65, `dispatch_compute` 3.45 → 4.09 → 4.47
+— four rows climbing ~30% over 90 s while fps *improves* 50.8 → 60.0.
+Rising cost with rising frame rate is not throttling. Two candidate
+readings, neither tested: the exhibition is still streaming in, so these
+rows have genuinely more to do each window; or the GPU clocks up as the
+frame stops being CPU-starved and the brackets widen. Capture 1's two
+windows were flat (`orb_sky` 6.61 → 6.67), so this is not a fixed property
+of the build. **Recorded as an open question, not a finding.**
+
+**Reproducibility, incidentally, is excellent.** Capture 1's cold window
+read 50.6 fps / `frame_total` 1.18 ms; capture 2's read **50.8 fps /
+1.21 ms**. The settled windows agree to within 0.1 fps. Boot varies more
+(total init 33 ms vs 59 ms) but both are three orders of magnitude below
+the native 8,314 ms and the variance does not matter.
+
+### 7e. Consequence for SHADOW_0
+
+SHADOW_0's precondition matrix **row 4 — "the measurement justifies the
+work" — is graded GO on native numbers**: *"14.2 ms outdoor, 30.8 ms
+indoor at 3 lights, ~41 ms predicted at 4… the second-largest GPU line and
+the largest that is structurally redundant."*
+
+That grade is **platform-specific and should be read as such.** On the
+audience floor the row it is grading does not scale with light count, sits
+at 8 ms in a frame that finishes its CPU work in 1.3 ms, and lives on a
+device that is hitting 60 fps in every window measured — indoors included.
+
+This does not retire SHADOW_1. The static/dynamic caster split is still
+structurally redundant work, it still costs real time on the immediate-mode
+twin, and row 4's *native* reading stands. But the sentence "shadow is the
+thing to fix" is not true of the phone, and any handoff that opens SHADOW_1
+should say which machine it is optimizing before it says how much it saves.
+
+**Row 7 is still open and still the binding constraint** — the
+static/dynamic split inside the pass. §4b rules this device out for
+answering it, and 7b's flatness makes the phone *less* able to answer it,
+not more: a mechanism that cannot distinguish 1 pass from 4 will not
+distinguish 9 static caster families from 4 dynamic ones.
