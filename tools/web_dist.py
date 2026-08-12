@@ -608,18 +608,26 @@ def main():
     print("DEPLOY — exact commands")
     print("")
     if host == "cloudflare":
+        # TIDY_0c-i: the project is named `7t`, not `the-board`. These
+        # commands were copy-pasteable and WRONG — `--project-name
+        # the-board` names a project that does not exist, so the first
+        # one would have created a second, empty one. One home for the
+        # deploy truth, and this is it.
         print("  Cloudflare Pages, first time:")
         print("    npm install -g wrangler")
         print("    wrangler login")
-        print("    wrangler pages project create the-board --production-branch main")
-        print("    wrangler pages deploy dist --project-name the-board")
+        print("    wrangler pages project create 7t --production-branch main")
+        print("    wrangler pages deploy dist --project-name 7t")
         print("")
         print("  Every time after:")
-        print("    wrangler pages deploy dist --project-name the-board")
+        print("    wrangler pages deploy dist --project-name 7t")
         print("")
         print("  Or without the CLI: dash.cloudflare.com -> Workers & Pages -> Create ->")
-        print("  Pages -> Upload assets -> drag the dist/ FOLDER in. The URL is")
-        print("  https://the-board.pages.dev and it is the QR destination.")
+        print("  Pages -> Upload assets -> drag the dist/ FOLDER in.")
+        print("")
+        print("  THE DESTINATION: https://everexpandingboard.com is canonical and is")
+        print("  the QR destination. https://7t.pages.dev is the raw Pages host —")
+        print("  the fallback to check when the custom domain is the suspect.")
     else:
         print("  GitHub Pages, gh-pages branch convention: create an orphan branch that")
         print("  holds ONLY the deployable files, push it, and point Pages at its root")
