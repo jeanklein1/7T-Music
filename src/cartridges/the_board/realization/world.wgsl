@@ -11,25 +11,21 @@
 //
 // THE LAWS THAT GOVERN THIS FILE — src/docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
-// ─── FXC BANNER (L2's operational home; L2 owns the why) ────
-// Witness protocol: shader-shape changes are proven by witnesses, not argument.
-//   FXC witness  — Jean's native gate (glaw1 + boot; Dawn / D3D12 / FXC).
-//   Web witnesses — each browser at its own gate (Chrome first).
-//   A Chromium/Tint pass is not an FXC pass; no witness substitutes for another.
-// Windows D3D12 compiles through FXC. Honored BY STRUCTURE:
-//  1. Hot-loop instance structs stay lean and byte-pinned
-//     (exemplar: GPUSpotLightArray static_assert, state.hpp).
-//  2. The collision/ground chain admits NO new runtime
-//     branching. Loops bound by uniforms
-//     (min(count, MAX_...)); dispatch by uniform function
-//     choice, never by branch.
-//  3. NO texture-array stamps in or near the collision chain.
+// ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12) ══════════════════
+// This module is single-source for both twins. Supported
+// compilers: Tint→DXC (SM6.0+) on native and Windows Chrome,
+// Tint→MSL, Tint→SPIR-V, naga (Firefox). FXC is unsupported;
+// its retired laws live in audit/FXC_LAWS_RECORD.md. naga is
+// the per-commit gate (CC); glaw1 + boot is the witness of
+// record; the [Pipeline] timer prices compile time per kernel.
+// Witness protocol, unchanged by the pivot: a shader-shape
+// change is proven by witnesses, not argument, and no witness
+// substitutes for another — each browser gates at its own.
 //   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage; the room
 //   family sits at 6/8 storage — the two occupier windows ride uniform
 //   (TETRIS WALLET_0; demotion record: BINDING_LEDGER Table C).
-// A violation does not fail here. It fails on Windows, at
-// pipeline creation, in someone else's hands. The kernel-split
-// banner (above the agent kernels) prices the inlining cliff.
+//   This budget is L14, NOT a compiler law: core defaults bind on
+//   every backend and survived FXC's retirement unchanged.
 //   L3  mirror — §2.1 structs ↔ state.hpp byte-for-byte; §3.4
 //       POLICY_*_MASK ↔ POLICIES[] in contracts/
 //       ground_architecture.hpp; §1.5 randomness ↔ primitives/
@@ -2486,9 +2482,10 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
 // builders, called from the sites. Dynamic columns (radii, the pair mass
 // weight, tier gains) stay parameters; the constant columns live here once.
 // STRUCTURE, not values: each row returns the exact struct its site inlined
-// (T1c gate: the kernels' backend SPIR-V is unchanged). FXC-safe -- a fn
-// returning a constructed struct is not the runtime-indexed const array the
-// banner forbids.
+// (T1c gate: the kernels' backend SPIR-V is unchanged). A fn returning a
+// constructed struct is not a runtime-indexed const array -- the shape the
+// retired FXC laws forbade (audit/FXC_LAWS_RECORD.md). The banner forbids
+// nothing here now; the structure is kept because it is good structure.
 fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProfile {
     return InfluenceProfile((g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
                             0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6, 0.0);
@@ -6911,7 +6908,9 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
     // ── CONTACT_2 C2b — potential-field steering (the whisper) ─────
     // Read the ground's own slope ahead and deflect ALONG the level-
     // set — velocity-shaping only, nothing inside the ground-resolve
-    // chain (the FXC sanctum). Branchless: smoothstep is 0 below LO and
+    // chain (the old FXC sanctum — audit/FXC_LAWS_RECORD.md; the chain
+    // is still kept branchless, now by taste rather than by law).
+    // Branchless: smoothstep is 0 below LO and
     // min(1,sp2) quiets it at standstill; the max(glen,eps) hardens the
     // handoff's normalize against a flat-ground zero. The walkable
     // cliff-clamp stays the wall (dead-center local minimum is the
@@ -7643,14 +7642,21 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 
 // ─── Compute kernels ─────────────────────────────────────────────
 //
-// The agent kernel is split in two for FXC compile-time reasons.
+// The agent kernel is split in two for compile-time reasons.
 // The original unified kernel placed behavior_player_controlled
 // (heavy: walker policy, step-climb, tilt, full contributor chain)
 // and behavior_random_walk (light: single agent-policy ground snap)
-// in a single switch statement. FXC inlines both branch bodies for
+// in a single switch statement. FXC inlined both branch bodies for
 // every one of 32 dispatched threads, producing a pipeline compile
 // that landed at 48s. Adding more algorithmic behaviors would
 // compound the cost.
+//
+// PIVOT_0: that 48 s was FXC's price, and FXC is retired
+// (audit/FXC_LAWS_RECORD.md). WHETHER DXC PRICES THE UNIFIED KERNEL
+// THE SAME WAY IS UNMEASURED. The split stands until someone measures
+// it — the [Pipeline] per-kernel timer is the instrument, and merging
+// these two back is a change that must carry its own witness, not an
+// inference from the floor having moved.
 //
 // Split shape:
 //   update_player_agent   — 1 thread. Only the possessed slot, only

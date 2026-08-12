@@ -27,31 +27,45 @@ checkout churns every line of a 12,000-line shader diff and buries the real
 change. (The original reason — a sha256 sidecar on the deleted web mirror —
 is gone; see `audit/past reports/WEB_PORT_LEDGER.md`. The pin stands on its own merit.)
 
-## L2 — THE FXC LAW
+## ~~L2 — THE FXC LAW~~ — **STRUCK 2026-08-12 (PIVOT_0)**
 
-The Windows D3D12 backend compiles through FXC, which has hard limits the
-Vulkan/Metal backends do not. The shader honors them **by structure**, so
-nothing in it looks like a workaround and everything is one. The law states
-the principle; the operational home of the specifics is the world.wgsl FXC
-banner — the banner owns the constraints, this law owns why they bind. The
-banner also states the **witness protocol**: a shader-shape change is proven by
-witnesses, never by argument — the native FXC gate first, then each browser at
-its own gate, and no witness substitutes for another.
+**Struck, not renumbered:** the number is permanent so citations keep
+resolving. The full text, its three retired constraints, and what each one
+still explains about the shape of `world.wgsl` are preserved verbatim in
+**`audit/FXC_LAWS_RECORD.md`**.
 
-1. Instance structs in hot loops stay lean and byte-pinned — the pattern's
-   live exemplar is the `GPUSpotLightArray` pin (`static_assert` in
-   `state.hpp`: `16 + MAX_SPOT_LIGHTS * 128`).
-2. The collision/ground chain admits **no new runtime branching**. The live
-   exemplar: the pyramid loop bounds itself by a uniform —
-   `min(pyramid_instances.count, MAX_PYRAMID_INSTANCES)` in world.wgsl —
-   and dispatch is by uniform function choice, never by branch.
-3. Texture-array stamps in the collision chain **hang FXC**. Do not add one.
-4. Storage buffers per stage = 8. Uniform buffers per stage = 12. The
-   budget is WebGPU core defaults (L14) — no adapter grant is requested
-   above them.
+**What replaced it.** The audience floor is WebGPU core through modern
+compilers — Tint→DXC (SM6.0+), Tint→MSL, Tint→SPIR-V, naga. FXC is
+**unsupported**. The native compiler is one constant, `kCompilerPlan` in
+`src/console/console.hpp`; the shader's live statement of the floor is the
+COMPILER FLOOR block in the `world.wgsl` banner, which is where L2's
+operational home used to be.
 
-A violation does not fail on the developer's machine. It fails on Windows, at
-pipeline creation, in someone else's hands.
+**Why.** WALLET_0's occupier cbuffer arrays stalled `update_player_agent`
+at 20,227 ms under FXC, then `D3DCompiler_47` access-violated on the next
+room kernel. Jean ruled the floor up rather than the shader down.
+
+**Do not honor L2's constraints as live.** Code already shaped by them is
+not wrong — it is merely no longer required to be that shape, and undoing
+any of it needs its own measurement. The agent-kernel split
+(`update_player_agent` / `update_other_agents`) is the one with a price on
+record: 48 s of FXC compile. Whether DXC prices it the same way is
+**unmeasured** — re-witness before merging those kernels back.
+
+**One clause of L2 was never an FXC law and survives it.** Item 4 — storage
+buffers 8/stage, uniform buffers 12/stage — is WebGPU **core defaults**,
+binding on every backend and every compiler. It lives in **L14**, in the
+`world.wgsl` banner's budget line, and as the binding ledger's `gate`
+witness. Nothing about it changed.
+
+**The witness protocol survives too**, minus the compiler it named: a
+shader-shape change is proven by witnesses, never by argument, and no
+witness substitutes for another. naga is the per-commit gate; glaw1 + boot
+is the witness of record; each browser gates at its own.
+
+*This strike is L15 collecting a debt on the largest referent in the tree —
+see L15, and note that the three retired constraints are exactly the kind
+of prose that goes on asserting itself long after its subject is gone.*
 
 ## L3 — THE MIRROR LAW
 

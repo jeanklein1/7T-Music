@@ -9,7 +9,7 @@
 //   compilation-order constraints). Same family as
 //   coupling/trajectory.hpp and entity_types (P9 instances).
 // SEAM[seed_utils:contract] cpu_lattice_node_seed and cpu_sample_gaussian
-//   are FXC mirrors — must produce identical bit-for-bit results to the
+//   are GPU mirrors — must produce identical bit-for-bit results to the
 //   WGSL counterparts (lattice_node_seed, sample_gaussian). The
 //   per-function comments name this. Same family as agents:L2 and
 //   state.hpp's GPU struct contract.

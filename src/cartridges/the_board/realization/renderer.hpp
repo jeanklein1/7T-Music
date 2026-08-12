@@ -1250,7 +1250,7 @@ namespace t7 {
                 // on top of the shared live-contributor pair. The camera
                 // keeps the two-group layout untouched, so tenant-side
                 // binding growth (the occupier windows, the field pair)
-                // never widens its FXC surface.
+                // never widens its compile surface.
                 std::array<wgpu::BindGroupLayout, 3> roomLayouts = {
                     computeEntityLayout_,
                     computeTextureLayout_,
@@ -1277,7 +1277,7 @@ namespace t7 {
                 // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
                 // The walker-policy heavy path is NOT inlined here; algorithmic
                 // behaviors only.
-                if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — FXC skipped when disabled
+                if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — shader compile skipped when disabled
                 if (!makeComputePipeline("update_other_agents", "Update Other Agents (1D, 32 threads)",
                     roomComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
@@ -1292,7 +1292,7 @@ namespace t7 {
                 // Room layout (FIELD_2 tenancy) — coupling_terrain_to_sphere_orbit_height
                 // still calls query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura);
                 // group 2 adds the field bindings. Unused group members are legal.
-                if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled
+                if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — shader compile skipped when disabled
                 if (!makeComputePipeline("update_sphere", "Update Sphere (0D)",
                     roomComputeLayout, Entry::UPDATE_SPHERE, updateSpherePipeline_)) return false;
                 }
@@ -1301,7 +1301,7 @@ namespace t7 {
                 // Room layout (FIELD_2 tenancy) — update_cube calls
                 // query_ground_flyer directly for hover-base clearance;
                 // group 2 adds the field bindings.
-                if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled
+                if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — shader compile skipped when disabled
                 if (!makeComputePipeline("update_cube", "Update Cube (0D)",
                     roomComputeLayout, Entry::UPDATE_CUBE, updateCubePipeline_)) return false;
                 }
@@ -1335,7 +1335,7 @@ namespace t7 {
                 }
 
                 // Pipeline: compute_ribbon_rings (1D, per frame when ribbon active)
-                if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled
+                if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(ribbonComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_ribbon_rings", "Compute Ribbon Rings (1D, per frame)",
@@ -1343,7 +1343,7 @@ namespace t7 {
                 }
 
                 // Photographer VP compute pipeline (0D, reads pawn → writes VP)
-                if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled
+                if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(photographerComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_photographer_vp", "Compute Photographer VP (0D)",
@@ -1378,7 +1378,7 @@ namespace t7 {
                 }
 
                 // Pawn aura compute pipeline (dedicated layout)
-                if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — FXC skipped when disabled
+                if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(pawnAuraComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_pawn_aura", "Compute Pawn Aura (2D)",
@@ -1397,7 +1397,7 @@ namespace t7 {
                 }
 
                 // Orb compute pipelines (init + dynamics + recolor share the dedicated orb layout)
-                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled
+                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(orbComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("orb_init", "Orb Init", pl, Entry::ORB_INIT, orbInitPipeline_)) return false;
@@ -1407,7 +1407,7 @@ namespace t7 {
 
                 // Orb copy-prev pipeline (Pass 9) — dedicated layout because
                 // it flips the access modes on orb_state / orb_state_prev.
-                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled
+                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(orbCopyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("orb_state_prev_copy", "Orb State Prev Copy",
@@ -1415,7 +1415,7 @@ namespace t7 {
                 }
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
-                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled
+                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_gol_sync", "GoL Zone Sync", pl, Entry::ZONE_GOL_SYNC, zoneGolSyncPipeline_)) return false;
@@ -1423,14 +1423,14 @@ namespace t7 {
                 }
 
                 // Zone derive pipeline (shared GoL layout)
-                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled
+                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_derive_params", "Zone Derive Params", pl, Entry::ZONE_DERIVE_PARAMS, zoneDeriveParamsPipeline_)) return false;
                 }
 
                 // Zone mask pipeline (dedicated layout — UNIFIED_GROUND_1 U5)
-                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled
+                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(zoneMaskLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_seed_mask", "Zone Seed Mask (2D)",
@@ -1441,35 +1441,35 @@ namespace t7 {
                 // per-family ROSTER gate; identical creation modulo (layout, entry, member).
                 // pyramid mesh-gen pipeline CUT — mesh never drawn.
 
-                if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled
+                if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(archMeshGenLayout_);   // bindings 193-195
                     if (!pl) return false;
                     if (!makeComputePipeline("arch_mesh_gen", "Arch Mesh Gen",
                         pl, Entry::ARCH_MESH_GEN, archMeshGenPipeline_)) return false;
                 }
 
-                if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled
+                if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(columnMeshGenLayout_);  // bindings 196-198
                     if (!pl) return false;
                     if (!makeComputePipeline("column_mesh_gen", "Column Mesh Gen",
                         pl, Entry::COLUMN_MESH_GEN, columnMeshGenPipeline_)) return false;
                 }
 
-                if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled
+                if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(palmMeshGenLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("palm_mesh_gen", "Palm Mesh Gen",
                         pl, Entry::PALM_MESH_GEN, palmMeshGenPipeline_)) return false;
                 }
 
-                if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled
+                if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(cactusMeshGenLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("cactus_mesh_gen", "Cactus Mesh Gen",
                         pl, Entry::CACTUS_MESH_GEN, cactusMeshGenPipeline_)) return false;
                 }
 
-                if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled
+                if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = computeLayoutFor(bladeMeshGenLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("blade_cluster_mesh_gen", "Blade Mesh Gen",
@@ -1631,11 +1631,11 @@ namespace t7 {
                     meshVBL.attributes = meshAttrs.data();
 
                     // Sphere + Monolith — same MeshVertex format, Back cull, differ only by VS.
-                    if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — shader compile skipped when disabled
                     if (!makeEntity("sphere", "Sphere Entity (Rasterized)", Entry::SPHERE_VS,
                         &meshVBL, wgpu::CullMode::Back, spherePipeline_)) return false;
                     }
-                    if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — shader compile skipped when disabled
                     if (!makeEntity("monolith", "Monolith Entity (Rasterized)", Entry::MONOLITH_VS,
                         &meshVBL, wgpu::CullMode::Back, monolithPipeline_)) return false;
                     }
@@ -1666,23 +1666,23 @@ namespace t7 {
                     // Arch/column/palm/cactus/blade/pyramid — same ArchVertex format; differ by
                     // VS + cull. Single-sided column/palm/cactus/blade quads disable backface
                     // cull (None); arch + pyramid are solids (Back). (cullMode is a real fork.)
-                    if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                     if (!makeEntity("arch", "Catenary Arch (Rasterized)", Entry::ARCH_VS,
                         &archVBL, wgpu::CullMode::Back, archPipeline_)) return false;
                     }
-                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
                     if (!makeEntity("column", "Generative Column (Rasterized)", Entry::COLUMN_VS,
                         &archVBL, wgpu::CullMode::None, columnPipeline_)) return false;
                     }
-                    if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
                     if (!makeEntity("palm", "Palm Tree (Rasterized)", Entry::PALM_VS,
                         &archVBL, wgpu::CullMode::None, palmPipeline_)) return false;
                     }
-                    if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
                     if (!makeEntity("cactus", "Cactus (Rasterized)", Entry::CACTUS_VS,
                         &archVBL, wgpu::CullMode::None, cactusPipeline_)) return false;
                     }
-                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
                     if (!makeEntity("blade", "Blade Cluster (Rasterized)", Entry::BLADE_VS,
                         &archVBL, wgpu::CullMode::None, bladePipeline_)) return false;
                     }
@@ -1713,7 +1713,7 @@ namespace t7 {
                     // shell_index_count==0 (stays 0 — apply_mood_indoor_shell is
                     // (b)-gated), so the null pipeline is never bound.
                     // cull None: shell normals face inward (ceiling) + outward (walls).
-                    if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — shader compile skipped when disabled
                     if (!makeEntity("shell", "Indoor Shell (Ceiling + Walls)", Entry::SHELL_VS,
                         &shellVBL, wgpu::CullMode::None, shellPipeline_)) return false;
                     }
@@ -1741,7 +1741,7 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
                     if (!tPipe("ribbon", [&]() {
                         ribbonPipeline_ = device_.CreateRenderPipeline(&desc);
                         return ribbonPipeline_ != nullptr;
@@ -1856,7 +1856,7 @@ namespace t7 {
                     desc.depthStencil = &orbDepth;
                     desc.fragment = &fragment;
 
-                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
                     if (!tPipe("orb", [&]() {
                         orbRenderPipeline_ = device_.CreateRenderPipeline(&desc);
                         return orbRenderPipeline_ != nullptr;
@@ -1910,7 +1910,7 @@ namespace t7 {
                     desc.depthStencil = &galleryDepth;
                     desc.fragment = &frag;
 
-                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                     if (!tPipe("gallery_frame", [&]() {
                         galleryFramePipeline_ = device_.CreateRenderPipeline(&desc);
                         return galleryFramePipeline_ != nullptr;
@@ -1961,7 +1961,7 @@ namespace t7 {
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
 
-                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                         if (!tPipe("wall_painting_canvas", [&]() {
                             wallPaintingCanvasPipeline_ = device_.CreateRenderPipeline(&desc);
                             return wallPaintingCanvasPipeline_ != nullptr;
@@ -1989,7 +1989,7 @@ namespace t7 {
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
 
-                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                         if (!tPipe("wall_painting_frame", [&]() {
                             wallPaintingFramePipeline_ = device_.CreateRenderPipeline(&desc);
                             return wallPaintingFramePipeline_ != nullptr;
@@ -2275,11 +2275,11 @@ namespace t7 {
                         nullptr, wgpu::CullMode::None, shadowPawnPipeline_)) return false;
 
                     // Shadow sphere + monolith (MeshVertex, Back).
-                    if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — shader compile skipped when disabled
                     if (!makeShadow("shadow_sphere", "Shadow Sphere", Entry::SHADOW_SPHERE_VS,
                         &shadowMeshVBL, wgpu::CullMode::Back, shadowSpherePipeline_)) return false;
                     }
-                    if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — shader compile skipped when disabled
                     if (!makeShadow("shadow_monolith", "Shadow Monolith", Entry::SHADOW_MONOLITH_VS,
                         &shadowMeshVBL, wgpu::CullMode::Back, shadowMonolithPipeline_)) return false;
                     }
@@ -2309,23 +2309,23 @@ namespace t7 {
                         // arch/column/palm/cactus/blade shadows — same ArchVertex
                         // format; cull matches the color pass (arch Back, the
                         // single-sided column/palm/cactus/blade None). pyramid shadow cut.
-                        if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
                             &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
                         }
-                        if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_column", "Shadow Generative Column", Entry::SHADOW_COLUMN_VS,
                             &shadowArchVBL, wgpu::CullMode::None, shadowColumnPipeline_)) return false;
                         }
-                        if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_palm", "Shadow Palm Tree", Entry::SHADOW_PALM_VS,
                             &shadowArchVBL, wgpu::CullMode::None, shadowPalmPipeline_)) return false;
                         }
-                        if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_cactus", "Shadow Cactus", Entry::SHADOW_CACTUS_VS,
                             &shadowArchVBL, wgpu::CullMode::None, shadowCactusPipeline_)) return false;
                         }
-                        if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_blade", "Shadow Blade Cluster", Entry::SHADOW_BLADE_VS,
                             &shadowArchVBL, wgpu::CullMode::None, shadowBladePipeline_)) return false;
                         }
@@ -2354,14 +2354,14 @@ namespace t7 {
                         // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the
                         // shadow-shell pipeline too. draw_shadow_shell self-gates
                         // on count==0 (shared helper's early-out).
-                        if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled
+                        if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_shell", "Shadow Indoor Shell", Entry::SHADOW_SHELL_VS,
                             &shadowShellVBL, wgpu::CullMode::None, shadowShellPipeline_)) return false;
                         }
                     }
 
                     // Shadow ribbon (bufferless, GPU-generated from vertex_index; None).
-                    if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
                     if (!makeShadow("shadow_ribbon", "Shadow Sky Ribbon", Entry::SHADOW_RIBBON_VS,
                         nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
                     }
@@ -2381,7 +2381,7 @@ namespace t7 {
                     // texture group binds no shadow map, so it is already legal
                     // inside a depth-only pass. ZERO new bindings, ZERO new
                     // bind-group layouts. Do not grow either one.
-                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                     std::array<wgpu::BindGroupLayout, 2> galleryShadowGroups = {
                         galleryEntityLayout_, galleryTextureLayout_
                     };
@@ -2445,7 +2445,7 @@ namespace t7 {
                     fadeDepth.depthCompare = wgpu::CompareFunction::Always;
                     desc.depthStencil = &fadeDepth;
 
-                    if constexpr (ROSTER.transitions) {  // ROSTER-GATE transitions (a') — FXC skipped when disabled
+                    if constexpr (ROSTER.transitions) {  // ROSTER-GATE transitions (a') — shader compile skipped when disabled
                     if (!tPipe("fade_overlay", [&]() {
                         fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
                         return fadeOverlayPipeline_ != nullptr;
