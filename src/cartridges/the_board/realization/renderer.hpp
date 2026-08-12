@@ -748,6 +748,37 @@ namespace t7 {
             // (renderLayout), so every draw sees the groups it saw before.
             // The gallery draws keep their own layout and bind their own
             // pair, once, at their call site.
+
+            // Shared helper for all "indexed mesh" COLOR draws — the twin
+            // of draw_shadow_indexed_mesh below, same signature and same
+            // body. Per-family wrappers differ only in pipeline and
+            // (rarely) instance count / first instance.
+            //
+            // TIDY_0d: `indexCount == 0` returns before SetPipeline. A
+            // species whose mesh is empty draws nothing either way — the
+            // guard changes no pixel — but Dawn logs "Draw with an index
+            // count of 0 is unusual" for the submitted zero-count draw,
+            // and on the web twin that warning reaches the audience's
+            // browser console. Every species submits its high-water prefix
+            // rather than a live count, so a family with nothing live still
+            // arrives here with 0. Replacing the prefix with a live count
+            // is the ARENA-era fix; this only stops the warning.
+            void draw_indexed_mesh(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::RenderPipeline pipeline,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount,
+                uint32_t instanceCount = 1,
+                uint32_t firstInstance = 0
+            ) {
+                if (indexCount == 0) return;
+                pass.SetPipeline(pipeline);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+            }
+
             void draw_pawn(
                 wgpu::RenderPassEncoder& pass,
                 uint32_t vertexCount
@@ -765,10 +796,9 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(spherePipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_SPHERE_INSTANCES);
+                draw_indexed_mesh(pass, spherePipeline_,
+                    vertexBuffer, indexBuffer, indexCount,
+                    Dim::MAX_SPHERE_INSTANCES);
             }
 
             void draw_monolith(
@@ -778,10 +808,9 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(monolithPipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_CUBE_INSTANCES, 0, 0, Dim::CUBE_SLOT_OFFSET);
+                draw_indexed_mesh(pass, monolithPipeline_,
+                    vertexBuffer, indexBuffer, indexCount,
+                    Dim::MAX_CUBE_INSTANCES, Dim::CUBE_SLOT_OFFSET);
             }
 
             void draw_ribbon(
@@ -800,10 +829,8 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(archPipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_indexed_mesh(pass, archPipeline_,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_column(
@@ -813,10 +840,8 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(columnPipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_indexed_mesh(pass, columnPipeline_,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_palm(
@@ -826,10 +851,8 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(palmPipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_indexed_mesh(pass, palmPipeline_,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_cactus(
@@ -839,10 +862,8 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(cactusPipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_indexed_mesh(pass, cactusPipeline_,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_blade(
@@ -852,10 +873,8 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(bladePipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_indexed_mesh(pass, bladePipeline_,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
@@ -867,11 +886,11 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates
-                if (indexCount == 0) return;
-                pass.SetPipeline(shellPipeline_);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                // Helper's `if (indexCount == 0) return;` covers the early-out
+                // that this wrapper used to carry explicitly (the shadow twin
+                // says the same at draw_shadow_shell).
+                draw_indexed_mesh(pass, shellPipeline_,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             // OIL_1 U13: the gallery pair is bound ONCE by the caller
