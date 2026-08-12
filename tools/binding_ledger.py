@@ -910,28 +910,45 @@ def parse_wgsl_decls(w, src, structs, consts):
         slots.setdefault((d.group, d.binding), []).append(d)
     aliases = sorted(s for k, v in slots.items() for s in [x.symbol for x in v][1:])
 
-    # ─── WITNESS 0b-1 — the registry banner asserts 99 declarations over
-    #     96 slots, with fc_config / fc_vp / fc_patches as the three
-    #     aliases. Reproduce both numbers AND name exactly those three.
+    # ─── WITNESS 0b-1 — the registry banner's stated declaration and slot
+    #     counts, PARSED from binding_registry.hpp and compared to this
+    #     census. Plus fc_config / fc_vp / fc_patches as the three aliases.
     #
-    #     WAS 100 over 97. TETRIS ORB_V retired `render_orb_state`
-    #     (@group(0) @binding(400)) — one declaration, one slot — when the
-    #     orb state moved to an instance-step vertex buffer. The handoff
-    #     authorised this expectation to move ("0b-1 reproduced 100 over 97
-    #     at census — this commit makes it 98 over 95; T-CLOSE verifies")
-    #     and predicted 98 over 95 because it assumed WALLET_1 would land
-    #     first, merging the three light declarations into one. WALLET_1
-    #     STOPPED on its C3 reachability predicate and made no edit, so its
-    #     two declarations and two slots are still here and the number is
-    #     99 over 96. The banner in binding_registry.hpp says the same.
+    #     IT USED TO BE A LITERAL HERE, and the literal tolled three
+    #     campaigns running: 100/97 (BUDGET_1) -> 99/96 (TETRIS ORB_V) ->
+    #     97/94 (WALLET_1revA). Three homes held one fact — the banner
+    #     states the counts, the census finds them, and this line hardcoded
+    #     what the banner says — so every subject campaign that moved a
+    #     declaration had to edit an INSTRUMENT to stay green, which
+    #     standing order 3 forbids from riding the same commit. The result
+    #     was a red witness on master between the two, every time.
+    #
+    #     The banner is the single authority now. A subject campaign edits
+    #     one caption; this witness still does its whole job, which was
+    #     never "know the number" but "catch the banner disagreeing with
+    #     reality". A malformed or missing banner is a FAILURE, not a skip
+    #     — an unparseable authority is the same defect as a wrong one,
+    #     and skipping would make the witness silently inert.
     expect_aliases = ["fc_config", "fc_patches", "fc_vp"]
-    ok = (len(decls) == 99 and len(slots) == 96 and aliases == expect_aliases)
-    w.record("0b-1", ok,
-             "banner reproduced: %d declarations over %d slots; aliases %s"
-             % (len(decls), len(slots), ", ".join(aliases)) if ok else
-             "banner says 99 declarations over 96 slots with aliases %s; census found "
-             "%d over %d with aliases %s"
-             % (", ".join(expect_aliases), len(decls), len(slots), ", ".join(aliases) or "none"))
+    bm = re.search(r"world\.wgsl\s*\((\d+)\s+declarations\s+over\s+(\d+)\s+slots",
+                   read(REGISTRY_HPP))
+    if bm is None:
+        w.record("0b-1", False,
+                 "binding_registry.hpp's banner does not state "
+                 "'<N> declarations over <M> slots' — the witness cannot read its "
+                 "own authority; census found %d over %d"
+                 % (len(decls), len(slots)))
+    else:
+        said_decls, said_slots = int(bm.group(1)), int(bm.group(2))
+        ok = (len(decls) == said_decls and len(slots) == said_slots
+              and aliases == expect_aliases)
+        w.record("0b-1", ok,
+                 "banner reproduced: %d declarations over %d slots; aliases %s"
+                 % (len(decls), len(slots), ", ".join(aliases)) if ok else
+                 "banner says %d declarations over %d slots with aliases %s; census found "
+                 "%d over %d with aliases %s"
+                 % (said_decls, said_slots, ", ".join(expect_aliases),
+                    len(decls), len(slots), ", ".join(aliases) or "none"))
 
     # ─── The layout calculator, checked against the PROGRAM's own prose.
     #     Three byte counts are written down in state.hpp and
@@ -3795,6 +3812,18 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("")
     A("A proposal that touches a row here is a proposal that must read the prose")
     A("at that site before it argues with it.")
+    A("")
+    A("**REBASED 110 → 74 on 2026-08-12, and 74 is the ruling of record.** The")
+    A("cause was PIVOT_0c's despelling of the ROSTER-GATE tag in `renderer.hpp`:")
+    A("forty identical `— FXC skipped when disabled` annotations each matched the")
+    A("`FXC` trigger, so ONE lesson repeated forty times was counted as forty")
+    A("defended sites, thirty-six of them duplicates. Removing the retired")
+    A("compiler's name removed them. This is a REFINEMENT of the predicate's")
+    A("reach, not a deletion of defended prose — no site lost its comment, and")
+    A("every one of `W4-2`'s six positive controls still resolves. A count that")
+    A("drops because boilerplate stopped matching is the index getting more")
+    A("honest, and the earlier 110 should be read as inflated rather than this")
+    A("74 as depleted.")
     A("")
     A("**The predicate, verbatim (W4-1).** A site is DEFENDED if its attached")
     A("comment matches any of:")
