@@ -1553,7 +1553,14 @@ namespace t7 {
                             ? (float)meter_.window_frames / wall_s : 0.0f;
                         if (meter_gpu_)
                             std::snprintf(line, sizeof line,
-                                "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms\n",
+                                // TIDY_0d: the gpu columns say what they are.
+                                // Both are folded from the PER-FRAME SUM over a
+                                // row's pass pairs, not from a single pair — so
+                                // a multi-pass row's max can exceed any one pass
+                                // it contains. The accumulation site carries the
+                                // full note.
+                                "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms"
+                                " | gpu mean/max (per-frame sum)\n",
                                 meter_.window_frames, fps, meter_.gpu_sampled_frames,
                                 FrameMeter::FRAME_BUDGET_MS);
                         else
@@ -2314,6 +2321,24 @@ namespace t7 {
                                             if (ms > 100.0) continue;             // same discard law
                                             frame_ms[self->meter_.snap_pairs[p].row] += ms;
                                         }
+                                        // THE MAX ASYMMETRY (TIDY_0d, present
+                                        // behavior). The discard above is
+                                        // PER-PAIR; the max folded below is over
+                                        // the PER-FRAME SUM. So a frame arming
+                                        // many pairs on one row can post a max
+                                        // that no individual pair could produce,
+                                        // and no discard applies to the sum at
+                                        // any size. WEB_METER_0 saw exactly this
+                                        // twice — stream_patches gpu max 1323.04
+                                        // and 1198.06, both in boot-adjacent
+                                        // frames that upload many patches. The
+                                        // asymmetry is deliberate: the per-frame
+                                        // sum is the honest per-frame cost of a
+                                        // multi-pass row (METER_1.1 above), and
+                                        // the per-pair discard is what keeps
+                                        // counter-reset garbage out of it. The
+                                        // window header names the column so the
+                                        // number is not misleading on its face.
                                         for (size_t r = 0; r < (size_t)RPhase::COUNT; r++) {
                                             if (frame_ms[r] <= 0.0) continue;
                                             auto& s = self->meter_.r_gpu[r];
