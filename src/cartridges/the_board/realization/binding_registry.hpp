@@ -13,7 +13,7 @@
 // patch_instances(340) / fc_patches(340); orb_state(410) /
 // orb_state_ro(413) — a duo since TETRIS ORB_V retired render_orb_state(400).
 //
-// The WGSL @binding literals in world.wgsl (99 declarations over 96 slots;
+// The WGSL @binding literals in world.wgsl (97 declarations over 94 slots;
 // three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
 // MIRROR of this file, kept in lockstep by the boot-time bind-group and
 // pipeline validation, not by the compiler. The names here deliberately
@@ -111,9 +111,11 @@ namespace t7 {
                 inline constexpr uint32_t render_agents              = 260;
                 inline constexpr uint32_t render_camera              = 280;
                 inline constexpr uint32_t render_floating            = 300;
-                inline constexpr uint32_t render_light               = 320;
-                inline constexpr uint32_t render_point_lights        = 321;
-                inline constexpr uint32_t render_spot_lights         = 322;
+                // WALLET_1revA: one uniform block for the whole light
+                // system. 321 and 322 were render_point_lights and
+                // render_spot_lights and are retired; their contents are
+                // members of Lighting (world.wgsl) / GPULighting (state.hpp).
+                inline constexpr uint32_t render_lighting            = 320;
                 inline constexpr uint32_t patch_instances            = 340;   // aka fc_patches
                 inline constexpr uint32_t render_ribbon              = 360;
                 inline constexpr uint32_t render_ring_xforms         = 361;

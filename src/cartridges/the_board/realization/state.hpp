@@ -1550,6 +1550,22 @@ namespace t7 {
         static_assert(sizeof(GPUSpotLightArray) == 16 + MAX_SPOT_LIGHTS * 128,
             "GPUSpotLightArray layout check");
 
+        // WALLET_1revA — THE LIGHTING BLOCK. One uniform binding where the
+        // fragment stage used to spend three storage seats. The three
+        // members keep their own structs and their own static_asserts
+        // above; this only gives them one home on the GPU.
+        // TWIN: world.wgsl `struct Lighting` (L3 MIRROR — same members,
+        // same order, both rooms in one commit; GROWTH LAW).
+        struct alignas(16) GPULighting {
+            GPUDirectionalLight sun;      // offset   0, 48 B
+            GPUPointLightArray  points;   // offset  48, 272 B
+            GPUSpotLightArray   spots;    // offset 320, 528 B
+        };
+        static_assert(sizeof(GPULighting) == 848, "GPULighting must be 848 bytes");
+        static_assert(offsetof(GPULighting, sun) == 0, "Lighting.sun at 0");
+        static_assert(offsetof(GPULighting, points) == 48, "Lighting.points at 48");
+        static_assert(offsetof(GPULighting, spots) == 320, "Lighting.spots at 320");
+
         // THE DRAW PLAN (ECONOMY_1 closing arm) — CPU face of the cull
         // kernel's classification input. TWIN: world.wgsl DrawPlanParams
         // (L3 MIRROR — same fields, same order, both rooms together).
@@ -1834,9 +1850,9 @@ namespace t7 {
             GPUFieldAuthored fieldAuthoredStage_{};  // FIELD_4: the sovereign CPU copy, kept at the writer (the ribbon's lure reads it)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer vpBuffer_;
-            wgpu::Buffer directionalLightBuffer_;
-            wgpu::Buffer pointLightsBuffer_;
-            wgpu::Buffer spotLightArrayBuffer_;
+            // WALLET_1revA: one 848 B uniform buffer where three storage
+            // buffers stood. GPULighting {sun, points, spots}.
+            wgpu::Buffer lightingBuffer_;
             wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
             wgpu::Buffer portalArrayBuffer_;
 
@@ -2215,16 +2231,12 @@ namespace t7 {
                     &config_.lod_point_x, sizeof(float) * 2);
             }
 
-            void upload_directional_light(wgpu::Queue& queue, const GPUDirectionalLight& light) {
-                writeStruct(queue, directionalLightBuffer_, light);
-            }
-
-            void upload_point_lights(wgpu::Queue& queue, const GPUPointLightArray& lights) {
-                writeStruct(queue, pointLightsBuffer_, lights);
-            }
-
-            void upload_spot_lights(wgpu::Queue& queue, const GPUSpotLightArray& arr) {
-                writeStruct(queue, spotLightArrayBuffer_, arr);
+            // WALLET_1revA E8 — ONE write, not three. The three sources
+            // already shared a single function (upload_lights, mood.hpp),
+            // so the block is composed there and written whole; the
+            // offset-write alternative at 0/48/320 was not needed.
+            void upload_lighting(wgpu::Queue& queue, const GPULighting& lighting) {
+                writeStruct(queue, lightingBuffer_, lighting);
             }
 
             // Stage all active spot light VPs into the staging buffer (4 × 64 bytes).
@@ -3491,10 +3503,11 @@ namespace t7 {
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                directionalLightBuffer_ = makeBuffer("Directional Light", sizeof(GPUDirectionalLight), SU);
-                pointLightsBuffer_ = makeBuffer("Point Lights", sizeof(GPUPointLightArray), SU);
-                // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffer_ + spotShadowMapTexture_ (atlas) partly dedicated, but spotLightArrayBuffer_ is exclusive-in-Render-Entity + Photographer and the atlas is bound in Shadow Texture. Retire = re-section those groups.
-                spotLightArrayBuffer_ = makeBuffer("Spot Light Array", sizeof(GPUSpotLightArray), SU);
+                // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffer_ + spotShadowMapTexture_ (atlas) partly dedicated, but the spot array now rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too; the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
+                // WALLET_1revA: UNIFORM, not storage — the whole point of the
+                // block is that it stops spending F-stage storage seats.
+                lightingBuffer_ = makeBuffer("Lighting", sizeof(GPULighting),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 spotVPStagingBuffer_ = makeBuffer("Spot VP Staging",
                     MAX_SPOT_LIGHTS * 64,
                     wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
@@ -3595,7 +3608,7 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldAuthoredBuffer_ &&
-                    vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
+                    vpBuffer_ && lightingBuffer_ && spotVPStagingBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
@@ -4491,7 +4504,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 16> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -4513,64 +4526,59 @@ namespace t7 {
                     entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[5].binding = bind::g0::render_light;
+                    // WALLET_1revA: the light trio became one uniform block.
+                    // Three F-stage storage seats freed across the whole
+                    // entity family. TWIN: Lighting / GPULighting, 848 B.
+                    entries[5].binding = bind::g0::render_lighting;
                     entries[5].visibility = wgpu::ShaderStage::Fragment;
-                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[6].binding = bind::g0::render_point_lights;
-                    entries[6].visibility = wgpu::ShaderStage::Fragment;
+                    entries[6].binding = bind::g0::patch_instances;
+                    entries[6].visibility = wgpu::ShaderStage::Vertex;
                     entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[7].binding = bind::g0::render_spot_lights;
-                    entries[7].visibility = wgpu::ShaderStage::Fragment;
-                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[7].binding = bind::g0::render_ribbon;
+                    entries[7].visibility = wgpu::ShaderStage::Vertex;
+                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[8].binding = bind::g0::patch_instances;
+                    entries[8].binding = bind::g0::render_ring_xforms;
                     entries[8].visibility = wgpu::ShaderStage::Vertex;
                     entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[9].binding = bind::g0::render_ribbon;
-                    entries[9].visibility = wgpu::ShaderStage::Vertex;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[10].binding = bind::g0::render_ring_xforms;
-                    entries[10].visibility = wgpu::ShaderStage::Vertex;
-                    entries[10].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
                     // Tile grid (uniform — terrain wave delta needs amp_scale in VS,
                     // animated_cell_color needs archetype lookup in FS)
-                    entries[11].binding = bind::g0::tile_grid;
-                    entries[11].visibility = wgpu::ShaderStage::Fragment;
-                    entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[9].binding = bind::g0::tile_grid;
+                    entries[9].visibility = wgpu::ShaderStage::Fragment;
+                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // Entity ground atlas (r32float 256×1 — VS reads ground_y via textureLoad)
-                    entries[12].binding = bind::g0::entity_ground_atlas;
-                    entries[12].visibility = wgpu::ShaderStage::Vertex;
-                    entries[12].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
-                    entries[12].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+                    entries[10].binding = bind::g0::entity_ground_atlas;
+                    entries[10].visibility = wgpu::ShaderStage::Vertex;
+                    entries[10].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     // Visible patch indices (GPU frustum cull output — VS reads indirection)
-                    entries[13].binding = bind::g0::visible_patch_indices;
-                    entries[13].visibility = wgpu::ShaderStage::Vertex;
-                    entries[13].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[11].binding = bind::g0::visible_patch_indices;
+                    entries[11].visibility = wgpu::ShaderStage::Vertex;
+                    entries[11].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     // Agent tier registry — same buffer as compute binding 111.
                     // Read by pawn_vs for entity color (tg.color_r/g/b).
                     // Uniform (not storage) to stay under the per-stage
                     // storage buffer cap; same buffer is bound as uniform
                     // on the compute side too.
-                    entries[14].binding = bind::g0::agent_tier_gains;
-                    entries[14].visibility = wgpu::ShaderStage::Vertex;
-                    entries[14].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[12].binding = bind::g0::agent_tier_gains;
+                    entries[12].visibility = wgpu::ShaderStage::Vertex;
+                    entries[12].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
                     // profile + palette. Uniform (not storage) for the same reason as
                     // the tier registry above: it keeps the vertex stage off the
                     // storage cap, which TETRIS ORB_V left standing at 6 of 8
                     // (BINDING_LEDGER Table B). 4032 B, session-constant.
-                    entries[15].binding = bind::g0::agent_figure_profiles;
-                    entries[15].visibility = wgpu::ShaderStage::Vertex;
-                    entries[15].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[13].binding = bind::g0::agent_figure_profiles;
+                    entries[13].visibility = wgpu::ShaderStage::Vertex;
+                    entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -5480,7 +5488,7 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (16 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
+                // Render entity bind group (14 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
                 // THE DRAW PLAN: built THREE times — same layout, same
                 // entries, differing ONLY in the visible-list window
                 // (entries[13] offset/size): A full-IB, B cap-only, C LOD1.
@@ -5488,7 +5496,7 @@ namespace t7 {
                 auto build_render_entity_group = [&](const char* label,
                                                      uint32_t listOff,
                                                      uint32_t listBytes) -> wgpu::BindGroup {
-                    std::array<wgpu::BindGroupEntry, 16> entries{};
+                    std::array<wgpu::BindGroupEntry, 14> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -5510,58 +5518,50 @@ namespace t7 {
                     entries[4].buffer = floatingEntityBuffer_;
                     entries[4].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
-                    entries[5].binding = bind::g0::render_light;
-                    entries[5].buffer = directionalLightBuffer_;
-                    entries[5].size = sizeof(GPUDirectionalLight);
+                    entries[5].binding = bind::g0::render_lighting;
+                    entries[5].buffer = lightingBuffer_;
+                    entries[5].size = sizeof(GPULighting);
 
-                    entries[6].binding = bind::g0::render_point_lights;
-                    entries[6].buffer = pointLightsBuffer_;
-                    entries[6].size = sizeof(GPUPointLightArray);
+                    entries[6].binding = bind::g0::patch_instances;
+                    entries[6].buffer = patchInstancesBuffer_;
+                    entries[6].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[7].binding = bind::g0::render_spot_lights;
-                    entries[7].buffer = spotLightArrayBuffer_;
-                    entries[7].size = sizeof(GPUSpotLightArray);
-
-                    entries[8].binding = bind::g0::patch_instances;
-                    entries[8].buffer = patchInstancesBuffer_;
-                    entries[8].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-
-                    entries[9].binding = bind::g0::render_ribbon;
-                    entries[9].buffer = ribbonBuffer_;
-                    entries[9].size = sizeof(GPURibbonState);
+                    entries[7].binding = bind::g0::render_ribbon;
+                    entries[7].buffer = ribbonBuffer_;
+                    entries[7].size = sizeof(GPURibbonState);
 
                     // Ring transforms (read-only for ribbon VS)
-                    entries[10].binding = bind::g0::render_ring_xforms;
-                    entries[10].buffer = ringTransformsBuffer_;
-                    entries[10].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[8].binding = bind::g0::render_ring_xforms;
+                    entries[8].buffer = ringTransformsBuffer_;
+                    entries[8].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[11].binding = bind::g0::tile_grid;
-                    entries[11].buffer = tileGridBuffer_;
-                    entries[11].size = sizeof(GPUTileGrid);
+                    entries[9].binding = bind::g0::tile_grid;
+                    entries[9].buffer = tileGridBuffer_;
+                    entries[9].size = sizeof(GPUTileGrid);
 
                     // Entity ground atlas (r32float 256×1 — VS reads ground_y)
-                    entries[12].binding = bind::g0::entity_ground_atlas;
-                    entries[12].textureView = entityGroundAtlasReadView_;
+                    entries[10].binding = bind::g0::entity_ground_atlas;
+                    entries[10].textureView = entityGroundAtlasReadView_;
 
                     // Visible patch indices (GPU frustum cull output)
-                    entries[13].binding = bind::g0::visible_patch_indices;
-                    entries[13].buffer = visiblePatchIndicesBuffer_;
-                    entries[13].offset = listOff;
-                    entries[13].size = listBytes;
+                    entries[11].binding = bind::g0::visible_patch_indices;
+                    entries[11].buffer = visiblePatchIndicesBuffer_;
+                    entries[11].offset = listOff;
+                    entries[11].size = listBytes;
 
                     // Agent tier gains — same buffer as compute binding 111.
                     // Read by pawn_vs in the vertex stage for entity color
                     // (tier_idx → tg.color_r/g/b). Single source of truth
                     // is the C++ AGENT_TIER_GAINS table in bodies/agents.hpp.
-                    entries[14].binding = bind::g0::agent_tier_gains;
-                    entries[14].buffer = agentTierGainsBuffer_;
-                    entries[14].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[12].binding = bind::g0::agent_tier_gains;
+                    entries[12].buffer = agentTierGainsBuffer_;
+                    entries[12].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     // Pawn figure table (uniform, binding 112). Shares the render
                     // entity layout, so this group MUST bind it or CreateBindGroup fails.
-                    entries[15].binding = bind::g0::agent_figure_profiles;
-                    entries[15].buffer = figureProfilesBuffer_;
-                    entries[15].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[13].binding = bind::g0::agent_figure_profiles;
+                    entries[13].buffer = figureProfilesBuffer_;
+                    entries[13].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = label;
@@ -5803,9 +5803,9 @@ namespace t7 {
                     if (!galleryPhotographerEntityBindGroup_) return false;
                 }
 
-                // Photographer render entity bind group (16 entries — same layout as main, different VP)
+                // Photographer render entity bind group (14 entries — same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 16> entries{};
+                    std::array<wgpu::BindGroupEntry, 14> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5821,47 +5821,41 @@ namespace t7 {
                     entries[4].binding = bind::g0::render_floating;
                     entries[4].buffer = floatingEntityBuffer_;
                     entries[4].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
-                    entries[5].binding = bind::g0::render_light;
-                    entries[5].buffer = directionalLightBuffer_;
-                    entries[5].size = sizeof(GPUDirectionalLight);
-                    entries[6].binding = bind::g0::render_point_lights;
-                    entries[6].buffer = pointLightsBuffer_;
-                    entries[6].size = sizeof(GPUPointLightArray);
-                    entries[7].binding = bind::g0::render_spot_lights;
-                    entries[7].buffer = spotLightArrayBuffer_;
-                    entries[7].size = sizeof(GPUSpotLightArray);
-                    entries[8].binding = bind::g0::patch_instances;
-                    entries[8].buffer = patchInstancesBuffer_;
-                    entries[8].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-                    entries[9].binding = bind::g0::render_ribbon;
-                    entries[9].buffer = ribbonBuffer_;
-                    entries[9].size = sizeof(GPURibbonState);
-                    entries[10].binding = bind::g0::render_ring_xforms;
-                    entries[10].buffer = ringTransformsBuffer_;
-                    entries[10].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-                    entries[11].binding = bind::g0::tile_grid;
-                    entries[11].buffer = tileGridBuffer_;
-                    entries[11].size = sizeof(GPUTileGrid);
+                    entries[5].binding = bind::g0::render_lighting;
+                    entries[5].buffer = lightingBuffer_;
+                    entries[5].size = sizeof(GPULighting);
+                    entries[6].binding = bind::g0::patch_instances;
+                    entries[6].buffer = patchInstancesBuffer_;
+                    entries[6].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[7].binding = bind::g0::render_ribbon;
+                    entries[7].buffer = ribbonBuffer_;
+                    entries[7].size = sizeof(GPURibbonState);
+                    entries[8].binding = bind::g0::render_ring_xforms;
+                    entries[8].buffer = ringTransformsBuffer_;
+                    entries[8].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[9].binding = bind::g0::tile_grid;
+                    entries[9].buffer = tileGridBuffer_;
+                    entries[9].size = sizeof(GPUTileGrid);
                     // Entity ground atlas (r32float 256×1 — VS reads ground_y)
-                    entries[12].binding = bind::g0::entity_ground_atlas;
-                    entries[12].textureView = entityGroundAtlasReadView_;
+                    entries[10].binding = bind::g0::entity_ground_atlas;
+                    entries[10].textureView = entityGroundAtlasReadView_;
 
                     // Visible patch indices (GPU frustum cull output)
-                    entries[13].binding = bind::g0::visible_patch_indices;
-                    entries[13].buffer = visiblePatchIndicesBuffer_;
-                    entries[13].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+                    entries[11].binding = bind::g0::visible_patch_indices;
+                    entries[11].buffer = visiblePatchIndicesBuffer_;
+                    entries[11].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
 
                     // Agent tier gains — same buffer as main render path.
                     // Required because the shared layout carries it.
-                    entries[14].binding = bind::g0::agent_tier_gains;
-                    entries[14].buffer = agentTierGainsBuffer_;
-                    entries[14].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[12].binding = bind::g0::agent_tier_gains;
+                    entries[12].buffer = agentTierGainsBuffer_;
+                    entries[12].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     // Pawn figure table (uniform, binding 112) — same shared layout,
                     // so the photographer group must bind it too.
-                    entries[15].binding = bind::g0::agent_figure_profiles;
-                    entries[15].buffer = figureProfilesBuffer_;
-                    entries[15].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[13].binding = bind::g0::agent_figure_profiles;
+                    entries[13].buffer = figureProfilesBuffer_;
+                    entries[13].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";

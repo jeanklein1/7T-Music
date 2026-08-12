@@ -1216,7 +1216,13 @@ inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
     if (!c->mood_state_.lights_dirty) return;
     c->mood_state_.lights_dirty = false;
 
-    GPUDirectionalLight sun{};
+    // WALLET_1revA: the sun, the point array and the spot array are one
+    // uniform block now (GPULighting / world.wgsl `Lighting`). They were
+    // already composed in this one function and written back to back, so
+    // the merge costs nothing here — three WriteBuffer calls become one.
+    GPULighting lighting{};
+
+    GPUDirectionalLight& sun = lighting.sun;
     float len = std::sqrt(c->sunDirection_[0] * c->sunDirection_[0] + c->sunDirection_[1] * c->sunDirection_[1] + c->sunDirection_[2] * c->sunDirection_[2]);
     sun.direction[0] = c->sunDirection_[0] / len;
     sun.direction[1] = c->sunDirection_[1] / len;
@@ -1228,13 +1234,10 @@ inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
     sun.intensity = c->mood_state_.sun_intensity;
     sun.ambient = c->mood_state_.sun_ambient;
 
-    c->gpuState_.upload_directional_light(queue, sun);
+    lighting.points.count = 0;
+    lighting.spots = c->cpuSpotLights_;
 
-    GPUPointLightArray pointLights{};
-    pointLights.count = 0;
-    c->gpuState_.upload_point_lights(queue, pointLights);
-
-    c->gpuState_.upload_spot_lights(queue, c->cpuSpotLights_);
+    c->gpuState_.upload_lighting(queue, lighting);
 }
 
 // ═══ MOOD TRANSITION REQUEST ═════════════════════════════════════

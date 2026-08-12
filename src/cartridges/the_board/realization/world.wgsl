@@ -3831,6 +3831,22 @@ struct SpotLightArray {
     lights: array<SpotLight, 4>,
 }
 
+// WALLET_1revA — the lighting block. THREE fragment-stage storage
+// bindings became ONE uniform: the trio cost three of the entity
+// family's eight F-stage storage seats and bought nothing that one
+// block does not. The member structs stay defined where they are —
+// one fact, one home; only their standalone bindings died.
+//
+// Uniform-legal by construction: every member is align 16, each
+// offset is a 16-multiple, and 848 B is far under the 65,536 B
+// uniform binding cap. TWIN: GPULighting in state.hpp (L3 MIRROR,
+// static_assert(sizeof(GPULighting) == 848)).
+struct Lighting {
+    sun    : DirectionalLight,   // offset   0
+    points : PointLightArray,    // offset  48
+    spots  : SpotLightArray,     // offset 320
+}                                // size 848, uniform-legal
+
 // --- Shadow constants
 
 // TWIN: state.hpp Dim::SHADOW_MAP_SIZE (// Lighting) — sizes the
@@ -3882,7 +3898,7 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // `normal` is unit at every caller — the terrain FS normalizes its
     // gradient normal and both entity FS pass normalize(in.normal) — so
     // this scale is exact rather than approximately exact.
-    let light_dir = -render_light.direction;   // toward the light
+    let light_dir = -render_lighting.sun.direction;   // toward the light
     let ndotl     = clamp(dot(normal, light_dir), 0.0, 1.0);
     let offset_w  = normal * (SHADOW_TEXEL_WORLD * PCF_RADIUS_TEXELS
                               * (0.33 + 0.67 * (1.0 - ndotl)));
@@ -3994,27 +4010,27 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
 // Normal-offset exists to escape a GEOMETRIC self-shadowing surface, so it
 // reads the second; ndotl is a shading fact and reads the first.
 fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
-    let light_dir = -render_light.direction;  // toward light
+    let light_dir = -render_lighting.sun.direction;  // toward light
     let ndotl = max(dot(normal, light_dir), 0.0);
 
     // Shadow: skip when spot lights are active — light_vp is being used
     // for spot atlas tiles, so the directional PCF would sample wrong.
     var shadow = 1.0;
-    if (render_spot_lights.count == 0u) {
+    if (render_lighting.spots.count == 0u) {
         shadow = sample_shadow_pcf(world_pos, geo_normal);
     }
 
-    return render_light.color * render_light.intensity * ndotl * shadow;
+    return render_lighting.sun.color * render_lighting.sun.intensity * ndotl * shadow;
 }
 
 // --- Point Lights (diffuse only, no shadows)
 
 fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     var total = vec3(0.0);
-    let count = min(render_point_lights.count, MAX_POINT_LIGHTS);
+    let count = min(render_lighting.points.count, MAX_POINT_LIGHTS);
 
     for (var i: u32 = 0u; i < count; i++) {
-        let light = render_point_lights.lights[i];
+        let light = render_lighting.points.lights[i];
         let light_vec = light.position - world_pos;
         let dist = length(light_vec);
         let light_dir = light_vec / max(dist, 0.001);
@@ -4090,7 +4106,7 @@ const SPOT_PCF_RADIUS_TEXELS: f32 = 2.5;
 // float format bought 6.0e-8 NDC) until P2 deleted it outright. That
 // window was the campaign's thinnest ice.
 fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_index: u32) -> f32 {
-    let light = render_spot_lights.lights[light_index];
+    let light = render_lighting.spots.lights[light_index];
 
     // THE SPOT NORMAL OFFSET. The frustum is perspective, so texel world-size
     // is not constant — which is why UMBRA ruled this path offset-free. Derive
@@ -4224,10 +4240,10 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_ind
 
 fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
     var total = vec3(0.0);
-    let count = min(render_spot_lights.count, MAX_SPOT_LIGHTS);
+    let count = min(render_lighting.spots.count, MAX_SPOT_LIGHTS);
 
     for (var i: u32 = 0u; i < count; i++) {
-        let light = render_spot_lights.lights[i];
+        let light = render_lighting.spots.lights[i];
         if (light.intensity <= 0.0) { continue; }
 
         let light_vec = light.position - world_pos;
@@ -4280,7 +4296,7 @@ fn veil_t(world_pos: vec3<f32>) -> f32 {
 // terrain passes its pre-aura normal.
 fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
     // Ambient (always present)
-    let ambient = base_color * render_light.ambient;
+    let ambient = base_color * render_lighting.sun.ambient;
 
     // Directional light with shadows
     let sun = base_color * calc_directional_light(world_pos, normal, geo_normal);
@@ -6199,9 +6215,10 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 @group(0) @binding(122) var<storage, read> head_poses: array<vec4<f32>, 400>;
 
 // --- Light system (Group 0: render, bindings 320-339)
-@group(0) @binding(320) var<storage, read> render_light: DirectionalLight;
-@group(0) @binding(321) var<storage, read> render_point_lights: PointLightArray;
-@group(0) @binding(322) var<storage, read> render_spot_lights: SpotLightArray;
+// WALLET_1revA: one uniform block, not three storage bindings. 321 and
+// 322 are retired; the sun, the point array and the spot array reach
+// the fragment stage as `render_lighting.sun` / `.points` / `.spots`.
+@group(0) @binding(320) var<uniform> render_lighting: Lighting;
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
 @group(1) @binding(22) var bilinear_sampler: sampler;
