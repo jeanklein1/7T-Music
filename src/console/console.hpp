@@ -767,7 +767,15 @@ namespace t7 {
             }
             dawn::native::Adapter& nativeAdapter = adapters[adapterPick];
             wgpu::Adapter adapter = wgpu::Adapter(nativeAdapter.Get());
-            std::cout << "[Console] Adapter selected: index=" << adapterPick << "\n";
+            // PIVOT_0d E1 — the index alone made the reader cross-reference
+            // the enumeration above to learn which backend won. The scorer's
+            // backend preference is a TIE-BREAK, not a guarantee, so the
+            // backend that was actually picked is the fact worth printing.
+            // (The loop's `info` is loop-local; re-fetch for the winner.)
+            wgpu::AdapterInfo pickedInfo{};
+            adapter.GetInfo(&pickedInfo);
+            std::cout << "[Console] Adapter selected: index=" << adapterPick
+                << " backend=" << backend_name(pickedInfo.backendType) << "\n";
 
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
@@ -850,7 +858,14 @@ namespace t7 {
             // PIVOT_0 E4 — every future log self-attributes. A [Pipeline]
             // table with no compiler beside it is uninterpretable, and
             // this campaign exists because one was.
-            std::cout << "[Console] Compiler plan: "
+            //
+            // PIVOT_0d E3 — labelled (request), because that is all it is.
+            // This line prints what the program ASKED FOR, before the
+            // device exists; it said DXC while FXC compiled, for 19,745 ms,
+            // and was not lying — it was answering a different question.
+            // The EFFECT is reported after CreateDevice by the toggles
+            // witness. P6 wants both halves: the request and the effect.
+            std::cout << "[Console] Compiler plan (request): "
                 << compiler_plan_name(kCompilerPlan) << "\n";
 
             // PROBE_1 C1 — the full enumerated feature list (numeric;
@@ -875,6 +890,29 @@ namespace t7 {
             if (!device_) {
                 std::cerr << "Failed to create WebGPU device\n";
                 return false;
+            }
+
+            // PIVOT_0d E2 — THE EFFECT WITNESS. Everything above this line
+            // is a request; this is the answer. dawn::native::GetTogglesUsed
+            // reports the toggles Dawn ACTUALLY enabled on the device, after
+            // its own inheritance and after any ForceSet it applied.
+            //
+            // Paid for by PIVOT_0a: `use_dxc` was chained on the DEVICE
+            // descriptor, and it is a ToggleStage::Adapter toggle
+            // (dawn/native/Toggles.cpp), so it was silently inert. The boot
+            // log said "Compiler plan: DXC" and FXC compiled anyway. A
+            // switch that cannot be seen to have fired is indistinguishable
+            // from one that never fired (P6) — so the switch testifies now.
+            //
+            // The full list, not a use_dxc grep: it is one boot line, and
+            // the next toggle mystery will not be this one.
+            {
+                auto used = dawn::native::GetTogglesUsed(device_.Get());
+                std::cout << "[Console] Toggles used (" << used.size() << "):";
+                for (size_t i = 0; i < used.size(); i++) {
+                    std::cout << (i ? ", " : " ") << used[i];
+                }
+                std::cout << "\n";
             }
 
             queue_ = device_.GetQueue();
