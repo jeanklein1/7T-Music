@@ -423,6 +423,108 @@ def parse_layouts(w, registry):
                  ("empty visibility: " + ", ".join(visless)) if visless else "",
                  ("unknown stage token(s): " + ", ".join(unknown)) if unknown else ""])))
 
+    # ─── WITNESS 0a-6 — BIND GROUP ≡ LAYOUT BIJECTION (TIDY_0a) ──────
+    #
+    # createBindGroup requires a BIJECTION: exactly one bind group entry
+    # per layout entry, same binding numbers. Nothing above checks it.
+    # 0a-1 compares a LAYOUT to its own std::array; 0a-1b compares a
+    # layout's entryCount to that same array. Both are true of a 4-entry
+    # bind group with a 4-entry array whose layout has 3 — which is a
+    # boot failure at CreateBindGroup and was invisible to all 40
+    # witnesses.
+    #
+    # PAID FOR BY: BUDGET_1 rows 6 and 7. Each removed one layout seat
+    # and updated the bind group beside it. A LAYOUT MAY BACK MORE THAN
+    # ONE BIND GROUP — the UMBRA_9 photographer duplicates — and neither
+    # row followed the seat there. Row 6's own commit body said it
+    # changed the array "in BOTH", meaning the layout and the bind group;
+    # there were three places. Both defects rode master until TETRIS
+    # WALLET_1's census tripped over one of them, and the witness output
+    # that row 6 published read "layout and bind group corresponding" in
+    # the SINGULAR, having checked one of the two groups that layout
+    # carries. This witness exists so the next such row fails at its own
+    # gate instead of at Jean's boot.
+    groups = []
+    for m in re.finditer(
+            r"std::array<\s*wgpu::BindGroupEntry\s*,\s*(\d+)\s*>\s*(\w+)\s*\{\s*\}\s*;", src):
+        declared_n = int(m.group(1))
+        arr = m.group(2)
+        tail = src.find("CreateBindGroup(", m.end())
+        if tail < 0:
+            raise SystemExit("binding_ledger: unterminated bind group block at line %d"
+                             % line_of(src, m.start()))
+        end = src.find(";", tail)
+        block = src[m.end():end]
+
+        # The descriptor variable is NOT always named `desc` — the gallery
+        # texture group rebuilt for the exhibition view calls it `bd`, and
+        # a reader hardcoding `desc` skips that group silently while
+        # reporting a total that looks complete. Derive the name.
+        dv = re.search(r"wgpu::BindGroupDescriptor\s+(\w+)\s*\{\s*\}\s*;", block)
+        d = re.escape(dv.group(1)) if dv else r"desc"
+        lm = re.search(d + r'\.label\s*=\s*"([^"]*)"\s*;', block)
+        lo = re.search(d + r"\.layout\s*=\s*(\w+)\s*;", block)
+        ec = re.search(d + r"\.entryCount\s*=\s*(.+?)\s*;", block)
+        binds = set(re.findall(
+            re.escape(arr) + r"\[\d+\]\.binding\s*=\s*(bind::\w+::\w+)\s*;", block))
+        groups.append({
+            # `build_render_entity_group` takes its label as a PARAMETER and
+            # builds three groups from one block, so there is no literal to
+            # read. Name it by where it is rather than pretending it is
+            # anonymous — the line is what a reader needs either way.
+            "label": lm.group(1) if lm else
+                     "(label is a parameter, built at state.hpp:%d)"
+                     % line_of(src, m.start()),
+            "layout_member": lo.group(1) if lo else None,
+            "declared_n": declared_n,
+            "bindings": binds,
+            "entry_count_expr": ec.group(1).strip() if ec else "<absent>",
+            "line": line_of(src, m.start()),
+        })
+
+    by_member = {L["member"]: L for L in layouts if L["member"]}
+    bg_bad = []
+    for g in groups:
+        lay = by_member.get(g["layout_member"])
+        if lay is None:
+            # Not a skip: a bind group whose layout the census cannot
+            # resolve is a parse gap, and a witness that quietly ignores
+            # it is the same failure one layer up.
+            bg_bad.append("%s (line %d): layout %r does not resolve to a "
+                          "parsed layout member" % (g["label"], g["line"],
+                                                    g["layout_member"]))
+            continue
+        if g["declared_n"] != lay["declared_n"]:
+            bg_bad.append("%s (line %d): %d entries against %s's %d"
+                          % (g["label"], g["line"], g["declared_n"],
+                             lay["label"], lay["declared_n"]))
+        lay_binds = {e.binding_const for e in lay["entries"]}
+        extra = g["bindings"] - lay_binds
+        missing = lay_binds - g["bindings"]
+        if extra:
+            bg_bad.append("%s (line %d): binds %s, absent from %s"
+                          % (g["label"], g["line"], ", ".join(sorted(extra)),
+                             lay["label"]))
+        if missing:
+            bg_bad.append("%s (line %d): does NOT bind %s, required by %s"
+                          % (g["label"], g["line"], ", ".join(sorted(missing)),
+                             lay["label"]))
+        if not g["entry_count_expr"].endswith(".size()"):
+            bg_bad.append("%s (line %d): literal entryCount = %s"
+                          % (g["label"], g["line"], g["entry_count_expr"]))
+
+    shared = {}
+    for g in groups:
+        shared.setdefault(g["layout_member"], []).append(g["label"])
+    multi = {k: v for k, v in shared.items() if len(v) > 1}
+    w.record("0a-6", not bg_bad,
+             "%d bind groups over %d layouts, every one a bijection with its "
+             "layout; %d layout(s) back more than one group%s"
+             % (len(groups), len(layouts), len(multi),
+                (" — " + "; ".join("%s: %s" % (k, ", ".join(v))
+                                   for k, v in sorted(multi.items()))) if multi else "")
+             if not bg_bad else "; ".join(bg_bad))
+
     return layouts
 
 
