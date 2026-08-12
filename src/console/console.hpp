@@ -110,7 +110,7 @@ namespace t7 {
     // Plan B is one line: if DXC fails on a given driver, set this to
     // Vulkan, rebuild, boot. That IS the fallback, not a failure.
     enum class CompilerPlan { D3D12_Dxc, Vulkan, D3D12_Fxc };
-    inline constexpr CompilerPlan kCompilerPlan = CompilerPlan::D3D12_Dxc;
+    inline constexpr CompilerPlan kCompilerPlan = CompilerPlan::Vulkan;
 
     inline constexpr const char* compiler_plan_name(CompilerPlan p) {
         switch (p) {
@@ -672,8 +672,43 @@ namespace t7 {
 #else
             dawnProcSetProcs(&dawn::native::GetProcs());
 
+            // PIVOT_0d E1 — THE TOGGLE CHAIN, AT THE ROOT.
+            //
+            // `use_dxc` is ToggleStage::Adapter (dawn/native/Toggles.cpp),
+            // and toggles flow DOWNWARD only: instance -> adapter
+            // (Instance.cpp, adapterToggles.InheritFrom) -> device
+            // (Adapter.cpp, deviceToggles.InheritFrom). PIVOT_0a chained it
+            // on the DEVICE descriptor, which is downstream of the stage
+            // that reads it, so it was accepted and ignored — no error, no
+            // warning. The boot log said DXC and FXC compiled for 19,745 ms
+            // and then access-violated. The instance descriptor is upstream
+            // of both stages and is the only root that reaches an
+            // adapter-stage toggle.
+            //
+            // The C++ descriptors are used rather than the C ones because
+            // wgpu::DawnTogglesDescriptor and these two field names are
+            // PROVEN against this Dawn — PIVOT_0a compiled them. Only the
+            // cast and the constructor arity are new, and the cast is the
+            // documented layout-compatibility between wgpu:: and WGPU
+            // structs.
+            //
+            // LIFETIME: `kDxcToggle` is static; `toggles` and `idesc` need
+            // only outlive the emplace() call, and they do — Dawn copies
+            // what it needs out of the descriptor during construction.
+            static const char* const kDxcToggle[] = { "use_dxc" };
+            wgpu::DawnTogglesDescriptor toggles{};
+            wgpu::InstanceDescriptor idesc{};
+            if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
+                toggles.enabledToggleCount = 1;
+                toggles.enabledToggles = kDxcToggle;
+                idesc.nextInChain = &toggles;
+            }
+            // Vulkan and D3D12_Fxc chain nothing: Vulkan reaches SPIR-V
+            // through Tint with no toggle, and Fxc is the untoggled path
+            // kept for archaeology.
+
             // Construct instance in place (non-copyable, non-movable)
-            instance_.emplace();
+            instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));
 
             std::vector<dawn::native::Adapter> adapters = instance_->EnumerateAdapters();
             if (adapters.empty()) {
@@ -744,11 +779,15 @@ namespace t7 {
             // outranks integrated; the backend breaks ties.
             // Falls back to index 0.
             //
-            // PIVOT_0: WHICH backend breaks the tie is now the compiler
-            // plan's to say. Native has no wgpu::RequestAdapterOptions to
-            // carry a backendType — it enumerates and scores — so the
-            // plan reaches the choice here, in the tie-breaker, which is
-            // the selection policy the plan actually meant.
+            // Dawn's native Instance accepts wgpu::RequestAdapterOptions
+            // (a chain root for toggles; carries backendType). This code
+            // deliberately enumerates UNFILTERED so the boot log lists all
+            // adapters, and picks by the scorer below; kCompilerPlan's
+            // backend preference is a tie-break, not a guarantee — the
+            // effect witnesses after CreateDevice report what was actually
+            // picked and enabled. Toggles ride the instance descriptor:
+            // instance -> adapter -> device inheritance
+            // (dawn/native Instance.cpp, Adapter.cpp).
             constexpr wgpu::BackendType kPreferredBackend =
                 (kCompilerPlan == CompilerPlan::Vulkan) ? wgpu::BackendType::Vulkan
                                                         : wgpu::BackendType::D3D12;
@@ -780,32 +819,10 @@ namespace t7 {
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
 
-            // PIVOT_0 E2 — the compiler toggle, chained on the device.
-            // `use_dxc` routes Tint's HLSL through DXC (SM6.0+) instead
-            // of FXC. LIFETIME: the name array is static, and `toggles`
-            // is declared in the same scope as the CreateDevice call
-            // below, so nothing nextInChain points at dies before the
-            // device is made.
-            //
-            // ONE chain root, not two. The handoff asked for the adapter
-            // request as well; native has no wgpu::RequestAdapterOptions
-            // to chain onto (it enumerates), and dawn::native::Instance's
-            // descriptor is a Dawn internal this tree cannot open from
-            // the repo — P1 forbids asserting its shape. The device root
-            // is the one `use_dxc` is defined on and the one that decides
-            // pipeline compilation. If an adapter-time capability query
-            // ever needs the toggle, the instance descriptor is where it
-            // goes, and that is a Dawn-side fact to verify before use.
-            static const char* const kDxcToggle[] = { "use_dxc" };
-            wgpu::DawnTogglesDescriptor toggles{};
-            if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
-                toggles.enabledToggleCount = 1;
-                toggles.enabledToggles = kDxcToggle;
-                deviceDesc.nextInChain = &toggles;
-            }
-            // Vulkan and D3D12_Fxc chain nothing: Vulkan reaches SPIR-V
-            // through Tint with no toggle, and Fxc is today's untoggled
-            // path kept for archaeology.
+            // PIVOT_0d E2 — the device-level toggle chain that stood here
+            // is GONE. It was inert (see the instance construction above,
+            // where the chain now lives) and a second chain root would be
+            // two homes for one fact.
 
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
