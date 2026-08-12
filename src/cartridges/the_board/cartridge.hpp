@@ -1505,6 +1505,12 @@ namespace t7 {
                 // Periodic entity census dump — its own interval, its own
                 // gate. THE INSTRUMENT the batch witnesses read; untouched.
                 if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
+                    // TIDY_0c-ii — IS THIS THE FIRST DUMP? lastCensusDump_ is
+                    // seeded NEGATIVE (spawn_engine.hpp) so the first census
+                    // fires immediately rather than 30 s in. time_state_
+                    // .seconds is monotonic and non-negative, so a negative
+                    // value here is the sentinel and can be nothing else.
+                    const bool first_dump = spawn_engine_state_.lastCensusDump_ < 0.0f;
                     dump_entity_census(&machine_ctx_, "periodic");
                     spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
 
@@ -1516,7 +1522,30 @@ namespace t7 {
                     // with the meter off nothing increments window_frames, so
                     // the block is already inert — the constant lets the
                     // compiler drop the formatting with it.
-                    if (INSTRUMENTS.frame_meter && meter_.window_frames > 0) {
+                    // TIDY_0c-ii — THE FIRST WINDOW IS NOT A MEASUREMENT.
+                    // The seeded lastCensusDump_ fires this dump on frame 1,
+                    // and render() increments window_frames at its head, so
+                    // the guard below sees 1 and prints a ONE-FRAME table
+                    // whose wall clock runs from FrameMeter's construction —
+                    // i.e. across the whole boot, pipeline compilation
+                    // included. That window reads fps ~0.0, means taken from
+                    // a single cold frame, and a residue computed from it.
+                    // Pasted into an A/B it is not noise, it is a wrong
+                    // number wearing the right format.
+                    //
+                    // SKIPPED, NOT SILENT (P6): the skip prints its own line,
+                    // so a missing first window is never confused with a
+                    // meter that failed to arm. reset() restamps
+                    // window_start, so the NEXT window is a true 30 s span.
+                    if (INSTRUMENTS.frame_meter && first_dump) {
+                        char line[160];
+                        std::snprintf(line, sizeof line,
+                            "[METER] first window SKIPPED — %u frame(s), wall clock spans "
+                            "the boot; window starts now\n", meter_.window_frames);
+                        std::cout << line;
+                        meter_.reset();
+                    }
+                    else if (INSTRUMENTS.frame_meter && meter_.window_frames > 0) {
                         char line[160];
                         const float wall_s = std::chrono::duration<float>(
                             std::chrono::steady_clock::now() - meter_.window_start).count();
