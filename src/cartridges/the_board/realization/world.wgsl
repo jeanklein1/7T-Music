@@ -18,6 +18,14 @@
 // its retired laws live in audit/FXC_LAWS_RECORD.md. naga is
 // the per-commit gate (CC); glaw1 + boot is the witness of
 // record; the [Pipeline] timer prices compile time per kernel.
+// NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance and
+// minBindingSize are Dawn's checks at pipeline creation, so glaw1/boot
+// witnesses them and naga cannot. ATLAS_1revB caught two defects of
+// exactly that class by hand — a shader referencing bindings its
+// pipeline layout did not carry, and a uniform struct whose 16-byte
+// rounding exceeded a declared minBindingSize — both green under naga.
+// The protocol names the blind spot so the next campaign does not have
+// to rediscover it.
 // Witness protocol, unchanged by the pivot: a shader-shape
 // change is proven by witnesses, not argument, and no witness
 // substitutes for another — each browser gates at its own.
