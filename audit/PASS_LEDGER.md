@@ -1,5 +1,12 @@
 # THE PASS LEDGER (PASS_0) — the frame economy a tile-based GPU is charged
 
+> **POST-CAMPAIGN — 2026-08-13.** ATLAS_1revB, DISCARD_0 and FORMAT_1
+> falsified **Q2 and Q3**: no `LoadOp::Load` survives anywhere in `src/`,
+> two readerless depth stores are now `Discard`, the shadow maps are
+> `Depth16Unorm`, and the indoor 4-light arm moves 16 MiB/frame of shadow
+> attachment traffic, not 96. **ESTATE §2 carries the live numbers.**
+> Q5–Q6 stand — with both shadow rows 8 MiB, textures 237.9, total 251.1.
+
 A read-only census of what the audience's hardware pays per frame:
 render passes, attachment load/store traffic, per-frame buffer writes,
 and resident bytes. The binding ledger (`audit/BINDING_LEDGER.md`)

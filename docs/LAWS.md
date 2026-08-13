@@ -550,6 +550,15 @@ chained on the instance descriptor and hoping inheritance delivers it —
 was never disproved, and under this law never needs to be: the question
 only arises for a toggle sited somewhere other than its own stage.
 
+**Debt 12 therefore closes as MOOT, not as branch (a) or (b).** Its
+question — does the instance chain propagate two hops? — stops gating
+anything once no toggle is ever sited off its own stage. Reopening it
+costs one boot: re-arm one Device-stage toggle on `idesc.nextInChain`
+alone and read the count. Present → inheritance carries; absent →
+branch (b) confirmed at last. Nothing in the queue wants that boot.
+`disable_symbol_renaming` at count 9 → 10 on the device chain (Dawn
+`f0bf8ab`, 2026-08-13) is the positive half, and the only half proven.
+
 **The corollary is the witness.** A toggle request is not a toggle.
 `dawn::native::GetTogglesUsed(device_)` prints the set Dawn actually
 enabled, and that line stays in the boot log for exactly this reason: a
