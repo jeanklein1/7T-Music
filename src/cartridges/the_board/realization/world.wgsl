@@ -4945,7 +4945,7 @@ fn shadow_patch_terrain_vs(
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -5472,7 +5472,7 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
     // comparison, so it lifted the pawn's shadow off its own feet to buy
     // separation from terrain. Bias now has one home, in the pipeline.
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -5484,7 +5484,7 @@ fn shadow_sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> 
     let world_pos = in.pos * r + fe.pos;
 
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -5498,7 +5498,7 @@ fn shadow_monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -
     let world_pos = rotated + fe.pos;
 
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -5548,7 +5548,7 @@ fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
     world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -5578,7 +5578,7 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
     world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -5610,7 +5610,7 @@ fn shell_vs(in: ShellVertexInput) -> EntityVarying {
 @vertex
 fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(in.pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(in.pos, 1.0);
     return out;
 }
 
@@ -6075,7 +6075,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     var world_pos = sw_mp(motor, local_pos);
 
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -6219,6 +6219,44 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // 322 are retired; the sun, the point array and the spot array reach
 // the fragment stage as `render_lighting.sun` / `.points` / `.spots`.
 @group(0) @binding(320) var<uniform> render_lighting: Lighting;
+
+// ─── ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX ───────────────
+// One u32, delivered by DYNAMIC OFFSET: the buffer holds one 256-byte
+// window per spot light, window i containing the literal i, written
+// once at boot and never again. The shadow pass sets the offset per
+// light-group inside a single pass; every other bind of this group
+// passes 0.
+//
+// WHY AN INDEX AND NOT THE MATRIX. A matrix window would need the SUN's
+// matrix in window 0, and the sun VP's only writer is compute_vp — on
+// the GPU, every frame. A CPU-filled window would give slot 0 two
+// owners at two cadences, which is the exact collision the first gate
+// found and D2' was adopted to escape. An index has no owners and no
+// cadence: it is a constant per window. Its failure mode is a
+// validation error, not a wrong pixel.
+// 16 bytes: one payload word and the padding the uniform address space's
+// 16-byte struct alignment implies. Spelled out rather than left implicit
+// so the C++ SHADOW_SLOT_SIZE beside it has something to mirror.
+struct ShadowSlot {
+    li: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+}
+@group(0) @binding(362) var<uniform> shadow_slot: ShadowSlot;
+
+// D2' — the shadow VS's light matrix, from where it already lives.
+// Outdoors (no spots) the sun VP is render_vp.light_vp, written by
+// compute_vp and read here exactly as the 13 shadow VSes read it
+// before. Indoors it is the per-light matrix that already rides the
+// lighting buffer, the same array sample_spot_shadow_pcf indexes in the
+// fragment stage. Nothing is duplicated and nothing new is written.
+fn shadow_light_vp() -> mat4x4<f32> {
+    if (render_lighting.spots.count == 0u) {
+        return render_vp.light_vp;
+    }
+    return render_lighting.spots.lights[shadow_slot.li].view_proj;
+}
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
 @group(1) @binding(22) var bilinear_sampler: sampler;
@@ -10452,7 +10490,7 @@ fn shadow_gallery_frame_vs(
         out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
         return out;
     }
-    out.clip_pos = render_vp.light_vp * vec4(g.world, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(g.world, 1.0);
     return out;
 }
 
@@ -10725,7 +10763,7 @@ fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     var g = compute_wall_painting_geometry(slot, pidx, local_vid);
     g.world_pos.y += sample_live_card(g.world_pos.xz).x;
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(g.world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(g.world_pos, 1.0);
     return out;
 }
 
@@ -11986,7 +12024,7 @@ fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -12367,7 +12405,7 @@ fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 
@@ -12624,7 +12662,7 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
     return out;
 }
 

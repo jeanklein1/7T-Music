@@ -119,6 +119,10 @@ namespace t7 {
             wgpu::BindGroupLayout roomLayout_;    // Group 2, agent + floater kernels — THE ROOM
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout renderEntityLayout_;
+            // ATLAS_1revB D3" — the offset every non-shadow set of the
+            // render-entity group passes. A dynamic-offset layout requires an
+            // offset at EVERY set; only the shadow tile loop varies it.
+            static constexpr uint32_t kShadowSlotZero = 0;
             wgpu::BindGroupLayout renderTextureLayout_;
             wgpu::BindGroupLayout shadowTextureLayout_;
             wgpu::BindGroupLayout ribbonComputeLayout_;
@@ -560,7 +564,9 @@ namespace t7 {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
                 if (orbCount == 0) return;
                 pass.SetPipeline(orbRenderPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
+                // ATLAS_1revB D3" — group 0 is dynamic-offset now; every set
+                // of it supplies one offset. The orbs never vary it.
+                pass.SetBindGroup(0, entityBindGroup, 1, &kShadowSlotZero);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, quadVB);
                 // ORB_V: slot 1 is the instance-step OrbState stream that
@@ -699,7 +705,7 @@ namespace t7 {
                 wgpu::Buffer indirectArgs,
                 uint64_t indirectOffset
             ) {
-                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(0, entityBindGroup, 1, &kShadowSlotZero);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
@@ -716,7 +722,7 @@ namespace t7 {
                 uint32_t firstInstance = 0
             ) {
                 pass.SetPipeline(patchTerrainPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(0, entityBindGroup, 1, &kShadowSlotZero);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
@@ -2401,8 +2407,22 @@ namespace t7 {
                     // inside a depth-only pass. ZERO new bindings, ZERO new
                     // bind-group layouts. Do not grow either one.
                     if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
+                    // ATLAS_1revB G2 — group 0 is the RENDER-ENTITY layout here,
+                    // not the gallery entity layout. Under D2'/D3" these two
+                    // shadow VSes call shadow_light_vp(), which reads
+                    // render_lighting and shadow_slot; the gallery entity layout
+                    // carries neither, so Dawn would reject both pipelines at
+                    // creation. It is a strict subset for everything they DO
+                    // use — config (Uniform), render_vp and render_camera (both
+                    // ReadOnlyStorage) are present on the render-entity layout
+                    // with the same types — so nothing is lost by the swap, and
+                    // draw_shadow_all sheds a bind per light because group 0 no
+                    // longer changes mid-tile. Group 1 is untouched: the
+                    // painting slots and array still come from the gallery
+                    // texture layout. The COLOUR gallery pipelines keep the
+                    // gallery entity layout; only the shadow pair moves.
                     std::array<wgpu::BindGroupLayout, 2> galleryShadowGroups = {
-                        galleryEntityLayout_, galleryTextureLayout_
+                        renderEntityLayout_, galleryTextureLayout_
                     };
                     wgpu::PipelineLayoutDescriptor galleryShadowPld{};
                     galleryShadowPld.bindGroupLayoutCount = galleryShadowGroups.size();

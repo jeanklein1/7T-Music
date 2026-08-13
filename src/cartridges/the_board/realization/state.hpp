@@ -1589,6 +1589,22 @@ namespace t7 {
         inline constexpr uint32_t FC_LIST_BYTES  = 2048;
         inline constexpr uint32_t FC_ARGS_BYTES  = 15 * sizeof(uint32_t);  // 3 x 5-u32 draw-args slots
 
+        // ─── ATLAS_1revB D3" — the shadow tile's light-index windows ──
+        // One 256-byte window per spot light; window i holds the literal
+        // i. 256 is minUniformBufferOffsetAlignment's core default and
+        // therefore a legal dynamic offset on every conforming adapter
+        // (the limit is "better is lower", so an adapter's own value is a
+        // power of two <= 256 and divides 256). The payload is 4 bytes;
+        // the rest of each window is padding the alignment demands.
+        inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
+        // The BINDING size, not the payload. ShadowSlot carries one u32,
+        // but WGSL rounds a struct in the UNIFORM address space up to a
+        // 16-byte alignment, so the shader's minimum binding size is 16.
+        // Declaring 4 here would be smaller than what the shader requires
+        // and Dawn rejects the layout; 16 is the honest number and still
+        // sits well inside the 256-byte window.
+        inline constexpr uint32_t SHADOW_SLOT_SIZE   = 16;
+
         struct MeshVertex {
             float pos[3];
             float normal[3];
@@ -1853,7 +1869,7 @@ namespace t7 {
             // WALLET_1revA: one 848 B uniform buffer where three storage
             // buffers stood. GPULighting {sun, points, spots}.
             wgpu::Buffer lightingBuffer_;
-            wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
+            wgpu::Buffer lightSlotBuffer_;       // ATLAS_1revB D3": 4 × 256 B windows, window i == i
             wgpu::Buffer portalArrayBuffer_;
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
@@ -2239,16 +2255,14 @@ namespace t7 {
                 writeStruct(queue, lightingBuffer_, lighting);
             }
 
-            // Stage all active spot light VPs into the staging buffer (4 × 64 bytes).
-            // Caller then encodes CopyBufferToBuffer per light before each shadow sub-pass.
-            void stage_spot_vps(wgpu::Queue& queue, const GPUSpotLightArray& arr) {
-                for (uint32_t i = 0; i < std::min(arr.count, MAX_SPOT_LIGHTS); i++) {
-                    queue.WriteBuffer(spotVPStagingBuffer_, i * 64,
-                        arr.lights[i].view_proj, 64);
-                }
-            }
-
-            wgpu::Buffer spot_vp_staging() const { return spotVPStagingBuffer_; }
+            // ATLAS_1revB U3" — stage_spot_vps and spot_vp_staging() are
+            // retired. They filled a 256-byte duplicate of bytes
+            // upload_lighting had already sent to lightingBuffer_ from the
+            // same cpuSpotLights_ array: every spot light's view_proj is a
+            // member of GPUSpotLight, at offset 320 of GPULighting. The
+            // shadow VS reads it there now, through shadow_light_vp(), which
+            // is the same array sample_spot_shadow_pcf has always indexed in
+            // the fragment stage. One fact, one home.
             wgpu::Buffer vp_buffer() const { return vpBuffer_; }
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
@@ -3503,14 +3517,25 @@ namespace t7 {
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffer_ + spotShadowMapTexture_ (atlas) partly dedicated, but the spot array now rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too; the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
+                // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
                 // WALLET_1revA: UNIFORM, not storage — the whole point of the
                 // block is that it stops spending F-stage storage seats.
                 lightingBuffer_ = makeBuffer("Lighting", sizeof(GPULighting),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                spotVPStagingBuffer_ = makeBuffer("Spot VP Staging",
-                    MAX_SPOT_LIGHTS * 64,
-                    wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                // ATLAS_1revB D3" — the light-index windows. Written ONCE,
+                // here, and never again: window i holds the constant i, so
+                // the buffer has no owner, no cadence and no way to go
+                // stale. The whole mechanism is the OFFSET moving, not the
+                // bytes.
+                lightSlotBuffer_ = makeBuffer("Shadow Light Slot Windows",
+                    MAX_SPOT_LIGHTS * SHADOW_SLOT_STRIDE,
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                if (lightSlotBuffer_) {
+                    auto q = device_.GetQueue();
+                    for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
+                        q.WriteBuffer(lightSlotBuffer_, i * SHADOW_SLOT_STRIDE,
+                                      &i, sizeof(uint32_t));
+                }
                 portalArrayBuffer_ = makeBuffer("Portal Array", sizeof(GPUPortalArray), UU);
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
@@ -3608,7 +3633,7 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldAuthoredBuffer_ &&
-                    vpBuffer_ && lightingBuffer_ && spotVPStagingBuffer_ && patchParamsBuffer_ &&
+                    vpBuffer_ && lightingBuffer_ && lightSlotBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
@@ -4504,7 +4529,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 15> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -4530,7 +4555,13 @@ namespace t7 {
                     // Three F-stage storage seats freed across the whole
                     // entity family. TWIN: Lighting / GPULighting, 848 B.
                     entries[5].binding = bind::g0::render_lighting;
-                    entries[5].visibility = wgpu::ShaderStage::Fragment;
+                    // ATLAS_1revB D2' — Vertex joins Fragment. shadow_light_vp()
+                    // reads spots.count and spots.lights[li].view_proj in the
+                    // VERTEX stage now; the fragment PCF's read is unchanged.
+                    // Render-family V stages stand at uniform 5 of 12 and go to
+                    // 7 with this and shadow_slot (BINDING_LEDGER Table B); the
+                    // gate row is a compute row and does not move.
+                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[6].binding = bind::g0::patch_instances;
@@ -4579,6 +4610,21 @@ namespace t7 {
                     entries[13].binding = bind::g0::agent_figure_profiles;
                     entries[13].visibility = wgpu::ShaderStage::Vertex;
                     entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX.
+                    // The ONE dynamic-offset binding in the program. Each spot
+                    // light owns a 256-byte window holding its own index; the
+                    // shadow pass moves the window per light-group inside a
+                    // single pass, which is what lets one pass serve every
+                    // light a texture owns and retires the per-tile Load.
+                    // Every OTHER bind of this group passes offset 0 — a
+                    // dynamic-offset layout requires the offset at every set,
+                    // and a missed site fails loudly at validation.
+                    entries[14].binding = bind::g0::shadow_slot;
+                    entries[14].visibility = wgpu::ShaderStage::Vertex;
+                    entries[14].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[14].buffer.hasDynamicOffset = true;
+                    entries[14].buffer.minBindingSize = SHADOW_SLOT_SIZE;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -5496,7 +5542,7 @@ namespace t7 {
                 auto build_render_entity_group = [&](const char* label,
                                                      uint32_t listOff,
                                                      uint32_t listBytes) -> wgpu::BindGroup {
-                    std::array<wgpu::BindGroupEntry, 14> entries{};
+                    std::array<wgpu::BindGroupEntry, 15> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -5562,6 +5608,15 @@ namespace t7 {
                     entries[13].binding = bind::g0::agent_figure_profiles;
                     entries[13].buffer = figureProfilesBuffer_;
                     entries[13].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    // ATLAS_1revB D3" — the light-index window. offset stays 0
+                    // and size is one u32; the DYNAMIC offset supplied at every
+                    // SetBindGroup selects the window. size is the window
+                    // payload, not the stride.
+                    entries[14].binding = bind::g0::shadow_slot;
+                    entries[14].buffer = lightSlotBuffer_;
+                    entries[14].offset = 0;
+                    entries[14].size = SHADOW_SLOT_SIZE;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = label;
@@ -5805,7 +5860,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (14 entries — same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 14> entries{};
+                    std::array<wgpu::BindGroupEntry, 15> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5856,6 +5911,15 @@ namespace t7 {
                     entries[13].binding = bind::g0::agent_figure_profiles;
                     entries[13].buffer = figureProfilesBuffer_;
                     entries[13].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    // ATLAS_1revB D3" — the light-index window. The snapshot
+                    // pass never varies it (it draws no shadow tiles), but the
+                    // layout demands the entry and every set demands an offset;
+                    // the photographer always passes 0.
+                    entries[14].binding = bind::g0::shadow_slot;
+                    entries[14].buffer = lightSlotBuffer_;
+                    entries[14].offset = 0;
+                    entries[14].size = SHADOW_SLOT_SIZE;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
