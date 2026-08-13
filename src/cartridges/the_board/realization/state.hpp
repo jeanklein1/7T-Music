@@ -1596,6 +1596,30 @@ namespace t7 {
         // (the limit is "better is lower", so an adapter's own value is a
         // power of two <= 256 and divides 256). The payload is 4 bytes;
         // the rest of each window is padding the alignment demands.
+        // ─── FORMAT_1 D1 — THE ONE AUTHORITY FOR THE SHADOW DEPTH FORMAT ──
+        //
+        // PASS_0 F1 found this format spelled at four coupled sites with no
+        // twin marker, no shared constant and no static_assert between them:
+        // the two texture descriptors below, renderer.hpp's shared
+        // shadowDepth.format in the DepthStencilState every shadow pipeline
+        // takes, and texel_bytes' case. A partial edit across those four does
+        // not fail at compile time — it fails at PIPELINE CREATION, at
+        // runtime, when a pipeline's depth format stops matching its
+        // attachment's.
+        //
+        // One fact, one home. The class of defect F1 names is now
+        // unconstructible: there is nothing left to edit partially.
+        //
+        // Whatever this becomes, two things must move with it and are
+        // checked by boot rather than by the compiler: texel_bytes must
+        // carry a case for it (or the [GPU Budget] line prints UNDERCOUNT),
+        // and the comparison stack must stay comparison-only — no
+        // filterable-float read of a unorm depth texture. FORMAT_1's U0
+        // verified the second at this HEAD: every shadow read in world.wgsl
+        // is textureSampleCompare or textureSampleCompareLevel.
+        inline constexpr wgpu::TextureFormat kShadowDepthFormat =
+            wgpu::TextureFormat::Depth32Float;
+
         inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
         // The BINDING size, not the payload. ShadowSlot carries one u32,
         // but WGSL rounds a struct in the UNIFORM address space up to a
@@ -3398,6 +3422,10 @@ namespace t7 {
                     case wgpu::TextureFormat::RGBA8Unorm:   return 4;
                     case wgpu::TextureFormat::BGRA8Unorm:   return 4;
                     case wgpu::TextureFormat::R32Float:     return 4;
+                    // FORMAT_1 D1 — the shadow format's byte width answers to
+                    // kShadowDepthFormat. Kept as an explicit case per format
+                    // rather than a lookup so the switch stays exhaustive and
+                    // the UNDERCOUNT path keeps its meaning.
                     case wgpu::TextureFormat::Depth32Float: return 4;
                     case wgpu::TextureFormat::Depth24Plus:  return 4;
                     default:                                return 0;
@@ -4372,7 +4400,7 @@ namespace t7 {
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.size = { Dim::SHADOW_MAP_SIZE, Dim::SHADOW_MAP_SIZE, 1 };
-                    desc.format = wgpu::TextureFormat::Depth32Float;
+                    desc.format = kShadowDepthFormat;   // FORMAT_1 D1
                     desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
                     shadowMapTexture_ = makeTexture("Shadow Map", desc);
                     if (!shadowMapTexture_) return false;
@@ -4388,7 +4416,7 @@ namespace t7 {
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.size = { Dim::SHADOW_MAP_SIZE, Dim::SHADOW_MAP_SIZE, 1 };
-                    desc.format = wgpu::TextureFormat::Depth32Float;
+                    desc.format = kShadowDepthFormat;   // FORMAT_1 D1
                     desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
                     spotShadowMapTexture_ = makeTexture("Spot Shadow Atlas", desc);
                     if (!spotShadowMapTexture_) return false;

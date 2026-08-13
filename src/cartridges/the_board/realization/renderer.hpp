@@ -2031,7 +2031,7 @@ namespace t7 {
                 // no color target, and shadow map depth format.
                 {
                     wgpu::DepthStencilState shadowDepth{};
-                    shadowDepth.format = wgpu::TextureFormat::Depth32Float;
+                    shadowDepth.format = kShadowDepthFormat;   // FORMAT_1 D1 — the one authority (state.hpp)
                     shadowDepth.depthWriteEnabled = true;
                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
 
