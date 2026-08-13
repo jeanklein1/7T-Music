@@ -446,3 +446,85 @@ first visit was mismeasured.
 
 The rule: before attributing a cost to the phase whose timer moved, ask
 what that phase is the first thing to WAIT on.
+
+---
+
+## L16 — THE MECHANISM AUDIT
+
+Every ruled mechanism in a handoff carries its own recon step verifying
+the facts it stands on. **A design decision without a mechanism audit
+does not land.**
+
+Paid for three times in one session, each time by a mechanism that was
+named confidently and was not what the design assumed:
+
+- **`compute_vp`'s sun write.** ATLAS_1's D2 gave the sun and spot
+  light 0 one slot, on the belief that the sun VP had a CPU writer at
+  mood cadence. It has no CPU writer at all — `compute_vp` writes it on
+  the GPU every frame, and the per-tile copy that D4 was retiring was
+  also what protected light 0 from it.
+- **The occupied instance channel.** D3 proposed `firstInstance` as a
+  channel for the light index. `firstInstance` does not add a channel —
+  it *biases* `instance_index`, five shadow VSes already index with it,
+  six shadow draws are instanced, and the terrain's band 1 was already
+  using it as an index base.
+- **The gallery layout gap.** D2′ and D3″ were both sound and neither
+  could *reach* two of the thirteen shadow VSes, which are drawn on a
+  group-0 layout carrying neither binding.
+
+None was catchable by argument; each was one grep from visible. The
+audit is the grep, written down before the edit.
+
+## L17 — DELEGATION CROSSES DESIGN FORKS, NEVER MEASUREMENT GATES
+
+CC may rule a design fork under explicit delegation, with the ruling
+annotated in the artifact so the choice has one home and a reader can
+find who chose and why.
+
+A gate requiring a **boot, a walk, or any physical reading is never
+reasoned past.** A design fork has an answer in the tree; a measurement
+gate has its answer only in the world. Confidence is not a substitute
+for a reading, and an argument that a reading *would* come out a certain
+way is the exact shape of the error the gate exists to catch.
+
+## L18 — GATE RESULTS TRAVEL IN WRITING
+
+Walk and boot verdicts are pasted into CC's next session opener or into
+the merge commit. **A merge is never recorded "no walk reported" when a
+walk occurred.**
+
+The record is the only thing a later session has. A verdict held in a
+person's memory is, to the tree, indistinguishable from a verdict that
+never happened — and the merge commit is where a bisect looks first.
+
+## L19 — COMPAT MODE, DECLINED AS A DECISION
+
+WebGPU compatibility mode may zero vertex-stage storage bindings, and
+the render room stands at **V storage 7 of 8** (`Shadow Gallery Frame` /
+`Shadow Wall Painting`, post-ATLAS_1revB G2).
+
+**Declined.** Revisit only if a *measured* audience device requires it.
+
+Recorded as a decision rather than an omission: the constraint is known,
+the cost of honouring it is known, and the choice is to spend the
+headroom on the work instead. An unrecorded decline is indistinguishable
+from an oversight, and the next reader of that 7-of-8 deserves to know
+it was seen.
+
+## L20 — OPTIONAL FEATURES
+
+The baseline is **WebGPU core, one shader source.** A feature is adopted
+only with all three of: runtime detection, an identical-semantics
+fallback, and its own witness at every gate.
+
+**The adopt-list starts empty.**
+
+- `timestamp-query` stays meter-preset-only. It is an instrument, not a
+  capability the artwork depends on.
+- Texture compression, *if* the paintings are ever unfenced, is
+  per-platform transcode — never baseline. The grants census already
+  shows the split: ASTC and ETC2 on the Pixel's valhall row, BC absent.
+
+Two shader sources is the failure this forbids. A feature adopted
+without a fallback makes the second source inevitable, and the moment
+there are two, every witness in the tree is witnessing half a program.
