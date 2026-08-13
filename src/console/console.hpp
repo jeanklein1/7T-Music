@@ -860,47 +860,54 @@ namespace t7 {
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
 
-            // TOGGLE_1revA U1' — THE CONTROL, BACK AT ITS CONSUMING STAGE.
+            // TOGGLE_0 U2 — THE CONTROL IS RETIRED. VERDICT: BRANCH (b).
             //
-            // PIVOT_0d E2 removed a device-level chain from this spot
-            // because it was inert. It was inert for a reason that does
-            // not generalise: the toggle it carried was use_dxc,
-            // ToggleStage::Adapter, and the device descriptor is
-            // downstream of the stage that reads it. What PIVOT_0a
-            // actually proved is that this root is PARSED — Dawn accepted
-            // the chain without error — which makes it the right home for
-            // a DEVICE-stage toggle and the wrong one for an adapter-stage
-            // toggle. Those are different facts and the earlier note
-            // collapsed them.
+            // What stood here: a two-name DawnTogglesDescriptor on
+            // deviceDesc.nextInChain — disable_symbol_renaming as the
+            // control, t7_not_a_toggle as the garnish. It is gone because
+            // it has done its work, and a control left armed becomes dead
+            // code, and dead code is a liar.
             //
-            // disable_symbol_renaming is ToggleStage::Device: zero
-            // inheritance hops from the GetTogglesUsed(device_) readout
-            // below. It is not a second home for one fact — use_dxc's
-            // instance chain and this are two toggles at two stages, which
-            // is what the consuming-stage ruling requires.
+            // THE READING (Jean, native Vulkan, Dawn f0bf8ab, 2026-08-13,
+            // binary built at 9489b8d — i.e. AFTER the chain was re-sited
+            // to this device descriptor):
             //
-            // THE GARNISH, AND ITS CAVEAT. The second name is deliberate
-            // nonsense. IF Dawn warns on unrecognised toggle names at the
-            // stage that parses them, a warning proves the descriptor is
-            // read, and turns the control's absence into a positive
-            // signal. That behaviour is BELIEVED, NOT CONFIRMED — so the
-            // garnish's SILENCE proves nothing and must not be read as
-            // evidence. Only its warning carries information.
+            //     [Console] Toggles used (10): … disable_symbol_renaming …
             //
-            // Both die in TOGGLE_0 U2 the moment the reading exists. A
-            // control left armed becomes dead code, and dead code is a
-            // liar.
+            // Count 9 → 10, the control present. THE POSITIVE HALF IS
+            // PROVEN: chained at the stage that consumes it, a Dawn toggle
+            // arrives, and it arrives visibly at GetTogglesUsed.
             //
-            // LIFETIME: the array is static; deviceToggles is a local that
-            // outlives CreateDevice below, in this same scope.
-            static const char* const kDeviceToggles[] = {
-                "disable_symbol_renaming",
-                "t7_not_a_toggle",
-            };
-            wgpu::DawnTogglesDescriptor deviceToggles{};
-            deviceToggles.enabledToggleCount = 2;
-            deviceToggles.enabledToggles = kDeviceToggles;
-            deviceDesc.nextInChain = &deviceToggles;
+            // WHAT IS NOT PROVEN, STATED PLAINLY. TOGGLE_0's table read a
+            // present control as branch (a) — "the instance chain works,
+            // Boot 2 was Dawn refusing DXC". That inference is void here,
+            // because the binary that produced this reading does not chain
+            // the control on the instance descriptor. TOGGLE_0 U1 armed it
+            // there at 30c9a7c; no boot ever ran that binary (the `(9)`
+            // reading predates the control entirely — TOGGLE_1 U0 proved
+            // the `if constexpr` left idesc.nextInChain null on the Vulkan
+            // plan). So the instance chain has never been tested with a
+            // toggle in it, and BRANCH (b) IS UNPROVEN, NOT CONFIRMED.
+            //
+            // Debt 12 therefore closes as MOOT rather than as (a) or (b):
+            // the question it asked — "does the instance chain propagate?"
+            // — no longer gates anything, because L21 routes every future
+            // toggle to its consuming stage and never relies on
+            // inheritance. Reopening it costs one boot with the control
+            // re-armed on idesc; nothing in the queue wants that boot.
+            //
+            // The general fact, now L21: a Dawn toggle must be chained at
+            // the descriptor of the stage that CONSUMES it. use_dxc is
+            // ToggleStage::Adapter and stays on the instance/adapter path
+            // above; disable_symbol_renaming is ToggleStage::Device and
+            // took from here on the first boot that asked it to.
+            //
+            // The garnish testified to nothing and was always expected to:
+            // its silence was ruled inadmissible when it was armed, and it
+            // stayed silent. No inference is drawn from it.
+            //
+            // The witness that outlives both is GetTogglesUsed below. It
+            // is not the control; it is the readout, and it stays.
 
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {

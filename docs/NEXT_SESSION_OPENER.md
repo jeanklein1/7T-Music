@@ -4,20 +4,17 @@
 Nothing else. What a summary would say is already in the tree.
 
 **State.** Estate mapped; indoor frame cost down roughly 6×. The shadow
-atlas went one-pass-per-texture (96 → 32 MiB/frame at four lights, no
-`LoadOp::Load` left in the tree), the maps went `depth16unorm` (32 → 16
-MiB resident), two readerless depth attachments now `Discard`, and the
-meter grew an envelope row — the purse. FORMAT is gated clean. Every
-correction this session found is landed in the tree, not held in a
-document: laws L16–L20, two stale rationales retired, the toggle control
-re-sited to its consuming stage, the census dump off the meter's dial.
-**Purse table: [pending — the soak].**
+atlas went one-pass-per-texture (96 → 32 MiB/frame at four lights), the
+maps `depth16unorm` (32 → 16 resident), two readerless depths `Discard`,
+and the meter grew the purse row. FORMAT gated clean, texel-neutral by
+design. Corrections live in the tree: laws L16–L21, two stale rationales
+retired, the toggle control read and retired and its verdict written
+(`audit/TOGGLE_0_VERDICT.md`). Purse: **[pending — the soak].**
 
 **The ask.** Choose from ESTATE §6. Open LIGHT_0 and SHADE_0 —
-`audit/SHADE_0_CENSUS.md` carries the arithmetic and the price (zero
-GPU; the shadow floor is `sun_ambient`, and indoors it is half the
-light). Socket groundwork with the control panel beneath it; ESTATE §8
-is its inbox. No tactics unless a price tag demands one.
+`audit/SHADE_0_CENSUS.md` carries the arithmetic, the price (zero GPU;
+indoors the floor is half the light) and the gate's two answered rows.
+Socket groundwork, control panel beneath it; ESTATE §8 is the inbox.
 
-**Standing constraint.** The tree outranks every summary, this one
-included. Where a document and the code disagree, the code is the fact.
+**Standing constraint.** Where a document and the code disagree, the
+code is the fact.

@@ -528,3 +528,30 @@ fallback, and its own witness at every gate.
 Two shader sources is the failure this forbids. A feature adopted
 without a fallback makes the second source inevitable, and the moment
 there are two, every witness in the tree is witnessing half a program.
+
+## L21 — A TOGGLE IS CHAINED AT THE STAGE THAT CONSUMES IT
+
+Dawn toggles carry a `ToggleStage` — Instance, Adapter, or Device. A
+toggle chained at a descriptor **downstream** of its stage is silently
+inert: no error, no warning, no toggle. A toggle chained **upstream**
+depends on inheritance carrying it every hop, which is a Dawn
+implementation detail this program cannot read and must not assume.
+
+**So chain each toggle at its own stage, and never at a neighbour's.**
+`use_dxc` is Adapter-stage and belongs on the instance/adapter path;
+`disable_symbol_renaming` is Device-stage and belongs on the device
+descriptor. Two toggles at two stages is the correct shape, not
+duplication to be tidied away.
+
+Paid for by PIVOT_0a and debt 12. `use_dxc` was chained on the device
+descriptor, one stage too late; the boot log said "Compiler plan: DXC"
+and FXC compiled anyway. The reverse error — a Device-stage toggle
+chained on the instance descriptor and hoping inheritance delivers it —
+was never disproved, and under this law never needs to be: the question
+only arises for a toggle sited somewhere other than its own stage.
+
+**The corollary is the witness.** A toggle request is not a toggle.
+`dawn::native::GetTogglesUsed(device_)` prints the set Dawn actually
+enabled, and that line stays in the boot log for exactly this reason: a
+switch that cannot be seen to have fired is indistinguishable from one
+that never fired (P6).

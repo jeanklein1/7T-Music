@@ -136,8 +136,52 @@ binary and its own gate asks for them:
 |---|---|---|---|
 | A | outdoor sunset | | |
 | B | finite outdoor | | |
-| C | indoor 2 | | |
+| C | indoor 2 | **slight** — see below | |
 | D | indoor 4 | | |
+
+### The acne row, answered — and declined as a detour
+
+Jean, on the `9489b8d` Vulkan boot (the FORMAT_1 gate sitting):
+
+> *"there is a little bit of acne in the indoor room, it's not much, and
+> it isn't a fruit of this session."*
+
+Recorded as **observed, pre-existing, and not pursued.** Three reasons
+it is the right call and not a shrug:
+
+1. **It is not a FORMAT_1 regression.** `depth16unorm` halves depth
+   precision, which is the change most likely to *manufacture* acne — so
+   pre-existing acne that did not worsen is the format gate passing on
+   its hardest question, not failing on a soft one.
+2. **The bias is already priced.** `renderer.hpp` carries the PENUMBRA_1
+   P2 comment with the unorm inversion worked out (~0.00915 wu per bias
+   unit). Whoever picks this up starts from arithmetic, not from a knob.
+3. **It is the wrong lever for the visible complaint.** SHADE_0's whole
+   finding is that indoor shadows read faint because ~two-thirds of an
+   indoor floor's light is unshadowable ambient plus unshadowable sun.
+   Bias tuning cannot touch that. Deepening the shadows first would also
+   change how visible the acne is, which means tuning bias *before*
+   SHADE_0 is tuning against a floor that is about to move.
+
+**So the order is: SHADE_0's four floats first, then re-sit this row.**
+If the acne is still worth an hour after the floor moves, it is a bias
+pass with a known conversion factor and a one-line edit.
+
+### The indoor sun row, answered by mechanism rather than by eye
+
+Jean, same sitting:
+
+> *"about sunlight causing shadows indoors, never happened, since we
+> began to work on this project."*
+
+**Expected, and confirmed by the code above rather than contradicted by
+it.** `calc_directional_light` forces `shadow = 1.0` whenever
+`spots.count != 0u`, which is every indoor mood. There has never been an
+indoor sun shadow to lose, and nothing this session was scoped to change
+that: the guard's *rationale* was corrected by CLOSE_0 A3, its *logic*
+was left byte-identical. Restoring indoor sun shadow is the third row of
+THE KNOBS, PRICED — a tile's worth of content and a campaign of its own,
+not a knob.
 
 ## WHAT SHADE_0 WILL ASK, ONCE THE BLANKS ARE FILLED
 
