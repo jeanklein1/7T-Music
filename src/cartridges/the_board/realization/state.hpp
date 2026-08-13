@@ -1863,7 +1863,6 @@ namespace t7 {
             // WALLET_1revA: one 848 B uniform buffer where three storage
             // buffers stood. GPULighting {sun, points, spots}.
             wgpu::Buffer lightingBuffer_;
-            wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
             wgpu::Buffer lightSlotBuffer_;       // ATLAS_1revB D3": 4 × 256 B windows, window i == i
             wgpu::Buffer portalArrayBuffer_;
 
@@ -2250,16 +2249,14 @@ namespace t7 {
                 writeStruct(queue, lightingBuffer_, lighting);
             }
 
-            // Stage all active spot light VPs into the staging buffer (4 × 64 bytes).
-            // Caller then encodes CopyBufferToBuffer per light before each shadow sub-pass.
-            void stage_spot_vps(wgpu::Queue& queue, const GPUSpotLightArray& arr) {
-                for (uint32_t i = 0; i < std::min(arr.count, MAX_SPOT_LIGHTS); i++) {
-                    queue.WriteBuffer(spotVPStagingBuffer_, i * 64,
-                        arr.lights[i].view_proj, 64);
-                }
-            }
-
-            wgpu::Buffer spot_vp_staging() const { return spotVPStagingBuffer_; }
+            // ATLAS_1revB U3" — stage_spot_vps and spot_vp_staging() are
+            // retired. They filled a 256-byte duplicate of bytes
+            // upload_lighting had already sent to lightingBuffer_ from the
+            // same cpuSpotLights_ array: every spot light's view_proj is a
+            // member of GPUSpotLight, at offset 320 of GPULighting. The
+            // shadow VS reads it there now, through shadow_light_vp(), which
+            // is the same array sample_spot_shadow_pcf has always indexed in
+            // the fragment stage. One fact, one home.
             wgpu::Buffer vp_buffer() const { return vpBuffer_; }
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
@@ -3514,14 +3511,11 @@ namespace t7 {
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffer_ + spotShadowMapTexture_ (atlas) partly dedicated, but the spot array now rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too; the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
+                // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
                 // WALLET_1revA: UNIFORM, not storage — the whole point of the
                 // block is that it stops spending F-stage storage seats.
                 lightingBuffer_ = makeBuffer("Lighting", sizeof(GPULighting),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                spotVPStagingBuffer_ = makeBuffer("Spot VP Staging",
-                    MAX_SPOT_LIGHTS * 64,
-                    wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 // ATLAS_1revB D3" — the light-index windows. Written ONCE,
                 // here, and never again: window i holds the constant i, so
                 // the buffer has no owner, no cadence and no way to go
@@ -3633,7 +3627,7 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldAuthoredBuffer_ &&
-                    vpBuffer_ && lightingBuffer_ && spotVPStagingBuffer_ && patchParamsBuffer_ &&
+                    vpBuffer_ && lightingBuffer_ && lightSlotBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
