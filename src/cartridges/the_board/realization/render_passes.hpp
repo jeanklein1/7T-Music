@@ -266,54 +266,79 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         static constexpr uint32_t TILE_W = Dim::SHADOW_MAP_SIZE / 2;  // half width
         static constexpr uint32_t TILE_H = Dim::SHADOW_MAP_SIZE;      // full height
 
-        for (uint32_t li = 0; li < cpuSpotLights_.count && li < MAX_SPOT_LIGHTS; li++) {
-            // Copy this light's VP from staging → VP buffer's light_vp slot
-            encoder.CopyBufferToBuffer(
-                c->gpuState_.spot_vp_staging(), li * 64,
-                c->gpuState_.vp_buffer(), GPUState::light_vp_offset(),
-                GPUState::light_vp_size());
+        // ATLAS_1revB U2" — ONE PASS PER TEXTURE, NOT ONE PER LIGHT.
+        //
+        // The tiling is unchanged: 1024 x 2048 halves, lights 0-1 on the
+        // sun map, 2-3 on the spot atlas, each light scissored to its own
+        // half. What changed is the PASS boundary. Before, every tile was
+        // its own render pass against a shared texture, so the right-hand
+        // tile had to open with LoadOp::Load purely to preserve what the
+        // left-hand tile had already stored — and both tiles stored the
+        // whole 2048² attachment. At four lights that was 96 MiB/frame of
+        // depth traffic, of which 32 MiB was preservation Loads and 32 MiB
+        // duplicate Stores (PASS_LEDGER Q3.1).
+        //
+        // Now each texture is cleared once, drawn for every light it owns
+        // under per-light viewports, and stored once: 96 -> 32 MiB at four
+        // lights, 48 -> 16 at two. No LoadOp::Load survives in this
+        // function. The per-light matrix arrives by dynamic offset (D3"),
+        // which is what makes one pass able to serve several lights — a
+        // buffer write cannot be recorded inside a render pass, and that
+        // copy is exactly what forced the split before.
+        //
+        // A pass opens only if its texture owns at least one active light.
+        const uint32_t live = (cpuSpotLights_.count < MAX_SPOT_LIGHTS)
+                            ? cpuSpotLights_.count : MAX_SPOT_LIGHTS;
 
-            // Lights 0-1 → sun map (idle in indoor mode), lights 2-3 → spot map
-            bool use_sun_map = (li < 2);
-            uint32_t within = li % 2;   // 0=left half, 1=right half
+        // texture 0 = sun map (lights 0-1), texture 1 = spot atlas (2-3).
+        for (uint32_t tex = 0; tex < 2; tex++) {
+            const uint32_t first = tex * 2;
+            if (first >= live) break;          // this texture owns no light
 
             wgpu::RenderPassDepthStencilAttachment depthAttachment{};
-            depthAttachment.view = use_sun_map
+            depthAttachment.view = (tex == 0)
                 ? c->gpuState_.shadow_map_view()
                 : c->gpuState_.spot_shadow_map_view();
-            depthAttachment.depthLoadOp = (within == 0) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+            depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
             depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
             depthAttachment.depthClearValue = 1.0f;
 
             wgpu::RenderPassDescriptor desc{};
-            desc.label = "Shadow Atlas Tile";
+            desc.label = "Shadow Atlas";
             desc.colorAttachmentCount = 0;
             desc.depthStencilAttachment = &depthAttachment;
             desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
 
             wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-            // ATLAS_1revB D3" — this tile's light window. shadow_light_vp()
-            // reads shadow_slot.li through it, so the matrix follows the
-            // offset rather than a buffer write. U1" leaves the pass
-            // structure alone; U2" merges the tiles and moves this set
-            // inside the merged pass.
-            const uint32_t slotOffset = li * SHADOW_SLOT_STRIDE;
+            for (uint32_t li = first; li < first + 2 && li < live; li++) {
+                const uint32_t within = li % 2;   // 0 = left half, 1 = right
+                const uint32_t slotOffset = li * SHADOW_SLOT_STRIDE;
 
-            // OIL_1 U12 (ledger: R18, C7) — the pass-head binds. Each
-            // atlas tile is a FRESH pass, so this is the tile's one real
-            // bind; the draws that follow re-set nothing.
-            pass.SetBindGroup(0, c->gpuState_.render_entity_group(), 1, &slotOffset);
-            pass.SetBindGroup(1, c->gpuState_.shadow_texture_group());
+                // BOTH groups are re-set per light, and group 1 is not
+                // hoisted to the pass head even though its value never
+                // varies: draw_shadow_all's tail rebinds group 1 to the
+                // gallery TEXTURE group for the two artwork draws, so a
+                // hoisted bind would be stale for the second light in this
+                // pass. One bind per light per group — the same count the
+                // per-tile passes paid, now without their attachment
+                // traffic.
+                //
+                // D3" — the light window is the one thing that
+                // distinguishes this light's draws from the last's.
+                // shadow_light_vp() reads shadow_slot.li through it.
+                pass.SetBindGroup(0, c->gpuState_.render_entity_group(), 1, &slotOffset);
+                pass.SetBindGroup(1, c->gpuState_.shadow_texture_group());
 
-            float vx = static_cast<float>(within * TILE_W);
-            pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
-            pass.SetScissorRect(within * TILE_W, 0, TILE_W, TILE_H);
+                const float vx = static_cast<float>(within * TILE_W);
+                pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
+                pass.SetScissorRect(within * TILE_W, 0, TILE_W, TILE_H);
 
-            // THE SPOT CASTER CUT (UMBRA_4) — terrain does not cast into a
-            // spot tile. This is the whole of the edit: one argument, one
-            // site, and the revert is this word.
-            draw_shadow_all(c, pass, /*cast_terrain=*/false);
+                // THE SPOT CASTER CUT (UMBRA_4) — terrain does not cast into
+                // a spot tile. This is the whole of the edit: one argument,
+                // one site, and the revert is this word.
+                draw_shadow_all(c, pass, /*cast_terrain=*/false);
+            }
             pass.End();
         }
     }
