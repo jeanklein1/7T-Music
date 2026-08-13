@@ -1470,7 +1470,15 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     wgpu::RenderPassDepthStencilAttachment depthAtt{};
     depthAtt.view = c->gpuState_.offscreen_depth_view();
     depthAtt.depthLoadOp = wgpu::LoadOp::Clear;
-    depthAtt.depthStoreOp = wgpu::StoreOp::Store;
+    // DISCARD_0 (PASS_0 F2) — the twin of the main pass's depth, same
+    // proof. offscreenDepthTexture_ is created with usage
+    // RenderAttachment ALONE (state.hpp): no TextureBinding, no
+    // CopySrc, so nothing can sample it and nothing copies it out. The
+    // colour attachment above stays Store and MUST — it carries
+    // CopySrc and this very function's tail copies it into the
+    // snapshot staging array, right after pass.End(). Depth has no
+    // such consumer.
+    depthAtt.depthStoreOp = wgpu::StoreOp::Discard;
     depthAtt.depthClearValue = 1.0f;
 
     wgpu::RenderPassDescriptor desc{};
