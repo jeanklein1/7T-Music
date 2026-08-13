@@ -695,17 +695,55 @@ namespace t7 {
             // LIFETIME: `kDxcToggle` is static; `toggles` and `idesc` need
             // only outlive the emplace() call, and they do — Dawn copies
             // what it needs out of the descriptor during construction.
-            static const char* const kDxcToggle[] = { "use_dxc" };
+            // TOGGLE_0 (debt 12) — THE CONTROL, RIDING THE SAME ROAD.
+            //
+            // Boot 2 proved `use_dxc` did not take; it did not prove why.
+            // Either Dawn validated and refused DXC on this Kepler-era
+            // driver (benign), or the chain above never propagates at all
+            // — in which case every future Dawn toggle fails the same
+            // silent way. The two are indistinguishable from the D3D12
+            // boot log alone, because a refused toggle and an unchained
+            // toggle both read as absent.
+            //
+            // A control separates them. `disable_symbol_renaming` is a
+            // Tint toggle with no backend of its own, so it can ride the
+            // WORKING Vulkan boot and Jean never has to re-enter the
+            // crashing D3D12 path. It travels the identical road:
+            // the same wgpu::DawnTogglesDescriptor, the same two field
+            // names, the same idesc.nextInChain, the same static-lifetime
+            // array. Nothing bespoke — that identity IS the instrument.
+            //
+            // IT IS STRICTLY STRONGER THAN THE VARIABLE UNDER TEST.
+            // `use_dxc` is ToggleStage::Adapter; `disable_symbol_renaming`
+            // is ToggleStage::Device, one inheritance hop further down the
+            // instance -> adapter -> device chain the banner above
+            // describes. If it surfaces in GetTogglesUsed, the whole chain
+            // propagates and Boot 2's failure was Dawn's refusal, not our
+            // plumbing.
+            //
+            // THE CONTROL CANNOT GRANT THE VARIABLE UNDER TEST — it does
+            // not touch DXC, HLSL, or any D3D12 path. That is what makes
+            // it an instrument rather than a second experiment.
+            //
+            // TEMPORARY BY CONSTRUCTION: TOGGLE_0 U2 removes this the
+            // moment Jean has read one Vulkan boot line. A control left
+            // armed becomes dead code, and dead code is a liar.
+            static const char* const kControlToggle[] = { "disable_symbol_renaming" };
+            static const char* const kDxcAndControl[] = { "use_dxc", "disable_symbol_renaming" };
             wgpu::DawnTogglesDescriptor toggles{};
             wgpu::InstanceDescriptor idesc{};
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
+                toggles.enabledToggleCount = 2;
+                toggles.enabledToggles = kDxcAndControl;
+            } else {
                 toggles.enabledToggleCount = 1;
-                toggles.enabledToggles = kDxcToggle;
-                idesc.nextInChain = &toggles;
+                toggles.enabledToggles = kControlToggle;
             }
-            // Vulkan and D3D12_Fxc chain nothing: Vulkan reaches SPIR-V
-            // through Tint with no toggle, and Fxc is the untoggled path
-            // kept for archaeology.
+            idesc.nextInChain = &toggles;
+            // Vulkan and D3D12_Fxc chained nothing before TOGGLE_0: Vulkan
+            // reaches SPIR-V through Tint with no toggle, and Fxc is the
+            // untoggled path kept for archaeology. Under the control they
+            // chain the control alone; U2 restores the empty chain.
 
             // Construct instance in place (non-copyable, non-movable)
             instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));
