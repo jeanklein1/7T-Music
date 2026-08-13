@@ -1511,7 +1511,30 @@ namespace t7 {
                     // .seconds is monotonic and non-negative, so a negative
                     // value here is the sentinel and can be nothing else.
                     const bool first_dump = spawn_engine_state_.lastCensusDump_ < 0.0f;
-                    dump_entity_census(&machine_ctx_, "periodic");
+                    // HEADROOM_0 U3 — THE ENTITY TEXT IS ON ITS OWN DIAL.
+                    // ~50 blocking std::cout writes, and the 2026-08-13 boot
+                    // read census_dumps max 1051 ms: an instrument spending
+                    // over a second inside frames it exists to measure.
+                    //
+                    // It could not simply be gated off with periodic_census,
+                    // because instruments.hpp asserts frame_meter REQUIRES
+                    // periodic_census — the [METER] table below rides this
+                    // same cadence, so turning the dial off would turn off
+                    // the meter. The dial is split instead: the cadence and
+                    // the table stay on periodic_census, the TEXT answers to
+                    // census_entity_dump. `meter` drops it; `full` keeps it.
+                    //
+                    // Silence rather than buffering: flushing the text
+                    // "outside the frame" moves the same blocking write to
+                    // the same thread microseconds later. Not writing it is
+                    // both cheaper and a smaller edit.
+                    //
+                    // The cadence bookkeeping below is NOT gated — it must
+                    // advance whether or not the text prints, or the meter
+                    // window it drives would never close.
+                    if constexpr (INSTRUMENTS.census_entity_dump) {
+                        dump_entity_census(&machine_ctx_, "periodic");
+                    }
                     spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
 
                     // THE FRAME METER — the timing census rides the same

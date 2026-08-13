@@ -47,7 +47,8 @@ namespace t7 {
 
     struct Instruments {
         bool frame_meter;      // per-row CPU clocks, per-pass GPU timestamps, the [METER] table
-        bool periodic_census;  // the wall-clock [CENSUS] dump (the spine's census row)
+        bool periodic_census;  // the census CADENCE — and the [METER] table, which rides it
+        bool census_entity_dump; // the ~50-line entity [CENSUS] text itself (HEADROOM_0 U3)
         bool checker_witness;  // the [CHECKER] line, one per checker read (~every 4 beats)
         bool zoetrope_witness; // the [ZOETROPE] strike line, one per strike-frame
         bool watcher_ticks;    // the harness's hot-reload progress dot (a flushed write, 2×/s)
@@ -61,11 +62,16 @@ namespace t7 {
 
     constexpr Instruments instruments_config(InstrumentCol col) {
         switch (col) {
-        case InstrumentCol::meter: return { true,  true,  false, false, false };
-        case InstrumentCol::full:  return { true,  true,  true,  true,  true };
+        // HEADROOM_0 U3 — `meter` keeps the cadence and the table and
+        // DROPS the entity text. That text is ~50 blocking console writes
+        // inside a frame the meter is trying to measure; the 2026-08-13
+        // boot read census_dumps max 1051 ms. `full` keeps everything,
+        // because `full` is the pre-dial behaviour exactly.
+        case InstrumentCol::meter: return { true,  true,  false, false, false, false };
+        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true  };
         case InstrumentCol::off:   break;
         }
-        return { false, false, false, false, false };
+        return { false, false, false, false, false, false };
     }
 
 } // namespace t7
