@@ -37,6 +37,17 @@ fn calc_directional_light(world_pos, normal, geo_normal) -> vec3<f32> {
 }
 ```
 
+> **Note added by CLOSE_0 A3.** The quoted block elides the guard's
+> comment, so no stale text is reproduced here — but the comment that
+> stood beside it when this census was written has since been replaced.
+> It read *"light_vp is being used for spot atlas tiles, so the
+> directional PCF would sample wrong"*, which described a mechanism
+> ATLAS_1revB retired: `light_vp` is no longer overwritten, because the
+> per-tile copy is gone. **The guard is still correct, for a different
+> reason** — indoors the sun map's *content* is spot atlas tiles 0–1, so
+> a sun-matrix sample would read spot depths. The live rationale is in
+> `calc_directional_light`; the arithmetic below is unaffected either way.
+
 **Two facts follow, and they are the whole census.**
 
 **1. `shadow` multiplies the sun term ONLY.** `ambient` is outside it.

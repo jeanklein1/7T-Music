@@ -4021,8 +4021,11 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
     let light_dir = -render_lighting.sun.direction;  // toward light
     let ndotl = max(dot(normal, light_dir), 0.0);
 
-    // Shadow: skip when spot lights are active — light_vp is being used
-    // for spot atlas tiles, so the directional PCF would sample wrong.
+    // Sun PCF stays off when spots are active: indoors the sun map's
+    // CONTENT is spot atlas tiles 0-1 (ATLAS_1revB draws them there), so a
+    // sun-matrix sample would read spot depths. light_vp itself is no
+    // longer overwritten (the per-tile copy died in ATLAS_1revB).
+    // Restoring indoor sun shadow needs its own map content — future ruling.
     var shadow = 1.0;
     if (render_lighting.spots.count == 0u) {
         shadow = sample_shadow_pcf(world_pos, geo_normal);
