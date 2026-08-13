@@ -451,7 +451,20 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     wgpu::RenderPassDepthStencilAttachment depthAttachment{};
     depthAttachment.view = depth;
     depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
-    depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
+    // DISCARD_0 (PASS_0 F1) — Discard, not Store. The console's depth
+    // texture is created with usage RenderAttachment ALONE
+    // (console.hpp createDepthBuffer): no TextureBinding, so it cannot
+    // enter a bind group and no shader can sample it; no CopySrc, so
+    // nothing reads it back. Its contents are unreachable the instant
+    // this pass ends, and Store writes the whole attachment to main
+    // memory anyway — 4·W·H bytes per frame, every arm, for a resource
+    // with no reader. Discard is the op for that case.
+    //
+    // THE SAFETY PROOF IS THE USAGE MASK, not this comment. If
+    // createDepthBuffer ever gains TextureBinding or CopySrc, a reader
+    // becomes possible and this line must go back to Store in the same
+    // commit that grants it.
+    depthAttachment.depthStoreOp = wgpu::StoreOp::Discard;
     depthAttachment.depthClearValue = 1.0f;
 
     wgpu::RenderPassDescriptor desc{};
