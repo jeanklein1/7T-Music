@@ -17,7 +17,7 @@ merge rows the API charges separately.
 | source commit | `1581e5c1de8d27b96aeae056ae4b4f53c8a448d3` |
 | | CLOSE_0 A3: the guard's rationale, restated for the mechanism that exists |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:71d184bac2217d0f121704f511710268f0c764118b2ffcb2686cdba627a7bfb8` |
-| `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:e92d9912a16e32f57631be51eb587c1bb5a5d5a5ae6ec6a56dde24abcbb94043` |
+| `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:aaecd2c5f35ed2e2c0032c1789a502a34814d5547f8f0a6e5a0436f8a3d027bf` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:379485b911a5c117eb9b9c7ae2475ecd17dac30c1e3490cc6551985cafe6664b` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:95df89aeed90295c8d780eb1b75906af90c5cc7f06321a1186afd225e7eb146f` |
 

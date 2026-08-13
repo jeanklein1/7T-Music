@@ -17,12 +17,12 @@ carry those facts, or leave them in place and patch around them.
 |---|---|
 | source commit | `86465a5857a98c29f21586c52973ef612fc8a321` |
 | | CLOSE_0 B1: FORMAT_1 ledger regen — and a correction to its expectation |
-| `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:e92d9912a16e32f57631be51eb587c1bb5a5d5a5ae6ec6a56dde24abcbb94043` |
+| `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:aaecd2c5f35ed2e2c0032c1789a502a34814d5547f8f0a6e5a0436f8a3d027bf` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:95df89aeed90295c8d780eb1b75906af90c5cc7f06321a1186afd225e7eb146f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:71d184bac2217d0f121704f511710268f0c764118b2ffcb2686cdba627a7bfb8` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:379485b911a5c117eb9b9c7ae2475ecd17dac30c1e3490cc6551985cafe6664b` |
 | `tools/binding_ledger.py` | `sha256:f66eb9b51cde22fc7c0c0ac72a14bd73c11f7fde63eebac9d2b6ea164112e632` |
-| `audit/BINDING_LEDGER.md` | `sha256:120bd6c3bb2e7f9f4091adaa572aa760195d5169b76d1a14638b02a72625df1f` |
+| `audit/BINDING_LEDGER.md` | `sha256:e20229b5dbfb2060ae69c1a47e76070503447f3ca0b9d31524082e9b2000607b` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -401,7 +401,7 @@ No hit: every `.binding =` right side inside this boundary is a
 Boundary: every file under `src/` (comment-stripped for C++/WGSL, raw
 otherwise), token `\bbind::`. Instruments and reports cite the
 constants rather than bind them and are counted, not listed:
-`tools/` 23 mention(s), `audit/` 326 mention(s).
+`tools/` 24 mention(s), `audit/` 326 mention(s).
 
 | file | `bind::` hits |
 |---|---|

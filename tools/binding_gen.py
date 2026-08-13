@@ -992,8 +992,11 @@ def main():
                    help="parse the tree, print a schema module to stdout")
     g.add_argument("--check", action="store_true",
                    help="diff tree against schema, verify emitters and witnesses")
-    g.add_argument("--write", action="store_true",
-                   help="emit binding_registry.hpp and binding_surface.gen.inc")
+    g.add_argument("--write", nargs="?", const="all",
+                   choices=("registry", "inc", "all"), metavar="TARGET",
+                   help="emit binding_registry.hpp and/or binding_surface.gen.inc "
+                        "(registry | inc | all; default all). U2 flips the "
+                        "registry alone; U3 flips the state.hpp blocks.")
     g.add_argument("--write-wgsl", metavar="PATH",
                    help="renumber the declaration sites of the file at PATH")
     args = ap.parse_args()
@@ -1005,10 +1008,12 @@ def main():
         return check(args)
     if args.write:
         schema = load_schema()
-        write_file(REGISTRY_HPP, emit_registry(schema, with_notice=True))
-        print("wrote %s" % os.path.relpath(REGISTRY_HPP, REPO))
-        write_file(GEN_INC, emit_gen_inc(schema))
-        print("wrote %s" % os.path.relpath(GEN_INC, REPO))
+        if args.write in ("registry", "all"):
+            write_file(REGISTRY_HPP, emit_registry(schema, with_notice=True))
+            print("wrote %s" % os.path.relpath(REGISTRY_HPP, REPO))
+        if args.write in ("inc", "all"):
+            write_file(GEN_INC, emit_gen_inc(schema))
+            print("wrote %s" % os.path.relpath(GEN_INC, REPO))
         return 0
     if args.write_wgsl:
         schema = load_schema()
