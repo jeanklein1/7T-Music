@@ -3148,21 +3148,35 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("two dynamic-offset limits stand at 0/%d and 0/%d program-wide."
       % (CORE_DYN_UNIFORM, CORE_DYN_STORAGE))
     A("")
+    room_family_storage = max(
+        (b["declared"]["storage"] for b in budget
+         if any("roomLayout_" in g for g in b["pipeline"].group_layouts)), default=0)
     A("**4. The tightest row is not where the handoff expected it.** BUDGET_0's")
     A("handoff expected the main render family's VERTEX stage at storage 8/8. It")
     if main_v:
         A("reads **storage %d of %d**. The tightest row in the program is"
           % (main_v["declared"]["storage"], CORE["storage"]))
-    A("**%s / %s at %s %d of %d** — the ROOM FAMILY, over the three concatenated"
+    # ATLAS_1revB found this paragraph asserting "the ROOM FAMILY" and naming
+    # roomLayout_ regardless of which row was actually tightest. That was
+    # silently true while the room family held the row and false the moment it
+    # did not. The family is now DERIVED from the tightest row's own pipeline
+    # layout, so the sentence cannot outlive its subject.
+    A("**%s / %s at %s %d of %d** — over the concatenated groups %s,"
       % (md_escape(tight["pipeline"].label), tight["stage"], tcat,
-         tight["declared"][tcat], CORE[tcat]))
-    A("groups `computeEntityBindGroupLayout_` + `computeTextureBindGroupLayout_` +")
-    A("`roomLayout_`, shared by %s."
+         tight["declared"][tcat], CORE[tcat],
+         " + ".join("`%s`" % g for g in tight["pipeline"].group_layouts)))
+    A("shared by %s."
       % ", ".join("`%s`" % cen["entry_const"].get(c, c)
                   for p in cen["pipelines"] if p.group_layouts == tight["pipeline"].group_layouts
                   for c, _ in p.entries()))
-    A("That is exactly what `world.wgsl`'s own FXC banner says: *\"the room family")
-    A("sits at 8/8 storage — no new storage binding without a demotion plan.\"* And")
+    # Third stale sentence in this block, pre-dating ATLAS_1revB: it quoted the
+    # banner as saying "8/8 storage" when the banner says 6/8 and PIVOT_0
+    # renamed it from FXC to COMPILER FLOOR. A verbatim quote of text that no
+    # longer exists is worse than no quote, so the banner is cited, not quoted,
+    # and the room family's own figure is measured rather than remembered.
+    A("`world.wgsl`'s COMPILER FLOOR banner carries the standing demotion rule for")
+    A("the room family, which stands at %d of %d storage. And"
+      % (room_family_storage, CORE["storage"]))
     A("its `actual` column reads %d too: **an A1 sweep buys nothing on the one row"
       % tight["actual"][tcat])
     A("with no margin.**")
@@ -3542,10 +3556,16 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
             queued.append(("Vertex-buffer move — `%s` (%s-step, stride %s B); the only "
                            "wallet that can hold a runtime-sized array"
                            % (x["decl"].symbol, x["step"], x["stride"]), x["decl"].symbol))
+    # ATLAS_1revB: this row printed the PROGRAM-WIDE tightest row's storage and
+    # attributed it to the room family. Coincidentally right until the tightest
+    # row moved off the room family; then it asserted a number the room family
+    # does not hold. Measure the room family itself.
+    room_rows = [b for b in budget if any("roomLayout_" in g for g in b["pipeline"].group_layouts)]
+    room_storage = max((b["declared"]["storage"] for b in room_rows), default=0)
     queued.append(("The room family's storage stage stands at %d of %d. Any new storage "
                    "binding reachable from update_player_agent / update_other_agents / "
                    "update_sphere / update_cube needs a demotion to pay for it."
-                   % (tight["declared"]["storage"], CORE["storage"]), "update_player_agent"))
+                   % (room_storage, CORE["storage"]), "update_player_agent"))
     defended_syms = {f.symbol for f in e4["sites"]}
     elig_syms = {x["decl"].symbol for x in e2["eligibility"] if x["eligible"]}
     for q, sym in queued:
