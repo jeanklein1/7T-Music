@@ -14,11 +14,11 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `885aecd52cc77e793604543a306f3fcb4560ff86` |
-| | WALLET_1revA: lighting block; entity F storage 7->4 |
+| source commit | `6710ac23b504f3e5987d0ae2db76221fb134987a` |
+| | TIDY_0d-i: zero-count draws are skipped, not warned |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:5dd2c09763b5437c8c91cfa206fda5548a2037e92fd2f37bcf417d2f823c0681` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:68c3e6aecbfc33586da7b65d40e9c3e4f7658804a0050f80c517d8a603cc2f90` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4eb6dfae74d18df63e837dec1fc159f6ade43aa6b4c35db9a4cd8471b9612212` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:c550d2f68202b8db43a3309c04e3414851d66800bf5197cdf9b3d3116ea06594` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:5084a2d3ed7e0109b5ff4e3c69d2c72a765c8a13533bca9c79d18d8ba78d0183` |
 
 
@@ -32,7 +32,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `40cd52befacdc2e909cf8110688973de6f4dc9b0feaf5e0188e8b126cd9ffeb2` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `79f9cfdea71d8b8da7ad88cbbbe9ba080f565c1f98e9f150c5542587c9d6354f` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `62502882f44aec96a550fe8cf2d361143c986045de195ef709deb07e2cbfb52a` |
-| `src/cartridges/the_board/cartridge.hpp` | `6beed963e8e2029cf851ec48cdafa67f222b404438168419399897e1d6d1c4ba` |
+| `src/cartridges/the_board/cartridge.hpp` | `20fee383e4fb261e4abc7d90cbb54f705f61fefea3f9e1b72ad8f70216bb067a` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `f72970a68cc05f87374698d291717d0898d95415d581aa91edf3bc5aa78be8ec` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `24ba0489518a6de9483717545c39d57c379612d92555af24b02653b5361dde49` |
@@ -100,7 +100,7 @@ matters only where a binding is a window onto a shared buffer.
 | `W2-1` | **PASS** | 949 access sites classified, every one on a declared binding |
 | `W2-2` | **PASS** | classification total: builtin_derived 137, builtin_sequential 4, indirected 16, other 93, scalar 699; `other` rows enumerated below |
 | `W2-3` | **PASS** | positive control: patch_terrain_vs reads visible_patch_indices[patch_id] as builtin_sequential(instance) and patch_instances[actual_id] as indirected(visible_patch_indices) |
-| `W3-0` | **PASS** | renderer.hpp: 52 Draw*/DispatchWorkgroups call sites, all inside a parsed function |
+| `W3-0` | **PASS** | renderer.hpp: 45 Draw*/DispatchWorkgroups call sites, all inside a parsed function |
 | `W3-1` | **PASS** | 59 pipelines: 58 with exactly one call shape, 1 with several (all listed), 0 never invoked |
 | `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (9 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 13 (arch_mesh_gen, blade_cluster_mesh_gen, cactus_mesh_gen, column_mesh_gen, compute_entity_placement, compute_photographer_vp, compute_vp, palm_mesh_gen, update_camera, update_cube, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 8 (compute_entity_placement, compute_photographer_vp, compute_vp, update_camera, update_cube, update_other_agents, update_player_agent, update_sphere). The 7 that differ: arch_mesh_gen (wg1=True, single-dispatch=False), blade_cluster_mesh_gen (wg1=True, single-dispatch=False), cactus_mesh_gen (wg1=True, single-dispatch=False), column_mesh_gen (wg1=True, single-dispatch=False), palm_mesh_gen (wg1=True, single-dispatch=False), update_other_agents (wg1=False, single-dispatch=True), zone_derive_params (wg1=True, single-dispatch=False). |
@@ -907,14 +907,14 @@ the caller, and witness `W3-3` forbids it.
 | Patch Terrain (instanced) | render | `patch_terrain_vs`, `patch_terrain_fs` | `DrawIndexed` | `c->world_state_.render_patch_count` | — | parameter `instanceCount` of draw_patch_terrain_direct, resolved at its call sites |
 | Patch Terrain Indirect (VS indirection) | render | `patch_terrain_vs`, `patch_terrain_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
 | Pawn Entity (Chess Pawn) | render | `pawn_vs`, `entity_fs` | `Draw` | `Dim::MAX_AGENTS` | — | draw_pawn |
-| Sphere Entity (Rasterized) | render | `sphere_vs`, `entity_fs` | `DrawIndexed` | `Dim::MAX_SPHERE_INSTANCES` | — | draw_sphere |
-| Monolith Entity (Rasterized) | render | `monolith_vs`, `entity_fs` | `DrawIndexed` | `Dim::MAX_CUBE_INSTANCES` | — | draw_monolith |
-| Catenary Arch (Rasterized) | render | `arch_vs`, `entity_fs` | `DrawIndexed` | `1` | — | default (argument omitted) |
-| Generative Column (Rasterized) | render | `column_vs`, `entity_fs` | `DrawIndexed` | `1` | — | default (argument omitted) |
-| Palm Tree (Rasterized) | render | `palm_vs`, `entity_fs` | `DrawIndexed` | `1` | — | default (argument omitted) |
-| Cactus (Rasterized) | render | `cactus_vs`, `entity_fs` | `DrawIndexed` | `1` | — | default (argument omitted) |
-| Blade Cluster (Rasterized) | render | `blade_cluster_vs`, `entity_fs` | `DrawIndexed` | `1` | — | default (argument omitted) |
-| Indoor Shell (Ceiling + Walls) | render | `shell_vs`, `entity_fs` | `DrawIndexed` | `1` | — | default (argument omitted) |
+| Sphere Entity (Rasterized) | render | `sphere_vs`, `entity_fs` | `DrawIndexed` | `Dim::MAX_SPHERE_INSTANCES` | — | argument at the call site |
+| Monolith Entity (Rasterized) | render | `monolith_vs`, `entity_fs` | `DrawIndexed` | `Dim::MAX_CUBE_INSTANCES` | — | argument at the call site |
+| Catenary Arch (Rasterized) | render | `arch_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
+| Generative Column (Rasterized) | render | `column_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
+| Palm Tree (Rasterized) | render | `palm_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
+| Cactus (Rasterized) | render | `cactus_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
+| Blade Cluster (Rasterized) | render | `blade_cluster_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
+| Indoor Shell (Ceiling + Walls) | render | `shell_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
 | Sky Ribbon Entity | render | `ribbon_vs`, `ribbon_fs` | `Draw` | `1` | — | default (argument omitted) |
 | Orb Sky Layer | render | `orb_vs`, `orb_fs` | `DrawIndexed` | `os.count` | — | parameter `orbCount` of draw_orbs, resolved at its call sites |
 | Gallery Frame | render | `gallery_frame_vs`, `gallery_frame_fs` | `Draw` | `c->gallery_state_.slot_high_water \| gs.slot_high_water` | — | parameter `slotHighWater` of draw_gallery_frames, resolved at its call sites |
@@ -1055,8 +1055,8 @@ one column that can.
 | `orb_state` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 129 | `law-ref`, `witness` | A:proximity, B:named |
 | `orb_state_ro` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 132 | `law-ref`, `witness` | A:proximity, B:named |
 | `shadow_map` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 146 | `law-ref`, `witness` | A:proximity, B:named |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2271 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2274 | `measured` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2290 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2293 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
 | `Compute Entity Layout entries[10]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4487 | `budget`, `per-stage` | A:proximity |
 | `Render Entity Layout entries[12]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4570 | `per-stage`, `slot-cap` | A:proximity |
