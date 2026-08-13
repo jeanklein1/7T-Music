@@ -12,8 +12,15 @@
 # corrected to match it (--bootstrap parses the tree and prints a schema
 # module to STDOUT ONLY — this tool can never write the authority file
 # itself). From U2 onward, per flipped mirror, the SCHEMA is the
-# authority: --check must pass at every campaign's recon gate and before
-# any commit that touches the surface.
+# authority — L22, THE SCHEMA LAW, docs/LAWS.md.
+#
+# THE STANDING CHECK (L22 wiring): `binding_gen.py --check` must pass at
+# every campaign's recon gate and before any commit that touches the
+# binding surface. It parses the tree with the imported instruments,
+# diffs it against the schema across all six relations in both
+# directions, and byte-compares both generated files against disk; a
+# nonzero exit is a STOP, and "fixing" source to satisfy a mistyped
+# table is never the cure — rule on which side is wrong first.
 #
 # PARSER REUSE. All parsing is imported from binding_ledger.py and
 # mirror_census.py — one parse, all instruments. What this file adds is

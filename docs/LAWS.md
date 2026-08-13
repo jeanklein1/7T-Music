@@ -564,3 +564,12 @@ branch (b) confirmed at last. Nothing in the queue wants that boot.
 enabled, and that line stays in the boot log for exactly this reason: a
 switch that cannot be seen to have fired is indistinguishable from one
 that never fired (P6).
+
+## L22 — THE SCHEMA LAW
+
+`tools/binding_schema.py` is the single authority for the binding
+surface. `binding_registry.hpp` and `binding_surface.gen.inc` are
+generated; edit the schema and run `binding_gen.py --write`.
+`world.wgsl` declarations are checked mirrors: `binding_gen.py --check`
+must pass at every campaign's recon gate and before any commit that
+touches the surface.
