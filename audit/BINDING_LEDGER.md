@@ -14,9 +14,10 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `1581e5c1de8d27b96aeae056ae4b4f53c8a448d3` |
-| | CLOSE_0 A3: the guard's rationale, restated for the mechanism that exists |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:71d184bac2217d0f121704f511710268f0c764118b2ffcb2686cdba627a7bfb8` |
+| source commit | `f20ead71e74715af85f22d4986c2830dffac6b43` |
+| | LOOM_1 U2: flip the registry — schema is now its authority |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:05a8c05010b5ad9db5b930736d492ee838892db19c2d27757183e47591ea08ba` |
+| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:4dfda8862f12d16a558265e1731e6a423cfadadc688bf0b25ceaf349ea7ebce5` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:aaecd2c5f35ed2e2c0032c1789a502a34814d5547f8f0a6e5a0436f8a3d027bf` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:379485b911a5c117eb9b9c7ae2475ecd17dac30c1e3490cc6551985cafe6664b` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:95df89aeed90295c8d780eb1b75906af90c5cc7f06321a1186afd225e7eb146f` |
@@ -74,7 +75,7 @@ matters only where a binding is a window onto a shared buffer.
 | `0a-3` | **PASS** | no duplicate binding number inside any layout |
 | `0a-4` | **PASS** | every row carries a resolved kind (buffer/sampler/texture/storageTexture) |
 | `0a-5` | **PASS** | every row names at least one of Vertex/Fragment/Compute, and no other stage token appears |
-| `0a-6` | **PASS** | 27 bind groups over 25 layouts, every one a bijection with its layout; 2 layout(s) back more than one group — galleryEntityBindGroupLayout_: Gallery Entity BindGroup, Gallery Photographer Entity BindGroup; renderEntityBindGroupLayout_: (label is a parameter, built at state.hpp:5579), Photographer Render Entity BindGroup |
+| `0a-6` | **PASS** | 27 bind groups over 25 layouts, every one a bijection with its layout; 2 layout(s) back more than one group — galleryEntityBindGroupLayout_: Gallery Entity BindGroup, Gallery Photographer Entity BindGroup; renderEntityBindGroupLayout_: (label is a parameter, built at state.hpp:5564), Photographer Render Entity BindGroup |
 | `0b-0` | **PASS** | 98 @group( occurrences, 98 declarations parsed |
 | `0b-1` | **PASS** | banner reproduced: 98 declarations over 95 slots; aliases fc_config, fc_patches, fc_vp |
 | `0b-4` | **PASS** | WGSL layout calculator reproduces all three byte counts the program states in prose: agent_figure_profiles 4032 B, field_head_poses 6400 B, field_authored 144 B |
@@ -1059,13 +1060,13 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2321 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2324 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Compute Entity Layout entries[10]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4546 | `budget`, `per-stage` | A:proximity |
-| `Render Entity Layout entries[12]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4635 | `per-stage`, `slot-cap` | A:proximity |
-| `Render Entity Layout entries[13]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4644 | `slot-cap` | A:proximity |
-| `Render Entity Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4664 | `slot-cap` | A:proximity, B:named |
-| `Mesh Gen Entity Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4682 | `per-stage` | A:proximity |
-| `The Room Layout entries[1]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5373 | `slot-cap` | A:proximity |
-| `The Room Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5381 | `slot-cap` | A:proximity |
+| `Compute Entity Layout entries[10]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4531 | `budget`, `per-stage` | A:proximity |
+| `Render Entity Layout entries[12]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4614 | `per-stage`, `slot-cap` | A:proximity |
+| `Render Entity Layout entries[13]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4623 | `slot-cap` | A:proximity |
+| `Render Entity Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4643 | `slot-cap` | A:proximity, B:named |
+| `Mesh Gen Entity Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4661 | `per-stage` | A:proximity |
+| `The Room Layout entries[1]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5350 | `slot-cap` | A:proximity |
+| `The Room Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5358 | `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 260 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 407 | `law-ref` | A:proximity, B:named |

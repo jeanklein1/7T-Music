@@ -303,7 +303,10 @@ def capture_state_blocks(kind_re, create_token):
                 cap.min_binding[idx] = vm.group(1).strip()
         for cm_ in re.finditer(r"static constexpr uint32_t[^;]+;", block_src):
             a, b_ = MC.tight_span(block_src, cm_.start(), cm_.end())
-            cap.local_constants.append(MC.norm(raw[m.start() + a:m.start() + b_]))
+            ln = BL.line_of(src, m.start() + a)
+            cap.local_constants.append(
+                {"prose": _prose_above(rawlines, ln - 1),
+                 "text": MC.norm(raw[m.start() + a:m.start() + b_])})
         out.append(cap)
     return out
 
@@ -426,6 +429,28 @@ def capture_tree():
     if len(group_caps) != len(groups):
         stop("group capture count %d != parsed groups %d"
              % (len(group_caps), len(groups)))
+
+    # Cadence by enclosing member function: the function holding the
+    # majority of group blocks is the boot path; a block anywhere else
+    # is re-creation machinery (the exhibition rebuild). This survives
+    # the U3 move, where the boot path's name changes.
+    ssrc = BL.strip_cpp_comments(BL.read(STATE_HPP))
+    fn_sites = [(BL.line_of(ssrc, fm.start()), fm.group(1))
+                for fm in re.finditer(r"\bbool\s+(\w+)\s*\(", ssrc)]
+
+    def enclosing_fn(line):
+        name = None
+        for ln, nm in fn_sites:
+            if ln > line:
+                break
+            name = nm
+        return name
+
+    g_fn = [enclosing_fn(g["line"]) for g in groups]
+    tally = {}
+    for nm in g_fn:
+        tally[nm] = tally.get(nm, 0) + 1
+    boot_fn = max(sorted(tally), key=lambda nm: tally[nm])
     by_member = {L["member"]: L for L in layouts}
     groups_rel = {}
     for g, cap in zip(groups, group_caps):
@@ -451,7 +476,7 @@ def capture_tree():
         if g["member"] is None:
             key = "build_render_entity_group"
             cadence = "builder"
-        elif g["desc_var"] != "desc":
+        elif g_fn[groups.index(g)] != boot_fn:
             key = g["member"]
             cadence = "rebuild"
         else:
@@ -664,6 +689,7 @@ def emit_gen_inc(schema, class_indent="            "):
         seats_by_layout.setdefault(member, {})[idx] = dict(s, _index=idx)
     for member, row in schema.LAYOUTS.items():
         seats = seats_by_layout.get(member, {})
+        L.append("")
         L.extend(prose(row.get("prose"), ind1))
         L.append(ind1 + "{")
         L.append(ind2 + "std::array<wgpu::BindGroupLayoutEntry, %d> entries{};"
@@ -695,7 +721,7 @@ def emit_gen_inc(schema, class_indent="            "):
 
     # ─── the bind groups ──────────────────────────────────────────────
     def group_block(key, row, ind_a, ind_b, tail):
-        out = []
+        out = [""]
         out.extend(prose(row.get("prose"), ind_a))
         opener = (ind_a + "{") if key != "build_render_entity_group" else (
             ind_a + "auto build_render_entity_group = [&](const char* label, "
@@ -705,7 +731,8 @@ def emit_gen_inc(schema, class_indent="            "):
         out.append(ind_b + "std::array<wgpu::BindGroupEntry, %d> entries{};"
                    % len(entries))
         for lc in row.get("local_constants", []):
-            out.append(ind_b + lc)
+            out.extend(prose(lc["prose"], ind_b))
+            out.append(ind_b + lc["text"])
         for idx in sorted(entries):
             e = entries[idx]
             out.append("")

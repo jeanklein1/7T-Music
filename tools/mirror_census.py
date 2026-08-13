@@ -58,7 +58,8 @@ DEFAULT_OUT = os.path.join(REPO, "audit", "MIRROR_LEDGER.md")
 
 # Input order is the handoff's: the four mirrors, then the instrument
 # this one leans on, then the ledger it reconciles against.
-INPUTS = [BL.REGISTRY_HPP, BL.WORLD_WGSL, BL.STATE_HPP, BL.RENDERER_HPP,
+INPUTS = [BL.REGISTRY_HPP, BL.WORLD_WGSL, BL.STATE_HPP, BL.GEN_INC,
+          BL.RENDERER_HPP,
           os.path.join(_HERE, "binding_ledger.py"), LEDGER_MD]
 
 CONTRACTS_DIR = os.path.join(REPO, "src", "cartridges", "the_board", "contracts")
@@ -471,7 +472,7 @@ GROUP_IDIOMS = [
      r"entries\[\d+\]\.sampler = \w+;"),
     ("G-cst", "in-block constant (Entity Placement's plant count)",
      r"static constexpr uint32_t \w+ = [^;]+;"),
-    ("G-desc", "descriptor declaration (desc, or bd at the exhibition rebuild)",
+    ("G-desc", "descriptor declaration, one per block",
      r"wgpu::BindGroupDescriptor \w+\{\};"),
     ("G-lbl", "group label, string literal",
      r'\w+\.label = "[^"]*";'),
@@ -828,22 +829,25 @@ def fifth_home(w, wgsl, out_path):
                 shape_stops.append("(b) RHS is neither a bind:: constant nor an "
                                    "integer literal — " + where)
 
-    # (c) `bind::` outside the three homes. Boundary: every file under
-    # src/, any extension, on comment-stripped text for C++/WGSL and raw
-    # text otherwise. Instruments (tools/) and reports (audit/, docs/)
-    # cite the constants rather than bind them; they are counted below,
-    # not listed as homes.
-    homes = {os.path.abspath(p) for p in (BL.REGISTRY_HPP, BL.STATE_HPP, BL.RENDERER_HPP)}
+    # (c) `bind::` outside the homes. Boundary: every file under src/,
+    # any extension, AS IT SITS ON DISK (read_raw — the (b) sweep reads
+    # state.hpp include-expanded; counting per disk file here keeps one
+    # token one count). binding_surface.gen.inc is state.hpp's
+    # generated half (LOOM_1 U3) and counts as part of that home.
+    # Instruments (tools/) and reports (audit/, docs/) cite the
+    # constants rather than bind them; counted below, not listed.
+    homes = {os.path.abspath(p) for p in (BL.REGISTRY_HPP, BL.STATE_HPP,
+                                          BL.GEN_INC, BL.RENDERER_HPP)}
     c_counts = {}
     for root, dirs, files in os.walk(os.path.join(REPO, "src")):
         dirs.sort()
         for f in sorted(files):
             path = os.path.join(root, f)
             try:
-                raw = BL.read(path)
+                raw = BL.read_raw(path)
             except (UnicodeDecodeError, OSError):
                 continue
-            if f.endswith((".hpp", ".cpp", ".h", ".cc")):
+            if f.endswith((".hpp", ".cpp", ".h", ".cc", ".inc")):
                 text = BL.strip_cpp_comments(raw)
             elif f.endswith(".wgsl"):
                 text = BL.strip_wgsl_comments(raw)
@@ -1038,7 +1042,24 @@ def coverage(reg_info, wgsl_info, state_info, pipe_info, groups, invokes,
     ex_varied = next(iter(sorted(varied_slots)), "(none)")
     ex_invoke = invokes[0] if invokes else None
     ex_param_label = next((g for g in groups if g["param_label"]), None)
-    ex_rebuild = next((g for g in groups if g["desc_var"] != "desc"), None)
+    fn_sites = []
+    _ssrc = BL.strip_cpp_comments(BL.read(BL.STATE_HPP))
+    for fm in re.finditer(r"\bbool\s+(\w+)\s*\(", _ssrc):
+        fn_sites.append((BL.line_of(_ssrc, fm.start()), fm.group(1)))
+
+    def _fn_of(line):
+        name = None
+        for ln, nm in fn_sites:
+            if ln > line:
+                break
+            name = nm
+        return name
+
+    _tally = {}
+    for g in groups:
+        _tally[_fn_of(g["line"])] = _tally.get(_fn_of(g["line"]), 0) + 1
+    _boot = max(sorted(_tally), key=lambda nm: _tally[nm])
+    ex_rebuild = next((g for g in groups if _fn_of(g["line"]) != _boot), None)
     ex_minsize = "state.hpp:%d" % sL.exemplar_line["L-min"] if sL.counts.get("L-min") else "(none)"
 
     R, C = "RESIDUE", "covered"
@@ -1128,7 +1149,7 @@ def coverage(reg_info, wgsl_info, state_info, pipe_info, groups, invokes,
          "creation-site multiplicity",
          "build_render_entity_group at state.hpp:%d" % ex_invoke["line"]
          if ex_invoke else "(none)"),
-        ("G", "the exhibition rebuild (runtime re-creation, descriptor 'bd')", R,
+        ("G", "the exhibition rebuild (a bind group re-made after boot)", R,
          "creation cadence — a bind group re-made after boot",
          "state.hpp:%d %s" % (ex_rebuild["line"], ex_rebuild["label"])
          if ex_rebuild else "(none)"),
@@ -1463,8 +1484,9 @@ def emit(path, wb, wm, counts, surfaces, reg_info, wgsl_info, state_info,
     A("(the handoff's sweep), extended to the %d `.cpp`/`.h`/`.cc` files"
       % m3["ext_file_count"])
     A("there so a seat assignment in a translation unit cannot hide on the")
-    A("wrong extension (%d hit(s) on the extension). Pattern"
+    A("wrong extension (%d hit(s) on the extension). state.hpp is read"
       % m3["b_counts"]["ext"])
+    A("with its generated include expanded in place. Pattern")
     A("`\\.binding\\s*=`. RHS classes: `bind::` constant %d, integer"
       % m3["b_counts"]["bind"])
     A("literal %d, other %d."
@@ -1477,7 +1499,7 @@ def emit(path, wb, wm, counts, surfaces, reg_info, wgsl_info, state_info,
         A("No hit: every `.binding =` right side inside this boundary is a")
         A("`bind::` constant.")
     A("")
-    A("### (c) `bind::` outside the three homes")
+    A("### (c) `bind::` outside the homes")
     A("")
     A("Boundary: every file under `src/` (comment-stripped for C++/WGSL, raw")
     A("otherwise), token `\\bbind::`. Instruments and reports cite the")
@@ -1491,14 +1513,15 @@ def emit(path, wb, wm, counts, surfaces, reg_info, wgsl_info, state_info,
         A("| `%s` | %d |" % (rel, n))
     A("")
     if m3["findings"]["c"]:
-        A("Hits outside the three homes:")
+        A("Hits outside the homes:")
         A("")
         for f in m3["findings"]["c"]:
             A("- `%s`" % esc(f))
     else:
-        A("No code hit outside `binding_registry.hpp` / `state.hpp` /")
-        A("`renderer.hpp`: the binding surface has exactly the four homes the")
-        A("campaign names (the registry, the shader, and the two consumers).")
+        A("No code hit outside `binding_registry.hpp` / `state.hpp` (with its")
+        A("generated half, `binding_surface.gen.inc`) / `renderer.hpp`: the")
+        A("binding surface has exactly the homes the campaign names (the")
+        A("registry, the shader, and the two consumers).")
     A("")
 
     # ─── M4 ──────────────────────────────────────────────────────────

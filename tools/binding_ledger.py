@@ -97,9 +97,29 @@ class Witnesses:
 # C++ SOURCE HANDLING
 # ═══════════════════════════════════════════════════════════════════════
 
-def read(path):
+GEN_INC = os.path.join(REAL, "binding_surface.gen.inc")
+_GEN_INC_LINE = re.compile(r'[ \t]*#include "binding_surface\.gen\.inc"\n')
+
+
+def read_raw(path):
+    """One file, as it sits on disk. The per-file sweeps (and the
+    provenance hashes) want this; every parser wants read() below."""
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def read(path):
+    """LOOM_1 U3: state.hpp's binding-surface creation blocks live in
+    binding_surface.gen.inc, generated from tools/binding_schema.py and
+    included at class scope. The census reads the include EXPANDED in
+    place, so every parser, witness, and defended-site rule sees one
+    text under the state.hpp path — the W4-2 controls stay keyed to the
+    file they have always named."""
+    text = read_raw(path)
+    m = _GEN_INC_LINE.search(text)
+    if m:
+        text = text[:m.start()] + read_raw(GEN_INC) + text[m.end():]
+    return text
 
 
 def sha256(path):
@@ -2948,7 +2968,7 @@ def phase_ext4(w, wgsl, layouts, cen):
 # left empty on purpose: they are the two things a census cannot produce.
 # ═══════════════════════════════════════════════════════════════════════
 
-INPUTS = [STATE_HPP, REGISTRY_HPP, RENDERER_HPP, WORLD_WGSL]
+INPUTS = [STATE_HPP, GEN_INC, REGISTRY_HPP, RENDERER_HPP, WORLD_WGSL]
 
 
 def writer_pins_lf(w):
