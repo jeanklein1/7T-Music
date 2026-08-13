@@ -293,10 +293,17 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
             wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
+            // ATLAS_1revB D3" — this tile's light window. shadow_light_vp()
+            // reads shadow_slot.li through it, so the matrix follows the
+            // offset rather than a buffer write. U1" leaves the pass
+            // structure alone; U2" merges the tiles and moves this set
+            // inside the merged pass.
+            const uint32_t slotOffset = li * SHADOW_SLOT_STRIDE;
+
             // OIL_1 U12 (ledger: R18, C7) — the pass-head binds. Each
             // atlas tile is a FRESH pass, so this is the tile's one real
             // bind; the draws that follow re-set nothing.
-            pass.SetBindGroup(0, c->gpuState_.render_entity_group());
+            pass.SetBindGroup(0, c->gpuState_.render_entity_group(), 1, &slotOffset);
             pass.SetBindGroup(1, c->gpuState_.shadow_texture_group());
 
             float vx = static_cast<float>(within * TILE_W);
@@ -327,7 +334,10 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
         // OIL_1 U12 — the pass-head binds (see the atlas arm above).
-        pass.SetBindGroup(0, c->gpuState_.render_entity_group());
+        // Outdoor draws for the sun, which shadow_light_vp() reads from
+        // render_vp.light_vp; the window is never varied here.
+        const uint32_t slotOffset = 0;
+        pass.SetBindGroup(0, c->gpuState_.render_entity_group(), 1, &slotOffset);
         pass.SetBindGroup(1, c->gpuState_.shadow_texture_group());
 
         draw_shadow_all(c, pass, /*cast_terrain=*/true);
@@ -420,8 +430,13 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // draws below open with the same if constexpr, so a gallery-less
     // build must not pay two binds for zero draws, and the pass must
     // not name groups a future creation-side gate could leave null.
+    // ATLAS_1revB G2 — group 0 is NOT rebound here any more. The two shadow
+    // artwork pipelines take the RENDER-ENTITY layout at group 0 now (they
+    // need render_lighting and shadow_slot, which the gallery entity layout
+    // does not carry), and the pass head already bound it with this light's
+    // window. Only the texture group changes. One fewer bind per light, and
+    // group 0 no longer moves mid-tile.
     if constexpr (ROSTER.gallery) {
-    pass.SetBindGroup(0, c->gpuState_.gallery_entity_group());
     pass.SetBindGroup(1, c->gpuState_.gallery_texture_group());
     }
     c->renderer_.draw_shadow_wall_paintings(
@@ -476,6 +491,9 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
+    // ATLAS_1revB D3" — the main pass never varies the light window.
+    const uint32_t kSlotZero = 0;
+
     // OIL_1 U13 (ledger: R19, C7) — THE PASS-HEAD BIND. group1 (the
     // render texture group) is the same for every entity draw in this
     // pass, plan slots included, so it is bound once here and never
@@ -507,7 +525,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         c->gpuState_.frustum_indirect_lod0(), 40);
     // Plan C left its window bound: restore the entity group the table
     // draws read (group1 is untouched by the slots).
-    pass.SetBindGroup(0, c->gpuState_.render_entity_group());
+    pass.SetBindGroup(0, c->gpuState_.render_entity_group(), 1, &kSlotZero);
 
     // The drawable table — main members, canonical order. All opaque and
     // depth-tested, so order among them is immaterial; this is where the

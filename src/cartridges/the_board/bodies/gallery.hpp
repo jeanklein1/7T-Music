@@ -1495,7 +1495,11 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // terrain fork AND every table draw below (the helpers no longer
     // bind their own). Bound before the first draw so the terrain fork
     // keeps its own bindings byte-for-byte.
-    pass.SetBindGroup(0, c->gpuState_.photographer_render_entity_group());
+    // ATLAS_1revB D3" — the render-entity layout is dynamic-offset now and
+    // every set of it supplies one. The photographer draws no shadow tiles,
+    // so its window never moves.
+    const uint32_t kSlotZero = 0;
+    pass.SetBindGroup(0, c->gpuState_.photographer_render_entity_group(), 1, &kSlotZero);
     pass.SetBindGroup(1, c->gpuState_.render_texture_group());
 
     c->renderer_.draw_patch_terrain_direct(pass,
