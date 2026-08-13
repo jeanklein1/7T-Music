@@ -1617,8 +1617,13 @@ namespace t7 {
         // filterable-float read of a unorm depth texture. FORMAT_1's U0
         // verified the second at this HEAD: every shadow read in world.wgsl
         // is textureSampleCompare or textureSampleCompareLevel.
+        // FORMAT_1 U2 — Depth16Unorm. Core WebGPU (absent from
+        // GPUFeatureName, so no grant is needed), 2 B/texel: both shadow
+        // textures halve, 16 -> 8 MiB each, resident 32 -> 16, and the
+        // per-frame model at four indoor lights 32 -> 16 MiB against the
+        // 96 this era began with.
         inline constexpr wgpu::TextureFormat kShadowDepthFormat =
-            wgpu::TextureFormat::Depth32Float;
+            wgpu::TextureFormat::Depth16Unorm;
 
         inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
         // The BINDING size, not the payload. ShadowSlot carries one u32,
@@ -3427,6 +3432,7 @@ namespace t7 {
                     // rather than a lookup so the switch stays exhaustive and
                     // the UNDERCOUNT path keeps its meaning.
                     case wgpu::TextureFormat::Depth32Float: return 4;
+                    case wgpu::TextureFormat::Depth16Unorm: return 2;
                     case wgpu::TextureFormat::Depth24Plus:  return 4;
                     default:                                return 0;
                 }
