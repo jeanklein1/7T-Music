@@ -2026,12 +2026,12 @@ namespace t7 {
                     // pipeline where the color side needs two (UMBRA_9).
                 }
 
-                // ─── Shadow Pipelines (depth-only, Depth32Float) ─────────────────
+                // ─── Shadow Pipelines (depth-only, kShadowDepthFormat) ───────────
                 // Same bind group layouts as main render, but no fragment shader,
                 // no color target, and shadow map depth format.
                 {
                     wgpu::DepthStencilState shadowDepth{};
-                    shadowDepth.format = wgpu::TextureFormat::Depth32Float;
+                    shadowDepth.format = kShadowDepthFormat;   // FORMAT_1 D1 — the one authority (state.hpp)
                     shadowDepth.depthWriteEnabled = true;
                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
 
@@ -2067,6 +2067,31 @@ namespace t7 {
                     // the normal offset's FLOOR in sample_shadow_pcf
                     // (PENUMBRA_1 P3). The table above is history that
                     // motivated both, not a description of today.
+                    //
+                    // FORMAT_1 D3 — THE JUSTIFICATION BELOW HAS INVERTED, AND
+                    // THE CONCLUSION SURVIVES ANYWAY. The arithmetic in this
+                    // block is Depth32Float's: depthBias as a ULP multiple of
+                    // the primitive's max depth, where the exponent is
+                    // everything. Under Depth16Unorm it is no longer a ULP
+                    // multiple of anything — a unorm format quantises the
+                    // range uniformly, so one bias unit is a FIXED fraction:
+                    // 1/65535 of the depth range, which on the 599.9-deep sun
+                    // frustum is ~0.00915 world units. Against a post-UMBRA_5
+                    // texel of 0.2051 wu that is a fine step, not the useless
+                    // 3.6e-5 the float format made of it.
+                    //
+                    // So depthBias is now a dial, where P2 correctly said it
+                    // was not. It is nonetheless LANDING AT ZERO, because the
+                    // flip is meant to change bytes and not texels, and a bias
+                    // invented without eyes on the surface is a number chosen
+                    // to feel safe. If the gate shows acne, the follow-up is
+                    // one line with the step above; slopeScale, depthBiasClamp
+                    // and the normal offset remain the live instruments either
+                    // way.
+                    //
+                    // What follows is PENUMBRA_1 P2's reasoning, kept verbatim
+                    // as the record of why the constant went — and now also as
+                    // the record of what the format change inverted.
                     //
                     // THE CONSTANT — HISTORY, kept because the arithmetic is the
                     // reason it is gone and a future editor will otherwise re-add
