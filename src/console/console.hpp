@@ -695,51 +695,54 @@ namespace t7 {
             // LIFETIME: `kDxcToggle` is static; `toggles` and `idesc` need
             // only outlive the emplace() call, and they do — Dawn copies
             // what it needs out of the descriptor during construction.
-            // TOGGLE_0 (debt 12) — THE CONTROL, RIDING THE SAME ROAD.
+            // TOGGLE_0 (debt 12) — THE CONTROL RODE THIS ROAD, AND THE
+            // ROAD WAS THE ANSWER.
             //
-            // Boot 2 proved `use_dxc` did not take; it did not prove why.
+            // Boot 2 proved use_dxc did not take; it did not prove why.
             // Either Dawn validated and refused DXC on this Kepler-era
-            // driver (benign), or the chain above never propagates at all
-            // — in which case every future Dawn toggle fails the same
-            // silent way. The two are indistinguishable from the D3D12
-            // boot log alone, because a refused toggle and an unchained
-            // toggle both read as absent.
+            // driver, or the chain never propagated at all — a refused
+            // toggle and an unchained toggle both read as absent.
             //
-            // A control separates them. `disable_symbol_renaming` is a
-            // Tint toggle with no backend of its own, so it can ride the
-            // WORKING Vulkan boot and Jean never has to re-enter the
-            // crashing D3D12 path. It travels the identical road:
-            // the same wgpu::DawnTogglesDescriptor, the same two field
-            // names, the same idesc.nextInChain, the same static-lifetime
-            // array. Nothing bespoke — that identity IS the instrument.
+            // TOGGLE_0 chained disable_symbol_renaming HERE to separate
+            // them: a Tint toggle with no backend of its own, able to ride
+            // the working Vulkan boot, travelling the identical road so
+            // that the road itself was what got tested. It is
+            // ToggleStage::Device, one hop further down than use_dxc's
+            // Adapter stage, so its arrival would have proven the whole
+            // instance -> adapter -> device chain.
             //
-            // IT IS STRICTLY STRONGER THAN THE VARIABLE UNDER TEST.
-            // `use_dxc` is ToggleStage::Adapter; `disable_symbol_renaming`
-            // is ToggleStage::Device, one inheritance hop further down the
-            // instance -> adapter -> device chain the banner above
-            // describes. If it surfaces in GetTogglesUsed, the whole chain
-            // propagates and Boot 2's failure was Dawn's refusal, not our
-            // plumbing.
+            // IT DID NOT ARRIVE. The boot read (9). That is branch (b):
+            // the inheritance this site depends on does not deliver on
+            // this Dawn, and Boot 2's verdict softens accordingly — DXC
+            // may never have reached Dawn at all. The control has moved to
+            // its consuming stage (the device descriptor) and the history
+            // is kept here because it is the reason this site is no longer
+            // trusted with anything that must arrive.
             //
-            // THE CONTROL CANNOT GRANT THE VARIABLE UNDER TEST — it does
-            // not touch DXC, HLSL, or any D3D12 path. That is what makes
-            // it an instrument rather than a second experiment.
+            // TOGGLE_1revA U1' — THE CONTROL HAS MOVED DOWNSTREAM.
+            // TOGGLE_0 chained disable_symbol_renaming here, at the
+            // instance, and the boot read (9): it never arrived. Branch
+            // (b) — instance -> adapter -> device inheritance does not
+            // deliver on this Dawn. The control now chains at the stage
+            // that CONSUMES it, the device descriptor, which is the ruling
+            // this campaign adopts as standing law.
             //
-            // TEMPORARY BY CONSTRUCTION: TOGGLE_0 U2 removes this the
-            // moment Jean has read one Vulkan boot line. A control left
-            // armed becomes dead code, and dead code is a liar.
-            static const char* const kControlToggle[] = { "disable_symbol_renaming" };
-            static const char* const kDxcAndControl[] = { "use_dxc", "disable_symbol_renaming" };
+            // use_dxc STAYS HERE, plan-gated and untouched. It is
+            // ToggleStage::Adapter, so the device descriptor would be too
+            // late for it — PIVOT_0a proved that, silently. If the D3D12
+            // plan is ever revived, its consuming root is
+            // RequestAdapterOptions (dawn.json's third chain root), not
+            // this one and not the device's. Left as configuration rather
+            // than deleted: removing it would erase PIVOT_0d-ii's finding
+            // along with its subject.
+            static const char* const kDxcToggle[] = { "use_dxc" };
             wgpu::DawnTogglesDescriptor toggles{};
             wgpu::InstanceDescriptor idesc{};
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
-                toggles.enabledToggleCount = 2;
-                toggles.enabledToggles = kDxcAndControl;
-            } else {
                 toggles.enabledToggleCount = 1;
-                toggles.enabledToggles = kControlToggle;
+                toggles.enabledToggles = kDxcToggle;
+                idesc.nextInChain = &toggles;
             }
-            idesc.nextInChain = &toggles;
             // Vulkan and D3D12_Fxc chained nothing before TOGGLE_0: Vulkan
             // reaches SPIR-V through Tint with no toggle, and Fxc is the
             // untoggled path kept for archaeology. Under the control they
@@ -857,10 +860,47 @@ namespace t7 {
             wgpu::DeviceDescriptor deviceDesc{};
             deviceDesc.label = "7T Device";
 
-            // PIVOT_0d E2 — the device-level toggle chain that stood here
-            // is GONE. It was inert (see the instance construction above,
-            // where the chain now lives) and a second chain root would be
-            // two homes for one fact.
+            // TOGGLE_1revA U1' — THE CONTROL, BACK AT ITS CONSUMING STAGE.
+            //
+            // PIVOT_0d E2 removed a device-level chain from this spot
+            // because it was inert. It was inert for a reason that does
+            // not generalise: the toggle it carried was use_dxc,
+            // ToggleStage::Adapter, and the device descriptor is
+            // downstream of the stage that reads it. What PIVOT_0a
+            // actually proved is that this root is PARSED — Dawn accepted
+            // the chain without error — which makes it the right home for
+            // a DEVICE-stage toggle and the wrong one for an adapter-stage
+            // toggle. Those are different facts and the earlier note
+            // collapsed them.
+            //
+            // disable_symbol_renaming is ToggleStage::Device: zero
+            // inheritance hops from the GetTogglesUsed(device_) readout
+            // below. It is not a second home for one fact — use_dxc's
+            // instance chain and this are two toggles at two stages, which
+            // is what the consuming-stage ruling requires.
+            //
+            // THE GARNISH, AND ITS CAVEAT. The second name is deliberate
+            // nonsense. IF Dawn warns on unrecognised toggle names at the
+            // stage that parses them, a warning proves the descriptor is
+            // read, and turns the control's absence into a positive
+            // signal. That behaviour is BELIEVED, NOT CONFIRMED — so the
+            // garnish's SILENCE proves nothing and must not be read as
+            // evidence. Only its warning carries information.
+            //
+            // Both die in TOGGLE_0 U2 the moment the reading exists. A
+            // control left armed becomes dead code, and dead code is a
+            // liar.
+            //
+            // LIFETIME: the array is static; deviceToggles is a local that
+            // outlives CreateDevice below, in this same scope.
+            static const char* const kDeviceToggles[] = {
+                "disable_symbol_renaming",
+                "t7_not_a_toggle",
+            };
+            wgpu::DawnTogglesDescriptor deviceToggles{};
+            deviceToggles.enabledToggleCount = 2;
+            deviceToggles.enabledToggles = kDeviceToggles;
+            deviceDesc.nextInChain = &deviceToggles;
 
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
