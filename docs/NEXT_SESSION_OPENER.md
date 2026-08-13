@@ -3,18 +3,18 @@
 **Attach, in order:** the founding brief · `docs/ESTATE.md` · this file.
 Nothing else. What a summary would say is already in the tree.
 
-**State.** Estate mapped; indoor frame cost down roughly 6×. The shadow
-atlas went one-pass-per-texture (96 → 32 MiB/frame at four lights), the
-maps `depth16unorm` (32 → 16 resident), two readerless depths `Discard`,
-and the meter grew the purse row. FORMAT gated clean, texel-neutral by
-design. Corrections live in the tree: laws L16–L21, two stale rationales
-retired, the toggle control read and retired (debt 12 moot, its verdict
-and reopening recipe folded into L21). Purse: **[pending — the soak].**
+**State.** Estate mapped. The shadow atlas went one-pass-per-texture
+(96 → 32 MiB/frame at four lights), the maps `depth16unorm`, two
+readerless depths `Discard`, the meter grew the purse row. FORMAT gated
+clean, texel-neutral by design. Laws L16–L21; the toggle control read
+and retired (debt 12 moot, folded into L21). **Purse, 14 windows:
+−34 ms outdoor, −61 ms indoor** (`audit/SOAK_0.md`).
 
-**The ask.** Choose from ESTATE §6. Open LIGHT_0 and SHADE_0 —
-`audit/SHADE_0_CENSUS.md` carries the arithmetic, the price (zero GPU;
-indoors the floor is half the light) and the gate's two answered rows.
-Socket groundwork, control panel beneath it; ESTATE §8 is the inbox.
+**The ask.** SOAK_0 moved the shadow lever: 2.98× indoor/outdoor against
+2.0× of bytes makes that pass **draw-bound, not bandwidth-bound** — four
+traversals of the caster set, one per light. Bytes are spent; geometry
+is not. The main pass is arm-indifferent at ~32 ms, so the DPR knob
+(HEADROOM_0 U2, unbuilt) is its only lever. Else ESTATE §6, or SHADE_0 —
+`audit/SHADE_0_CENSUS.md`: zero GPU, four floats.
 
-**Standing constraint.** Where a document and the code disagree, the
-code is the fact.
+**Standing constraint.** Where document and code disagree, code is fact.
