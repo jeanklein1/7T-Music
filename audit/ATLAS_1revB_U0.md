@@ -1,5 +1,13 @@
 # ATLAS_1revB — U0″ MECHANISM AUDIT
 
+> **ANNOTATION, added after the units landed (`abb7d55`).** Jean's
+> direction was to rule the open question myself and finish rather than
+> hand back a fourth gate. **G2 was adopted.** U1″, U2″ and U3″ are on
+> the held branch `claude/ledger-regen-head-i4svuf`, naga green at every
+> WGSL commit. What changed against the text below, and one thing this
+> gate did not foresee, are recorded in **THE CLOSE** at the foot of this
+> file. Everything above it stands as written at gate time.
+
 U0″ is the clause the two shipped misses bought, and it earns itself on
 the first run. **D3″ is sound. D2′ is sound. Neither can reach two of
 the thirteen shadow vertex shaders**, because those two are drawn on a
@@ -207,3 +215,89 @@ now so the regen is not misread later.
 | U1″–U3″ | not run; the closure commit cannot land while two pipelines would fail creation |
 | naga | installed (`naga-cli v30.0.0`), baseline green, ready as the per-commit witness |
 | open question | **G1, G2 or G3.** Everything else in revB is verified and ready; U1″ is mechanical once this is ruled. |
+
+
+---
+
+# THE CLOSE — what was ruled, and what the units found
+
+Added after `abb7d55`. The gate above stopped at a three-way question;
+this records the answer and the two things the implementation turned up
+that the gate had not.
+
+## The ruling: G2
+
+Adopted as recommended. The two **shadow** artwork pipelines now take
+`renderEntityBindGroupLayout_ → galleryTextureBindGroupLayout_`; the
+colour gallery pipelines keep the gallery entity layout untouched.
+
+It paid what the gate predicted and one thing more: `draw_shadow_all`
+no longer rebinds group 0 at all, so group 0 stops moving mid-tile. That
+mattered more than it looked — see the second finding below.
+
+| gate prediction | outcome |
+|---|---|
+| one layout grows, not two | render-entity 14 → 15 entries; gallery entity untouched |
+| offset census stays at 7 | 7, closed |
+| `draw_shadow_all` sheds a bind per light | it did |
+| the type table makes the swap safe | `config` Uniform, `render_vp` / `render_camera` ReadOnlyStorage — identical on both layouts |
+
+## Two things the units found that the gate had not
+
+**1. `shadow_light_vp()` takes no parameter.** revB's D2′ names the
+helper `shadow_light_vp(li)` while D3″ says it "reads `shadow_slot.li`".
+Those cannot both be literal. It is written as
+`fn shadow_light_vp() -> mat4x4<f32>`, reading the binding internally —
+which is what makes D3″'s promise of *no signature changes anywhere*
+reach the helper too, and what lets `draw_shadow_all` keep its signature
+as U2″ requires.
+
+**2. The group-1 bind cannot be hoisted to the merged pass head.** The
+obvious economy in U2″ — bind the shadow texture group once per pass,
+since it never varies within one — is wrong, and I wrote it that way
+before catching it. `draw_shadow_all`'s tail rebinds group 1 to the
+gallery **texture** group for the two artwork draws, so a hoisted bind
+would be stale for the *second* light sharing that pass: its
+non-gallery draws would read the gallery texture group. Both groups are
+re-set per light. Bind count is unchanged from the per-tile version;
+only the attachment traffic falls.
+
+This is the same class of defect as the gate's own finding — a
+group-0/group-1 assumption that holds per-pass but not per-light-group
+once passes merge — and it is invisible to naga for the same reason.
+
+## The after-counts
+
+| check | predicted | actual |
+|---|---|---|
+| `light_vp` references after U1″ | 7 | **8** — the seven predicted, plus one comment line written into the helper's banner. The 13 VS reads are gone. |
+| WGSL `@group` declarations | 97 → 98 | 98, matching the registry banner |
+| `LoadOp::Load` in the tree | 0 | **0** — every load op in `render_passes.hpp` and `gallery.hpp` reads `Clear` |
+| `spot_vp_staging` references | 0 | 0 code references; two comments record the retirement |
+
+## What U4″ will see
+
+Beyond revB's four expected deltas, the three the gate flagged did move
+and had to: `binding_registry.hpp`'s banner (97/94 → 98/95, because
+witness `0b-1` **parses** it and a failing witness blocks the write),
+witness `registry` (94 → 95 constants), and witness `0b-0` (97 → 98
+declarations). Two more follow from G2, and are consequences of the
+adopted ruling rather than deviations from it:
+
+- Appendix 3's group-layout column for `Shadow Gallery Frame` and
+  `Shadow Wall Painting`: `galleryEntityBindGroupLayout_` →
+  `renderEntityBindGroupLayout_`.
+- Those two pipelines' Table B stage rows move with their new layout.
+
+`0d-1` moves `0 → 1 of 8 uniform` as ruled. The dynamic-offset wallet is
+open, deliberately, with seven seats left.
+
+## What is not claimed
+
+No compile gate ran here. naga validates the WGSL module and was green
+at every commit that touched it — but naga does not check pipeline
+layouts, which is precisely the class this gate's finding belonged to,
+and it does not check C++ at all. `glaw1`, the boot, and the three-gate
+walk with its two named checks (light 0's indoor shadow direction; the
+right-tile occupants) remain the real witnesses, and they are Jean's.
+The merge is Jean's after the walk; `U4″` follows on master.
