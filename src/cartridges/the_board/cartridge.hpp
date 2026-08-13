@@ -1560,9 +1560,21 @@ namespace t7 {
                                 // it contains. The accumulation site carries the
                                 // full note.
                                 "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms"
+                                " | envelope mean %.2f max %.2f ms -> purse %.2f ms"
                                 " | gpu mean/max (per-frame sum)\n",
                                 meter_.window_frames, fps, meter_.gpu_sampled_frames,
-                                FrameMeter::FRAME_BUDGET_MS);
+                                FrameMeter::FRAME_BUDGET_MS,
+                                // HEADROOM_0 U1 — the purse. The envelope is a
+                                // per-frame SPAN, so its mean is over sampled
+                                // frames, not over the window's frames; and the
+                                // purse quotes the MEAN, because a budget spent
+                                // against the worst frame is not a budget.
+                                meter_.gpu_sampled_frames > 0
+                                    ? meter_.gpu_envelope.sum_ms / meter_.gpu_sampled_frames : 0.0,
+                                (double)meter_.gpu_envelope.max_ms,
+                                FrameMeter::FRAME_BUDGET_MS -
+                                    (meter_.gpu_sampled_frames > 0
+                                        ? meter_.gpu_envelope.sum_ms / meter_.gpu_sampled_frames : 0.0));
                         else
                             std::snprintf(line, sizeof line,
                                 "[METER] window %uf  fps %.1f | budget %.1f ms\n",
@@ -2135,6 +2147,24 @@ namespace t7 {
                 // merged into the census when samples exist.
                 RowStat r_gpu[(size_t)RPhase::COUNT];
                 uint32_t gpu_sampled_frames = 0;
+                // HEADROOM_0 U1 — THE ENVELOPE. Per frame,
+                // max(pair end) - min(pair begin) over every resolved pair.
+                // NOT a row: it is not a phase, and folding it into r_gpu
+                // would put it in a table whose column header says
+                // "per-frame sum", which is the one thing it is not.
+                //
+                // WHY IT IS THE PURSE. §4b forbids summing brackets, and it
+                // is right to: pairs overlap, so a sum over-counts and a
+                // single row under-counts. The envelope does neither. It is
+                // the wall-span of the frame's GPU work, and it BOUNDS
+                // occupancy from above regardless of how the brackets lie
+                // inside it — additive-safe by construction, because it
+                // never adds anything. budget 16.6 - envelope is the
+                // headroom the coupling era has to spend.
+                //
+                // Pure arithmetic over timestamps already resolved for the
+                // rows. Zero new queries, zero new GPU cost.
+                RowStat gpu_envelope;
                 // Snapshot of the armed pair table, taken at frame close
                 // and consumed by the mapped callback. NOT zeroed by
                 // reset() — a readback may be in flight across a window.
@@ -2145,6 +2175,7 @@ namespace t7 {
                     for (auto& s : r_rows) s = RowStat{};
                     for (auto& s : s_rows) s = RowStat{};
                     for (auto& s : r_gpu) s = RowStat{};
+                    gpu_envelope = RowStat{};
                     window_frames = 0;
                     gpu_sampled_frames = 0;
                     window_start = std::chrono::steady_clock::now();
@@ -2313,6 +2344,12 @@ namespace t7 {
                                         // otherwise printed a per-pass max below their
                                         // per-frame mean.
                                         double frame_ms[(size_t)RPhase::COUNT] = {};
+                                        // HEADROOM_0 U1 — the envelope's extremes,
+                                        // gathered in the SAME loop and under the
+                                        // SAME discard law, so a pair rejected from
+                                        // the rows cannot widen the envelope either.
+                                        uint64_t env_lo = 0, env_hi = 0;
+                                        bool env_any = false;
                                         for (uint32_t p = 0; p < self->meter_.snap_pair_count; p++) {
                                             const uint64_t t0 = ts[self->meter_.snap_pairs[p].begin_idx];
                                             const uint64_t t1 = ts[self->meter_.snap_pairs[p].begin_idx + 1];
@@ -2320,6 +2357,22 @@ namespace t7 {
                                             const double ms = (double)(t1 - t0) * 1e-6;   // u64 ns per index
                                             if (ms > 100.0) continue;             // same discard law
                                             frame_ms[self->meter_.snap_pairs[p].row] += ms;
+                                            if (!env_any) { env_lo = t0; env_hi = t1; env_any = true; }
+                                            else {
+                                                if (t0 < env_lo) env_lo = t0;
+                                                if (t1 > env_hi) env_hi = t1;
+                                            }
+                                        }
+                                        if (env_any) {
+                                            // One number per frame: the span from the
+                                            // earliest begin to the latest end. Folded
+                                            // like a row so the window reports it with
+                                            // the same mean/max grammar, but it is a
+                                            // SPAN, not a sum -- and the print says so.
+                                            const double env_ms = (double)(env_hi - env_lo) * 1e-6;
+                                            auto& e = self->meter_.gpu_envelope;
+                                            e.sum_ms += env_ms;
+                                            if ((float)env_ms > e.max_ms) e.max_ms = (float)env_ms;
                                         }
                                         // THE MAX ASYMMETRY (TIDY_0d, present
                                         // behavior). The discard above is
