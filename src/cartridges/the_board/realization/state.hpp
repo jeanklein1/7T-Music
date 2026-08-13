@@ -1597,7 +1597,13 @@ namespace t7 {
         // power of two <= 256 and divides 256). The payload is 4 bytes;
         // the rest of each window is padding the alignment demands.
         inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
-        inline constexpr uint32_t SHADOW_SLOT_SIZE   = sizeof(uint32_t);
+        // The BINDING size, not the payload. ShadowSlot carries one u32,
+        // but WGSL rounds a struct in the UNIFORM address space up to a
+        // 16-byte alignment, so the shader's minimum binding size is 16.
+        // Declaring 4 here would be smaller than what the shader requires
+        // and Dawn rejects the layout; 16 is the honest number and still
+        // sits well inside the 256-byte window.
+        inline constexpr uint32_t SHADOW_SLOT_SIZE   = 16;
 
         struct MeshVertex {
             float pos[3];

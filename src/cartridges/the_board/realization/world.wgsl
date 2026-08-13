@@ -6234,8 +6234,14 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // found and D2' was adopted to escape. An index has no owners and no
 // cadence: it is a constant per window. Its failure mode is a
 // validation error, not a wrong pixel.
+// 16 bytes: one payload word and the padding the uniform address space's
+// 16-byte struct alignment implies. Spelled out rather than left implicit
+// so the C++ SHADOW_SLOT_SIZE beside it has something to mirror.
 struct ShadowSlot {
     li: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 @group(0) @binding(362) var<uniform> shadow_slot: ShadowSlot;
 
