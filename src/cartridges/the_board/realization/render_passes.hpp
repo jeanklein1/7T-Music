@@ -582,7 +582,10 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // OIL_1 U13: the gallery pair, bound ONCE for both draws.
     // ROSTER-GATE gallery (a') — matches the consumers' own gate.
     if constexpr (ROSTER.gallery) {
-    pass.SetBindGroup(2, c->gpuState_.gallery_state_group());
+    // LOOM_2: the RENDER variant — its rw seats back inert stand-ins so
+    // the live agent/camera/photographer buffers stay out of this pass's
+    // usage scope. The photographer COMPUTE pass binds the live group.
+    pass.SetBindGroup(2, c->gpuState_.gallery_state_render_group());
     pass.SetBindGroup(3, c->gpuState_.gallery_textures_group());
     }
     c->renderer_.draw_wall_paintings(
