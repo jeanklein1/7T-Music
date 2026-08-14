@@ -1018,6 +1018,656 @@ def check(args):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# LOOM_2 — THE RECUT PLAN (--plan)
+#
+# AUTHORED INPUT, from the LOOM_2 handoff: the stratum map. The tool
+# APPLIES it; it does not decide. Every judgment beyond these constants
+# is a stated derivation rule in the plan, and anything the rules
+# cannot place is a STOP carried in the plan's stop list.
+# ═══════════════════════════════════════════════════════════════════════
+
+RECUT_WORLD = ["config", "tile_grid"]                              # R1
+RECUT_FRAME = ["signal", "vp_data", "render_vp", "camera_state",   # R2,
+               "render_camera", "render_lighting", "shadow_slot",  # in
+               "bilinear_sampler", "nearest_sampler"]              # order
+RECUT_FAMILIES = ["AGENTS", "TERRAIN", "ZONES", "ORBS", "RIBBON",
+                  "GALLERY", "MESHGEN", "SCENE", "SHADOW"]
+RECUT_BAND = 20            # numbering band width per family, groups 2/3
+
+RECUT_COMPUTE_FAMILY = {
+    "update_player_agent": "AGENTS", "update_other_agents": "AGENTS",
+    "update_sphere": "AGENTS", "update_cube": "AGENTS",
+    "compute_pawn_aura": "AGENTS",
+    "generate_patch_heights": "TERRAIN", "generate_patch_gradients": "TERRAIN",
+    "generate_patch_cells": "TERRAIN", "frustum_cull_patches": "TERRAIN",
+    "compute_entity_placement": "TERRAIN",
+    "zone_gol_sync": "ZONES", "zone_gol_evolve": "ZONES",
+    "zone_derive_params": "ZONES", "zone_seed_mask": "ZONES",
+    "write_live_card_heights": "ZONES", "write_live_card_resolve": "ZONES",
+    "orb_init": "ORBS", "orb_dynamics": "ORBS", "orb_recolor": "ORBS",
+    "orb_state_prev_copy": "ORBS",
+    "compute_ribbon_rings": "RIBBON",
+    "compute_photographer_vp": "GALLERY",
+    "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
+    "palm_mesh_gen": "MESHGEN", "cactus_mesh_gen": "MESHGEN",
+    "blade_cluster_mesh_gen": "MESHGEN",
+    "compute_vp": None, "update_camera": None,   # WORLD+FRAME (+ reads)
+}
+
+# MESHGEN role convergence: the five kernels' scratch trios share slot
+# numbers so four families fit ONE layout (MESHGEN3) and column adds
+# its ground read (MESHGEN4).
+RECUT_MESHGEN_ROLE = re.compile(r"^(?:amg|cmg|palmg|cactusg|bladeg)_"
+                                r"(params|vertices|indices)$")
+
+# Authored homes from the roster's parentheticals and R5: AGENTS
+# absorbs The Room (the occupier windows and the field's slots, even
+# though the ribbon kernel writes the head-poses buffer); TERRAIN's
+# line names patch_grid; photo_sampler is R5's special sampler and
+# rides with its heightfield companions.
+RECUT_AUTHORED_HOME = {
+    "occupier_cmg": "AGENTS", "occupier_amg": "AGENTS",
+    "field_head_poses": "AGENTS", "field_forces": "AGENTS",
+    "field_ribbon": "AGENTS", "field_authored": "AGENTS",
+    "patch_grid": "TERRAIN", "photo_sampler": "TERRAIN",
+}
+
+CORE_CAT = {"uniform": 12, "storage": 8, "sampled": 16,
+            "samplers": 16, "storagetex": 4}
+
+
+def _seat_cat(fact):
+    if fact[0] == "buffer":
+        return "uniform" if fact[1] == "Uniform" else "storage"
+    return {"sampler": "samplers", "texture": "sampled",
+            "storageTexture": "storagetex"}[fact[0]]
+
+
+def plan(args):
+    w = BL.Witnesses()
+    registry_consts = BL.parse_registry(w)
+    layouts = BL.parse_layouts(w, registry_consts)
+    b = BL.phase_0b(w)
+    c = BL.phase_0c(w, layouts, b)
+    groups, invokes = MC.parse_groups(w)
+    m7 = MC.usage_census(w, c, groups, invokes)
+    if w.failures():
+        stop("parsers report failures before planning: %s"
+             % "; ".join(t for t, _, _ in w.failures()))
+    schema = load_schema()
+    rw = BL.rw_closure(b["fns"], b["entries"], b["reach"])
+    stops = []
+    findings = []
+
+    # ─── pipeline -> family ───────────────────────────────────────────
+    fam_of_pipe = {}
+    for p in c["pipelines"]:
+        if p.kind == "compute":
+            cs = c["entry_const"].get(p.cs_entry)
+            if cs not in RECUT_COMPUTE_FAMILY:
+                stops.append("no roster family for compute entry %r (%s)"
+                             % (cs, p.member))
+                continue
+            fam_of_pipe[p.member] = RECUT_COMPUTE_FAMILY[cs]
+        else:
+            gl = p.group_layouts
+            if "galleryEntityBindGroupLayout_" in gl:
+                fam_of_pipe[p.member] = "GALLERY"
+            elif "meshGenEntityBindGroupLayout_" in gl:
+                fam_of_pipe[p.member] = "FADE"       # WORLD only
+            elif p.color_target_count == 0:
+                fam_of_pipe[p.member] = "SHADOW"
+            else:
+                fam_of_pipe[p.member] = "SCENE"
+
+    # entry point -> [(pipeline member, stage)]
+    pipes_of_entry = {}
+    for p in c["pipelines"]:
+        for const, stage in p.entries():
+            name = c["entry_const"].get(const)
+            if name:
+                pipes_of_entry.setdefault(name, []).append((p.member, stage))
+
+    # ─── resources: decl -> backing member -> texture/buffer identity ─
+    view_tex = dict(re.findall(r"(\w+)\s*=\s*(\w+)\.CreateView\(",
+                               BL.strip_cpp_comments(BL.read(STATE_HPP))))
+    decl_backing = {}
+    for key, row in schema.GROUPS.items():
+        for i, e in row["entries"].items():
+            res = view_tex.get(e["backing"], e["backing"])
+            decl_backing.setdefault(e["decl"], set()).add(res)
+    decl_res = {}
+    for sym in schema.DECLS:
+        r = decl_backing.get(sym, set())
+        decl_res[sym] = sorted(r)[0] if len(r) == 1 else (sorted(r), None)[1] \
+            if not r else sorted(r)[0]
+        if len(r) > 1:
+            findings.append("decl %s is backed by %d resources: %s"
+                            % (sym, len(r), ", ".join(sorted(r))))
+            decl_res[sym] = sorted(r)[0]
+    res_decls = {}
+    for sym, r in decl_res.items():
+        if r:
+            res_decls.setdefault(r, set()).add(sym)
+
+    # ─── writers / readers per slot ───────────────────────────────────
+    slot_of = {}
+    slots = {}
+    for sym, d in schema.DECLS.items():
+        key = (d["group"], d["binding"])
+        slot_of[sym] = key
+        slots.setdefault(key, []).append(sym)
+
+    def entry_families(entry):
+        return {fam_of_pipe.get(m) for m, _ in pipes_of_entry.get(entry, [])}
+
+    writer_fams = {}      # slot -> families writing any decl of its resource
+    reader_fams = {}      # slot -> {family: {stages}} reaching any decl at slot
+    for key, syms in slots.items():
+        wf = set()
+        rf = {}
+        res = decl_res.get(syms[0])
+        res_syms = res_decls.get(res, set(syms)) if res else set(syms)
+        for e, uses in rw.items():
+            for sym in syms:
+                if uses.get(sym) in ("r", "w", "rw"):
+                    for m, st in pipes_of_entry.get(e, []):
+                        rf.setdefault(fam_of_pipe.get(m), set()).add(st)
+            for sym in res_syms:
+                if uses.get(sym) in ("w", "rw"):
+                    wf |= entry_families(e)
+        writer_fams[key] = {f for f in wf if f}
+        reader_fams[key] = rf
+
+    # ─── placement (R1/R2/R3a/R3b'/R5) ────────────────────────────────
+    placement = {}         # slot -> ("WORLD"|"FRAME"|family)
+    reason = {}
+    world_alias = {slot_of[s] for s in RECUT_WORLD}
+    frame_order = {slot_of[s]: i for i, s in enumerate(RECUT_FRAME)}
+    for key, syms in sorted(slots.items()):
+        prim = syms[0]
+        if key in world_alias:
+            placement[key], reason[key] = "WORLD", "R1 authored"
+        elif key in frame_order:
+            placement[key], reason[key] = "FRAME", "R2 authored"
+        elif any(s in RECUT_AUTHORED_HOME for s in syms):
+            placement[key] = next(RECUT_AUTHORED_HOME[s] for s in syms
+                                  if s in RECUT_AUTHORED_HOME)
+            reason[key] = "authored (roster parenthetical / R5)"
+        elif len(writer_fams[key]) == 1:
+            placement[key] = next(iter(writer_fams[key]))
+            reason[key] = "R3a writer family"
+        elif len(writer_fams[key]) > 1:
+            stops.append("slot %s (%s): %d writer families %s — R3a cannot "
+                         "place it" % (key, prim, len(writer_fams[key]),
+                                       sorted(writer_fams[key])))
+        else:
+            # CPU-written: sole consuming family, compute families first
+            # (a render read of an authored table is R4's cross-family
+            # read, not a home claim) — R3b', stated for ratification.
+            fams = {f for f in reader_fams[key] if f and f not in
+                    ("FADE", None)}
+            cf = {f for f in fams if f not in ("SCENE", "SHADOW", "GALLERY")}
+            pick = cf or fams
+            if len(pick) == 1:
+                placement[key] = next(iter(pick))
+                reason[key] = ("R3b' sole consuming family"
+                               + (" (compute-priority)" if cf and fams != cf
+                                  else ""))
+            elif not pick:
+                stops.append("slot %s (%s): no GPU writer and no reader — "
+                             "unplaceable" % (key, prim))
+            else:
+                stops.append("slot %s (%s): CPU-written, consumed by %s — "
+                             "R3b' cannot pick a sole family"
+                             % (key, prim, sorted(pick)))
+
+    # ─── numbering (P-num) ────────────────────────────────────────────
+    new_slot = {}          # old slot -> (new_group, new_binding)
+    world_seats = [slot_of[s] for s in RECUT_WORLD]
+    for i, key in enumerate(world_seats):
+        new_slot[key] = (0, i)
+    for key, i in frame_order.items():
+        new_slot[key] = (1, i)
+    fam_slots = {}
+    for key, home in placement.items():
+        if home in ("WORLD", "FRAME"):
+            continue
+        prim = slots[key][0]
+        stratum = 2 if schema.DECLS[prim]["cpp"] and \
+            schema.DECLS[prim]["cpp"][0] == "buffer" else 3
+        if schema.DECLS[prim]["cpp"] is None:
+            stratum = 2
+            findings.append("slot %s (%s) is bound by no layout today; "
+                            "placed in STATE by store type" % (key, prim))
+        fam_slots.setdefault((home, stratum), []).append(key)
+    # MESHGEN role convergence: one number per role.
+    meshgen_role = {}
+    for (home, stratum), keys in sorted(fam_slots.items()):
+        base = RECUT_FAMILIES.index(home) * RECUT_BAND
+        n = 0
+        for key in sorted(keys):
+            prim = slots[key][0]
+            role = RECUT_MESHGEN_ROLE.match(prim) if home == "MESHGEN" else None
+            if role and role.group(1) in meshgen_role:
+                new_slot[key] = meshgen_role[role.group(1)]
+                continue
+            new_slot[key] = (stratum, base + n)
+            if role:
+                meshgen_role[role.group(1)] = new_slot[key]
+            n += 1
+            if n > RECUT_BAND:
+                stops.append("family %s stratum %d overflows its %d-wide "
+                             "band" % (home, stratum, RECUT_BAND))
+
+    # ─── layouts and seats (R4 + P-vis) ───────────────────────────────
+    # seat key: (layout name) -> {new_binding: {"decl", "vis", "why"}}
+    def layout_name(fam, stratum):
+        return "%s_%s" % (fam, "STATE" if stratum == 2 else "TEXTURES")
+
+    new_layouts = {"WORLD": {}, "FRAME": {}}
+    adopters = {}          # family-less pipelines -> strata they adopt
+    for key, home in placement.items():
+        ng, nb = new_slot.get(key, (None, None))
+        if ng is None:
+            continue
+        rf = reader_fams[key]
+        for fam, stages in sorted((f, s) for f, s in rf.items() if f):
+            if fam == "FADE":
+                if home != "WORLD":
+                    stops.append("fade_overlay reaches %s (%s) outside WORLD"
+                                 % (key, slots[key][0]))
+                continue
+            if home == "WORLD":
+                tgt = "WORLD"
+            elif home == "FRAME":
+                tgt = "FRAME"
+            elif fam in ("SCENE", "SHADOW", "GALLERY", "AGENTS", "TERRAIN",
+                         "ZONES", "ORBS", "RIBBON", "MESHGEN"):
+                tgt = layout_name(fam, ng if home not in ("WORLD", "FRAME")
+                                  else 2)
+            else:
+                tgt = None
+            if tgt is None:
+                continue
+            new_layouts.setdefault(tgt, {})
+            seat = new_layouts[tgt].setdefault(
+                (ng, nb), {"decl": slots[key][0], "vis": set(), "why": set()})
+            seat["vis"] |= stages
+            if home in ("WORLD", "FRAME"):
+                seat["why"].add("read by " + fam)
+            else:
+                seat["why"].add("home" if fam == home else "R4 read (%s)" % fam)
+        # The family-less pair (the map's "—" row): their reads become
+        # seats in DEDICATED read layouts — "+ read seats where reached"
+        # taken literally, so no family layout is dragged to a foreign
+        # index. Seat numbers stay the home slots' numbers.
+        for e_name, tag in (("compute_vp", "VP_READS"),
+                            ("update_camera", "CAMERA_READS")):
+            uses = rw.get(e_name, {})
+            if any(uses.get(sym) for sym in slots[key]):
+                if home not in ("WORLD", "FRAME"):
+                    nm = "%s_%s" % (tag, "STATE" if ng == 2 else "TEXTURES")
+                    seat = new_layouts.setdefault(nm, {}).setdefault(
+                        (ng, nb), {"decl": slots[key][0], "vis": set(),
+                                   "why": set()})
+                    seat["vis"].add("C")
+                    seat["why"].add("family-less read (%s)" % e_name)
+                    adopters.setdefault(e_name, set()).add(nm)
+
+    # visibility of WORLD/FRAME seats: union over every pipeline that
+    # reaches them (all pipelines bind these strata).
+    # (already accumulated above through reader families, including FADE
+    # for WORLD via the explicit branch.)
+    for key in list(placement):
+        if placement[key] == "WORLD":
+            ng, nb = new_slot[key]
+            seat = new_layouts["WORLD"].setdefault(
+                (ng, nb), {"decl": slots[key][0], "vis": set(), "why": {"R1"}})
+            for fam, stages in reader_fams[key].items():
+                seat["vis"] |= stages
+        if placement[key] == "FRAME":
+            ng, nb = new_slot[key]
+            seat = new_layouts["FRAME"].setdefault(
+                (ng, nb), {"decl": slots[key][0], "vis": set(), "why": {"R2"}})
+            for fam, stages in reader_fams[key].items():
+                seat["vis"] |= stages
+
+    for name in list(new_layouts):
+        if not new_layouts[name]:
+            del new_layouts[name]
+
+    empty_indices = set()
+    pipe_strata = {}
+    for p in c["pipelines"]:
+        fam = fam_of_pipe.get(p.member)
+        reach_syms = set()
+        for const, st in p.entries():
+            e_name = c["entry_const"].get(const)
+            reach_syms |= b["reach"].get(e_name, (set(), set()))[1]
+        strata = ["WORLD", "FRAME", None, None]
+        if fam in RECUT_FAMILIES:
+            for stratum in (2, 3):
+                nm = layout_name(fam, stratum)
+                if nm in new_layouts:
+                    strata[stratum] = nm
+        elif fam == "FADE":
+            strata[1] = None
+        else:                                   # compute_vp / update_camera
+            e_name = c["entry_const"].get(p.cs_entry)
+            for nm in sorted(adopters.get(e_name, ())):
+                stratum = 2 if nm.endswith("STATE") else 3
+                if strata[stratum] and strata[stratum] != nm:
+                    stops.append("%s needs two stratum-%d layouts: %s and %s"
+                                 % (p.member, stratum, strata[stratum], nm))
+                strata[stratum] = nm
+        for i_, s_ in enumerate(strata):
+            if s_ is None:
+                empty_indices.add(i_)
+        pipe_strata[p.member] = strata
+
+    # ─── P-gate: predicted Table B ────────────────────────────────────
+    def stage_counts(strata_list, reach_pred):
+        out = {}
+        for st in ("V", "F", "C"):
+            cnt = {k: 0 for k in CORE_CAT}
+            for nm in strata_list:
+                if not nm:
+                    continue
+                for (ng, nb), seat in new_layouts[nm].items():
+                    if st in seat["vis"]:
+                        cnt[_seat_cat(schema.DECLS[seat["decl"]]["cpp"])] += 1
+            out[st] = cnt
+        return out
+
+    old_counts = {}
+    by_member_layout = {L["member"]: L for L in layouts}
+    for p in c["pipelines"]:
+        out = {}
+        for st in ("V", "F", "C"):
+            cnt = {k: 0 for k in CORE_CAT}
+            for lm in p.group_layouts:
+                for e in by_member_layout[lm]["entries"]:
+                    if st in e.vis_declared:
+                        sym = resolve_seat_decl(e, b["slots"])
+                        cnt[_seat_cat(schema.DECLS[sym]["cpp"])] += 1
+        # (declared per current tree)
+            out[st] = cnt
+        old_counts[p.member] = out
+    new_counts = {}
+    gate_fail = []
+    for p in c["pipelines"]:
+        stages = [s for _, s in p.entries()]
+        nc = stage_counts(pipe_strata[p.member], None)
+        new_counts[p.member] = nc
+        for st in stages:
+            for cat, lim in CORE_CAT.items():
+                if nc[st][cat] > lim:
+                    gate_fail.append("%s / %s: %s %d over the Core %d"
+                                     % (p.label, st, cat, nc[st][cat], lim))
+    stops.extend(gate_fail)
+
+    return {"fam_of_pipe": fam_of_pipe, "placement": placement,
+            "reason": reason, "new_slot": new_slot, "slots": slots,
+            "new_layouts": new_layouts, "pipe_strata": pipe_strata,
+            "empty_indices": empty_indices, "old_counts": old_counts,
+            "new_counts": new_counts, "stops": stops, "findings": findings,
+            "schema": schema, "c": c, "m7": m7, "reader_fams": reader_fams,
+            "writer_fams": writer_fams, "adopters": adopters, "b": b,
+            "layouts": layouts, "groups": groups}
+
+
+PLAN_OUT = os.path.join(REPO, "audit", "RECUT_PLAN.md")
+
+
+def emit_plan(P, out_path):
+    schema = P["schema"]
+    c = P["c"]
+    esc = BL.md_escape
+    L = []
+    A = L.append
+    A("# THE RECUT PLAN (LOOM_2 U1)")
+    A("")
+    A("Derived by `binding_gen.py --plan` from the authored stratum map and")
+    A("the tree's reach closure. THE TOOL DERIVES; IT DOES NOT DECIDE —")
+    A("every rule it applied is stated below, and everything the rules")
+    A("could not place is in the STOP list. Nothing here touches the tree:")
+    A("this document is the ratification instrument, and U2 may not begin")
+    A("until Jean ratifies it.")
+    A("")
+    A("## The rules as applied")
+    A("")
+    A("- R1/R2 verbatim from the handoff (WORLD = config + tile_grid;")
+    A("  FRAME = signal, both vp faces, both camera faces, render_lighting,")
+    A("  shadow_slot with its window, the two shared samplers).")
+    A("- R3a: home = the sole GPU-writing family of the slot's RESOURCE")
+    A("  (faces share a resource through the backing member, views resolved")
+    A("  to their textures).")
+    A("- R3b' (stated for ratification): a CPU-written slot homes with its")
+    A("  sole consuming family, COMPUTE families first — a render read of")
+    A("  an authored table is R4's cross-family read, not a home claim.")
+    A("- R4: every reading family gets a seat at the slot's number in its")
+    A("  own stratum layout; visibility is the union of reaching stages")
+    A("  (P-vis — declared equals actual by construction).")
+    A("- P-num: WORLD/FRAME numbered in authored order; family bands of")
+    A("  width %d in roster order (%s) within groups 2 and 3;" % (
+        RECUT_BAND, ", ".join(RECUT_FAMILIES)))
+    A("  home slots ascend by old number; aliases keep shared numbers;")
+    A("  the five MESHGEN scratch trios CONVERGE onto one params, one")
+    A("  vertices, one indices slot (MESHGEN3; column adds its ground")
+    A("  read as MESHGEN4).")
+    A("- Family-less pipelines (compute_vp, update_camera) ADOPT the")
+    A("  family layout that holds what they read; fade_overlay binds")
+    A("  WORLD only. Render families derive from today's layout lists:")
+    A("  gallery-entity users are GALLERY, depth-only are SHADOW, the")
+    A("  fade overlay is FADE, the rest are SCENE.")
+    A("")
+    if P["stops"]:
+        A("## ★ STOP LIST — the rules could not place these ★")
+        A("")
+        for s_ in P["stops"]:
+            A("- %s" % esc(s_))
+        A("")
+    if P["findings"]:
+        A("## Findings (facts the plan carries, not stops)")
+        A("")
+        for f_ in P["findings"]:
+            A("- %s" % esc(f_))
+        A("")
+
+    A("## The family roster, derived")
+    A("")
+    A("| family | pipelines |")
+    A("|---|---|")
+    fams = {}
+    for m, f in P["fam_of_pipe"].items():
+        fams.setdefault(f if f else "(WORLD+FRAME)", []).append(m)
+    for f in RECUT_FAMILIES + ["FADE", "(WORLD+FRAME)"]:
+        if f in fams:
+            A("| %s | %s |" % (f, ", ".join("`%s`" % x for x in sorted(fams[f]))))
+    A("")
+
+    A("## The four-strata seat roster")
+    A("")
+    total_new = 0
+    for nm in (["WORLD", "FRAME"] +
+               sorted(x for x in P["new_layouts"] if x not in ("WORLD", "FRAME"))):
+        seats = P["new_layouts"].get(nm, {})
+        total_new += len(seats)
+        A("### %s (group %d, %d seats)" % (
+            nm, 0 if nm == "WORLD" else 1 if nm == "FRAME" else
+            2 if nm.endswith("STATE") else 3, len(seats)))
+        A("")
+        A("| binding | decl | kind | visibility | why |")
+        A("|---|---|---|---|---|")
+        for (ng, nb), seat in sorted(seats.items(), key=lambda kv: kv[0][1]):
+            fact = schema.DECLS[seat["decl"]]["cpp"]
+            A("| %d | `%s` | %s | %s | %s |"
+              % (nb, seat["decl"], _seat_cat(fact),
+                 "".join(st for st in "VFC" if st in seat["vis"]) or "—",
+                 esc(", ".join(sorted(seat["why"])))))
+        A("")
+    old_total = len(schema.SEATS)
+    old_by_slot = {}
+    for (lm, i), s_ in schema.SEATS.items():
+        d = schema.DECLS[s_["decl"]]
+        old_by_slot[(d["group"], d["binding"])] = \
+            old_by_slot.get((d["group"], d["binding"]), 0) + 1
+    new_by_slot = {}
+    for nm, seats in P["new_layouts"].items():
+        for (ng, nb), seat in seats.items():
+            d = schema.DECLS[seat["decl"]]
+            key = (d["group"], d["binding"])
+            new_by_slot[key] = new_by_slot.get(key, 0) + 1
+    coll = sum(max(0, old_by_slot.get(k, 0) - new_by_slot.get(k, 0))
+               for k in set(old_by_slot) | set(new_by_slot))
+    added = sum(max(0, new_by_slot.get(k, 0) - old_by_slot.get(k, 0))
+                for k in set(old_by_slot) | set(new_by_slot))
+    A("Seats: %d today -> %d planned — %d duplicates collapse, %d new R4"
+      % (old_total, total_new, coll, added))
+    A("read seats appear, net %+d. Layouts: %d today -> %d planned"
+      % (total_new - old_total, len(P["layouts"]), len(P["new_layouts"])))
+    A("(+ EMPTY at indices %s — three empties or an amended 0c-4; the"
+      % (", ".join(str(i) for i in sorted(P["empty_indices"])) or "none"))
+    A("plan provisions per-index empties and flags the choice).")
+    A("")
+
+    A("## The old -> new number map (all 98 declarations)")
+    A("")
+    A("| decl | old (g,b) | new (g,b) | home | reason |")
+    A("|---|---|---|---|---|")
+    for sym, d in schema.DECLS.items():
+        key = (d["group"], d["binding"])
+        ns = P["new_slot"].get(key)
+        A("| `%s` | (%d,%d) | %s | %s | %s |"
+          % (sym, d["group"], d["binding"],
+             "(%d,%d)" % ns if ns else "**UNPLACED**",
+             P["placement"].get(key, "—"),
+             esc(P["reason"].get(key, "—"))))
+    A("")
+
+    A("## Predicted Table B against today's (declared, per stage)")
+    A("")
+    A("Every (pipeline, stage) row under the recut, with today's declared")
+    A("counts beside it. The gate law: uniform 12 / storage 8 / sampled 16")
+    A("/ samplers 16 / storage-tex 4 per stage. Any exceedance is in the")
+    A("STOP list above.")
+    A("")
+    A("| pipeline | st | new u/s/t/sm/st | today u/s/t/sm/st |")
+    A("|---|---|---|---|")
+    cats = ("uniform", "storage", "sampled", "samplers", "storagetex")
+    for p in c["pipelines"]:
+        for _, st in p.entries():
+            nc = P["new_counts"][p.member][st]
+            oc = P["old_counts"][p.member][st]
+            A("| %s | %s | %s | %s |"
+              % (esc(p.label), st,
+                 "/".join(str(nc[x]) for x in cats),
+                 "/".join(str(oc[x]) for x in cats)))
+    A("")
+
+    A("## The pipeline-layout rewrite list (renderer.hpp)")
+    A("")
+    A("| pipeline | today | planned strata |")
+    A("|---|---|---|")
+    for p in c["pipelines"]:
+        strata = P["pipe_strata"][p.member]
+        A("| `%s` | %s | %s |"
+          % (p.member,
+             " → ".join("`%s`" % g for g in p.group_layouts),
+             " → ".join("`%s`" % (s_ or "EMPTY") for s_ in strata)))
+    A("")
+
+    A("## The SetBindGroup rewrite list (from M7)")
+    A("")
+    A("Per site: the group member bound today, and the strata the")
+    A("pipelines behind that site require. Sites binding a group whose")
+    A("layout serves a whole pass head are marked HOIST (bind once per")
+    A("pass; bind-group state is sticky).")
+    A("")
+    lay_pipes = {}
+    for p in c["pipelines"]:
+        for lm in p.group_layouts:
+            lay_pipes.setdefault(lm, set()).add(p.member)
+    member_layout = {}
+    for g in P["groups"]:
+        if g["member"]:
+            member_layout[g["member"]] = g["layout_member"]
+        else:
+            for key2, row2 in schema.GROUPS.items():
+                if row2["cadence"] == "builder":
+                    for iv in row2.get("invocations", []):
+                        member_layout[iv["member"]] = row2["layout"]
+    A("| site | fn | binds today | families served | planned binds |")
+    A("|---|---|---|---|---|")
+    for r in P["m7"]["rows"]:
+        mems = r["members"]
+        fam_set = set()
+        for mem in mems:
+            for pm in lay_pipes.get(member_layout.get(mem), ()):
+                f = P["fam_of_pipe"].get(pm)
+                fam_set.add(f if f else "(WORLD+FRAME)")
+        strata_desc = sorted(x for x in fam_set if x)
+        A("| `%s:%d` | `%s` | %d ← %s | %s | %s |"
+          % (r["file"].rsplit("/", 1)[-1], r["line"], r["fn"], r["index"],
+             ", ".join("`%s`" % m for m in mems),
+             esc(", ".join(strata_desc)),
+             "0 WORLD · 1 FRAME · 2/3 per family" +
+             (" · offsets: %s" % esc(r["offsets"]) if r["offsets"] else "")))
+    A("")
+
+    A("## Retired seats (collapsed duplicates)")
+    A("")
+    A("Old seats whose slot now carries fewer seats than it did; each old")
+    A("home named. Collapse is legal only where (slot, kind, access) were")
+    A("identical — P-cons — and every declaration survives.")
+    A("")
+    old_seats_by_slot = {}
+    for (lm, i), s_ in schema.SEATS.items():
+        d = schema.DECLS[s_["decl"]]
+        old_seats_by_slot.setdefault((d["group"], d["binding"]), []).append(
+            (schema.LAYOUTS[lm]["label"], i))
+    new_seats_by_slot = {}
+    for nm, seats in P["new_layouts"].items():
+        for (ng, nb), seat in seats.items():
+            d = schema.DECLS[seat["decl"]]
+            key = (d["group"], d["binding"])
+            new_seats_by_slot.setdefault(key, []).append(nm)
+    A("| slot (old) | decl | old seats | planned seats |")
+    A("|---|---|---|---|")
+    collapsed = 0
+    for key in sorted(old_seats_by_slot):
+        old = old_seats_by_slot[key]
+        new = new_seats_by_slot.get(key, [])
+        if len(old) > len(new):
+            collapsed += len(old) - len(new)
+            A("| (%d,%d) | `%s` | %s | %s |"
+              % (key[0], key[1], P["slots"][key][0],
+                 esc("; ".join("%s[%d]" % x for x in old)),
+                 esc(", ".join(sorted(new)) or "—")))
+    A("")
+    A("Collapsed seats total: %d." % collapsed)
+    A("")
+    A("## P-inv — the render = compute + 200 band, retired")
+    A("")
+    A("The four static_asserts of the registry's witness band are declared")
+    A("RETIRED by this plan: the recut ends the +200 mirror numbering the")
+    A("band checked, so the invariants die with it. The registry prose")
+    A("keeps the epitaph: the band was the witness over authored literals")
+    A("from C6 until LOOM_2, and the schema's --check is its successor.")
+    A("")
+    A("## Ratification")
+    A("")
+    A("★ THE CAMPAIGN HALTS HERE. ★ Nothing in U2 — no schema rewrite, no")
+    A("--write, no --write-wgsl, no renderer or call-site edit — may begin")
+    A("until Jean ratifies this plan%s."
+      % (", and the STOP list above is ruled on first" if P["stops"] else ""))
+    text = "\n".join(L)
+    if not text.endswith("\n"):
+        text += "\n"
+    write_file(out_path, text)
+    return text
+
 
 def main():
     ap = argparse.ArgumentParser(description="LOOM_1 \u2014 the one table's instrument.")
@@ -1033,7 +1683,31 @@ def main():
                         "registry alone; U3 flips the state.hpp blocks.")
     g.add_argument("--write-wgsl", metavar="PATH",
                    help="renumber the declaration sites of the file at PATH")
+    g.add_argument("--plan", action="store_true",
+                   help="derive the LOOM_2 recut plan into audit/RECUT_PLAN.md")
     args = ap.parse_args()
+
+    if args.plan:
+        P = plan(args)
+        emit_plan(P, PLAN_OUT)
+        print("binding_gen --plan")
+        print("")
+        print("  families: %d pipelines over %d families (+ FADE + 2 family-less)"
+              % (len(P["fam_of_pipe"]),
+                 len({f for f in P["fam_of_pipe"].values()
+                      if f in RECUT_FAMILIES})))
+        print("  placement: %d slots placed, %d STOPs, %d findings"
+              % (len(P["new_slot"]), len(P["stops"]), len(P["findings"])))
+        print("  layouts: %d planned (+EMPTY at %s); seats %d -> %d"
+              % (len(P["new_layouts"]),
+                 ",".join(str(i) for i in sorted(P["empty_indices"])) or "-",
+                 len(P["schema"].SEATS),
+                 sum(len(v) for v in P["new_layouts"].values())))
+        for s_ in P["stops"]:
+            print("  STOP %s" % s_)
+        print("")
+        print("  wrote %s" % os.path.relpath(PLAN_OUT, REPO))
+        return 1 if P["stops"] else 0
 
     if args.bootstrap:
         print_schema(capture_tree())
