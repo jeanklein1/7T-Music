@@ -1510,6 +1510,8 @@
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
+                    // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
 
                     entries[0].binding = bind::g2::patch_grid;
                     entries[0].buffer = patchGridBuffer_;

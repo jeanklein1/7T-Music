@@ -1758,8 +1758,8 @@ namespace t7 {
                     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
                     // FRAME carries the shadow-slot dynamic window; compute never moves it.
                     { const uint32_t kFrameSlot0 = 0;
-                      pass.SetBindGroup(0, c->gpuState_.world_group());
-                      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+                      pass.SetBindGroup(0, gpuState_.world_group());
+                      pass.SetBindGroup(1, gpuState_.frame_group(), 1, &kFrameSlot0); }
                     // dispatch skips disabled families structurally:
                     // dirty[f] stays false for a disabled family (never
                     // set above), so this branches on dirty-ness, not on

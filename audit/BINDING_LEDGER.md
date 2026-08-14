@@ -14,10 +14,10 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `c3319317f148748a545032adb2de71a7f6d098e1` |
-| | LOOM_1 U3: flip the state.hpp blocks — one include, three functions |
+| source commit | `34dc22000997a81cc8c4bb4742ad07a25033823c` |
+| | LOOM_2 U2: the recut, executed — four strata, one law, all witnesses green |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb2096d19f4045ee8f8e2dcbf3158dad2b484757624516d8ec6a81e596c48ab9` |
-| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:d04c5e54424a30b76b3653071c75e71abe155bb9c70e71bf294ec042efd714b7` |
+| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:1534d6617c2c4dd61838d87ba0b632fd5dce03559c152924e60dd17b46660411` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1803c6e54f6b87cb7894e294358bf9c649bb17c5e8032c54352a970174b97394` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:7199d03b4bc897c21b84daf97220803af17588fdbe6d5973832c659f4895a66c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:eab0859f8556bfdcd3f26cda9f41cc1c4d7300b94f94615b59df7f2d0492de23` |
@@ -33,7 +33,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `fc302fd4de89105d9818c1b722c021458cc7ff13ba06a40e07b382f4becbdd66` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `714c5d340462218d09c2e79ff2e82857329a3eb389a0f00c15e96a650544d905` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `372b5f719db8eb6c38806768db2fabfa86692f7157f47d836e5b05bc294c1e62` |
-| `src/cartridges/the_board/cartridge.hpp` | `7a55c513bfa47d4d3eebca4f26b6696c7c79bbee61ab1b0f1440dd524b8710b9` |
+| `src/cartridges/the_board/cartridge.hpp` | `e05536a92274f5148f015b3d1a579b8515c15bc2ed71738262eaaa567447d68d` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `1ca7675b025df444d72cf64d92c00bd94d450830b0bf71b7f6b99846f1272291` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `bd0faf9103203f330614ff8cdc50dc5c4728be4bcf73d85d2962b377a6954795` |

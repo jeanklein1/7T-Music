@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `c3319317f148748a545032adb2de71a7f6d098e1` |
-| | LOOM_1 U3: flip the state.hpp blocks — one include, three functions |
+| source commit | `34dc22000997a81cc8c4bb4742ad07a25033823c` |
+| | LOOM_2 U2: the recut, executed — four strata, one law, all witnesses green |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1803c6e54f6b87cb7894e294358bf9c649bb17c5e8032c54352a970174b97394` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:eab0859f8556bfdcd3f26cda9f41cc1c4d7300b94f94615b59df7f2d0492de23` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb2096d19f4045ee8f8e2dcbf3158dad2b484757624516d8ec6a81e596c48ab9` |
-| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:d04c5e54424a30b76b3653071c75e71abe155bb9c70e71bf294ec042efd714b7` |
+| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:1534d6617c2c4dd61838d87ba0b632fd5dce03559c152924e60dd17b46660411` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:7199d03b4bc897c21b84daf97220803af17588fdbe6d5973832c659f4895a66c` |
 | `tools/binding_ledger.py` | `sha256:1b0e50ce5818ea27658854071803afeee8444132ca31c39d01707f36c03063f2` |
-| `audit/BINDING_LEDGER.md` | `sha256:6add6920a899502829625267d042b12e4de971f5e818c055279b058ad0ae541f` |
+| `audit/BINDING_LEDGER.md` | `sha256:e3a94207c9a3caeb7421e68225559e5a2ab0582759856561594040c95b9b045e` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -75,7 +75,7 @@ Census cardinalities, reconciled against the ledger by ML-0:
 | `M6-0` | **PASS** | 33 bind group creation blocks parsed to full entry rows (every entry has a binding and exactly one backing field); 0 builder invocation(s) |
 | `ML-0r` | **PASS** | the ledger states all four count sentences the gate reads (declarations/slots, rows/layouts, bind groups, pipelines); Table H carries 11 `wgsl binding` rows |
 | `ML-0` | **PASS** | counts reconcile with audit/BINDING_LEDGER.md, read from the ledger text: slots 83, declarations 98, seats 117, layouts 25, groups 33, pipelines 59 |
-| `ML-1` | **PASS** | idiom totals sum to instance totals on every surface — R 83/83, W 98/98, L 562/562, G 744/744, G+ 0/0, P 34/34 |
+| `ML-1` | **PASS** | idiom totals sum to instance totals on every surface — R 83/83, W 98/98, L 562/562, G 745/745, G+ 0/0, P 34/34 |
 | `M2-0` | **PASS** | 98 declarations partitioned into 29 contiguous runs; 27 carry an attached comment block (rule A), 11 are Table H defended sites |
 | `M3-0` | **PASS** | every fifth-home hit fits the table shape — (a) 0 outside-declaration site(s), (b) 0 literal RHS, 0 other RHS, (c) 0 code hit(s) outside the three homes |
 | `M5-0` | **PASS** | 37 struct types named by slot store types; 32 resolve to a C++ twin, 5 do not (AgentBehaviorParams, AgentTierParams, FloatingEntityArray, ShadowSlot, UnifiedPaintingSlot) — findings, not STOPs |
@@ -186,7 +186,7 @@ Boundary: every `;`-terminated statement inside the 27 creation blocks, plus the
 | `G-siz` | buffer window size (free expression) | 133 | `entries[0].size = sizeof(GPUDesignConfig);` — state.hpp:5367 |
 | `G-txv` | texture view backing member | 28 | `entries[0].textureView = pawnAuraReadView_;` — state.hpp:5535 |
 | `G-smp` | sampler backing member | 10 | `entries[5].sampler = bilinearSampler_;` — state.hpp:5408 |
-| `G-cst` | in-block constant (Entity Placement's plant count) | 0 | — |
+| `G-cst` | in-block constant (Entity Placement's plant count) | 1 | `static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;` — state.hpp:5982 |
 | `G-desc` | descriptor declaration, one per block | 33 | `wgpu::BindGroupDescriptor desc{};` — state.hpp:5373 |
 | `G-lbl` | group label, string literal | 33 | `desc.label = "World BindGroup";` — state.hpp:5374 |
 | `G-lblp` | group label from the builder's parameter | 0 | — |
@@ -200,7 +200,7 @@ Boundary: every `;`-terminated statement inside the 27 creation blocks, plus the
 | `G-call` | builder invocation (three: plans A / B / C) | 0 | — |
 | `G-chk3` | boot check over the three built groups | 0 | — |
 
-Instances: 744 over 14 idioms. Ordering observed: entry indices ascend in 33 of 33 blocks. Field order within a seat: binding, one backing field, then optional offset, then size; every buffer seat carries a size, no view/sampler seat does. The builder block's machinery (surface G+) sits between blocks: header, three invocations, compound check.
+Instances: 745 over 15 idioms. Ordering observed: entry indices ascend in 33 of 33 blocks. Field order within a seat: binding, one backing field, then optional offset, then size; every buffer seat carries a size, no view/sampler seat does. The builder block's machinery (surface G+) sits between blocks: header, three invocations, compound check.
 
 ### M1.P — pipeline-layout lists (`renderer.hpp`)
 
@@ -480,7 +480,7 @@ provenance commit.
 | buffer window .size expressions (one per buffer seat) | **RESIDUE** — no GROUPS column holds them; enumerated in M6 | `entries[3].size = Dim::MAX_AGENTS * sizeof(GPUAgentState)` |
 | buffer window .offset expressions (3 sites) | **RESIDUE** — no GROUPS column holds them; enumerated in M6 | `entries[11].offset = listOff` |
 | the builder: one block minting three groups (A/B/C IB windows) | **RESIDUE** — creation-site multiplicity | `(none)` |
-| the exhibition rebuild (a bind group re-made after boot) | **RESIDUE** — creation cadence — a bind group re-made after boot | `state.hpp:6435 Gallery Textures BindGroup` |
+| the exhibition rebuild (a bind group re-made after boot) | **RESIDUE** — creation cadence — a bind group re-made after boot | `state.hpp:6437 Gallery Textures BindGroup` |
 | in-block constant (PLANT_GROUND_COUNT) | **RESIDUE** — idiom template | `Entity Placement Compute BindGroup block` |
 | entry statement order (0 blocks out of index order) | **RESIDUE** — ordering | `(none found)` |
 | descriptor boilerplate, boot checks, entry prose | **RESIDUE** — idiom template / attached prose | `desc.entries = entries.data();` |
@@ -527,7 +527,7 @@ place and patch around.
 | 17 | G | buffer window .size expressions (one per buffer seat) | `entries[3].size = Dim::MAX_AGENTS * sizeof(GPUAgentState)` |
 | 18 | G | buffer window .offset expressions (3 sites) | `entries[11].offset = listOff` |
 | 19 | G | the builder: one block minting three groups (A/B/C IB windows) | `(none)` |
-| 20 | G | the exhibition rebuild (a bind group re-made after boot) | `state.hpp:6435 Gallery Textures BindGroup` |
+| 20 | G | the exhibition rebuild (a bind group re-made after boot) | `state.hpp:6437 Gallery Textures BindGroup` |
 | 21 | G | in-block constant (PLANT_GROUND_COUNT) | `Entity Placement Compute BindGroup block` |
 | 22 | G | entry statement order (0 blocks out of index order) | `(none found)` |
 | 23 | G | descriptor boilerplate, boot checks, entry prose | `desc.entries = entries.data();` |
@@ -882,7 +882,7 @@ layout `placeStateLayout_` → member `placeStateGroup_` (state.hpp:5980, descri
 
 ### `Place Textures BindGroup`
 
-layout `placeTexturesLayout_` → member `placeTexturesGroup_` (state.hpp:6013, descriptor `desc`)
+layout `placeTexturesLayout_` → member `placeTexturesGroup_` (state.hpp:6015, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -893,7 +893,7 @@ layout `placeTexturesLayout_` → member `placeTexturesGroup_` (state.hpp:6013, 
 
 ### `Ribbon State BindGroup`
 
-layout `ribbonStateLayout_` → member `ribbonStateGroup_` (state.hpp:6038, descriptor `desc`)
+layout `ribbonStateLayout_` → member `ribbonStateGroup_` (state.hpp:6040, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -903,7 +903,7 @@ layout `ribbonStateLayout_` → member `ribbonStateGroup_` (state.hpp:6038, desc
 
 ### `Scene State BindGroup`
 
-layout `sceneStateLayout_` → member `sceneStateGroup_` (state.hpp:6063, descriptor `desc`)
+layout `sceneStateLayout_` → member `sceneStateGroup_` (state.hpp:6065, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -919,7 +919,7 @@ layout `sceneStateLayout_` → member `sceneStateGroup_` (state.hpp:6063, descri
 
 ### `Scene State BindGroup (PlanB)`
 
-layout `sceneStateLayout_` → member `sceneStatePlanBGroup_` (state.hpp:6113, descriptor `desc`)
+layout `sceneStateLayout_` → member `sceneStatePlanBGroup_` (state.hpp:6115, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -935,7 +935,7 @@ layout `sceneStateLayout_` → member `sceneStatePlanBGroup_` (state.hpp:6113, d
 
 ### `Scene State BindGroup (PlanC)`
 
-layout `sceneStateLayout_` → member `sceneStatePlanCGroup_` (state.hpp:6164, descriptor `desc`)
+layout `sceneStateLayout_` → member `sceneStatePlanCGroup_` (state.hpp:6166, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -951,7 +951,7 @@ layout `sceneStateLayout_` → member `sceneStatePlanCGroup_` (state.hpp:6164, d
 
 ### `Scene State BindGroup (Photographer)`
 
-layout `sceneStateLayout_` → member `sceneStatePhotographerGroup_` (state.hpp:6215, descriptor `desc`)
+layout `sceneStateLayout_` → member `sceneStatePhotographerGroup_` (state.hpp:6217, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -967,7 +967,7 @@ layout `sceneStateLayout_` → member `sceneStatePhotographerGroup_` (state.hpp:
 
 ### `Scene Textures BindGroup`
 
-layout `sceneTexturesLayout_` → member `sceneTexturesGroup_` (state.hpp:6265, descriptor `desc`)
+layout `sceneTexturesLayout_` → member `sceneTexturesGroup_` (state.hpp:6267, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -983,7 +983,7 @@ layout `sceneTexturesLayout_` → member `sceneTexturesGroup_` (state.hpp:6265, 
 
 ### `Shadow State BindGroup`
 
-layout `shadowStateLayout_` → member `shadowStateGroup_` (state.hpp:6305, descriptor `desc`)
+layout `shadowStateLayout_` → member `shadowStateGroup_` (state.hpp:6307, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -997,7 +997,7 @@ layout `shadowStateLayout_` → member `shadowStateGroup_` (state.hpp:6305, desc
 
 ### `Shadow Textures BindGroup`
 
-layout `shadowTexturesLayout_` → member `shadowTexturesGroup_` (state.hpp:6346, descriptor `desc`)
+layout `shadowTexturesLayout_` → member `shadowTexturesGroup_` (state.hpp:6348, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -1007,7 +1007,7 @@ layout `shadowTexturesLayout_` → member `shadowTexturesGroup_` (state.hpp:6346
 
 ### `Zones State BindGroup`
 
-layout `zonesStateLayout_` → member `zonesStateGroup_` (state.hpp:6368, descriptor `desc`)
+layout `zonesStateLayout_` → member `zonesStateGroup_` (state.hpp:6370, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -1018,7 +1018,7 @@ layout `zonesStateLayout_` → member `zonesStateGroup_` (state.hpp:6368, descri
 
 ### `Zones Textures BindGroup`
 
-layout `zonesTexturesLayout_` → member `zonesTexturesGroup_` (state.hpp:6397, descriptor `desc`)
+layout `zonesTexturesLayout_` → member `zonesTexturesGroup_` (state.hpp:6399, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
@@ -1027,14 +1027,14 @@ layout `zonesTexturesLayout_` → member `zonesTexturesGroup_` (state.hpp:6397, 
 
 ### `Empty BindGroup`
 
-layout `emptyLayout_` → member `emptyGroup_` (state.hpp:6416, descriptor `desc`)
+layout `emptyLayout_` → member `emptyGroup_` (state.hpp:6418, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
 
 ### `Gallery Textures BindGroup`
 
-layout `galleryTexturesLayout_` → member `galleryTexturesGroup_` (state.hpp:6435, descriptor `desc`)
+layout `galleryTexturesLayout_` → member `galleryTexturesGroup_` (state.hpp:6437, descriptor `desc`)
 
 | entry | slot | backing | member expression | window |
 |---|---|---|---|---|
