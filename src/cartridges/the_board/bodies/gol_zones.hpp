@@ -670,16 +670,21 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
     // resolve in queue order.
     desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolDeriveFlush);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     c->renderer_.dispatch_zone_derive_params(
         pass,
-        c->gpuState_.zone_gol_compute_group(),
+        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(),
         gs.pending_derive_requests.count);
     // ORDERING LAW: derive writes zone_config[slot]; the mask reads it —
     // sequential dispatches in one pass suffice (storage-buffer
     // visibility between dispatches is guaranteed). (UNIFIED_GROUND_1 U5)
     c->renderer_.dispatch_zone_seed_mask(
         pass,
-        c->gpuState_.zone_mask_group(),
+        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(),
         gs.pending_derive_requests.count);
     pass.End();
     wgpu::CommandBuffer cmd = encoder.Finish();
@@ -755,8 +760,13 @@ inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& e
     cpd.label = "GoL Zone Sync";
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     c->renderer_.dispatch_zone_gol_sync(pass,
-        c->gpuState_.zone_gol_compute_group(), gs.active_slot_count);
+        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(), gs.active_slot_count);
     pass.End();
 }
 
@@ -765,8 +775,13 @@ inline void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder&
     cpd.label = "GoL Zone Evolve";
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     c->renderer_.dispatch_zone_gol_evolve(pass,
-        c->gpuState_.zone_gol_compute_group(), gs.active_slot_count);
+        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(), gs.active_slot_count);
     pass.End();
 }
 

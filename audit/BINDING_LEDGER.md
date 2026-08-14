@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `f20ead71e74715af85f22d4986c2830dffac6b43` |
-| | LOOM_1 U2: flip the registry — schema is now its authority |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:05a8c05010b5ad9db5b930736d492ee838892db19c2d27757183e47591ea08ba` |
-| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:4dfda8862f12d16a558265e1731e6a423cfadadc688bf0b25ceaf349ea7ebce5` |
-| `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:aaecd2c5f35ed2e2c0032c1789a502a34814d5547f8f0a6e5a0436f8a3d027bf` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:379485b911a5c117eb9b9c7ae2475ecd17dac30c1e3490cc6551985cafe6664b` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:95df89aeed90295c8d780eb1b75906af90c5cc7f06321a1186afd225e7eb146f` |
+| source commit | `c3319317f148748a545032adb2de71a7f6d098e1` |
+| | LOOM_1 U3: flip the state.hpp blocks — one include, three functions |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:eb2096d19f4045ee8f8e2dcbf3158dad2b484757624516d8ec6a81e596c48ab9` |
+| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:d04c5e54424a30b76b3653071c75e71abe155bb9c70e71bf294ec042efd714b7` |
+| `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1803c6e54f6b87cb7894e294358bf9c649bb17c5e8032c54352a970174b97394` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:7199d03b4bc897c21b84daf97220803af17588fdbe6d5973832c659f4895a66c` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:eab0859f8556bfdcd3f26cda9f41cc1c4d7300b94f94615b59df7f2d0492de23` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -29,15 +29,15 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `25fb7fe64445901dc3dcadf2b45d8357eb945d36e5c8ce082d1ddd458045a90a` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `40cd52befacdc2e909cf8110688973de6f4dc9b0feaf5e0188e8b126cd9ffeb2` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `79f9cfdea71d8b8da7ad88cbbbe9ba080f565c1f98e9f150c5542587c9d6354f` |
-| `src/cartridges/the_board/bodies/pawn.hpp` | `62502882f44aec96a550fe8cf2d361143c986045de195ef709deb07e2cbfb52a` |
-| `src/cartridges/the_board/cartridge.hpp` | `e1f9691cf7f8292b5cd629baed828dd3bff97e50f11ff17e1c058102f454d0e2` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `5e21de67330c8f3b0282865b45dfea4bca029c67bfe73434a633472420ea6b38` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `fc302fd4de89105d9818c1b722c021458cc7ff13ba06a40e07b382f4becbdd66` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `714c5d340462218d09c2e79ff2e82857329a3eb389a0f00c15e96a650544d905` |
+| `src/cartridges/the_board/bodies/pawn.hpp` | `372b5f719db8eb6c38806768db2fabfa86692f7157f47d836e5b05bc294c1e62` |
+| `src/cartridges/the_board/cartridge.hpp` | `7a55c513bfa47d4d3eebca4f26b6696c7c79bbee61ab1b0f1440dd524b8710b9` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `1ca7675b025df444d72cf64d92c00bd94d450830b0bf71b7f6b99846f1272291` |
-| `src/cartridges/the_board/realization/render_passes.hpp` | `ce48d14db175f055e243fe1db703439c3c6c86776dbfc8ba32947f53d3f49c6d` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `450d4793b19500b617025dd4cd12058300eec22244ce51c916cfef414febe14b` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `bd0faf9103203f330614ff8cdc50dc5c4728be4bcf73d85d2962b377a6954795` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `0bfdbfd7184af3f0d437ac89841e11c18a06abb300c4e549f3b1e7451127498f` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
@@ -68,16 +68,16 @@ matters only where a binding is a window onto a shared buffer.
 
 | witness | result | numbers |
 |---|---|---|
-| `registry` | **PASS** | binding_registry.hpp: 95 constants over 3 namespaces (g0, g1, g2) |
+| `registry` | **PASS** | binding_registry.hpp: 83 constants over 4 namespaces (g0, g1, g2, g3) |
 | `0a-1` | **PASS** | 25 layouts, every row count == std::array<…, N> |
 | `0a-1b` | **PASS** | every desc.entryCount is <array>.size() |
-| `0a-2` | **PASS** | 141 rows, every bind:: symbol resolves in binding_registry.hpp |
+| `0a-2` | **PASS** | 117 rows, every bind:: symbol resolves in binding_registry.hpp |
 | `0a-3` | **PASS** | no duplicate binding number inside any layout |
 | `0a-4` | **PASS** | every row carries a resolved kind (buffer/sampler/texture/storageTexture) |
 | `0a-5` | **PASS** | every row names at least one of Vertex/Fragment/Compute, and no other stage token appears |
-| `0a-6` | **PASS** | 27 bind groups over 25 layouts, every one a bijection with its layout; 2 layout(s) back more than one group — galleryEntityBindGroupLayout_: Gallery Entity BindGroup, Gallery Photographer Entity BindGroup; renderEntityBindGroupLayout_: (label is a parameter, built at state.hpp:5564), Photographer Render Entity BindGroup |
+| `0a-6` | **PASS** | 33 bind groups over 25 layouts, every one a bijection with its layout; 3 layout(s) back more than one group — frameLayout_: Frame BindGroup, Frame BindGroup (Photographer); meshgenStateLayout_: Meshgen State BindGroup, Meshgen State BindGroup (Column), Meshgen State BindGroup (Palm), Meshgen State BindGroup (Cactus), Meshgen State BindGroup (Blade); sceneStateLayout_: Scene State BindGroup, Scene State BindGroup (PlanB), Scene State BindGroup (PlanC), Scene State BindGroup (Photographer) |
 | `0b-0` | **PASS** | 98 @group( occurrences, 98 declarations parsed |
-| `0b-1` | **PASS** | banner reproduced: 98 declarations over 95 slots; aliases fc_config, fc_patches, fc_vp |
+| `0b-1` | **PASS** | banner reproduced: 98 declarations over 83 slots; aliases bladeg_indices, bladeg_params, bladeg_vertices, cactusg_indices, cactusg_params, cactusg_vertices, cmg_indices, cmg_params, cmg_vertices, fc_config, fc_patches, fc_vp, palmg_indices, palmg_params, palmg_vertices |
 | `0b-4` | **PASS** | WGSL layout calculator reproduces all three byte counts the program states in prose: agent_figure_profiles 4032 B, field_head_poses 6400 B, field_authored 144 B |
 | `0b-5` | **PASS** | the uniform-legality predicate clears all 26 declarations the program already places in the uniform address space |
 | `0b-2` | **PASS** | 294 functions, 65 entry points (28 vertex, 8 fragment, 29 compute) |
@@ -86,18 +86,18 @@ matters only where a binding is a window onto a shared buffer.
 | `0c-0` | **PASS** | 25 renderer layout handles resolve to state.hpp layout members (via 25 gpuState accessors) |
 | `0c-0b` | **PASS** | every std::array<BindGroupLayout, N> lists exactly N members |
 | `0c-0c` | **PASS** | every pipeline resolves to bind group layouts state.hpp creates |
-| `0c-1` | **PASS** | max bind groups per pipeline layout: 3 of 4 |
-| `0c-2` | **PASS** | max bindGroups+vertexBuffers: 4 of 24 (Orb Sky Layer) |
+| `0c-1` | **PASS** | max bind groups per pipeline layout: 4 of 4 |
+| `0c-2` | **PASS** | max bindGroups+vertexBuffers: 6 of 24 (Orb Sky Layer) |
 | `0c-3` | **PASS** | all 65 Entry:: constants used by pipelines resolve to world.wgsl entry points with a matching stage |
-| `0c-4` | **PASS** | every bind group layout is bound at ONE group index across all pipelines |
+| `0c-4` | **PASS** | every bind group layout with entries is bound at ONE group index across all pipelines; emptyLayout_ exempt per A5 (0 entries) at indices 1,2,3 |
 | `0d-0` | **PASS** | demo column: demo.hpp default `full`, CMake THE_BOARD_DEMO default `full` |
 | `0d-3` | **PASS** | every layout entry has at least one access-compatible WGSL declaration at its (group, binding) |
-| `gate` | **PASS** | every (pipeline, stage) row fits the Core defaults; tightest is Shadow Gallery Frame / V at storage 7 of 8 |
+| `gate` | **PASS** | every (pipeline, stage) row fits the Core defaults; tightest is Update Player Agent (0D, 1 thread) / C at uniform 11 of 12 |
 | `0d-1` | **PASS** | dynamic-offset bindings: 1 of 8 uniform, 0 of 4 storage, program-wide |
 | `0d-2` | **PASS** | no row is reached by a stage its visibility mask excludes |
 | `W1-1` | **PASS** | no write recorded on any binding the WGSL declares non-writable, and no read on any write-only storage texture, across all 65 entry points |
-| `W1-3` | **PASS** | RAW table: 32 fusion-eligible ordered pairs (same pipeline layout) of 29 compute entry points; 22 carry a hazard. Unrestricted matrix: 812 ordered pairs, 47 with a non-empty write∩read. |
-| `W1-4` | **PASS** | unordered closure: 16 fusion-eligible unordered pairs; 2 are hazard-free in BOTH directions — {generate_patch_cells, generate_patch_gradients}, {generate_patch_cells, generate_patch_heights}. RAW-clean is necessary, not sufficient — cadence is the second gate and it lives in the dispatch schedule, not the shader. |
+| `W1-3` | **PASS** | RAW table: 82 fusion-eligible ordered pairs (same pipeline layout) of 29 compute entry points; 32 carry a hazard. Unrestricted matrix: 812 ordered pairs, 47 with a non-empty write∩read. |
+| `W1-4` | **PASS** | unordered closure: 41 fusion-eligible unordered pairs; 19 are hazard-free in BOTH directions — {arch_mesh_gen, blade_cluster_mesh_gen}, {arch_mesh_gen, cactus_mesh_gen}, {arch_mesh_gen, column_mesh_gen}, {arch_mesh_gen, palm_mesh_gen}, {blade_cluster_mesh_gen, cactus_mesh_gen}, {blade_cluster_mesh_gen, column_mesh_gen}, {blade_cluster_mesh_gen, palm_mesh_gen}, {cactus_mesh_gen, column_mesh_gen}, {cactus_mesh_gen, palm_mesh_gen}, {column_mesh_gen, palm_mesh_gen}, {generate_patch_cells, generate_patch_gradients}, {generate_patch_cells, generate_patch_heights}, {orb_dynamics, orb_state_prev_copy}, {orb_init, orb_state_prev_copy}, {orb_recolor, orb_state_prev_copy}, {write_live_card_resolve, zone_derive_params}, {write_live_card_resolve, zone_gol_evolve}, {write_live_card_resolve, zone_gol_sync}, {write_live_card_resolve, zone_seed_mask}. RAW-clean is necessary, not sufficient — cadence is the second gate and it lives in the dispatch schedule, not the shader. |
 | `W2-1` | **PASS** | 940 access sites classified, every one on a declared binding |
 | `W2-2` | **PASS** | classification total: builtin_derived 137, builtin_sequential 4, indirected 16, other 93, scalar 690; `other` rows enumerated below |
 | `W2-3` | **PASS** | positive control: patch_terrain_vs reads visible_patch_indices[patch_id] as builtin_sequential(instance) and patch_instances[actual_id] as indirected(visible_patch_indices) |
@@ -106,8 +106,8 @@ matters only where a binding is a window onto a shared buffer.
 | `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (9 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 13 (arch_mesh_gen, blade_cluster_mesh_gen, cactus_mesh_gen, column_mesh_gen, compute_entity_placement, compute_photographer_vp, compute_vp, palm_mesh_gen, update_camera, update_cube, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 8 (compute_entity_placement, compute_photographer_vp, compute_vp, update_camera, update_cube, update_other_agents, update_player_agent, update_sphere). The 7 that differ: arch_mesh_gen (wg1=True, single-dispatch=False), blade_cluster_mesh_gen (wg1=True, single-dispatch=False), cactus_mesh_gen (wg1=True, single-dispatch=False), column_mesh_gen (wg1=True, single-dispatch=False), palm_mesh_gen (wg1=True, single-dispatch=False), update_other_agents (wg1=False, single-dispatch=True), zone_derive_params (wg1=True, single-dispatch=False). |
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
-| `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 7 (sole trigger at 0), FXC 20 (sole trigger at 4), law-ref 54 (sole trigger at 23), measured 12 (sole trigger at 2), witness 20 (sole trigger at 1), hangs 0 (sole trigger at 0), compile-time 10 (sole trigger at 0), landed-at 4 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 7 (sole trigger at 1), per-stage 8 (sole trigger at 1), slot-cap 8 (sole trigger at 4) |
-| `W4-2` | **PASS** | positive control, keyed by symbol and by binding: all 6 known-defended sites found with a non-empty trigger set — update_player_agent [FXC, compile-time, landed-at, law-ref, measured, time-cost, witness]; update_other_agents [FXC, compile-time, landed-at, law-ref, time-cost, witness]; (file banner) [FXC, budget, compile-time, law-ref, per-stage, witness]; pawn_ground_resolve [FXC, compile-time, law-ref]; bind::g0::agent_tier_gains [per-stage, slot-cap]; bind::g0::agent_figure_profiles [slot-cap] |
+| `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 7 (sole trigger at 0), FXC 20 (sole trigger at 4), law-ref 44 (sole trigger at 18), measured 12 (sole trigger at 2), witness 15 (sole trigger at 1), hangs 0 (sole trigger at 0), compile-time 10 (sole trigger at 0), landed-at 4 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 7 (sole trigger at 1), per-stage 10 (sole trigger at 0), slot-cap 15 (sole trigger at 8) |
+| `W4-2` | **PASS** | positive control, keyed by symbol and by binding: all 6 known-defended sites found with a non-empty trigger set — update_player_agent [FXC, compile-time, landed-at, law-ref, measured, time-cost, witness]; update_other_agents [FXC, compile-time, landed-at, law-ref, time-cost, witness]; (file banner) [FXC, budget, compile-time, law-ref, per-stage, witness]; pawn_ground_resolve [FXC, compile-time, law-ref]; bind::g2::agent_tier_gains [per-stage, slot-cap]; bind::g2::agent_figure_profiles [slot-cap] |
 | `G2-eol` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`, so no host can translate the terminator; a byte-level read-back runs after the write |
 
 `gate` is the RECONCILIATION GATE. The web twin boots on a pure-defaults
@@ -129,24 +129,17 @@ two dynamic-offset limits stand at 0/8 and 0/4 program-wide.
 **4. The tightest row is not where the handoff expected it.** BUDGET_0's
 handoff expected the main render family's VERTEX stage at storage 8/8. It
 reads **storage 6 of 8**. The tightest row in the program is
-**Shadow Gallery Frame / V at storage 7 of 8** — over the concatenated groups `renderEntityBindGroupLayout_` + `galleryTextureBindGroupLayout_`,
-shared by `shadow_gallery_frame_vs`, `shadow_wall_painting_vs`.
+**Update Player Agent (0D, 1 thread) / C at uniform 11 of 12** — over the concatenated groups `worldLayout_` + `frameLayout_` + `agentsStateLayout_` + `agentsTexturesLayout_`,
+shared by `update_player_agent`, `update_other_agents`, `update_sphere`, `update_cube`.
 `world.wgsl`'s COMPILER FLOOR banner carries the standing demotion rule for
-the room family, which stands at 6 of 8 storage. And
-its `actual` column reads 7 too: **an A1 sweep buys nothing on the one row
+the room family, which stands at 0 of 8 storage. And
+its `actual` column reads 11 too: **an A1 sweep buys nothing on the one row
 with no margin.**
 
 The handoff asked which comment has outlived its referent if the render
 family did not reproduce 8/8. Three have, to different degrees. Each is
 quoted only because it is still present in `state.hpp` today:
 
-- *"Avoids exceeding the 8 storage buffer per-stage limit"* on the Mesh
-  Gen Entity Layout — **outlived its referent outright.** That layout is
-  bound by exactly ONE pipeline in the whole program: Fade Overlay. A render pipeline with one uniform, zero storage buffers, and no compute stage at all. Every mesh-gen
-  pipeline now carries its own dedicated single-group layout
-  (`archMeshGenLayout_` and its four siblings). Corroborating it: this
-  layout's one entry declares `VFC` and only `F` reaches it — the `C` in
-  that mask is a fossil of the mesh-gen era, and it is an A1 row below.
 
 **5. One correction to the handoff's A2 rule, and the ledger follows the
 spec.** The handoff states that in the uniform address space
@@ -185,8 +178,8 @@ device-wide barrier to put back. Table E has the pairs.
 **8b. The program has ZERO fusable pairs, and the ordered table alone
 does not say so.** A fused kernel has no ordering — its threads run
 concurrently inside one dispatch — so fusability needs the UNORDERED
-closure, not the ordered hazard list. Of 16 unordered fusion-eligible
-pairs, **2 survive RAW in both directions**, and both couple an on-demand
+closure, not the ordered hazard list. Of 41 unordered fusion-eligible
+pairs, **19 survive RAW in both directions**, and both couple an on-demand
 pass with a per-frame one — fusing either would change WHEN work runs, not
 just how it is dispatched. RAW-clean is necessary, not sufficient: cadence
 is the second gate and it lives in the dispatch schedule, not the shader.
@@ -212,7 +205,7 @@ intersection is 7. `update_other_agents` dispatches ONE workgroup at
 `@workgroup_size(32)` — which is exactly the shape the kernel-split banner
 prices at 48 seconds of FXC.
 
-**11. 74 defended sites.** Table H marks where the program already paid to
+**11. 70 defended sites.** Table H marks where the program already paid to
 learn something. It cites and does not quote, so it cannot go stale against
 the prose it points at.
 
@@ -220,7 +213,7 @@ the prose it points at.
 campaign's.** BUDGET_1 removed two layout seats and renumbered the
 survivors, and `W4-2` failed — not because the sweep was wrong, and not
 because the instrument stopped finding the defended prose. It found all
-74 sites with identical trigger sets. What broke was the CONTROL'S KEY:
+70 sites with identical trigger sets. What broke was the CONTROL'S KEY:
 it named two defended sites `Render Entity Layout entries[16]` and
 `entries[17]`, and a campaign whose job is removing layout entries
 renumbers the survivors.
@@ -228,10 +221,11 @@ renumbers the survivors.
 **An index is a position; a binding is an identity.** The control was
 itself a reference that outlived its referent — precisely what Table H
 says about line numbers, one layer up and pointed at the instrument. It is
-now keyed by the binding each seat carries, `bind::g0::agent_tier_gains`
-and `bind::g0::agent_figure_profiles`, which survive renumbering. The
-displayed `entries[N]` column stays, because it is regenerated every run
-and a reader wants it.
+now keyed by the binding each seat carries, `bind::g2::agent_tier_gains`
+and `bind::g2::agent_figure_profiles` in the Scene State Layout (their
+LOOM_2 home; the identity followed the seats through the recut), which
+survive renumbering. The displayed `entries[N]` column stays, because it
+is regenerated every run and a reader wants it.
 
 Recorded here as a finding rather than only in a commit body, because a
 positive control that can be made to pass by whoever it is testing is not
@@ -239,7 +233,7 @@ a control. The re-key was authorised before the run that had to pass it.
 
 ## Table A — the ledger
 
-One row per `(bind group layout, entry index)`, 141 rows over 25 layouts.
+One row per `(bind group layout, entry index)`, 117 rows over 25 layouts.
 Columns through `roster_gated` are the layout census (0a); `group` onward
 are joined from the WGSL census (0b) and the pipeline census (0c).
 `bytes` is the size of the WGSL **store type**, computed by WGSL layout
@@ -248,147 +242,123 @@ rules; `—` means a runtime-sized array or a handle type, which has none.
 
 | layout_label | layout_member | # | binding_const | binding | ns | kind | access | vis_declared | dyn | roster_gated | group | wgsl_symbol | wgsl_type | wgsl_access | runtime_array | bytes | slot | vis_actual | vis_delta | purpose |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Arch Mesh Gen Layout | `archMeshGenLayout_` | 0 | `bind::g0::amg_params` | 193 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `amg_params` | `array<ArchMeshParams, 16>` | read | no | 1280 | storage | `C` | `-` |  |
-| Arch Mesh Gen Layout | `archMeshGenLayout_` | 1 | `bind::g0::amg_vertices` | 194 | `g0` | buffer | Storage | `C` | no | — | 0 | `amg_vertices` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Arch Mesh Gen Layout | `archMeshGenLayout_` | 2 | `bind::g0::amg_indices` | 195 | `g0` | buffer | Storage | `C` | no | — | 0 | `amg_indices` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Blade Mesh Gen Layout | `bladeMeshGenLayout_` | 0 | `bind::g0::bladeg_params` | 186 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `bladeg_params` | `array<BladeClusterMeshParams, 32>` | read | no | 2560 | storage | `C` | `-` |  |
-| Blade Mesh Gen Layout | `bladeMeshGenLayout_` | 1 | `bind::g0::bladeg_vertices` | 187 | `g0` | buffer | Storage | `C` | no | — | 0 | `bladeg_vertices` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Blade Mesh Gen Layout | `bladeMeshGenLayout_` | 2 | `bind::g0::bladeg_indices` | 188 | `g0` | buffer | Storage | `C` | no | — | 0 | `bladeg_indices` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Cactus Mesh Gen Layout | `cactusMeshGenLayout_` | 0 | `bind::g0::cactusg_params` | 183 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `cactusg_params` | `array<CactusMeshParams, 20>` | read | no | 2560 | storage | `C` | `-` |  |
-| Cactus Mesh Gen Layout | `cactusMeshGenLayout_` | 1 | `bind::g0::cactusg_vertices` | 184 | `g0` | buffer | Storage | `C` | no | — | 0 | `cactusg_vertices` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Cactus Mesh Gen Layout | `cactusMeshGenLayout_` | 2 | `bind::g0::cactusg_indices` | 185 | `g0` | buffer | Storage | `C` | no | — | 0 | `cactusg_indices` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Column Mesh Gen Layout | `columnMeshGenLayout_` | 0 | `bind::g0::cmg_params` | 196 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `cmg_params` | `array<ColumnMeshParams, 32>` | read | no | 4096 | storage | `C` | `-` |  |
-| Column Mesh Gen Layout | `columnMeshGenLayout_` | 1 | `bind::g0::cmg_vertices` | 197 | `g0` | buffer | Storage | `C` | no | — | 0 | `cmg_vertices` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Column Mesh Gen Layout | `columnMeshGenLayout_` | 2 | `bind::g0::cmg_indices` | 198 | `g0` | buffer | Storage | `C` | no | — | 0 | `cmg_indices` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Column Mesh Gen Layout | `columnMeshGenLayout_` | 3 | `bind::g0::cmg_config` | 190 | `g0` | buffer | Uniform | `C` | no | — | 0 | `cmg_config` | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Column Mesh Gen Layout | `columnMeshGenLayout_` | 4 | `bind::g0::cmg_column_ground` | 191 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `cmg_column_ground` | `array<ColumnGroundEntry, 32>` | read | no | 1024 | storage | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 0 | `bind::g0::signal` | 0 | `g0` | buffer | Uniform | `C` | no | — | 0 | `signal` | `FrameSignal` | n/a | no | 80 | uniform | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 1 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 2 | `bind::g0::vp_data` | 2 | `g0` | buffer | Storage | `C` | no | — | 0 | `vp_data` *(slot also spelled `fc_vp`)* | `VPMatrix` | read_write | no | 128 | storage | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 3 | `bind::g0::agent_state` | 60 | `g0` | buffer | Storage | `C` | no | — | 0 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 4 | `bind::g0::camera_state` | 80 | `g0` | buffer | Storage | `C` | no | — | 0 | `camera_state` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 5 | `bind::g0::floating_entities` | 100 | `g0` | buffer | Storage | `C` | no | — | 0 | `floating_entities` | `FloatingEntityArray` | read_write | no | 54912 | storage | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 6 | `bind::g0::portal_array` | 62 | `g0` | buffer | Uniform | `C` | no | — | 0 | `portal_array` | `PortalArray` | n/a | no | 1040 | uniform | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 7 | `bind::g0::photo_heightfield` | 145 | `g0` | texture | Float/e2DArray | `C` | no | — | 0 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 8 | `bind::g0::photo_sampler` | 146 | `g0` | sampler | Filtering | `C` | no | — | 0 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 9 | `bind::g0::patch_grid` | 152 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 10 | `bind::g0::agent_behaviors` | 110 | `g0` | buffer | Uniform | `C` | no | — | 0 | `agent_behaviors` | `array<AgentBehaviorParams, 10>` | n/a | no | 320 | uniform | `C` | `-` |  |
-| Compute Entity Layout | `computeEntityBindGroupLayout_` | 11 | `bind::g0::agent_tier_gains` | 111 | `g0` | buffer | Uniform | `C` | no | — | 0 | `agent_tier_gains` | `array<AgentTierParams, 4>` | n/a | no | 192 | uniform | `C` | `-` |  |
-| Compute Texture Layout | `computeTextureBindGroupLayout_` | 0 | `bind::g1::bilinear_sampler` | 22 | `g1` | sampler | Filtering | `C` | no | — | 1 | `bilinear_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
-| Compute Texture Layout | `computeTextureBindGroupLayout_` | 1 | `bind::g1::nearest_sampler` | 23 | `g1` | sampler | NonFiltering | `C` | no | — | 1 | `nearest_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
-| Compute Texture Layout | `computeTextureBindGroupLayout_` | 2 | `bind::g1::pawn_aura_read` | 33 | `g1` | texture | Float/e2D | `C` | no | — | 1 | `pawn_aura_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
-| Compute Texture Layout | `computeTextureBindGroupLayout_` | 3 | `bind::g1::live_card_read` | 34 | `g1` | texture | Float/e2D | `C` | no | — | 1 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 1 | `bind::g0::photo_painting_slots` | 143 | `g0` | buffer | Storage | `C` | no | — | 0 | `photo_painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | read_write | no | 36864 | storage | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 2 | `bind::g0::photo_heightfield` | 145 | `g0` | texture | Float/e2DArray | `C` | no | — | 0 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 3 | `bind::g0::photo_sampler` | 146 | `g0` | sampler | Filtering | `C` | no | — | 0 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 4 | `bind::g0::arch_ground` | 147 | `g0` | buffer | Storage | `C` | no | — | 0 | `arch_ground` | `array<ArchGroundEntry, 16>` | read_write | no | 512 | storage | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 5 | `bind::g0::column_ground` | 148 | `g0` | buffer | Storage | `C` | no | — | 0 | `column_ground` | `array<ColumnGroundEntry, 32>` | read_write | no | 1024 | storage | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 6 | `bind::g0::plant_ground` | 150 | `g0` | buffer | Storage | `C` | no | — | 0 | `plant_ground` | `array<PalmGroundEntry, 76>` | read_write | no | 2432 | storage | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 7 | `bind::g0::entity_ground_atlas_write` | 151 | `g0` | storageTexture | WriteOnly/R32Float/e2D | `C` | no | — | 0 | `entity_ground_atlas_write` | `texture_storage_2d<r32float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
-| Entity Placement Compute Layout | `entityPlacementComputeLayout_` | 8 | `bind::g0::patch_grid` | 152 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
-| Frustum Cull Compute Layout | `frustumCullLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Frustum Cull Compute Layout | `frustumCullLayout_` | 1 | `bind::g0::vp_data` | 2 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `fc_vp` *(slot also spelled `vp_data`)* | `VPMatrix` | read | no | 128 | storage | `C` | `-` |  |
-| Frustum Cull Compute Layout | `frustumCullLayout_` | 2 | `bind::g0::patch_instances` | 340 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `patch_instances` *(slot also spelled `fc_patches`)* | `array<PatchInstance>` | read | yes | — | storage | `C` | `-` |  |
-| Frustum Cull Compute Layout | `frustumCullLayout_` | 3 | `bind::g0::fc_visible` | 500 | `g0` | buffer | Storage | `C` | no | — | 0 | `fc_visible` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Frustum Cull Compute Layout | `frustumCullLayout_` | 4 | `bind::g0::fc_indirect` | 501 | `g0` | buffer | Storage | `C` | no | — | 0 | `fc_indirect` | `array<atomic<u32>, 15>` | read_write | no | 60 | storage | `C` | `-` |  |
-| Frustum Cull Compute Layout | `frustumCullLayout_` | 5 | `bind::g0::fc_draw_plan` | 22 | `g0` | buffer | Uniform | `C` | no | — | 0 | `fc_draw_plan` | `DrawPlanParams` | n/a | no | 144 | uniform | `C` | `-` |  |
-| Gallery Entity Layout | `galleryEntityBindGroupLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `VF` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `VF` | `-` |  |
-| Gallery Entity Layout | `galleryEntityBindGroupLayout_` | 1 | `bind::g0::render_vp` | 201 | `g0` | buffer | ReadOnlyStorage | `V` | no | — | 0 | `render_vp` | `VPMatrix` | read | no | 128 | storage | `V` | `-` |  |
-| Gallery Entity Layout | `galleryEntityBindGroupLayout_` | 2 | `bind::g0::render_camera` | 280 | `g0` | buffer | ReadOnlyStorage | `F` | no | — | 0 | `render_camera` | `CameraState` | read | no | 48 | storage | `F` | `-` |  |
-| Gallery Texture Layout | `galleryTextureBindGroupLayout_` | 0 | `bind::g1::painting_slots` | 50 | `g1` | buffer | ReadOnlyStorage | `VF` | no | — | 1 | `painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | read | no | 36864 | storage | `VF` | `-` |  |
-| Gallery Texture Layout | `galleryTextureBindGroupLayout_` | 1 | `bind::g1::painting_array` | 51 | `g1` | texture | Float/e2DArray | `F` | no | — | 1 | `painting_array` | `texture_2d_array<f32>` | n/a | no | — | sampled | `F` | `-` |  |
-| Gallery Texture Layout | `galleryTextureBindGroupLayout_` | 2 | `bind::g1::painting_sampler_filt` | 52 | `g1` | sampler | Filtering | `F` | no | — | 1 | `painting_sampler_filt` | `sampler` | n/a | no | — | samplers | `F` | `-` |  |
-| Gallery Texture Layout | `galleryTextureBindGroupLayout_` | 3 | `bind::g1::bilinear_sampler` | 22 | `g1` | sampler | Filtering | `V` | no | — | 1 | `bilinear_sampler` | `sampler` | n/a | no | — | samplers | `V` | `-` |  |
-| Gallery Texture Layout | `galleryTextureBindGroupLayout_` | 4 | `bind::g1::live_card_read` | 34 | `g1` | texture | Float/e2D | `V` | no | — | 1 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
-| GoL Zone Compute Layout | `zoneGolComputeLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| GoL Zone Compute Layout | `zoneGolComputeLayout_` | 1 | `bind::g0::zone_config` | 160 | `g0` | buffer | Storage | `C` | no | — | 0 | `zone_config` | `GoLZoneArray` | read_write | no | 656 | storage | `C` | `-` |  |
-| GoL Zone Compute Layout | `zoneGolComputeLayout_` | 2 | `bind::g0::zone_life` | 161 | `g0` | buffer | Storage | `C` | no | — | 0 | `zone_life` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| GoL Zone Compute Layout | `zoneGolComputeLayout_` | 3 | `bind::g0::zone_life_tex_write` | 162 | `g0` | storageTexture | WriteOnly/R32Float/e2DArray | `C` | no | — | 0 | `zone_life_tex_write` | `texture_storage_2d_array<r32float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
-| GoL Zone Compute Layout | `zoneGolComputeLayout_` | 4 | `bind::g0::zone_derive_requests` | 166 | `g0` | buffer | Uniform | `C` | no | — | 0 | `zone_derive_requests` | `ZoneDeriveRequestArray` | n/a | no | 272 | uniform | `C` | `-` |  |
-| Live Card Writer Layout | `liveCardWriterLayout_` | 0 | `bind::g0::signal` | 0 | `g0` | buffer | Uniform | `C` | no | — | 0 | `signal` | `FrameSignal` | n/a | no | 80 | uniform | `C` | `-` |  |
-| Live Card Writer Layout | `liveCardWriterLayout_` | 1 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Live Card Writer Layout | `liveCardWriterLayout_` | 2 | `bind::g0::zone_config` | 160 | `g0` | buffer | Storage | `C` | no | — | 0 | `zone_config` | `GoLZoneArray` | read_write | no | 656 | storage | `C` | `-` |  |
-| Live Card Writer Layout | `liveCardWriterLayout_` | 3 | `bind::g0::zone_life` | 161 | `g0` | buffer | Storage | `C` | no | — | 0 | `zone_life` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Live Card Writer Layout | `liveCardWriterLayout_` | 4 | `bind::g0::live_card_write` | 31 | `g0` | storageTexture | WriteOnly/RGBA16Float/e2D | `C` | no | — | 0 | `live_card_write` | `texture_storage_2d<rgba16float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
-| Live Card Writer Layout | `liveCardWriterLayout_` | 5 | `bind::g0::live_card_scratch` | 32 | `g0` | buffer | Storage | `C` | no | — | 0 | `live_card_scratch` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Mesh Gen Entity Layout | `meshGenEntityBindGroupLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `F` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `F` | `-` |  |
-| Orb Compute Layout | `orbComputeLayout_` | 0 | `bind::g0::orb_state` | 410 | `g0` | buffer | Storage | `C` | no | — | 0 | `orb_state` | `array<OrbState>` | read_write | yes | — | storage | `C` | `-` |  |
-| Orb Compute Layout | `orbComputeLayout_` | 1 | `bind::g0::orb_config` | 411 | `g0` | buffer | Uniform | `C` | no | — | 0 | `orb_config` | `OrbConfig` | n/a | no | 480 | uniform | `C` | `-` |  |
-| Orb Compute Layout | `orbComputeLayout_` | 2 | `bind::g0::orb_state_prev` | 412 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `orb_state_prev` | `array<OrbState>` | read | yes | — | storage | `C` | `-` |  |
-| Orb Compute Layout | `orbComputeLayout_` | 3 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Orb Copy Layout | `orbCopyLayout_` | 0 | `bind::g0::orb_state_ro` | 413 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `orb_state_ro` | `array<OrbState>` | read | yes | — | storage | `C` | `-` |  |
-| Orb Copy Layout | `orbCopyLayout_` | 1 | `bind::g0::orb_config` | 411 | `g0` | buffer | Uniform | `C` | no | — | 0 | `orb_config` | `OrbConfig` | n/a | no | 480 | uniform | `C` | `-` |  |
-| Orb Copy Layout | `orbCopyLayout_` | 2 | `bind::g0::orb_state_prev_rw` | 414 | `g0` | buffer | Storage | `C` | no | — | 0 | `orb_state_prev_rw` | `array<OrbState>` | read_write | yes | — | storage | `C` | `-` |  |
-| Palm Mesh Gen Layout | `palmMeshGenLayout_` | 0 | `bind::g0::palmg_params` | 180 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `palmg_params` | `array<PalmMeshParams, 24>` | read | no | 3072 | storage | `C` | `-` |  |
-| Palm Mesh Gen Layout | `palmMeshGenLayout_` | 1 | `bind::g0::palmg_vertices` | 181 | `g0` | buffer | Storage | `C` | no | — | 0 | `palmg_vertices` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Palm Mesh Gen Layout | `palmMeshGenLayout_` | 2 | `bind::g0::palmg_indices` | 182 | `g0` | buffer | Storage | `C` | no | — | 0 | `palmg_indices` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 1 | `bind::g0::patch_params` | 23 | `g0` | buffer | Uniform | `C` | no | — | 0 | `patch_params` | `PatchParams` | n/a | no | 32 | uniform | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 2 | `bind::g0::patch_heightfield_array_write` | 24 | `g0` | storageTexture | WriteOnly/RGBA16Float/e2DArray | `C` | no | — | 0 | `patch_heightfield_array_write` | `texture_storage_2d_array<rgba16float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 3 | `bind::g0::tile_grid` | 25 | `g0` | buffer | Uniform | `C` | no | — | 0 | `tile_grid` | `TileGrid` | n/a | no | 16400 | uniform | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 4 | `bind::g0::patch_cell_color_array_write` | 27 | `g0` | storageTexture | WriteOnly/RGBA8Unorm/e2DArray | `C` | no | — | 0 | `patch_cell_color_array_write` | `texture_storage_2d_array<rgba8unorm, write>` | n/a | no | — | storagetex | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 5 | `bind::g0::pyramid_instances` | 30 | `g0` | buffer | Uniform | `C` | no | — | 0 | `pyramid_instances` | `PyramidArray` | n/a | no | 272 | uniform | `C` | `-` |  |
-| Patch Gen Layout | `patchGenLayout_` | 6 | `bind::g0::patch_height_scratch` | 28 | `g0` | buffer | Storage | `C` | no | — | 0 | `patch_height_scratch` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Pawn Aura Compute Layout | `pawnAuraComputeLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Pawn Aura Compute Layout | `pawnAuraComputeLayout_` | 1 | `bind::g0::agent_state` | 60 | `g0` | buffer | Storage | `C` | no | — | 0 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
-| Pawn Aura Compute Layout | `pawnAuraComputeLayout_` | 2 | `bind::g0::pawn_aura_cfg` | 170 | `g0` | buffer | Uniform | `C` | no | — | 0 | `pawn_aura_cfg` | `PawnAuraConfig` | n/a | no | 64 | uniform | `C` | `-` |  |
-| Pawn Aura Compute Layout | `pawnAuraComputeLayout_` | 3 | `bind::g0::pawn_aura_cells` | 171 | `g0` | buffer | Storage | `C` | no | — | 0 | `pawn_aura_cells` | `array<PawnAuraCell>` | read_write | yes | — | storage | `C` | `-` |  |
-| Pawn Aura Compute Layout | `pawnAuraComputeLayout_` | 4 | `bind::g0::pawn_aura_tex_write` | 172 | `g0` | storageTexture | WriteOnly/RGBA16Float/e2D | `C` | no | — | 0 | `pawn_aura_tex_write` | `texture_storage_2d<rgba16float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
-| Pawn Aura Compute Layout | `pawnAuraComputeLayout_` | 5 | `bind::g0::tile_grid` | 25 | `g0` | buffer | Uniform | `C` | no | — | 0 | `tile_grid` | `TileGrid` | n/a | no | 16400 | uniform | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 1 | `bind::g0::agent_state` | 60 | `g0` | buffer | Storage | `C` | no | — | 0 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 2 | `bind::g0::photographer_config` | 140 | `g0` | buffer | Uniform | `C` | no | — | 0 | `photographer_config` | `PhotographerConfig` | n/a | no | 48 | uniform | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 3 | `bind::g0::photographer_vp` | 141 | `g0` | buffer | Storage | `C` | no | — | 0 | `photographer_vp` | `VPMatrix` | read_write | no | 128 | storage | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 4 | `bind::g0::photographer_camera_out` | 142 | `g0` | buffer | Storage | `C` | no | — | 0 | `photographer_camera_out` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 5 | `bind::g0::photo_heightfield` | 145 | `g0` | texture | Float/e2DArray | `C` | no | — | 0 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 6 | `bind::g0::photo_sampler` | 146 | `g0` | sampler | Filtering | `C` | no | — | 0 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 7 | `bind::g0::patch_grid` | 152 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
-| Photographer Compute Layout | `photographerComputeLayout_` | 8 | `bind::g0::camera_state` | 80 | `g0` | buffer | Storage | `C` | no | — | 0 | `camera_state` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `VF` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `VF` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 1 | `bind::g0::render_vp` | 201 | `g0` | buffer | ReadOnlyStorage | `VF` | no | — | 0 | `render_vp` | `VPMatrix` | read | no | 128 | storage | `VF` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 2 | `bind::g0::render_agents` | 260 | `g0` | buffer | ReadOnlyStorage | `VF` | no | — | 0 | `render_agents` | `array<AgentState, 32>` | read | no | 3072 | storage | `VF` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 3 | `bind::g0::render_camera` | 280 | `g0` | buffer | ReadOnlyStorage | `VF` | no | — | 0 | `render_camera` | `CameraState` | read | no | 48 | storage | `VF` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 4 | `bind::g0::render_floating` | 300 | `g0` | buffer | Uniform | `VF` | no | — | 0 | `render_floating` | `FloatingEntityArray` | n/a | no | 54912 | uniform | `VF` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 5 | `bind::g0::render_lighting` | 320 | `g0` | buffer | Uniform | `VF` | no | — | 0 | `render_lighting` | `Lighting` | n/a | no | 848 | uniform | `VF` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 6 | `bind::g0::patch_instances` | 340 | `g0` | buffer | ReadOnlyStorage | `V` | no | — | 0 | `patch_instances` *(slot also spelled `fc_patches`)* | `array<PatchInstance>` | read | yes | — | storage | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 7 | `bind::g0::render_ribbon` | 360 | `g0` | buffer | Uniform | `V` | no | — | 0 | `render_ribbon` | `RibbonState` | n/a | no | 112 | uniform | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 8 | `bind::g0::render_ring_xforms` | 361 | `g0` | buffer | ReadOnlyStorage | `V` | no | — | 0 | `render_ring_xforms` | `array<RibbonRingTransform, 400>` | read | no | 19200 | storage | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 9 | `bind::g0::tile_grid` | 25 | `g0` | buffer | Uniform | `F` | no | — | 0 | `tile_grid` | `TileGrid` | n/a | no | 16400 | uniform | `F` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 10 | `bind::g0::entity_ground_atlas` | 390 | `g0` | texture | UnfilterableFloat/e2D | `V` | no | — | 0 | `entity_ground_atlas` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 11 | `bind::g0::visible_patch_indices` | 391 | `g0` | buffer | ReadOnlyStorage | `V` | no | — | 0 | `visible_patch_indices` | `array<u32>` | read | yes | — | storage | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 12 | `bind::g0::agent_tier_gains` | 111 | `g0` | buffer | Uniform | `V` | no | — | 0 | `agent_tier_gains` | `array<AgentTierParams, 4>` | n/a | no | 192 | uniform | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 13 | `bind::g0::agent_figure_profiles` | 112 | `g0` | buffer | Uniform | `V` | no | — | 0 | `agent_figure_profiles` | `array<PawnFigure, 14>` | n/a | no | 4032 | uniform | `V` | `-` |  |
-| Render Entity Layout | `renderEntityBindGroupLayout_` | 14 | `bind::g0::shadow_slot` | 362 | `g0` | buffer | Uniform | `V` | yes | — | 0 | `shadow_slot` | `ShadowSlot` | n/a | no | 16 | uniform | `V` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 0 | `bind::g1::bilinear_sampler` | 22 | `g1` | sampler | Filtering | `VF` | no | — | 1 | `bilinear_sampler` | `sampler` | n/a | no | — | samplers | `VF` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 1 | `bind::g1::nearest_sampler` | 23 | `g1` | sampler | NonFiltering | `VF` | no | — | 1 | `nearest_sampler` | `sampler` | n/a | no | — | samplers | `VF` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 2 | `bind::g1::shadow_map` | 25 | `g1` | texture | Depth/e2D | `F` | no | — | 1 | `shadow_map` | `texture_depth_2d` | n/a | no | — | sampled | `F` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 3 | `bind::g1::shadow_sampler` | 26 | `g1` | sampler | Comparison | `F` | no | — | 1 | `shadow_sampler` | `sampler_comparison` | n/a | no | — | samplers | `F` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 4 | `bind::g1::spot_shadow_map` | 27 | `g1` | texture | Depth/e2D | `F` | no | — | 1 | `spot_shadow_map` | `texture_depth_2d` | n/a | no | — | sampled | `F` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 5 | `bind::g1::patch_heightfield_array_read` | 28 | `g1` | texture | Float/e2DArray | `V` | no | — | 1 | `patch_heightfield_array_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `V` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 6 | `bind::g1::patch_cell_color_array_read` | 29 | `g1` | texture | Float/e2DArray | `F` | no | — | 1 | `patch_cell_color_array_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `F` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 7 | `bind::g1::zone_life_read` | 31 | `g1` | texture | UnfilterableFloat/e2DArray | `F` | no | — | 1 | `zone_life_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `F` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 8 | `bind::g1::zone_params` | 32 | `g1` | buffer | ReadOnlyStorage | `F` | no | — | 1 | `zone_params` | `GoLZoneArray` | read | no | 656 | storage | `F` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 9 | `bind::g1::pawn_aura_read` | 33 | `g1` | texture | Float/e2D | `VF` | no | — | 1 | `pawn_aura_read` | `texture_2d<f32>` | n/a | no | — | sampled | `VF` | `-` |  |
-| Render Texture Layout | `renderTextureBindGroupLayout_` | 10 | `bind::g1::live_card_read` | 34 | `g1` | texture | Float/e2D | `VF` | no | — | 1 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `VF` | `-` |  |
-| Ribbon Compute Layout | `ribbonComputeLayout_` | 0 | `bind::g0::ribbon_state` | 120 | `g0` | buffer | Uniform | `C` | no | — | 0 | `ribbon_state` | `RibbonState` | n/a | no | 112 | uniform | `C` | `-` |  |
-| Ribbon Compute Layout | `ribbonComputeLayout_` | 1 | `bind::g0::ring_xforms` | 121 | `g0` | buffer | Storage | `C` | no | — | 0 | `ring_xforms` | `array<RibbonRingTransform, 400>` | read_write | no | 19200 | storage | `C` | `-` |  |
-| Ribbon Compute Layout | `ribbonComputeLayout_` | 2 | `bind::g0::head_poses` | 122 | `g0` | buffer | ReadOnlyStorage | `C` | no | — | 0 | `head_poses` | `array<vec4<f32>, 400>` | read | no | 6400 | storage | `C` | `-` |  |
-| Shadow Texture Layout | `shadowTextureBindGroupLayout_` | 0 | `bind::g1::bilinear_sampler` | 22 | `g1` | sampler | Filtering | `V` | no | — | 1 | `bilinear_sampler` | `sampler` | n/a | no | — | samplers | `V` | `-` |  |
-| Shadow Texture Layout | `shadowTextureBindGroupLayout_` | 1 | `bind::g1::nearest_sampler` | 23 | `g1` | sampler | NonFiltering | `V` | no | — | 1 | `nearest_sampler` | `sampler` | n/a | no | — | samplers | `V` | `-` |  |
-| Shadow Texture Layout | `shadowTextureBindGroupLayout_` | 2 | `bind::g1::patch_heightfield_array_read` | 28 | `g1` | texture | Float/e2DArray | `V` | no | — | 1 | `patch_heightfield_array_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `V` | `-` |  |
-| Shadow Texture Layout | `shadowTextureBindGroupLayout_` | 3 | `bind::g1::live_card_read` | 34 | `g1` | texture | Float/e2D | `V` | no | — | 1 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
-| The Room Layout | `roomLayout_` | 0 | `bind::g2::occupier_cmg` | 0 | `g2` | buffer | Uniform | `C` | no | — | 2 | `occupier_cmg` | `array<ColumnMeshParams, 32>` | n/a | no | 4096 | uniform | `C` | `-` |  |
-| The Room Layout | `roomLayout_` | 1 | `bind::g2::occupier_amg` | 1 | `g2` | buffer | Uniform | `C` | no | — | 2 | `occupier_amg` | `array<ArchMeshParams, 16>` | n/a | no | 1280 | uniform | `C` | `-` |  |
-| The Room Layout | `roomLayout_` | 2 | `bind::g2::field_head_poses` | 2 | `g2` | buffer | Uniform | `C` | no | — | 2 | `field_head_poses` | `array<vec4<f32>, 400>` | n/a | no | 6400 | uniform | `C` | `-` |  |
-| The Room Layout | `roomLayout_` | 3 | `bind::g2::field_forces` | 3 | `g2` | buffer | Storage | `C` | no | — | 2 | `field_forces` | `array<vec4<f32>, FIELD_SUBSCRIBERS>` | read_write | no | 4736 | storage | `C` | `-` |  |
-| The Room Layout | `roomLayout_` | 4 | `bind::g2::field_ribbon` | 4 | `g2` | buffer | Uniform | `C` | no | — | 2 | `field_ribbon` | `RibbonState` | n/a | no | 112 | uniform | `C` | `-` |  |
-| The Room Layout | `roomLayout_` | 5 | `bind::g2::field_authored` | 5 | `g2` | buffer | Uniform | `C` | no | — | 2 | `field_authored` | `FieldAuthored` | n/a | no | 144 | uniform | `C` | `-` |  |
-| Zone Mask Layout | `zoneMaskLayout_` | 0 | `bind::g0::config` | 1 | `g0` | buffer | Uniform | `C` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
-| Zone Mask Layout | `zoneMaskLayout_` | 1 | `bind::g0::tile_grid` | 25 | `g0` | buffer | Uniform | `C` | no | — | 0 | `tile_grid` | `TileGrid` | n/a | no | 16400 | uniform | `C` | `-` |  |
-| Zone Mask Layout | `zoneMaskLayout_` | 2 | `bind::g0::zone_config` | 160 | `g0` | buffer | Storage | `C` | no | — | 0 | `zone_config` | `GoLZoneArray` | read_write | no | 656 | storage | `C` | `-` |  |
-| Zone Mask Layout | `zoneMaskLayout_` | 3 | `bind::g0::zone_life` | 161 | `g0` | buffer | Storage | `C` | no | — | 0 | `zone_life` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
-| Zone Mask Layout | `zoneMaskLayout_` | 4 | `bind::g0::zone_derive_requests` | 166 | `g0` | buffer | Uniform | `C` | no | — | 0 | `zone_derive_requests` | `ZoneDeriveRequestArray` | n/a | no | 272 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 0 | `bind::g2::agent_state` | 0 | `g2` | buffer | Storage | `C` | no | — | 2 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 1 | `bind::g2::portal_array` | 1 | `g2` | buffer | Uniform | `C` | no | — | 2 | `portal_array` | `PortalArray` | n/a | no | 1040 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 2 | `bind::g2::floating_entities` | 2 | `g2` | buffer | Storage | `C` | no | — | 2 | `floating_entities` | `FloatingEntityArray` | read_write | no | 54912 | storage | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 3 | `bind::g2::agent_behaviors` | 3 | `g2` | buffer | Uniform | `C` | no | — | 2 | `agent_behaviors` | `array<AgentBehaviorParams, 10>` | n/a | no | 320 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 4 | `bind::g2::agent_tier_gains` | 4 | `g2` | buffer | Uniform | `C` | no | — | 2 | `agent_tier_gains` | `array<AgentTierParams, 4>` | n/a | no | 192 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 5 | `bind::g2::occupier_cmg` | 7 | `g2` | buffer | Uniform | `C` | no | — | 2 | `occupier_cmg` | `array<ColumnMeshParams, 32>` | n/a | no | 4096 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 6 | `bind::g2::occupier_amg` | 8 | `g2` | buffer | Uniform | `C` | no | — | 2 | `occupier_amg` | `array<ArchMeshParams, 16>` | n/a | no | 1280 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 7 | `bind::g2::field_head_poses` | 9 | `g2` | buffer | Uniform | `C` | no | — | 2 | `field_head_poses` | `array<vec4<f32>, 400>` | n/a | no | 6400 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 8 | `bind::g2::field_forces` | 10 | `g2` | buffer | Storage | `C` | no | — | 2 | `field_forces` | `array<vec4<f32>, FIELD_SUBSCRIBERS>` | read_write | no | 4736 | storage | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 9 | `bind::g2::field_ribbon` | 11 | `g2` | buffer | Uniform | `C` | no | — | 2 | `field_ribbon` | `RibbonState` | n/a | no | 112 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 10 | `bind::g2::field_authored` | 12 | `g2` | buffer | Uniform | `C` | no | — | 2 | `field_authored` | `FieldAuthored` | n/a | no | 144 | uniform | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 11 | `bind::g2::patch_grid` | 43 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
+| Agents State Layout | `agentsStateLayout_` | 12 | `bind::g2::camera_state` | 241 | `g2` | buffer | Storage | `C` | no | — | 2 | `camera_state` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
+| Agents Textures Layout | `agentsTexturesLayout_` | 0 | `bind::g3::pawn_aura_read` | 21 | `g3` | texture | Float/e2D | `C` | no | — | 3 | `pawn_aura_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Agents Textures Layout | `agentsTexturesLayout_` | 1 | `bind::g3::photo_heightfield` | 42 | `g3` | texture | Float/e2DArray | `C` | no | — | 3 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Agents Textures Layout | `agentsTexturesLayout_` | 2 | `bind::g3::photo_sampler` | 43 | `g3` | sampler | Filtering | `C` | no | — | 3 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
+| Agents Textures Layout | `agentsTexturesLayout_` | 3 | `bind::g3::live_card_read` | 103 | `g3` | texture | Float/e2D | `C` | no | — | 3 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Aura State Layout | `auraStateLayout_` | 0 | `bind::g2::agent_state` | 0 | `g2` | buffer | Storage | `C` | no | — | 2 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
+| Aura State Layout | `auraStateLayout_` | 1 | `bind::g2::pawn_aura_cfg` | 20 | `g2` | buffer | Uniform | `C` | no | — | 2 | `pawn_aura_cfg` | `PawnAuraConfig` | n/a | no | 64 | uniform | `C` | `-` |  |
+| Aura State Layout | `auraStateLayout_` | 2 | `bind::g2::pawn_aura_cells` | 21 | `g2` | buffer | Storage | `C` | no | — | 2 | `pawn_aura_cells` | `array<PawnAuraCell>` | read_write | yes | — | storage | `C` | `-` |  |
+| Aura Textures Layout | `auraTexturesLayout_` | 0 | `bind::g3::pawn_aura_tex_write` | 20 | `g3` | storageTexture | WriteOnly/RGBA16Float/e2D | `C` | no | — | 3 | `pawn_aura_tex_write` | `texture_storage_2d<rgba16float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
+| Cull State Layout | `cullStateLayout_` | 0 | `bind::g2::fc_draw_plan` | 60 | `g2` | buffer | Uniform | `C` | no | — | 2 | `fc_draw_plan` | `DrawPlanParams` | n/a | no | 144 | uniform | `C` | `-` |  |
+| Cull State Layout | `cullStateLayout_` | 1 | `bind::g2::patch_instances` | 61 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `patch_instances` *(slot also spelled `fc_patches`)* | `array<PatchInstance>` | read | yes | — | storage | `C` | `-` |  |
+| Cull State Layout | `cullStateLayout_` | 2 | `bind::g2::fc_visible` | 63 | `g2` | buffer | Storage | `C` | no | — | 2 | `fc_visible` | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
+| Cull State Layout | `cullStateLayout_` | 3 | `bind::g2::fc_indirect` | 64 | `g2` | buffer | Storage | `C` | no | — | 2 | `fc_indirect` | `array<atomic<u32>, 15>` | read_write | no | 60 | storage | `C` | `-` |  |
+| Cull State Layout | `cullStateLayout_` | 4 | `bind::g2::vp_data` | 240 | `g2` | buffer | Storage | `C` | no | — | 2 | `vp_data` *(slot also spelled `fc_vp`)* | `VPMatrix` | read_write | no | 128 | storage | `-` | `C` |  |
+| Frame K State Layout | `frameKStateLayout_` | 0 | `bind::g2::agent_state` | 0 | `g2` | buffer | Storage | `C` | no | — | 2 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
+| Frame K State Layout | `frameKStateLayout_` | 1 | `bind::g2::floating_entities` | 2 | `g2` | buffer | Storage | `C` | no | — | 2 | `floating_entities` | `FloatingEntityArray` | read_write | no | 54912 | storage | `C` | `-` |  |
+| Frame K State Layout | `frameKStateLayout_` | 2 | `bind::g2::patch_grid` | 43 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
+| Frame K State Layout | `frameKStateLayout_` | 3 | `bind::g2::vp_data` | 240 | `g2` | buffer | Storage | `C` | no | — | 2 | `vp_data` *(slot also spelled `fc_vp`)* | `VPMatrix` | read_write | no | 128 | storage | `C` | `-` |  |
+| Frame K State Layout | `frameKStateLayout_` | 4 | `bind::g2::camera_state` | 241 | `g2` | buffer | Storage | `C` | no | — | 2 | `camera_state` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
+| Frame K Textures Layout | `frameKTexturesLayout_` | 0 | `bind::g3::pawn_aura_read` | 21 | `g3` | texture | Float/e2D | `C` | no | — | 3 | `pawn_aura_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Frame K Textures Layout | `frameKTexturesLayout_` | 1 | `bind::g3::photo_heightfield` | 42 | `g3` | texture | Float/e2DArray | `C` | no | — | 3 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Frame K Textures Layout | `frameKTexturesLayout_` | 2 | `bind::g3::photo_sampler` | 43 | `g3` | sampler | Filtering | `C` | no | — | 3 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
+| Frame K Textures Layout | `frameKTexturesLayout_` | 3 | `bind::g3::live_card_read` | 103 | `g3` | texture | Float/e2D | `C` | no | — | 3 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Frame Layout | `frameLayout_` | 0 | `bind::g1::signal` | 0 | `g1` | buffer | Uniform | `C` | no | — | 1 | `signal` | `FrameSignal` | n/a | no | 80 | uniform | `C` | `-` |  |
+| Frame Layout | `frameLayout_` | 1 | `bind::g1::render_lighting` | 1 | `g1` | buffer | Uniform | `VF` | no | — | 1 | `render_lighting` | `Lighting` | n/a | no | 848 | uniform | `VF` | `-` |  |
+| Frame Layout | `frameLayout_` | 2 | `bind::g1::shadow_slot` | 2 | `g1` | buffer | Uniform | `V` | yes | — | 1 | `shadow_slot` | `ShadowSlot` | n/a | no | 16 | uniform | `V` | `-` |  |
+| Frame Layout | `frameLayout_` | 3 | `bind::g1::render_vp` | 3 | `g1` | buffer | ReadOnlyStorage | `VF` | no | — | 1 | `render_vp` | `VPMatrix` | read | no | 128 | storage | `VF` | `-` |  |
+| Frame Layout | `frameLayout_` | 4 | `bind::g1::render_camera` | 4 | `g1` | buffer | ReadOnlyStorage | `VF` | no | — | 1 | `render_camera` | `CameraState` | read | no | 48 | storage | `VF` | `-` |  |
+| Frame Layout | `frameLayout_` | 5 | `bind::g1::bilinear_sampler` | 5 | `g1` | sampler | Filtering | `VFC` | no | — | 1 | `bilinear_sampler` | `sampler` | n/a | no | — | samplers | `VFC` | `-` |  |
+| Frame Layout | `frameLayout_` | 6 | `bind::g1::nearest_sampler` | 6 | `g1` | sampler | NonFiltering | `VFC` | no | — | 1 | `nearest_sampler` | `sampler` | n/a | no | — | samplers | `VFC` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 0 | `bind::g2::agent_state` | 0 | `g2` | buffer | Storage | `C` | no | — | 2 | `agent_state` | `array<AgentState, 32>` | read_write | no | 3072 | storage | `C` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 1 | `bind::g2::patch_grid` | 43 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 2 | `bind::g2::painting_slots` | 85 | `g2` | buffer | ReadOnlyStorage | `VF` | no | — | 2 | `painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | read | no | 36864 | storage | `VF` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 3 | `bind::g2::photographer_config` | 160 | `g2` | buffer | Uniform | `C` | no | — | 2 | `photographer_config` | `PhotographerConfig` | n/a | no | 48 | uniform | `C` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 4 | `bind::g2::photographer_vp` | 161 | `g2` | buffer | Storage | `C` | no | — | 2 | `photographer_vp` | `VPMatrix` | read_write | no | 128 | storage | `C` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 5 | `bind::g2::photographer_camera_out` | 162 | `g2` | buffer | Storage | `C` | no | — | 2 | `photographer_camera_out` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
+| Gallery State Layout | `galleryStateLayout_` | 6 | `bind::g2::camera_state` | 241 | `g2` | buffer | Storage | `C` | no | — | 2 | `camera_state` | `CameraState` | read_write | no | 48 | storage | `C` | `-` |  |
+| Gallery Textures Layout | `galleryTexturesLayout_` | 0 | `bind::g3::photo_heightfield` | 42 | `g3` | texture | Float/e2DArray | `C` | no | — | 3 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Gallery Textures Layout | `galleryTexturesLayout_` | 1 | `bind::g3::photo_sampler` | 43 | `g3` | sampler | Filtering | `C` | no | — | 3 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
+| Gallery Textures Layout | `galleryTexturesLayout_` | 2 | `bind::g3::live_card_read` | 103 | `g3` | texture | Float/e2D | `V` | no | — | 3 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
+| Gallery Textures Layout | `galleryTexturesLayout_` | 3 | `bind::g3::painting_array` | 160 | `g3` | texture | Float/e2DArray | `F` | no | — | 3 | `painting_array` | `texture_2d_array<f32>` | n/a | no | — | sampled | `F` | `-` |  |
+| Gallery Textures Layout | `galleryTexturesLayout_` | 4 | `bind::g3::painting_sampler_filt` | 161 | `g3` | sampler | Filtering | `F` | no | — | 3 | `painting_sampler_filt` | `sampler` | n/a | no | — | samplers | `F` | `-` |  |
+| Meshgen State Layout | `meshgenStateLayout_` | 0 | `bind::g2::cmg_column_ground` | 84 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `cmg_column_ground` | `array<ColumnGroundEntry, 32>` | read | no | 1024 | storage | `C` | `-` |  |
+| Meshgen State Layout | `meshgenStateLayout_` | 1 | `bind::g2::amg_params` | 180 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `amg_params` *(slot also spelled `cmg_params`, `palmg_params`, `cactusg_params`, `bladeg_params`)* | `array<ArchMeshParams, 16>` | read | no | 1280 | storage | `C` | `-` |  |
+| Meshgen State Layout | `meshgenStateLayout_` | 2 | `bind::g2::amg_vertices` | 181 | `g2` | buffer | Storage | `C` | no | — | 2 | `amg_vertices` *(slot also spelled `cmg_vertices`, `palmg_vertices`, `cactusg_vertices`, `bladeg_vertices`)* | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
+| Meshgen State Layout | `meshgenStateLayout_` | 3 | `bind::g2::amg_indices` | 182 | `g2` | buffer | Storage | `C` | no | — | 2 | `amg_indices` *(slot also spelled `cmg_indices`, `palmg_indices`, `cactusg_indices`, `bladeg_indices`)* | `array<u32>` | read_write | yes | — | storage | `C` | `-` |  |
+| Meshgen State Layout | `meshgenStateLayout_` | 4 | `bind::g2::cmg_config` | 183 | `g2` | buffer | Uniform | `C` | no | — | 2 | `cmg_config` | `DesignConfig` | n/a | no | 624 | uniform | `C` | `-` |  |
+| Orbs State Layout | `orbsStateLayout_` | 0 | `bind::g2::orb_state` | 120 | `g2` | buffer | Storage | `C` | no | — | 2 | `orb_state` | `array<OrbState>` | read_write | yes | — | storage | `C` | `-` |  |
+| Orbs State Layout | `orbsStateLayout_` | 1 | `bind::g2::orb_config` | 121 | `g2` | buffer | Uniform | `C` | no | — | 2 | `orb_config` | `OrbConfig` | n/a | no | 480 | uniform | `C` | `-` |  |
+| Orbs State Layout | `orbsStateLayout_` | 2 | `bind::g2::orb_state_prev` | 122 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `orb_state_prev` | `array<OrbState>` | read | yes | — | storage | `C` | `-` |  |
+| Orbs State Layout | `orbsStateLayout_` | 3 | `bind::g2::orb_state_ro` | 123 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `orb_state_ro` | `array<OrbState>` | read | yes | — | storage | `C` | `-` |  |
+| Orbs State Layout | `orbsStateLayout_` | 4 | `bind::g2::orb_state_prev_rw` | 124 | `g2` | buffer | Storage | `C` | no | — | 2 | `orb_state_prev_rw` | `array<OrbState>` | read_write | yes | — | storage | `C` | `-` |  |
+| Patchgen State Layout | `patchgenStateLayout_` | 0 | `bind::g2::patch_params` | 40 | `g2` | buffer | Uniform | `C` | no | — | 2 | `patch_params` | `PatchParams` | n/a | no | 32 | uniform | `C` | `-` |  |
+| Patchgen State Layout | `patchgenStateLayout_` | 1 | `bind::g2::patch_height_scratch` | 41 | `g2` | buffer | Storage | `C` | no | — | 2 | `patch_height_scratch` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
+| Patchgen State Layout | `patchgenStateLayout_` | 2 | `bind::g2::pyramid_instances` | 42 | `g2` | buffer | Uniform | `C` | no | — | 2 | `pyramid_instances` | `PyramidArray` | n/a | no | 272 | uniform | `C` | `-` |  |
+| Patchgen Textures Layout | `patchgenTexturesLayout_` | 0 | `bind::g3::patch_heightfield_array_write` | 40 | `g3` | storageTexture | WriteOnly/RGBA16Float/e2DArray | `C` | no | — | 3 | `patch_heightfield_array_write` | `texture_storage_2d_array<rgba16float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
+| Patchgen Textures Layout | `patchgenTexturesLayout_` | 1 | `bind::g3::patch_cell_color_array_write` | 41 | `g3` | storageTexture | WriteOnly/RGBA8Unorm/e2DArray | `C` | no | — | 3 | `patch_cell_color_array_write` | `texture_storage_2d_array<rgba8unorm, write>` | n/a | no | — | storagetex | `C` | `-` |  |
+| Place State Layout | `placeStateLayout_` | 0 | `bind::g2::patch_grid` | 43 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `patch_grid` | `PatchGrid` | read | yes | — | storage | `C` | `-` |  |
+| Place State Layout | `placeStateLayout_` | 1 | `bind::g2::photo_painting_slots` | 80 | `g2` | buffer | Storage | `C` | no | — | 2 | `photo_painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | read_write | no | 36864 | storage | `C` | `-` |  |
+| Place State Layout | `placeStateLayout_` | 2 | `bind::g2::arch_ground` | 81 | `g2` | buffer | Storage | `C` | no | — | 2 | `arch_ground` | `array<ArchGroundEntry, 16>` | read_write | no | 512 | storage | `C` | `-` |  |
+| Place State Layout | `placeStateLayout_` | 3 | `bind::g2::column_ground` | 82 | `g2` | buffer | Storage | `C` | no | — | 2 | `column_ground` | `array<ColumnGroundEntry, 32>` | read_write | no | 1024 | storage | `C` | `-` |  |
+| Place State Layout | `placeStateLayout_` | 4 | `bind::g2::plant_ground` | 83 | `g2` | buffer | Storage | `C` | no | — | 2 | `plant_ground` | `array<PalmGroundEntry, 76>` | read_write | no | 2432 | storage | `C` | `-` |  |
+| Place Textures Layout | `placeTexturesLayout_` | 0 | `bind::g3::photo_heightfield` | 42 | `g3` | texture | Float/e2DArray | `C` | no | — | 3 | `photo_heightfield` | `texture_2d_array<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Place Textures Layout | `placeTexturesLayout_` | 1 | `bind::g3::photo_sampler` | 43 | `g3` | sampler | Filtering | `C` | no | — | 3 | `photo_sampler` | `sampler` | n/a | no | — | samplers | `C` | `-` |  |
+| Place Textures Layout | `placeTexturesLayout_` | 2 | `bind::g3::entity_ground_atlas_write` | 80 | `g3` | storageTexture | WriteOnly/R32Float/e2D | `C` | no | — | 3 | `entity_ground_atlas_write` | `texture_storage_2d<r32float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
+| Place Textures Layout | `placeTexturesLayout_` | 3 | `bind::g3::live_card_read` | 103 | `g3` | texture | Float/e2D | `C` | no | — | 3 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `C` | `-` |  |
+| Ribbon State Layout | `ribbonStateLayout_` | 0 | `bind::g2::ribbon_state` | 140 | `g2` | buffer | Uniform | `C` | no | — | 2 | `ribbon_state` | `RibbonState` | n/a | no | 112 | uniform | `C` | `-` |  |
+| Ribbon State Layout | `ribbonStateLayout_` | 1 | `bind::g2::ring_xforms` | 141 | `g2` | buffer | Storage | `C` | no | — | 2 | `ring_xforms` | `array<RibbonRingTransform, 400>` | read_write | no | 19200 | storage | `C` | `-` |  |
+| Ribbon State Layout | `ribbonStateLayout_` | 2 | `bind::g2::head_poses` | 142 | `g2` | buffer | ReadOnlyStorage | `C` | no | — | 2 | `head_poses` | `array<vec4<f32>, 400>` | read | no | 6400 | storage | `C` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 0 | `bind::g2::agent_tier_gains` | 4 | `g2` | buffer | Uniform | `V` | no | — | 2 | `agent_tier_gains` | `array<AgentTierParams, 4>` | n/a | no | 192 | uniform | `V` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 1 | `bind::g2::render_agents` | 5 | `g2` | buffer | ReadOnlyStorage | `VF` | no | — | 2 | `render_agents` | `array<AgentState, 32>` | read | no | 3072 | storage | `VF` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 2 | `bind::g2::render_floating` | 6 | `g2` | buffer | Uniform | `VF` | no | — | 2 | `render_floating` | `FloatingEntityArray` | n/a | no | 54912 | uniform | `VF` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 3 | `bind::g2::patch_instances` | 61 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `patch_instances` *(slot also spelled `fc_patches`)* | `array<PatchInstance>` | read | yes | — | storage | `V` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 4 | `bind::g2::visible_patch_indices` | 62 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `visible_patch_indices` | `array<u32>` | read | yes | — | storage | `V` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 5 | `bind::g2::zone_params` | 104 | `g2` | buffer | ReadOnlyStorage | `F` | no | — | 2 | `zone_params` | `GoLZoneArray` | read | no | 656 | storage | `F` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 6 | `bind::g2::render_ring_xforms` | 143 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `render_ring_xforms` | `array<RibbonRingTransform, 400>` | read | no | 19200 | storage | `V` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 7 | `bind::g2::agent_figure_profiles` | 200 | `g2` | buffer | Uniform | `V` | no | — | 2 | `agent_figure_profiles` | `array<PawnFigure, 14>` | n/a | no | 4032 | uniform | `V` | `-` |  |
+| Scene State Layout | `sceneStateLayout_` | 8 | `bind::g2::render_ribbon` | 201 | `g2` | buffer | Uniform | `V` | no | — | 2 | `render_ribbon` | `RibbonState` | n/a | no | 112 | uniform | `V` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 0 | `bind::g3::pawn_aura_read` | 21 | `g3` | texture | Float/e2D | `VF` | no | — | 3 | `pawn_aura_read` | `texture_2d<f32>` | n/a | no | — | sampled | `VF` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 1 | `bind::g3::patch_heightfield_array_read` | 44 | `g3` | texture | Float/e2DArray | `V` | no | — | 3 | `patch_heightfield_array_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `V` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 2 | `bind::g3::patch_cell_color_array_read` | 45 | `g3` | texture | Float/e2DArray | `F` | no | — | 3 | `patch_cell_color_array_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `F` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 3 | `bind::g3::entity_ground_atlas` | 81 | `g3` | texture | UnfilterableFloat/e2D | `V` | no | — | 3 | `entity_ground_atlas` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 4 | `bind::g3::zone_life_read` | 102 | `g3` | texture | UnfilterableFloat/e2DArray | `F` | no | — | 3 | `zone_life_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `F` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 5 | `bind::g3::live_card_read` | 103 | `g3` | texture | Float/e2D | `VF` | no | — | 3 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `VF` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 6 | `bind::g3::shadow_map` | 200 | `g3` | texture | Depth/e2D | `F` | no | — | 3 | `shadow_map` | `texture_depth_2d` | n/a | no | — | sampled | `F` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 7 | `bind::g3::shadow_sampler` | 201 | `g3` | sampler | Comparison | `F` | no | — | 3 | `shadow_sampler` | `sampler_comparison` | n/a | no | — | samplers | `F` | `-` |  |
+| Scene Textures Layout | `sceneTexturesLayout_` | 8 | `bind::g3::spot_shadow_map` | 202 | `g3` | texture | Depth/e2D | `F` | no | — | 3 | `spot_shadow_map` | `texture_depth_2d` | n/a | no | — | sampled | `F` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 0 | `bind::g2::render_agents` | 5 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `render_agents` | `array<AgentState, 32>` | read | no | 3072 | storage | `V` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 1 | `bind::g2::render_floating` | 6 | `g2` | buffer | Uniform | `V` | no | — | 2 | `render_floating` | `FloatingEntityArray` | n/a | no | 54912 | uniform | `V` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 2 | `bind::g2::patch_instances` | 61 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `patch_instances` *(slot also spelled `fc_patches`)* | `array<PatchInstance>` | read | yes | — | storage | `V` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 3 | `bind::g2::painting_slots` | 85 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | read | no | 36864 | storage | `V` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 4 | `bind::g2::render_ring_xforms` | 143 | `g2` | buffer | ReadOnlyStorage | `V` | no | — | 2 | `render_ring_xforms` | `array<RibbonRingTransform, 400>` | read | no | 19200 | storage | `V` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 5 | `bind::g2::agent_figure_profiles` | 200 | `g2` | buffer | Uniform | `V` | no | — | 2 | `agent_figure_profiles` | `array<PawnFigure, 14>` | n/a | no | 4032 | uniform | `V` | `-` |  |
+| Shadow State Layout | `shadowStateLayout_` | 6 | `bind::g2::render_ribbon` | 201 | `g2` | buffer | Uniform | `V` | no | — | 2 | `render_ribbon` | `RibbonState` | n/a | no | 112 | uniform | `V` | `-` |  |
+| Shadow Textures Layout | `shadowTexturesLayout_` | 0 | `bind::g3::patch_heightfield_array_read` | 44 | `g3` | texture | Float/e2DArray | `V` | no | — | 3 | `patch_heightfield_array_read` | `texture_2d_array<f32>` | n/a | no | — | sampled | `V` | `-` |  |
+| Shadow Textures Layout | `shadowTexturesLayout_` | 1 | `bind::g3::entity_ground_atlas` | 81 | `g3` | texture | UnfilterableFloat/e2D | `V` | no | — | 3 | `entity_ground_atlas` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
+| Shadow Textures Layout | `shadowTexturesLayout_` | 2 | `bind::g3::live_card_read` | 103 | `g3` | texture | Float/e2D | `V` | no | — | 3 | `live_card_read` | `texture_2d<f32>` | n/a | no | — | sampled | `V` | `-` |  |
+| World Layout | `worldLayout_` | 0 | `bind::g0::config` | 0 | `g0` | buffer | Uniform | `VFC` | no | — | 0 | `config` *(slot also spelled `fc_config`)* | `DesignConfig` | n/a | no | 624 | uniform | `VFC` | `-` |  |
+| World Layout | `worldLayout_` | 1 | `bind::g0::tile_grid` | 1 | `g0` | buffer | Uniform | `FC` | no | — | 0 | `tile_grid` | `TileGrid` | n/a | no | 16400 | uniform | `FC` | `-` |  |
+| Zones State Layout | `zonesStateLayout_` | 0 | `bind::g2::live_card_scratch` | 100 | `g2` | buffer | Storage | `C` | no | — | 2 | `live_card_scratch` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
+| Zones State Layout | `zonesStateLayout_` | 1 | `bind::g2::zone_config` | 101 | `g2` | buffer | Storage | `C` | no | — | 2 | `zone_config` | `GoLZoneArray` | read_write | no | 656 | storage | `C` | `-` |  |
+| Zones State Layout | `zonesStateLayout_` | 2 | `bind::g2::zone_life` | 102 | `g2` | buffer | Storage | `C` | no | — | 2 | `zone_life` | `array<f32>` | read_write | yes | — | storage | `C` | `-` |  |
+| Zones State Layout | `zonesStateLayout_` | 3 | `bind::g2::zone_derive_requests` | 103 | `g2` | buffer | Uniform | `C` | no | — | 2 | `zone_derive_requests` | `ZoneDeriveRequestArray` | n/a | no | 272 | uniform | `C` | `-` |  |
+| Zones Textures Layout | `zonesTexturesLayout_` | 0 | `bind::g3::live_card_write` | 100 | `g3` | storageTexture | WriteOnly/RGBA16Float/e2D | `C` | no | — | 3 | `live_card_write` | `texture_storage_2d<rgba16float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
+| Zones Textures Layout | `zonesTexturesLayout_` | 1 | `bind::g3::zone_life_tex_write` | 101 | `g3` | storageTexture | WriteOnly/R32Float/e2DArray | `C` | no | — | 3 | `zone_life_tex_write` | `texture_storage_2d_array<r32float, write>` | n/a | no | — | storagetex | `C` | `-` |  |
 
 ## Table B — the stage budget
 
@@ -410,84 +380,84 @@ against the Core limit in the header.
 
 | pipeline | member | stage | entry point | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 | bind groups /4 | dyn_u /8 | dyn_s /4 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | `update_player_agent` | 10 / 10 / 6 | 6 / 6 / 4 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 3 | 0 | 0 |
-| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | `update_other_agents` | 10 / 10 / 9 | 6 / 6 / 5 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 3 | 0 | 0 |
-| Update Camera (0D) | `updateCameraPipeline_` | C | `update_camera` | 5 / 5 / 2 | 5 / 5 / 4 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Update Sphere (0D) | `updateSpherePipeline_` | C | `update_sphere` | 10 / 10 / 2 | 6 / 6 / 5 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 3 | 0 | 0 |
-| Update Cube (0D) | `updateCubePipeline_` | C | `update_cube` | 10 / 10 / 2 | 6 / 6 / 5 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 3 | 0 | 0 |
-| Compute VP Matrix (0D) | `computeVPPipeline_` | C | `compute_vp` | 5 / 5 / 2 | 5 / 5 / 3 | 1 / 1 / 0 | 1 / 1 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | `generate_patch_heights` | 4 / 4 / 4 | 1 / 1 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 2 / 2 / 0 | 1 | 0 | 0 |
-| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | `generate_patch_gradients` | 4 / 4 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 2 / 2 / 1 | 1 | 0 | 0 |
-| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | `generate_patch_cells` | 4 / 4 / 3 | 1 / 1 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 2 / 2 / 1 | 1 | 0 | 0 |
-| Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | C | `compute_ribbon_rings` | 1 / 1 / 1 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Compute Photographer VP (0D) | `photographerVPPipeline_` | C | `compute_photographer_vp` | 2 / 2 / 2 | 5 / 5 / 5 | 1 / 1 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | `compute_entity_placement` | 1 / 1 / 1 | 5 / 5 / 5 | 3 / 3 / 2 | 3 / 3 / 2 | 1 / 1 / 1 | 2 | 0 | 0 |
-| Frustum Cull Patches | `frustumCullPipeline_` | C | `frustum_cull_patches` | 2 / 2 / 2 | 4 / 4 / 4 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | `compute_pawn_aura` | 3 / 3 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 1 | 1 | 0 | 0 |
-| Live Card Heights (2D) | `liveCardHeightsPipeline_` | C | `write_live_card_heights` | 2 / 2 / 2 | 3 / 3 / 3 | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 0 | 1 | 0 | 0 |
-| Live Card Resolve (2D) | `liveCardResolvePipeline_` | C | `write_live_card_resolve` | 2 / 2 / 0 | 3 / 3 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 1 | 1 | 0 | 0 |
-| Orb Init | `orbInitPipeline_` | C | `orb_init` | 2 / 2 / 1 | 2 / 2 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Orb Dynamics | `orbDynamicsPipeline_` | C | `orb_dynamics` | 2 / 2 / 2 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Orb Recolor | `orbRecolorPipeline_` | C | `orb_recolor` | 2 / 2 / 1 | 2 / 2 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Orb State Prev Copy | `orbCopyPrevPipeline_` | C | `orb_state_prev_copy` | 1 / 1 / 1 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| GoL Zone Sync | `zoneGolSyncPipeline_` | C | `zone_gol_sync` | 2 / 2 / 0 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 0 | 1 | 0 | 0 |
-| GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | `zone_gol_evolve` | 2 / 2 / 1 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 1 | 1 | 0 | 0 |
-| Zone Derive Params | `zoneDeriveParamsPipeline_` | C | `zone_derive_params` | 2 / 2 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 0 | 1 | 0 | 0 |
-| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | `zone_seed_mask` | 3 / 3 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Arch Mesh Gen | `archMeshGenPipeline_` | C | `arch_mesh_gen` | 0 / 0 / 0 | 3 / 3 / 3 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Column Mesh Gen | `columnMeshGenPipeline_` | C | `column_mesh_gen` | 1 / 1 / 1 | 4 / 4 / 4 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Palm Mesh Gen | `palmMeshGenPipeline_` | C | `palm_mesh_gen` | 0 / 0 / 0 | 3 / 3 / 3 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | `cactus_mesh_gen` | 0 / 0 / 0 | 3 / 3 / 3 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Blade Mesh Gen | `bladeMeshGenPipeline_` | C | `blade_cluster_mesh_gen` | 0 / 0 / 0 | 3 / 3 / 3 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | `patch_terrain_vs` | 7 / 7 / 1 | 6 / 6 / 4 | 4 / 4 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | `patch_terrain_fs` | 4 / 4 / 4 | 4 / 4 / 4 | 6 / 6 / 6 | 3 / 3 / 3 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | `patch_terrain_vs` | 7 / 7 / 1 | 6 / 6 / 4 | 4 / 4 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | `patch_terrain_fs` | 4 / 4 / 4 | 4 / 4 / 4 | 6 / 6 / 6 | 3 / 3 / 3 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | `pawn_vs` | 7 / 7 / 3 | 6 / 6 / 2 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | `sphere_vs` | 7 / 7 / 2 | 6 / 6 / 1 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | `monolith_vs` | 7 / 7 / 2 | 6 / 6 / 1 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Catenary Arch (Rasterized) | `archPipeline_` | V | `arch_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Catenary Arch (Rasterized) | `archPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Generative Column (Rasterized) | `columnPipeline_` | V | `column_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Generative Column (Rasterized) | `columnPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Palm Tree (Rasterized) | `palmPipeline_` | V | `palm_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Palm Tree (Rasterized) | `palmPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Cactus (Rasterized) | `cactusPipeline_` | V | `cactus_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Cactus (Rasterized) | `cactusPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | V | `blade_cluster_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | `shell_vs` | 7 / 7 / 0 | 6 / 6 / 1 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | `ribbon_vs` | 7 / 7 / 1 | 6 / 6 / 2 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Sky Ribbon Entity | `ribbonPipeline_` | F | `ribbon_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | `orb_vs` | 7 / 7 / 0 | 6 / 6 / 2 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Orb Sky Layer | `orbRenderPipeline_` | F | `orb_fs` | 4 / 4 / 0 | 4 / 4 / 0 | 6 / 6 / 0 | 3 / 3 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Gallery Frame | `galleryFramePipeline_` | V | `gallery_frame_vs` | 1 / 1 / 1 | 2 / 2 / 2 | 1 / 1 / 0 | 1 / 1 / 0 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Gallery Frame | `galleryFramePipeline_` | F | `gallery_frame_fs` | 1 / 1 / 1 | 2 / 2 / 1 | 1 / 1 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | `wall_painting_vs` | 1 / 1 / 1 | 2 / 2 / 2 | 1 / 1 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | `wall_painting_canvas_fs` | 1 / 1 / 1 | 2 / 2 / 2 | 1 / 1 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | V | `wall_painting_vs` | 1 / 1 / 1 | 2 / 2 / 2 | 1 / 1 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | F | `wall_painting_frame_fs` | 1 / 1 / 1 | 2 / 2 / 1 | 1 / 1 / 0 | 1 / 1 / 0 | 0 / 0 / 0 | 2 | 0 | 0 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | `shadow_patch_terrain_vs` | 7 / 7 / 3 | 6 / 6 / 3 | 3 / 3 / 2 | 2 / 2 / 2 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | `shadow_pawn_vs` | 7 / 7 / 3 | 6 / 6 / 2 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | `shadow_sphere_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | `shadow_monolith_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | `shadow_arch_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | `shadow_column_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | `shadow_palm_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | `shadow_cactus_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | `shadow_blade_cluster_vs` | 7 / 7 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | `shadow_shell_vs` | 7 / 7 / 2 | 6 / 6 / 1 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | `shadow_ribbon_vs` | 7 / 7 / 3 | 6 / 6 / 2 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | `shadow_gallery_frame_vs` | 7 / 7 / 3 | 7 / 7 / 2 | 2 / 2 / 0 | 1 / 1 / 0 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | `shadow_wall_painting_vs` | 7 / 7 / 3 | 7 / 7 / 2 | 2 / 2 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 2 | 1 | 0 |
-| Fade Overlay | `fadeOverlayPipeline_` | V | `fade_overlay_vs` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
-| Fade Overlay | `fadeOverlayPipeline_` | F | `fade_overlay_fs` | 1 / 1 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 1 | 0 | 0 |
+| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | `update_player_agent` | 11 / 11 / 6 | 5 / 5 / 4 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | `update_other_agents` | 11 / 11 / 9 | 5 / 5 / 5 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Update Camera (0D) | `updateCameraPipeline_` | C | `update_camera` | 3 / 3 / 2 | 5 / 5 / 4 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Update Sphere (0D) | `updateSpherePipeline_` | C | `update_sphere` | 11 / 11 / 2 | 5 / 5 / 5 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Update Cube (0D) | `updateCubePipeline_` | C | `update_cube` | 11 / 11 / 2 | 5 / 5 / 5 | 3 / 3 / 3 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Compute VP Matrix (0D) | `computeVPPipeline_` | C | `compute_vp` | 3 / 3 / 2 | 5 / 5 / 3 | 3 / 3 / 0 | 3 / 3 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | `generate_patch_heights` | 5 / 5 / 4 | 1 / 1 / 1 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 0 | 4 | 1 | 0 |
+| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | `generate_patch_gradients` | 5 / 5 / 1 | 1 / 1 / 1 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 1 | 4 | 1 | 0 |
+| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | `generate_patch_cells` | 5 / 5 / 3 | 1 / 1 / 0 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 1 | 4 | 1 | 0 |
+| Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | C | `compute_ribbon_rings` | 4 / 4 / 1 | 2 / 2 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Compute Photographer VP (0D) | `photographerVPPipeline_` | C | `compute_photographer_vp` | 4 / 4 / 2 | 5 / 5 / 5 | 1 / 1 / 1 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | `compute_entity_placement` | 3 / 3 / 1 | 5 / 5 / 5 | 2 / 2 / 2 | 3 / 3 / 2 | 1 / 1 / 1 | 4 | 1 | 0 |
+| Frustum Cull Patches | `frustumCullPipeline_` | C | `frustum_cull_patches` | 4 / 4 / 2 | 4 / 3 / 3 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | `compute_pawn_aura` | 4 / 4 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 1 / 1 / 1 | 4 | 1 | 0 |
+| Live Card Heights (2D) | `liveCardHeightsPipeline_` | C | `write_live_card_heights` | 4 / 4 / 2 | 3 / 3 / 3 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 0 | 4 | 1 | 0 |
+| Live Card Resolve (2D) | `liveCardResolvePipeline_` | C | `write_live_card_resolve` | 4 / 4 / 0 | 3 / 3 / 1 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 1 | 4 | 1 | 0 |
+| Orb Init | `orbInitPipeline_` | C | `orb_init` | 4 / 4 / 1 | 4 / 4 / 1 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Orb Dynamics | `orbDynamicsPipeline_` | C | `orb_dynamics` | 4 / 4 / 2 | 4 / 4 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Orb Recolor | `orbRecolorPipeline_` | C | `orb_recolor` | 4 / 4 / 1 | 4 / 4 / 1 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Orb State Prev Copy | `orbCopyPrevPipeline_` | C | `orb_state_prev_copy` | 4 / 4 / 1 | 4 / 4 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| GoL Zone Sync | `zoneGolSyncPipeline_` | C | `zone_gol_sync` | 4 / 4 / 0 | 3 / 3 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 0 | 4 | 1 | 0 |
+| GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | `zone_gol_evolve` | 4 / 4 / 1 | 3 / 3 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 1 | 4 | 1 | 0 |
+| Zone Derive Params | `zoneDeriveParamsPipeline_` | C | `zone_derive_params` | 4 / 4 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 0 | 4 | 1 | 0 |
+| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | `zone_seed_mask` | 4 / 4 / 3 | 3 / 3 / 2 | 0 / 0 / 0 | 2 / 2 / 0 | 2 / 2 / 0 | 4 | 1 | 0 |
+| Arch Mesh Gen | `archMeshGenPipeline_` | C | `arch_mesh_gen` | 4 / 4 / 0 | 4 / 4 / 3 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Column Mesh Gen | `columnMeshGenPipeline_` | C | `column_mesh_gen` | 4 / 4 / 1 | 4 / 4 / 4 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Palm Mesh Gen | `palmMeshGenPipeline_` | C | `palm_mesh_gen` | 4 / 4 / 0 | 4 / 4 / 3 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | `cactus_mesh_gen` | 4 / 4 / 0 | 4 / 4 / 3 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Blade Mesh Gen | `bladeMeshGenPipeline_` | C | `blade_cluster_mesh_gen` | 4 / 4 / 0 | 4 / 4 / 3 | 0 / 0 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | `patch_terrain_vs` | 7 / 7 / 1 | 6 / 6 / 4 | 4 / 4 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | `patch_terrain_fs` | 4 / 4 / 4 | 4 / 4 / 4 | 6 / 6 / 6 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | `patch_terrain_vs` | 7 / 7 / 1 | 6 / 6 / 4 | 4 / 4 / 3 | 2 / 2 / 2 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | `patch_terrain_fs` | 4 / 4 / 4 | 4 / 4 / 4 | 6 / 6 / 6 | 3 / 3 / 3 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | `pawn_vs` | 7 / 7 / 3 | 6 / 6 / 2 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | `sphere_vs` | 7 / 7 / 2 | 6 / 6 / 1 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | `monolith_vs` | 7 / 7 / 2 | 6 / 6 / 1 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Catenary Arch (Rasterized) | `archPipeline_` | V | `arch_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Catenary Arch (Rasterized) | `archPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Generative Column (Rasterized) | `columnPipeline_` | V | `column_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Generative Column (Rasterized) | `columnPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Palm Tree (Rasterized) | `palmPipeline_` | V | `palm_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Palm Tree (Rasterized) | `palmPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Cactus (Rasterized) | `cactusPipeline_` | V | `cactus_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Cactus (Rasterized) | `cactusPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | V | `blade_cluster_vs` | 7 / 7 / 1 | 6 / 6 / 1 | 4 / 4 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | `shell_vs` | 7 / 7 / 0 | 6 / 6 / 1 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | `entity_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | `ribbon_vs` | 7 / 7 / 1 | 6 / 6 / 2 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Sky Ribbon Entity | `ribbonPipeline_` | F | `ribbon_fs` | 4 / 4 / 2 | 4 / 4 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | `orb_vs` | 7 / 7 / 0 | 6 / 6 / 2 | 4 / 4 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Orb Sky Layer | `orbRenderPipeline_` | F | `orb_fs` | 4 / 4 / 0 | 4 / 4 / 0 | 6 / 6 / 0 | 3 / 3 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Gallery Frame | `galleryFramePipeline_` | V | `gallery_frame_vs` | 3 / 3 / 1 | 3 / 3 / 2 | 1 / 1 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Gallery Frame | `galleryFramePipeline_` | F | `gallery_frame_fs` | 3 / 3 / 1 | 3 / 3 / 1 | 1 / 1 / 1 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | `wall_painting_vs` | 3 / 3 / 1 | 3 / 3 / 2 | 1 / 1 / 1 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | `wall_painting_canvas_fs` | 3 / 3 / 1 | 3 / 3 / 2 | 1 / 1 / 1 | 3 / 3 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Wall Painting Frame | `wallPaintingFramePipeline_` | V | `wall_painting_vs` | 3 / 3 / 1 | 3 / 3 / 2 | 1 / 1 / 1 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Wall Painting Frame | `wallPaintingFramePipeline_` | F | `wall_painting_frame_fs` | 3 / 3 / 1 | 3 / 3 / 1 | 1 / 1 / 0 | 3 / 3 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | `shadow_patch_terrain_vs` | 6 / 6 / 3 | 6 / 6 / 3 | 3 / 3 / 2 | 2 / 2 / 2 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | `shadow_pawn_vs` | 6 / 6 / 3 | 6 / 6 / 2 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | `shadow_sphere_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | `shadow_monolith_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | `shadow_arch_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | `shadow_column_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | `shadow_palm_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | `shadow_cactus_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | `shadow_blade_cluster_vs` | 6 / 6 / 3 | 6 / 6 / 1 | 3 / 3 / 2 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | `shadow_shell_vs` | 6 / 6 / 2 | 6 / 6 / 1 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | `shadow_ribbon_vs` | 6 / 6 / 3 | 6 / 6 / 2 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | `shadow_gallery_frame_vs` | 6 / 6 / 3 | 6 / 6 / 2 | 3 / 3 / 0 | 2 / 2 / 0 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | `shadow_wall_painting_vs` | 6 / 6 / 3 | 6 / 6 / 2 | 3 / 3 / 1 | 2 / 2 / 1 | 0 / 0 / 0 | 4 | 1 | 0 |
+| Fade Overlay | `fadeOverlayPipeline_` | V | `fade_overlay_vs` | 1 / 1 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 4 | 0 | 0 |
+| Fade Overlay | `fadeOverlayPipeline_` | F | `fade_overlay_fs` | 2 / 2 / 1 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 4 | 0 | 0 |
 
-Tightest row: **Shadow Gallery Frame / V** at storage **7 of 8**, and `actual` reads 7 there too —
+Tightest row: **Update Player Agent (0D, 1 thread) / C** at uniform **11 of 12**, and `actual` reads 11 there too —
 an A1 sweep buys nothing on the row that has no margin.
 
 The rows in bold are at their limit exactly. Groups bound per pipeline
@@ -508,6 +478,7 @@ change.
 
 | layout | # | symbol | kind | slot | vis_declared | vis_actual | **vis_delta** | slots freed, per stage | reached by |
 |---|---|---|---|---|---|---|---|---|---|
+| Cull State Layout | 4 | `vp_data` | buffer | storage | `C` | `-` | `C` | C: 1 storage | — nothing |
 
 ### A2 — DEMOTABLE (storage → uniform)
 
@@ -522,30 +493,28 @@ only where the binding is a window onto a shared buffer.
 
 | layout | # | symbol | wgsl_type | bytes ≤ 65536 | ReadOnlyStorage | wgsl read | no runtime array | uniform_legal | **verdict** | element_type_required | same slot bound elsewhere as |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Arch Mesh Gen Layout | 0 | `amg_params` | `array<ArchMeshParams, 16>` | yes (1280) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Blade Mesh Gen Layout | 0 | `bladeg_params` | `array<BladeClusterMeshParams, 32>` | yes (2560) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Cactus Mesh Gen Layout | 0 | `cactusg_params` | `array<CactusMeshParams, 20>` | yes (2560) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Column Mesh Gen Layout | 0 | `cmg_params` | `array<ColumnMeshParams, 32>` | yes (4096) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Column Mesh Gen Layout | 4 | `cmg_column_ground` | `array<ColumnGroundEntry, 32>` | yes (1024) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Frustum Cull Compute Layout | 1 | `fc_vp` | `VPMatrix` | yes (128) | yes | yes | yes | yes | **CANDIDATE** | none needed | Storage in Compute Entity Layout |
-| Gallery Entity Layout | 1 | `render_vp` | `VPMatrix` | yes (128) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Gallery Entity Layout | 2 | `render_camera` | `CameraState` | yes (48) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Gallery Texture Layout | 0 | `painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | yes (36864) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Palm Mesh Gen Layout | 0 | `palmg_params` | `array<PalmMeshParams, 24>` | yes (3072) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Render Entity Layout | 1 | `render_vp` | `VPMatrix` | yes (128) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Render Entity Layout | 2 | `render_agents` | `array<AgentState, 32>` | yes (3072) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Render Entity Layout | 3 | `render_camera` | `CameraState` | yes (48) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Render Entity Layout | 8 | `render_ring_xforms` | `array<RibbonRingTransform, 400>` | yes (19200) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Render Texture Layout | 8 | `zone_params` | `GoLZoneArray` | yes (656) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Ribbon Compute Layout | 2 | `head_poses` | `array<vec4<f32>, 400>` | yes (6400) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
-| Compute Entity Layout | 9 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
-| Entity Placement Compute Layout | 8 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
-| Frustum Cull Compute Layout | 2 | `patch_instances` | `array<PatchInstance>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
-| Orb Compute Layout | 2 | `orb_state_prev` | `array<OrbState>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
-| Orb Copy Layout | 0 | `orb_state_ro` | `array<OrbState>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
-| Photographer Compute Layout | 7 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
-| Render Entity Layout | 6 | `patch_instances` | `array<PatchInstance>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
-| Render Entity Layout | 11 | `visible_patch_indices` | `array<u32>` | **no** (—) | yes | yes | **no** | **no** | no | element u32 has stride 4 B; uniform needs a multiple of 16 — widen to vec4<u32> (÷4 the count) or wrap in a @size(16) struct | — |
+| Frame Layout | 3 | `render_vp` | `VPMatrix` | yes (128) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Frame Layout | 4 | `render_camera` | `CameraState` | yes (48) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Gallery State Layout | 2 | `painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | yes (36864) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Meshgen State Layout | 0 | `cmg_column_ground` | `array<ColumnGroundEntry, 32>` | yes (1024) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Meshgen State Layout | 1 | `amg_params` | `array<ArchMeshParams, 16>` | yes (1280) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Ribbon State Layout | 2 | `head_poses` | `array<vec4<f32>, 400>` | yes (6400) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Scene State Layout | 1 | `render_agents` | `array<AgentState, 32>` | yes (3072) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Scene State Layout | 5 | `zone_params` | `GoLZoneArray` | yes (656) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Scene State Layout | 6 | `render_ring_xforms` | `array<RibbonRingTransform, 400>` | yes (19200) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Shadow State Layout | 0 | `render_agents` | `array<AgentState, 32>` | yes (3072) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Shadow State Layout | 3 | `painting_slots` | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | yes (36864) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Shadow State Layout | 4 | `render_ring_xforms` | `array<RibbonRingTransform, 400>` | yes (19200) | yes | yes | yes | yes | **CANDIDATE** | none needed | — |
+| Agents State Layout | 11 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
+| Cull State Layout | 1 | `patch_instances` | `array<PatchInstance>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
+| Frame K State Layout | 2 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
+| Gallery State Layout | 1 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
+| Orbs State Layout | 2 | `orb_state_prev` | `array<OrbState>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
+| Orbs State Layout | 3 | `orb_state_ro` | `array<OrbState>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
+| Place State Layout | 0 | `patch_grid` | `PatchGrid` | **no** (—) | yes | yes | **no** | **no** | no | in PatchGrid.entries: runtime-sized array is not permitted in the uniform address space; in PatchGrid.entries: array element stride 4 B is not a multiple of 16 (element u32: align 4, size 4) | — |
+| Scene State Layout | 3 | `patch_instances` | `array<PatchInstance>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
+| Scene State Layout | 4 | `visible_patch_indices` | `array<u32>` | **no** (—) | yes | yes | **no** | **no** | no | element u32 has stride 4 B; uniform needs a multiple of 16 — widen to vec4<u32> (÷4 the count) or wrap in a @size(16) struct | — |
+| Shadow State Layout | 2 | `patch_instances` | `array<PatchInstance>` | **no** (—) | yes | yes | **no** | **no** | no | runtime-sized array is not permitted in the uniform address space | — |
 
 A demotion also **spends a uniform slot to save a storage one**, so an A2
 row only helps where the same `(pipeline, stage)` has uniform margin. Read
@@ -562,9 +531,11 @@ Dead binding surface. **Every row states the demo column it was censused
 under**, because a flag on a binding reached only under a column not
 censused would be a false positive.
 
-None.
+| kind | what | demo column | evidence |
+|---|---|---|---|
+| layout entry no reachable code touches in any pipeline that binds it | Cull State Layout entries[4] vp_data (declares C) | `full` | bound by 1 pipeline(s): Frustum Cull Patches; reached by none of their entry points |
 
-No registry constant lacks a WGSL mirror — 95 constants, 95 slots, one to
+No registry constant lacks a WGSL mirror — 83 constants, 83 slots, one to
 one. No WGSL declaration goes unreached by every entry point. No bind group
 layout goes unbound by every pipeline. Every layout entry's
 `(group, binding)` resolves to an access-compatible WGSL declaration.
@@ -594,24 +565,21 @@ what makes them computable. The judgment cells stay empty.
 
 | queued item | fusion barred? | can leave the storage wallet? | site defended? | demand | what it buys | what it costs | ruling |
 |---|---|---|---|---|---|---|---|
-| A2 demotion — `render_vp` @group(0) @binding(201) in Render Entity Layout (128 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `render_agents` @group(0) @binding(260) in Render Entity Layout (3072 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `render_camera` @group(0) @binding(280) in Render Entity Layout (48 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `render_ring_xforms` @group(0) @binding(361) in Render Entity Layout (19200 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `zone_params` @group(1) @binding(32) in Render Texture Layout (656 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `head_poses` @group(0) @binding(122) in Ribbon Compute Layout (6400 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `render_vp` @group(0) @binding(201) in Gallery Entity Layout (128 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `render_camera` @group(0) @binding(280) in Gallery Entity Layout (48 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `painting_slots` @group(1) @binding(50) in Gallery Texture Layout (36864 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `fc_vp` @group(0) @binding(2) in Frustum Cull Compute Layout (128 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `amg_params` @group(0) @binding(193) in Arch Mesh Gen Layout (1280 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `cmg_params` @group(0) @binding(196) in Column Mesh Gen Layout (4096 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `cmg_column_ground` @group(0) @binding(191) in Column Mesh Gen Layout (1024 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `palmg_params` @group(0) @binding(180) in Palm Mesh Gen Layout (3072 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `cactusg_params` @group(0) @binding(183) in Cactus Mesh Gen Layout (2560 B) | n/a | no | no |  |  |  |  |
-| A2 demotion — `bladeg_params` @group(0) @binding(186) in Blade Mesh Gen Layout (2560 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `render_vp` @group(1) @binding(3) in Frame Layout (128 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `render_camera` @group(1) @binding(4) in Frame Layout (48 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `painting_slots` @group(2) @binding(85) in Gallery State Layout (36864 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `cmg_column_ground` @group(2) @binding(84) in Meshgen State Layout (1024 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `amg_params` @group(2) @binding(180) in Meshgen State Layout (1280 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `head_poses` @group(2) @binding(142) in Ribbon State Layout (6400 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `render_agents` @group(2) @binding(5) in Scene State Layout (3072 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `zone_params` @group(2) @binding(104) in Scene State Layout (656 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `render_ring_xforms` @group(2) @binding(143) in Scene State Layout (19200 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `render_agents` @group(2) @binding(5) in Shadow State Layout (3072 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `painting_slots` @group(2) @binding(85) in Shadow State Layout (36864 B) | n/a | no | no |  |  |  |  |
+| A2 demotion — `render_ring_xforms` @group(2) @binding(143) in Shadow State Layout (19200 B) | n/a | no | no |  |  |  |  |
+| A3 removal — Cull State Layout entries[4] vp_data (declares C) | n/a | no | no |  |  |  |  |
 | Vertex-buffer move — `visible_patch_indices` (instance-step, stride 4 B); the only wallet that can hold a runtime-sized array | n/a | **yes**, vertex buffer | no |  |  |  |  |
-| The room family's storage stage stands at 6 of 8. Any new storage binding reachable from update_player_agent / update_other_agents / update_sphere / update_cube needs a demotion to pay for it. | **yes** — `agent_state`, `floating_entities` | no | **yes** — see Table H |  |  |  |  |
+| The room family's storage stage stands at 0 of 8. Any new storage binding reachable from update_player_agent / update_other_agents / update_sphere / update_cube needs a demotion to pay for it. | **yes** — `agent_state`, `floating_entities` | no | **yes** — see Table H |  |  |  |  |
 
 ## Table E — RAW hazards, and what they bar
 
@@ -624,13 +592,30 @@ fusing that pair, regardless of any other argument.
 
 Restricted to FUSION-ELIGIBLE ordered pairs: a fused kernel has ONE
 pipeline layout, so only compute entry points whose pipelines carry
-identical group layouts could ever be fused. 32 such ordered pairs, of 29
+identical group layouts could ever be fused. 82 such ordered pairs, of 29
 compute entry points. The unrestricted matrix is 812 ordered pairs with 47
 non-empty intersections; the restriction hides nothing, it removes pairs
 that could not be fused for a different reason.
 
 | write(A) | read(B) | bindings in write(A) ∩ read(B) | verdict |
 |---|---|---|---|
+| `arch_mesh_gen` | `blade_cluster_mesh_gen` | — | no hazard on this ordering |
+| `arch_mesh_gen` | `cactus_mesh_gen` | — | no hazard on this ordering |
+| `arch_mesh_gen` | `column_mesh_gen` | — | no hazard on this ordering |
+| `arch_mesh_gen` | `palm_mesh_gen` | — | no hazard on this ordering |
+| `blade_cluster_mesh_gen` | `arch_mesh_gen` | — | no hazard on this ordering |
+| `blade_cluster_mesh_gen` | `cactus_mesh_gen` | — | no hazard on this ordering |
+| `blade_cluster_mesh_gen` | `column_mesh_gen` | — | no hazard on this ordering |
+| `blade_cluster_mesh_gen` | `palm_mesh_gen` | — | no hazard on this ordering |
+| `cactus_mesh_gen` | `arch_mesh_gen` | — | no hazard on this ordering |
+| `cactus_mesh_gen` | `blade_cluster_mesh_gen` | — | no hazard on this ordering |
+| `cactus_mesh_gen` | `column_mesh_gen` | — | no hazard on this ordering |
+| `cactus_mesh_gen` | `palm_mesh_gen` | — | no hazard on this ordering |
+| `column_mesh_gen` | `arch_mesh_gen` | — | no hazard on this ordering |
+| `column_mesh_gen` | `blade_cluster_mesh_gen` | — | no hazard on this ordering |
+| `column_mesh_gen` | `cactus_mesh_gen` | — | no hazard on this ordering |
+| `column_mesh_gen` | `palm_mesh_gen` | — | no hazard on this ordering |
+| `compute_vp` | `update_camera` | — | no hazard on this ordering |
 | `generate_patch_cells` | `generate_patch_gradients` | — | no hazard on this ordering |
 | `generate_patch_cells` | `generate_patch_heights` | — | no hazard on this ordering |
 | `generate_patch_gradients` | `generate_patch_cells` | — | no hazard on this ordering |
@@ -639,10 +624,21 @@ that could not be fused for a different reason.
 | `generate_patch_heights` | `generate_patch_gradients` | `patch_height_scratch` | **BARRED** |
 | `orb_dynamics` | `orb_init` | — | no hazard on this ordering |
 | `orb_dynamics` | `orb_recolor` | `orb_state` | **BARRED** |
+| `orb_dynamics` | `orb_state_prev_copy` | — | no hazard on this ordering |
 | `orb_init` | `orb_dynamics` | `orb_state` | **BARRED** |
 | `orb_init` | `orb_recolor` | `orb_state` | **BARRED** |
+| `orb_init` | `orb_state_prev_copy` | — | no hazard on this ordering |
 | `orb_recolor` | `orb_dynamics` | `orb_state` | **BARRED** |
 | `orb_recolor` | `orb_init` | — | no hazard on this ordering |
+| `orb_recolor` | `orb_state_prev_copy` | — | no hazard on this ordering |
+| `orb_state_prev_copy` | `orb_dynamics` | — | no hazard on this ordering |
+| `orb_state_prev_copy` | `orb_init` | — | no hazard on this ordering |
+| `orb_state_prev_copy` | `orb_recolor` | — | no hazard on this ordering |
+| `palm_mesh_gen` | `arch_mesh_gen` | — | no hazard on this ordering |
+| `palm_mesh_gen` | `blade_cluster_mesh_gen` | — | no hazard on this ordering |
+| `palm_mesh_gen` | `cactus_mesh_gen` | — | no hazard on this ordering |
+| `palm_mesh_gen` | `column_mesh_gen` | — | no hazard on this ordering |
+| `update_camera` | `compute_vp` | `camera_state` | **BARRED** |
 | `update_cube` | `update_other_agents` | `floating_entities` | **BARRED** |
 | `update_cube` | `update_player_agent` | `floating_entities` | **BARRED** |
 | `update_cube` | `update_sphere` | `floating_entities` | **BARRED** |
@@ -656,13 +652,35 @@ that could not be fused for a different reason.
 | `update_sphere` | `update_other_agents` | `floating_entities` | **BARRED** |
 | `update_sphere` | `update_player_agent` | `floating_entities` | **BARRED** |
 | `write_live_card_heights` | `write_live_card_resolve` | `live_card_scratch` | **BARRED** |
+| `write_live_card_heights` | `zone_derive_params` | — | no hazard on this ordering |
+| `write_live_card_heights` | `zone_gol_evolve` | — | no hazard on this ordering |
+| `write_live_card_heights` | `zone_gol_sync` | — | no hazard on this ordering |
+| `write_live_card_heights` | `zone_seed_mask` | — | no hazard on this ordering |
 | `write_live_card_resolve` | `write_live_card_heights` | — | no hazard on this ordering |
+| `write_live_card_resolve` | `zone_derive_params` | — | no hazard on this ordering |
+| `write_live_card_resolve` | `zone_gol_evolve` | — | no hazard on this ordering |
+| `write_live_card_resolve` | `zone_gol_sync` | — | no hazard on this ordering |
+| `write_live_card_resolve` | `zone_seed_mask` | — | no hazard on this ordering |
+| `zone_derive_params` | `write_live_card_heights` | `zone_config` | **BARRED** |
+| `zone_derive_params` | `write_live_card_resolve` | — | no hazard on this ordering |
 | `zone_derive_params` | `zone_gol_evolve` | `zone_config` | **BARRED** |
 | `zone_derive_params` | `zone_gol_sync` | `zone_config` | **BARRED** |
+| `zone_derive_params` | `zone_seed_mask` | `zone_config` | **BARRED** |
+| `zone_gol_evolve` | `write_live_card_heights` | `zone_life` | **BARRED** |
+| `zone_gol_evolve` | `write_live_card_resolve` | — | no hazard on this ordering |
 | `zone_gol_evolve` | `zone_derive_params` | — | no hazard on this ordering |
 | `zone_gol_evolve` | `zone_gol_sync` | `zone_life` | **BARRED** |
+| `zone_gol_evolve` | `zone_seed_mask` | `zone_life` | **BARRED** |
+| `zone_gol_sync` | `write_live_card_heights` | `zone_life` | **BARRED** |
+| `zone_gol_sync` | `write_live_card_resolve` | — | no hazard on this ordering |
 | `zone_gol_sync` | `zone_derive_params` | — | no hazard on this ordering |
 | `zone_gol_sync` | `zone_gol_evolve` | `zone_life` | **BARRED** |
+| `zone_gol_sync` | `zone_seed_mask` | `zone_life` | **BARRED** |
+| `zone_seed_mask` | `write_live_card_heights` | `zone_life` | **BARRED** |
+| `zone_seed_mask` | `write_live_card_resolve` | — | no hazard on this ordering |
+| `zone_seed_mask` | `zone_derive_params` | — | no hazard on this ordering |
+| `zone_seed_mask` | `zone_gol_evolve` | `zone_life` | **BARRED** |
+| `zone_seed_mask` | `zone_gol_sync` | `zone_life` | **BARRED** |
 
 ### The unordered closure — and why the ordered table alone is the wrong question
 
@@ -674,8 +692,26 @@ hazard-free, so the ordered table has to be asked twice and closed.
 
 | unordered pair | fusable on RAW? | barred direction(s) |
 |---|---|---|
+| {`arch_mesh_gen`, `blade_cluster_mesh_gen`} | **yes** | — |
+| {`arch_mesh_gen`, `cactus_mesh_gen`} | **yes** | — |
+| {`arch_mesh_gen`, `column_mesh_gen`} | **yes** | — |
+| {`arch_mesh_gen`, `palm_mesh_gen`} | **yes** | — |
+| {`blade_cluster_mesh_gen`, `cactus_mesh_gen`} | **yes** | — |
+| {`blade_cluster_mesh_gen`, `column_mesh_gen`} | **yes** | — |
+| {`blade_cluster_mesh_gen`, `palm_mesh_gen`} | **yes** | — |
+| {`cactus_mesh_gen`, `column_mesh_gen`} | **yes** | — |
+| {`cactus_mesh_gen`, `palm_mesh_gen`} | **yes** | — |
+| {`column_mesh_gen`, `palm_mesh_gen`} | **yes** | — |
 | {`generate_patch_cells`, `generate_patch_gradients`} | **yes** | — |
 | {`generate_patch_cells`, `generate_patch_heights`} | **yes** | — |
+| {`orb_dynamics`, `orb_state_prev_copy`} | **yes** | — |
+| {`orb_init`, `orb_state_prev_copy`} | **yes** | — |
+| {`orb_recolor`, `orb_state_prev_copy`} | **yes** | — |
+| {`write_live_card_resolve`, `zone_derive_params`} | **yes** | — |
+| {`write_live_card_resolve`, `zone_gol_evolve`} | **yes** | — |
+| {`write_live_card_resolve`, `zone_gol_sync`} | **yes** | — |
+| {`write_live_card_resolve`, `zone_seed_mask`} | **yes** | — |
+| {`compute_vp`, `update_camera`} | no | `update_camera -> compute_vp` on camera_state |
 | {`generate_patch_gradients`, `generate_patch_heights`} | no | `generate_patch_heights -> generate_patch_gradients` on patch_height_scratch |
 | {`orb_dynamics`, `orb_init`} | no | `orb_init -> orb_dynamics` on orb_state |
 | {`orb_dynamics`, `orb_recolor`} | no | `orb_dynamics -> orb_recolor` on orb_state; `orb_recolor -> orb_dynamics` on orb_state |
@@ -687,11 +723,18 @@ hazard-free, so the ordered table has to be asked twice and closed.
 | {`update_other_agents`, `update_sphere`} | no | `update_other_agents -> update_sphere` on agent_state, field_forces; `update_sphere -> update_other_agents` on floating_entities |
 | {`update_player_agent`, `update_sphere`} | no | `update_player_agent -> update_sphere` on agent_state; `update_sphere -> update_player_agent` on floating_entities |
 | {`write_live_card_heights`, `write_live_card_resolve`} | no | `write_live_card_heights -> write_live_card_resolve` on live_card_scratch |
+| {`write_live_card_heights`, `zone_derive_params`} | no | `zone_derive_params -> write_live_card_heights` on zone_config |
+| {`write_live_card_heights`, `zone_gol_evolve`} | no | `zone_gol_evolve -> write_live_card_heights` on zone_life |
+| {`write_live_card_heights`, `zone_gol_sync`} | no | `zone_gol_sync -> write_live_card_heights` on zone_life |
+| {`write_live_card_heights`, `zone_seed_mask`} | no | `zone_seed_mask -> write_live_card_heights` on zone_life |
 | {`zone_derive_params`, `zone_gol_evolve`} | no | `zone_derive_params -> zone_gol_evolve` on zone_config |
 | {`zone_derive_params`, `zone_gol_sync`} | no | `zone_derive_params -> zone_gol_sync` on zone_config |
+| {`zone_derive_params`, `zone_seed_mask`} | no | `zone_derive_params -> zone_seed_mask` on zone_config |
 | {`zone_gol_evolve`, `zone_gol_sync`} | no | `zone_gol_evolve -> zone_gol_sync` on zone_life; `zone_gol_sync -> zone_gol_evolve` on zone_life |
+| {`zone_gol_evolve`, `zone_seed_mask`} | no | `zone_gol_evolve -> zone_seed_mask` on zone_life; `zone_seed_mask -> zone_gol_evolve` on zone_life |
+| {`zone_gol_sync`, `zone_seed_mask`} | no | `zone_gol_sync -> zone_seed_mask` on zone_life; `zone_seed_mask -> zone_gol_sync` on zone_life |
 
-16 unordered pairs; **2 survive RAW in both directions**.
+41 unordered pairs; **19 survive RAW in both directions**.
 
 ### The second gate: cadence
 
@@ -702,8 +745,25 @@ survivors:
 
 | survivor pair | pipeline labels |
 |---|---|
+| {`arch_mesh_gen`, `blade_cluster_mesh_gen`} | Arch Mesh Gen / Blade Mesh Gen |
+| {`arch_mesh_gen`, `cactus_mesh_gen`} | Arch Mesh Gen / Cactus Mesh Gen |
+| {`arch_mesh_gen`, `column_mesh_gen`} | Arch Mesh Gen / Column Mesh Gen |
+| {`arch_mesh_gen`, `palm_mesh_gen`} | Arch Mesh Gen / Palm Mesh Gen |
+| {`blade_cluster_mesh_gen`, `cactus_mesh_gen`} | Blade Mesh Gen / Cactus Mesh Gen |
+| {`blade_cluster_mesh_gen`, `column_mesh_gen`} | Blade Mesh Gen / Column Mesh Gen |
+| {`blade_cluster_mesh_gen`, `palm_mesh_gen`} | Blade Mesh Gen / Palm Mesh Gen |
+| {`cactus_mesh_gen`, `column_mesh_gen`} | Cactus Mesh Gen / Column Mesh Gen |
+| {`cactus_mesh_gen`, `palm_mesh_gen`} | Cactus Mesh Gen / Palm Mesh Gen |
+| {`column_mesh_gen`, `palm_mesh_gen`} | Column Mesh Gen / Palm Mesh Gen |
 | {`generate_patch_cells`, `generate_patch_gradients`} | Generate Patch Cells (2D, on demand) / Generate Patch Gradients (2D, pass 2) |
 | {`generate_patch_cells`, `generate_patch_heights`} | Generate Patch Cells (2D, on demand) / Generate Patch Heights (2D, pass 1) |
+| {`orb_dynamics`, `orb_state_prev_copy`} | Orb Dynamics / Orb State Prev Copy |
+| {`orb_init`, `orb_state_prev_copy`} | Orb Init / Orb State Prev Copy |
+| {`orb_recolor`, `orb_state_prev_copy`} | Orb Recolor / Orb State Prev Copy |
+| {`write_live_card_resolve`, `zone_derive_params`} | Live Card Resolve (2D) / Zone Derive Params |
+| {`write_live_card_resolve`, `zone_gol_evolve`} | Live Card Resolve (2D) / GoL Zone Evolve |
+| {`write_live_card_resolve`, `zone_gol_sync`} | Live Card Resolve (2D) / GoL Zone Sync |
+| {`write_live_card_resolve`, `zone_seed_mask`} | Live Card Resolve (2D) / Zone Seed Mask (2D) |
 
 Every surviving pair couples an **on-demand** pass with a **per-frame**
 one. Fusing them would make the on-demand pass run every frame — a
@@ -997,16 +1057,16 @@ comment matches any of:
 |---|---|---|---|
 | `time-cost` | `\b\d+(?:\.\d+)?\s*(?:ms\|s\|sec\|secs\|second\|seconds\|min\|minute\|minutes)\b` | 7 | 0 |
 | `FXC` | `\bFXC\b` | 20 | 4 |
-| `law-ref` | `\bL\d+\b\|\b[A-Z_]{3,} LAW\b\|docs/LAWS\.md` | 54 | 23 |
+| `law-ref` | `\bL\d+\b\|\b[A-Z_]{3,} LAW\b\|docs/LAWS\.md` | 44 | 18 |
 | `measured` | `\bmeasured\b\|\bmeasurement\b` | 12 | 2 |
-| `witness` | `\bwitness\b` | 20 | 1 |
+| `witness` | `\bwitness\b` | 15 | 1 |
 | `hangs` | `\bhangs\b` | 0 — **prospective** | 0 |
 | `compile-time` | `\bcompile[ -]time\b` | 10 | 0 |
 | `landed-at` | `\blanded at\b` | 4 | 0 |
 | `regressed` | `\bregressed\b` | 0 — **prospective** | 0 |
 | `budget` | `\bbudget\b` | 7 | 1 |
-| `per-stage` | `\bper[- ]stage\b` | 8 | 1 |
-| `slot-cap` | `\b(?:storage\|uniform\|binding\|slot)[- ]?(?:buffer[- ]?)?(?:cap\|limit)\b` | 8 | 4 |
+| `per-stage` | `\bper[- ]stage\b` | 10 | 0 |
+| `slot-cap` | `\b(?:storage\|uniform\|binding\|slot)[- ]?(?:buffer[- ]?)?(?:cap\|limit)\b` | 15 | 8 |
 
 Site counts are the guard on this predicate (`W4-3`). Two triggers were
 ADDED to make the positive control pass, which is what a control is for —
@@ -1046,27 +1106,23 @@ one column that can.
 | symbol | kind | file | line (non-authoritative) | triggers | matched via |
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
-| `patch_params` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 41 | `law-ref` | A:proximity |
-| `patch_heightfield_array_write` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 42 | `law-ref` | A:proximity |
-| `tile_grid` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 43 | `law-ref`, `witness` | A:proximity, B:named |
-| `patch_cell_color_array_write` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 44 | `law-ref` | A:proximity |
-| `patch_height_scratch` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 45 | `law-ref` | A:proximity |
-| `pyramid_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 46 | `law-ref` | A:proximity |
-| `live_card_write` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 47 | `law-ref` | A:proximity |
-| `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 119 | `law-ref`, `witness` | A:proximity, B:named |
-| `orb_state` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 135 | `law-ref`, `witness` | A:proximity, B:named |
-| `orb_state_ro` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 138 | `law-ref`, `witness` | A:proximity, B:named |
-| `shadow_map` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 152 | `law-ref`, `witness` | A:proximity, B:named |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2321 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2324 | `measured` | A:proximity |
+| `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 89 | `law-ref` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2314 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2317 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Compute Entity Layout entries[10]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4531 | `budget`, `per-stage` | A:proximity |
-| `Render Entity Layout entries[12]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4614 | `per-stage`, `slot-cap` | A:proximity |
-| `Render Entity Layout entries[13]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4623 | `slot-cap` | A:proximity |
-| `Render Entity Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4643 | `slot-cap` | A:proximity, B:named |
-| `Mesh Gen Entity Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4661 | `per-stage` | A:proximity |
-| `The Room Layout entries[1]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5350 | `slot-cap` | A:proximity |
-| `The Room Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5358 | `slot-cap` | A:proximity |
+| `Agents State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4595 | `budget`, `per-stage` | A:proximity |
+| `Agents State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4607 | `slot-cap` | A:proximity |
+| `Agents State Layout entries[8]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4615 | `slot-cap` | A:proximity |
+| `Scene State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5106 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[1]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5110 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[2]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5114 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5118 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5141 | `slot-cap` | A:proximity |
+| `Scene State Layout entries[8]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5145 | `slot-cap` | A:proximity |
+| `Scene State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5150 | `slot-cap` | A:proximity |
+| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5247 | `slot-cap` | A:proximity |
+| `Shadow State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5251 | `slot-cap` | A:proximity |
+| `Shadow State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5256 | `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 260 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 407 | `law-ref` | A:proximity, B:named |
@@ -1122,109 +1178,109 @@ one column that can.
 
 ## Appendix 1 — the WGSL declaration table (0b-i)
 
-98 module-scope declarations over 95 `(group, binding)` slots. The three
+98 module-scope declarations over 83 `(group, binding)` slots. The three
 aliases share slots with an earlier declaration and are marked.
 
 | wgsl_symbol | group | binding | address_space | wgsl_access | wgsl_type | runtime_array | bytes | align | uniform_legal | alias of |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `signal` | 0 | 0 | uniform | n/a | `FrameSignal` | no | 80 | 4 | yes | — |
-| `config` | 0 | 1 | uniform | n/a | `DesignConfig` | no | 624 | 16 | yes | — |
-| `fc_config` | 0 | 1 | uniform | n/a | `DesignConfig` | no | 624 | 16 | yes | `config` |
-| `vp_data` | 0 | 2 | storage | read_write | `VPMatrix` | no | 128 | 16 | yes | — |
-| `fc_vp` | 0 | 2 | storage | read | `VPMatrix` | no | 128 | 16 | yes | `vp_data` |
-| `fc_draw_plan` | 0 | 22 | uniform | n/a | `DrawPlanParams` | no | 144 | 16 | yes | — |
-| `patch_params` | 0 | 23 | uniform | n/a | `PatchParams` | no | 32 | 8 | yes | — |
-| `patch_heightfield_array_write` | 0 | 24 | handle | n/a | `texture_storage_2d_array<rgba16float, write>` | no | — | — | yes | — |
-| `tile_grid` | 0 | 25 | uniform | n/a | `TileGrid` | no | 16400 | 4 | yes | — |
-| `patch_cell_color_array_write` | 0 | 27 | handle | n/a | `texture_storage_2d_array<rgba8unorm, write>` | no | — | — | yes | — |
-| `patch_height_scratch` | 0 | 28 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `pyramid_instances` | 0 | 30 | uniform | n/a | `PyramidArray` | no | 272 | 4 | yes | — |
-| `live_card_write` | 0 | 31 | handle | n/a | `texture_storage_2d<rgba16float, write>` | no | — | — | yes | — |
-| `live_card_scratch` | 0 | 32 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `agent_state` | 0 | 60 | storage | read_write | `array<AgentState, 32>` | no | 3072 | 4 | yes | — |
-| `portal_array` | 0 | 62 | uniform | n/a | `PortalArray` | no | 1040 | 4 | yes | — |
-| `camera_state` | 0 | 80 | storage | read_write | `CameraState` | no | 48 | 16 | yes | — |
-| `floating_entities` | 0 | 100 | storage | read_write | `FloatingEntityArray` | no | 54912 | 16 | yes | — |
-| `agent_behaviors` | 0 | 110 | uniform | n/a | `array<AgentBehaviorParams, 10>` | no | 320 | 4 | yes | — |
-| `agent_tier_gains` | 0 | 111 | uniform | n/a | `array<AgentTierParams, 4>` | no | 192 | 4 | yes | — |
-| `agent_figure_profiles` | 0 | 112 | uniform | n/a | `array<PawnFigure, 14>` | no | 4032 | 16 | yes | — |
-| `ribbon_state` | 0 | 120 | uniform | n/a | `RibbonState` | no | 112 | 16 | yes | — |
-| `ring_xforms` | 0 | 121 | storage | read_write | `array<RibbonRingTransform, 400>` | no | 19200 | 16 | yes | — |
-| `head_poses` | 0 | 122 | storage | read | `array<vec4<f32>, 400>` | no | 6400 | 16 | yes | — |
-| `photographer_config` | 0 | 140 | uniform | n/a | `PhotographerConfig` | no | 48 | 16 | yes | — |
-| `photographer_vp` | 0 | 141 | storage | read_write | `VPMatrix` | no | 128 | 16 | yes | — |
-| `photographer_camera_out` | 0 | 142 | storage | read_write | `CameraState` | no | 48 | 16 | yes | — |
-| `photo_painting_slots` | 0 | 143 | storage | read_write | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | no | 36864 | 16 | yes | — |
-| `photo_heightfield` | 0 | 145 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
-| `photo_sampler` | 0 | 146 | handle | n/a | `sampler` | no | — | — | yes | — |
-| `arch_ground` | 0 | 147 | storage | read_write | `array<ArchGroundEntry, 16>` | no | 512 | 4 | yes | — |
-| `column_ground` | 0 | 148 | storage | read_write | `array<ColumnGroundEntry, 32>` | no | 1024 | 4 | yes | — |
-| `plant_ground` | 0 | 150 | storage | read_write | `array<PalmGroundEntry, 76>` | no | 2432 | 4 | yes | — |
-| `entity_ground_atlas_write` | 0 | 151 | handle | n/a | `texture_storage_2d<r32float, write>` | no | — | — | yes | — |
-| `patch_grid` | 0 | 152 | storage | read | `PatchGrid` | yes | — | 4 | no | — |
-| `zone_config` | 0 | 160 | storage | read_write | `GoLZoneArray` | no | 656 | 8 | yes | — |
-| `zone_life` | 0 | 161 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `zone_life_tex_write` | 0 | 162 | handle | n/a | `texture_storage_2d_array<r32float, write>` | no | — | — | yes | — |
-| `zone_derive_requests` | 0 | 166 | uniform | n/a | `ZoneDeriveRequestArray` | no | 272 | 4 | yes | — |
-| `pawn_aura_cfg` | 0 | 170 | uniform | n/a | `PawnAuraConfig` | no | 64 | 4 | yes | — |
-| `pawn_aura_cells` | 0 | 171 | storage | read_write | `array<PawnAuraCell>` | yes | — | 4 | no | — |
-| `pawn_aura_tex_write` | 0 | 172 | handle | n/a | `texture_storage_2d<rgba16float, write>` | no | — | — | yes | — |
-| `palmg_params` | 0 | 180 | storage | read | `array<PalmMeshParams, 24>` | no | 3072 | 4 | yes | — |
-| `palmg_vertices` | 0 | 181 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `palmg_indices` | 0 | 182 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
-| `cactusg_params` | 0 | 183 | storage | read | `array<CactusMeshParams, 20>` | no | 2560 | 4 | yes | — |
-| `cactusg_vertices` | 0 | 184 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `cactusg_indices` | 0 | 185 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
-| `bladeg_params` | 0 | 186 | storage | read | `array<BladeClusterMeshParams, 32>` | no | 2560 | 4 | yes | — |
-| `bladeg_vertices` | 0 | 187 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `bladeg_indices` | 0 | 188 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
-| `cmg_config` | 0 | 190 | uniform | n/a | `DesignConfig` | no | 624 | 16 | yes | — |
-| `cmg_column_ground` | 0 | 191 | storage | read | `array<ColumnGroundEntry, 32>` | no | 1024 | 4 | yes | — |
-| `amg_params` | 0 | 193 | storage | read | `array<ArchMeshParams, 16>` | no | 1280 | 4 | yes | — |
-| `amg_vertices` | 0 | 194 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `amg_indices` | 0 | 195 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
-| `cmg_params` | 0 | 196 | storage | read | `array<ColumnMeshParams, 32>` | no | 4096 | 4 | yes | — |
-| `cmg_vertices` | 0 | 197 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
-| `cmg_indices` | 0 | 198 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
-| `render_vp` | 0 | 201 | storage | read | `VPMatrix` | no | 128 | 16 | yes | — |
-| `render_agents` | 0 | 260 | storage | read | `array<AgentState, 32>` | no | 3072 | 4 | yes | — |
-| `render_camera` | 0 | 280 | storage | read | `CameraState` | no | 48 | 16 | yes | — |
-| `render_floating` | 0 | 300 | uniform | n/a | `FloatingEntityArray` | no | 54912 | 16 | yes | — |
-| `render_lighting` | 0 | 320 | uniform | n/a | `Lighting` | no | 848 | 16 | yes | — |
-| `patch_instances` | 0 | 340 | storage | read | `array<PatchInstance>` | yes | — | 8 | no | — |
-| `fc_patches` | 0 | 340 | storage | read | `array<PatchInstance>` | yes | — | 8 | no | `patch_instances` |
-| `render_ribbon` | 0 | 360 | uniform | n/a | `RibbonState` | no | 112 | 16 | yes | — |
-| `render_ring_xforms` | 0 | 361 | storage | read | `array<RibbonRingTransform, 400>` | no | 19200 | 16 | yes | — |
-| `shadow_slot` | 0 | 362 | uniform | n/a | `ShadowSlot` | no | 16 | 4 | yes | — |
-| `entity_ground_atlas` | 0 | 390 | handle | n/a | `texture_2d<f32>` | no | — | — | yes | — |
-| `visible_patch_indices` | 0 | 391 | storage | read | `array<u32>` | yes | — | 4 | no | — |
-| `orb_state` | 0 | 410 | storage | read_write | `array<OrbState>` | yes | — | 16 | no | — |
-| `orb_config` | 0 | 411 | uniform | n/a | `OrbConfig` | no | 480 | 4 | yes | — |
-| `orb_state_prev` | 0 | 412 | storage | read | `array<OrbState>` | yes | — | 16 | no | — |
-| `orb_state_ro` | 0 | 413 | storage | read | `array<OrbState>` | yes | — | 16 | no | — |
-| `orb_state_prev_rw` | 0 | 414 | storage | read_write | `array<OrbState>` | yes | — | 16 | no | — |
-| `fc_visible` | 0 | 500 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
-| `fc_indirect` | 0 | 501 | storage | read_write | `array<atomic<u32>, 15>` | no | 60 | 4 | no | — |
-| `bilinear_sampler` | 1 | 22 | handle | n/a | `sampler` | no | — | — | yes | — |
-| `nearest_sampler` | 1 | 23 | handle | n/a | `sampler` | no | — | — | yes | — |
-| `shadow_map` | 1 | 25 | handle | n/a | `texture_depth_2d` | no | — | — | yes | — |
-| `shadow_sampler` | 1 | 26 | handle | n/a | `sampler_comparison` | no | — | — | yes | — |
-| `spot_shadow_map` | 1 | 27 | handle | n/a | `texture_depth_2d` | no | — | — | yes | — |
-| `patch_heightfield_array_read` | 1 | 28 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
-| `patch_cell_color_array_read` | 1 | 29 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
-| `zone_life_read` | 1 | 31 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
-| `zone_params` | 1 | 32 | storage | read | `GoLZoneArray` | no | 656 | 8 | yes | — |
-| `pawn_aura_read` | 1 | 33 | handle | n/a | `texture_2d<f32>` | no | — | — | yes | — |
-| `live_card_read` | 1 | 34 | handle | n/a | `texture_2d<f32>` | no | — | — | yes | — |
-| `painting_slots` | 1 | 50 | storage | read | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | no | 36864 | 16 | yes | — |
-| `painting_array` | 1 | 51 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
-| `painting_sampler_filt` | 1 | 52 | handle | n/a | `sampler` | no | — | — | yes | — |
-| `occupier_cmg` | 2 | 0 | uniform | n/a | `array<ColumnMeshParams, 32>` | no | 4096 | 4 | yes | — |
-| `occupier_amg` | 2 | 1 | uniform | n/a | `array<ArchMeshParams, 16>` | no | 1280 | 4 | yes | — |
-| `field_head_poses` | 2 | 2 | uniform | n/a | `array<vec4<f32>, 400>` | no | 6400 | 16 | yes | — |
-| `field_forces` | 2 | 3 | storage | read_write | `array<vec4<f32>, FIELD_SUBSCRIBERS>` | no | 4736 | 16 | yes | — |
-| `field_ribbon` | 2 | 4 | uniform | n/a | `RibbonState` | no | 112 | 16 | yes | — |
-| `field_authored` | 2 | 5 | uniform | n/a | `FieldAuthored` | no | 144 | 16 | yes | — |
+| `config` | 0 | 0 | uniform | n/a | `DesignConfig` | no | 624 | 16 | yes | — |
+| `fc_config` | 0 | 0 | uniform | n/a | `DesignConfig` | no | 624 | 16 | yes | `config` |
+| `tile_grid` | 0 | 1 | uniform | n/a | `TileGrid` | no | 16400 | 4 | yes | — |
+| `signal` | 1 | 0 | uniform | n/a | `FrameSignal` | no | 80 | 4 | yes | — |
+| `render_lighting` | 1 | 1 | uniform | n/a | `Lighting` | no | 848 | 16 | yes | — |
+| `shadow_slot` | 1 | 2 | uniform | n/a | `ShadowSlot` | no | 16 | 4 | yes | — |
+| `render_vp` | 1 | 3 | storage | read | `VPMatrix` | no | 128 | 16 | yes | — |
+| `render_camera` | 1 | 4 | storage | read | `CameraState` | no | 48 | 16 | yes | — |
+| `bilinear_sampler` | 1 | 5 | handle | n/a | `sampler` | no | — | — | yes | — |
+| `nearest_sampler` | 1 | 6 | handle | n/a | `sampler` | no | — | — | yes | — |
+| `agent_state` | 2 | 0 | storage | read_write | `array<AgentState, 32>` | no | 3072 | 4 | yes | — |
+| `portal_array` | 2 | 1 | uniform | n/a | `PortalArray` | no | 1040 | 4 | yes | — |
+| `floating_entities` | 2 | 2 | storage | read_write | `FloatingEntityArray` | no | 54912 | 16 | yes | — |
+| `agent_behaviors` | 2 | 3 | uniform | n/a | `array<AgentBehaviorParams, 10>` | no | 320 | 4 | yes | — |
+| `agent_tier_gains` | 2 | 4 | uniform | n/a | `array<AgentTierParams, 4>` | no | 192 | 4 | yes | — |
+| `render_agents` | 2 | 5 | storage | read | `array<AgentState, 32>` | no | 3072 | 4 | yes | — |
+| `render_floating` | 2 | 6 | uniform | n/a | `FloatingEntityArray` | no | 54912 | 16 | yes | — |
+| `occupier_cmg` | 2 | 7 | uniform | n/a | `array<ColumnMeshParams, 32>` | no | 4096 | 4 | yes | — |
+| `occupier_amg` | 2 | 8 | uniform | n/a | `array<ArchMeshParams, 16>` | no | 1280 | 4 | yes | — |
+| `field_head_poses` | 2 | 9 | uniform | n/a | `array<vec4<f32>, 400>` | no | 6400 | 16 | yes | — |
+| `field_forces` | 2 | 10 | storage | read_write | `array<vec4<f32>, FIELD_SUBSCRIBERS>` | no | 4736 | 16 | yes | — |
+| `field_ribbon` | 2 | 11 | uniform | n/a | `RibbonState` | no | 112 | 16 | yes | — |
+| `field_authored` | 2 | 12 | uniform | n/a | `FieldAuthored` | no | 144 | 16 | yes | — |
+| `pawn_aura_cfg` | 2 | 20 | uniform | n/a | `PawnAuraConfig` | no | 64 | 4 | yes | — |
+| `pawn_aura_cells` | 2 | 21 | storage | read_write | `array<PawnAuraCell>` | yes | — | 4 | no | — |
+| `patch_params` | 2 | 40 | uniform | n/a | `PatchParams` | no | 32 | 8 | yes | — |
+| `patch_height_scratch` | 2 | 41 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
+| `pyramid_instances` | 2 | 42 | uniform | n/a | `PyramidArray` | no | 272 | 4 | yes | — |
+| `patch_grid` | 2 | 43 | storage | read | `PatchGrid` | yes | — | 4 | no | — |
+| `fc_draw_plan` | 2 | 60 | uniform | n/a | `DrawPlanParams` | no | 144 | 16 | yes | — |
+| `patch_instances` | 2 | 61 | storage | read | `array<PatchInstance>` | yes | — | 8 | no | — |
+| `fc_patches` | 2 | 61 | storage | read | `array<PatchInstance>` | yes | — | 8 | no | `patch_instances` |
+| `visible_patch_indices` | 2 | 62 | storage | read | `array<u32>` | yes | — | 4 | no | — |
+| `fc_visible` | 2 | 63 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
+| `fc_indirect` | 2 | 64 | storage | read_write | `array<atomic<u32>, 15>` | no | 60 | 4 | no | — |
+| `photo_painting_slots` | 2 | 80 | storage | read_write | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | no | 36864 | 16 | yes | — |
+| `arch_ground` | 2 | 81 | storage | read_write | `array<ArchGroundEntry, 16>` | no | 512 | 4 | yes | — |
+| `column_ground` | 2 | 82 | storage | read_write | `array<ColumnGroundEntry, 32>` | no | 1024 | 4 | yes | — |
+| `plant_ground` | 2 | 83 | storage | read_write | `array<PalmGroundEntry, 76>` | no | 2432 | 4 | yes | — |
+| `cmg_column_ground` | 2 | 84 | storage | read | `array<ColumnGroundEntry, 32>` | no | 1024 | 4 | yes | — |
+| `painting_slots` | 2 | 85 | storage | read | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | no | 36864 | 16 | yes | — |
+| `live_card_scratch` | 2 | 100 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
+| `zone_config` | 2 | 101 | storage | read_write | `GoLZoneArray` | no | 656 | 8 | yes | — |
+| `zone_life` | 2 | 102 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
+| `zone_derive_requests` | 2 | 103 | uniform | n/a | `ZoneDeriveRequestArray` | no | 272 | 4 | yes | — |
+| `zone_params` | 2 | 104 | storage | read | `GoLZoneArray` | no | 656 | 8 | yes | — |
+| `orb_state` | 2 | 120 | storage | read_write | `array<OrbState>` | yes | — | 16 | no | — |
+| `orb_config` | 2 | 121 | uniform | n/a | `OrbConfig` | no | 480 | 4 | yes | — |
+| `orb_state_prev` | 2 | 122 | storage | read | `array<OrbState>` | yes | — | 16 | no | — |
+| `orb_state_ro` | 2 | 123 | storage | read | `array<OrbState>` | yes | — | 16 | no | — |
+| `orb_state_prev_rw` | 2 | 124 | storage | read_write | `array<OrbState>` | yes | — | 16 | no | — |
+| `ribbon_state` | 2 | 140 | uniform | n/a | `RibbonState` | no | 112 | 16 | yes | — |
+| `ring_xforms` | 2 | 141 | storage | read_write | `array<RibbonRingTransform, 400>` | no | 19200 | 16 | yes | — |
+| `head_poses` | 2 | 142 | storage | read | `array<vec4<f32>, 400>` | no | 6400 | 16 | yes | — |
+| `render_ring_xforms` | 2 | 143 | storage | read | `array<RibbonRingTransform, 400>` | no | 19200 | 16 | yes | — |
+| `photographer_config` | 2 | 160 | uniform | n/a | `PhotographerConfig` | no | 48 | 16 | yes | — |
+| `photographer_vp` | 2 | 161 | storage | read_write | `VPMatrix` | no | 128 | 16 | yes | — |
+| `photographer_camera_out` | 2 | 162 | storage | read_write | `CameraState` | no | 48 | 16 | yes | — |
+| `amg_params` | 2 | 180 | storage | read | `array<ArchMeshParams, 16>` | no | 1280 | 4 | yes | — |
+| `cmg_params` | 2 | 180 | storage | read | `array<ColumnMeshParams, 32>` | no | 4096 | 4 | yes | `amg_params` |
+| `palmg_params` | 2 | 180 | storage | read | `array<PalmMeshParams, 24>` | no | 3072 | 4 | yes | `amg_params` |
+| `cactusg_params` | 2 | 180 | storage | read | `array<CactusMeshParams, 20>` | no | 2560 | 4 | yes | `amg_params` |
+| `bladeg_params` | 2 | 180 | storage | read | `array<BladeClusterMeshParams, 32>` | no | 2560 | 4 | yes | `amg_params` |
+| `amg_vertices` | 2 | 181 | storage | read_write | `array<f32>` | yes | — | 4 | no | — |
+| `cmg_vertices` | 2 | 181 | storage | read_write | `array<f32>` | yes | — | 4 | no | `amg_vertices` |
+| `palmg_vertices` | 2 | 181 | storage | read_write | `array<f32>` | yes | — | 4 | no | `amg_vertices` |
+| `cactusg_vertices` | 2 | 181 | storage | read_write | `array<f32>` | yes | — | 4 | no | `amg_vertices` |
+| `bladeg_vertices` | 2 | 181 | storage | read_write | `array<f32>` | yes | — | 4 | no | `amg_vertices` |
+| `amg_indices` | 2 | 182 | storage | read_write | `array<u32>` | yes | — | 4 | no | — |
+| `cmg_indices` | 2 | 182 | storage | read_write | `array<u32>` | yes | — | 4 | no | `amg_indices` |
+| `palmg_indices` | 2 | 182 | storage | read_write | `array<u32>` | yes | — | 4 | no | `amg_indices` |
+| `cactusg_indices` | 2 | 182 | storage | read_write | `array<u32>` | yes | — | 4 | no | `amg_indices` |
+| `bladeg_indices` | 2 | 182 | storage | read_write | `array<u32>` | yes | — | 4 | no | `amg_indices` |
+| `cmg_config` | 2 | 183 | uniform | n/a | `DesignConfig` | no | 624 | 16 | yes | — |
+| `agent_figure_profiles` | 2 | 200 | uniform | n/a | `array<PawnFigure, 14>` | no | 4032 | 16 | yes | — |
+| `render_ribbon` | 2 | 201 | uniform | n/a | `RibbonState` | no | 112 | 16 | yes | — |
+| `vp_data` | 2 | 240 | storage | read_write | `VPMatrix` | no | 128 | 16 | yes | — |
+| `fc_vp` | 2 | 240 | storage | read | `VPMatrix` | no | 128 | 16 | yes | `vp_data` |
+| `camera_state` | 2 | 241 | storage | read_write | `CameraState` | no | 48 | 16 | yes | — |
+| `pawn_aura_tex_write` | 3 | 20 | handle | n/a | `texture_storage_2d<rgba16float, write>` | no | — | — | yes | — |
+| `pawn_aura_read` | 3 | 21 | handle | n/a | `texture_2d<f32>` | no | — | — | yes | — |
+| `patch_heightfield_array_write` | 3 | 40 | handle | n/a | `texture_storage_2d_array<rgba16float, write>` | no | — | — | yes | — |
+| `patch_cell_color_array_write` | 3 | 41 | handle | n/a | `texture_storage_2d_array<rgba8unorm, write>` | no | — | — | yes | — |
+| `photo_heightfield` | 3 | 42 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
+| `photo_sampler` | 3 | 43 | handle | n/a | `sampler` | no | — | — | yes | — |
+| `patch_heightfield_array_read` | 3 | 44 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
+| `patch_cell_color_array_read` | 3 | 45 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
+| `entity_ground_atlas_write` | 3 | 80 | handle | n/a | `texture_storage_2d<r32float, write>` | no | — | — | yes | — |
+| `entity_ground_atlas` | 3 | 81 | handle | n/a | `texture_2d<f32>` | no | — | — | yes | — |
+| `live_card_write` | 3 | 100 | handle | n/a | `texture_storage_2d<rgba16float, write>` | no | — | — | yes | — |
+| `zone_life_tex_write` | 3 | 101 | handle | n/a | `texture_storage_2d_array<r32float, write>` | no | — | — | yes | — |
+| `zone_life_read` | 3 | 102 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
+| `live_card_read` | 3 | 103 | handle | n/a | `texture_2d<f32>` | no | — | — | yes | — |
+| `painting_array` | 3 | 160 | handle | n/a | `texture_2d_array<f32>` | no | — | — | yes | — |
+| `painting_sampler_filt` | 3 | 161 | handle | n/a | `sampler` | no | — | — | yes | — |
+| `shadow_map` | 3 | 200 | handle | n/a | `texture_depth_2d` | no | — | — | yes | — |
+| `shadow_sampler` | 3 | 201 | handle | n/a | `sampler_comparison` | no | — | — | yes | — |
+| `spot_shadow_map` | 3 | 202 | handle | n/a | `texture_depth_2d` | no | — | — | yes | — |
 
 ## Appendix 2 — the reachability closure (0b-ii)
 
@@ -1575,62 +1631,62 @@ builders are resolved, not recorded.
 
 | pipeline | member | kind | vs | fs | cs | group_layouts (ordered) | vbufs | vattrs | color targets | roster_gate |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | compute | — | — | `update_player_agent` | `computeEntityBindGroupLayout_` → `computeTextureBindGroupLayout_` → `roomLayout_` | 0 | 0 | 0 | — |
-| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | compute | — | — | `update_other_agents` | `computeEntityBindGroupLayout_` → `computeTextureBindGroupLayout_` → `roomLayout_` | 0 | 0 | 0 | `ROSTER.wanderers` |
-| Update Camera (0D) | `updateCameraPipeline_` | compute | — | — | `update_camera` | `computeEntityBindGroupLayout_` → `computeTextureBindGroupLayout_` | 0 | 0 | 0 | — |
-| Update Sphere (0D) | `updateSpherePipeline_` | compute | — | — | `update_sphere` | `computeEntityBindGroupLayout_` → `computeTextureBindGroupLayout_` → `roomLayout_` | 0 | 0 | 0 | `ROSTER.sphere` |
-| Update Cube (0D) | `updateCubePipeline_` | compute | — | — | `update_cube` | `computeEntityBindGroupLayout_` → `computeTextureBindGroupLayout_` → `roomLayout_` | 0 | 0 | 0 | `ROSTER.cube` |
-| Compute VP Matrix (0D) | `computeVPPipeline_` | compute | — | — | `compute_vp` | `computeEntityBindGroupLayout_` | 0 | 0 | 0 | — |
-| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | compute | — | — | `generate_patch_heights` | `patchGenLayout_` | 0 | 0 | 0 | — |
-| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | compute | — | — | `generate_patch_gradients` | `patchGenLayout_` | 0 | 0 | 0 | — |
-| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | compute | — | — | `generate_patch_cells` | `patchGenLayout_` | 0 | 0 | 0 | — |
-| Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | compute | — | — | `compute_ribbon_rings` | `ribbonComputeLayout_` | 0 | 0 | 0 | `ROSTER.ribbon` |
-| Compute Photographer VP (0D) | `photographerVPPipeline_` | compute | — | — | `compute_photographer_vp` | `photographerComputeLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
-| Compute Entity Placement (0D) | `entityPlacementPipeline_` | compute | — | — | `compute_entity_placement` | `entityPlacementComputeLayout_` → `computeTextureBindGroupLayout_` | 0 | 0 | 0 | — |
-| Frustum Cull Patches | `frustumCullPipeline_` | compute | — | — | `frustum_cull_patches` | `frustumCullLayout_` | 0 | 0 | 0 | — |
-| Compute Pawn Aura (2D) | `pawnAuraPipeline_` | compute | — | — | `compute_pawn_aura` | `pawnAuraComputeLayout_` | 0 | 0 | 0 | `ROSTER.pawn_aura` |
-| Live Card Heights (2D) | `liveCardHeightsPipeline_` | compute | — | — | `write_live_card_heights` | `liveCardWriterLayout_` | 0 | 0 | 0 | — |
-| Live Card Resolve (2D) | `liveCardResolvePipeline_` | compute | — | — | `write_live_card_resolve` | `liveCardWriterLayout_` | 0 | 0 | 0 | — |
-| Orb Init | `orbInitPipeline_` | compute | — | — | `orb_init` | `orbComputeLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
-| Orb Dynamics | `orbDynamicsPipeline_` | compute | — | — | `orb_dynamics` | `orbComputeLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
-| Orb Recolor | `orbRecolorPipeline_` | compute | — | — | `orb_recolor` | `orbComputeLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
-| Orb State Prev Copy | `orbCopyPrevPipeline_` | compute | — | — | `orb_state_prev_copy` | `orbCopyLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
-| GoL Zone Sync | `zoneGolSyncPipeline_` | compute | — | — | `zone_gol_sync` | `zoneGolComputeLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
-| GoL Zone Evolve | `zoneGolEvolvePipeline_` | compute | — | — | `zone_gol_evolve` | `zoneGolComputeLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
-| Zone Derive Params | `zoneDeriveParamsPipeline_` | compute | — | — | `zone_derive_params` | `zoneGolComputeLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
-| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | compute | — | — | `zone_seed_mask` | `zoneMaskLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
-| Arch Mesh Gen | `archMeshGenPipeline_` | compute | — | — | `arch_mesh_gen` | `archMeshGenLayout_` | 0 | 0 | 0 | `ROSTER.arch` |
-| Column Mesh Gen | `columnMeshGenPipeline_` | compute | — | — | `column_mesh_gen` | `columnMeshGenLayout_` | 0 | 0 | 0 | `ROSTER.column || ROSTER.antenna` |
-| Palm Mesh Gen | `palmMeshGenPipeline_` | compute | — | — | `palm_mesh_gen` | `palmMeshGenLayout_` | 0 | 0 | 0 | `ROSTER.palm` |
-| Cactus Mesh Gen | `cactusMeshGenPipeline_` | compute | — | — | `cactus_mesh_gen` | `cactusMeshGenLayout_` | 0 | 0 | 0 | `ROSTER.cactus` |
-| Blade Mesh Gen | `bladeMeshGenPipeline_` | compute | — | — | `blade_cluster_mesh_gen` | `bladeMeshGenLayout_` | 0 | 0 | 0 | `ROSTER.blade` |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | render | `patch_terrain_vs` | `patch_terrain_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | render | `patch_terrain_vs` | `patch_terrain_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | render | `pawn_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Sphere Entity (Rasterized) | `spherePipeline_` | render | `sphere_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 2 | 1 | `ROSTER.sphere` |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | render | `monolith_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 2 | 1 | `ROSTER.cube` |
-| Catenary Arch (Rasterized) | `archPipeline_` | render | `arch_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 4 | 1 | `ROSTER.arch` |
-| Generative Column (Rasterized) | `columnPipeline_` | render | `column_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 4 | 1 | `ROSTER.column || ROSTER.antenna` |
-| Palm Tree (Rasterized) | `palmPipeline_` | render | `palm_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 4 | 1 | `ROSTER.palm` |
-| Cactus (Rasterized) | `cactusPipeline_` | render | `cactus_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 4 | 1 | `ROSTER.cactus` |
-| Blade Cluster (Rasterized) | `bladePipeline_` | render | `blade_cluster_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 4 | 1 | `ROSTER.blade` |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | render | `shell_vs` | `entity_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 1 | 3 | 1 | `ROSTER.indoor_shell` |
-| Sky Ribbon Entity | `ribbonPipeline_` | render | `ribbon_vs` | `ribbon_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Orb Sky Layer | `orbRenderPipeline_` | render | `orb_vs` | `orb_fs` | — | `renderEntityBindGroupLayout_` → `renderTextureBindGroupLayout_` | 2 | 13 | 1 | — |
-| Gallery Frame | `galleryFramePipeline_` | render | `gallery_frame_vs` | `gallery_frame_fs` | — | `galleryEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | render | `wall_painting_vs` | `wall_painting_canvas_fs` | — | `galleryEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | render | `wall_painting_vs` | `wall_painting_frame_fs` | — | `galleryEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 1 | — |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | render | `shadow_patch_terrain_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 0 | 0 | 0 | — |
-| Shadow Pawn | `shadowPawnPipeline_` | render | `shadow_pawn_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 0 | 0 | 0 | — |
-| Shadow Sphere | `shadowSpherePipeline_` | render | `shadow_sphere_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 2 | 0 | `ROSTER.sphere` |
-| Shadow Monolith | `shadowMonolithPipeline_` | render | `shadow_monolith_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 2 | 0 | `ROSTER.cube` |
-| Shadow Catenary Arch | `shadowArchPipeline_` | render | `shadow_arch_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 4 | 0 | `ROSTER.arch` |
-| Shadow Generative Column | `shadowColumnPipeline_` | render | `shadow_column_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 4 | 0 | `ROSTER.column || ROSTER.antenna` |
-| Shadow Palm Tree | `shadowPalmPipeline_` | render | `shadow_palm_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 4 | 0 | `ROSTER.palm` |
-| Shadow Cactus | `shadowCactusPipeline_` | render | `shadow_cactus_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 4 | 0 | `ROSTER.cactus` |
-| Shadow Blade Cluster | `shadowBladePipeline_` | render | `shadow_blade_cluster_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 4 | 0 | `ROSTER.blade` |
-| Shadow Indoor Shell | `shadowShellPipeline_` | render | `shadow_shell_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 1 | 3 | 0 | `ROSTER.indoor_shell` |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | render | `shadow_ribbon_vs` | — | — | `renderEntityBindGroupLayout_` → `shadowTextureBindGroupLayout_` | 0 | 0 | 0 | `ROSTER.ribbon` |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | render | `shadow_gallery_frame_vs` | — | — | `renderEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | render | `shadow_wall_painting_vs` | — | — | `renderEntityBindGroupLayout_` → `galleryTextureBindGroupLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
-| Fade Overlay | `fadeOverlayPipeline_` | render | `fade_overlay_vs` | `fade_overlay_fs` | — | `meshGenEntityBindGroupLayout_` | 0 | 0 | 1 | — |
+| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | compute | — | — | `update_player_agent` | `worldLayout_` → `frameLayout_` → `agentsStateLayout_` → `agentsTexturesLayout_` | 0 | 0 | 0 | — |
+| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | compute | — | — | `update_other_agents` | `worldLayout_` → `frameLayout_` → `agentsStateLayout_` → `agentsTexturesLayout_` | 0 | 0 | 0 | `ROSTER.wanderers` |
+| Update Camera (0D) | `updateCameraPipeline_` | compute | — | — | `update_camera` | `worldLayout_` → `frameLayout_` → `frameKStateLayout_` → `frameKTexturesLayout_` | 0 | 0 | 0 | — |
+| Update Sphere (0D) | `updateSpherePipeline_` | compute | — | — | `update_sphere` | `worldLayout_` → `frameLayout_` → `agentsStateLayout_` → `agentsTexturesLayout_` | 0 | 0 | 0 | `ROSTER.sphere` |
+| Update Cube (0D) | `updateCubePipeline_` | compute | — | — | `update_cube` | `worldLayout_` → `frameLayout_` → `agentsStateLayout_` → `agentsTexturesLayout_` | 0 | 0 | 0 | `ROSTER.cube` |
+| Compute VP Matrix (0D) | `computeVPPipeline_` | compute | — | — | `compute_vp` | `worldLayout_` → `frameLayout_` → `frameKStateLayout_` → `frameKTexturesLayout_` | 0 | 0 | 0 | — |
+| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | compute | — | — | `generate_patch_heights` | `worldLayout_` → `frameLayout_` → `patchgenStateLayout_` → `patchgenTexturesLayout_` | 0 | 0 | 0 | — |
+| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | compute | — | — | `generate_patch_gradients` | `worldLayout_` → `frameLayout_` → `patchgenStateLayout_` → `patchgenTexturesLayout_` | 0 | 0 | 0 | — |
+| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | compute | — | — | `generate_patch_cells` | `worldLayout_` → `frameLayout_` → `patchgenStateLayout_` → `patchgenTexturesLayout_` | 0 | 0 | 0 | — |
+| Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | compute | — | — | `compute_ribbon_rings` | `worldLayout_` → `frameLayout_` → `ribbonStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.ribbon` |
+| Compute Photographer VP (0D) | `photographerVPPipeline_` | compute | — | — | `compute_photographer_vp` | `worldLayout_` → `frameLayout_` → `galleryStateLayout_` → `galleryTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
+| Compute Entity Placement (0D) | `entityPlacementPipeline_` | compute | — | — | `compute_entity_placement` | `worldLayout_` → `frameLayout_` → `placeStateLayout_` → `placeTexturesLayout_` | 0 | 0 | 0 | — |
+| Frustum Cull Patches | `frustumCullPipeline_` | compute | — | — | `frustum_cull_patches` | `worldLayout_` → `frameLayout_` → `cullStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | — |
+| Compute Pawn Aura (2D) | `pawnAuraPipeline_` | compute | — | — | `compute_pawn_aura` | `worldLayout_` → `frameLayout_` → `auraStateLayout_` → `auraTexturesLayout_` | 0 | 0 | 0 | `ROSTER.pawn_aura` |
+| Live Card Heights (2D) | `liveCardHeightsPipeline_` | compute | — | — | `write_live_card_heights` | `worldLayout_` → `frameLayout_` → `zonesStateLayout_` → `zonesTexturesLayout_` | 0 | 0 | 0 | — |
+| Live Card Resolve (2D) | `liveCardResolvePipeline_` | compute | — | — | `write_live_card_resolve` | `worldLayout_` → `frameLayout_` → `zonesStateLayout_` → `zonesTexturesLayout_` | 0 | 0 | 0 | — |
+| Orb Init | `orbInitPipeline_` | compute | — | — | `orb_init` | `worldLayout_` → `frameLayout_` → `orbsStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
+| Orb Dynamics | `orbDynamicsPipeline_` | compute | — | — | `orb_dynamics` | `worldLayout_` → `frameLayout_` → `orbsStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
+| Orb Recolor | `orbRecolorPipeline_` | compute | — | — | `orb_recolor` | `worldLayout_` → `frameLayout_` → `orbsStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
+| Orb State Prev Copy | `orbCopyPrevPipeline_` | compute | — | — | `orb_state_prev_copy` | `worldLayout_` → `frameLayout_` → `orbsStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.orbs` |
+| GoL Zone Sync | `zoneGolSyncPipeline_` | compute | — | — | `zone_gol_sync` | `worldLayout_` → `frameLayout_` → `zonesStateLayout_` → `zonesTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
+| GoL Zone Evolve | `zoneGolEvolvePipeline_` | compute | — | — | `zone_gol_evolve` | `worldLayout_` → `frameLayout_` → `zonesStateLayout_` → `zonesTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
+| Zone Derive Params | `zoneDeriveParamsPipeline_` | compute | — | — | `zone_derive_params` | `worldLayout_` → `frameLayout_` → `zonesStateLayout_` → `zonesTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
+| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | compute | — | — | `zone_seed_mask` | `worldLayout_` → `frameLayout_` → `zonesStateLayout_` → `zonesTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gol` |
+| Arch Mesh Gen | `archMeshGenPipeline_` | compute | — | — | `arch_mesh_gen` | `worldLayout_` → `frameLayout_` → `meshgenStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.arch` |
+| Column Mesh Gen | `columnMeshGenPipeline_` | compute | — | — | `column_mesh_gen` | `worldLayout_` → `frameLayout_` → `meshgenStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.column || ROSTER.antenna` |
+| Palm Mesh Gen | `palmMeshGenPipeline_` | compute | — | — | `palm_mesh_gen` | `worldLayout_` → `frameLayout_` → `meshgenStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.palm` |
+| Cactus Mesh Gen | `cactusMeshGenPipeline_` | compute | — | — | `cactus_mesh_gen` | `worldLayout_` → `frameLayout_` → `meshgenStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.cactus` |
+| Blade Mesh Gen | `bladeMeshGenPipeline_` | compute | — | — | `blade_cluster_mesh_gen` | `worldLayout_` → `frameLayout_` → `meshgenStateLayout_` → `emptyLayout_` | 0 | 0 | 0 | `ROSTER.blade` |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | render | `patch_terrain_vs` | `patch_terrain_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 0 | 0 | 1 | — |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | render | `patch_terrain_vs` | `patch_terrain_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 0 | 0 | 1 | — |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | render | `pawn_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 0 | 0 | 1 | — |
+| Sphere Entity (Rasterized) | `spherePipeline_` | render | `sphere_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 2 | 1 | `ROSTER.sphere` |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | render | `monolith_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 2 | 1 | `ROSTER.cube` |
+| Catenary Arch (Rasterized) | `archPipeline_` | render | `arch_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 4 | 1 | `ROSTER.arch` |
+| Generative Column (Rasterized) | `columnPipeline_` | render | `column_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 4 | 1 | `ROSTER.column || ROSTER.antenna` |
+| Palm Tree (Rasterized) | `palmPipeline_` | render | `palm_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 4 | 1 | `ROSTER.palm` |
+| Cactus (Rasterized) | `cactusPipeline_` | render | `cactus_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 4 | 1 | `ROSTER.cactus` |
+| Blade Cluster (Rasterized) | `bladePipeline_` | render | `blade_cluster_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 4 | 1 | `ROSTER.blade` |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | render | `shell_vs` | `entity_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 1 | 3 | 1 | `ROSTER.indoor_shell` |
+| Sky Ribbon Entity | `ribbonPipeline_` | render | `ribbon_vs` | `ribbon_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 0 | 0 | 1 | — |
+| Orb Sky Layer | `orbRenderPipeline_` | render | `orb_vs` | `orb_fs` | — | `worldLayout_` → `frameLayout_` → `sceneStateLayout_` → `sceneTexturesLayout_` | 2 | 13 | 1 | — |
+| Gallery Frame | `galleryFramePipeline_` | render | `gallery_frame_vs` | `gallery_frame_fs` | — | `worldLayout_` → `frameLayout_` → `galleryStateLayout_` → `galleryTexturesLayout_` | 0 | 0 | 1 | — |
+| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | render | `wall_painting_vs` | `wall_painting_canvas_fs` | — | `worldLayout_` → `frameLayout_` → `galleryStateLayout_` → `galleryTexturesLayout_` | 0 | 0 | 1 | — |
+| Wall Painting Frame | `wallPaintingFramePipeline_` | render | `wall_painting_vs` | `wall_painting_frame_fs` | — | `worldLayout_` → `frameLayout_` → `galleryStateLayout_` → `galleryTexturesLayout_` | 0 | 0 | 1 | — |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | render | `shadow_patch_terrain_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 0 | 0 | 0 | — |
+| Shadow Pawn | `shadowPawnPipeline_` | render | `shadow_pawn_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 0 | 0 | 0 | — |
+| Shadow Sphere | `shadowSpherePipeline_` | render | `shadow_sphere_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 2 | 0 | `ROSTER.sphere` |
+| Shadow Monolith | `shadowMonolithPipeline_` | render | `shadow_monolith_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 2 | 0 | `ROSTER.cube` |
+| Shadow Catenary Arch | `shadowArchPipeline_` | render | `shadow_arch_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 4 | 0 | `ROSTER.arch` |
+| Shadow Generative Column | `shadowColumnPipeline_` | render | `shadow_column_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 4 | 0 | `ROSTER.column || ROSTER.antenna` |
+| Shadow Palm Tree | `shadowPalmPipeline_` | render | `shadow_palm_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 4 | 0 | `ROSTER.palm` |
+| Shadow Cactus | `shadowCactusPipeline_` | render | `shadow_cactus_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 4 | 0 | `ROSTER.cactus` |
+| Shadow Blade Cluster | `shadowBladePipeline_` | render | `shadow_blade_cluster_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 4 | 0 | `ROSTER.blade` |
+| Shadow Indoor Shell | `shadowShellPipeline_` | render | `shadow_shell_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 1 | 3 | 0 | `ROSTER.indoor_shell` |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | render | `shadow_ribbon_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 0 | 0 | 0 | `ROSTER.ribbon` |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | render | `shadow_gallery_frame_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | render | `shadow_wall_painting_vs` | — | — | `worldLayout_` → `frameLayout_` → `shadowStateLayout_` → `shadowTexturesLayout_` | 0 | 0 | 0 | `ROSTER.gallery` |
+| Fade Overlay | `fadeOverlayPipeline_` | render | `fade_overlay_vs` | `fade_overlay_fs` | — | `worldLayout_` → `emptyLayout_` → `emptyLayout_` → `emptyLayout_` | 0 | 0 | 1 | — |

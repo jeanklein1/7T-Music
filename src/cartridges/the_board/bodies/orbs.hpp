@@ -746,8 +746,13 @@ inline void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& 
     cpd.label = "Orb Init";
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_init(pass, c->gpuState_.orb_compute_group(), wgs);
+    c->renderer_.dispatch_orb_init(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 
     std::cout << "[Orbs] Init dispatched: " << os.count
@@ -764,8 +769,13 @@ inline void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncode
     cpd.label = "Orb Recolor";
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_recolor(pass, c->gpuState_.orb_compute_group(), wgs);
+    c->renderer_.dispatch_orb_recolor(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 }
 
@@ -776,8 +786,13 @@ inline void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEnco
     cpd.label = "Orb Copy Prev";
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_copy_prev(pass, c->gpuState_.orb_copy_group(), wgs);
+    c->renderer_.dispatch_orb_copy_prev(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 }
 
@@ -792,8 +807,13 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
     cpd.label = "Orb Dynamics";
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+    { const uint32_t kFrameSlot0 = 0;
+      pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_dynamics(pass, c->gpuState_.orb_compute_group(), wgs);
+    c->renderer_.dispatch_orb_dynamics(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 }
 
@@ -803,8 +823,6 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
 inline void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass) {
     if (!os.active || os.count == 0) return;
     c->renderer_.draw_orbs(pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
         c->gpuState_.orb_quad_vb(),
         c->gpuState_.orb_quad_ib(),
         c->gpuState_.orb_state_buffer(),

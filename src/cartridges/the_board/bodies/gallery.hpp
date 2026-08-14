@@ -1449,8 +1449,13 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
         cpd.label = "Photographer VP Compute";
         cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::SnapshotPass);
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+        // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+        // FRAME carries the shadow-slot dynamic window; compute never moves it.
+        { const uint32_t kFrameSlot0 = 0;
+          compute.SetBindGroup(0, c->gpuState_.world_group());
+          compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
         c->renderer_.dispatch_compute_photographer_vp(
-            compute, c->gpuState_.photographer_compute_group()
+            compute, c->gpuState_.gallery_state_group(), c->gpuState_.gallery_textures_group()
         );
         compute.End();
     }
@@ -1499,12 +1504,14 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // every set of it supplies one. The photographer draws no shadow tiles,
     // so its window never moves.
     const uint32_t kSlotZero = 0;
-    pass.SetBindGroup(0, c->gpuState_.photographer_render_entity_group(), 1, &kSlotZero);
-    pass.SetBindGroup(1, c->gpuState_.render_texture_group());
+    pass.SetBindGroup(0, c->gpuState_.world_group());
+    pass.SetBindGroup(1, c->gpuState_.frame_photographer_group(), 1, &kSlotZero);
+    pass.SetBindGroup(2, c->gpuState_.scene_state_photographer_group());
+    pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
 
     c->renderer_.draw_patch_terrain_direct(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
+        c->gpuState_.scene_state_photographer_group(),
+        c->gpuState_.scene_textures_group(),
         c->gpuState_.patch_index_buffer_lod0_live(),
         c->gpuState_.patch_index_count_lod0_live(),
         c->world_state_.render_patch_count);
@@ -1526,8 +1533,8 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // OIL_1 U13: the gallery pair (photographer VP window), bound ONCE
     // for both draws. ROSTER-GATE gallery (a') — matches the consumers.
     if constexpr (ROSTER.gallery) {
-    pass.SetBindGroup(0, c->gpuState_.gallery_photographer_entity_group());
-    pass.SetBindGroup(1, c->gpuState_.gallery_texture_group());
+    pass.SetBindGroup(2, c->gpuState_.gallery_state_group());
+    pass.SetBindGroup(3, c->gpuState_.gallery_textures_group());
     }
     c->renderer_.draw_wall_paintings(
         pass,

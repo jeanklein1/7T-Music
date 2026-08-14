@@ -114,31 +114,35 @@ namespace t7 {
         class Renderer {
 
             wgpu::Device device_;
-            wgpu::BindGroupLayout computeEntityLayout_;
-            wgpu::BindGroupLayout computeTextureLayout_;   // Group 1 for live-contributor compute (sphere/cube)
-            wgpu::BindGroupLayout roomLayout_;    // Group 2, agent + floater kernels — THE ROOM
-            wgpu::BindGroupLayout patchGenLayout_;
-            wgpu::BindGroupLayout renderEntityLayout_;
+            wgpu::BindGroupLayout agentsStateLayout_;
+            wgpu::BindGroupLayout agentsTexturesLayout_;
+            wgpu::BindGroupLayout auraStateLayout_;
+            wgpu::BindGroupLayout auraTexturesLayout_;
+            wgpu::BindGroupLayout cullStateLayout_;
+            wgpu::BindGroupLayout emptyLayout_;
+            wgpu::BindGroupLayout frameKStateLayout_;
+            wgpu::BindGroupLayout frameKTexturesLayout_;
+            wgpu::BindGroupLayout frameLayout_;
+            wgpu::BindGroupLayout galleryStateLayout_;
+            wgpu::BindGroupLayout galleryTexturesLayout_;
+            wgpu::BindGroupLayout meshgenStateLayout_;
+            wgpu::BindGroupLayout orbsStateLayout_;
+            wgpu::BindGroupLayout patchgenStateLayout_;
+            wgpu::BindGroupLayout patchgenTexturesLayout_;
+            wgpu::BindGroupLayout placeStateLayout_;
+            wgpu::BindGroupLayout placeTexturesLayout_;
+            wgpu::BindGroupLayout ribbonStateLayout_;
+            wgpu::BindGroupLayout sceneStateLayout_;
+            wgpu::BindGroupLayout sceneTexturesLayout_;
+            wgpu::BindGroupLayout shadowStateLayout_;
+            wgpu::BindGroupLayout shadowTexturesLayout_;
+            wgpu::BindGroupLayout worldLayout_;
+            wgpu::BindGroupLayout zonesStateLayout_;
+            wgpu::BindGroupLayout zonesTexturesLayout_;
             // ATLAS_1revB D3" — the offset every non-shadow set of the
             // render-entity group passes. A dynamic-offset layout requires an
             // offset at EVERY set; only the shadow tile loop varies it.
             static constexpr uint32_t kShadowSlotZero = 0;
-            wgpu::BindGroupLayout renderTextureLayout_;
-            wgpu::BindGroupLayout shadowTextureLayout_;
-            wgpu::BindGroupLayout ribbonComputeLayout_;
-            wgpu::BindGroupLayout galleryEntityLayout_;
-            wgpu::BindGroupLayout galleryTextureLayout_;
-            wgpu::BindGroupLayout meshGenEntityLayout_;  // binding 1 only (config) — reused by fade overlay
-            wgpu::BindGroupLayout photographerComputeLayout_;
-            wgpu::BindGroupLayout pawnAuraComputeLayout_;
-            wgpu::BindGroupLayout liveCardWriterLayout_;   // GROUND_CARD_1
-            wgpu::BindGroupLayout zoneMaskLayout_;         // UNIFIED_GROUND_1 U5
-            wgpu::BindGroupLayout zoneGolComputeLayout_;
-            wgpu::BindGroupLayout archMeshGenLayout_;
-            wgpu::BindGroupLayout columnMeshGenLayout_;
-            wgpu::BindGroupLayout palmMeshGenLayout_;
-            wgpu::BindGroupLayout cactusMeshGenLayout_;
-            wgpu::BindGroupLayout bladeMeshGenLayout_;
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
@@ -161,8 +165,8 @@ namespace t7 {
             }
 
             // THE SHARED BUILDERS (cable management): the two collapses every compute pipeline shared.
-            // computeLayoutFor wraps a single bind-group layout into a pipeline layout
-            // (the ~24 dedicated compute pipelines each repeated this 4-line boilerplate).
+            // strataLayoutFor wraps the four LOOM_2 strata (WORLD fixed, then frame /
+            // state / textures, EMPTY where a stratum is unused) into a pipeline layout.
             // makeComputePipeline is the uniform creation ALL 30 compute pipelines shared —
             // a pure (entry-point, pipeline-layout) pair over the one shaderModule_; the
             // descriptor carried no other per-pipeline state. The FORKS stay at the call
@@ -170,11 +174,13 @@ namespace t7 {
             // link), which member, and the ROSTER gate. (The layout-build moves just outside
             // the tPipe timing block; the boot-leaderboard ms now excludes the trivial layout
             // creation — no behavior/pixel effect.)
-            wgpu::PipelineLayout computeLayoutFor(wgpu::BindGroupLayout bgl) {
-                std::array<wgpu::BindGroupLayout, 1> a = { bgl };
+            wgpu::PipelineLayout strataLayoutFor(wgpu::BindGroupLayout frame,
+                                                 wgpu::BindGroupLayout state,
+                                                 wgpu::BindGroupLayout tex) {
+                std::array<wgpu::BindGroupLayout, 4> sa = { worldLayout_, frame, state, tex };
                 wgpu::PipelineLayoutDescriptor d{};
-                d.bindGroupLayoutCount = a.size();
-                d.bindGroupLayouts = a.data();
+                d.bindGroupLayoutCount = sa.size();
+                d.bindGroupLayouts = sa.data();
                 return device_.CreatePipelineLayout(&d);
             }
             bool makeComputePipeline(const char* label, const char* dbgLabel,
@@ -251,16 +257,12 @@ namespace t7 {
             // Entity placement Y-correction pipeline (0D, decoupled from photographer)
             wgpu::ComputePipeline entityPlacementPipeline_;
             wgpu::ComputePipeline frustumCullPipeline_;
-            wgpu::BindGroupLayout frustumCullLayout_;
-            wgpu::BindGroupLayout entityPlacementComputeLayout_;
             wgpu::ComputePipeline pawnAuraPipeline_;
             wgpu::ComputePipeline liveCardHeightsPipeline_;  // TRUEBAND_CONTACT_1 (two-pass writer)
             wgpu::ComputePipeline liveCardResolvePipeline_;
             wgpu::ComputePipeline zoneSeedMaskPipeline_;     // UNIFIED_GROUND_1 U5
 
             // Orb sky layer pipelines
-            wgpu::BindGroupLayout orbComputeLayout_;
-            wgpu::BindGroupLayout orbCopyLayout_;
             wgpu::ComputePipeline orbInitPipeline_;
             wgpu::ComputePipeline orbDynamicsPipeline_;
             wgpu::ComputePipeline orbRecolorPipeline_;
@@ -304,31 +306,31 @@ namespace t7 {
                 wgpu::TextureFormat depthFormat
             ) {
                 device_ = device;
-                computeEntityLayout_ = gpuState.compute_entity_layout();
-                computeTextureLayout_ = gpuState.compute_texture_layout();
-                roomLayout_ = gpuState.room_layout();
-                patchGenLayout_ = gpuState.patch_gen_layout();
-                renderEntityLayout_ = gpuState.render_entity_layout();
-                renderTextureLayout_ = gpuState.render_texture_layout();
-                shadowTextureLayout_ = gpuState.shadow_texture_layout();
-                ribbonComputeLayout_ = gpuState.ribbon_compute_layout();
-                galleryEntityLayout_ = gpuState.gallery_entity_layout();
-                galleryTextureLayout_ = gpuState.gallery_texture_layout();
-                meshGenEntityLayout_ = gpuState.mesh_gen_entity_layout();
-                photographerComputeLayout_ = gpuState.photographer_compute_layout();
-                entityPlacementComputeLayout_ = gpuState.entity_placement_compute_layout();
-                frustumCullLayout_ = gpuState.frustum_cull_layout();
-                pawnAuraComputeLayout_ = gpuState.pawn_aura_compute_layout();
-                liveCardWriterLayout_ = gpuState.live_card_writer_layout();
-                zoneMaskLayout_ = gpuState.zone_mask_layout();
-                orbComputeLayout_ = gpuState.orb_compute_layout();
-                orbCopyLayout_    = gpuState.orb_copy_layout();
-                zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
-                archMeshGenLayout_ = gpuState.arch_mesh_gen_layout();
-                columnMeshGenLayout_ = gpuState.column_mesh_gen_layout();
-                palmMeshGenLayout_ = gpuState.palm_mesh_gen_layout();
-                cactusMeshGenLayout_ = gpuState.cactus_mesh_gen_layout();
-                bladeMeshGenLayout_ = gpuState.blade_mesh_gen_layout();
+                agentsStateLayout_ = gpuState.agents_state_layout();
+                agentsTexturesLayout_ = gpuState.agents_textures_layout();
+                auraStateLayout_ = gpuState.aura_state_layout();
+                auraTexturesLayout_ = gpuState.aura_textures_layout();
+                cullStateLayout_ = gpuState.cull_state_layout();
+                emptyLayout_ = gpuState.empty_layout();
+                frameKStateLayout_ = gpuState.frame_k_state_layout();
+                frameKTexturesLayout_ = gpuState.frame_k_textures_layout();
+                frameLayout_ = gpuState.frame_layout();
+                galleryStateLayout_ = gpuState.gallery_state_layout();
+                galleryTexturesLayout_ = gpuState.gallery_textures_layout();
+                meshgenStateLayout_ = gpuState.meshgen_state_layout();
+                orbsStateLayout_ = gpuState.orbs_state_layout();
+                patchgenStateLayout_ = gpuState.patchgen_state_layout();
+                patchgenTexturesLayout_ = gpuState.patchgen_textures_layout();
+                placeStateLayout_ = gpuState.place_state_layout();
+                placeTexturesLayout_ = gpuState.place_textures_layout();
+                ribbonStateLayout_ = gpuState.ribbon_state_layout();
+                sceneStateLayout_ = gpuState.scene_state_layout();
+                sceneTexturesLayout_ = gpuState.scene_textures_layout();
+                shadowStateLayout_ = gpuState.shadow_state_layout();
+                shadowTexturesLayout_ = gpuState.shadow_textures_layout();
+                worldLayout_ = gpuState.world_layout();
+                zonesStateLayout_ = gpuState.zones_state_layout();
+                zonesTexturesLayout_ = gpuState.zones_textures_layout();
                 colorFormat_ = colorFormat;
                 depthFormat_ = depthFormat;
 
@@ -386,7 +388,12 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 32 threads = all non-player slots
             }
 
-            void dispatch_update_camera(wgpu::ComputePassEncoder& pass) {
+            void dispatch_update_camera(wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup) {
+                // FRAME_K (A3): the rw faces ride this family's own strata.
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.SetPipeline(updateCameraPipeline_);
                 pass.DispatchWorkgroups(1, 1, 1);
             }
@@ -403,7 +410,12 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
-            void dispatch_compute_vp(wgpu::ComputePassEncoder& pass) {
+            void dispatch_compute_vp(wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup) {
+                // FRAME_K (A3): the rw faces ride this family's own strata.
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.SetPipeline(computeVPPipeline_);
                 pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
             }
@@ -411,71 +423,85 @@ namespace t7 {
             // Pass 1: evaluate ground_formed() per texel, store height only.
             void dispatch_generate_patch_heights(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup patchGenBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchHeightsPipeline_);
-                pass.SetBindGroup(0, patchGenBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             // Pass 2: read stored heights from neighbors, compute gradients + complexity.
             void dispatch_generate_patch_gradients(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup patchGenBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchGradientsPipeline_);
-                pass.SetBindGroup(0, patchGenBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             void dispatch_generate_patch_cells(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup patchGenBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchCellsPipeline_);
-                pass.SetBindGroup(0, patchGenBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             void dispatch_compute_ribbon_rings(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup ribbonComputeBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(ribbonRingPipeline_);
-                pass.SetBindGroup(0, ribbonComputeBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
             void dispatch_compute_photographer_vp(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup photographerComputeBindGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(photographerVPPipeline_);
-                pass.SetBindGroup(0, photographerComputeBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
             void dispatch_entity_placement(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityPlacementBindGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 pass.SetPipeline(entityPlacementPipeline_);
-                pass.SetBindGroup(0, entityPlacementBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
             void dispatch_frustum_cull(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup frustumCullBindGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 pass.SetPipeline(frustumCullPipeline_);
-                pass.SetBindGroup(0, frustumCullBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 // ceil(MAX_ACTIVE_PATCHES / 64) — derived, never hardcoded again
                 // (was hardcoded 4 = 256 threads vs 289 slots: slots 256–288 were
                 //  never culled at full window — audit CC-8a).
@@ -484,23 +510,27 @@ namespace t7 {
 
             void dispatch_compute_pawn_aura(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup auraComputeBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 if constexpr (!(ROSTER.pawn_aura)) return;  // ROSTER-GATE pawn_aura (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(pawnAuraPipeline_);
-                pass.SetBindGroup(0, auraComputeBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             void dispatch_live_card_write(wgpu::ComputePassEncoder& pass,
-                                          wgpu::BindGroup group) {
+                                          wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup) {
                 // Two-pass writer (TRUEBAND_CONTACT_1): heights → scratch,
                 // then resolve (gradients + store). Sequential dispatches in
                 // ONE pass — storage-buffer visibility between dispatches is
                 // guaranteed (the U5a same-pass law).
                 pass.SetPipeline(liveCardHeightsPipeline_);
-                pass.SetBindGroup(0, group);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(Dim::LIVE_CARD_SIZE / 8u,
                                         Dim::LIVE_CARD_SIZE / 8u, 1);
                 pass.SetPipeline(liveCardResolvePipeline_);
@@ -510,52 +540,58 @@ namespace t7 {
 
             void dispatch_orb_init(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup orbComputeGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(orbInitPipeline_);
-                pass.SetBindGroup(0, orbComputeGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
             void dispatch_orb_dynamics(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup orbComputeGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(orbDynamicsPipeline_);
-                pass.SetBindGroup(0, orbComputeGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
             void dispatch_orb_recolor(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup orbComputeGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(orbRecolorPipeline_);
-                pass.SetBindGroup(0, orbComputeGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
             void dispatch_orb_copy_prev(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup orbCopyGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(orbCopyPrevPipeline_);
-                pass.SetBindGroup(0, orbCopyGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
             void draw_orbs(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer quadVB,
                 wgpu::Buffer quadIB,
                 wgpu::Buffer orbStateVB,
@@ -564,10 +600,8 @@ namespace t7 {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
                 if (orbCount == 0) return;
                 pass.SetPipeline(orbRenderPipeline_);
-                // ATLAS_1revB D3" — group 0 is dynamic-offset now; every set
-                // of it supplies one offset. The orbs never vary it.
-                pass.SetBindGroup(0, entityBindGroup, 1, &kShadowSlotZero);
-                pass.SetBindGroup(1, textureBindGroup);
+                // LOOM_2: the scene strata (0-3) ride the pass-head binds —
+                // the orb sky layer is SCENE family and rebinds nothing.
                 pass.SetVertexBuffer(0, quadVB);
                 // ORB_V: slot 1 is the instance-step OrbState stream that
                 // replaced the binding-400 storage read in orb_vs.
@@ -578,13 +612,15 @@ namespace t7 {
 
             void dispatch_zone_gol_sync(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup zoneComputeBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t zone_count
             ) {
                 if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolSyncPipeline_);
-                pass.SetBindGroup(0, zoneComputeBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 // CAPACITY-shaped dispatch, SIZE-bounded kernel: the grid is
                 // derived from Dim::GOL_ZONE_GRID over the 8×8 workgroup (was
                 // a hard 4 with a "32/8=4" comment — the one-spelling law).
@@ -595,38 +631,44 @@ namespace t7 {
 
             void dispatch_zone_gol_evolve(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup zoneComputeBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t zone_count
             ) {
                 if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolEvolvePipeline_);
-                pass.SetBindGroup(0, zoneComputeBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, zone_count);
             }
 
             // Zone parameter derivation (GPU-authoritative tier selection + Gaussian sampling)
             void dispatch_zone_derive_params(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup zoneGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t request_count
             ) {
                 if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
                 if (request_count == 0) return;
                 pass.SetPipeline(zoneDeriveParamsPipeline_);
-                pass.SetBindGroup(0, zoneGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(request_count, 1, 1);
             }
 
             void dispatch_zone_seed_mask(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup maskGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 uint32_t request_count
             ) {
                 if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
                 if (request_count == 0) return;
                 pass.SetPipeline(zoneSeedMaskPipeline_);
-                pass.SetBindGroup(0, maskGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, request_count);
             }
 
@@ -637,52 +679,62 @@ namespace t7 {
             // gid.x = slot (0..15), gid.y = sub-mesh (outer shell, inner shell, front cap, back cap).
             void dispatch_arch_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup meshGenGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(archMeshGenPipeline_);
-                pass.SetBindGroup(0, meshGenGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(Dim::MAX_ARCH_INSTANCES, 4, 1);
             }
 
             // GPU column mesh gen — generates all 32 slots in one dispatch.
             void dispatch_column_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup meshGenGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(columnMeshGenPipeline_);
-                pass.SetBindGroup(0, meshGenGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(Dim::MAX_COLUMN_INSTANCES, 1, 1);
             }
 
             void dispatch_palm_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup meshGenGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(palmMeshGenPipeline_);
-                pass.SetBindGroup(0, meshGenGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(Dim::MAX_PALM_INSTANCES, 1, 1);
             }
 
             void dispatch_cactus_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup meshGenGroup
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(cactusMeshGenPipeline_);
-                pass.SetBindGroup(0, meshGenGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(Dim::MAX_CACTUS_INSTANCES, 1, 1);
             }
 
             void dispatch_blade_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup group
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup
             ) {
                 if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(bladeMeshGenPipeline_);
-                pass.SetBindGroup(0, group);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
             }
 
@@ -700,12 +752,12 @@ namespace t7 {
             }
             void draw_patch_terrain_plan_slot(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup stateGroup,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer indirectArgs,
                 uint64_t indirectOffset
             ) {
-                pass.SetBindGroup(0, entityBindGroup, 1, &kShadowSlotZero);
+                pass.SetBindGroup(2, stateGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
@@ -714,16 +766,16 @@ namespace t7 {
             // For LOD1 outdoor, LOD0+LOD1 indoor, snapshot pass, etc.
             void draw_patch_terrain_direct(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
+                wgpu::BindGroup stateGroup,
+                wgpu::BindGroup texGroup,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount,
                 uint32_t instanceCount,
                 uint32_t firstInstance = 0
             ) {
                 pass.SetPipeline(patchTerrainPipeline_);
-                pass.SetBindGroup(0, entityBindGroup, 1, &kShadowSlotZero);
-                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(3, texGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
@@ -746,7 +798,7 @@ namespace t7 {
 
             // ═══ OIL_1 U13 (ledger: R19, C7) — THE COLOR PASS-HEAD CONTRACT
             // The entity draw helpers below ride group0 (the pass's entity
-            // window — render_entity_group in the main pass, the
+            // window — the FRAME group in the main pass, the
             // photographer's in the snapshot pass) and group1 (the render
             // texture group) bound ONCE by the caller before draw_table.
             // They were identical at every call within a pass and every
@@ -941,13 +993,11 @@ namespace t7 {
 
             void draw_fade_overlay(
                 wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup configBindGroup,
                 float fadeAlpha
             ) {
                 if constexpr (!(ROSTER.transitions)) return;  // ROSTER-GATE transitions (a') — pipeline never created; the holder tolerates
                 if (fadeAlpha < 0.001f) return;
                 pass.SetPipeline(fadeOverlayPipeline_);
-                pass.SetBindGroup(0, configBindGroup);
                 pass.Draw(3);  // fullscreen triangle from vertex ID
             }
 
@@ -1240,14 +1290,7 @@ namespace t7 {
 
             bool createComputePipelines() {
                 // Shared pipeline layout for all standard compute passes (Group 0 only)
-                std::array<wgpu::BindGroupLayout, 1> computeLayouts = {
-                    computeEntityLayout_
-                };
-
-                wgpu::PipelineLayoutDescriptor layoutDesc{};
-                layoutDesc.bindGroupLayoutCount = computeLayouts.size();
-                layoutDesc.bindGroupLayouts = computeLayouts.data();
-                wgpu::PipelineLayout computeLayout = device_.CreatePipelineLayout(&layoutDesc);
+                wgpu::PipelineLayout computeLayout = strataLayoutFor(frameLayout_, frameKStateLayout_, frameKTexturesLayout_);
                 if (!computeLayout) return false;
 
                 // Shared pipeline layout for compute pipelines that evaluate
@@ -1259,15 +1302,7 @@ namespace t7 {
                 // (POLICY_WALKER_AGENT — same texture binding for sample_pawn_aura).
                 // Created here (before any pipeline that needs it) so the kernel
                 // can reach it during behavior dispatch.
-                std::array<wgpu::BindGroupLayout, 2> liveContribLayouts = {
-                    computeEntityLayout_,
-                    computeTextureLayout_
-                };
-                wgpu::PipelineLayoutDescriptor liveContribLayoutDesc{};
-                liveContribLayoutDesc.bindGroupLayoutCount = liveContribLayouts.size();
-                liveContribLayoutDesc.bindGroupLayouts = liveContribLayouts.data();
-                wgpu::PipelineLayout liveContribComputeLayout =
-                    device_.CreatePipelineLayout(&liveContribLayoutDesc);
+                wgpu::PipelineLayout liveContribComputeLayout = strataLayoutFor(frameLayout_, frameKStateLayout_, frameKTexturesLayout_);
                 if (!liveContribComputeLayout) return false;
 
                 // THE ROOM (Option B, Batch F; FIELD_2 amendment): the two
@@ -1276,16 +1311,7 @@ namespace t7 {
                 // keeps the two-group layout untouched, so tenant-side
                 // binding growth (the occupier windows, the field pair)
                 // never widens its compile surface.
-                std::array<wgpu::BindGroupLayout, 3> roomLayouts = {
-                    computeEntityLayout_,
-                    computeTextureLayout_,
-                    roomLayout_
-                };
-                wgpu::PipelineLayoutDescriptor roomLayoutDesc{};
-                roomLayoutDesc.bindGroupLayoutCount = roomLayouts.size();
-                roomLayoutDesc.bindGroupLayouts = roomLayouts.data();
-                wgpu::PipelineLayout roomComputeLayout =
-                    device_.CreatePipelineLayout(&roomLayoutDesc);
+                wgpu::PipelineLayout roomComputeLayout = strataLayoutFor(frameLayout_, agentsStateLayout_, agentsTexturesLayout_);
                 if (!roomComputeLayout) return false;
 
                 // Pipeline: update_player_agent (0D, 1 thread — possessed slot only)
@@ -1337,7 +1363,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {
-                    wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
                         pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
@@ -1345,7 +1371,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
                 {
-                    wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
                         pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
@@ -1353,7 +1379,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_cells (2D, on demand)
                 {
-                    wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_cells", "Generate Patch Cells (2D, on demand)",
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
@@ -1361,7 +1387,7 @@ namespace t7 {
 
                 // Pipeline: compute_ribbon_rings (1D, per frame when ribbon active)
                 if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(ribbonComputeLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, ribbonStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_ribbon_rings", "Compute Ribbon Rings (1D, per frame)",
                         pl, Entry::COMPUTE_RIBBON_RINGS, ribbonRingPipeline_)) return false;
@@ -1369,7 +1395,7 @@ namespace t7 {
 
                 // Photographer VP compute pipeline (0D, reads pawn → writes VP)
                 if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(photographerComputeLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, galleryStateLayout_, galleryTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_photographer_vp", "Compute Photographer VP (0D)",
                         pl, Entry::COMPUTE_PHOTOGRAPHER_VP, photographerVPPipeline_)) return false;
@@ -1381,14 +1407,7 @@ namespace t7 {
                     // cell-exact GoL fetch (GROUND_CARD_1 H5). Shared @group(1)
                     // declarations serve; unused group members are legal — the
                     // layout must cover the shader, not vice versa.
-                    std::array<wgpu::BindGroupLayout, 2> placementLayouts = {
-                        entityPlacementComputeLayout_,
-                        computeTextureLayout_
-                    };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = placementLayouts.size();
-                    pld.bindGroupLayouts = placementLayouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, placeStateLayout_, placeTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_entity_placement", "Compute Entity Placement (0D)",
                         pl, Entry::COMPUTE_ENTITY_PLACEMENT, entityPlacementPipeline_)) return false;
@@ -1396,7 +1415,7 @@ namespace t7 {
 
                 // GPU frustum cull pipeline (dedicated layout)
                 {
-                    wgpu::PipelineLayout pl = computeLayoutFor(frustumCullLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, cullStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("frustum_cull_patches", "Frustum Cull Patches",
                         pl, Entry::FRUSTUM_CULL_PATCHES, frustumCullPipeline_)) return false;
@@ -1404,7 +1423,7 @@ namespace t7 {
 
                 // Pawn aura compute pipeline (dedicated layout)
                 if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(pawnAuraComputeLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, auraStateLayout_, auraTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_pawn_aura", "Compute Pawn Aura (2D)",
                         pl, Entry::COMPUTE_PAWN_AURA, pawnAuraPipeline_)) return false;
@@ -1413,7 +1432,7 @@ namespace t7 {
                 // Live card writer pipelines (two-pass — TRUEBAND_CONTACT_1;
                 // the patch-gen dispatch-pair shape at card size)
                 {
-                    wgpu::PipelineLayout pl = computeLayoutFor(liveCardWriterLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("write_live_card_heights", "Live Card Heights (2D)",
                         pl, Entry::WRITE_LIVE_CARD_HEIGHTS, liveCardHeightsPipeline_)) return false;
@@ -1423,7 +1442,7 @@ namespace t7 {
 
                 // Orb compute pipelines (init + dynamics + recolor share the dedicated orb layout)
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(orbComputeLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, orbsStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("orb_init", "Orb Init", pl, Entry::ORB_INIT, orbInitPipeline_)) return false;
                     if (!makeComputePipeline("orb_dynamics", "Orb Dynamics", pl, Entry::ORB_DYNAMICS, orbDynamicsPipeline_)) return false;
@@ -1433,7 +1452,7 @@ namespace t7 {
                 // Orb copy-prev pipeline (Pass 9) — dedicated layout because
                 // it flips the access modes on orb_state / orb_state_prev.
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(orbCopyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, orbsStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("orb_state_prev_copy", "Orb State Prev Copy",
                         pl, Entry::ORB_STATE_PREV_COPY, orbCopyPrevPipeline_)) return false;
@@ -1441,7 +1460,7 @@ namespace t7 {
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_gol_sync", "GoL Zone Sync", pl, Entry::ZONE_GOL_SYNC, zoneGolSyncPipeline_)) return false;
                     if (!makeComputePipeline("zone_gol_evolve", "GoL Zone Evolve", pl, Entry::ZONE_GOL_EVOLVE, zoneGolEvolvePipeline_)) return false;
@@ -1449,14 +1468,14 @@ namespace t7 {
 
                 // Zone derive pipeline (shared GoL layout)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_derive_params", "Zone Derive Params", pl, Entry::ZONE_DERIVE_PARAMS, zoneDeriveParamsPipeline_)) return false;
                 }
 
                 // Zone mask pipeline (dedicated layout — UNIFIED_GROUND_1 U5)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(zoneMaskLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_seed_mask", "Zone Seed Mask (2D)",
                         pl, Entry::ZONE_SEED_MASK, zoneSeedMaskPipeline_)) return false;
@@ -1467,35 +1486,35 @@ namespace t7 {
                 // pyramid mesh-gen pipeline CUT — mesh never drawn.
 
                 if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(archMeshGenLayout_);   // bindings 193-195
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);   // bindings 193-195
                     if (!pl) return false;
                     if (!makeComputePipeline("arch_mesh_gen", "Arch Mesh Gen",
                         pl, Entry::ARCH_MESH_GEN, archMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(columnMeshGenLayout_);  // bindings 196-198
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);  // bindings 196-198
                     if (!pl) return false;
                     if (!makeComputePipeline("column_mesh_gen", "Column Mesh Gen",
                         pl, Entry::COLUMN_MESH_GEN, columnMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(palmMeshGenLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("palm_mesh_gen", "Palm Mesh Gen",
                         pl, Entry::PALM_MESH_GEN, palmMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(cactusMeshGenLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("cactus_mesh_gen", "Cactus Mesh Gen",
                         pl, Entry::CACTUS_MESH_GEN, cactusMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = computeLayoutFor(bladeMeshGenLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("blade_cluster_mesh_gen", "Blade Mesh Gen",
                         pl, Entry::BLADE_MESH_GEN, bladeMeshGenPipeline_)) return false;
@@ -1506,27 +1525,11 @@ namespace t7 {
 
             bool createRenderPipelines() {
                 // Shadow pipeline layout (entity + textures WITHOUT shadow map)
-                std::array<wgpu::BindGroupLayout, 2> shadowLayouts = {
-                    renderEntityLayout_,
-                    shadowTextureLayout_
-                };
-
-                wgpu::PipelineLayoutDescriptor shadowLayoutDesc{};
-                shadowLayoutDesc.bindGroupLayoutCount = shadowLayouts.size();
-                shadowLayoutDesc.bindGroupLayouts = shadowLayouts.data();
-                wgpu::PipelineLayout shadowRenderLayout = device_.CreatePipelineLayout(&shadowLayoutDesc);
+                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor(frameLayout_, shadowStateLayout_, shadowTexturesLayout_);
                 if (!shadowRenderLayout) return false;
 
                 // Main render pipeline layout (entity + textures WITH shadow map)
-                std::array<wgpu::BindGroupLayout, 2> renderLayouts = {
-                    renderEntityLayout_,
-                    renderTextureLayout_
-                };
-
-                wgpu::PipelineLayoutDescriptor layoutDesc{};
-                layoutDesc.bindGroupLayoutCount = renderLayouts.size();
-                layoutDesc.bindGroupLayouts = renderLayouts.data();
-                wgpu::PipelineLayout renderLayout = device_.CreatePipelineLayout(&layoutDesc);
+                wgpu::PipelineLayout renderLayout = strataLayoutFor(frameLayout_, sceneStateLayout_, sceneTexturesLayout_);
                 if (!renderLayout) return false;
 
                 // Shared depth stencil state
@@ -1894,12 +1897,7 @@ namespace t7 {
                 // Dedicated pipeline layout (galleryEntity + galleryTexture).
                 {
                     wgpu::PipelineLayoutDescriptor pld{};
-                    std::array<wgpu::BindGroupLayout, 2> galleryGroups = {
-                        galleryEntityLayout_, galleryTextureLayout_
-                    };
-                    pld.bindGroupLayoutCount = galleryGroups.size();
-                    pld.bindGroupLayouts = galleryGroups.data();
-                    wgpu::PipelineLayout galleryLayout = device_.CreatePipelineLayout(&pld);
+                    wgpu::PipelineLayout galleryLayout = strataLayoutFor(frameLayout_, galleryStateLayout_, galleryTexturesLayout_);
 
                     wgpu::ColorTargetState colorTarget{};
                     colorTarget.format = colorFormat_;
@@ -1950,12 +1948,7 @@ namespace t7 {
                 // Uses same bind group layouts as gallery frames (galleryEntity + galleryTexture)
                 {
                     wgpu::PipelineLayoutDescriptor pld{};
-                    std::array<wgpu::BindGroupLayout, 2> wpGroups = {
-                        galleryEntityLayout_, galleryTextureLayout_
-                    };
-                    pld.bindGroupLayoutCount = wpGroups.size();
-                    pld.bindGroupLayouts = wpGroups.data();
-                    wgpu::PipelineLayout wpLayout = device_.CreatePipelineLayout(&pld);
+                    wgpu::PipelineLayout wpLayout = strataLayoutFor(frameLayout_, galleryStateLayout_, galleryTexturesLayout_);
 
                     wgpu::ColorTargetState colorTarget{};
                     colorTarget.format = colorFormat_;
@@ -2446,13 +2439,7 @@ namespace t7 {
                     // painting slots and array still come from the gallery
                     // texture layout. The COLOUR gallery pipelines keep the
                     // gallery entity layout; only the shadow pair moves.
-                    std::array<wgpu::BindGroupLayout, 2> galleryShadowGroups = {
-                        renderEntityLayout_, galleryTextureLayout_
-                    };
-                    wgpu::PipelineLayoutDescriptor galleryShadowPld{};
-                    galleryShadowPld.bindGroupLayoutCount = galleryShadowGroups.size();
-                    galleryShadowPld.bindGroupLayouts = galleryShadowGroups.data();
-                    wgpu::PipelineLayout galleryShadowLayout = device_.CreatePipelineLayout(&galleryShadowPld);
+                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor(frameLayout_, shadowStateLayout_, shadowTexturesLayout_);
                     if (!galleryShadowLayout) return false;
 
                     if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",
@@ -2469,13 +2456,10 @@ namespace t7 {
 
                 // ─── Fade Overlay Pipeline ───────────────────────────────────────
                 // Fullscreen triangle, alpha blending, no depth write.
-                // Uses meshGenEntityLayout_ (binding 1 = config only).
+                // Binds WORLD only (config) — the fade overlay's whole surface.
                 {
                     wgpu::PipelineLayoutDescriptor pld{};
-                    std::array<wgpu::BindGroupLayout, 1> groups = { meshGenEntityLayout_ };
-                    pld.bindGroupLayoutCount = groups.size();
-                    pld.bindGroupLayouts = groups.data();
-                    wgpu::PipelineLayout layout = device_.CreatePipelineLayout(&pld);
+                    wgpu::PipelineLayout layout = strataLayoutFor(emptyLayout_, emptyLayout_, emptyLayout_);
 
                     wgpu::ColorTargetState colorTarget{};
                     colorTarget.format = colorFormat_;

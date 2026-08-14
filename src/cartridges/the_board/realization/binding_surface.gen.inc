@@ -9,791 +9,9 @@
 
             bool create_binding_layouts() {
 
-                //
+                // World Layout — stratum 0 (module-wide design state) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 12> entries{};
-
-                    entries[0].binding = bind::g0::signal;
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::config;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[2].binding = bind::g0::vp_data;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g0::agent_state;
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::camera_state;
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[5].binding = bind::g0::floating_entities;
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // (GROUND_CARD_1 [5c] evictions: tile_grid 25, pier_instances 26,
-                    //  pyramid_instances 30, zone_config 160, zone_life 161 left this
-                    //  layout. Agents ride the baked ground path (145/146/152) + the
-                    //  card (g1:34); the zone pair is now bound only by the GoL sim
-                    //  layouts and the live-card writer.)
-                    entries[6].binding = bind::g0::portal_array;  // portal_array (uniform — proximity check in behavior_player_controlled)
-                    entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // LIVE — the agents' baked ground path (sample_terrain_y_at
-                    // in the rewired query family — GROUND_CARD_1 H5).
-                    entries[7].binding = bind::g0::photo_heightfield;  // photo_heightfield (texture_2d_array)
-                    entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[7].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[8].binding = bind::g0::photo_sampler;  // photo_sampler (filtering)
-                    entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[9].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Agent registries (uniform — read-only, fixed size,
-                    // never changes during a session). Originally tried as
-                    // ReadOnlyStorage but pushed compute storage buffer
-                    // count past the 8-per-stage Core default; uniform has
-                    // its own 12-per-stage budget and these tables
-                    // (≤ 512 B total) fit comfortably.
-                    entries[10].binding = bind::g0::agent_behaviors;  // agent_behaviors
-                    entries[10].visibility = wgpu::ShaderStage::Compute;
-                    entries[10].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[11].binding = bind::g0::agent_tier_gains;  // agent_tier_gains
-                    entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Compute Entity Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    computeEntityBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!computeEntityBindGroupLayout_) return false;
-                }
-
-                //
-                // Vertex shaders need entity state for positioning + VP for transform.
-                // Fragment shaders need camera for fog distance.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 15> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — fog, world_seed, aura_enabled, fade)
-                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::render_vp;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[2].binding = bind::g0::render_agents;
-                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[3].binding = bind::g0::render_camera;
-                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[4].binding = bind::g0::render_floating;
-                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // WALLET_1revA: the light trio became one uniform block.
-                    // Three F-stage storage seats freed across the whole
-                    // entity family. TWIN: Lighting / GPULighting, 848 B.
-                    entries[5].binding = bind::g0::render_lighting;
-                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[6].binding = bind::g0::patch_instances;
-                    entries[6].visibility = wgpu::ShaderStage::Vertex;
-                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[7].binding = bind::g0::render_ribbon;
-                    entries[7].visibility = wgpu::ShaderStage::Vertex;
-                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[8].binding = bind::g0::render_ring_xforms;
-                    entries[8].visibility = wgpu::ShaderStage::Vertex;
-                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Tile grid (uniform — terrain wave delta needs amp_scale in VS,
-                    // animated_cell_color needs archetype lookup in FS)
-                    entries[9].binding = bind::g0::tile_grid;
-                    entries[9].visibility = wgpu::ShaderStage::Fragment;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // Entity ground atlas (r32float 256×1 — VS reads ground_y via textureLoad)
-                    entries[10].binding = bind::g0::entity_ground_atlas;
-                    entries[10].visibility = wgpu::ShaderStage::Vertex;
-                    entries[10].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
-                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    // Visible patch indices (GPU frustum cull output — VS reads indirection)
-                    entries[11].binding = bind::g0::visible_patch_indices;
-                    entries[11].visibility = wgpu::ShaderStage::Vertex;
-                    entries[11].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Agent tier registry — same buffer as compute binding 111.
-                    // Read by pawn_vs for entity color (tg.color_r/g/b).
-                    // Uniform (not storage) to stay under the per-stage
-                    // storage buffer cap; same buffer is bound as uniform
-                    // on the compute side too.
-                    entries[12].binding = bind::g0::agent_tier_gains;
-                    entries[12].visibility = wgpu::ShaderStage::Vertex;
-                    entries[12].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
-                    // profile + palette. Uniform (not storage) for the same reason as
-                    // the tier registry above: it keeps the vertex stage off the
-                    // storage cap, which TETRIS ORB_V left standing at 6 of 8
-                    // (BINDING_LEDGER Table B). 4032 B, session-constant.
-                    entries[13].binding = bind::g0::agent_figure_profiles;
-                    entries[13].visibility = wgpu::ShaderStage::Vertex;
-                    entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX.
-                    // The ONE dynamic-offset binding in the program. Each spot
-                    // light owns a 256-byte window holding its own index; the
-                    // shadow pass moves the window per light-group inside a
-                    // single pass, which is what lets one pass serve every
-                    // light a texture owns and retires the per-tile Load.
-                    // Every OTHER bind of this group passes offset 0 — a
-                    // dynamic-offset layout requires the offset at every set,
-                    // and a missed site fails loudly at validation.
-                    entries[14].binding = bind::g0::shadow_slot;
-                    entries[14].visibility = wgpu::ShaderStage::Vertex;
-                    entries[14].buffer.type = wgpu::BufferBindingType::Uniform;
-                    entries[14].buffer.hasDynamicOffset = true;
-                    entries[14].buffer.minBindingSize = SHADOW_SLOT_SIZE;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Render Entity Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    renderEntityBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!renderEntityBindGroupLayout_) return false;
-                }
-
-                // -- Mesh gen entity layout (Group 0) -- binding 1 only ------
-                // Only config uniform needed for active_cell_size.
-                // Avoids exceeding the 8 storage buffer per-stage limit.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 1> entries{};
-
-                    entries[0].binding = bind::g0::config;
-                    entries[0].visibility = wgpu::ShaderStage::Fragment;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Mesh Gen Entity Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    meshGenEntityBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!meshGenEntityBindGroupLayout_) return false;
-                }
-
-                // -- Shadow texture layout (Group 1) -- bindings 22-23, 28, 34 --
-                // Used during shadow pass: samplers + patch heightfield only, NO shadow map.
-                // Avoids read/write conflict (shadow map is depth attachment).
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
-
-                    entries[0].binding = bind::g1::bilinear_sampler;
-                    entries[0].visibility = wgpu::ShaderStage::Vertex;
-                    entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[1].binding = bind::g1::nearest_sampler;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex;
-                    entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
-
-                    entries[2].binding = bind::g1::patch_heightfield_array_read;
-                    entries[2].visibility = wgpu::ShaderStage::Vertex;
-                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    // The live card (GROUND_CARD_1) — shadow VS height term
-                    entries[3].binding = bind::g1::live_card_read;
-                    entries[3].visibility = wgpu::ShaderStage::Vertex;
-                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Shadow Texture Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    shadowTextureBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!shadowTextureBindGroupLayout_) return false;
-                }
-
-                // -- Render texture layout (Group 1) -- bindings 22-23, 25-29, 31-34 -
-                // Used during main render pass: samplers + shadow maps + patches + GoL zones + pawn aura.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
-
-                    entries[0].binding = bind::g1::bilinear_sampler;
-                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[1].binding = bind::g1::nearest_sampler;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
-
-                    entries[2].binding = bind::g1::shadow_map;
-                    entries[2].visibility = wgpu::ShaderStage::Fragment;
-                    entries[2].texture.sampleType = wgpu::TextureSampleType::Depth;
-                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[3].binding = bind::g1::shadow_sampler;
-                    entries[3].visibility = wgpu::ShaderStage::Fragment;
-                    entries[3].sampler.type = wgpu::SamplerBindingType::Comparison;
-
-                    // Spot shadow atlas (depth texture, sampled in spot PCF)
-                    entries[4].binding = bind::g1::spot_shadow_map;
-                    entries[4].visibility = wgpu::ShaderStage::Fragment;
-                    entries[4].texture.sampleType = wgpu::TextureSampleType::Depth;
-                    entries[4].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[5].binding = bind::g1::patch_heightfield_array_read;
-                    entries[5].visibility = wgpu::ShaderStage::Vertex;
-                    entries[5].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[5].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[6].binding = bind::g1::patch_cell_color_array_read;
-                    entries[6].visibility = wgpu::ShaderStage::Fragment;
-                    entries[6].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[6].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    // GoL zone life texture (fragment reads alive/dead per zone)
-                    entries[7].binding = bind::g1::zone_life_read;
-                    entries[7].visibility = wgpu::ShaderStage::Fragment;
-                    entries[7].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
-                    entries[7].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    // GoL zone config (fragment reads zone origins for lookup)
-                    entries[8].binding = bind::g1::zone_params;
-                    entries[8].visibility = wgpu::ShaderStage::Fragment;
-                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Pawn aura texture (VS + FS read persistent influence field)
-                    entries[9].binding = bind::g1::pawn_aura_read;
-                    entries[9].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[9].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[9].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    // The live card (GROUND_CARD_1) — VS height/gradient + FS debug eye
-                    entries[10].binding = bind::g1::live_card_read;
-                    entries[10].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[10].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Render Texture Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    renderTextureBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!renderTextureBindGroupLayout_) return false;
-                }
-
-                //
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
-
-                    entries[0].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[1].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
-
-                    entries[2].binding = bind::g1::pawn_aura_read;  // pawn_aura_read (rgba16float, filterable)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[3].binding = bind::g1::live_card_read;  // LIVE — the card (agents' live surface + cell-exact GoL; GROUND_CARD_1 H5)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Compute Texture Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    computeTextureBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!computeTextureBindGroupLayout_) return false;
-                }
-
-                // -- Patch heightfield gen layout (Group 0) -- bindings 23-24 -
-                // Per-patch compute pass: fills one heightfield layer.
-                // Dispatched when a patch enters the active set.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — world_seed for cell color gen)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::patch_params;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[2].binding = bind::g0::patch_heightfield_array_write;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[2].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
-                    entries[2].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[3].binding = bind::g0::tile_grid;
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[4].binding = bind::g0::patch_cell_color_array_write;
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[4].storageTexture.format = wgpu::TextureFormat::RGBA8Unorm;
-                    entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[5].binding = bind::g0::pyramid_instances;  // pyramid_instances
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[6].binding = bind::g0::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
-                    entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Patch Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    patchGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!patchGenLayout_) return false;
-                }
-
-                //
-                // Bindings: ribbon_state @120, ring_xforms @121, head_poses @122.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::ribbon_state;
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::ring_xforms;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::head_poses;  // head_poses (storage, read) — ribbon head-path
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Ribbon Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    ribbonComputeLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!ribbonComputeLayout_) return false;
-                }
-
-                // -- Gallery entity layout (Group 0) -- minimal for painting frames --
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — fog for FS, veil ring + LOD point for VS)
-                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::render_vp;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[2].binding = bind::g0::render_camera;
-                    entries[2].visibility = wgpu::ShaderStage::Fragment;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Gallery Entity Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryEntityBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!galleryEntityBindGroupLayout_) return false;
-                }
-
-                // -- Gallery texture layout (Group 1) -- unified painting data --
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
-
-                    entries[0].binding = bind::g1::painting_slots;
-                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g1::painting_array;
-                    entries[1].visibility = wgpu::ShaderStage::Fragment;
-                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[2].binding = bind::g1::painting_sampler_filt;
-                    entries[2].visibility = wgpu::ShaderStage::Fragment;
-                    entries[2].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
-                    // now rides the card for its ground term (H4 [4c]); this pipeline
-                    // family binds gallery groups, so the pair lives here too.
-                    entries[3].binding = bind::g1::bilinear_sampler;
-                    entries[3].visibility = wgpu::ShaderStage::Vertex;
-                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[4].binding = bind::g1::live_card_read;
-                    entries[4].visibility = wgpu::ShaderStage::Vertex;
-                    entries[4].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[4].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Gallery Texture Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryTextureBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!galleryTextureBindGroupLayout_) return false;
-                }
-
-                // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
-                // Reads THE POINT's position (host-sourced) + config →
-                // builds VP, clamps camera above terrain.
-                // Entity Y-correction is handled separately by compute_entity_placement.
-                // 1 config uniform + 4 storage + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 9 entries.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (DesignConfig — possessed_slot lookup via compute_pawn_pos)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::agent_state;  // agent_state (read pos via possessed_slot)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::photographer_config;  // photographer_config (camera params)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[3].binding = bind::g0::photographer_vp;  // photographer_vp (output VP matrix)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::photographer_camera_out;  // photographer_camera_out (output camera pos)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[5].binding = bind::g0::photo_heightfield;  // patch_heightfield (terrain texture)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[5].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[6].binding = bind::g0::photo_sampler;  // bilinear_sampler
-                    entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[7].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[8].binding = bind::g0::camera_state;  // camera_state (point_pos — the point's camera-host source)
-                    entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Photographer Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    photographerComputeLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!photographerComputeLayout_) return false;
-                }
-
-                // -- Entity placement compute layout (Group 0) -- Y-correction --
-                // Runs every frame, unconditionally. Samples the baked heightfield
-                // (pier_correction is retired — always 0 since the pier erasure.)
-                // 9 entries: config + painting slots + heightfield + entity grounds + ground atlas write + patch_grid.
-                // GoL rides group 1 — the card.
-                // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
-
-                    entries[0].binding = bind::g0::config;
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::photo_painting_slots;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::photo_heightfield;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[3].binding = bind::g0::photo_sampler;
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[4].binding = bind::g0::arch_ground;
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[5].binding = bind::g0::column_ground;
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // (GROUND_CARD_1 [5c]: zone_config 160 + zone_life 161 evicted —
-                    //  placement's GoL term rides the card's cell-exact fetch via
-                    //  group 1. The zone pair is now bound only by the GoL sim
-                    //  layouts and the live-card writer.)
-                    entries[6].binding = bind::g0::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
-                    entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[7].binding = bind::g0::entity_ground_atlas_write;  // entity_ground_atlas_write (r32float storage texture)
-                    entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[7].storageTexture.format = wgpu::TextureFormat::R32Float;
-                    entries[7].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[8].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Entity Placement Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    entityPlacementComputeLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!entityPlacementComputeLayout_) return false;
-                }
-
-                // -- Frustum cull compute layout (Group 0) -- GPU patch visibility --
-                // Reads VP + config + patch instances + the draw plan,
-                // writes the three visible lists + indirect draw args.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — render_patch_count)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::vp_data;  // vp_data (storage — VP matrix for frustum planes)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[2].binding = bind::g0::patch_instances;  // patch_instances (storage — all patches)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[3].binding = bind::g0::fc_visible;  // visible_patch_indices (storage, rw — output)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::fc_indirect;  // frustum_indirect (storage, rw — atomic draw args)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[5].binding = bind::g0::fc_draw_plan;  // draw plan (uniform — counts + zone rects)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Frustum Cull Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    frustumCullLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!frustumCullLayout_) return false;
-                }
-
-                // -- GoL zone compute layout (Group 0) -- bindings 1, 160-162, 166 --
-                // Shared by all three zone entry points: sync, evolve, derive_params.
-                // derive_params writes zone_config.zones[slot] from tier tables.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — world_seed, fog, etc.)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
-                    entries[1].binding = bind::g0::zone_config;  // zone_config (storage, rw)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::zone_life;  // zone_life (storage, read/write)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g0::zone_life_tex_write;  // zone_life_tex (storage texture, write)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[3].storageTexture.format = wgpu::TextureFormat::R32Float;
-                    entries[3].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[4].binding = bind::g0::zone_derive_requests;  // zone_derive_requests (uniform)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "GoL Zone Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    zoneGolComputeLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!zoneGolComputeLayout_) return false;
-                }
-
-                // -- Pawn aura compute layout (Group 0) -- bindings 1, 25, 60, 170-172 --
-                // (tile_grid joined at TERRAIN PROGRAM Phase 1: gol_composite_cell_color
-                //  collapsed into the one evaluator, which reads the tile archetype.)
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — world_seed for cell color)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::agent_state;  // agent_state (read possessed_slot position)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::pawn_aura_cfg;  // pawn_aura_config (uniform)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[3].binding = bind::g0::pawn_aura_cells;  // pawn_aura_cells (storage, rw)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::pawn_aura_tex_write;  // pawn_aura_tex (storage texture, write)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[4].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
-                    entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[5].binding = bind::g0::tile_grid;  // tile_grid (uniform — evaluator's archetype lookup)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Pawn Aura Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    pawnAuraComputeLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!pawnAuraComputeLayout_) return false;
-                }
-
-                // -- Live card writer layout (Group 0) -- bindings 0, 1, 160, 161, 31, 32 --
-                // (GROUND_CARD_1) The writer kernel calls the existing evaluators at
-                // texel centers: signal (band blends + pulse clock), config (waves +
-                // pulses + lod_point origin), the zone pair (raw GoL lift), the
-                // card's storage-texture write, and the two-pass scratch
-                // (TRUEBAND_CONTACT_1). The Compute Entity eviction has LANDED —
-                // this layout IS the zone pair's sole home outside the GoL sim.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
-
-                    entries[0].binding = bind::g0::signal;  // signal (uniform — band blends, t_seconds)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::config;  // config (uniform — waves, pulses, lod_point)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[2].binding = bind::g0::zone_config;  // zone_config (storage — matches var<storage, read_write>)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g0::zone_life;  // zone_life (storage, rw — matches WGSL var declaration)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::live_card_write;  // live_card_write (storage texture, write)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[4].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
-                    entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[5].binding = bind::g0::live_card_scratch;  // two-pass scratch (TRUEBAND_CONTACT_1)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Live Card Writer Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    liveCardWriterLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!liveCardWriterLayout_) return false;
-                }
-
-                // -- Zone mask layout (Group 0) -- bindings 1, 25, 160, 161, 166 --
-                // (UNIFIED_GROUND_1 U5) The birth-moment mask kernel: config +
-                // tile_grid feed the color system's rest predicate; the zone pair
-                // is Storage (their declarations are var<storage, read_write> —
-                // the H-batch precedent); derive requests scope the dispatch.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
-
-                    entries[0].binding = bind::g0::config;  // config (uniform — the field evaluators)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g0::tile_grid;  // tile_grid (uniform — archetype lookup)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[2].binding = bind::g0::zone_config;  // zone_config (storage — matches var<storage, read_write>)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g0::zone_life;  // zone_life (storage, rw — the height_factor plane)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::zone_derive_requests;  // zone_derive_requests (uniform)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Zone Mask Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    zoneMaskLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!zoneMaskLayout_) return false;
-                }
-
-                // -- Orb compute layout (Group 0) -- bindings 410 RW, 411 U, 412 RO --
-                // Used by init / dynamics / recolor. orb_state is read_write so these
-                // kernels can update it; orb_state_prev is read-only because only the
-                // copy kernel writes it (through orbCopyLayout_).
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
-
-                    entries[0].binding = bind::g0::orb_state;  // orb_state (storage, read_write)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[1].binding = bind::g0::orb_config;  // orb_config (uniform)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[2].binding = bind::g0::orb_state_prev;  // orb_state_prev (storage, read-only)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
                     // FIELD_2b: the design config joins the orb room. Not a
                     // new fact — the SAME config uniform every other compute
@@ -804,948 +22,877 @@
                     // buffer, new reachability. orb_init and orb_recolor
                     // share this layout and ignore it — unused group members
                     // are legal.
-                    entries[3].binding = bind::g0::config;  // config (uniform)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[0].binding = bind::g0::config;  // config (uniform — fog, world_seed, aura_enabled, fade)
+                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Orb Compute Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    orbComputeLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!orbComputeLayout_) return false;
-                }
-
-                // -- Orb copy layout (Group 0) -- bindings 413 RO, 411 U, 414 RW --
-                // Dedicated bindings for orb_state_prev_copy because WebGPU
-                // requires each shader declaration's access mode to match its
-                // layout entry exactly. We can't reuse 410/412 (which the main
-                // layout binds RW/RO) with flipped access. 413 aliases orb_state
-                // through a read-only view; 414 aliases orb_state_prev through
-                // a read_write view.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::orb_state_ro;  // orb_state_ro (storage, read-only)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::orb_config;  // orb_config (uniform — declared at module scope)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    // Tile grid (uniform — terrain wave delta needs amp_scale in VS,
+                    // animated_cell_color needs archetype lookup in FS)
+                    entries[1].binding = bind::g0::tile_grid;  // tile_grid (uniform — evaluator's archetype lookup)
+                    entries[1].visibility = wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[2].binding = bind::g0::orb_state_prev_rw;  // orb_state_prev_rw (storage, read_write)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Orb Copy Layout";
+                    desc.label = "World Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    orbCopyLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!orbCopyLayout_) return false;
+                    worldLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!worldLayout_) return false;
                 }
 
-                // -- Arch mesh gen layout (Group 0) -- bindings 193-195 --
+                // Frame Layout — stratum 1 (per-frame camera/light state) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
 
-                    entries[0].binding = bind::g0::amg_params;  // amg_params (read-only storage)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::amg_vertices;  // amg_vertices (storage, rw)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::amg_indices;  // amg_indices (storage, rw)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Arch Mesh Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    archMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!archMeshGenLayout_) return false;
-                }
-
-                // -- THE ROOM (Group 2) -- bindings g2:0-5 --
-                // Option B (Batch F; FIELD_2 amendment): the private third
-                // group, so tenant-side growth never touches the six
-                // pipelines sharing the entity layout. Two Uniform
-                // occupier windows onto the SAME mesh-param buffers the
-                // mesh-gen groups bind — one fact, one home — plus the
-                // field trio: the ring-pose and ribbon-state windows in,
-                // the force sum out. Two named tenants arrived (FIELD_2):
-                // the floater kernels now stand beside the agent kernels.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
-
-                    entries[0].binding = bind::g2::occupier_cmg;  // occupier_cmg (uniform window — TETRIS WALLET_0: demoted from read-only storage so the room family drops to 6 of 8 storage; 4,096 B, well under the 64 KiB uniform cap)
+                    entries[0].binding = bind::g1::signal;  // signal (uniform — band blends, t_seconds)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g2::occupier_amg;  // occupier_amg (uniform window — TETRIS WALLET_0; 1,280 B)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    // WALLET_1revA: the light trio became one uniform block.
+                    // Three F-stage storage seats freed across the whole
+                    // entity family. TWIN: Lighting / GPULighting, 848 B.
+                    entries[1].binding = bind::g1::render_lighting;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[2].binding = bind::g2::field_head_poses;  // field_head_poses (uniform window — C6: demoted from read-only storage so the room family fits the 8-storage default; 6,400 B, well under the 64 KiB uniform cap)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    // ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX.
+                    // The ONE dynamic-offset binding in the program. Each spot
+                    // light owns a 256-byte window holding its own index; the
+                    // shadow pass moves the window per light-group inside a
+                    // single pass, which is what lets one pass serve every
+                    // light a texture owns and retires the per-tile Load.
+                    // Every OTHER bind of this group passes offset 0 — a
+                    // dynamic-offset layout requires the offset at every set,
+                    // and a missed site fails loudly at validation.
+                    entries[2].binding = bind::g1::shadow_slot;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex;
                     entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[2].buffer.hasDynamicOffset = true;
+                    entries[2].buffer.minBindingSize = SHADOW_SLOT_SIZE;
 
-                    entries[3].binding = bind::g2::field_forces;  // field_forces (read_write storage)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[3].binding = bind::g1::render_vp;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[4].binding = bind::g2::field_ribbon;  // field_ribbon (uniform window)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[5].binding = bind::g2::field_authored;  // field_authored (uniform, FIELD_4)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "The Room Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    roomLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!roomLayout_) return false;
-                }
-
-                // -- Column mesh gen layout (Group 0) -- bindings 190/191 + 196-198 --
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
-
-                    entries[0].binding = bind::g0::cmg_params;  // cmg_params (read-only storage)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::cmg_vertices;  // cmg_vertices (storage, rw)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::cmg_indices;  // cmg_indices (storage, rw)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // COLUMN CEILING FIT: the kernel derives effective column
-                    // height = ceiling − ground_y (indoors), so the cmg strip
-                    // reads the design config + the correction pass's output.
-                    entries[3].binding = bind::g0::cmg_config;  // DesignConfig (the ceiling gate)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[4].binding = bind::g0::cmg_column_ground;  // column_ground, read-only view
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].binding = bind::g1::render_camera;
+                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
+                    // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
+                    // now rides the card for its ground term (H4 [4c]); this pipeline
+                    // family binds gallery groups, so the pair lives here too.
+                    entries[5].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
+                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute;
+                    entries[5].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    entries[6].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
+                    entries[6].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute;
+                    entries[6].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Column Mesh Gen Layout";
+                    desc.label = "Frame Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    columnMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!columnMeshGenLayout_) return false;
+                    frameLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!frameLayout_) return false;
                 }
 
-                // Palm mesh gen layout (bindings 180-182)
+                // Agents State Layout — stratum 2 (Agents family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
-                    entries[0].binding = bind::g0::palmg_params;
+                    entries[0].binding = bind::g2::agent_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::palmg_vertices;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::palmg_indices;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Palm Mesh Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    palmMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!palmMeshGenLayout_) return false;
-                }
-
-                // Cactus mesh gen layout (bindings 183-185)
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::cactusg_params;
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::cactusg_vertices;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::cactusg_indices;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Cactus Mesh Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    cactusMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!cactusMeshGenLayout_) return false;
-                }
-
-                // Blade mesh gen layout (bindings 186-188)
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::bladeg_params;
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::bladeg_vertices;
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::bladeg_indices;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Blade Mesh Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    bladeMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!bladeMeshGenLayout_) return false;
-                }
-                return true;
-            }
-
-            bool create_binding_groups_boot() {
-
-                // Compute entity bind group (12 entries: systems + portals + the baked ground path)
-                {
-                    std::array<wgpu::BindGroupEntry, 12> entries{};
-
-                    entries[0].binding = bind::g0::signal;
-                    entries[0].buffer = signalBuffer_;
-                    entries[0].size = sizeof(GPUFrameSignal);
-
-                    entries[1].binding = bind::g0::config;
-                    entries[1].buffer = configBuffer_;
-                    entries[1].size = sizeof(GPUDesignConfig);
-
-                    entries[2].binding = bind::g0::vp_data;
-                    entries[2].buffer = vpBuffer_;
-                    entries[2].size = sizeof(GPUVPMatrix);
-
-                    entries[3].binding = bind::g0::agent_state;
-                    entries[3].buffer = agentStateBuffer_;
-                    entries[3].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[4].binding = bind::g0::camera_state;
-                    entries[4].buffer = cameraBuffer_;
-                    entries[4].size = sizeof(GPUCameraState);
-
-                    entries[5].binding = bind::g0::floating_entities;
-                    entries[5].buffer = floatingEntityBuffer_;
-                    entries[5].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
                     // (GROUND_CARD_1 [5c] evictions: tile_grid 25, pier_instances 26,
                     //  pyramid_instances 30, zone_config 160, zone_life 161 left this
                     //  layout. Agents ride the baked ground path (145/146/152) + the
                     //  card (g1:34); the zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[6].binding = bind::g0::portal_array;
-                    entries[6].buffer = portalArrayBuffer_;
-                    entries[6].size = sizeof(GPUPortalArray);
+                    entries[1].binding = bind::g2::portal_array;  // portal_array (uniform — proximity check in behavior_player_controlled)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = bind::g2::floating_entities;
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // Agent registries (uniform — read-only, fixed size,
+                    // never changes during a session). Originally tried as
+                    // ReadOnlyStorage but pushed compute storage buffer
+                    // count past the 8-per-stage Core default; uniform has
+                    // its own 12-per-stage budget and these tables
+                    // (≤ 512 B total) fit comfortably.
+                    entries[3].binding = bind::g2::agent_behaviors;  // agent_behaviors
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[4].binding = bind::g2::agent_tier_gains;  // agent_tier_gains
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[5].binding = bind::g2::occupier_cmg;  // occupier_cmg (uniform window — TETRIS WALLET_0: demoted from read-only storage so the room family drops to 6 of 8 storage; 4,096 B, well under the 64 KiB uniform cap)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[6].binding = bind::g2::occupier_amg;  // occupier_amg (uniform window — TETRIS WALLET_0; 1,280 B)
+                    entries[6].visibility = wgpu::ShaderStage::Compute;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[7].binding = bind::g2::field_head_poses;  // field_head_poses (uniform window — C6: demoted from read-only storage so the room family fits the 8-storage default; 6,400 B, well under the 64 KiB uniform cap)
+                    entries[7].visibility = wgpu::ShaderStage::Compute;
+                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[8].binding = bind::g2::field_forces;  // field_forces (read_write storage)
+                    entries[8].visibility = wgpu::ShaderStage::Compute;
+                    entries[8].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[9].binding = bind::g2::field_ribbon;  // field_ribbon (uniform window)
+                    entries[9].visibility = wgpu::ShaderStage::Compute;
+                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[10].binding = bind::g2::field_authored;  // field_authored (uniform, FIELD_4)
+                    entries[10].visibility = wgpu::ShaderStage::Compute;
+                    entries[10].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[11].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[11].visibility = wgpu::ShaderStage::Compute;
+                    entries[11].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[12].binding = bind::g2::camera_state;
+                    entries[12].visibility = wgpu::ShaderStage::Compute;
+                    entries[12].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Agents State Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    agentsStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!agentsStateLayout_) return false;
+                }
+
+                // Agents Textures Layout — stratum 3 (Agents family) of the LOOM_2 recut.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+
+                    entries[0].binding = bind::g3::pawn_aura_read;  // pawn_aura_read (rgba16float, filterable)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     // LIVE — the agents' baked ground path (sample_terrain_y_at
                     // in the rewired query family — GROUND_CARD_1 H5).
-                    entries[7].binding = bind::g0::photo_heightfield;
-                    entries[7].textureView = patchHeightfieldArrayReadView_;
+                    entries[1].binding = bind::g3::photo_heightfield;  // photo_heightfield (texture_2d_array)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[8].binding = bind::g0::photo_sampler;
-                    entries[8].sampler = bilinearSampler_;
+                    entries[2].binding = bind::g3::photo_sampler;  // photo_sampler (filtering)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[9].binding = bind::g0::patch_grid;
-                    entries[9].buffer = patchGridBuffer_;
-                    entries[9].size = sizeof(GPUPatchGrid);
+                    entries[3].binding = bind::g3::live_card_read;  // LIVE — the card (agents' live surface + cell-exact GoL; GROUND_CARD_1 H5)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    // Agent registries — see bodies/agents.hpp for the
-                    // authoring tables and GPUAgentBehaviorDef /
-                    // GPUAgentTierDef in this file for GPU layout.
-                    entries[10].binding = bind::g0::agent_behaviors;
-                    entries[10].buffer = agentBehaviorsBuffer_;
-                    entries[10].size = GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef);
-
-                    entries[11].binding = bind::g0::agent_tier_gains;
-                    entries[11].buffer = agentTierGainsBuffer_;
-                    entries[11].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Compute Entity BindGroup";
-                    desc.layout = computeEntityBindGroupLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Agents Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    computeEntityBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!computeEntityBindGroup_) return false;
+                    agentsTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!agentsTexturesLayout_) return false;
                 }
 
-                // Render entity bind group (14 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
-                // THE DRAW PLAN: built THREE times — same layout, same
-                // entries, differing ONLY in the visible-list window
-                // (entries[13] offset/size): A full-IB, B cap-only, C LOD1.
-                // One builder, one parameter (the E1 builder precedent).
-                auto build_render_entity_group = [&](const char* label, uint32_t listOff, uint32_t listBytes) -> wgpu::BindGroup {
-                    std::array<wgpu::BindGroupEntry, 15> entries{};
-
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
-
-                    entries[1].binding = bind::g0::render_vp;
-                    entries[1].buffer = vpBuffer_;
-                    entries[1].size = sizeof(GPUVPMatrix);
-
-                    entries[2].binding = bind::g0::render_agents;
-                    entries[2].buffer = agentStateBuffer_;
-                    entries[2].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[3].binding = bind::g0::render_camera;
-                    entries[3].buffer = cameraBuffer_;
-                    entries[3].size = sizeof(GPUCameraState);
-
-                    entries[4].binding = bind::g0::render_floating;
-                    entries[4].buffer = floatingEntityBuffer_;
-                    entries[4].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
-
-                    entries[5].binding = bind::g0::render_lighting;
-                    entries[5].buffer = lightingBuffer_;
-                    entries[5].size = sizeof(GPULighting);
-
-                    entries[6].binding = bind::g0::patch_instances;
-                    entries[6].buffer = patchInstancesBuffer_;
-                    entries[6].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-
-                    entries[7].binding = bind::g0::render_ribbon;
-                    entries[7].buffer = ribbonBuffer_;
-                    entries[7].size = sizeof(GPURibbonState);
-
-                    // Ring transforms (read-only for ribbon VS)
-                    entries[8].binding = bind::g0::render_ring_xforms;
-                    entries[8].buffer = ringTransformsBuffer_;
-                    entries[8].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[9].binding = bind::g0::tile_grid;
-                    entries[9].buffer = tileGridBuffer_;
-                    entries[9].size = sizeof(GPUTileGrid);
-
-                    // Entity ground atlas (r32float 256×1 — VS reads ground_y)
-                    entries[10].binding = bind::g0::entity_ground_atlas;
-                    entries[10].textureView = entityGroundAtlasReadView_;
-
-                    // Visible patch indices (GPU frustum cull output)
-                    entries[11].binding = bind::g0::visible_patch_indices;
-                    entries[11].buffer = visiblePatchIndicesBuffer_;
-                    entries[11].offset = listOff;
-                    entries[11].size = listBytes;
-
-                    // Agent tier gains — same buffer as compute binding 111.
-                    // Read by pawn_vs in the vertex stage for entity color
-                    // (tier_idx → tg.color_r/g/b). Single source of truth
-                    // is the C++ AGENT_TIER_GAINS table in bodies/agents.hpp.
-                    entries[12].binding = bind::g0::agent_tier_gains;
-                    entries[12].buffer = agentTierGainsBuffer_;
-                    entries[12].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
-
-                    // Pawn figure table (uniform, binding 112). Shares the render
-                    // entity layout, so this group MUST bind it or CreateBindGroup fails.
-                    entries[13].binding = bind::g0::agent_figure_profiles;
-                    entries[13].buffer = figureProfilesBuffer_;
-                    entries[13].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    // ATLAS_1revB D3" — the light-index window. offset stays 0
-                    // and size is one u32; the DYNAMIC offset supplied at every
-                    // SetBindGroup selects the window. size is the window
-                    // payload, not the stride.
-                    entries[14].binding = bind::g0::shadow_slot;
-                    entries[14].buffer = lightSlotBuffer_;
-                    entries[14].offset = 0;
-                    entries[14].size = SHADOW_SLOT_SIZE;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = label;
-                    desc.layout = renderEntityBindGroupLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    return device_.CreateBindGroup(&desc);
-                };
-                renderEntityBindGroup_ = build_render_entity_group("Render Entity BindGroup (plan A: full IB)", FC_SEG_A_OFF, FC_SEG_A_BYTES);
-                renderEntityBindGroupPlanB_ = build_render_entity_group("Render Entity BindGroup (plan B: cap-only IB)", FC_SEG_B_OFF, FC_SEG_B_BYTES);
-                renderEntityBindGroupPlanC_ = build_render_entity_group("Render Entity BindGroup (plan C: LOD1 IB)", FC_SEG_C_OFF, FC_SEG_C_BYTES);
-                if (!renderEntityBindGroup_ || !renderEntityBindGroupPlanB_ || !renderEntityBindGroupPlanC_) return false;
-
-                // Mesh gen entity bind group (1 entry: binding 1 = config)
+                // Aura State Layout — stratum 2 (Aura family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 1> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g2::agent_state;  // agent_state (read possessed_slot position)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Mesh Gen Entity BindGroup";
-                    desc.layout = meshGenEntityBindGroupLayout_;
+                    entries[1].binding = bind::g2::pawn_aura_cfg;  // pawn_aura_config (uniform)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = bind::g2::pawn_aura_cells;  // pawn_aura_cells (storage, rw)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Aura State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    meshGenEntityBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!meshGenEntityBindGroup_) return false;
+                    auraStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!auraStateLayout_) return false;
                 }
 
-                // Shadow texture bind group (4 entries: bindings 22-23, 28, 34)
+                // Aura Textures Layout — stratum 3 (Aura family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 1> entries{};
 
-                    entries[0].binding = bind::g1::bilinear_sampler;
-                    entries[0].sampler = bilinearSampler_;
+                    entries[0].binding = bind::g3::pawn_aura_tex_write;  // pawn_aura_tex (storage texture, write)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[0].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
+                    entries[0].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[1].binding = bind::g1::nearest_sampler;
-                    entries[1].sampler = nearestSampler_;
-
-                    entries[2].binding = bind::g1::patch_heightfield_array_read;
-                    entries[2].textureView = patchHeightfieldArrayReadView_;
-
-                    entries[3].binding = bind::g1::live_card_read;
-                    entries[3].textureView = liveCardView_;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Shadow Texture BindGroup";
-                    desc.layout = shadowTextureBindGroupLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Aura Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    shadowTextureBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!shadowTextureBindGroup_) return false;
+                    auraTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!auraTexturesLayout_) return false;
                 }
 
-                // Render texture bind group (11 entries: 22-23, 25-29, 31-34)
+                // Cull State Layout — stratum 2 (Cull family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 11> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
-                    entries[0].binding = bind::g1::bilinear_sampler;
-                    entries[0].sampler = bilinearSampler_;
+                    entries[0].binding = bind::g2::fc_draw_plan;  // draw plan (uniform — counts + zone rects)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g1::nearest_sampler;
-                    entries[1].sampler = nearestSampler_;
+                    entries[1].binding = bind::g2::patch_instances;  // patch_instances (storage — all patches)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g1::shadow_map;
-                    entries[2].textureView = shadowMapView_;
+                    entries[2].binding = bind::g2::fc_visible;  // visible_patch_indices (storage, rw — output)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[3].binding = bind::g1::shadow_sampler;
-                    entries[3].sampler = shadowSampler_;
+                    entries[3].binding = bind::g2::fc_indirect;  // frustum_indirect (storage, rw — atomic draw args)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[4].binding = bind::g1::spot_shadow_map;
-                    entries[4].textureView = spotShadowMapView_;
+                    entries[4].binding = bind::g2::vp_data;  // vp_data (storage — VP matrix for frustum planes)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = bind::g1::patch_heightfield_array_read;
-                    entries[5].textureView = patchHeightfieldArrayReadView_;
-
-                    entries[6].binding = bind::g1::patch_cell_color_array_read;
-                    entries[6].textureView = patchCellColorArrayReadView_;
-
-                    entries[7].binding = bind::g1::zone_life_read;
-                    entries[7].textureView = zoneLifeReadView_;
-
-                    entries[8].binding = bind::g1::zone_params;
-                    entries[8].buffer = zoneConfigBuffer_;
-                    entries[8].size = sizeof(GPUGoLZoneArray);
-
-                    entries[9].binding = bind::g1::pawn_aura_read;
-                    entries[9].textureView = pawnAuraReadView_;
-
-                    entries[10].binding = bind::g1::live_card_read;
-                    entries[10].textureView = liveCardView_;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Render Texture BindGroup";
-                    desc.layout = renderTextureBindGroupLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Cull State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    renderTextureBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!renderTextureBindGroup_) return false;
+                    cullStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!cullStateLayout_) return false;
                 }
 
-                // Compute texture bind group (4 entries: 22 = bilinear_sampler, 23 = nearest_sampler, 33 = pawn_aura_read, 34 = live_card_read)
+                // Frame K State Layout — stratum 2 (Frame_K family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
-                    entries[0].binding = bind::g1::bilinear_sampler;
-                    entries[0].sampler = bilinearSampler_;
+                    entries[0].binding = bind::g2::agent_state;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[1].binding = bind::g1::nearest_sampler;
-                    entries[1].sampler = nearestSampler_;
+                    entries[1].binding = bind::g2::floating_entities;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g1::pawn_aura_read;
-                    entries[2].textureView = pawnAuraReadView_;
+                    entries[2].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[3].binding = bind::g1::live_card_read;
-                    entries[3].textureView = liveCardView_;
+                    entries[3].binding = bind::g2::vp_data;
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Compute Texture BindGroup";
-                    desc.layout = computeTextureBindGroupLayout_;
+                    entries[4].binding = bind::g2::camera_state;
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Frame K State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    computeTextureBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!computeTextureBindGroup_) return false;
+                    frameKStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!frameKStateLayout_) return false;
                 }
 
-                // Patch gen bind group (7 entries: binding 1, 23, 24, 25, 27, 28, 30)
+                // Frame K Textures Layout — stratum 3 (Frame_K family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g3::pawn_aura_read;  // pawn_aura_read (rgba16float, filterable)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[1].binding = bind::g0::patch_params;
-                    entries[1].buffer = patchParamsBuffer_;
-                    entries[1].size = sizeof(GPUPatchParams);
+                    // LIVE — the agents' baked ground path (sample_terrain_y_at
+                    // in the rewired query family — GROUND_CARD_1 H5).
+                    entries[1].binding = bind::g3::photo_heightfield;  // photo_heightfield (texture_2d_array)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[2].binding = bind::g0::patch_heightfield_array_write;
-                    entries[2].textureView = patchHeightfieldArrayWriteView_;
+                    entries[2].binding = bind::g3::photo_sampler;  // photo_sampler (filtering)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[3].binding = bind::g0::tile_grid;
-                    entries[3].buffer = tileGridBuffer_;
-                    entries[3].size = sizeof(GPUTileGrid);
+                    entries[3].binding = bind::g3::live_card_read;  // LIVE — the card (agents' live surface + cell-exact GoL; GROUND_CARD_1 H5)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[4].binding = bind::g0::patch_cell_color_array_write;
-                    entries[4].textureView = patchCellColorArrayWriteView_;
-
-                    entries[5].binding = bind::g0::pyramid_instances;
-                    entries[5].buffer = pyramidInstancesBuffer_;
-                    entries[5].size = sizeof(GPUPyramidArray);
-
-                    entries[6].binding = bind::g0::patch_height_scratch;  // patch_height_scratch
-                    entries[6].buffer = patchHeightScratchBuffer_;
-                    entries[6].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Patch Gen BindGroup";
-                    desc.layout = patchGenLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Frame K Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    patchGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!patchGenBindGroup_) return false;
+                    frameKTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!frameKTexturesLayout_) return false;
                 }
 
-                // Ribbon compute bind group (3 entries: dedicated ring transform pass)
+                // Gallery State Layout — stratum 2 (Gallery family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
 
-                    entries[0].binding = bind::g0::ribbon_state;  // ribbon_state (matches @binding(120))
-                    entries[0].buffer = ribbonBuffer_;
-                    entries[0].size = sizeof(GPURibbonState);
+                    entries[0].binding = bind::g2::agent_state;  // agent_state (read pos via possessed_slot)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[1].binding = bind::g0::ring_xforms;  // ring_transforms (matches @binding(121))
-                    entries[1].buffer = ringTransformsBuffer_;
-                    entries[1].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[1].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g0::head_poses;  // head_poses (matches @binding(122))
-                    entries[2].buffer = headPosesBuffer_;
-                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+                    entries[2].binding = bind::g2::painting_slots;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Ribbon Compute BindGroup";
-                    desc.layout = ribbonComputeLayout_;
+                    entries[3].binding = bind::g2::photographer_config;  // photographer_config (camera params)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[4].binding = bind::g2::photographer_vp;  // photographer_vp (output VP matrix)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[5].binding = bind::g2::photographer_camera_out;  // photographer_camera_out (output camera pos)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[6].binding = bind::g2::camera_state;  // camera_state (point_pos — the point's camera-host source)
+                    entries[6].visibility = wgpu::ShaderStage::Compute;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Gallery State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    ribbonComputeBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!ribbonComputeBindGroup_) return false;
+                    galleryStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!galleryStateLayout_) return false;
                 }
 
-                // Gallery entity bind group (3 entries: config + VP + camera)
+                // Gallery Textures Layout — stratum 3 (Gallery family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g3::photo_heightfield;  // patch_heightfield (terrain texture)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[1].binding = bind::g0::render_vp;
-                    entries[1].buffer = vpBuffer_;
-                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[1].binding = bind::g3::photo_sampler;  // bilinear_sampler
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[2].binding = bind::g0::render_camera;
-                    entries[2].buffer = cameraBuffer_;
-                    entries[2].size = sizeof(GPUCameraState);
+                    entries[2].binding = bind::g3::live_card_read;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex;
+                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Gallery Entity BindGroup";
-                    desc.layout = galleryEntityBindGroupLayout_;
+                    entries[3].binding = bind::g3::painting_array;
+                    entries[3].visibility = wgpu::ShaderStage::Fragment;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    entries[4].binding = bind::g3::painting_sampler_filt;
+                    entries[4].visibility = wgpu::ShaderStage::Fragment;
+                    entries[4].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Gallery Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    galleryEntityBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!galleryEntityBindGroup_) return false;
+                    galleryTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!galleryTexturesLayout_) return false;
                 }
 
-                // Gallery photographer entity bind group (UMBRA_9) — the SAME
-                // layout as the group above, with the same two buffers swapped
-                // that the photographer render group swaps against the main one.
-                // No new layout and no new binding: the artworks join the
-                // snapshot pass because there is ONE sun shadow map and that pass
-                // samples it, so an artwork that casts and is not drawn there
-                // leaves a rectangle of shade lying on empty sand.
+                // Meshgen State Layout — stratum 2 (Meshgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g2::cmg_column_ground;  // column_ground, read-only view
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[1].binding = bind::g0::render_vp;
-                    entries[1].buffer = photographerVPBuffer_;  // ← THE DIFFERENCE
-                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[1].binding = bind::g2::amg_params;  // amg_params (read-only storage)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g0::render_camera;
-                    entries[2].buffer = photographerCameraBuffer_;  // ← photographer pos for fog
-                    entries[2].size = sizeof(GPUCameraState);
+                    entries[2].binding = bind::g2::amg_vertices;  // amg_vertices (storage, rw)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Gallery Photographer Entity BindGroup";
-                    desc.layout = galleryEntityBindGroupLayout_;
+                    entries[3].binding = bind::g2::amg_indices;  // amg_indices (storage, rw)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // COLUMN CEILING FIT: the kernel derives effective column
+                    // height = ceiling − ground_y (indoors), so the cmg strip
+                    // reads the design config + the correction pass's output.
+                    entries[4].binding = bind::g2::cmg_config;  // DesignConfig (the ceiling gate)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Meshgen State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    galleryPhotographerEntityBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!galleryPhotographerEntityBindGroup_) return false;
+                    meshgenStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!meshgenStateLayout_) return false;
                 }
 
-                // Photographer render entity bind group (14 entries — same layout as main, different VP)
+                // Orbs State Layout — stratum 2 (Orbs family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 15> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g2::orb_state;  // orb_state (storage, read_write)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[1].binding = bind::g0::render_vp;
-                    entries[1].buffer = photographerVPBuffer_;  // ← THE DIFFERENCE
-                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[1].binding = bind::g2::orb_config;  // orb_config (uniform)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[2].binding = bind::g0::render_agents;
-                    entries[2].buffer = agentStateBuffer_;
-                    entries[2].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[2].binding = bind::g2::orb_state_prev;  // orb_state_prev (storage, read-only)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[3].binding = bind::g0::render_camera;
-                    entries[3].buffer = photographerCameraBuffer_;  // ← photographer pos for fog
-                    entries[3].size = sizeof(GPUCameraState);
+                    entries[3].binding = bind::g2::orb_state_ro;  // orb_state_ro (storage, read-only)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[4].binding = bind::g0::render_floating;
-                    entries[4].buffer = floatingEntityBuffer_;
-                    entries[4].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+                    entries[4].binding = bind::g2::orb_state_prev_rw;  // orb_state_prev_rw (storage, read_write)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = bind::g0::render_lighting;
-                    entries[5].buffer = lightingBuffer_;
-                    entries[5].size = sizeof(GPULighting);
-
-                    entries[6].binding = bind::g0::patch_instances;
-                    entries[6].buffer = patchInstancesBuffer_;
-                    entries[6].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-
-                    entries[7].binding = bind::g0::render_ribbon;
-                    entries[7].buffer = ribbonBuffer_;
-                    entries[7].size = sizeof(GPURibbonState);
-
-                    entries[8].binding = bind::g0::render_ring_xforms;
-                    entries[8].buffer = ringTransformsBuffer_;
-                    entries[8].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[9].binding = bind::g0::tile_grid;
-                    entries[9].buffer = tileGridBuffer_;
-                    entries[9].size = sizeof(GPUTileGrid);
-
-                    // Entity ground atlas (r32float 256×1 — VS reads ground_y)
-                    entries[10].binding = bind::g0::entity_ground_atlas;
-                    entries[10].textureView = entityGroundAtlasReadView_;
-
-                    // Visible patch indices (GPU frustum cull output)
-                    entries[11].binding = bind::g0::visible_patch_indices;
-                    entries[11].buffer = visiblePatchIndicesBuffer_;
-                    entries[11].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
-
-                    // Agent tier gains — same buffer as main render path.
-                    // Required because the shared layout carries it.
-                    entries[12].binding = bind::g0::agent_tier_gains;
-                    entries[12].buffer = agentTierGainsBuffer_;
-                    entries[12].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
-
-                    // Pawn figure table (uniform, binding 112) — same shared layout,
-                    // so the photographer group must bind it too.
-                    entries[13].binding = bind::g0::agent_figure_profiles;
-                    entries[13].buffer = figureProfilesBuffer_;
-                    entries[13].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    // ATLAS_1revB D3" — the light-index window. The snapshot
-                    // pass never varies it (it draws no shadow tiles), but the
-                    // layout demands the entry and every set demands an offset;
-                    // the photographer always passes 0.
-                    entries[14].binding = bind::g0::shadow_slot;
-                    entries[14].buffer = lightSlotBuffer_;
-                    entries[14].offset = 0;
-                    entries[14].size = SHADOW_SLOT_SIZE;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Photographer Render Entity BindGroup";
-                    desc.layout = renderEntityBindGroupLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Orbs State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    photographerRenderEntityBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!photographerRenderEntityBindGroup_) return false;
+                    orbsStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!orbsStateLayout_) return false;
                 }
 
-                // Photographer compute bind group (9 entries: config + agents + camera + outputs + terrain + patch_grid)
+                // Patchgen State Layout — stratum 2 (Patchgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g2::patch_params;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g0::agent_state;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[1].binding = bind::g2::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g0::photographer_config;
-                    entries[2].buffer = photographerConfigBuffer_;
-                    entries[2].size = sizeof(GPUPhotographerConfig);
+                    entries[2].binding = bind::g2::pyramid_instances;  // pyramid_instances
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[3].binding = bind::g0::photographer_vp;
-                    entries[3].buffer = photographerVPBuffer_;
-                    entries[3].size = sizeof(GPUVPMatrix);
-
-                    entries[4].binding = bind::g0::photographer_camera_out;
-                    entries[4].buffer = photographerCameraBuffer_;
-                    entries[4].size = sizeof(GPUCameraState);
-
-                    entries[5].binding = bind::g0::photo_heightfield;
-                    entries[5].textureView = patchHeightfieldArrayReadView_;
-
-                    entries[6].binding = bind::g0::photo_sampler;
-                    entries[6].sampler = bilinearSampler_;
-
-                    entries[7].binding = bind::g0::patch_grid;
-                    entries[7].buffer = patchGridBuffer_;
-                    entries[7].size = sizeof(GPUPatchGrid);
-
-                    entries[8].binding = bind::g0::camera_state;
-                    entries[8].buffer = cameraBuffer_;
-                    entries[8].size = sizeof(GPUCameraState);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Photographer Compute BindGroup";
-                    desc.layout = photographerComputeLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Patchgen State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    photographerComputeBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!photographerComputeBindGroup_) return false;
+                    patchgenStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!patchgenStateLayout_) return false;
                 }
 
-                // Entity placement compute bind group (heightfield sampling + ground Y correction)
+                // Patchgen Textures Layout — stratum 3 (Patchgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
-                    // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
-                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g3::patch_heightfield_array_write;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[0].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
+                    entries[0].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[1].binding = bind::g0::photo_painting_slots;
-                    entries[1].buffer = paintingSlotsBuffer_;
-                    entries[1].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+                    entries[1].binding = bind::g3::patch_cell_color_array_write;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[1].storageTexture.format = wgpu::TextureFormat::RGBA8Unorm;
+                    entries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[2].binding = bind::g0::photo_heightfield;
-                    entries[2].textureView = patchHeightfieldArrayReadView_;
-
-                    entries[3].binding = bind::g0::photo_sampler;
-                    entries[3].sampler = bilinearSampler_;
-
-                    entries[4].binding = bind::g0::arch_ground;
-                    entries[4].buffer = archGroundBuffer_;
-                    entries[4].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
-
-                    entries[5].binding = bind::g0::column_ground;
-                    entries[5].buffer = columnGroundBuffer_;
-                    entries[5].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[6].binding = bind::g0::plant_ground;
-                    entries[6].buffer = plantComputeGroundBuffer_;
-                    entries[6].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
-
-                    entries[7].binding = bind::g0::entity_ground_atlas_write;
-                    entries[7].textureView = entityGroundAtlasWriteView_;
-
-                    entries[8].binding = bind::g0::patch_grid;
-                    entries[8].buffer = patchGridBuffer_;
-                    entries[8].size = sizeof(GPUPatchGrid);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Entity Placement Compute BindGroup";
-                    desc.layout = entityPlacementComputeLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Patchgen Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    entityPlacementComputeBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!entityPlacementComputeBindGroup_) return false;
+                    patchgenTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!patchgenTexturesLayout_) return false;
                 }
 
-                // Frustum cull compute bind group (6 entries)
+                // Place State Layout — stratum 2 (Place family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[1].binding = bind::g0::vp_data;
-                    entries[1].buffer = vpBuffer_;
-                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[1].binding = bind::g2::photo_painting_slots;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g0::patch_instances;
-                    entries[2].buffer = patchInstancesBuffer_;
-                    entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[2].binding = bind::g2::arch_ground;
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[3].binding = bind::g0::fc_visible;
-                    entries[3].buffer = visiblePatchIndicesBuffer_;
-                    entries[3].size = FC_LIST_BYTES;
+                    entries[3].binding = bind::g2::column_ground;
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[4].binding = bind::g0::fc_indirect;
-                    entries[4].buffer = frustumComputeBuffer_;
-                    entries[4].size = FC_ARGS_BYTES;
+                    // (GROUND_CARD_1 [5c]: zone_config 160 + zone_life 161 evicted —
+                    //  placement's GoL term rides the card's cell-exact fetch via
+                    //  group 1. The zone pair is now bound only by the GoL sim
+                    //  layouts and the live-card writer.)
+                    entries[4].binding = bind::g2::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = bind::g0::fc_draw_plan;
-                    entries[5].buffer = drawPlanBuffer_;
-                    entries[5].size = sizeof(GPUDrawPlanParams);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Frustum Cull Compute BindGroup";
-                    desc.layout = frustumCullLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Place State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    frustumCullBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!frustumCullBindGroup_) return false;
+                    placeStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!placeStateLayout_) return false;
                 }
 
-                // GoL zone compute bind group (5 entries: config + zone state + life tex + derive requests)
+                // Place Textures Layout — stratum 3 (Place family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g3::photo_heightfield;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    // Zone state
-                    entries[1].binding = bind::g0::zone_config;
-                    entries[1].buffer = zoneConfigBuffer_;
-                    entries[1].size = sizeof(GPUGoLZoneArray);
+                    entries[1].binding = bind::g3::photo_sampler;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[2].binding = bind::g0::zone_life;
-                    entries[2].buffer = zoneLifeBuffer_;
-                    entries[2].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[2].binding = bind::g3::entity_ground_atlas_write;  // entity_ground_atlas_write (r32float storage texture)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[2].storageTexture.format = wgpu::TextureFormat::R32Float;
+                    entries[2].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[3].binding = bind::g0::zone_life_tex_write;
-                    entries[3].textureView = zoneLifeWriteView_;
+                    entries[3].binding = bind::g3::live_card_read;  // LIVE — the card (agents' live surface + cell-exact GoL; GROUND_CARD_1 H5)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    // Derive request buffer
-                    entries[4].binding = bind::g0::zone_derive_requests;
-                    entries[4].buffer = zoneDeriveRequestBuffer_;
-                    entries[4].size = sizeof(GPUZoneDeriveRequestArray);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "GoL Zone Compute BindGroup";
-                    desc.layout = zoneGolComputeLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Place Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    zoneGolComputeBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!zoneGolComputeBindGroup_) return false;
+                    placeTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!placeTexturesLayout_) return false;
                 }
 
-                // Pawn aura compute bind group (6 entries: 1, 25, 60, 170-172)
+                // Ribbon State Layout — stratum 2 (Ribbon family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::config;
-                    entries[0].buffer = configBuffer_;
-                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[0].binding = bind::g2::ribbon_state;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g0::agent_state;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[1].binding = bind::g2::ring_xforms;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g0::pawn_aura_cfg;
-                    entries[2].buffer = pawnAuraConfigBuffer_;
-                    entries[2].size = sizeof(GPUPawnAuraConfig);
+                    entries[2].binding = bind::g2::head_poses;  // head_poses (storage, read) — ribbon head-path
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[3].binding = bind::g0::pawn_aura_cells;
-                    entries[3].buffer = pawnAuraCellsBuffer_;
-                    entries[3].size = PAWN_AURA_N * PAWN_AURA_N * sizeof(GPUPawnAuraCell);
-
-                    entries[4].binding = bind::g0::pawn_aura_tex_write;
-                    entries[4].textureView = pawnAuraWriteView_;
-
-                    entries[5].binding = bind::g0::tile_grid;
-                    entries[5].buffer = tileGridBuffer_;
-                    entries[5].size = sizeof(GPUTileGrid);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Pawn Aura Compute BindGroup";
-                    desc.layout = pawnAuraComputeLayout_;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Ribbon State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    pawnAuraComputeGroup_ = device_.CreateBindGroup(&desc);
-                    if (!pawnAuraComputeGroup_) return false;
+                    ribbonStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!ribbonStateLayout_) return false;
                 }
 
-                // Live card writer bind group (6 entries: 0, 1, 160, 161, 31, 32)
+                // Scene State Layout — stratum 2 (Scene family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
-                    entries[0].binding = bind::g0::signal;
-                    entries[0].buffer = signalBuffer_;
-                    entries[0].size = sizeof(GPUFrameSignal);
+                    // Agent tier registry — same buffer as compute binding 111.
+                    // Read by pawn_vs for entity color (tg.color_r/g/b).
+                    // Uniform (not storage) to stay under the per-stage
+                    // storage buffer cap; same buffer is bound as uniform
+                    // on the compute side too.
+                    entries[0].binding = bind::g2::agent_tier_gains;
+                    entries[0].visibility = wgpu::ShaderStage::Vertex;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g0::config;
-                    entries[1].buffer = configBuffer_;
-                    entries[1].size = sizeof(GPUDesignConfig);
+                    entries[1].binding = bind::g2::render_agents;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g0::zone_config;
-                    entries[2].buffer = zoneConfigBuffer_;
-                    entries[2].size = sizeof(GPUGoLZoneArray);
+                    entries[2].binding = bind::g2::render_floating;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[3].binding = bind::g0::zone_life;
-                    entries[3].buffer = zoneLifeBuffer_;
-                    entries[3].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[3].binding = bind::g2::patch_instances;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex;
+                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[4].binding = bind::g0::live_card_write;
-                    entries[4].textureView = liveCardWriteView_;
+                    // Visible patch indices (GPU frustum cull output — VS reads indirection)
+                    entries[4].binding = bind::g2::visible_patch_indices;
+                    entries[4].visibility = wgpu::ShaderStage::Vertex;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[5].binding = bind::g0::live_card_scratch;
-                    entries[5].buffer = liveCardScratchBuffer_;
-                    entries[5].size = Dim::LIVE_CARD_SIZE * Dim::LIVE_CARD_SIZE * 2 * sizeof(float);
+                    // GoL zone config (fragment reads zone origins for lookup)
+                    entries[5].binding = bind::g2::zone_params;
+                    entries[5].visibility = wgpu::ShaderStage::Fragment;
+                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Live Card Writer BindGroup";
-                    desc.layout = liveCardWriterLayout_;
+                    entries[6].binding = bind::g2::render_ring_xforms;
+                    entries[6].visibility = wgpu::ShaderStage::Vertex;
+                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
+                    // profile + palette. Uniform (not storage) for the same reason as
+                    // the tier registry above: it keeps the vertex stage off the
+                    // storage cap, which TETRIS ORB_V left standing at 6 of 8
+                    // (BINDING_LEDGER Table B). 4032 B, session-constant.
+                    entries[7].binding = bind::g2::agent_figure_profiles;
+                    entries[7].visibility = wgpu::ShaderStage::Vertex;
+                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[8].binding = bind::g2::render_ribbon;
+                    entries[8].visibility = wgpu::ShaderStage::Vertex;
+                    entries[8].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Scene State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    liveCardWriterGroup_ = device_.CreateBindGroup(&desc);
-                    if (!liveCardWriterGroup_) return false;
+                    sceneStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!sceneStateLayout_) return false;
                 }
 
-                // Zone mask bind group (5 entries: 1, 25, 160, 161, 166)
+                // Scene Textures Layout — stratum 3 (Scene family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
+
+                    // Pawn aura texture (VS + FS read persistent influence field)
+                    entries[0].binding = bind::g3::pawn_aura_read;
+                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[1].binding = bind::g3::patch_heightfield_array_read;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
+                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    entries[2].binding = bind::g3::patch_cell_color_array_read;
+                    entries[2].visibility = wgpu::ShaderStage::Fragment;
+                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    // Entity ground atlas (r32float 256×1 — VS reads ground_y via textureLoad)
+                    entries[3].binding = bind::g3::entity_ground_atlas;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    // GoL zone life texture (fragment reads alive/dead per zone)
+                    entries[4].binding = bind::g3::zone_life_read;
+                    entries[4].visibility = wgpu::ShaderStage::Fragment;
+                    entries[4].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[4].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    // The live card (GROUND_CARD_1) — VS height/gradient + FS debug eye
+                    entries[5].binding = bind::g3::live_card_read;
+                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[5].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[5].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[6].binding = bind::g3::shadow_map;
+                    entries[6].visibility = wgpu::ShaderStage::Fragment;
+                    entries[6].texture.sampleType = wgpu::TextureSampleType::Depth;
+                    entries[6].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[7].binding = bind::g3::shadow_sampler;
+                    entries[7].visibility = wgpu::ShaderStage::Fragment;
+                    entries[7].sampler.type = wgpu::SamplerBindingType::Comparison;
+
+                    // Spot shadow atlas (depth texture, sampled in spot PCF)
+                    entries[8].binding = bind::g3::spot_shadow_map;
+                    entries[8].visibility = wgpu::ShaderStage::Fragment;
+                    entries[8].texture.sampleType = wgpu::TextureSampleType::Depth;
+                    entries[8].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Scene Textures Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    sceneTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!sceneTexturesLayout_) return false;
+                }
+
+                // Shadow State Layout — stratum 2 (Shadow family) of the LOOM_2 recut.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
+
+                    entries[0].binding = bind::g2::render_agents;
+                    entries[0].visibility = wgpu::ShaderStage::Vertex;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[1].binding = bind::g2::render_floating;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = bind::g2::patch_instances;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[3].binding = bind::g2::painting_slots;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex;
+                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[4].binding = bind::g2::render_ring_xforms;
+                    entries[4].visibility = wgpu::ShaderStage::Vertex;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
+                    // profile + palette. Uniform (not storage) for the same reason as
+                    // the tier registry above: it keeps the vertex stage off the
+                    // storage cap, which TETRIS ORB_V left standing at 6 of 8
+                    // (BINDING_LEDGER Table B). 4032 B, session-constant.
+                    entries[5].binding = bind::g2::agent_figure_profiles;
+                    entries[5].visibility = wgpu::ShaderStage::Vertex;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[6].binding = bind::g2::render_ribbon;
+                    entries[6].visibility = wgpu::ShaderStage::Vertex;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Shadow State Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    shadowStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!shadowStateLayout_) return false;
+                }
+
+                // Shadow Textures Layout — stratum 3 (Shadow family) of the LOOM_2 recut.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+
+                    entries[0].binding = bind::g3::patch_heightfield_array_read;
+                    entries[0].visibility = wgpu::ShaderStage::Vertex;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    // Entity ground atlas (r32float 256×1 — VS reads ground_y via textureLoad)
+                    entries[1].binding = bind::g3::entity_ground_atlas;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
+                    entries[1].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    // The live card (GROUND_CARD_1) — shadow VS height term
+                    entries[2].binding = bind::g3::live_card_read;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex;
+                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Shadow Textures Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    shadowTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!shadowTexturesLayout_) return false;
+                }
+
+                // Zones State Layout — stratum 2 (Zones family) of the LOOM_2 recut.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+
+                    entries[0].binding = bind::g2::live_card_scratch;  // two-pass scratch (TRUEBAND_CONTACT_1)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
+                    entries[1].binding = bind::g2::zone_config;  // zone_config (storage, rw)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[2].binding = bind::g2::zone_life;  // zone_life (storage, read/write)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[3].binding = bind::g2::zone_derive_requests;  // zone_derive_requests (uniform)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Zones State Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    zonesStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!zonesStateLayout_) return false;
+                }
+
+                // Zones Textures Layout — stratum 3 (Zones family) of the LOOM_2 recut.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+
+                    entries[0].binding = bind::g3::live_card_write;  // live_card_write (storage texture, write)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[0].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
+                    entries[0].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[1].binding = bind::g3::zone_life_tex_write;  // zone_life_tex (storage texture, write)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[1].storageTexture.format = wgpu::TextureFormat::R32Float;
+                    entries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Zones Textures Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    zonesTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!zonesTexturesLayout_) return false;
+                }
+
+                // Empty Layout — stratum filler (A5: zero seats, zero cost) of the LOOM_2 recut.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 0> entries{};
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Empty Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    emptyLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!emptyLayout_) return false;
+                }
+                return true;
+            }
+
+            bool create_binding_groups_boot() {
+
+                // Projected from: computeEntityBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, meshGenEntityBindGroup_, patchGenBindGroup_, galleryEntityBindGroup_, galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_, photographerComputeBindGroup_, entityPlacementComputeBindGroup_, frustumCullBindGroup_, zoneGolComputeBindGroup_, pawnAuraComputeGroup_, liveCardWriterGroup_, zoneMaskGroup_, orbComputeGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -1755,259 +902,1058 @@
                     entries[1].buffer = tileGridBuffer_;
                     entries[1].size = sizeof(GPUTileGrid);
 
-                    entries[2].binding = bind::g0::zone_config;
-                    entries[2].buffer = zoneConfigBuffer_;
-                    entries[2].size = sizeof(GPUGoLZoneArray);
-
-                    entries[3].binding = bind::g0::zone_life;
-                    entries[3].buffer = zoneLifeBuffer_;
-                    entries[3].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
-
-                    entries[4].binding = bind::g0::zone_derive_requests;
-                    entries[4].buffer = zoneDeriveRequestBuffer_;
-                    entries[4].size = sizeof(GPUZoneDeriveRequestArray);
-
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Zone Mask BindGroup";
-                    desc.layout = zoneMaskLayout_;
+                    desc.label = "World BindGroup";
+                    desc.layout = worldLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    zoneMaskGroup_ = device_.CreateBindGroup(&desc);
-                    if (!zoneMaskGroup_) return false;
+                    worldGroup_ = device_.CreateBindGroup(&desc);
+                    if (!worldGroup_) return false;
                 }
 
-                // Orb compute bind group (4 entries: orb state rw + orb config
-                // + prev snapshot + the design config — FIELD_2b, the field's
-                // dials reach field_pair here)
+                // Projected from: galleryTextureBindGroup_, computeEntityBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, shadowTextureBindGroup_, renderTextureBindGroup_, computeTextureBindGroup_, galleryEntityBindGroup_, liveCardWriterGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
+
+                    entries[0].binding = bind::g1::signal;
+                    entries[0].buffer = signalBuffer_;
+                    entries[0].size = sizeof(GPUFrameSignal);
+
+                    entries[1].binding = bind::g1::render_lighting;
+                    entries[1].buffer = lightingBuffer_;
+                    entries[1].size = sizeof(GPULighting);
+
+                    entries[2].binding = bind::g1::shadow_slot;
+                    entries[2].buffer = lightSlotBuffer_;
+                    entries[2].offset = 0;
+                    entries[2].size = SHADOW_SLOT_SIZE;
+
+                    entries[3].binding = bind::g1::render_vp;
+                    entries[3].buffer = vpBuffer_;
+                    entries[3].size = sizeof(GPUVPMatrix);
+
+                    entries[4].binding = bind::g1::render_camera;
+                    entries[4].buffer = cameraBuffer_;
+                    entries[4].size = sizeof(GPUCameraState);
+
+                    entries[5].binding = bind::g1::bilinear_sampler;
+                    entries[5].sampler = bilinearSampler_;
+
+                    entries[6].binding = bind::g1::nearest_sampler;
+                    entries[6].sampler = nearestSampler_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Frame BindGroup";
+                    desc.layout = frameLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frameGroup_ = device_.CreateBindGroup(&desc);
+                    if (!frameGroup_) return false;
+                }
+
+                // Projected from: galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
+
+                    // Shared backing, completed from the primary variant.
+                    entries[0].binding = bind::g1::signal;
+                    entries[0].buffer = signalBuffer_;
+                    entries[0].size = sizeof(GPUFrameSignal);
+
+                    entries[1].binding = bind::g1::render_lighting;
+                    entries[1].buffer = lightingBuffer_;
+                    entries[1].size = sizeof(GPULighting);
+
+                    entries[2].binding = bind::g1::shadow_slot;
+                    entries[2].buffer = lightSlotBuffer_;
+                    entries[2].offset = 0;
+                    entries[2].size = SHADOW_SLOT_SIZE;
+
+                    entries[3].binding = bind::g1::render_vp;
+                    entries[3].buffer = photographerVPBuffer_;
+                    entries[3].size = sizeof(GPUVPMatrix);
+
+                    entries[4].binding = bind::g1::render_camera;
+                    entries[4].buffer = photographerCameraBuffer_;
+                    entries[4].size = sizeof(GPUCameraState);
+
+                    // Shared backing, completed from the primary variant.
+                    entries[5].binding = bind::g1::bilinear_sampler;
+                    entries[5].sampler = bilinearSampler_;
+
+                    // Shared backing, completed from the primary variant.
+                    entries[6].binding = bind::g1::nearest_sampler;
+                    entries[6].sampler = nearestSampler_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Frame BindGroup (Photographer)";
+                    desc.layout = frameLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    framePhotographerGroup_ = device_.CreateBindGroup(&desc);
+                    if (!framePhotographerGroup_) return false;
+                }
+
+                // Projected from: computeEntityBindGroup_, roomBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 13> entries{};
+
+                    entries[0].binding = bind::g2::agent_state;
+                    entries[0].buffer = agentStateBuffer_;
+                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[1].binding = bind::g2::portal_array;
+                    entries[1].buffer = portalArrayBuffer_;
+                    entries[1].size = sizeof(GPUPortalArray);
+
+                    entries[2].binding = bind::g2::floating_entities;
+                    entries[2].buffer = floatingEntityBuffer_;
+                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[3].binding = bind::g2::agent_behaviors;
+                    entries[3].buffer = agentBehaviorsBuffer_;
+                    entries[3].size = GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef);
+
+                    entries[4].binding = bind::g2::agent_tier_gains;
+                    entries[4].buffer = agentTierGainsBuffer_;
+                    entries[4].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    entries[5].binding = bind::g2::occupier_cmg;
+                    entries[5].buffer = columnMeshParamsBuffer_;
+                    entries[5].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[6].binding = bind::g2::occupier_amg;
+                    entries[6].buffer = archMeshParamsBuffer_;
+                    entries[6].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
+
+                    entries[7].binding = bind::g2::field_head_poses;
+                    entries[7].buffer = headPosesBuffer_;
+                    entries[7].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+
+                    entries[8].binding = bind::g2::field_forces;
+                    entries[8].buffer = fieldForcesBuffer_;
+                    entries[8].size = sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP;
+
+                    entries[9].binding = bind::g2::field_ribbon;
+                    entries[9].buffer = ribbonBuffer_;
+                    entries[9].size = sizeof(GPURibbonState);
+
+                    entries[10].binding = bind::g2::field_authored;
+                    entries[10].buffer = fieldAuthoredBuffer_;
+                    entries[10].size = sizeof(GPUFieldAuthored);
+
+                    entries[11].binding = bind::g2::patch_grid;
+                    entries[11].buffer = patchGridBuffer_;
+                    entries[11].size = sizeof(GPUPatchGrid);
+
+                    entries[12].binding = bind::g2::camera_state;
+                    entries[12].buffer = cameraBuffer_;
+                    entries[12].size = sizeof(GPUCameraState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Agents State BindGroup";
+                    desc.layout = agentsStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    agentsStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!agentsStateGroup_) return false;
+                }
+
+                // Projected from: computeEntityBindGroup_, computeTextureBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 4> entries{};
 
-                    entries[0].binding = bind::g0::orb_state;
-                    entries[0].buffer = orbStateBuffer_;
-                    entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+                    entries[0].binding = bind::g3::pawn_aura_read;
+                    entries[0].textureView = pawnAuraReadView_;
 
-                    entries[1].binding = bind::g0::orb_config;
-                    entries[1].buffer = orbConfigBuffer_;
-                    entries[1].size = sizeof(GPUOrbConfig);
+                    entries[1].binding = bind::g3::photo_heightfield;
+                    entries[1].textureView = patchHeightfieldArrayReadView_;
 
-                    entries[2].binding = bind::g0::orb_state_prev;
-                    entries[2].buffer = orbStatePrevBuffer_;
-                    entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+                    entries[2].binding = bind::g3::photo_sampler;
+                    entries[2].sampler = bilinearSampler_;
 
-                    entries[3].binding = bind::g0::config;
-                    entries[3].buffer = configBuffer_;
-                    entries[3].size = sizeof(GPUDesignConfig);
+                    entries[3].binding = bind::g3::live_card_read;
+                    entries[3].textureView = liveCardView_;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Orb Compute BindGroup";
-                    desc.layout = orbComputeLayout_;
+                    desc.label = "Agents Textures BindGroup";
+                    desc.layout = agentsTexturesLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    orbComputeGroup_ = device_.CreateBindGroup(&desc);
-                    if (!orbComputeGroup_) return false;
+                    agentsTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!agentsTexturesGroup_) return false;
                 }
 
-                // Orb copy bind group — bindings 413/411/414 alias the same
-                // physical buffers as the main layout's 410/411/412, just
-                // through read-only / read-write views that match the
-                // dedicated WGSL declarations used by orb_state_prev_copy.
+                // Projected from: pawnAuraComputeGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::orb_state_ro;
-                    entries[0].buffer = orbStateBuffer_;
-                    entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+                    entries[0].binding = bind::g2::agent_state;
+                    entries[0].buffer = agentStateBuffer_;
+                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
-                    entries[1].binding = bind::g0::orb_config;
-                    entries[1].buffer = orbConfigBuffer_;
-                    entries[1].size = sizeof(GPUOrbConfig);
+                    entries[1].binding = bind::g2::pawn_aura_cfg;
+                    entries[1].buffer = pawnAuraConfigBuffer_;
+                    entries[1].size = sizeof(GPUPawnAuraConfig);
 
-                    entries[2].binding = bind::g0::orb_state_prev_rw;
-                    entries[2].buffer = orbStatePrevBuffer_;
-                    entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+                    entries[2].binding = bind::g2::pawn_aura_cells;
+                    entries[2].buffer = pawnAuraCellsBuffer_;
+                    entries[2].size = PAWN_AURA_N * PAWN_AURA_N * sizeof(GPUPawnAuraCell);
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Orb Copy BindGroup";
-                    desc.layout = orbCopyLayout_;
+                    desc.label = "Aura State BindGroup";
+                    desc.layout = auraStateLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    orbCopyGroup_ = device_.CreateBindGroup(&desc);
-                    if (!orbCopyGroup_) return false;
+                    auraStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!auraStateGroup_) return false;
                 }
 
-                // Arch mesh gen bind group (dedicated layout — bindings 193-195)
+                // Projected from: pawnAuraComputeGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 1> entries{};
 
-                    entries[0].binding = bind::g0::amg_params;
-                    entries[0].buffer = archMeshParamsBuffer_;
-                    entries[0].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
-
-                    entries[1].binding = bind::g0::amg_vertices;
-                    entries[1].buffer = archVertexBuffer_;
-                    entries[1].size = Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex);
-
-                    entries[2].binding = bind::g0::amg_indices;
-                    entries[2].buffer = archIndexBuffer_;
-                    entries[2].size = Dim::AMG_TOTAL_INDICES * sizeof(uint32_t);
+                    entries[0].binding = bind::g3::pawn_aura_tex_write;
+                    entries[0].textureView = pawnAuraWriteView_;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Arch Mesh Gen BindGroup";
-                    desc.layout = archMeshGenLayout_;
+                    desc.label = "Aura Textures BindGroup";
+                    desc.layout = auraTexturesLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    archMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!archMeshGenBindGroup_) return false;
+                    auraTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!auraTexturesGroup_) return false;
                 }
 
-                // The room bind group (group 2) — the two occupier windows
-                // plus the field quartet, bound once at boot.
-                // field_head_poses and field_ribbon are the SAME
-                // headPosesBuffer_ / ribbonBuffer_ the ribbon pipeline
-                // binds (new reachability, not a new fact); field_authored
-                // is the FIELD_4 table, CPU-sovereign.
-                {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
-
-                    entries[0].binding = bind::g2::occupier_cmg;
-                    entries[0].buffer = columnMeshParamsBuffer_;
-                    entries[0].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[1].binding = bind::g2::occupier_amg;
-                    entries[1].buffer = archMeshParamsBuffer_;
-                    entries[1].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
-
-                    entries[2].binding = bind::g2::field_head_poses;
-                    entries[2].buffer = headPosesBuffer_;
-                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
-
-                    entries[3].binding = bind::g2::field_forces;
-                    entries[3].buffer = fieldForcesBuffer_;
-                    entries[3].size = sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP;
-
-                    entries[4].binding = bind::g2::field_ribbon;
-                    entries[4].buffer = ribbonBuffer_;
-                    entries[4].size = sizeof(GPURibbonState);
-
-                    entries[5].binding = bind::g2::field_authored;
-                    entries[5].buffer = fieldAuthoredBuffer_;
-                    entries[5].size = sizeof(GPUFieldAuthored);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "The Room BindGroup";
-                    desc.layout = roomLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    roomBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!roomBindGroup_) return false;
-                }
-
-                // Column mesh gen bind group (dedicated layout — bindings 190/191 + 196-198)
+                // Projected from: frustumCullBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
 
-                    entries[0].binding = bind::g0::cmg_params;
-                    entries[0].buffer = columnMeshParamsBuffer_;
-                    entries[0].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
+                    entries[0].binding = bind::g2::fc_draw_plan;
+                    entries[0].buffer = drawPlanBuffer_;
+                    entries[0].size = sizeof(GPUDrawPlanParams);
 
-                    entries[1].binding = bind::g0::cmg_vertices;
-                    entries[1].buffer = columnVertexBuffer_;
-                    entries[1].size = Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex);
+                    entries[1].binding = bind::g2::patch_instances;
+                    entries[1].buffer = patchInstancesBuffer_;
+                    entries[1].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[2].binding = bind::g0::cmg_indices;
-                    entries[2].buffer = columnIndexBuffer_;
-                    entries[2].size = Dim::CMG_TOTAL_INDICES * sizeof(uint32_t);
+                    entries[2].binding = bind::g2::fc_visible;
+                    entries[2].buffer = visiblePatchIndicesBuffer_;
+                    entries[2].size = FC_LIST_BYTES;
 
-                    entries[3].binding = bind::g0::cmg_config;
-                    entries[3].buffer = configBuffer_;
-                    entries[3].size = sizeof(GPUDesignConfig);
+                    entries[3].binding = bind::g2::fc_indirect;
+                    entries[3].buffer = frustumComputeBuffer_;
+                    entries[3].size = FC_ARGS_BYTES;
 
-                    entries[4].binding = bind::g0::cmg_column_ground;
-                    entries[4].buffer = columnGroundBuffer_;
-                    entries[4].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+                    entries[4].binding = bind::g2::vp_data;
+                    entries[4].buffer = vpBuffer_;
+                    entries[4].size = sizeof(GPUVPMatrix);
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Column Mesh Gen BindGroup";
-                    desc.layout = columnMeshGenLayout_;
+                    desc.label = "Cull State BindGroup";
+                    desc.layout = cullStateLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    columnMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!columnMeshGenBindGroup_) return false;
+                    cullStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!cullStateGroup_) return false;
                 }
 
-                // Palm mesh gen bind group
+                // Projected from: computeEntityBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    entries[0].binding = bind::g2::agent_state;
+                    entries[0].buffer = agentStateBuffer_;
+                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[1].binding = bind::g2::floating_entities;
+                    entries[1].buffer = floatingEntityBuffer_;
+                    entries[1].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[2].binding = bind::g2::patch_grid;
+                    entries[2].buffer = patchGridBuffer_;
+                    entries[2].size = sizeof(GPUPatchGrid);
+
+                    entries[3].binding = bind::g2::vp_data;
+                    entries[3].buffer = vpBuffer_;
+                    entries[3].size = sizeof(GPUVPMatrix);
+
+                    entries[4].binding = bind::g2::camera_state;
+                    entries[4].buffer = cameraBuffer_;
+                    entries[4].size = sizeof(GPUCameraState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Frame K State BindGroup";
+                    desc.layout = frameKStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frameKStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!frameKStateGroup_) return false;
+                }
+
+                // Projected from: computeEntityBindGroup_, computeTextureBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
+
+                    entries[0].binding = bind::g3::pawn_aura_read;
+                    entries[0].textureView = pawnAuraReadView_;
+
+                    entries[1].binding = bind::g3::photo_heightfield;
+                    entries[1].textureView = patchHeightfieldArrayReadView_;
+
+                    entries[2].binding = bind::g3::photo_sampler;
+                    entries[2].sampler = bilinearSampler_;
+
+                    entries[3].binding = bind::g3::live_card_read;
+                    entries[3].textureView = liveCardView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Frame K Textures BindGroup";
+                    desc.layout = frameKTexturesLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frameKTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!frameKTexturesGroup_) return false;
+                }
+
+                // Projected from: galleryTextureBindGroup_, photographerComputeBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
+
+                    entries[0].binding = bind::g2::agent_state;
+                    entries[0].buffer = agentStateBuffer_;
+                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[1].binding = bind::g2::patch_grid;
+                    entries[1].buffer = patchGridBuffer_;
+                    entries[1].size = sizeof(GPUPatchGrid);
+
+                    entries[2].binding = bind::g2::painting_slots;
+                    entries[2].buffer = paintingSlotsBuffer_;
+                    entries[2].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+
+                    entries[3].binding = bind::g2::photographer_config;
+                    entries[3].buffer = photographerConfigBuffer_;
+                    entries[3].size = sizeof(GPUPhotographerConfig);
+
+                    entries[4].binding = bind::g2::photographer_vp;
+                    entries[4].buffer = photographerVPBuffer_;
+                    entries[4].size = sizeof(GPUVPMatrix);
+
+                    entries[5].binding = bind::g2::photographer_camera_out;
+                    entries[5].buffer = photographerCameraBuffer_;
+                    entries[5].size = sizeof(GPUCameraState);
+
+                    entries[6].binding = bind::g2::camera_state;
+                    entries[6].buffer = cameraBuffer_;
+                    entries[6].size = sizeof(GPUCameraState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Gallery State BindGroup";
+                    desc.layout = galleryStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    galleryStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!galleryStateGroup_) return false;
+                }
+
+                // Projected from: archMeshGenBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[0].binding = bind::g2::cmg_column_ground;
+                    entries[0].buffer = columnGroundBuffer_;
+                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[1].binding = bind::g2::amg_params;
+                    entries[1].buffer = archMeshParamsBuffer_;
+                    entries[1].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
+
+                    entries[2].binding = bind::g2::amg_vertices;
+                    entries[2].buffer = archVertexBuffer_;
+                    entries[2].size = Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex);
+
+                    entries[3].binding = bind::g2::amg_indices;
+                    entries[3].buffer = archIndexBuffer_;
+                    entries[3].size = Dim::AMG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[4].binding = bind::g2::cmg_config;
+                    entries[4].buffer = configBuffer_;
+                    entries[4].size = sizeof(GPUDesignConfig);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Meshgen State BindGroup";
+                    desc.layout = meshgenStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    meshgenStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!meshgenStateGroup_) return false;
+                }
+
+                // Projected from: columnMeshGenBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    entries[0].binding = bind::g2::cmg_column_ground;
+                    entries[0].buffer = columnGroundBuffer_;
+                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[1].binding = bind::g2::amg_params;
+                    entries[1].buffer = columnMeshParamsBuffer_;
+                    entries[1].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[2].binding = bind::g2::amg_vertices;
+                    entries[2].buffer = columnVertexBuffer_;
+                    entries[2].size = Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex);
+
+                    entries[3].binding = bind::g2::amg_indices;
+                    entries[3].buffer = columnIndexBuffer_;
+                    entries[3].size = Dim::CMG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    entries[4].binding = bind::g2::cmg_config;
+                    entries[4].buffer = configBuffer_;
+                    entries[4].size = sizeof(GPUDesignConfig);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Meshgen State BindGroup (Column)";
+                    desc.layout = meshgenStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    meshgenStateColumnGroup_ = device_.CreateBindGroup(&desc);
+                    if (!meshgenStateColumnGroup_) return false;
+                }
+
+                // Projected from: palmMeshGenBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[0].binding = bind::g2::cmg_column_ground;
+                    entries[0].buffer = columnGroundBuffer_;
+                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[1].binding = bind::g2::amg_params;
+                    entries[1].buffer = palmMeshParamsBuffer_;
+                    entries[1].size = Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams);
+
+                    entries[2].binding = bind::g2::amg_vertices;
+                    entries[2].buffer = palmVertexBuffer_;
+                    entries[2].size = Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex);
+
+                    entries[3].binding = bind::g2::amg_indices;
+                    entries[3].buffer = palmIndexBuffer_;
+                    entries[3].size = Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[4].binding = bind::g2::cmg_config;
+                    entries[4].buffer = configBuffer_;
+                    entries[4].size = sizeof(GPUDesignConfig);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Meshgen State BindGroup (Palm)";
+                    desc.layout = meshgenStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    meshgenStatePalmGroup_ = device_.CreateBindGroup(&desc);
+                    if (!meshgenStatePalmGroup_) return false;
+                }
+
+                // Projected from: cactusMeshGenBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[0].binding = bind::g2::cmg_column_ground;
+                    entries[0].buffer = columnGroundBuffer_;
+                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[1].binding = bind::g2::amg_params;
+                    entries[1].buffer = cactusMeshParamsBuffer_;
+                    entries[1].size = Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams);
+
+                    entries[2].binding = bind::g2::amg_vertices;
+                    entries[2].buffer = cactusVertexBuffer_;
+                    entries[2].size = Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex);
+
+                    entries[3].binding = bind::g2::amg_indices;
+                    entries[3].buffer = cactusIndexBuffer_;
+                    entries[3].size = Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[4].binding = bind::g2::cmg_config;
+                    entries[4].buffer = configBuffer_;
+                    entries[4].size = sizeof(GPUDesignConfig);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Meshgen State BindGroup (Cactus)";
+                    desc.layout = meshgenStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    meshgenStateCactusGroup_ = device_.CreateBindGroup(&desc);
+                    if (!meshgenStateCactusGroup_) return false;
+                }
+
+                // Projected from: bladeMeshGenBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[0].binding = bind::g2::cmg_column_ground;
+                    entries[0].buffer = columnGroundBuffer_;
+                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[1].binding = bind::g2::amg_params;
+                    entries[1].buffer = bladeMeshParamsBuffer_;
+                    entries[1].size = Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterMeshParams);
+
+                    entries[2].binding = bind::g2::amg_vertices;
+                    entries[2].buffer = bladeVertexBuffer_;
+                    entries[2].size = Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex);
+
+                    entries[3].binding = bind::g2::amg_indices;
+                    entries[3].buffer = bladeIndexBuffer_;
+                    entries[3].size = Dim::BLADEG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    // R1 ruled fill: inert but present — a group is complete over its layout.
+                    entries[4].binding = bind::g2::cmg_config;
+                    entries[4].buffer = configBuffer_;
+                    entries[4].size = sizeof(GPUDesignConfig);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Meshgen State BindGroup (Blade)";
+                    desc.layout = meshgenStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    meshgenStateBladeGroup_ = device_.CreateBindGroup(&desc);
+                    if (!meshgenStateBladeGroup_) return false;
+                }
+
+                // Projected from: orbComputeGroup_, orbCopyGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    entries[0].binding = bind::g2::orb_state;
+                    entries[0].buffer = orbStateBuffer_;
+                    entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[1].binding = bind::g2::orb_config;
+                    entries[1].buffer = orbConfigBuffer_;
+                    entries[1].size = sizeof(GPUOrbConfig);
+
+                    entries[2].binding = bind::g2::orb_state_prev;
+                    entries[2].buffer = orbStatePrevBuffer_;
+                    entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[3].binding = bind::g2::orb_state_ro;
+                    entries[3].buffer = orbStateBuffer_;
+                    entries[3].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[4].binding = bind::g2::orb_state_prev_rw;
+                    entries[4].buffer = orbStatePrevBuffer_;
+                    entries[4].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Orbs State BindGroup";
+                    desc.layout = orbsStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbsStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!orbsStateGroup_) return false;
+                }
+
+                // Projected from: patchGenBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::palmg_params;
-                    entries[0].buffer = palmMeshParamsBuffer_;
-                    entries[0].size = Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams);
+                    entries[0].binding = bind::g2::patch_params;
+                    entries[0].buffer = patchParamsBuffer_;
+                    entries[0].size = sizeof(GPUPatchParams);
 
-                    entries[1].binding = bind::g0::palmg_vertices;
-                    entries[1].buffer = palmVertexBuffer_;
-                    entries[1].size = Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex);
+                    entries[1].binding = bind::g2::patch_height_scratch;
+                    entries[1].buffer = patchHeightScratchBuffer_;
+                    entries[1].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
 
-                    entries[2].binding = bind::g0::palmg_indices;
-                    entries[2].buffer = palmIndexBuffer_;
-                    entries[2].size = Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t);
+                    entries[2].binding = bind::g2::pyramid_instances;
+                    entries[2].buffer = pyramidInstancesBuffer_;
+                    entries[2].size = sizeof(GPUPyramidArray);
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Palm Mesh Gen BindGroup";
-                    desc.layout = palmMeshGenLayout_;
+                    desc.label = "Patchgen State BindGroup";
+                    desc.layout = patchgenStateLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    palmMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!palmMeshGenBindGroup_) return false;
+                    patchgenStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!patchgenStateGroup_) return false;
                 }
 
-                // Cactus mesh gen bind group
+                // Projected from: patchGenBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
+
+                    entries[0].binding = bind::g3::patch_heightfield_array_write;
+                    entries[0].textureView = patchHeightfieldArrayWriteView_;
+
+                    entries[1].binding = bind::g3::patch_cell_color_array_write;
+                    entries[1].textureView = patchCellColorArrayWriteView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Patchgen Textures BindGroup";
+                    desc.layout = patchgenTexturesLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    patchgenTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!patchgenTexturesGroup_) return false;
+                }
+
+                // Projected from: entityPlacementComputeBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    entries[0].binding = bind::g2::patch_grid;
+                    entries[0].buffer = patchGridBuffer_;
+                    entries[0].size = sizeof(GPUPatchGrid);
+
+                    entries[1].binding = bind::g2::photo_painting_slots;
+                    entries[1].buffer = paintingSlotsBuffer_;
+                    entries[1].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+
+                    entries[2].binding = bind::g2::arch_ground;
+                    entries[2].buffer = archGroundBuffer_;
+                    entries[2].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
+
+                    entries[3].binding = bind::g2::column_ground;
+                    entries[3].buffer = columnGroundBuffer_;
+                    entries[3].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+
+                    entries[4].binding = bind::g2::plant_ground;
+                    entries[4].buffer = plantComputeGroundBuffer_;
+                    entries[4].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Place State BindGroup";
+                    desc.layout = placeStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    placeStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!placeStateGroup_) return false;
+                }
+
+                // Projected from: computeTextureBindGroup_, entityPlacementComputeBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
+
+                    entries[0].binding = bind::g3::photo_heightfield;
+                    entries[0].textureView = patchHeightfieldArrayReadView_;
+
+                    entries[1].binding = bind::g3::photo_sampler;
+                    entries[1].sampler = bilinearSampler_;
+
+                    entries[2].binding = bind::g3::entity_ground_atlas_write;
+                    entries[2].textureView = entityGroundAtlasWriteView_;
+
+                    entries[3].binding = bind::g3::live_card_read;
+                    entries[3].textureView = liveCardView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Place Textures BindGroup";
+                    desc.layout = placeTexturesLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    placeTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!placeTexturesGroup_) return false;
+                }
+
+                // Projected from: ribbonComputeBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::cactusg_params;
-                    entries[0].buffer = cactusMeshParamsBuffer_;
-                    entries[0].size = Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams);
+                    entries[0].binding = bind::g2::ribbon_state;
+                    entries[0].buffer = ribbonBuffer_;
+                    entries[0].size = sizeof(GPURibbonState);
 
-                    entries[1].binding = bind::g0::cactusg_vertices;
-                    entries[1].buffer = cactusVertexBuffer_;
-                    entries[1].size = Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex);
+                    entries[1].binding = bind::g2::ring_xforms;
+                    entries[1].buffer = ringTransformsBuffer_;
+                    entries[1].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[2].binding = bind::g0::cactusg_indices;
-                    entries[2].buffer = cactusIndexBuffer_;
-                    entries[2].size = Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t);
+                    entries[2].binding = bind::g2::head_poses;
+                    entries[2].buffer = headPosesBuffer_;
+                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Cactus Mesh Gen BindGroup";
-                    desc.layout = cactusMeshGenLayout_;
+                    desc.label = "Ribbon State BindGroup";
+                    desc.layout = ribbonStateLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    cactusMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!cactusMeshGenBindGroup_) return false;
+                    ribbonStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!ribbonStateGroup_) return false;
                 }
 
-                // Blade mesh gen bind group
+                // Projected from: renderEntityBindGroup_, renderTextureBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
+
+                    entries[0].binding = bind::g2::agent_tier_gains;
+                    entries[0].buffer = agentTierGainsBuffer_;
+                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    entries[1].binding = bind::g2::render_agents;
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[2].binding = bind::g2::render_floating;
+                    entries[2].buffer = floatingEntityBuffer_;
+                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[3].binding = bind::g2::patch_instances;
+                    entries[3].buffer = patchInstancesBuffer_;
+                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+
+                    entries[4].binding = bind::g2::visible_patch_indices;
+                    entries[4].buffer = visiblePatchIndicesBuffer_;
+                    entries[4].offset = FC_SEG_A_OFF;
+                    entries[4].size = FC_SEG_A_BYTES;
+
+                    entries[5].binding = bind::g2::zone_params;
+                    entries[5].buffer = zoneConfigBuffer_;
+                    entries[5].size = sizeof(GPUGoLZoneArray);
+
+                    entries[6].binding = bind::g2::render_ring_xforms;
+                    entries[6].buffer = ringTransformsBuffer_;
+                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[7].binding = bind::g2::agent_figure_profiles;
+                    entries[7].buffer = figureProfilesBuffer_;
+                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    entries[8].binding = bind::g2::render_ribbon;
+                    entries[8].buffer = ribbonBuffer_;
+                    entries[8].size = sizeof(GPURibbonState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Scene State BindGroup";
+                    desc.layout = sceneStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    sceneStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!sceneStateGroup_) return false;
+                }
+
+                // Projected from: renderEntityBindGroupPlanB_.
+                {
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
+
+                    entries[0].binding = bind::g2::agent_tier_gains;
+                    entries[0].buffer = agentTierGainsBuffer_;
+                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    entries[1].binding = bind::g2::render_agents;
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[2].binding = bind::g2::render_floating;
+                    entries[2].buffer = floatingEntityBuffer_;
+                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[3].binding = bind::g2::patch_instances;
+                    entries[3].buffer = patchInstancesBuffer_;
+                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+
+                    entries[4].binding = bind::g2::visible_patch_indices;
+                    entries[4].buffer = visiblePatchIndicesBuffer_;
+                    entries[4].offset = FC_SEG_B_OFF;
+                    entries[4].size = FC_SEG_B_BYTES;
+
+                    // Shared backing, completed from the primary variant.
+                    entries[5].binding = bind::g2::zone_params;
+                    entries[5].buffer = zoneConfigBuffer_;
+                    entries[5].size = sizeof(GPUGoLZoneArray);
+
+                    entries[6].binding = bind::g2::render_ring_xforms;
+                    entries[6].buffer = ringTransformsBuffer_;
+                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[7].binding = bind::g2::agent_figure_profiles;
+                    entries[7].buffer = figureProfilesBuffer_;
+                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    entries[8].binding = bind::g2::render_ribbon;
+                    entries[8].buffer = ribbonBuffer_;
+                    entries[8].size = sizeof(GPURibbonState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Scene State BindGroup (PlanB)";
+                    desc.layout = sceneStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    sceneStatePlanBGroup_ = device_.CreateBindGroup(&desc);
+                    if (!sceneStatePlanBGroup_) return false;
+                }
+
+                // Projected from: renderEntityBindGroupPlanC_.
+                {
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
+
+                    entries[0].binding = bind::g2::agent_tier_gains;
+                    entries[0].buffer = agentTierGainsBuffer_;
+                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    entries[1].binding = bind::g2::render_agents;
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[2].binding = bind::g2::render_floating;
+                    entries[2].buffer = floatingEntityBuffer_;
+                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[3].binding = bind::g2::patch_instances;
+                    entries[3].buffer = patchInstancesBuffer_;
+                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+
+                    entries[4].binding = bind::g2::visible_patch_indices;
+                    entries[4].buffer = visiblePatchIndicesBuffer_;
+                    entries[4].offset = FC_SEG_C_OFF;
+                    entries[4].size = FC_SEG_C_BYTES;
+
+                    // Shared backing, completed from the primary variant.
+                    entries[5].binding = bind::g2::zone_params;
+                    entries[5].buffer = zoneConfigBuffer_;
+                    entries[5].size = sizeof(GPUGoLZoneArray);
+
+                    entries[6].binding = bind::g2::render_ring_xforms;
+                    entries[6].buffer = ringTransformsBuffer_;
+                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[7].binding = bind::g2::agent_figure_profiles;
+                    entries[7].buffer = figureProfilesBuffer_;
+                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    entries[8].binding = bind::g2::render_ribbon;
+                    entries[8].buffer = ribbonBuffer_;
+                    entries[8].size = sizeof(GPURibbonState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Scene State BindGroup (PlanC)";
+                    desc.layout = sceneStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    sceneStatePlanCGroup_ = device_.CreateBindGroup(&desc);
+                    if (!sceneStatePlanCGroup_) return false;
+                }
+
+                // Projected from: photographerRenderEntityBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
+
+                    entries[0].binding = bind::g2::agent_tier_gains;
+                    entries[0].buffer = agentTierGainsBuffer_;
+                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    entries[1].binding = bind::g2::render_agents;
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[2].binding = bind::g2::render_floating;
+                    entries[2].buffer = floatingEntityBuffer_;
+                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[3].binding = bind::g2::patch_instances;
+                    entries[3].buffer = patchInstancesBuffer_;
+                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+
+                    entries[4].binding = bind::g2::visible_patch_indices;
+                    entries[4].buffer = visiblePatchIndicesBuffer_;
+                    entries[4].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+
+                    // Shared backing, completed from the primary variant.
+                    entries[5].binding = bind::g2::zone_params;
+                    entries[5].buffer = zoneConfigBuffer_;
+                    entries[5].size = sizeof(GPUGoLZoneArray);
+
+                    entries[6].binding = bind::g2::render_ring_xforms;
+                    entries[6].buffer = ringTransformsBuffer_;
+                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[7].binding = bind::g2::agent_figure_profiles;
+                    entries[7].buffer = figureProfilesBuffer_;
+                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    entries[8].binding = bind::g2::render_ribbon;
+                    entries[8].buffer = ribbonBuffer_;
+                    entries[8].size = sizeof(GPURibbonState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Scene State BindGroup (Photographer)";
+                    desc.layout = sceneStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    sceneStatePhotographerGroup_ = device_.CreateBindGroup(&desc);
+                    if (!sceneStatePhotographerGroup_) return false;
+                }
+
+                // Projected from: renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, renderTextureBindGroup_, photographerRenderEntityBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
+
+                    entries[0].binding = bind::g3::pawn_aura_read;
+                    entries[0].textureView = pawnAuraReadView_;
+
+                    entries[1].binding = bind::g3::patch_heightfield_array_read;
+                    entries[1].textureView = patchHeightfieldArrayReadView_;
+
+                    entries[2].binding = bind::g3::patch_cell_color_array_read;
+                    entries[2].textureView = patchCellColorArrayReadView_;
+
+                    entries[3].binding = bind::g3::entity_ground_atlas;
+                    entries[3].textureView = entityGroundAtlasReadView_;
+
+                    entries[4].binding = bind::g3::zone_life_read;
+                    entries[4].textureView = zoneLifeReadView_;
+
+                    entries[5].binding = bind::g3::live_card_read;
+                    entries[5].textureView = liveCardView_;
+
+                    entries[6].binding = bind::g3::shadow_map;
+                    entries[6].textureView = shadowMapView_;
+
+                    entries[7].binding = bind::g3::shadow_sampler;
+                    entries[7].sampler = shadowSampler_;
+
+                    entries[8].binding = bind::g3::spot_shadow_map;
+                    entries[8].textureView = spotShadowMapView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Scene Textures BindGroup";
+                    desc.layout = sceneTexturesLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    sceneTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!sceneTexturesGroup_) return false;
+                }
+
+                // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, photographerRenderEntityBindGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
+
+                    entries[0].binding = bind::g2::render_agents;
+                    entries[0].buffer = agentStateBuffer_;
+                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[1].binding = bind::g2::render_floating;
+                    entries[1].buffer = floatingEntityBuffer_;
+                    entries[1].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[2].binding = bind::g2::patch_instances;
+                    entries[2].buffer = patchInstancesBuffer_;
+                    entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+
+                    entries[3].binding = bind::g2::painting_slots;
+                    entries[3].buffer = paintingSlotsBuffer_;
+                    entries[3].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+
+                    entries[4].binding = bind::g2::render_ring_xforms;
+                    entries[4].buffer = ringTransformsBuffer_;
+                    entries[4].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[5].binding = bind::g2::agent_figure_profiles;
+                    entries[5].buffer = figureProfilesBuffer_;
+                    entries[5].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+
+                    entries[6].binding = bind::g2::render_ribbon;
+                    entries[6].buffer = ribbonBuffer_;
+                    entries[6].size = sizeof(GPURibbonState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Shadow State BindGroup";
+                    desc.layout = shadowStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    shadowStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!shadowStateGroup_) return false;
+                }
+
+                // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, shadowTextureBindGroup_, photographerRenderEntityBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::bladeg_params;
-                    entries[0].buffer = bladeMeshParamsBuffer_;
-                    entries[0].size = Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterMeshParams);
+                    entries[0].binding = bind::g3::patch_heightfield_array_read;
+                    entries[0].textureView = patchHeightfieldArrayReadView_;
 
-                    entries[1].binding = bind::g0::bladeg_vertices;
-                    entries[1].buffer = bladeVertexBuffer_;
-                    entries[1].size = Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex);
+                    entries[1].binding = bind::g3::entity_ground_atlas;
+                    entries[1].textureView = entityGroundAtlasReadView_;
 
-                    entries[2].binding = bind::g0::bladeg_indices;
-                    entries[2].buffer = bladeIndexBuffer_;
-                    entries[2].size = Dim::BLADEG_TOTAL_INDICES * sizeof(uint32_t);
+                    entries[2].binding = bind::g3::live_card_read;
+                    entries[2].textureView = liveCardView_;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Blade Mesh Gen BindGroup";
-                    desc.layout = bladeMeshGenLayout_;
+                    desc.label = "Shadow Textures BindGroup";
+                    desc.layout = shadowTexturesLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    bladeMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!bladeMeshGenBindGroup_) return false;
+                    shadowTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!shadowTexturesGroup_) return false;
+                }
+
+                // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_, zoneMaskGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
+
+                    entries[0].binding = bind::g2::live_card_scratch;
+                    entries[0].buffer = liveCardScratchBuffer_;
+                    entries[0].size = Dim::LIVE_CARD_SIZE * Dim::LIVE_CARD_SIZE * 2 * sizeof(float);
+
+                    entries[1].binding = bind::g2::zone_config;
+                    entries[1].buffer = zoneConfigBuffer_;
+                    entries[1].size = sizeof(GPUGoLZoneArray);
+
+                    entries[2].binding = bind::g2::zone_life;
+                    entries[2].buffer = zoneLifeBuffer_;
+                    entries[2].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+
+                    entries[3].binding = bind::g2::zone_derive_requests;
+                    entries[3].buffer = zoneDeriveRequestBuffer_;
+                    entries[3].size = sizeof(GPUZoneDeriveRequestArray);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Zones State BindGroup";
+                    desc.layout = zonesStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    zonesStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!zonesStateGroup_) return false;
+                }
+
+                // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_.
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
+
+                    entries[0].binding = bind::g3::live_card_write;
+                    entries[0].textureView = liveCardWriteView_;
+
+                    entries[1].binding = bind::g3::zone_life_tex_write;
+                    entries[1].textureView = zoneLifeWriteView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Zones Textures BindGroup";
+                    desc.layout = zonesTexturesLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    zonesTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!zonesTexturesGroup_) return false;
+                }
+
+                // A5: the shared zero-seat filler bound wherever a stratum is unused.
+                {
+                    std::array<wgpu::BindGroupEntry, 0> entries{};
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Empty BindGroup";
+                    desc.layout = emptyLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    emptyGroup_ = device_.CreateBindGroup(&desc);
+                    if (!emptyGroup_) return false;
                 }
                 return true;
             }
@@ -2016,33 +1962,32 @@
             // group re-made after boot, against the exhibition read view.
             bool create_gallery_texture_group() {
 
-                // Recreate gallery texture bind group with exhibition view
+                // Projected from: galleryTextureBindGroup_, photographerComputeBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
 
-                    entries[0].binding = bind::g1::painting_slots;
-                    entries[0].buffer = paintingSlotsBuffer_;
-                    entries[0].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+                    entries[0].binding = bind::g3::photo_heightfield;
+                    entries[0].textureView = patchHeightfieldArrayReadView_;
 
-                    entries[1].binding = bind::g1::painting_array;
-                    entries[1].textureView = exhibitionReadView_;
+                    entries[1].binding = bind::g3::photo_sampler;
+                    entries[1].sampler = bilinearSampler_;
 
-                    entries[2].binding = bind::g1::painting_sampler_filt;
-                    entries[2].sampler = paintingSampler_;
+                    entries[2].binding = bind::g3::live_card_read;
+                    entries[2].textureView = liveCardView_;
 
-                    entries[3].binding = bind::g1::bilinear_sampler;
-                    entries[3].sampler = bilinearSampler_;
+                    entries[3].binding = bind::g3::painting_array;
+                    entries[3].textureView = exhibitionReadView_;
 
-                    entries[4].binding = bind::g1::live_card_read;
-                    entries[4].textureView = liveCardView_;
+                    entries[4].binding = bind::g3::painting_sampler_filt;
+                    entries[4].sampler = paintingSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Gallery Texture BindGroup";
-                    desc.layout = galleryTextureBindGroupLayout_;
+                    desc.label = "Gallery Textures BindGroup";
+                    desc.layout = galleryTexturesLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    galleryTextureBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!galleryTextureBindGroup_) return false;
+                    galleryTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!galleryTexturesGroup_) return false;
                 }
                 return true;
             }

@@ -1008,6 +1008,56 @@ def check(args):
     if not ok:
         problems.append("S-3 wgsl round-trip diverges")
 
+    # ─── S-4 / S-5: LOOM_2 rider R2 — the two completeness witnesses,
+    #     PROMOTED from --plan into steady state. Born when the first v2
+    #     derivation silently lost five families' seats to a stale family
+    #     filter and the gate read their pipelines as zero-cost. In plan
+    #     mode they judged the derivation; here they judge the SCHEMA,
+    #     at every recon gate, forever. Seating is judged by slot NUMBER,
+    #     not by declaration — the MESHGEN convergence seats five trios
+    #     at three numbers, and those seats serve them all.
+    seated = {}
+    for (lay, _i), s in schema.SEATS.items():
+        d = schema.DECLS[s["decl"]]
+        seated.setdefault((d["group"], d["binding"]), set()).add(lay)
+    unseated = sorted(
+        "%s @(%d,%d)" % (nm, d["group"], d["binding"])
+        for nm, d in schema.DECLS.items()
+        if (d["group"], d["binding"]) not in seated)
+    ok = not unseated
+    print("  [%s] S-4  every declared slot is seated in at least one "
+          "layout (%d slots)%s"
+          % ("PASS" if ok else "FAIL",
+             len({(d["group"], d["binding"]) for d in schema.DECLS.values()}),
+             "" if ok else " — UNSEATED: " + "; ".join(unseated)))
+    if not ok:
+        problems.append("S-4 unseated slot(s)")
+
+    bw = BL.Witnesses()
+    b0 = BL.phase_0b(bw)
+    holes = []
+    for pm, p in sorted(schema.PIPELINES.items()):
+        strata = set(p["layouts"])
+        syms = set()
+        for e in (p["vs"], p["fs"], p["cs"]):
+            if e:
+                syms |= b0["reach"].get(e, (set(), set()))[1]
+        for sym in sorted(syms):
+            d = schema.DECLS.get(sym)
+            if d is None:
+                continue
+            if not (seated.get((d["group"], d["binding"]), set()) & strata):
+                holes.append("%s reaches %s but no stratum layout it binds "
+                             "carries slot (%d,%d)"
+                             % (pm, sym, d["group"], d["binding"]))
+    ok = not holes
+    print("  [%s] S-5  every pipeline reaches every slot its entry points "
+          "touch through its own strata (%d pipelines)%s"
+          % ("PASS" if ok else "FAIL", len(schema.PIPELINES),
+             "" if ok else " — " + "; ".join(holes)))
+    if not ok:
+        problems.append("S-5 pipeline reach hole(s)")
+
     print("")
     if problems:
         print("STOP \u2014 %d problem(s); the schema and the tree disagree, or "
@@ -1107,7 +1157,7 @@ def plan(args):
     b = BL.phase_0b(w)
     c = BL.phase_0c(w, layouts, b)
     groups, invokes = MC.parse_groups(w)
-    m7 = MC.usage_census(w, c, groups, invokes)
+    m7 = MC.usage_census(w, c, groups, invokes, layouts)
     if w.failures():
         stop("parsers report failures before planning: %s"
              % "; ".join(t for t, _, _ in w.failures()))
@@ -1447,6 +1497,429 @@ def plan(args):
 PLAN_OUT = os.path.join(REPO, "audit", "RECUT_PLAN.md")
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# U2 — THE RECUT SCHEMA (--bootstrap-recut)
+#
+# Derives the post-recut schema module from the ratified plan: same
+# derivation as --plan, then names by convention, groups by PROJECTION
+# of today's groups onto the new strata (zero behavior change: same
+# buffers, same windows, regrouped), R1's five MESHGEN variants
+# completed with the ruled inert backings, prose migrated with its
+# seats. Printed to stdout only, like --bootstrap.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _camel(name):
+    parts = name.lower().split("_")
+    return parts[0] + "".join(p.title() for p in parts[1:])
+
+
+def _layout_names(nm):
+    """'AGENTS_STATE' -> (member, label, accessor)."""
+    words = nm.replace("_", " ").title().split()
+    label = " ".join(words) + " Layout"
+    member = _camel(nm.lower()) + "Layout_"
+    accessor = nm.lower() + "_layout"
+    return member, label, accessor
+
+
+R1_FILL = {"cmg_config": ("configBuffer_", "sizeof(GPUDesignConfig)"),
+           "cmg_column_ground": ("columnGroundBuffer_",
+                                 "sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES")}
+
+
+def recut_schema(P):
+    """The new schema module content, derived from the ratified plan."""
+    schema = P["schema"]
+    c = P["c"]
+    slot_of = {}
+    for sym, d in schema.DECLS.items():
+        slot_of[sym] = (d["group"], d["binding"])
+    new_slot = P["new_slot"]
+
+    # ─── DECLS: renumber; aliases recomputed over NEW slots ──────────
+    order = {sym: i for i, sym in enumerate(schema.DECLS)}
+    new_decls = {}
+    primary_of_new = {}
+    for sym, d in schema.DECLS.items():
+        ns = new_slot[slot_of[sym]]
+        new_decls[sym] = dict(d, group=ns[0], binding=ns[1], alias_of=None)
+    for sym in sorted(new_decls, key=lambda s: order[s]):
+        ns = (new_decls[sym]["group"], new_decls[sym]["binding"])
+        if ns in primary_of_new:
+            new_decls[sym]["alias_of"] = primary_of_new[ns]
+        else:
+            primary_of_new[ns] = sym
+
+    # ─── LAYOUTS + SEATS ─────────────────────────────────────────────
+    lay_order = (["WORLD", "FRAME"] +
+                 sorted(x for x in P["new_layouts"]
+                        if x not in ("WORLD", "FRAME")) + ["EMPTY"])
+    new_layouts_rel = {}
+    new_seats = {}
+    seat_index = {}          # (layout nm, new (g,b)) -> entry index
+    for nm in lay_order:
+        member, label, accessor = _layout_names(nm)
+        new_layouts_rel[member] = {
+            "label": label, "accessor": accessor,
+            "prose": ["// %s — stratum %s of the LOOM_2 recut."
+                      % (label, {"WORLD": "0 (module-wide design state)",
+                                 "FRAME": "1 (per-frame camera/light state)",
+                                 "EMPTY": "filler (A5: zero seats, zero cost)"}
+                         .get(nm, "%d (%s family)"
+                              % (2 if nm.endswith("STATE") else 3,
+                                 nm.rsplit("_", 1)[0].title())))]}
+        seats = P["new_layouts"].get(nm, {})
+        for i, ((ng, nb), seat) in enumerate(
+                sorted(seats.items(), key=lambda kv: kv[0][1])):
+            seat_index[(nm, (ng, nb))] = i
+            sym = seat["decl"]
+            vis = "|".join(st for st in "VFC" if st in seat["vis"])
+            new_seats[(member, i)] = {
+                "decl": sym, "visibility": vis,
+                "has_dynamic_offset": sym == "shadow_slot",
+                "min_binding_size": "SHADOW_SLOT_SIZE"
+                                    if sym == "shadow_slot" else None,
+                "prose": None, "trailing": {}}
+
+    # Prose migration: an old seat's prose follows its decl to the new
+    # seat in the stratum layout of the old layout's serving family
+    # (or WORLD/FRAME). Duplicate blocks collapse; order is old file
+    # order. Old layout-level banners are NOT migrated — they describe
+    # the dissolved grouping; git history keeps them.
+    lay_fams = {}
+    for p in c["pipelines"]:
+        for lm in p.group_layouts:
+            lay_fams.setdefault(lm, set()).add(P["fam_of_pipe"].get(p.member))
+    mem_label = {m: schema.LAYOUTS[m]["label"] for m in schema.LAYOUTS}
+    for (olm, oi), oseat in schema.SEATS.items():
+        if not oseat.get("prose") and not oseat.get("trailing"):
+            continue
+        sym = oseat["decl"]
+        ns = new_slot[slot_of[sym]]
+        home = P["placement"][slot_of[sym]]
+        targets = []
+        if home == "WORLD":
+            targets = ["WORLD"]
+        elif home == "FRAME":
+            targets = ["FRAME"]
+        else:
+            for fam in sorted(f for f in lay_fams.get(olm, set()) if f
+                              and f in RECUT_FAMILIES):
+                nm = "%s_%s" % (fam, "STATE" if ns[0] == 2 else "TEXTURES")
+                if (nm, ns) in seat_index:
+                    targets.append(nm)
+            if not targets:
+                nm = "%s_%s" % (home, "STATE" if ns[0] == 2 else "TEXTURES")
+                if (nm, ns) in seat_index:
+                    targets.append(nm)
+        for nm in targets:
+            member = _layout_names(nm)[0]
+            row = new_seats[(member, seat_index[(nm, ns)])]
+            if oseat.get("prose"):
+                old_p = row["prose"] or []
+                add = [ln for ln in oseat["prose"] if ln not in old_p]
+                row["prose"] = old_p + add if (old_p or add) else None
+            for f_, t_ in (oseat.get("trailing") or {}).items():
+                row["trailing"].setdefault(f_, t_)
+
+    # ─── GROUPS by projection ────────────────────────────────────────
+    conv_target = {}        # decl -> its converged primary decl
+    for sym in new_decls:
+        conv_target[sym] = primary_of_new[(new_decls[sym]["group"],
+                                           new_decls[sym]["binding"])]
+    variants = {}           # layout nm -> list of (backing map, sources)
+    old_groups = list(schema.GROUPS.items())
+    lay_fams2 = {}
+    for p in c["pipelines"]:
+        for lm in p.group_layouts:
+            lay_fams2.setdefault(lm, set()).add(P["fam_of_pipe"].get(p.member))
+    for gkey, grow in old_groups:
+        partials = {}
+        entries = grow["entries"]
+        g_fams = {f for f in lay_fams2.get(grow["layout"], set()) if f}
+        for oi, e in sorted(entries.items()):
+            sym = e["decl"]
+            ns = new_slot[slot_of[sym]]
+            # Route the cell to EVERY new layout the old group's serving
+            # families bind that carries this number: the home layout,
+            # and each reader layout holding an R4 seat — the same old
+            # backing seeds them all (zero behavior change).
+            for nm in P["new_layouts"]:
+                if (nm, ns) not in seat_index:
+                    continue
+                if nm not in ("WORLD", "FRAME"):
+                    fam_nm = nm.rsplit("_", 1)[0]
+                    if fam_nm not in g_fams:
+                        continue
+                partials.setdefault(nm, {})[ns] = {
+                    "backing": e["backing"], "size_expr": e.get("size_expr"),
+                    "offset_expr": e.get("offset_expr"), "src_decl": sym}
+        if grow.get("invocations"):
+            # the A/B/C builder: entries carried listOff/listBytes;
+            # expand per invocation with its verbatim window args.
+            for iv in grow["invocations"]:
+                pmaps = {}
+                for nm, m_ in partials.items():
+                    mm = {}
+                    for ns, cell in m_.items():
+                        cell2 = dict(cell)
+                        if cell2["offset_expr"] == "listOff":
+                            cell2["offset_expr"] = iv["offset_arg"]
+                        if cell2["size_expr"] == "listBytes":
+                            cell2["size_expr"] = iv["size_arg"]
+                        mm[ns] = cell2
+                    pmaps[nm] = mm
+                for nm, m_ in pmaps.items():
+                    variants.setdefault(nm, []).append((m_, [iv["member"]]))
+        else:
+            for nm, m_ in partials.items():
+                variants.setdefault(nm, []).append((m_, [gkey]))
+
+    def merge(vlist, nm):
+        out = []
+        for m_, src in vlist:
+            placed = False
+            for om, osrc in out:
+                ok = all(om.get(ns, cell) == cell or
+                         (ns not in om) for ns, cell in m_.items()) and \
+                     all(m_.get(ns, cell) == cell or (ns not in m_)
+                         for ns, cell in om.items())
+                if ok:
+                    om.update({ns: cell for ns, cell in m_.items()
+                               if ns not in om})
+                    osrc.extend(s for s in src if s not in osrc)
+                    placed = True
+                    break
+            if not placed:
+                out.append((dict(m_), list(src)))
+        return out
+
+    new_groups = {}
+    group_of_source = {}    # (old source member, layout nm) -> new group member
+    for nm in lay_order:
+        if nm == "EMPTY":
+            member = "emptyGroup_"
+            new_groups[member] = {
+                "label": "Empty BindGroup", "label_param": False,
+                "layout": _layout_names(nm)[0], "cadence": "boot",
+                "local_constants": [], "prose": [
+                    "// A5: the shared zero-seat filler bound wherever a"
+                    " stratum is unused."],
+                "entries": {}, "sources": []}
+            continue
+        merged = merge(variants.get(nm, []), nm)
+        base_member = _camel(nm.lower()) + "Group_"
+        base_label = " ".join(nm.replace("_", " ").title().split()) + " BindGroup"
+        seats = P["new_layouts"].get(nm, {})
+        for vi, (m_, src) in enumerate(merged):
+            # complete over the layout (R1's principle): ruled fills
+            # first (the MESHGEN inert seats), then the primary
+            # variant's shared backing (A6's photographer group takes
+            # signal / lighting / samplers from the main FRAME group's
+            # cells), else STOP.
+            fills = []
+            for ns in seats:
+                if ns not in m_:
+                    prim = primary_of_new[ns]
+                    if prim in R1_FILL:
+                        b_, s_ = R1_FILL[prim]
+                        m_[ns] = {"backing": b_, "size_expr": s_,
+                                  "offset_expr": None, "src_decl": prim}
+                        fills.append((prim, "ruled"))
+                    elif vi > 0 and ns in merged[0][0]:
+                        m_[ns] = dict(merged[0][0][ns])
+                        fills.append((prim, "shared"))
+                    else:
+                        stop("group variant %d of %s misses seat %s (%s) "
+                             "and no ruling fills it"
+                             % (vi, nm, ns, prim))
+            suffix = ""
+            if vi > 0:
+                s0 = src[0]
+                for tok in ("PlanB", "PlanC", "Photographer", "Gallery",
+                            "Arch", "Column", "Palm", "Cactus", "Blade"):
+                    if tok.lower() in s0.lower():
+                        suffix = tok
+                        break
+                if not suffix:
+                    suffix = "V%d" % vi
+            member = base_member.replace("Group_", suffix + "Group_") \
+                if suffix else base_member
+            label = base_label + ((" (%s)" % suffix) if suffix else "")
+            entries = {}
+            for i, (ns, cell) in enumerate(
+                    sorted(m_.items(), key=lambda kv: kv[0][1])):
+                entries[i] = {"decl": primary_of_new[ns],
+                              "backing": cell["backing"],
+                              "size_expr": cell["size_expr"],
+                              "offset_expr": cell["offset_expr"],
+                              "prose": (["// R1 ruled fill: inert but "
+                                         "present — a group is complete "
+                                         "over its layout."]
+                                        if (cell["src_decl"], "ruled") in fills
+                                        else ["// Shared backing, completed "
+                                              "from the primary variant."]
+                                        if (cell["src_decl"], "shared") in fills
+                                        else None),
+                              "trailing": {}}
+            cadence = "boot"
+            if nm == "GALLERY_TEXTURES" and any(
+                    "exhibition" in (cell["backing"] or "").lower()
+                    for cell in m_.values()):
+                cadence = "rebuild"
+            new_groups[member] = {
+                "label": label, "label_param": False,
+                "layout": _layout_names(nm)[0], "cadence": cadence,
+                "local_constants": [], "prose": None,
+                "entries": entries, "sources": src}
+            for s0 in src:
+                group_of_source[(s0, nm)] = member
+
+    # ─── PIPELINES ───────────────────────────────────────────────────
+    new_pipes = {}
+    for p in c["pipelines"]:
+        strata = P["pipe_strata"][p.member]
+        row = dict(schema.PIPELINES[p.member])
+        row["layouts"] = [(_layout_names(s_)[0] if s_ else "emptyLayout_")
+                          for s_ in strata]
+        new_pipes[p.member] = row
+
+    # provenance rides as prose so it round-trips through capture
+    for member, row in new_groups.items():
+        src = row.pop("sources", [])
+        if src and row.get("prose") is None:
+            row["prose"] = ["// Projected from: " + ", ".join(src) + "."]
+        elif src:
+            row["prose"] = row["prose"] + ["// Projected from: "
+                                           + ", ".join(src) + "."]
+
+    return {"DECLS": new_decls, "LAYOUTS": new_layouts_rel,
+            "SEATS": new_seats, "GROUPS": new_groups,
+            "PIPELINES": new_pipes, "group_of_source": group_of_source,
+            "primary_of_new": primary_of_new, "seat_index": seat_index}
+
+
+def recut_registry(R, P):
+    """The four-namespace registry structure for the recut schema."""
+    schema = P["schema"]
+    new_decls = R["DECLS"]
+    primary_of_new = R["primary_of_new"]
+    n_slots = len(primary_of_new)
+    aliases = sorted(s for s, d in new_decls.items() if d["alias_of"])
+
+    consts = {}
+    per_group = {}
+    for (g, b), prim in sorted(primary_of_new.items()):
+        alias_syms = sorted(s for s, d in new_decls.items()
+                            if d["alias_of"] == prim)
+        old_c = schema.REGISTRY.get(prim, {})
+        comment = old_c.get("trailing_comment")
+        if alias_syms:
+            aka = "aka " + " / ".join(alias_syms)
+            comment = (comment + " — " + aka) if comment else aka
+        text = "inline constexpr uint32_t %s= %d;%s" % (
+            (prim + " ").ljust(28), b, ("  // " + comment) if comment else "")
+        consts[prim] = {"namespace": "g%d" % g, "binding": b,
+                        "trailing_comment": comment, "text": text}
+        per_group.setdefault(g, []).append(prim)
+
+    fam_of_prim = {}
+    for (g, b), prim in primary_of_new.items():
+        if g >= 2:
+            fam_of_prim[prim] = RECUT_FAMILIES[b // RECUT_BAND]
+
+    def bands_for(g):
+        if g == 0:
+            return [{"gap_before": 0, "banner": ["// WORLD — R1: the two "
+                     "module-wide design tables every family reads."],
+                     "constants": per_group.get(0, [])}]
+        if g == 1:
+            return [{"gap_before": 0, "banner": ["// FRAME — R2 v2: the "
+                     "per-frame ro faces, the light system, the shadow "
+                     "window, the two shared samplers."],
+                     "constants": per_group.get(1, [])}]
+        bands = []
+        first = True
+        for fam in RECUT_FAMILIES:
+            cs = [p for p in per_group.get(g, [])
+                  if fam_of_prim.get(p) == fam]
+            if not cs:
+                continue
+            lo = RECUT_FAMILIES.index(fam) * RECUT_BAND
+            banner = ["// %s (%d–%d)" % (fam, lo, lo + RECUT_BAND - 1)]
+            if fam == "PATCHGEN" and g == 2:
+                banner += [
+                    "// F1, ratified: a home is a numbering band, not",
+                    "// necessarily a seat. The heightfield ESTATE — write",
+                    "// faces, read faces, the CPU grid that indexes it, the",
+                    "// sampler that reads it — bands under the family that",
+                    "// AUTHORS the estate; readers borrow at its numbers.",
+                    "// R3a extended from resource to estate."]
+            bands.append({"gap_before": 0 if first else 1,
+                          "banner": banner, "constants": cs})
+            first = False
+        return bands
+
+    ns_banners = {
+        0: ["// " + "─" * 61,
+            "// GROUP 0 — WORLD (LOOM_2 recut, stratum 0).",
+            "// " + "─" * 61],
+        1: ["// " + "─" * 61,
+            "// GROUP 1 — FRAME (stratum 1).",
+            "// " + "─" * 61],
+        2: ["// " + "─" * 61,
+            "// GROUP 2 — FAMILY-STATE (stratum 2): buffer seats, banded",
+            "// per family in roster order, band width %d." % RECUT_BAND,
+            "// " + "─" * 61],
+        3: ["// " + "─" * 61,
+            "// GROUP 3 — FAMILY-TEXTURES (stratum 3): texture, sampler",
+            "// and storage-texture seats, same family bands.",
+            "// " + "─" * 61],
+    }
+    namespaces = [{"name": "g%d" % g, "banner": ns_banners[g],
+                   "bands": bands_for(g)} for g in range(4)]
+
+    file_banner = [
+        "// ═" * 1 + "═" * 70,
+        "// THE BINDING REGISTRY (C6, recut by LOOM_2) — the single source of",
+        "// truth for GPU binding NUMBERS. Governed by L6 and L22,",
+        "// docs/LAWS.md; the numbers are the schema's",
+        "// (tools/binding_schema.py) and this file is GENERATED from it.",
+        "//",
+        "// The shape of the table: numbers are GROUP-SCOPED (g0..g3 are the",
+        "// four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,",
+        "// FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry",
+        "// several declarations (the fc_ cull aliases; the MESHGEN",
+        "// convergence, where five kernels' scratch trios share three",
+        "// numbers so four families fit one layout).",
+        "//",
+        "// The WGSL @binding literals in world.wgsl (%d declarations over "
+        "%d slots;" % (len(new_decls), n_slots),
+        "// aliases: %s," % ", ".join(a for a in aliases if a.startswith("fc_")),
+        "// and the %d MESHGEN convergence names)"
+        % sum(1 for a in aliases if not a.startswith("fc_")),
+        "// are a MIRROR of this file, kept in lockstep by boot-time",
+        "// validation and by binding_gen.py --check. The render = compute",
+        "// + 200 witness band is RETIRED — its epitaph closes this file.",
+        "// ═" * 1 + "═" * 70]
+
+    invariants = [
+        "// ─" * 1 + "─" * 61,
+        "// EPITAPH — the render = compute + 200 band (C6 → LOOM_2).",
+        "// From C6 until the recut, four static_asserts held the render",
+        "// mirrors exactly 200 above their compute twins; they were the",
+        "// witness over the authored literals, never their source. The",
+        "// recut retires the numbering they checked, so they die with it",
+        "// (P-inv, RECUT_PLAN v2). Their successors are the schema and",
+        "// binding_gen.py --check, which verify every number in every",
+        "// mirror, both directions, at every recon gate.",
+        "// ─" * 1 + "─" * 61]
+
+    return {"REGISTRY": consts, "REGISTRY_FILE_BANNER": file_banner,
+            "REGISTRY_NAMESPACES": namespaces,
+            "REGISTRY_INVARIANTS": invariants}
+
+
 def emit_plan(P, out_path):
     schema = P["schema"]
     c = P["c"]
@@ -1750,7 +2223,26 @@ def main():
                    help="renumber the declaration sites of the file at PATH")
     g.add_argument("--plan", action="store_true",
                    help="derive the LOOM_2 recut plan into audit/RECUT_PLAN.md")
+    g.add_argument("--bootstrap-recut", action="store_true",
+                   help="derive the post-recut schema from the ratified plan, "
+                        "print to stdout (U2; never writes the authority file)")
     args = ap.parse_args()
+
+    if args.bootstrap_recut:
+        P = plan(args)
+        if P["stops"]:
+            for s_ in P["stops"]:
+                sys.stderr.write("STOP %s\n" % s_)
+            return 1
+        R = recut_schema(P)
+        R.update(recut_registry(R, P))
+        tree = {k: R[k] for k in ("DECLS", "REGISTRY", "SEATS", "LAYOUTS",
+                                  "GROUPS", "PIPELINES",
+                                  "REGISTRY_FILE_BANNER",
+                                  "REGISTRY_NAMESPACES",
+                                  "REGISTRY_INVARIANTS")}
+        print_schema(tree)
+        return 0
 
     if args.plan:
         P = plan(args)

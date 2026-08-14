@@ -196,8 +196,13 @@ inline void dispatch_pawn_aura(PawnState& ps, PawnDeps* c,
         cpd.label = "Pawn Aura";
         cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::PawnAura);
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+        // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+        // FRAME carries the shadow-slot dynamic window; compute never moves it.
+        { const uint32_t kFrameSlot0 = 0;
+          pass.SetBindGroup(0, c->gpuState_.world_group());
+          pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
         c->renderer_.dispatch_compute_pawn_aura(pass,
-            c->gpuState_.pawn_aura_compute_group(),
+            c->gpuState_.aura_state_group(), c->gpuState_.aura_textures_group(),
             GPUState::pawn_aura_workgroups());
         pass.End();
 

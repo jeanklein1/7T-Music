@@ -876,7 +876,7 @@ struct AgentBehaviorParams {
 }
 
 
-@group(0) @binding(110) var<uniform> agent_behaviors: array<AgentBehaviorParams, 10>;
+@group(2) @binding(3) var<uniform> agent_behaviors: array<AgentBehaviorParams, 10>;
 
 struct AgentTierParams {
     step_gain:     f32,
@@ -895,7 +895,7 @@ struct AgentTierParams {
 
 const AGENT_TIER_COUNT_WGSL: u32 = 4u;
 
-@group(0) @binding(111) var<uniform> agent_tier_gains: array<AgentTierParams, 4>;
+@group(2) @binding(4) var<uniform> agent_tier_gains: array<AgentTierParams, 4>;
 
 // --- Pawn figure table (CLOSURE_PAWN) ----------------------------------
 // UNIFORM, render VS only — same address space and same reason as
@@ -929,7 +929,7 @@ struct PawnFigure {
 
 const PAWN_FIGURE_COUNT_WGSL: u32 = 14u;
 
-@group(0) @binding(112) var<uniform> agent_figure_profiles: array<PawnFigure, 14>;
+@group(2) @binding(200) var<uniform> agent_figure_profiles: array<PawnFigure, 14>;
 
 const FAM_HERALDIC_W: u32 = 2u;
 
@@ -2525,14 +2525,14 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // The windows live in THE AGENTS' ROOM (group 2), read-only onto the
 // SAME mesh-param buffers the mesh-gen kernels read — one authored
 // geometry, one home; the rows and the mesh can never disagree.
-@group(2) @binding(0) var<uniform> occupier_cmg: array<ColumnMeshParams, 32>;
-@group(2) @binding(1) var<uniform> occupier_amg: array<ArchMeshParams, 16>;
+@group(2) @binding(7) var<uniform> occupier_cmg: array<ColumnMeshParams, 32>;
+@group(2) @binding(8) var<uniform> occupier_amg: array<ArchMeshParams, 16>;
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
 // force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
 // new reachability, not a new fact.
-@group(2) @binding(2) var<uniform> field_head_poses : array<vec4<f32>, 400>;
-@group(2) @binding(3) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;
-@group(2) @binding(4) var<uniform> field_ribbon : RibbonState;
+@group(2) @binding(9) var<uniform> field_head_poses : array<vec4<f32>, 400>;
+@group(2) @binding(10) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;
+@group(2) @binding(11) var<uniform> field_ribbon : RibbonState;
 // The authored table (FIELD_4) — mirrors GPUFieldAuthored in
 // state.hpp BYTE-FOR-BYTE (144 B; the static_assert is the
 // handshake). Per emitter i: rows[2i] = {x, y, z, S};
@@ -2544,7 +2544,7 @@ struct FieldAuthored {
     _p2: u32,
     rows: array<vec4<f32>, 8>,
 }
-@group(2) @binding(5) var<uniform> field_authored : FieldAuthored;
+@group(2) @binding(12) var<uniform> field_authored : FieldAuthored;
 
 // THE OCCUPIER SHELL (SHELL_0). The row answers in wu/s and the caller
 // integrates once; the body half is the CALLER's own radius, passed in.
@@ -2886,7 +2886,7 @@ struct PyramidArray {
     instances: array<PyramidInstance, 8>,
 }
 
-@group(0) @binding(30) var<uniform> pyramid_instances: PyramidArray;
+@group(2) @binding(42) var<uniform> pyramid_instances: PyramidArray;
 
 fn evaluate_pyramid(world_xz: vec2<f32>, inst: PyramidInstance) -> f32 {
     let dx = world_xz.x - inst.origin_x;
@@ -6116,15 +6116,15 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 // §7.0 GLOBAL BINDINGS
 
 // --- Compute bindings (Group 0: buffers, 20-slot system ranges)
-@group(0) @binding(0)   var<uniform>             signal: FrameSignal;
-@group(0) @binding(1)   var<uniform>             config: DesignConfig;
-@group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
+@group(1) @binding(0)   var<uniform>             signal: FrameSignal;
+@group(0) @binding(0)   var<uniform>             config: DesignConfig;
+@group(2) @binding(240)   var<storage, read_write> vp_data: VPMatrix;
 
 // Agent system — unified entity buffer. Slot 0 is the player's body;
 // slots 1..31 are mood-authored agents. The player's relationship
 // to this array is config.possessed_slot. Array size matches
 // Dim::MAX_AGENTS (32) in state.hpp — keep in sync.
-@group(0) @binding(60)  var<storage, read_write> agent_state: array<AgentState, 32>;
+@group(2) @binding(0)  var<storage, read_write> agent_state: array<AgentState, 32>;
 
 // Portal proximity array (uploaded by CPU, checked in behavior_player_controlled)
 struct PortalEntry {
@@ -6144,11 +6144,11 @@ struct PortalArray {
     _pad2: u32,
     portals: array<PortalEntry, 32>,
 }
-@group(0) @binding(62)  var<uniform> portal_array: PortalArray;
+@group(2) @binding(1)  var<uniform> portal_array: PortalArray;
 
-@group(0) @binding(80)  var<storage, read_write> camera_state: CameraState;
-@group(0) @binding(100) var<storage, read_write> floating_entities: FloatingEntityArray;
-@group(0) @binding(120) var<uniform>             ribbon_state: RibbonState;
+@group(2) @binding(241)  var<storage, read_write> camera_state: CameraState;
+@group(2) @binding(2) var<storage, read_write> floating_entities: FloatingEntityArray;
+@group(2) @binding(140) var<uniform>             ribbon_state: RibbonState;
 
 // Possessed-agent helpers (compute stage). Every kernel that used to
 // read pawn_state.pos now goes through these. Extracting here keeps
@@ -6174,10 +6174,10 @@ fn point_pos() -> vec3<f32> {
 }
 
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
-@group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
-@group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
-@group(0) @binding(280) var<storage, read> render_camera: CameraState;
-@group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
+@group(1) @binding(3) var<storage, read> render_vp: VPMatrix;
+@group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;
+@group(1) @binding(4) var<storage, read> render_camera: CameraState;
+@group(2) @binding(6) var<uniform> render_floating: FloatingEntityArray;
 
 // Possessed-agent helpers (render stage). VS/FS consumers that used
 // to read render_pawn.pos etc. go through these.
@@ -6201,10 +6201,10 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 }
 
 // --- Ribbon (Group 0: render, binding 360)
-@group(0) @binding(360) var<uniform> render_ribbon: RibbonState;
-@group(0) @binding(361) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
+@group(2) @binding(201) var<uniform> render_ribbon: RibbonState;
+@group(2) @binding(143) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
 // Entity ground atlas — VS reads ground_y via textureLoad (r32float, 256×1)
-@group(0) @binding(390) var entity_ground_atlas: texture_2d<f32>;
+@group(3) @binding(81) var entity_ground_atlas: texture_2d<f32>;
 
 // Atlas slot offsets (must match Dim:: constants in state.hpp)
 const GROUND_ATLAS_ARCH: i32     = 0;
@@ -6217,19 +6217,19 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
-@group(0) @binding(121) var<storage, read_write> ring_xforms: array<RibbonRingTransform, 400>;
+@group(2) @binding(141) var<storage, read_write> ring_xforms: array<RibbonRingTransform, 400>;
 
 // Ribbon body — rebuilt each frame from the propagation history (heading +
 // Y replayed at P, XZ integrated tailward). .xyz = ring position, .w = the
 // ring's unwrapped yaw; read by ribbon_centerline_at / ribbon_spine_at /
 // ribbon_ring_motor.
-@group(0) @binding(122) var<storage, read> head_poses: array<vec4<f32>, 400>;
+@group(2) @binding(142) var<storage, read> head_poses: array<vec4<f32>, 400>;
 
 // --- Light system (Group 0: render, bindings 320-339)
 // WALLET_1revA: one uniform block, not three storage bindings. 321 and
 // 322 are retired; the sun, the point array and the spot array reach
 // the fragment stage as `render_lighting.sun` / `.points` / `.spots`.
-@group(0) @binding(320) var<uniform> render_lighting: Lighting;
+@group(1) @binding(1) var<uniform> render_lighting: Lighting;
 
 // ─── ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX ───────────────
 // One u32, delivered by DYNAMIC OFFSET: the buffer holds one 256-byte
@@ -6254,7 +6254,7 @@ struct ShadowSlot {
     _pad1: u32,
     _pad2: u32,
 }
-@group(0) @binding(362) var<uniform> shadow_slot: ShadowSlot;
+@group(1) @binding(2) var<uniform> shadow_slot: ShadowSlot;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
 // Outdoors (no spots) the sun VP is render_vp.light_vp, written by
@@ -6270,11 +6270,11 @@ fn shadow_light_vp() -> mat4x4<f32> {
 }
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
-@group(1) @binding(22) var bilinear_sampler: sampler;
-@group(1) @binding(23) var nearest_sampler: sampler;
-@group(1) @binding(25) var shadow_map: texture_depth_2d;           // sun shadows (outdoor) / spot atlas lights 0-1 (indoor)
-@group(1) @binding(26) var shadow_sampler: sampler_comparison;
-@group(1) @binding(27) var spot_shadow_map: texture_depth_2d;     // spot atlas lights 2-3 (indoor)
+@group(1) @binding(5) var bilinear_sampler: sampler;
+@group(1) @binding(6) var nearest_sampler: sampler;
+@group(3) @binding(200) var shadow_map: texture_depth_2d;           // sun shadows (outdoor) / spot atlas lights 0-1 (indoor)
+@group(3) @binding(201) var shadow_sampler: sampler_comparison;
+@group(3) @binding(202) var spot_shadow_map: texture_depth_2d;     // spot atlas lights 2-3 (indoor)
 
 // §7.0a PATCH GENERATION BINDINGS
 
@@ -6282,17 +6282,17 @@ fn shadow_light_vp() -> mat4x4<f32> {
 // --- Patch heightfield generation (Group 0: bindings 23-24)
 // Separate pipeline layout. Dispatched per-patch when a new patch enters
 // the active set. Writes to one layer of the patch heightfield array.
-@group(0) @binding(23) var<uniform> patch_params: PatchParams;
-@group(0) @binding(24) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
-@group(0) @binding(25) var<uniform> tile_grid: TileGrid;
-@group(0) @binding(27) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
-@group(0) @binding(28) var<storage, read_write> patch_height_scratch: array<f32>;
+@group(2) @binding(40) var<uniform> patch_params: PatchParams;
+@group(3) @binding(40) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
+@group(0) @binding(1) var<uniform> tile_grid: TileGrid;
+@group(3) @binding(41) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
+@group(2) @binding(41) var<storage, read_write> patch_height_scratch: array<f32>;
 
 // --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-29)
-@group(0) @binding(340) var<storage, read> patch_instances: array<PatchInstance>;
-@group(0) @binding(391) var<storage, read> visible_patch_indices: array<u32>;
-@group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
-@group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
+@group(2) @binding(61) var<storage, read> patch_instances: array<PatchInstance>;
+@group(2) @binding(62) var<storage, read> visible_patch_indices: array<u32>;
+@group(3) @binding(44) var patch_heightfield_array_read: texture_2d_array<f32>;
+@group(3) @binding(45) var patch_cell_color_array_read: texture_2d_array<f32>;
 
 // §7.0b GOL ZONE DEFINITIONS
 
@@ -6548,23 +6548,23 @@ struct PawnAuraCell {
 
 // §7.0d SYSTEM BINDINGS
 
-@group(0) @binding(160) var<storage, read_write> zone_config: GoLZoneArray;
-@group(0) @binding(161) var<storage, read_write> zone_life: array<f32>;
-@group(0) @binding(162) var zone_life_tex_write: texture_storage_2d_array<r32float, write>;
+@group(2) @binding(101) var<storage, read_write> zone_config: GoLZoneArray;
+@group(2) @binding(102) var<storage, read_write> zone_life: array<f32>;
+@group(3) @binding(101) var zone_life_tex_write: texture_storage_2d_array<r32float, write>;
 
 // --- GoL zone system (Group 1: bindings 31-32, render texture layout)
-@group(1) @binding(31) var zone_life_read: texture_2d_array<f32>;
-@group(1) @binding(32) var<storage, read> zone_params: GoLZoneArray;
-@group(1) @binding(33) var pawn_aura_read: texture_2d<f32>;
-@group(1) @binding(34) var live_card_read: texture_2d<f32>;  // GROUND_CARD_1: the live card (sampled; render + compute)
+@group(3) @binding(102) var zone_life_read: texture_2d_array<f32>;
+@group(2) @binding(104) var<storage, read> zone_params: GoLZoneArray;
+@group(3) @binding(21) var pawn_aura_read: texture_2d<f32>;
+@group(3) @binding(103) var live_card_read: texture_2d<f32>;  // GROUND_CARD_1: the live card (sampled; render + compute)
 
 // --- Pawn Aura compute bindings
 // (Group 0: dedicated layout with bindings 60, 170-172)
-@group(0) @binding(170) var<uniform> pawn_aura_cfg: PawnAuraConfig;
-@group(0) @binding(171) var<storage, read_write> pawn_aura_cells: array<PawnAuraCell>;
-@group(0) @binding(172) var pawn_aura_tex_write: texture_storage_2d<rgba16float, write>;
-@group(0) @binding(31) var live_card_write: texture_storage_2d<rgba16float, write>;  // GROUND_CARD_1: writer kernel
-@group(0) @binding(32) var<storage, read_write> live_card_scratch: array<f32>;  // stride-2: Δh, gol — the two-pass writer (TRUEBAND_CONTACT_1)
+@group(2) @binding(20) var<uniform> pawn_aura_cfg: PawnAuraConfig;
+@group(2) @binding(21) var<storage, read_write> pawn_aura_cells: array<PawnAuraCell>;
+@group(3) @binding(20) var pawn_aura_tex_write: texture_storage_2d<rgba16float, write>;
+@group(3) @binding(100) var live_card_write: texture_storage_2d<rgba16float, write>;  // GROUND_CARD_1: writer kernel
+@group(2) @binding(100) var<storage, read_write> live_card_scratch: array<f32>;  // stride-2: Δh, gol — the two-pass writer (TRUEBAND_CONTACT_1)
 
 // --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
 //
@@ -6591,7 +6591,7 @@ struct ZoneDeriveRequestArray {
     requests: array<ZoneDeriveRequest, MAX_GOL_ZONES>,
 }
 
-@group(0) @binding(166) var<uniform> zone_derive_requests: ZoneDeriveRequestArray;
+@group(2) @binding(103) var<uniform> zone_derive_requests: ZoneDeriveRequestArray;
 
 // Constants for zone derivation (must match CPU GoLZoneSpawnConfig / GoLColorMode)
 // A zone's extent is tier-derived: grid_cells × PATCH_CELL_SIZE.
@@ -9747,12 +9747,12 @@ struct PhotographerConfig {
     _pad0: f32,
 };
 
-@group(0) @binding(140) var<uniform> photographer_config: PhotographerConfig;
-@group(0) @binding(141) var<storage, read_write> photographer_vp: VPMatrix;
-@group(0) @binding(142) var<storage, read_write> photographer_camera_out: CameraState;
-@group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
-@group(0) @binding(145) var photo_heightfield: texture_2d_array<f32>;
-@group(0) @binding(146) var photo_sampler: sampler;
+@group(2) @binding(160) var<uniform> photographer_config: PhotographerConfig;
+@group(2) @binding(161) var<storage, read_write> photographer_vp: VPMatrix;
+@group(2) @binding(162) var<storage, read_write> photographer_camera_out: CameraState;
+@group(2) @binding(80) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
+@group(3) @binding(42) var photo_heightfield: texture_2d_array<f32>;
+@group(3) @binding(43) var photo_sampler: sampler;
 
 struct ArchGroundEntry {
     pier_left_x: f32,
@@ -9764,7 +9764,7 @@ struct ArchGroundEntry {
     pier_correction_left: f32,    // CPU: max_pier - own_pier at left foot
     pier_correction_right: f32,   // CPU: max_pier - own_pier at right foot
 };
-@group(0) @binding(147) var<storage, read_write> arch_ground: array<ArchGroundEntry, 16>;
+@group(2) @binding(81) var<storage, read_write> arch_ground: array<ArchGroundEntry, 16>;
 
 struct ColumnGroundEntry {
     center_x: f32,
@@ -9776,7 +9776,7 @@ struct ColumnGroundEntry {
     _pad1: f32,
     _pad2: f32,
 };
-@group(0) @binding(148) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
+@group(2) @binding(82) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
 
 struct PalmGroundEntry {
     center_x: f32,
@@ -9786,10 +9786,10 @@ struct PalmGroundEntry {
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
 // Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43] + blade[44..75]
-@group(0) @binding(150) var<storage, read_write> plant_ground: array<PalmGroundEntry, 76>;
+@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 76>;
 
 // Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
-@group(0) @binding(151) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
+@group(3) @binding(80) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
 
 // Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
 // with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
@@ -9803,7 +9803,7 @@ struct PatchGrid {
     cell_extent: f32,
     entries: array<u32>,
 }
-@group(0) @binding(152) var<storage, read> patch_grid: PatchGrid;
+@group(2) @binding(43) var<storage, read> patch_grid: PatchGrid;
 
 // --- Terrain Height Sampling
 // O(1) lookup: hash world_xz to patch grid cell, read layer, sample heightfield.
@@ -10117,11 +10117,11 @@ const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, ant
 // CPU band reads, so the radius has one spelling in the whole program.
 
 // Frustum cull compute bindings (dedicated bind group)
-@group(0) @binding(1)   var<uniform>             fc_config: DesignConfig;
-@group(0) @binding(2)   var<storage, read>       fc_vp: VPMatrix;
-@group(0) @binding(340) var<storage, read>       fc_patches: array<PatchInstance>;
-@group(0) @binding(500) var<storage, read_write> fc_visible: array<u32>;
-@group(0) @binding(501) var<storage, read_write> fc_indirect: array<atomic<u32>, 15>;
+@group(0) @binding(0)   var<uniform>             fc_config: DesignConfig;
+@group(2) @binding(240)   var<storage, read>       fc_vp: VPMatrix;
+@group(2) @binding(61) var<storage, read>       fc_patches: array<PatchInstance>;
+@group(2) @binding(63) var<storage, read_write> fc_visible: array<u32>;
+@group(2) @binding(64) var<storage, read_write> fc_indirect: array<atomic<u32>, 15>;
 
 // THE DRAW PLAN (ECONOMY_1 closing arm) — the kernel authors three
 // lists; the main pass executes them as three indirect draws.
@@ -10139,7 +10139,7 @@ struct DrawPlanParams {
     _pad0: u32,
     rects: array<vec4<f32>, 8>,   // corner.xy, extent.xy (world)
 }
-@group(0) @binding(22) var<uniform> fc_draw_plan: DrawPlanParams;
+@group(2) @binding(60) var<uniform> fc_draw_plan: DrawPlanParams;
 
 const FC_SEG_A_BASE: u32 = 0u;    const FC_SEG_A_CAP: u32 = 128u;
 const FC_SEG_B_BASE: u32 = 128u;  const FC_SEG_B_CAP: u32 = 128u;
@@ -10296,9 +10296,9 @@ const PAINTING_MAX_SLOTS: u32 = 288u;
 
 // --- Gallery Group 1 bindings (shared by terrain quads + wall frames)
 
-@group(1) @binding(50) var<storage, read> painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
-@group(1) @binding(51) var painting_array: texture_2d_array<f32>;
-@group(1) @binding(52) var painting_sampler_filt: sampler;
+@group(2) @binding(85) var<storage, read> painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
+@group(3) @binding(160) var painting_array: texture_2d_array<f32>;
+@group(3) @binding(161) var painting_sampler_filt: sampler;
 
 // --- Constants
 
@@ -10849,9 +10849,9 @@ struct ArchMeshParams {
 
 // ── Bindings (dedicated layout — different binding numbers from pyramid) ─
 
-@group(0) @binding(193) var<storage, read>       amg_params: array<ArchMeshParams, 16>;
-@group(0) @binding(194) var<storage, read_write>  amg_vertices: array<f32>;
-@group(0) @binding(195) var<storage, read_write>  amg_indices: array<u32>;
+@group(2) @binding(180) var<storage, read>       amg_params: array<ArchMeshParams, 16>;
+@group(2) @binding(181) var<storage, read_write>  amg_vertices: array<f32>;
+@group(2) @binding(182) var<storage, read_write>  amg_indices: array<u32>;
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -11212,14 +11212,14 @@ struct ColumnMeshParams {
 
 // ── Bindings ──────────────────────────────────────────────────────────
 
-@group(0) @binding(196) var<storage, read>       cmg_params: array<ColumnMeshParams, 32>;
-@group(0) @binding(197) var<storage, read_write>  cmg_vertices: array<f32>;
-@group(0) @binding(198) var<storage, read_write>  cmg_indices: array<u32>;
+@group(2) @binding(180) var<storage, read>       cmg_params: array<ColumnMeshParams, 32>;
+@group(2) @binding(181) var<storage, read_write>  cmg_vertices: array<f32>;
+@group(2) @binding(182) var<storage, read_write>  cmg_indices: array<u32>;
 // COLUMN CEILING FIT: the ceiling gate + the correction pass's ground
 // output (read-only view of binding 148's buffer — slot-aligned with
 // cmg_params: columns 0.., antennas at ANTENNA_SLOT_OFFSET).
-@group(0) @binding(190) var<uniform>             cmg_config: DesignConfig;
-@group(0) @binding(191) var<storage, read>       cmg_column_ground: array<ColumnGroundEntry, 32>;
+@group(2) @binding(183) var<uniform>             cmg_config: DesignConfig;
+@group(2) @binding(84) var<storage, read>       cmg_column_ground: array<ColumnGroundEntry, 32>;
 
 // COLUMN_MIN_INDOOR_HEIGHT: extreme-terrain floor — a column never
 // collapses below this. PINNED PAIR with COLUMN_MIN_INDOOR_HEIGHT in
@@ -11729,9 +11729,9 @@ const PALMG_MAX_INDICES_PER_SLOT: u32 = 6000u;
 const PALMG_FLOATS_PER_VERTEX: u32 = 10u;
 const PALMG_MAX_SLOTS: u32 = 24u;
 
-@group(0) @binding(180) var<storage, read>       palmg_params: array<PalmMeshParams, 24>;
-@group(0) @binding(181) var<storage, read_write>  palmg_vertices: array<f32>;
-@group(0) @binding(182) var<storage, read_write>  palmg_indices: array<u32>;
+@group(2) @binding(180) var<storage, read>       palmg_params: array<PalmMeshParams, 24>;
+@group(2) @binding(181) var<storage, read_write>  palmg_vertices: array<f32>;
+@group(2) @binding(182) var<storage, read_write>  palmg_indices: array<u32>;
 
 fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
                       nx: f32, ny: f32, nz: f32,
@@ -12068,9 +12068,9 @@ const CACTUSG_MAX_INDICES_PER_SLOT: u32 = 7998u;
 const CACTUSG_FLOATS_PER_VERTEX: u32 = 10u;
 const CACTUSG_MAX_SLOTS: u32 = 20u;
 
-@group(0) @binding(183) var<storage, read>       cactusg_params: array<CactusMeshParams, 20>;
-@group(0) @binding(184) var<storage, read_write>  cactusg_vertices: array<f32>;
-@group(0) @binding(185) var<storage, read_write>  cactusg_indices: array<u32>;
+@group(2) @binding(180) var<storage, read>       cactusg_params: array<CactusMeshParams, 20>;
+@group(2) @binding(181) var<storage, read_write>  cactusg_vertices: array<f32>;
+@group(2) @binding(182) var<storage, read_write>  cactusg_indices: array<u32>;
 
 fn cactusg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
                         nx: f32, ny: f32, nz: f32,
@@ -12445,9 +12445,9 @@ const BLADEG_MAX_INDICES_PER_SLOT: u32 = 1998u;
 const BLADEG_FLOATS_PER_VERTEX: u32 = 10u;
 const BLADEG_MAX_SLOTS: u32 = 32u;
 
-@group(0) @binding(186) var<storage, read>       bladeg_params: array<BladeClusterMeshParams, 32>;
-@group(0) @binding(187) var<storage, read_write>  bladeg_vertices: array<f32>;
-@group(0) @binding(188) var<storage, read_write>  bladeg_indices: array<u32>;
+@group(2) @binding(180) var<storage, read>       bladeg_params: array<BladeClusterMeshParams, 32>;
+@group(2) @binding(181) var<storage, read_write>  bladeg_vertices: array<f32>;
+@group(2) @binding(182) var<storage, read_write>  bladeg_indices: array<u32>;
 
 fn bladeg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
                        nx: f32, ny: f32, nz: f32,
@@ -12899,19 +12899,19 @@ fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
     return v * ct + cross(k, v) * st + k * dot(k, v) * (1.0 - ct);
 }
 
-@group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
-@group(0) @binding(411) var<uniform> orb_config: OrbConfig;
+@group(2) @binding(120) var<storage, read_write> orb_state: array<OrbState>;
+@group(2) @binding(121) var<uniform> orb_config: OrbConfig;
 // Previous-frame snapshot (read-only view in main layout). Written
 // by orb_state_prev_copy before each frame's dynamics dispatch so
 // flocking can query neighbors against a stable previous frame.
-@group(0) @binding(412) var<storage, read> orb_state_prev: array<OrbState>;
+@group(2) @binding(122) var<storage, read> orb_state_prev: array<OrbState>;
 // Inverse-access views used only by orb_state_prev_copy. They
 // reference the same physical buffers through a dedicated copy
 // layout. WebGPU requires each shader declaration to match exactly
 // one layout access mode, so 410/412 (bound read_write/read in the
 // main layout) can't be re-used here with swapped access modes.
-@group(0) @binding(413) var<storage, read>       orb_state_ro:      array<OrbState>;
-@group(0) @binding(414) var<storage, read_write> orb_state_prev_rw: array<OrbState>;
+@group(2) @binding(123) var<storage, read>       orb_state_ro:      array<OrbState>;
+@group(2) @binding(124) var<storage, read_write> orb_state_prev_rw: array<OrbState>;
 
 
 fn orb_rgb_to_hsv(rgb: vec3<f32>) -> vec3<f32> {
