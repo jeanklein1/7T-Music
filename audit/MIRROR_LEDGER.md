@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `7fb80bcf6ecb5b40baf62d0c85d01584c30c2f48` |
-| | LOOM_2 U2-FIX: forensics clean on D1, A7 splits GALLERY by stage, P-scope and S-6 stand witness |
+| source commit | `024a8b536e63206edca871944b0e6ed163171bfb` |
+| | LOOM_2 U3 C1: schema corrections by the lawful path + three witnesses born red |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:75c6680af94895de8fbaf536b95dab3dcf02cda0c70197964675430ffe147d54` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:eab0859f8556bfdcd3f26cda9f41cc1c4d7300b94f94615b59df7f2d0492de23` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:613d3447aadf34886410fdeabdc4875316ea0e0f0698a29b21ebe132933b89cd` |
