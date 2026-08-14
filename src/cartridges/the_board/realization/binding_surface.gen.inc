@@ -267,9 +267,13 @@
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[4].binding = bind::g2::vp_data;  // vp_data (storage — VP matrix for frustum planes)
+                    // F2 demotion, forced here by the API: frustum_cull_patches reads
+                    // the ro face (fc_vp), and WebGPU rejects a read-only shader var
+                    // against a read_write layout seat. Same buffer, same number; the
+                    // read face is the seat. The rw face stays in FRAME_K_STATE.
+                    entries[4].binding = bind::g2::vp_data;  // fc_vp (read-only face of vp_data — VP matrix for frustum planes)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Cull State Layout";
