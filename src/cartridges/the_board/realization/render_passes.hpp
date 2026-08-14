@@ -582,10 +582,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // OIL_1 U13: the gallery pair, bound ONCE for both draws.
     // ROSTER-GATE gallery (a') — matches the consumers' own gate.
     if constexpr (ROSTER.gallery) {
-    // LOOM_2: the RENDER variant — its rw seats back inert stand-ins so
-    // the live agent/camera/photographer buffers stay out of this pass's
-    // usage scope. The photographer COMPUTE pass binds the live group.
-    pass.SetBindGroup(2, c->gpuState_.gallery_state_render_group());
+    pass.SetBindGroup(2, c->gpuState_.gallery_state_group());
     pass.SetBindGroup(3, c->gpuState_.gallery_textures_group());
     }
     c->renderer_.draw_wall_paintings(
@@ -601,14 +598,6 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         c->gallery_state_.slot_high_water
     );
 
-    // LOOM_2: the gallery fork left its pair at 2/3, and the orb draw
-    // is SCENE family (its per-draw binds were hoisted to the strata),
-    // so restore the scene pair first — the same restore-after-fork
-    // the compute pass does for the agents pair.
-    if constexpr (ROSTER.gallery) {
-    pass.SetBindGroup(2, c->gpuState_.scene_state_group());
-    pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
-    }
     render_orbs(orbs_state_, &orbs_deps_, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)

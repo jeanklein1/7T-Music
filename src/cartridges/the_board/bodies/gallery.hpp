@@ -1533,10 +1533,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // OIL_1 U13: the gallery pair (photographer VP window), bound ONCE
     // for both draws. ROSTER-GATE gallery (a') — matches the consumers.
     if constexpr (ROSTER.gallery) {
-    // LOOM_2: the RENDER variant — inert rw stand-ins keep the live
-    // photographer/agent buffers out of this pass's usage scope (the
-    // frame-photographer group binds their ro faces at group 1).
-    pass.SetBindGroup(2, c->gpuState_.gallery_state_render_group());
+    pass.SetBindGroup(2, c->gpuState_.gallery_state_group());
     pass.SetBindGroup(3, c->gpuState_.gallery_textures_group());
     }
     c->renderer_.draw_wall_paintings(

@@ -267,13 +267,9 @@
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // F2 demotion, forced here by the API: frustum_cull_patches reads
-                    // the ro face (fc_vp), and WebGPU rejects a read-only shader var
-                    // against a read_write layout seat. Same buffer, same number; the
-                    // read face is the seat. The rw face stays in FRAME_K_STATE.
-                    entries[4].binding = bind::g2::vp_data;  // fc_vp (read-only face of vp_data — VP matrix for frustum planes)
+                    entries[4].binding = bind::g2::vp_data;  // vp_data (storage — VP matrix for frustum planes)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Cull State Layout";
@@ -1261,54 +1257,6 @@
                     if (!galleryStateGroup_) return false;
                 }
 
-                // RENDER-PASS VARIANT (LOOM_2 usage-scope law): a render pass has ONE
-                // usage scope spanning every binding of every bound group -- visibility
-                // does not filter it -- and a writable storage usage forbids any other
-                // usage of the same buffer in that scope. This layout carries the
-                // photographer kernel rw working set (C-only seats), so the render
-                // passes bind THIS group, whose rw seats back onto inert stand-ins
-                // (R1 inert-but-present pattern); the photographer compute pass keeps
-                // the live group. The render pipelines read only painting_slots here.
-                {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
-
-                    entries[0].binding = bind::g2::agent_state;  // inert stand-in
-                    entries[0].buffer = galleryInertAgentBuffer_;
-                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[1].binding = bind::g2::patch_grid;
-                    entries[1].buffer = patchGridBuffer_;
-                    entries[1].size = sizeof(GPUPatchGrid);
-
-                    entries[2].binding = bind::g2::painting_slots;
-                    entries[2].buffer = paintingSlotsBuffer_;
-                    entries[2].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
-
-                    entries[3].binding = bind::g2::photographer_config;
-                    entries[3].buffer = photographerConfigBuffer_;
-                    entries[3].size = sizeof(GPUPhotographerConfig);
-
-                    entries[4].binding = bind::g2::photographer_vp;  // inert stand-in
-                    entries[4].buffer = galleryInertVPBuffer_;
-                    entries[4].size = sizeof(GPUVPMatrix);
-
-                    entries[5].binding = bind::g2::photographer_camera_out;  // inert stand-in
-                    entries[5].buffer = galleryInertCameraOutBuffer_;
-                    entries[5].size = sizeof(GPUCameraState);
-
-                    entries[6].binding = bind::g2::camera_state;  // inert stand-in
-                    entries[6].buffer = galleryInertCameraBuffer_;
-                    entries[6].size = sizeof(GPUCameraState);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Gallery State BindGroup (Render)";
-                    desc.layout = galleryStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryStateRenderGroup_ = device_.CreateBindGroup(&desc);
-                    if (!galleryStateRenderGroup_) return false;
-                }
-
                 // Projected from: archMeshGenBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
@@ -1562,8 +1510,6 @@
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
-                    // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
-                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
 
                     entries[0].binding = bind::g2::patch_grid;
                     entries[0].buffer = patchGridBuffer_;

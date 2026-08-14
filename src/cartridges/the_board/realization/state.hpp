@@ -2035,7 +2035,6 @@ namespace t7 {
             wgpu::BindGroup frameKStateGroup_;
             wgpu::BindGroup frameKTexturesGroup_;
             wgpu::BindGroup galleryStateGroup_;
-            wgpu::BindGroup galleryStateRenderGroup_;
             wgpu::BindGroup galleryTexturesGroup_;
             wgpu::BindGroup meshgenStateGroup_;
             wgpu::BindGroup meshgenStateColumnGroup_;
@@ -2105,10 +2104,6 @@ namespace t7 {
             wgpu::Buffer photographerVPBuffer_;
             wgpu::Buffer photographerCameraBuffer_;
             wgpu::Buffer photographerConfigBuffer_;
-            wgpu::Buffer galleryInertAgentBuffer_;
-            wgpu::Buffer galleryInertVPBuffer_;
-            wgpu::Buffer galleryInertCameraOutBuffer_;
-            wgpu::Buffer galleryInertCameraBuffer_;
 
             // Three-array painting system: staging (2) + exhibition (1)
             wgpu::Texture snapshotStagingTexture_;    // 16 layers — photographer writes here
@@ -2480,7 +2475,6 @@ namespace t7 {
             wgpu::BindGroup frame_k_state_group() const { return frameKStateGroup_; }
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
             wgpu::BindGroup gallery_state_group() const { return galleryStateGroup_; }
-            wgpu::BindGroup gallery_state_render_group() const { return galleryStateRenderGroup_; }
             wgpu::BindGroup gallery_textures_group() const { return galleryTexturesGroup_; }
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
             wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
@@ -3629,30 +3623,6 @@ namespace t7 {
                     sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
-                // LOOM_2 usage-scope law: a render pass has ONE usage scope
-                // spanning every binding of every bound group — visibility
-                // does not filter it — and a writable storage usage forbids
-                // any other usage of the same buffer in that scope. Gallery
-                // State Layout carries the photographer kernel's rw working
-                // set (C-only seats), so the RENDER passes bind a variant
-                // group whose rw seats back onto these inert stand-ins
-                // (R1's inert-but-present pattern); the photographer COMPUTE
-                // pass keeps the live group. Never written, never read —
-                // they exist to keep the live buffers out of the render
-                // passes' usage scopes.
-                galleryInertAgentBuffer_ = makeBuffer("Gallery Render Inert (agent_state)",
-                    Dim::MAX_AGENTS * sizeof(GPUAgentState),
-                    wgpu::BufferUsage::Storage);
-                galleryInertVPBuffer_ = makeBuffer("Gallery Render Inert (photographer_vp)",
-                    sizeof(GPUVPMatrix),
-                    wgpu::BufferUsage::Storage);
-                galleryInertCameraOutBuffer_ = makeBuffer("Gallery Render Inert (photographer_camera_out)",
-                    sizeof(GPUCameraState),
-                    wgpu::BufferUsage::Storage);
-                galleryInertCameraBuffer_ = makeBuffer("Gallery Render Inert (camera_state)",
-                    sizeof(GPUCameraState),
-                    wgpu::BufferUsage::Storage);
-
                 // GPU frustum culling — LOD0 only.
                 // Compute writes args+atomic to frustumComputeBuffer_, then CopyBufferToBuffer to indirect.
                 // THE DRAW PLAN segments (ECONOMY_1 closing arm) — one list
@@ -3688,8 +3658,6 @@ namespace t7 {
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    galleryInertAgentBuffer_ && galleryInertVPBuffer_ &&
-                    galleryInertCameraOutBuffer_ && galleryInertCameraBuffer_ &&
                     portalArrayBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
