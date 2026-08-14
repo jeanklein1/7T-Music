@@ -932,7 +932,11 @@ def parse_wgsl_decls(w, src, structs, consts):
 
     # ─── WITNESS 0b-1 — the registry banner's stated declaration and slot
     #     counts, PARSED from binding_registry.hpp and compared to this
-    #     census. Plus fc_config / fc_vp / fc_patches as the three aliases.
+    #     census. Plus the alias roster: the three frustum-cull faces
+    #     (fc_config / fc_patches / fc_vp) and, since the LOOM_2 recut,
+    #     the twelve MESHGEN convergence aliases — five scratch trios
+    #     share one params / one vertices / one indices slot, so four
+    #     trios alias the representative's numbers.
     #
     #     IT USED TO BE A LITERAL HERE, and the literal tolled three
     #     campaigns running: 100/97 (BUDGET_1) -> 99/96 (TETRIS ORB_V) ->
@@ -949,7 +953,11 @@ def parse_wgsl_decls(w, src, structs, consts):
     #     reality". A malformed or missing banner is a FAILURE, not a skip
     #     — an unparseable authority is the same defect as a wrong one,
     #     and skipping would make the witness silently inert.
-    expect_aliases = ["fc_config", "fc_patches", "fc_vp"]
+    expect_aliases = ["bladeg_indices", "bladeg_params", "bladeg_vertices",
+                      "cactusg_indices", "cactusg_params", "cactusg_vertices",
+                      "cmg_indices", "cmg_params", "cmg_vertices",
+                      "fc_config", "fc_patches", "fc_vp",
+                      "palmg_indices", "palmg_params", "palmg_vertices"]
     bm = re.search(r"world\.wgsl\s*\((\d+)\s+declarations\s+over\s+(\d+)\s+slots",
                    read(REGISTRY_HPP))
     if bm is None:
@@ -976,9 +984,9 @@ def parse_wgsl_decls(w, src, structs, consts):
     #     calculator cannot reproduce all three, no A2 row it produces is
     #     worth reading.
     by_symbol = {d.symbol: d for d in decls}
-    stated = [("agent_figure_profiles", 4032, "state.hpp entries[17]: \"4032 B, session-constant\""),
-              ("field_head_poses", 6400, "binding_registry.hpp g2:2: \"6,400 B\""),
-              ("field_authored", 144, "binding_registry.hpp g2:5: \"uniform, 144 B\"")]
+    stated = [("agent_figure_profiles", 4032, "state.hpp Scene State Layout entries[7]: \"4032 B, session-constant\""),
+              ("field_head_poses", 6400, "state.hpp Agents State Layout entries[7]: \"6,400 B\""),
+              ("field_authored", 144, "binding_registry.hpp g2:12: \"uniform, 144 B\"")]
     off = []
     for sym, want, where in stated:
         got = by_symbol[sym].layout.size if sym in by_symbol else None
@@ -1695,10 +1703,13 @@ def phase_ext2(w, wgsl):
 # ═══════════════════════════════════════════════════════════════════════
 # PHASE 0c — THE PIPELINE CENSUS
 #
-# The shared builders (makeEntity, makeComputePipeline, computeLayoutFor,
+# The shared builders (makeEntity, makeComputePipeline, strataLayoutFor,
 # makeShadow) are RESOLVED, not recorded: a pipeline built through a
 # shared builder inherits that builder's pipeline layout, and the ledger
-# wants the layout, not the builder's name.
+# wants the layout, not the builder's name. strataLayoutFor(frame, state,
+# tex) is the LOOM_2 successor of computeLayoutFor(single): it wraps the
+# four strata — WORLD is implicit and always first — so its call sites
+# resolve to a four-layout list.
 # ═══════════════════════════════════════════════════════════════════════
 
 class Pipeline:
@@ -1755,8 +1766,11 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*device_\.CreatePipelineLayout\(\s*&(\w+)\s*\)", src):
         events.append((m.start(), "create", m.group(1), m.group(2), None))
-    for m in re.finditer(r"wgpu::PipelineLayout\s+(\w+)\s*=\s*computeLayoutFor\(\s*(\w+)\s*\)", src):
-        events.append((m.start(), "for", m.group(1), m.group(2), None))
+    for m in re.finditer(
+            r"wgpu::PipelineLayout\s+(\w+)\s*=\s*strataLayoutFor\(\s*"
+            r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)", src):
+        events.append((m.start(), "for", m.group(1),
+                       ["worldLayout_", m.group(2), m.group(3), m.group(4)], None))
 
     bad_counts = []
     for pos, kind, a, b, n in sorted(events):
@@ -1769,7 +1783,7 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
         elif kind == "create":
             pls[a] = list(arrays.get(plds.get(b, ""), []))
         elif kind == "for":
-            pls[a] = [b]
+            pls[a] = list(b)
     w.record("0c-0b", not bad_counts,
              "every std::array<BindGroupLayout, N> lists exactly N members"
              if not bad_counts else "; ".join(bad_counts))
@@ -1962,7 +1976,7 @@ def pls_at(events, pos, handles):
         elif kind == "create":
             pls[a] = [handles.get(h, h) for h in arrays.get(plds.get(b, ""), [])]
         elif kind == "for":
-            pls[a] = [handles.get(b, b)]
+            pls[a] = [handles.get(h, h) for h in b]
     return pls
 
 
@@ -2038,14 +2052,31 @@ def phase_0c(w, layouts, wgsl):
 
     # A layout used at two different group indices would break the
     # (group, binding) join in 0d outright.
+    #
+    # LOOM_2 A5 exemption: the EMPTY layout is a stratum FILLER — it
+    # carries zero entries, so there is no (group, binding) join for a
+    # second index to break. It stands wherever a pipeline leaves a
+    # stratum unused, which is indices 1, 2 and 3 today. The exemption
+    # is by PREDICATE, not by name: only entryCount == 0 qualifies, so
+    # the witness ASSERTS the exempted layout's parsed row count rather
+    # than trusting its label, and the exempted indices are reported.
+    exempt = {L["member"] for L in layouts if len(L["entries"]) == 0}
     idx = {}
     clash = []
+    exempt_seen = {}
     for p in pipelines:
         for i, g in enumerate(p.group_layouts):
+            if g in exempt:
+                exempt_seen.setdefault(g, set()).add(i)
+                continue
             if idx.setdefault(g, i) != i:
                 clash.append("%s at index %d and %d" % (g, idx[g], i))
     w.record("0c-4", not clash,
-             "every bind group layout is bound at ONE group index across all pipelines"
+             "every bind group layout with entries is bound at ONE group index "
+             "across all pipelines"
+             + "".join("; %s exempt per A5 (0 entries) at indices %s"
+                       % (g, ",".join(str(i) for i in sorted(ix)))
+                       for g, ix in sorted(exempt_seen.items()))
              if not clash else "; ".join(sorted(set(clash))))
 
     return {"pipelines": pipelines, "entry_const": entry_const,
@@ -2534,7 +2565,7 @@ def phase_0d(w, layouts, wgsl, cen):
     covered = {(r["group"], r["e"].binding_number) for r in rows}
     orphan_decls = [d for d in wgsl["decls"] if (d.group, d.binding) not in covered]
     # REPORT — a registry constant with no WGSL mirror.
-    ns_group = {"g0": 0, "g1": 1, "g2": 2}
+    ns_group = {"g0": 0, "g1": 1, "g2": 2, "g3": 3}
     registry = parse_registry(Witnesses())
     orphan_consts = [(ns, n, v) for (ns, n), v in sorted(registry.items())
                      if (ns_group[ns], v) not in by_slot]
@@ -2905,12 +2936,16 @@ def phase_ext4(w, wgsl, layouts, cen):
     # The control set, defined ONCE. W4-3's overfit guard and W4-2's
     # positive control read the same list; keeping two hand-written copies
     # is how the index-keyed names drifted out of step with the tree.
+    # LOOM_2 re-home: the recut moved the two defended seats from Render
+    # Entity Layout (g0) to Scene State Layout (g2). The key follows the
+    # binding identity to its new home — same two seats, same buffers,
+    # same defended prose; only the stratum address changed.
     want = [("update_player_agent", "world.wgsl"),
             ("update_other_agents", "world.wgsl"),
             ("(file banner)", "world.wgsl"),
             ("pawn_ground_resolve", "world.wgsl"),
-            ("bind::g0::agent_tier_gains in Render Entity Layout", "state.hpp"),
-            ("bind::g0::agent_figure_profiles in Render Entity Layout", "state.hpp")]
+            ("bind::g2::agent_tier_gains in Scene State Layout", "state.hpp"),
+            ("bind::g2::agent_figure_profiles in Scene State Layout", "state.hpp")]
 
     # ─── W4-3 — the guard on W4-2. Two triggers were ADDED to make the
     #     control pass, which is what a control is for — but an instrument
@@ -3163,15 +3198,35 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
          "%d declaration(s) reached by ZERO entry points: %s."
          % (len(dead_decls), ", ".join(dead_decls))))
     A("")
-    A("**3. Zero dynamic-offset bindings.** `hasDynamicOffset` is never set")
-    A("anywhere in `state.hpp`, so every row carries the default `false` and the")
-    A("two dynamic-offset limits stand at 0/%d and 0/%d program-wide."
-      % (CORE_DYN_UNIFORM, CORE_DYN_STORAGE))
+    # LOOM_CLOSE C1b: this finding REGENERATES from the parsed rows —
+    # the hand-carried "zero dynamic bindings" sentence outlived
+    # ATLAS_1revB's shadow slot and contradicted witness 0d-1 in the
+    # same artifact. A finding the parser can compute, the parser
+    # states.
+    dyn_seats = [(L["label"], e.binding_const) for L in layouts
+                 for e in L["entries"] if e.has_dynamic_offset]
+    if not dyn_seats:
+        A("**3. Zero dynamic-offset bindings.** `hasDynamicOffset` is never set")
+        A("anywhere in `state.hpp`; the two dynamic-offset limits stand at 0/%d"
+          % CORE_DYN_UNIFORM)
+        A("and 0/%d program-wide. Computed each run; witness `0d-1` is the gate"
+          % CORE_DYN_STORAGE)
+        A("this figure answers to.")
+    else:
+        A("**3. Dynamic-offset bindings: %d.** %s. The limits stand at %d/%d"
+          % (len(dyn_seats),
+             "; ".join("`%s` in %s" % (c_, l_) for l_, c_ in dyn_seats),
+             max((b["dyn_uniform"] for b in budget), default=0),
+             CORE_DYN_UNIFORM))
+        A("uniform and %d/%d storage at the worst pipeline. Computed each run;"
+          % (max((b["dyn_storage"] for b in budget), default=0),
+             CORE_DYN_STORAGE))
+        A("witness `0d-1` is the gate this figure answers to.")
     A("")
     room_family_storage = max(
         (b["declared"]["storage"] for b in budget
          if any("roomLayout_" in g for g in b["pipeline"].group_layouts)), default=0)
-    A("**4. The tightest row is not where the handoff expected it.** BUDGET_0's")
+    A("**4. The tightest row is not where the handoff expected it (as of BUDGET_1).** BUDGET_0's")
     A("handoff expected the main render family's VERTEX stage at storage 8/8. It")
     if main_v:
         A("reads **storage %d of %d**. The tightest row in the program is"
@@ -3238,7 +3293,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
           % (tight["declared"]["storage"] + 2, CORE["storage"]))
     A("")
     A("**5. One correction to the handoff's A2 rule, and the ledger follows the")
-    A("spec.** The handoff states that in the uniform address space")
+    A("spec (as of BUDGET_1).** The handoff states that in the uniform address space")
     A("`array<f32, N>` *and* `array<vec3<f32>, N>` are illegal. The first is")
     A("right; the second is not. The rule is that the array's **element stride**")
     A("— `roundUp(AlignOf(E), SizeOf(E))` — must be a multiple of 16.")
@@ -3251,7 +3306,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
       % sum(1 for d in wgsl["decls"] if d.address_space == "uniform"))
     A("declarations the program already places in uniform.")
     A("")
-    A("**6. The C6 note on `g2::field_head_poses` did not cost an element type.**")
+    A("**6. The C6 note on `g2::field_head_poses` did not cost an element type (as of BUDGET_1).**")
     A("The handoff attributes an element-type widening to that demotion. At")
     A("`ecfbc32`, the commit that introduced the binding, both `g0:122")
     A("head_poses` and `g2:2 field_head_poses` already read")
@@ -3260,13 +3315,13 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("required element type per A2 row, because for other candidates it is a")
     A("real cost — it just was not one there.")
     A("")
-    A("**7. A4 is empty, so BUDGET_1 is the A1 sweep alone.** Every one of the")
+    A("**7. A4 is empty, so BUDGET_1 is the A1 sweep alone (as of BUDGET_1).** Every one of the")
     A("%d `var<storage, read_write>` declarations is written by at least one entry"
       % sum(1 for dd in wgsl["decls"] if dd.address_space == "storage"
             and dd.wgsl_access == "read_write"))
     A("point that reaches it. No binding claims write access it never exercises.")
     A("")
-    A("**8. The room family cannot be fused, and the reason is mechanical.**")
+    A("**8. The room family cannot be fused, and the reason is mechanical (as of BUDGET_1).**")
     barred_room = [r for r in e1["raw"]
                    if r["a"].startswith("update_") and r["b"].startswith("update_")
                    and r["hazard"]]
@@ -3279,7 +3334,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("device-wide barrier to put back. Table E has the pairs.")
     A("")
     A("**8b. The program has ZERO fusable pairs, and the ordered table alone")
-    A("does not say so.** A fused kernel has no ordering — its threads run")
+    A("does not say so (as of BUDGET_1).** A fused kernel has no ordering — its threads run")
     A("concurrently inside one dispatch — so fusability needs the UNORDERED")
     A("closure, not the ordered hazard list. Of %d unordered fusion-eligible"
       % len(e1["unordered"]))
@@ -3289,7 +3344,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("just how it is dispatched. RAW-clean is necessary, not sufficient: cadence")
     A("is the second gate and it lives in the dispatch schedule, not the shader.")
     A("")
-    A("**9. The vertex-buffer candidates are not the ones that were proposed.**")
+    A("**9. The vertex-buffer candidates are not the ones that were proposed (as of BUDGET_1).**")
     A("`visible_patch_indices` IS eligible — one site, `[patch_id]`, sequential in")
     A("`instance_index`, stride 4 B. `patch_instances` is BLOCKED by a mixed")
     A("classification inside ONE entry point: `patch_terrain_vs` reads it")
@@ -3304,7 +3359,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("that has moved; `visible_patch_indices` is still eligible and still")
     A("unspent, and the two blocked rows are blocked for the same reasons.")
     A("")
-    A("**10. The single-thread count is three numbers, not one.** %d entry points"
+    A("**10. The single-thread count is three numbers, not one (as of BUDGET_1).** %d entry points"
       % len(e3["wg1"]))
     A("declare `@workgroup_size(1)`; %d dispatches issue one workgroup; the"
       % len(e3["single_dispatch"]))
@@ -3319,7 +3374,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("the prose it points at.")
     A("")
     A("**12. The census corrected its own instrument, and the lesson is the")
-    A("campaign's.** BUDGET_1 removed two layout seats and renumbered the")
+    A("campaign's (as of BUDGET_1; the control re-keyed at LOOM_2).** BUDGET_1 removed two layout seats and renumbered the")
     A("survivors, and `W4-2` failed — not because the sweep was wrong, and not")
     A("because the instrument stopped finding the defended prose. It found all")
     A("%d sites with identical trigger sets. What broke was the CONTROL'S KEY:"
@@ -3331,10 +3386,11 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("**An index is a position; a binding is an identity.** The control was")
     A("itself a reference that outlived its referent — precisely what Table H")
     A("says about line numbers, one layer up and pointed at the instrument. It is")
-    A("now keyed by the binding each seat carries, `bind::g0::agent_tier_gains`")
-    A("and `bind::g0::agent_figure_profiles`, which survive renumbering. The")
-    A("displayed `entries[N]` column stays, because it is regenerated every run")
-    A("and a reader wants it.")
+    A("now keyed by the binding each seat carries, `bind::g2::agent_tier_gains`")
+    A("and `bind::g2::agent_figure_profiles` in the Scene State Layout (their")
+    A("LOOM_2 home; the identity followed the seats through the recut), which")
+    A("survive renumbering. The displayed `entries[N]` column stays, because it")
+    A("is regenerated every run and a reader wants it.")
     A("")
     A("Recorded here as a finding rather than only in a commit body, because a")
     A("positive control that can be made to pass by whoever it is testing is not")

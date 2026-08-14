@@ -427,14 +427,14 @@ namespace t7 {
                 return prepare_arch_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_arch(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.arch_mesh_gen_group());
+                self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.meshgen_state_group(), self->gpuState_.empty_group());
             }
 
             static bool dispatch_prepare_mesh_column(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_column_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_column(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
+                self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.meshgen_state_column_group(), self->gpuState_.empty_group());
             }
 
             // ── Mesh gen dispatch wrappers (palm) ──
@@ -443,7 +443,7 @@ namespace t7 {
                 return prepare_palm_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_palm(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
+                self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.meshgen_state_palm_group(), self->gpuState_.empty_group());
             }
 
             // ── Mesh gen dispatch wrappers (cactus) ──
@@ -452,14 +452,14 @@ namespace t7 {
                 return prepare_cactus_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_cactus(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
+                self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.meshgen_state_cactus_group(), self->gpuState_.empty_group());
             }
 
             static bool dispatch_prepare_mesh_blade(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_blade_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_blade(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
+                self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.meshgen_state_blade_group(), self->gpuState_.empty_group());
             }
 
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
@@ -1755,6 +1755,10 @@ namespace t7 {
                     cpd.label = "Entity Mesh Gen";
                     cpd.timestampWrites = gpuState_.meter_arm_compute((uint32_t)RPhase::EntityMeshGen);
                     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+                    // FRAME carries the shadow-slot dynamic window; compute never moves it.
+                    { pass.SetBindGroup(0, gpuState_.world_group());
+                      pass.SetBindGroup(1, gpuState_.frame_c_group()); }
                     // dispatch skips disabled families structurally:
                     // dirty[f] stays false for a disabled family (never
                     // set above), so this branches on dirty-ness, not on

@@ -568,9 +568,11 @@ def census_state_blocks(w):
 
 
 PIPE_IDIOMS = [
-    ("P-help", "computeLayoutFor — the shared single-layout wrapper "
-               "(its four inner statements are censused as part of this idiom)",
-     r"wgpu::PipelineLayout computeLayoutFor\(wgpu::BindGroupLayout \w+\) \{.*"),
+    ("P-help", "strataLayoutFor — the shared four-strata wrapper (LOOM_2: "
+               "WORLD implicit, then frame / state / textures; its inner "
+               "statements are censused as part of this idiom)",
+     r"wgpu::PipelineLayout strataLayoutFor\(wgpu::BindGroupLayout \w+, "
+     r"wgpu::BindGroupLayout \w+, wgpu::BindGroupLayout \w+\) \{.*"),
     ("P-arr", "the ordered layout list",
      r"std::array<wgpu::BindGroupLayout, \d+> \w+ = \{[^}]*\};"),
     ("P-desc", "pipeline layout descriptor declaration",
@@ -582,7 +584,7 @@ PIPE_IDIOMS = [
     ("P-new", "pipeline layout creation, named local",
      r"wgpu::PipelineLayout \w+ = device_\.CreatePipelineLayout\(&\w+\);"),
     ("P-for", "pipeline layout via the shared wrapper",
-     r"wgpu::PipelineLayout \w+ = computeLayoutFor\(\w+\);"),
+     r"wgpu::PipelineLayout \w+ = strataLayoutFor\(\w+, \w+, \w+\);"),
     ("P-prm", "PipelineLayout as a builder parameter (makeComputePipeline; "
               "makeShadow's nullptr-sentinel default)",
      r"wgpu::PipelineLayout \w+( = nullptr\) -> bool \{)?,?"),
@@ -595,7 +597,7 @@ PIPE_IDIOMS = [
 PIPE_TOKENS = [r"std::array<\s*wgpu::BindGroupLayout\b", r"\bPipelineLayoutDescriptor\b",
                r"\bPipelineLayout\b", r"\bCreatePipelineLayout\b",
                r"\bbindGroupLayoutCount\b",
-               r"\bbindGroupLayouts\b", r"\bcomputeLayoutFor\b"]
+               r"\bbindGroupLayouts\b", r"\bstrataLayoutFor\b"]
 
 
 def census_renderer(w):
@@ -608,7 +610,8 @@ def census_renderer(w):
     s = Surface("P", PIPE_IDIOMS)
     spans = []
 
-    hm = re.search(r"wgpu::PipelineLayout\s+computeLayoutFor\s*\(wgpu::BindGroupLayout\s+\w+\)\s*\{",
+    hm = re.search(r"wgpu::PipelineLayout\s+strataLayoutFor\s*\(\s*wgpu::BindGroupLayout\s+\w+\s*,"
+                   r"\s*wgpu::BindGroupLayout\s+\w+\s*,\s*wgpu::BindGroupLayout\s+\w+\s*\)\s*\{",
                    src)
     helper_span = None
     if hm:
@@ -634,7 +637,7 @@ def census_renderer(w):
                 r"\w+\.bindGroupLayoutCount\s*=\s*[^;]+;",
                 r"\w+\.bindGroupLayouts\s*=\s*[^;]+;",
                 r"wgpu::PipelineLayout\s+\w+\s*=\s*device_\.CreatePipelineLayout\(\s*&\w+\s*\)\s*;",
-                r"wgpu::PipelineLayout\s+\w+\s*=\s*computeLayoutFor\(\s*\w+\s*\)\s*;",
+                r"wgpu::PipelineLayout\s+\w+\s*=\s*strataLayoutFor\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*\)\s*;",
                 r"wgpu::PipelineLayout\s+\w+\s*(?:=\s*nullptr\s*\)\s*->\s*bool\s*\{|,)"):
         for m in re.finditer(pat, src):
             if masked(m.start()):
@@ -1088,8 +1091,14 @@ def _m7_enclosing(fns, pos):
     return best
 
 
-def usage_census(w, cen, groups, invokes):
+def usage_census(w, cen, groups, invokes, layouts):
     acc = group_accessor_map()
+    # LOOM_2 A5: a zero-entry layout is a stratum FILLER. 0c-4 exempts it
+    # from the one-index law (its group stands wherever a pipeline leaves
+    # a stratum unused), so the index check here must exempt its group at
+    # ANY index — by the same PREDICATE, entryCount == 0, asserted
+    # against the parsed layout rather than trusting a name.
+    empty_layouts = {L["member"] for L in layouts if len(L["entries"]) == 0}
     member_layout = {}
     builder_layout = None
     for g in groups:
@@ -1187,6 +1196,8 @@ def usage_census(w, cen, groups, invokes):
                                                   norm(args[1])))
             for mem in sorted(members):
                 lay = member_layout.get(mem)
+                if lay in empty_layouts:
+                    continue
                 want = cen["group_index"].get(lay)
                 if want != idx:
                     problems.append("%s:%d: %s bound at index %d; 0c-4 places "
@@ -1929,7 +1940,7 @@ def main():
     m5rows = struct_pairs(wm, b)
     print("  M5: %d struct pairs, %d without a twin"
           % (len(m5rows), sum(1 for r in m5rows if not r["twin"])))
-    m7 = usage_census(wm, c, groups, invokes)
+    m7 = usage_census(wm, c, groups, invokes, layouts)
     print("  M7: %d SetBindGroup sites over %d files, %d GetBindGroupLayout uses"
           % (len(m7["rows"]), len(m7["files"]), m7["get_layout_uses"]))
 

@@ -1008,6 +1008,634 @@ def check(args):
     if not ok:
         problems.append("S-3 wgsl round-trip diverges")
 
+    # ─── S-4 / S-5: LOOM_2 rider R2 — the two completeness witnesses,
+    #     PROMOTED from --plan into steady state. Born when the first v2
+    #     derivation silently lost five families' seats to a stale family
+    #     filter and the gate read their pipelines as zero-cost. In plan
+    #     mode they judged the derivation; here they judge the SCHEMA,
+    #     at every recon gate, forever. Seating is judged by slot NUMBER,
+    #     not by declaration — the MESHGEN convergence seats five trios
+    #     at three numbers, and those seats serve them all.
+    seated = {}
+    for (lay, _i), s in schema.SEATS.items():
+        d = schema.DECLS[s["decl"]]
+        seated.setdefault((d["group"], d["binding"]), set()).add(lay)
+    unseated = sorted(
+        "%s @(%d,%d)" % (nm, d["group"], d["binding"])
+        for nm, d in schema.DECLS.items()
+        if (d["group"], d["binding"]) not in seated)
+    ok = not unseated
+    print("  [%s] S-4  every declared slot is seated in at least one "
+          "layout (%d slots)%s"
+          % ("PASS" if ok else "FAIL",
+             len({(d["group"], d["binding"]) for d in schema.DECLS.values()}),
+             "" if ok else " — UNSEATED: " + "; ".join(unseated)))
+    if not ok:
+        problems.append("S-4 unseated slot(s)")
+
+    bw = BL.Witnesses()
+    b0 = BL.phase_0b(bw)
+    holes = []
+    for pm, p in sorted(schema.PIPELINES.items()):
+        strata = set(p["layouts"])
+        syms = set()
+        for e in (p["vs"], p["fs"], p["cs"]):
+            if e:
+                syms |= b0["reach"].get(e, (set(), set()))[1]
+        for sym in sorted(syms):
+            d = schema.DECLS.get(sym)
+            if d is None:
+                continue
+            if not (seated.get((d["group"], d["binding"]), set()) & strata):
+                holes.append("%s reaches %s but no stratum layout it binds "
+                             "carries slot (%d,%d)"
+                             % (pm, sym, d["group"], d["binding"]))
+    ok = not holes
+    print("  [%s] S-5  every pipeline reaches every slot its entry points "
+          "touch through its own strata (%d pipelines)%s"
+          % ("PASS" if ok else "FAIL", len(schema.PIPELINES),
+             "" if ok else " — " + "; ".join(holes)))
+    if not ok:
+        problems.append("S-5 pipeline reach hole(s)")
+
+    # ─── P-scope (U2-FIX A7): per RENDER pass, merge the usages of
+    #     every group bindable in that pass — WebGPU gives a render
+    #     pass ONE usage scope spanning every entry of every bound
+    #     group, visibility regardless, used or not — and assert zero
+    #     buffer/texture usage conflicts (a writable usage with ANY
+    #     other usage of the same backing). Pass composition comes
+    #     from M7's site census: the pass function's own SetBindGroup
+    #     sites plus one hop into helpers it calls that bind. Texture
+    #     usages merge by backing VIEW name (two views of one texture
+    #     are not unified — disclosed approximation; buffers are
+    #     exact). Compute passes validate per dispatch and are out of
+    #     scope by construction. L23 is the law this witnesses.
+    wps = BL.Witnesses()
+    reg_c = BL.parse_registry(wps)
+    lys = BL.parse_layouts(wps, reg_c)
+    c0 = BL.phase_0c(wps, lys, b0)
+    grps, invs = MC.parse_groups(wps)
+    m7 = MC.usage_census(wps, c0, grps, invs, lys)
+    rows_by_fn = {}
+    for r_ in m7["rows"]:
+        rows_by_fn.setdefault((r_["file"], r_["fn"]), []).append(r_)
+    lay_by_member = {L["member"]: L for L in lys}
+    grp_by_member = {g_["member"]: g_ for g_ in grps if g_["member"]}
+    # A pass SPAN, not a function: the snapshot function encodes a
+    # compute pass and a render pass back to back, and a render scope
+    # that swallowed the compute binds would report the photographer
+    # working set as a render conflict. The span runs from the
+    # BeginRenderPass assignment to that encoder VARIABLE's .End().
+    render_passes = []
+    for rel in m7["files"]:
+        text = BL.strip_cpp_comments(BL.read_raw(os.path.join(BL.REPO, rel)))
+        fns = MC._m7_functions(text)
+        for bm in re.finditer(
+                r"wgpu::RenderPassEncoder\s+(\w+)\s*=\s*\w+\.BeginRenderPass",
+                text):
+            enc = MC._m7_enclosing(fns, bm.start())
+            if enc is None:
+                continue
+            var = bm.group(1)
+            em = re.search(r"\b%s\.End\s*\(\s*\)" % re.escape(var),
+                           text[bm.end():enc[3]])
+            span_end = bm.end() + em.end() if em else enc[3]
+            render_passes.append((rel, enc[0], bm.start(), span_end))
+    verdicts = []
+    pscope_bad = []
+    for rel, fname, bs, be in render_passes:
+        text = BL.strip_cpp_comments(BL.read_raw(os.path.join(BL.REPO, rel)))
+        lo, hi = (BL.line_of(text, bs), BL.line_of(text, be))
+        members = set()
+        for r_ in rows_by_fn.get((rel, fname), []):
+            if lo <= r_["line"] <= hi:
+                members.update(r_["members"])
+        body = text[bs:be]
+        for cm in re.finditer(r"\b(\w+)\s*\(", body):
+            callee = cm.group(1)
+            if callee == fname:
+                continue
+            for (f2, fn2), rs in rows_by_fn.items():
+                if fn2 == callee:
+                    for r_ in rs:
+                        members.update(r_["members"])
+        by_backing = {}
+        for mem in sorted(members):
+            g_ = grp_by_member.get(mem)
+            lay = lay_by_member.get(g_["layout_member"]) if g_ else None
+            if g_ is None or lay is None:
+                continue
+            seat_by_idx = {e2.entry_index: e2 for e2 in lay["entries"]}
+            for e_ in g_["entries"]:
+                le = seat_by_idx.get(e_["index"])
+                if le is None or le.kind == "sampler":
+                    continue
+                writable = ((le.kind == "buffer" and le.access == "Storage")
+                            or (le.kind == "storageTexture"
+                                and not le.access.startswith("ReadOnly")))
+                by_backing.setdefault(e_["backing"], []).append(
+                    (writable, mem, le.binding_const))
+        conflicts = ["%s: %s" % (bk, "; ".join(
+                        "%s in %s (%s)" % ("RW" if w_ else "RO", m_, bc)
+                        for w_, m_, bc in us))
+                     for bk, us in sorted(by_backing.items())
+                     if any(w_ for w_, _, _ in us) and len(us) > 1]
+        label = "%s:%d" % (fname, lo)
+        verdicts.append((label, len(members), len(by_backing), conflicts))
+        pscope_bad.extend("%s: %s" % (label, c_) for c_ in conflicts)
+    ok = not pscope_bad and len(render_passes) >= 3
+    print("  [%s] P-scope(R)  %d render pass spans composed from M7; per-pass "
+          "usage merge (render arm of L23'):"
+          % ("PASS" if ok else "FAIL", len(render_passes)))
+    for label, nm_, nb_, conflicts in verdicts:
+        print("           %-26s %2d groups, %2d backings, %d conflict(s)%s"
+              % (label, nm_, nb_, len(conflicts),
+                 "" if not conflicts else " — " + " | ".join(conflicts)))
+    if len(render_passes) < 3:
+        print("           EXPECTED at least 3 render passes "
+              "(shadow/main/snapshot); found %d — the witness cannot "
+              "be inert" % len(render_passes))
+    if not ok:
+        problems.append("P-scope render-pass usage conflict(s) or "
+                        "missing pass composition")
+
+    # ─── S-5b (U3): seat-face reachability. For every BUFFER seat,
+    #     the union of WGSL declarations its member pipelines actually
+    #     reach at that slot dictates the seat's face: any read_write
+    #     reach demands Storage; all-read demands ReadOnlyStorage;
+    #     uniform demands Uniform. A seat whose union face differs
+    #     from its decl_ref's face must name a declaration of the
+    #     union face. Born from the CULL vp seat: ratified through the
+    #     rw face (vp_data) while frustum_cull_patches reads fc_vp —
+    #     Dawn validates each entry point against the DECLARATION it
+    #     uses, and no slot-level join can see that. Seats reached by
+    #     no member pipeline assert nothing (unused group members are
+    #     legal) and are counted.
+    decls_at_slot = {}
+    for nm_, d_ in schema.DECLS.items():
+        decls_at_slot.setdefault((d_["group"], d_["binding"]), []).append(nm_)
+    members_of_layout = {}
+    for pm_, p_ in schema.PIPELINES.items():
+        for L_ in p_["layouts"]:
+            members_of_layout.setdefault(L_, []).append(pm_)
+    s5b_bad = []
+    s5b_unreached = 0
+    s5b_checked = 0
+    for (lay_, idx_), seat_ in sorted(schema.SEATS.items()):
+        d0 = schema.DECLS[seat_["decl"]]
+        if not d0["cpp"] or d0["cpp"][0] != "buffer":
+            continue
+        slot_ = (d0["group"], d0["binding"])
+        reached_ = set()
+        for pm_ in members_of_layout.get(lay_, []):
+            p_ = schema.PIPELINES[pm_]
+            for e_ in (p_["vs"], p_["fs"], p_["cs"]):
+                if not e_:
+                    continue
+                syms_ = b0["reach"].get(e_, (set(), set()))[1]
+                reached_.update(s_ for s_ in decls_at_slot[slot_]
+                                if s_ in syms_)
+        s5b_checked += 1
+        if not reached_:
+            s5b_unreached += 1
+            continue
+        spaces = {(schema.DECLS[s_]["address_space"],
+                   schema.DECLS[s_]["access"]) for s_ in reached_}
+        if ("storage", "read_write") in spaces and ("storage", "read") in spaces:
+            s5b_bad.append("%s[%d] %s: slot (%d,%d) reached through BOTH "
+                           "storage faces by member pipelines — one seat "
+                           "cannot serve both"
+                           % (lay_, idx_, seat_["decl"], slot_[0], slot_[1]))
+            continue
+        if ("storage", "read_write") in spaces:
+            want_ = "Storage"
+        elif ("storage", "read") in spaces:
+            want_ = "ReadOnlyStorage"
+        else:
+            want_ = "Uniform"
+        if d0["cpp"][1] != want_:
+            s5b_bad.append("%s[%d] seats %s as %s, but its member pipelines "
+                           "reach %s at slot (%d,%d) — the union face is %s"
+                           % (lay_, idx_, seat_["decl"], d0["cpp"][1],
+                              "/".join(sorted(reached_)), slot_[0], slot_[1],
+                              want_))
+    ok = not s5b_bad
+    print("  [%s] S-5b %d buffer seats face-checked against the union of "
+          "their member pipelines' reached declarations (%d reached by no "
+          "member pipeline — asserted nothing)%s"
+          % ("PASS" if ok else "FAIL", s5b_checked, s5b_unreached,
+             "" if ok else " — " + "; ".join(s5b_bad)))
+    if not ok:
+        problems.append("S-5b seat-face mismatch")
+
+    # ─── S-7 (U3): expression closure. Every free identifier in the
+    #     schema's emitted expressions (group entry size/offset,
+    #     min_binding_size, and the local constants' own right-hand
+    #     sides) must resolve at the gen.inc include point: Dim::
+    #     qualified, a sizeof argument, a constant declared at class
+    #     or namespace scope BEFORE the include (function-local
+    #     declarations are invisible there, whatever the line number
+    #     says), a constant in state.hpp's transitive include closure,
+    #     or an in-block constant the same group emits. Born from
+    #     residue #21: the Place block's PLANT_GROUND_COUNT rode a
+    #     size expression while its declaration lived inside a member
+    #     function — visible to grep, invisible to the compiler.
+    state_raw = BL.strip_cpp_comments(BL.read_raw(STATE_HPP))
+    inc_pos = state_raw.find('#include "binding_surface.gen.inc"')
+    before_inc = state_raw[:inc_pos]
+    depth_at_inc = before_inc.count("{") - before_inc.count("}")
+    visible = set()
+    for dm in re.finditer(
+            r"\b(?:static\s+)?(?:inline\s+)?constexpr\s+[\w:<>]+\s+(\w+)\s*[=\[{]",
+            before_inc):
+        d_at = before_inc[:dm.start()]
+        if d_at.count("{") - d_at.count("}") <= depth_at_inc:
+            visible.add(dm.group(1))
+    seen_inc = set()
+    queue_inc = [im.group(1) for im in
+                 re.finditer(r'#include\s+"([^"]+)"', before_inc)]
+    while queue_inc:
+        rel_ = queue_inc.pop()
+        if rel_ in seen_inc:
+            continue
+        seen_inc.add(rel_)
+        pth_ = os.path.join(BL.REPO, "src", rel_)
+        if not os.path.exists(pth_):
+            continue
+        t_ = BL.strip_cpp_comments(BL.read_raw(pth_))
+        for dm in re.finditer(
+                r"\b(?:static\s+)?(?:inline\s+)?constexpr\s+[\w:<>]+\s+(\w+)\s*[=\[{]", t_):
+            visible.add(dm.group(1))
+        queue_inc.extend(im.group(1) for im in
+                         re.finditer(r'#include\s+"([^"]+)"', t_))
+    s7_bad = []
+    s7_exprs = 0
+
+    def s7_check(expr_, local_names, where):
+        nonlocal_missing = []
+        e_ = expr_
+        while True:
+            e2 = re.sub(r"\bsizeof\s*\([^()]*\)", " ", e_)
+            if e2 == e_:
+                break
+            e_ = e2
+        e_ = re.sub(r"\bDim::\w+", " ", e_)
+        for tok in re.finditer(r"\b[A-Za-z_]\w*\b", e_):
+            t_ = tok.group(0)
+            if t_ in ("sizeof", "Dim"):
+                continue
+            if t_ in visible or t_ in local_names:
+                continue
+            nonlocal_missing.append("%s: %r unresolved" % (where, t_))
+        return nonlocal_missing
+
+    for gm_, row_ in sorted(schema.GROUPS.items()):
+        local_names = set()
+        for lc_ in row_.get("local_constants", []):
+            lm_ = re.search(r"\b(\w+)\s*=", lc_["text"])
+            if lm_:
+                local_names.add(lm_.group(1))
+        for lc_ in row_.get("local_constants", []):
+            rhs = lc_["text"].split("=", 1)[1] if "=" in lc_["text"] else ""
+            s7_exprs += 1
+            s7_bad += s7_check(rhs, local_names, "%s local constant" % gm_)
+        for i_, e_ in sorted(row_["entries"].items()):
+            for fld in ("size_expr", "offset_expr"):
+                if e_.get(fld):
+                    s7_exprs += 1
+                    s7_bad += s7_check(e_[fld], local_names,
+                                       "%s entries[%d].%s" % (gm_, i_, fld))
+    for (lay_, i_), seat_ in sorted(schema.SEATS.items()):
+        if seat_.get("min_binding_size"):
+            s7_exprs += 1
+            s7_bad += s7_check(str(seat_["min_binding_size"]), set(),
+                               "%s seats[%d].min_binding_size" % (lay_, i_))
+    ok = not s7_bad
+    print("  [%s] S-7  expression closure over %d emitted expressions: "
+          "every free identifier resolves at the include point "
+          "(%d class/namespace-scope constants + include closure)%s"
+          % ("PASS" if ok else "FAIL", s7_exprs, len(visible),
+             "" if ok else " — " + "; ".join(sorted(set(s7_bad)))))
+    if not ok:
+        problems.append("S-7 unresolved expression identifier(s)")
+
+    # ─── P-seq (U3): encode-order. Per pass span (compute AND render),
+    #     simulate the encoder: walk the span in text order, inlining
+    #     called helpers with per-call argument substitution and the
+    #     two static dispatch tables (DRAWABLES by pass mask;
+    #     FAMILY_DISPATCH by field-name hint); track the last-bound
+    #     groups at indices 2/3; at every Draw*/Dispatch* event the
+    #     current pair's LAYOUTS must equal the current pipeline's
+    #     strata 2/3. A SetPipeline naming two members (a ?: pick)
+    #     passes if EITHER matches — disclosed approximation. Born
+    #     from the orb draw: the gallery fork left its pair bound and
+    #     the hoisted orb draw inherited it; group-vs-layout agreement
+    #     is per-bind, encode ORDER is per-pass, and only a simulator
+    #     sees order.
+    acc2 = MC.group_accessor_map()
+    grp_layout = {gm_: row_["layout"] for gm_, row_ in schema.GROUPS.items()}
+    pipe_strata = {pm_: (p_["layouts"][2], p_["layouts"][3])
+                   for pm_, p_ in schema.PIPELINES.items()}
+    all_files2 = []
+    for root_, dirs_, fs_ in os.walk(os.path.join(BL.REPO, "src")):
+        dirs_.sort()
+        for f_ in sorted(fs_):
+            if f_.endswith((".hpp", ".cpp")):
+                pth_ = os.path.join(root_, f_)
+                all_files2.append((pth_, BL.strip_cpp_comments(BL.read_raw(pth_))))
+    fn_defs = {}
+    for pth_, text_ in all_files2:
+        for nm_, params_, bs_, be_ in MC._m7_functions(text_):
+            fn_defs.setdefault(nm_, []).append((params_, text_[bs_:be_]))
+    dt_text = next((t_ for p2, t_ in all_files2
+                    if p2.endswith("drawable_table.hpp")), "")
+    dt_rows = re.findall(r'\{\s*"\w+",\s*([^,]+),\s*(\w+)\s*\}', dt_text)
+    fd_text = ""
+    for p2, t_ in all_files2:
+        fm_ = re.search(r"FAMILY_DISPATCH\s*\[[^\]]*\]\s*=\s*\{", t_)
+        if fm_:
+            e2_ = t_.find("};", fm_.start())
+            fd_text = t_[fm_.start():e2_]
+            break
+    NOT_CALLS = {"SetBindGroup", "SetPipeline", "SetVertexBuffer",
+                 "SetIndexBuffer", "Draw", "DrawIndexed", "DrawIndirect",
+                 "DrawIndexedIndirect", "DispatchWorkgroups",
+                 "DispatchWorkgroupsIndirect", "BeginRenderPass",
+                 "BeginComputePass", "End", "if", "for", "while", "switch",
+                 "sizeof", "return"}
+    pseq_bad = []
+    pseq_draws = [0]
+    pseq_unresolved = []
+    dispatch_snaps = []
+    visited_fns = set()
+
+    def resolve_arg(arg_, env_):
+        am_ = re.search(r"(\w+)\s*\(\s*\)\s*$", arg_.strip())
+        if am_ and am_.group(1) in acc2:
+            return {acc2[am_.group(1)]}
+        if re.fullmatch(r"\w+", arg_.strip()):
+            return env_.get(arg_.strip(), set())
+        return set()
+
+    def walk(body, env, state, pipes, depth, where, filt=None, path=frozenset()):
+        if depth > 5:
+            return
+        visited_fns.update(path)
+        evs = []
+        for m_ in re.finditer(r"\.SetBindGroup\s*\(([^;]*)\)\s*;", body):
+            a_ = BL.split_args(m_.group(1))
+            if len(a_) >= 2 and re.fullmatch(r"\d+", a_[0].strip()):
+                evs.append((m_.start(), "bind",
+                            (int(a_[0]), a_[1])))
+        for m_ in re.finditer(r"\.SetPipeline\s*\(([^;]+?)\)\s*;", body):
+            evs.append((m_.start(), "pipe",
+                        set(re.findall(r"(\w+Pipeline_)", m_.group(1)))))
+        for m_ in re.finditer(
+                r"\.(Draw|DrawIndexed|DrawIndirect|DrawIndexedIndirect|"
+                r"DispatchWorkgroups|DispatchWorkgroupsIndirect)\s*\(", body):
+            evs.append((m_.start(), "draw", m_.group(1)))
+        for m_ in re.finditer(r"\bFAMILY_DISPATCH\s*\[[^\]]*\]\s*\.\s*(\w+)\s*\(", body):
+            evs.append((m_.start(), "table_fd", m_.group(1)))
+        for m_ in re.finditer(r"\bdraw_table\s*\(([^;]*)\)\s*;", body):
+            evs.append((m_.start(), "table_dt", m_.group(1)))
+        for m_ in re.finditer(r"\b(\w+)\s*\(", body):
+            nm_ = m_.group(1)
+            if nm_ in NOT_CALLS or nm_ in ("draw_table",) or nm_ not in fn_defs:
+                continue
+            j_ = m_.end() - 1
+            d2_, k_ = 0, j_
+            while k_ < len(body):
+                if body[k_] == "(":
+                    d2_ += 1
+                elif body[k_] == ")":
+                    d2_ -= 1
+                    if d2_ == 0:
+                        break
+                k_ += 1
+            evs.append((m_.start(), "call", (nm_, body[j_ + 1:k_])))
+        evs.sort(key=lambda x: x[0])
+        for off_, kind_, pay_ in evs:
+            if kind_ == "bind":
+                idx_, expr_ = pay_
+                mem_ = resolve_arg(expr_, env)
+                if not mem_:
+                    if idx_ in (2, 3):
+                        pseq_unresolved.append("%s: unresolved group expr %r"
+                                               % (where, expr_.strip()))
+                    state[idx_] = None
+                else:
+                    state[idx_] = set(mem_)
+            elif kind_ == "pipe":
+                pipes[0] = pay_ or env.get("__pipes__", set())
+            elif kind_ == "draw":
+                pseq_draws[0] += 1
+                if not pipes[0]:
+                    pseq_bad.append("%s: %s with no SetPipeline seen"
+                                    % (where, pay_))
+                    continue
+                lay2 = {grp_layout.get(m2) for m2 in state.get(2) or ()}
+                lay3 = {grp_layout.get(m2) for m2 in state.get(3) or ()}
+                # L23' compute arm: a dispatch scopes over the FULL bound
+                # groups — snapshot the whole bind state at the site.
+                if pay_.startswith("Dispatch"):
+                    dispatch_snaps.append(
+                        (where, {i2: set(state[i2]) for i2 in state
+                                 if state.get(i2)}))
+                okd = False
+                for cand in pipes[0]:
+                    st_ = pipe_strata.get(cand)
+                    if st_ is None:
+                        continue
+                    l2_, l3_ = st_
+                    if l2_ in lay2 and l3_ in lay3:
+                        okd = True
+                        break
+                if not okd:
+                    pseq_bad.append(
+                        "%s: %s under pipeline %s wants strata (%s, %s) but "
+                        "the last-bound 2/3 pair is (%s, %s)"
+                        % (where, pay_, "/".join(sorted(pipes[0])),
+                           *(pipe_strata.get(sorted(pipes[0])[0], ("?", "?"))),
+                           "/".join(sorted(x or "?" for x in lay2)) or "-",
+                           "/".join(sorted(x or "?" for x in lay3)) or "-"))
+            elif kind_ == "table_dt":
+                args_ = BL.split_args(pay_)
+                mask_ = args_[-1].strip() if args_ else ""
+                # b.shadow is pass state: the mask picks the branch the
+                # thunks take, so the simulator follows only that branch.
+                filt2 = "shadow" if mask_ == "DRAW_SHADOW" else "noshadow"
+                for maskexpr, thunk in dt_rows:
+                    if mask_ and mask_ in maskexpr and thunk in fn_defs:
+                        for params2, body2 in fn_defs[thunk]:
+                            walk(body2, {}, state, pipes, depth + 1,
+                                 where + ">" + thunk, filt2, path | {thunk})
+            elif kind_ == "table_fd":
+                field_ = pay_
+                hints = [t2 for t2 in field_.split("_") if t2 not in
+                         ("dispatch", "")]
+                for nm2 in sorted(set(re.findall(r"\b(\w+)\b", fd_text))):
+                    if nm2 in fn_defs and all(h_ in nm2 for h_ in hints) \
+                            and nm2 != field_:
+                        for params2, body2 in fn_defs[nm2]:
+                            walk(body2, {}, state, pipes, depth + 1,
+                                 where + ">" + nm2, filt, path | {nm2})
+            elif kind_ == "call":
+                nm_, argstr = pay_
+                if nm_ in path:
+                    continue          # caller and helper share a name
+                if filt == "shadow" and "shadow" not in nm_:
+                    continue
+                if filt == "noshadow" and "shadow" in nm_:
+                    continue
+                args_ = BL.split_args(argstr)
+                arg_pipes = set(re.findall(r"(\w+Pipeline_)", argstr))
+                for params2, body2 in fn_defs[nm_]:
+                    pnames = BL.param_names(params2)
+                    env2 = {}
+                    if arg_pipes or "__pipes__" in env:
+                        env2["__pipes__"] = arg_pipes or env["__pipes__"]
+                    for pi_, pn_ in enumerate(pnames):
+                        if pi_ < len(args_):
+                            r2 = resolve_arg(args_[pi_], env)
+                            if r2:
+                                env2[pn_] = r2
+                    walk(body2, env2, state, pipes, depth + 1,
+                         where + ">" + nm_, filt, path | {nm_})
+
+    pass_spans2 = []
+    for pth_, text_ in all_files2:
+        fns_ = MC._m7_functions(text_)
+        for bm_ in re.finditer(
+                r"wgpu::(RenderPassEncoder|ComputePassEncoder)\s+(\w+)\s*=\s*"
+                r"\w+\.Begin(?:Render|Compute)Pass", text_):
+            enc_ = MC._m7_enclosing(fns_, bm_.start())
+            if enc_ is None:
+                continue
+            var_ = bm_.group(2)
+            em_ = re.search(r"\b%s\.End\s*\(\s*\)" % re.escape(var_),
+                            text_[bm_.end():enc_[3]])
+            span_end = bm_.end() + em_.end() if em_ else enc_[3]
+            pass_spans2.append((os.path.relpath(pth_, BL.REPO), enc_[0],
+                               text_, bm_.start(), span_end))
+    for rel_, fname_, text_, bs_, be_ in pass_spans2:
+        lo_ = BL.line_of(text_, bs_)
+        visited_fns.add(fname_)
+        walk(text_[bs_:be_], {}, {0: None, 1: None, 2: None, 3: None},
+             [set()], 0, "%s:%d(%s)" % (rel_.split("/")[-1], lo_, fname_))
+    # COVERAGE, witnessed: every function whose body issues a draw or
+    # dispatch must be reached by some span walk — a green simulator
+    # with silently shrunk coverage is not a witness.
+    DRAWRX = re.compile(r"\.(?:Draw|DrawIndexed|DrawIndirect|"
+                        r"DrawIndexedIndirect|DispatchWorkgroups|"
+                        r"DispatchWorkgroupsIndirect)\s*\(")
+    unvisited = sorted(nm_ for nm_, defs_ in fn_defs.items()
+                       if nm_ not in visited_fns
+                       and any(DRAWRX.search(b_) for _, b_ in defs_))
+    if unvisited:
+        pseq_bad.append("COVERAGE: draw/dispatch-issuing function(s) never "
+                        "reached by any pass span: " + ", ".join(unvisited))
+    ok = not pseq_bad and not pseq_unresolved and pseq_draws[0] > 0
+    print("  [%s] P-seq %d pass spans simulated in encode order, %d "
+          "draw/dispatch events checked against the last-bound 2/3 pair%s"
+          % ("PASS" if ok else "FAIL", len(pass_spans2), pseq_draws[0],
+             "" if ok else " — " + "; ".join(sorted(set(pseq_bad + pseq_unresolved))[:12])))
+    if not ok:
+        problems.append("P-seq encode-order violation(s)")
+
+    # ─── P-scope(C) (U4/A8, L23'): the compute arm — PESSIMISTIC BY
+    #     LAW. Dawn scopes a compute dispatch over the FULL bound
+    #     groups: no visibility filter, no static-use filter (Jean's
+    #     boot log is the evidence). Per dispatch site, merge the
+    #     usages of every entry of every group bound at that site;
+    #     each buffer presents ONE writability. Plus the group-local
+    #     law: no bind group backs one buffer through entries of
+    #     mixed writability. NO relaxation of the pessimistic rule may
+    #     ever be committed on a citation — only on a witnessed Dawn
+    #     behavior test.
+    glocal_bad = []
+    for gm_, row_ in sorted(schema.GROUPS.items()):
+        by_b = {}
+        for i_, e_ in sorted(row_["entries"].items()):
+            cpp_ = schema.DECLS[e_["decl"]]["cpp"]
+            if not cpp_ or cpp_[0] != "buffer":
+                continue
+            by_b.setdefault(e_["backing"], []).append(
+                (cpp_[1] == "Storage", e_["decl"]))
+        for bk_, us_ in sorted(by_b.items()):
+            kinds_ = {w_ for w_, _ in us_}
+            if kinds_ == {True, False}:
+                glocal_bad.append("%s backs %s through mixed writability: %s"
+                                  % (gm_, bk_, "; ".join(
+                                      "%s(%s)" % (d_, "RW" if w_ else "RO")
+                                      for w_, d_ in us_)))
+    pscopec_bad = []
+    for where_, snap_ in dispatch_snaps:
+        by_b = {}
+        for i2, mems_ in sorted(snap_.items()):
+            for mem_ in sorted(mems_):
+                row_ = schema.GROUPS.get(mem_)
+                if row_ is None:
+                    continue
+                for i_, e_ in sorted(row_["entries"].items()):
+                    cpp_ = schema.DECLS[e_["decl"]]["cpp"]
+                    if not cpp_:
+                        continue
+                    if cpp_[0] == "buffer":
+                        w_ = cpp_[1] == "Storage"
+                    elif cpp_[0] == "storageTexture":
+                        w_ = not cpp_[1].startswith("ReadOnly")
+                    elif cpp_[0] == "texture":
+                        w_ = False
+                    else:
+                        continue
+                    by_b.setdefault(e_["backing"], []).append(
+                        (w_, mem_, e_["decl"]))
+        for bk_, us_ in sorted(by_b.items()):
+            if any(w_ for w_, _, _ in us_) and len(us_) > 1:
+                pscopec_bad.append("%s: %s — %s"
+                                   % (where_, bk_, "; ".join(
+                                       "%s in %s (%s)"
+                                       % ("RW" if w_ else "RO", m_, d_)
+                                       for w_, m_, d_ in us_)))
+    ok = not glocal_bad and not pscopec_bad and dispatch_snaps
+    print("  [%s] P-scope(C) %d dispatch sites snapshotted with full bound "
+          "groups; single-writability per buffer, pessimistic by law; "
+          "group-local: %d groups checked%s"
+          % ("PASS" if ok else "FAIL", len(dispatch_snaps),
+             len(schema.GROUPS),
+             "" if ok else " — " + " | ".join(
+                 sorted(set(glocal_bad))[:8] +
+                 sorted(set(pscopec_bad))[:24])))
+    if not ok:
+        problems.append("P-scope(C) compute-scope or group-local "
+                        "writability conflict(s)")
+
+    # ─── S-6 (U2-FIX D1): commit integrity — the tree the witnesses
+    #     saw is the tree that ships. Green only at the landing: the
+    #     working tree is fully committed (porcelain empty) and HEAD
+    #     equals the pushed upstream tip. A mid-flight run reports its
+    #     dirt honestly and fails; that is the point.
+    import subprocess as _sp
+
+    def _git(*a):
+        r_ = _sp.run(["git"] + list(a), cwd=BL.REPO,
+                     capture_output=True, text=True)
+        return r_.stdout.strip()
+    porcelain = _git("status", "--porcelain")
+    head_sha = _git("rev-parse", "HEAD")
+    up_sha = _git("rev-parse", "@{u}")
+    ok = (porcelain == "" and bool(up_sha) and head_sha == up_sha)
+    print("  [%s] S-6  commit integrity: %s"
+          % ("PASS" if ok else "FAIL",
+             "working tree clean; HEAD %s == pushed tip" % head_sha[:7]
+             if ok else
+             "porcelain %s; HEAD %s vs upstream %s"
+             % ("clean" if not porcelain else
+                "DIRTY (%d entries)" % len(porcelain.splitlines()),
+                head_sha[:7], up_sha[:7] if up_sha else "(none)")))
+    if not ok:
+        problems.append("S-6 commit integrity")
+
     print("")
     if problems:
         print("STOP \u2014 %d problem(s); the schema and the tree disagree, or "
@@ -1039,7 +1667,11 @@ RECUT_FRAME = ["signal", "render_lighting", "shadow_slot",         # R2 v2,
                "bilinear_sampler", "nearest_sampler"]              # order
 RECUT_FAMILIES = ["AGENTS", "AURA", "PATCHGEN", "CULL", "PLACE",
                   "ZONES", "ORBS", "RIBBON", "GALLERY", "MESHGEN",
-                  "SCENE", "SHADOW", "FRAME_K"]
+                  "SCENE", "SHADOW", "FRAME_K",
+                  # A7: the photographer kernel split from GALLERY — a
+                  # compute-only family, so the render stratum stays
+                  # read-only (L23).
+                  "PHOTO_K"]
 RECUT_BAND = 20            # numbering band width per family, groups 2/3
 
 RECUT_COMPUTE_FAMILY = {
@@ -1057,7 +1689,7 @@ RECUT_COMPUTE_FAMILY = {
     "orb_init": "ORBS", "orb_dynamics": "ORBS", "orb_recolor": "ORBS",
     "orb_state_prev_copy": "ORBS",
     "compute_ribbon_rings": "RIBBON",
-    "compute_photographer_vp": "GALLERY",
+    "compute_photographer_vp": "PHOTO_K",   # A7: was GALLERY pre-split
     "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
     "palm_mesh_gen": "MESHGEN", "cactus_mesh_gen": "MESHGEN",
     "blade_cluster_mesh_gen": "MESHGEN",
@@ -1107,7 +1739,7 @@ def plan(args):
     b = BL.phase_0b(w)
     c = BL.phase_0c(w, layouts, b)
     groups, invokes = MC.parse_groups(w)
-    m7 = MC.usage_census(w, c, groups, invokes)
+    m7 = MC.usage_census(w, c, groups, invokes, layouts)
     if w.failures():
         stop("parsers report failures before planning: %s"
              % "; ".join(t for t, _, _ in w.failures()))
@@ -1393,6 +2025,40 @@ def plan(args):
                              "carries its slot %s"
                              % (p.member, sym, new_slot[key]))
 
+    # ─── P-scope, plan side (U2-FIX A7): the render stratum is
+    #     read-only — L23. A render pass merges every entry of every
+    #     bound group into ONE usage scope, visibility regardless; a
+    #     writable storage usage forbids any other usage of the same
+    #     buffer in the pass. Backings do not exist at plan time, so
+    #     the plan-side witness is the LAW itself: no stratum layout
+    #     bound by any render pipeline may carry a writable buffer or
+    #     writable storage-texture seat. Zero writable seats in render
+    #     scope implies zero writable-vs-other conflicts on any
+    #     resource. The check-side twin merges REAL backings per pass
+    #     composition (from M7) and demands zero conflicts.
+    render_bound_strata = set()
+    for p in c["pipelines"]:
+        if p.kind != "compute":
+            render_bound_strata.update(
+                s_ for s_ in pipe_strata.get(p.member, []) if s_)
+    pscope_rows = []
+    for nm in sorted(render_bound_strata):
+        writable = []
+        for (ng, nb), seat in sorted(new_layouts.get(nm, {}).items()):
+            cpp = schema.DECLS[seat["decl"]]["cpp"]
+            if cpp and ((cpp[0] == "buffer" and cpp[1] == "Storage")
+                        or (cpp[0] == "storageTexture"
+                            and not cpp[1].startswith("ReadOnly"))):
+                writable.append("%s at (%d,%d)" % (seat["decl"], ng, nb))
+        pscope_rows.append((nm, writable))
+        for w_ in writable:
+            stops.append("P-scope/L23: render-bound stratum %s seats "
+                         "writable %s" % (nm, w_))
+    if not any(w_ for _, w_ in pscope_rows):
+        findings.append("P-scope (plan side): %d render-bound strata, zero "
+                        "writable seats — L23 holds for the plan"
+                        % len(pscope_rows))
+
     # ─── P-gate: predicted Table B ────────────────────────────────────
     def stage_counts(strata_list, reach_pred):
         out = {}
@@ -1445,6 +2111,429 @@ def plan(args):
 
 
 PLAN_OUT = os.path.join(REPO, "audit", "RECUT_PLAN.md")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# U2 — THE RECUT SCHEMA (--bootstrap-recut)
+#
+# Derives the post-recut schema module from the ratified plan: same
+# derivation as --plan, then names by convention, groups by PROJECTION
+# of today's groups onto the new strata (zero behavior change: same
+# buffers, same windows, regrouped), R1's five MESHGEN variants
+# completed with the ruled inert backings, prose migrated with its
+# seats. Printed to stdout only, like --bootstrap.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _camel(name):
+    parts = name.lower().split("_")
+    return parts[0] + "".join(p.title() for p in parts[1:])
+
+
+def _layout_names(nm):
+    """'AGENTS_STATE' -> (member, label, accessor)."""
+    words = nm.replace("_", " ").title().split()
+    label = " ".join(words) + " Layout"
+    member = _camel(nm.lower()) + "Layout_"
+    accessor = nm.lower() + "_layout"
+    return member, label, accessor
+
+
+R1_FILL = {"cmg_config": ("configBuffer_", "sizeof(GPUDesignConfig)"),
+           "cmg_column_ground": ("columnGroundBuffer_",
+                                 "sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES")}
+
+
+def recut_schema(P):
+    """The new schema module content, derived from the ratified plan."""
+    schema = P["schema"]
+    c = P["c"]
+    slot_of = {}
+    for sym, d in schema.DECLS.items():
+        slot_of[sym] = (d["group"], d["binding"])
+    new_slot = P["new_slot"]
+
+    # ─── DECLS: renumber; aliases recomputed over NEW slots ──────────
+    order = {sym: i for i, sym in enumerate(schema.DECLS)}
+    new_decls = {}
+    primary_of_new = {}
+    for sym, d in schema.DECLS.items():
+        ns = new_slot[slot_of[sym]]
+        new_decls[sym] = dict(d, group=ns[0], binding=ns[1], alias_of=None)
+    for sym in sorted(new_decls, key=lambda s: order[s]):
+        ns = (new_decls[sym]["group"], new_decls[sym]["binding"])
+        if ns in primary_of_new:
+            new_decls[sym]["alias_of"] = primary_of_new[ns]
+        else:
+            primary_of_new[ns] = sym
+
+    # ─── LAYOUTS + SEATS ─────────────────────────────────────────────
+    lay_order = (["WORLD", "FRAME"] +
+                 sorted(x for x in P["new_layouts"]
+                        if x not in ("WORLD", "FRAME")) + ["EMPTY"])
+    new_layouts_rel = {}
+    new_seats = {}
+    seat_index = {}          # (layout nm, new (g,b)) -> entry index
+    for nm in lay_order:
+        member, label, accessor = _layout_names(nm)
+        new_layouts_rel[member] = {
+            "label": label, "accessor": accessor,
+            "prose": ["// %s — stratum %s of the LOOM_2 recut."
+                      % (label, {"WORLD": "0 (module-wide design state)",
+                                 "FRAME": "1 (per-frame camera/light state)",
+                                 "EMPTY": "filler (A5: zero seats, zero cost)"}
+                         .get(nm, "%d (%s family)"
+                              % (2 if nm.endswith("STATE") else 3,
+                                 nm.rsplit("_", 1)[0].title())))]}
+        seats = P["new_layouts"].get(nm, {})
+        for i, ((ng, nb), seat) in enumerate(
+                sorted(seats.items(), key=lambda kv: kv[0][1])):
+            seat_index[(nm, (ng, nb))] = i
+            sym = seat["decl"]
+            vis = "|".join(st for st in "VFC" if st in seat["vis"])
+            new_seats[(member, i)] = {
+                "decl": sym, "visibility": vis,
+                "has_dynamic_offset": sym == "shadow_slot",
+                "min_binding_size": "SHADOW_SLOT_SIZE"
+                                    if sym == "shadow_slot" else None,
+                "prose": None, "trailing": {}}
+
+    # Prose migration: an old seat's prose follows its decl to the new
+    # seat in the stratum layout of the old layout's serving family
+    # (or WORLD/FRAME). Duplicate blocks collapse; order is old file
+    # order. Old layout-level banners are NOT migrated — they describe
+    # the dissolved grouping; git history keeps them.
+    lay_fams = {}
+    for p in c["pipelines"]:
+        for lm in p.group_layouts:
+            lay_fams.setdefault(lm, set()).add(P["fam_of_pipe"].get(p.member))
+    mem_label = {m: schema.LAYOUTS[m]["label"] for m in schema.LAYOUTS}
+    for (olm, oi), oseat in schema.SEATS.items():
+        if not oseat.get("prose") and not oseat.get("trailing"):
+            continue
+        sym = oseat["decl"]
+        ns = new_slot[slot_of[sym]]
+        home = P["placement"][slot_of[sym]]
+        targets = []
+        if home == "WORLD":
+            targets = ["WORLD"]
+        elif home == "FRAME":
+            targets = ["FRAME"]
+        else:
+            for fam in sorted(f for f in lay_fams.get(olm, set()) if f
+                              and f in RECUT_FAMILIES):
+                nm = "%s_%s" % (fam, "STATE" if ns[0] == 2 else "TEXTURES")
+                if (nm, ns) in seat_index:
+                    targets.append(nm)
+            if not targets:
+                nm = "%s_%s" % (home, "STATE" if ns[0] == 2 else "TEXTURES")
+                if (nm, ns) in seat_index:
+                    targets.append(nm)
+        for nm in targets:
+            member = _layout_names(nm)[0]
+            row = new_seats[(member, seat_index[(nm, ns)])]
+            if oseat.get("prose"):
+                old_p = row["prose"] or []
+                add = [ln for ln in oseat["prose"] if ln not in old_p]
+                row["prose"] = old_p + add if (old_p or add) else None
+            for f_, t_ in (oseat.get("trailing") or {}).items():
+                row["trailing"].setdefault(f_, t_)
+
+    # ─── GROUPS by projection ────────────────────────────────────────
+    conv_target = {}        # decl -> its converged primary decl
+    for sym in new_decls:
+        conv_target[sym] = primary_of_new[(new_decls[sym]["group"],
+                                           new_decls[sym]["binding"])]
+    variants = {}           # layout nm -> list of (backing map, sources)
+    old_groups = list(schema.GROUPS.items())
+    lay_fams2 = {}
+    for p in c["pipelines"]:
+        for lm in p.group_layouts:
+            lay_fams2.setdefault(lm, set()).add(P["fam_of_pipe"].get(p.member))
+    for gkey, grow in old_groups:
+        partials = {}
+        entries = grow["entries"]
+        g_fams = {f for f in lay_fams2.get(grow["layout"], set()) if f}
+        for oi, e in sorted(entries.items()):
+            sym = e["decl"]
+            ns = new_slot[slot_of[sym]]
+            # Route the cell to EVERY new layout the old group's serving
+            # families bind that carries this number: the home layout,
+            # and each reader layout holding an R4 seat — the same old
+            # backing seeds them all (zero behavior change).
+            for nm in P["new_layouts"]:
+                if (nm, ns) not in seat_index:
+                    continue
+                if nm not in ("WORLD", "FRAME"):
+                    fam_nm = nm.rsplit("_", 1)[0]
+                    if fam_nm not in g_fams:
+                        continue
+                partials.setdefault(nm, {})[ns] = {
+                    "backing": e["backing"], "size_expr": e.get("size_expr"),
+                    "offset_expr": e.get("offset_expr"), "src_decl": sym}
+        if grow.get("invocations"):
+            # the A/B/C builder: entries carried listOff/listBytes;
+            # expand per invocation with its verbatim window args.
+            for iv in grow["invocations"]:
+                pmaps = {}
+                for nm, m_ in partials.items():
+                    mm = {}
+                    for ns, cell in m_.items():
+                        cell2 = dict(cell)
+                        if cell2["offset_expr"] == "listOff":
+                            cell2["offset_expr"] = iv["offset_arg"]
+                        if cell2["size_expr"] == "listBytes":
+                            cell2["size_expr"] = iv["size_arg"]
+                        mm[ns] = cell2
+                    pmaps[nm] = mm
+                for nm, m_ in pmaps.items():
+                    variants.setdefault(nm, []).append((m_, [iv["member"]]))
+        else:
+            for nm, m_ in partials.items():
+                variants.setdefault(nm, []).append((m_, [gkey]))
+
+    def merge(vlist, nm):
+        out = []
+        for m_, src in vlist:
+            placed = False
+            for om, osrc in out:
+                ok = all(om.get(ns, cell) == cell or
+                         (ns not in om) for ns, cell in m_.items()) and \
+                     all(m_.get(ns, cell) == cell or (ns not in m_)
+                         for ns, cell in om.items())
+                if ok:
+                    om.update({ns: cell for ns, cell in m_.items()
+                               if ns not in om})
+                    osrc.extend(s for s in src if s not in osrc)
+                    placed = True
+                    break
+            if not placed:
+                out.append((dict(m_), list(src)))
+        return out
+
+    new_groups = {}
+    group_of_source = {}    # (old source member, layout nm) -> new group member
+    for nm in lay_order:
+        if nm == "EMPTY":
+            member = "emptyGroup_"
+            new_groups[member] = {
+                "label": "Empty BindGroup", "label_param": False,
+                "layout": _layout_names(nm)[0], "cadence": "boot",
+                "local_constants": [], "prose": [
+                    "// A5: the shared zero-seat filler bound wherever a"
+                    " stratum is unused."],
+                "entries": {}, "sources": []}
+            continue
+        merged = merge(variants.get(nm, []), nm)
+        base_member = _camel(nm.lower()) + "Group_"
+        base_label = " ".join(nm.replace("_", " ").title().split()) + " BindGroup"
+        seats = P["new_layouts"].get(nm, {})
+        for vi, (m_, src) in enumerate(merged):
+            # complete over the layout (R1's principle): ruled fills
+            # first (the MESHGEN inert seats), then the primary
+            # variant's shared backing (A6's photographer group takes
+            # signal / lighting / samplers from the main FRAME group's
+            # cells), else STOP.
+            fills = []
+            for ns in seats:
+                if ns not in m_:
+                    prim = primary_of_new[ns]
+                    if prim in R1_FILL:
+                        b_, s_ = R1_FILL[prim]
+                        m_[ns] = {"backing": b_, "size_expr": s_,
+                                  "offset_expr": None, "src_decl": prim}
+                        fills.append((prim, "ruled"))
+                    elif vi > 0 and ns in merged[0][0]:
+                        m_[ns] = dict(merged[0][0][ns])
+                        fills.append((prim, "shared"))
+                    else:
+                        stop("group variant %d of %s misses seat %s (%s) "
+                             "and no ruling fills it"
+                             % (vi, nm, ns, prim))
+            suffix = ""
+            if vi > 0:
+                s0 = src[0]
+                for tok in ("PlanB", "PlanC", "Photographer", "Gallery",
+                            "Arch", "Column", "Palm", "Cactus", "Blade"):
+                    if tok.lower() in s0.lower():
+                        suffix = tok
+                        break
+                if not suffix:
+                    suffix = "V%d" % vi
+            member = base_member.replace("Group_", suffix + "Group_") \
+                if suffix else base_member
+            label = base_label + ((" (%s)" % suffix) if suffix else "")
+            entries = {}
+            for i, (ns, cell) in enumerate(
+                    sorted(m_.items(), key=lambda kv: kv[0][1])):
+                entries[i] = {"decl": primary_of_new[ns],
+                              "backing": cell["backing"],
+                              "size_expr": cell["size_expr"],
+                              "offset_expr": cell["offset_expr"],
+                              "prose": (["// R1 ruled fill: inert but "
+                                         "present — a group is complete "
+                                         "over its layout."]
+                                        if (cell["src_decl"], "ruled") in fills
+                                        else ["// Shared backing, completed "
+                                              "from the primary variant."]
+                                        if (cell["src_decl"], "shared") in fills
+                                        else None),
+                              "trailing": {}}
+            cadence = "boot"
+            if nm == "GALLERY_TEXTURES" and any(
+                    "exhibition" in (cell["backing"] or "").lower()
+                    for cell in m_.values()):
+                cadence = "rebuild"
+            new_groups[member] = {
+                "label": label, "label_param": False,
+                "layout": _layout_names(nm)[0], "cadence": cadence,
+                "local_constants": [], "prose": None,
+                "entries": entries, "sources": src}
+            for s0 in src:
+                group_of_source[(s0, nm)] = member
+
+    # ─── PIPELINES ───────────────────────────────────────────────────
+    new_pipes = {}
+    for p in c["pipelines"]:
+        strata = P["pipe_strata"][p.member]
+        row = dict(schema.PIPELINES[p.member])
+        row["layouts"] = [(_layout_names(s_)[0] if s_ else "emptyLayout_")
+                          for s_ in strata]
+        new_pipes[p.member] = row
+
+    # provenance rides as prose so it round-trips through capture
+    for member, row in new_groups.items():
+        src = row.pop("sources", [])
+        if src and row.get("prose") is None:
+            row["prose"] = ["// Projected from: " + ", ".join(src) + "."]
+        elif src:
+            row["prose"] = row["prose"] + ["// Projected from: "
+                                           + ", ".join(src) + "."]
+
+    return {"DECLS": new_decls, "LAYOUTS": new_layouts_rel,
+            "SEATS": new_seats, "GROUPS": new_groups,
+            "PIPELINES": new_pipes, "group_of_source": group_of_source,
+            "primary_of_new": primary_of_new, "seat_index": seat_index}
+
+
+def recut_registry(R, P):
+    """The four-namespace registry structure for the recut schema."""
+    schema = P["schema"]
+    new_decls = R["DECLS"]
+    primary_of_new = R["primary_of_new"]
+    n_slots = len(primary_of_new)
+    aliases = sorted(s for s, d in new_decls.items() if d["alias_of"])
+
+    consts = {}
+    per_group = {}
+    for (g, b), prim in sorted(primary_of_new.items()):
+        alias_syms = sorted(s for s, d in new_decls.items()
+                            if d["alias_of"] == prim)
+        old_c = schema.REGISTRY.get(prim, {})
+        comment = old_c.get("trailing_comment")
+        if alias_syms:
+            aka = "aka " + " / ".join(alias_syms)
+            comment = (comment + " — " + aka) if comment else aka
+        text = "inline constexpr uint32_t %s= %d;%s" % (
+            (prim + " ").ljust(28), b, ("  // " + comment) if comment else "")
+        consts[prim] = {"namespace": "g%d" % g, "binding": b,
+                        "trailing_comment": comment, "text": text}
+        per_group.setdefault(g, []).append(prim)
+
+    fam_of_prim = {}
+    for (g, b), prim in primary_of_new.items():
+        if g >= 2:
+            fam_of_prim[prim] = RECUT_FAMILIES[b // RECUT_BAND]
+
+    def bands_for(g):
+        if g == 0:
+            return [{"gap_before": 0, "banner": ["// WORLD — R1: the two "
+                     "module-wide design tables every family reads."],
+                     "constants": per_group.get(0, [])}]
+        if g == 1:
+            return [{"gap_before": 0, "banner": ["// FRAME — R2 v2: the "
+                     "per-frame ro faces, the light system, the shadow "
+                     "window, the two shared samplers."],
+                     "constants": per_group.get(1, [])}]
+        bands = []
+        first = True
+        for fam in RECUT_FAMILIES:
+            cs = [p for p in per_group.get(g, [])
+                  if fam_of_prim.get(p) == fam]
+            if not cs:
+                continue
+            lo = RECUT_FAMILIES.index(fam) * RECUT_BAND
+            banner = ["// %s (%d–%d)" % (fam, lo, lo + RECUT_BAND - 1)]
+            if fam == "PATCHGEN" and g == 2:
+                banner += [
+                    "// F1, ratified: a home is a numbering band, not",
+                    "// necessarily a seat. The heightfield ESTATE — write",
+                    "// faces, read faces, the CPU grid that indexes it, the",
+                    "// sampler that reads it — bands under the family that",
+                    "// AUTHORS the estate; readers borrow at its numbers.",
+                    "// R3a extended from resource to estate."]
+            bands.append({"gap_before": 0 if first else 1,
+                          "banner": banner, "constants": cs})
+            first = False
+        return bands
+
+    ns_banners = {
+        0: ["// " + "─" * 61,
+            "// GROUP 0 — WORLD (LOOM_2 recut, stratum 0).",
+            "// " + "─" * 61],
+        1: ["// " + "─" * 61,
+            "// GROUP 1 — FRAME (stratum 1).",
+            "// " + "─" * 61],
+        2: ["// " + "─" * 61,
+            "// GROUP 2 — FAMILY-STATE (stratum 2): buffer seats, banded",
+            "// per family in roster order, band width %d." % RECUT_BAND,
+            "// " + "─" * 61],
+        3: ["// " + "─" * 61,
+            "// GROUP 3 — FAMILY-TEXTURES (stratum 3): texture, sampler",
+            "// and storage-texture seats, same family bands.",
+            "// " + "─" * 61],
+    }
+    namespaces = [{"name": "g%d" % g, "banner": ns_banners[g],
+                   "bands": bands_for(g)} for g in range(4)]
+
+    file_banner = [
+        "// ═" * 1 + "═" * 70,
+        "// THE BINDING REGISTRY (C6, recut by LOOM_2) — the single source of",
+        "// truth for GPU binding NUMBERS. Governed by L6 and L22,",
+        "// docs/LAWS.md; the numbers are the schema's",
+        "// (tools/binding_schema.py) and this file is GENERATED from it.",
+        "//",
+        "// The shape of the table: numbers are GROUP-SCOPED (g0..g3 are the",
+        "// four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,",
+        "// FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry",
+        "// several declarations (the fc_ cull aliases; the MESHGEN",
+        "// convergence, where five kernels' scratch trios share three",
+        "// numbers so four families fit one layout).",
+        "//",
+        "// The WGSL @binding literals in world.wgsl (%d declarations over "
+        "%d slots;" % (len(new_decls), n_slots),
+        "// aliases: %s," % ", ".join(a for a in aliases if a.startswith("fc_")),
+        "// and the %d MESHGEN convergence names)"
+        % sum(1 for a in aliases if not a.startswith("fc_")),
+        "// are a MIRROR of this file, kept in lockstep by boot-time",
+        "// validation and by binding_gen.py --check. The render = compute",
+        "// + 200 witness band is RETIRED — its epitaph closes this file.",
+        "// ═" * 1 + "═" * 70]
+
+    invariants = [
+        "// ─" * 1 + "─" * 61,
+        "// EPITAPH — the render = compute + 200 band (C6 → LOOM_2).",
+        "// From C6 until the recut, four static_asserts held the render",
+        "// mirrors exactly 200 above their compute twins; they were the",
+        "// witness over the authored literals, never their source. The",
+        "// recut retires the numbering they checked, so they die with it",
+        "// (P-inv, RECUT_PLAN v2). Their successors are the schema and",
+        "// binding_gen.py --check, which verify every number in every",
+        "// mirror, both directions, at every recon gate.",
+        "// ─" * 1 + "─" * 61]
+
+    return {"REGISTRY": consts, "REGISTRY_FILE_BANNER": file_banner,
+            "REGISTRY_NAMESPACES": namespaces,
+            "REGISTRY_INVARIANTS": invariants}
 
 
 def emit_plan(P, out_path):
@@ -1750,7 +2839,26 @@ def main():
                    help="renumber the declaration sites of the file at PATH")
     g.add_argument("--plan", action="store_true",
                    help="derive the LOOM_2 recut plan into audit/RECUT_PLAN.md")
+    g.add_argument("--bootstrap-recut", action="store_true",
+                   help="derive the post-recut schema from the ratified plan, "
+                        "print to stdout (U2; never writes the authority file)")
     args = ap.parse_args()
+
+    if args.bootstrap_recut:
+        P = plan(args)
+        if P["stops"]:
+            for s_ in P["stops"]:
+                sys.stderr.write("STOP %s\n" % s_)
+            return 1
+        R = recut_schema(P)
+        R.update(recut_registry(R, P))
+        tree = {k: R[k] for k in ("DECLS", "REGISTRY", "SEATS", "LAYOUTS",
+                                  "GROUPS", "PIPELINES",
+                                  "REGISTRY_FILE_BANNER",
+                                  "REGISTRY_NAMESPACES",
+                                  "REGISTRY_INVARIANTS")}
+        print_schema(tree)
+        return 0
 
     if args.plan:
         P = plan(args)

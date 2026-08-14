@@ -1997,18 +1997,74 @@ namespace t7 {
             wgpu::Buffer shellVertexBuffer_, shellIndexBuffer_;
             uint32_t shellIndexCount_ = 0;
 
-            wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
-            wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
-            wgpu::BindGroupLayout roomLayout_;  // THE ROOM (group 2): g2:0-5 — agent + floater kernels
-            wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
-            wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
-            wgpu::BindGroupLayout bladeMeshGenLayout_;   // bindings 186-188
-            wgpu::BindGroup archMeshGenBindGroup_;
-            wgpu::BindGroup columnMeshGenBindGroup_;
-            wgpu::BindGroup palmMeshGenBindGroup_;
-            wgpu::BindGroup cactusMeshGenBindGroup_;
-            wgpu::BindGroup bladeMeshGenBindGroup_;
-            wgpu::BindGroup roomBindGroup_;     // THE ROOM (group 2)
+            // ── LOOM_2 recut strata — layouts and groups (created in
+            // binding_surface.gen.inc; declared here) ──
+            wgpu::BindGroupLayout worldLayout_;
+            wgpu::BindGroupLayout frameRLayout_;
+            wgpu::BindGroupLayout frameCLayout_;
+            wgpu::BindGroupLayout agentsStateLayout_;
+            wgpu::BindGroupLayout agentsTexturesLayout_;
+            wgpu::BindGroupLayout auraStateLayout_;
+            wgpu::BindGroupLayout auraTexturesLayout_;
+            wgpu::BindGroupLayout cullStateLayout_;
+            wgpu::BindGroupLayout frameKStateLayout_;
+            wgpu::BindGroupLayout frameKTexturesLayout_;
+            wgpu::BindGroupLayout galleryStateLayout_;
+            wgpu::BindGroupLayout galleryTexturesLayout_;
+            wgpu::BindGroupLayout photoKStateLayout_;
+            wgpu::BindGroupLayout photoKTexturesLayout_;
+            wgpu::BindGroupLayout meshgenStateLayout_;
+            wgpu::BindGroupLayout orbsAStateLayout_;
+            wgpu::BindGroupLayout orbsBStateLayout_;
+            wgpu::BindGroupLayout patchgenStateLayout_;
+            wgpu::BindGroupLayout patchgenTexturesLayout_;
+            wgpu::BindGroupLayout placeStateLayout_;
+            wgpu::BindGroupLayout placeTexturesLayout_;
+            wgpu::BindGroupLayout ribbonStateLayout_;
+            wgpu::BindGroupLayout sceneStateLayout_;
+            wgpu::BindGroupLayout sceneTexturesLayout_;
+            wgpu::BindGroupLayout shadowStateLayout_;
+            wgpu::BindGroupLayout shadowTexturesLayout_;
+            wgpu::BindGroupLayout zonesStateLayout_;
+            wgpu::BindGroupLayout zonesTexturesLayout_;
+            wgpu::BindGroupLayout emptyLayout_;
+            wgpu::BindGroup worldGroup_;
+            wgpu::BindGroup frameRGroup_;
+            wgpu::BindGroup frameCGroup_;
+            wgpu::BindGroup framePhotographerGroup_;
+            wgpu::BindGroup agentsStateGroup_;
+            wgpu::BindGroup agentsTexturesGroup_;
+            wgpu::BindGroup auraStateGroup_;
+            wgpu::BindGroup auraTexturesGroup_;
+            wgpu::BindGroup cullStateGroup_;
+            wgpu::BindGroup frameKStateGroup_;
+            wgpu::BindGroup frameKTexturesGroup_;
+            wgpu::BindGroup galleryStateGroup_;
+            wgpu::BindGroup galleryTexturesGroup_;
+            wgpu::BindGroup photoKStateGroup_;
+            wgpu::BindGroup photoKTexturesGroup_;
+            wgpu::BindGroup meshgenStateGroup_;
+            wgpu::BindGroup meshgenStateColumnGroup_;
+            wgpu::BindGroup meshgenStatePalmGroup_;
+            wgpu::BindGroup meshgenStateCactusGroup_;
+            wgpu::BindGroup meshgenStateBladeGroup_;
+            wgpu::BindGroup orbsAStateGroup_;
+            wgpu::BindGroup orbsBStateGroup_;
+            wgpu::BindGroup patchgenStateGroup_;
+            wgpu::BindGroup patchgenTexturesGroup_;
+            wgpu::BindGroup placeStateGroup_;
+            wgpu::BindGroup placeTexturesGroup_;
+            wgpu::BindGroup ribbonStateGroup_;
+            wgpu::BindGroup sceneStateGroup_;
+            wgpu::BindGroup sceneStatePlanBGroup_;
+            wgpu::BindGroup sceneStatePlanCGroup_;
+            wgpu::BindGroup sceneStatePhotographerGroup_;
+            wgpu::BindGroup sceneTexturesGroup_;
+            wgpu::BindGroup shadowStateGroup_;
+            wgpu::BindGroup shadowTexturesGroup_;
+            wgpu::BindGroup zonesStateGroup_;
+            wgpu::BindGroup zonesTexturesGroup_;
+            wgpu::BindGroup emptyGroup_;
 
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
@@ -2024,18 +2080,12 @@ namespace t7 {
             wgpu::Texture pawnAuraTexture_;         // N×N RGBA16Float (compute writes, FS reads)
             wgpu::TextureView pawnAuraWriteView_;   // storage texture write (compute)
             wgpu::TextureView pawnAuraReadView_;    // sampled texture read (fragment)
-            wgpu::BindGroupLayout pawnAuraComputeLayout_;
-            wgpu::BindGroup pawnAuraComputeGroup_;
 
             // Live card (GROUND_CARD_1) — RGBA16Float deformation field, LIVE_CARD_SIZE²
             wgpu::Texture liveCardTexture_;         // compute writes, VS/FS/compute read
             wgpu::TextureView liveCardWriteView_;   // storage texture write (writer kernel)
             wgpu::TextureView liveCardView_;        // sampled read (render + compute)
             wgpu::Buffer liveCardScratchBuffer_;    // LIVE_CARD_SIZE² × 2 floats (Δh + gol) — two-pass writer scratch (TRUEBAND_CONTACT_1)
-            wgpu::BindGroupLayout liveCardWriterLayout_;
-            wgpu::BindGroup liveCardWriterGroup_;
-            wgpu::BindGroupLayout zoneMaskLayout_;      // UNIFIED_GROUND_1 U5
-            wgpu::BindGroup zoneMaskGroup_;
 
             // ── Orb sky layer ────────────────────────────────────────
             wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
@@ -2043,10 +2093,6 @@ namespace t7 {
             wgpu::Buffer orbConfigBuffer_;         // GPUOrbConfig (uniform, per-frame)
             wgpu::Buffer orbQuadVB_;               // 4 vertices: billboard quad
             wgpu::Buffer orbQuadIB_;               // 6 indices: two triangles
-            wgpu::BindGroupLayout orbComputeLayout_;  // dynamics/init/recolor: orb_state RW, prev RO
-            wgpu::BindGroup orbComputeGroup_;
-            wgpu::BindGroupLayout orbCopyLayout_;     // copy-prev: orb_state RO, prev RW
-            wgpu::BindGroup orbCopyGroup_;
 
             // Entity ground atlas (r32float, 256×1) — compute writes, VS reads
             wgpu::Texture entityGroundAtlasTexture_;
@@ -2060,28 +2106,6 @@ namespace t7 {
 
             wgpu::Sampler bilinearSampler_, nearestSampler_;
             wgpu::Sampler shadowSampler_;
-
-            wgpu::BindGroupLayout computeEntityBindGroupLayout_, renderEntityBindGroupLayout_;
-            wgpu::BindGroupLayout renderTextureBindGroupLayout_, shadowTextureBindGroupLayout_;
-            // computeTextureBindGroupLayout_ — Group 1 for compute shaders that
-            // call query_ground_flyer / query_ground_walker. Provides
-            // nearest_sampler + pawn_aura_read (live-contributor path for
-            // sample_pawn_aura). Re-added for sphere/cube compute migration
-            // to POLICY_FLYER; 0D compute shaders that stay on the baked
-            // heightfield (camera clamps) do not bind this group.
-            wgpu::BindGroupLayout computeTextureBindGroupLayout_;
-            wgpu::BindGroupLayout meshGenEntityBindGroupLayout_;  // binding 1 only — still used by fade overlay
-            wgpu::BindGroupLayout patchGenLayout_;
-            wgpu::BindGroupLayout ribbonComputeLayout_;
-
-            wgpu::BindGroup computeEntityBindGroup_, renderEntityBindGroup_;
-            wgpu::BindGroup renderEntityBindGroupPlanB_;   // plan B window (cap-only IB)
-            wgpu::BindGroup renderEntityBindGroupPlanC_;   // plan C window (LOD1 IB)
-            wgpu::BindGroup renderTextureBindGroup_, shadowTextureBindGroup_;
-            wgpu::BindGroup computeTextureBindGroup_;  // live-contributor textures for flyer/walker compute
-            wgpu::BindGroup meshGenEntityBindGroup_;  // still used by fade overlay
-            wgpu::BindGroup patchGenBindGroup_;
-            wgpu::BindGroup ribbonComputeBindGroup_;
 
             // --- Self-Portrait Gallery (photographer system) -------------------------
             wgpu::Buffer paintingSlotsBuffer_;
@@ -2102,15 +2126,6 @@ namespace t7 {
             wgpu::Texture offscreenDepthTexture_;
             wgpu::TextureView offscreenDepthView_;
 
-            wgpu::BindGroupLayout galleryEntityBindGroupLayout_;
-            wgpu::BindGroupLayout galleryTextureBindGroupLayout_;
-            wgpu::BindGroupLayout photographerComputeLayout_;
-            wgpu::BindGroupLayout entityPlacementComputeLayout_;
-            wgpu::BindGroup galleryEntityBindGroup_;
-            wgpu::BindGroup galleryPhotographerEntityBindGroup_;  // same layout, photographer VP + camera
-            wgpu::BindGroup galleryTextureBindGroup_;
-            wgpu::BindGroup photographerComputeBindGroup_;
-            wgpu::BindGroup entityPlacementComputeBindGroup_;
 
             // GPU frustum culling — LOD0 only.
             // LOD1 always uses direct DrawIndexed; CPU computes its count.
@@ -2126,14 +2141,9 @@ namespace t7 {
             GPUDrawPlanParams lastDrawPlan_{};
             bool drawPlanEverUploaded_ = false;
             wgpu::Buffer visiblePatchIndicesBuffer_;      // MAX_ACTIVE_PATCHES × u32 — LOD0 visible list
-            wgpu::BindGroupLayout frustumCullLayout_;
-            wgpu::BindGroup frustumCullBindGroup_;
 
             // GoL zone compute (dedicated layout: bindings 160-162, 167-169)
-            wgpu::BindGroupLayout zoneGolComputeLayout_;
-            wgpu::BindGroup zoneGolComputeBindGroup_;
 
-            wgpu::BindGroup photographerRenderEntityBindGroup_;
             wgpu::Sampler paintingSampler_;
 
         public:
@@ -2436,10 +2446,73 @@ namespace t7 {
             }
 
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
-            wgpu::BindGroupLayout arch_mesh_gen_layout() const { return archMeshGenLayout_; }
-            wgpu::BindGroup arch_mesh_gen_group() const { return archMeshGenBindGroup_; }
-            wgpu::BindGroupLayout room_layout() const { return roomLayout_; }
-            wgpu::BindGroup room_group() const { return roomBindGroup_; }
+            // ── LOOM_2 recut strata accessors ──
+            wgpu::BindGroupLayout world_layout() const { return worldLayout_; }
+            wgpu::BindGroupLayout frame_r_layout() const { return frameRLayout_; }
+            wgpu::BindGroupLayout frame_c_layout() const { return frameCLayout_; }
+            wgpu::BindGroupLayout agents_state_layout() const { return agentsStateLayout_; }
+            wgpu::BindGroupLayout agents_textures_layout() const { return agentsTexturesLayout_; }
+            wgpu::BindGroupLayout aura_state_layout() const { return auraStateLayout_; }
+            wgpu::BindGroupLayout aura_textures_layout() const { return auraTexturesLayout_; }
+            wgpu::BindGroupLayout cull_state_layout() const { return cullStateLayout_; }
+            wgpu::BindGroupLayout frame_k_state_layout() const { return frameKStateLayout_; }
+            wgpu::BindGroupLayout frame_k_textures_layout() const { return frameKTexturesLayout_; }
+            wgpu::BindGroupLayout gallery_state_layout() const { return galleryStateLayout_; }
+            wgpu::BindGroupLayout gallery_textures_layout() const { return galleryTexturesLayout_; }
+            wgpu::BindGroupLayout photo_k_state_layout() const { return photoKStateLayout_; }
+            wgpu::BindGroupLayout photo_k_textures_layout() const { return photoKTexturesLayout_; }
+            wgpu::BindGroupLayout meshgen_state_layout() const { return meshgenStateLayout_; }
+            wgpu::BindGroupLayout orbs_a_state_layout() const { return orbsAStateLayout_; }
+            wgpu::BindGroupLayout orbs_b_state_layout() const { return orbsBStateLayout_; }
+            wgpu::BindGroupLayout patchgen_state_layout() const { return patchgenStateLayout_; }
+            wgpu::BindGroupLayout patchgen_textures_layout() const { return patchgenTexturesLayout_; }
+            wgpu::BindGroupLayout place_state_layout() const { return placeStateLayout_; }
+            wgpu::BindGroupLayout place_textures_layout() const { return placeTexturesLayout_; }
+            wgpu::BindGroupLayout ribbon_state_layout() const { return ribbonStateLayout_; }
+            wgpu::BindGroupLayout scene_state_layout() const { return sceneStateLayout_; }
+            wgpu::BindGroupLayout scene_textures_layout() const { return sceneTexturesLayout_; }
+            wgpu::BindGroupLayout shadow_state_layout() const { return shadowStateLayout_; }
+            wgpu::BindGroupLayout shadow_textures_layout() const { return shadowTexturesLayout_; }
+            wgpu::BindGroupLayout zones_state_layout() const { return zonesStateLayout_; }
+            wgpu::BindGroupLayout zones_textures_layout() const { return zonesTexturesLayout_; }
+            wgpu::BindGroupLayout empty_layout() const { return emptyLayout_; }
+            wgpu::BindGroup world_group() const { return worldGroup_; }
+            wgpu::BindGroup frame_r_group() const { return frameRGroup_; }
+            wgpu::BindGroup frame_c_group() const { return frameCGroup_; }
+            wgpu::BindGroup frame_photographer_group() const { return framePhotographerGroup_; }
+            wgpu::BindGroup agents_state_group() const { return agentsStateGroup_; }
+            wgpu::BindGroup agents_textures_group() const { return agentsTexturesGroup_; }
+            wgpu::BindGroup aura_state_group() const { return auraStateGroup_; }
+            wgpu::BindGroup aura_textures_group() const { return auraTexturesGroup_; }
+            wgpu::BindGroup cull_state_group() const { return cullStateGroup_; }
+            wgpu::BindGroup frame_k_state_group() const { return frameKStateGroup_; }
+            wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
+            wgpu::BindGroup gallery_state_group() const { return galleryStateGroup_; }
+            wgpu::BindGroup gallery_textures_group() const { return galleryTexturesGroup_; }
+            wgpu::BindGroup photo_k_state_group() const { return photoKStateGroup_; }
+            wgpu::BindGroup photo_k_textures_group() const { return photoKTexturesGroup_; }
+            wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
+            wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
+            wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }
+            wgpu::BindGroup meshgen_state_cactus_group() const { return meshgenStateCactusGroup_; }
+            wgpu::BindGroup meshgen_state_blade_group() const { return meshgenStateBladeGroup_; }
+            wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
+            wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
+            wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
+            wgpu::BindGroup patchgen_textures_group() const { return patchgenTexturesGroup_; }
+            wgpu::BindGroup place_state_group() const { return placeStateGroup_; }
+            wgpu::BindGroup place_textures_group() const { return placeTexturesGroup_; }
+            wgpu::BindGroup ribbon_state_group() const { return ribbonStateGroup_; }
+            wgpu::BindGroup scene_state_group() const { return sceneStateGroup_; }
+            wgpu::BindGroup scene_state_plan_b_group() const { return sceneStatePlanBGroup_; }
+            wgpu::BindGroup scene_state_plan_c_group() const { return sceneStatePlanCGroup_; }
+            wgpu::BindGroup scene_state_photographer_group() const { return sceneStatePhotographerGroup_; }
+            wgpu::BindGroup scene_textures_group() const { return sceneTexturesGroup_; }
+            wgpu::BindGroup shadow_state_group() const { return shadowStateGroup_; }
+            wgpu::BindGroup shadow_textures_group() const { return shadowTexturesGroup_; }
+            wgpu::BindGroup zones_state_group() const { return zonesStateGroup_; }
+            wgpu::BindGroup zones_textures_group() const { return zonesTexturesGroup_; }
+            wgpu::BindGroup empty_group() const { return emptyGroup_; }
 
             void upload_painting_slots(wgpu::Queue& queue, const GPUPaintingSlot* slots, uint32_t count) {
                 writeArray(queue, paintingSlotsBuffer_, slots, count);
@@ -2843,30 +2916,12 @@ namespace t7 {
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
 
             // --- Compute pass ---
-            wgpu::BindGroup compute_entity_group() const { return computeEntityBindGroup_; }
-            wgpu::BindGroupLayout compute_entity_layout() const { return computeEntityBindGroupLayout_; }
             // Live-contributor textures (Group 1) for compute pipelines that
             // evaluate query_ground_flyer / query_ground_walker.
-            wgpu::BindGroup compute_texture_group() const { return computeTextureBindGroup_; }
-            wgpu::BindGroupLayout compute_texture_layout() const { return computeTextureBindGroupLayout_; }
-            wgpu::BindGroup patch_gen_group() const { return patchGenBindGroup_; }
-            wgpu::BindGroupLayout patch_gen_layout() const { return patchGenLayout_; }
-            wgpu::BindGroup ribbon_compute_group() const { return ribbonComputeBindGroup_; }
-            wgpu::BindGroupLayout ribbon_compute_layout() const { return ribbonComputeLayout_; }
-            wgpu::BindGroup mesh_gen_entity_group() const { return meshGenEntityBindGroup_; }
-            wgpu::BindGroupLayout mesh_gen_entity_layout() const { return meshGenEntityBindGroupLayout_; }
 
             // --- Render pass ---
-            wgpu::BindGroup render_entity_group() const { return renderEntityBindGroup_; }
-            wgpu::BindGroup render_entity_group_plan_b() const { return renderEntityBindGroupPlanB_; }
-            wgpu::BindGroup render_entity_group_plan_c() const { return renderEntityBindGroupPlanC_; }
-            wgpu::BindGroupLayout render_entity_layout() const { return renderEntityBindGroupLayout_; }
-            wgpu::BindGroup render_texture_group() const { return renderTextureBindGroup_; }
-            wgpu::BindGroupLayout render_texture_layout() const { return renderTextureBindGroupLayout_; }
 
             // --- Shadow pass ---
-            wgpu::BindGroup shadow_texture_group() const { return shadowTextureBindGroup_; }
-            wgpu::BindGroupLayout shadow_texture_layout() const { return shadowTextureBindGroupLayout_; }
             wgpu::TextureView shadow_map_view() const { return shadowMapView_; }
             wgpu::TextureView spot_shadow_map_view() const { return spotShadowMapView_; }
 
@@ -2912,8 +2967,6 @@ namespace t7 {
             wgpu::Buffer frustum_indirect_lod0() const { return frustumIndirectLOD0_; }
             wgpu::Buffer frustum_compute_buffer() const { return frustumComputeBuffer_; }
             wgpu::Buffer visible_patch_indices_buffer() const { return visiblePatchIndicesBuffer_; }
-            wgpu::BindGroupLayout frustum_cull_layout() const { return frustumCullLayout_; }
-            wgpu::BindGroup frustum_cull_group() const { return frustumCullBindGroup_; }
 
             void reset_frustum_indirect(wgpu::Queue& queue) {
                 // THE DRAW PLAN: three 5-u32 arg slots — A full IB, B
@@ -2973,8 +3026,6 @@ namespace t7 {
             }
 
             // Column GPU mesh gen bind group
-            wgpu::BindGroupLayout column_mesh_gen_layout() const { return columnMeshGenLayout_; }
-            wgpu::BindGroup column_mesh_gen_group() const { return columnMeshGenBindGroup_; }
 
             void upload_column_origins(wgpu::Queue& queue, const GPUColumnGroundEntry* entries, uint32_t count) {
                 writeArray(queue, columnGroundBuffer_, entries, std::min(count, Dim::MAX_COLUMN_INSTANCES));
@@ -2990,8 +3041,6 @@ namespace t7 {
                 writeSlot(queue, palmMeshParamsBuffer_, slot, params);
             }
 
-            wgpu::BindGroupLayout palm_mesh_gen_layout() const { return palmMeshGenLayout_; }
-            wgpu::BindGroup palm_mesh_gen_group() const { return palmMeshGenBindGroup_; }
 
             // --- Cactus accessors and upload ---
             wgpu::Buffer cactus_vertex_buffer() const { return cactusVertexBuffer_; }
@@ -3001,8 +3050,6 @@ namespace t7 {
             void upload_cactus_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUCactusMeshParams& params) {
                 writeSlot(queue, cactusMeshParamsBuffer_, slot, params);
             }
-            wgpu::BindGroupLayout cactus_mesh_gen_layout() const { return cactusMeshGenLayout_; }
-            wgpu::BindGroup cactus_mesh_gen_group() const { return cactusMeshGenBindGroup_; }
 
             // --- Blade Cluster accessors and upload ---
             wgpu::Buffer blade_vertex_buffer() const { return bladeVertexBuffer_; }
@@ -3014,8 +3061,6 @@ namespace t7 {
                 const GPUBladeClusterMeshParams& params) {
                 writeSlot(queue, bladeMeshParamsBuffer_, slot, params);
             }
-            wgpu::BindGroupLayout blade_mesh_gen_layout() const { return bladeMeshGenLayout_; }
-            wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
 
             // --- Pyramid accessors and upload --- (the instance array only:
             //   pyramids ARE terrain, so there is no mesh to generate.)
@@ -3110,12 +3155,6 @@ namespace t7 {
             static constexpr size_t meter_readback_size() { return METER_QUERY_COUNT * sizeof(uint64_t); }
 
             // --- Gallery system ---
-            wgpu::BindGroup gallery_entity_group() const { return galleryEntityBindGroup_; }
-            wgpu::BindGroup gallery_photographer_entity_group() const { return galleryPhotographerEntityBindGroup_; }
-            wgpu::BindGroupLayout gallery_entity_layout() const { return galleryEntityBindGroupLayout_; }
-            wgpu::BindGroup gallery_texture_group() const { return galleryTextureBindGroup_; }
-            wgpu::BindGroupLayout gallery_texture_layout() const { return galleryTextureBindGroupLayout_; }
-            wgpu::BindGroup photographer_render_entity_group() const { return photographerRenderEntityBindGroup_; }
             wgpu::TextureView offscreen_color_view() const { return offscreenColorView_; }
             wgpu::TextureView offscreen_depth_view() const { return offscreenDepthView_; }
             wgpu::Texture offscreen_color_texture() const { return offscreenColorTexture_; }
@@ -3161,18 +3200,10 @@ namespace t7 {
             static constexpr uint32_t painting_quad_verts() { return Dim::PAINTING_QUAD_VERTS; }
             static constexpr uint32_t painting_max_slots() { return Dim::PAINTING_MAX_SLOTS; }
             static constexpr uint32_t painting_frame_vertex_count() { return Dim::PAINTING_FRAME_VERTEX_COUNT; }
-            wgpu::BindGroup photographer_compute_group() const { return photographerComputeBindGroup_; }
-            wgpu::BindGroupLayout photographer_compute_layout() const { return photographerComputeLayout_; }
-            wgpu::BindGroup entity_placement_compute_group() const { return entityPlacementComputeBindGroup_; }
-            wgpu::BindGroupLayout entity_placement_compute_layout() const { return entityPlacementComputeLayout_; }
 
             // --- GoL zone system ---
-            wgpu::BindGroup zone_gol_compute_group() const { return zoneGolComputeBindGroup_; }
-            wgpu::BindGroupLayout zone_gol_compute_layout() const { return zoneGolComputeLayout_; }
 
             // Pawn aura accessors
-            wgpu::BindGroupLayout pawn_aura_compute_layout() const { return pawnAuraComputeLayout_; }
-            wgpu::BindGroup pawn_aura_compute_group() const { return pawnAuraComputeGroup_; }
             void upload_pawn_aura_config(wgpu::Queue& queue, const GPUPawnAuraConfig& cfg) {
                 writeStruct(queue, pawnAuraConfigBuffer_, cfg);
             }
@@ -3184,20 +3215,12 @@ namespace t7 {
 
             // Live card accessors (GROUND_CARD_1)
             wgpu::TextureView live_card_view() const { return liveCardView_; }
-            wgpu::BindGroupLayout live_card_writer_layout() const { return liveCardWriterLayout_; }
-            wgpu::BindGroup live_card_writer_group() const { return liveCardWriterGroup_; }
-            wgpu::BindGroupLayout zone_mask_layout() const { return zoneMaskLayout_; }
-            wgpu::BindGroup zone_mask_group() const { return zoneMaskGroup_; }
 
             // Orb sky layer accessors
             wgpu::Buffer orb_state_buffer() const { return orbStateBuffer_; }
             wgpu::Buffer orb_config_buffer() const { return orbConfigBuffer_; }
             wgpu::Buffer orb_quad_vb() const { return orbQuadVB_; }
             wgpu::Buffer orb_quad_ib() const { return orbQuadIB_; }
-            wgpu::BindGroupLayout orb_compute_layout() const { return orbComputeLayout_; }
-            wgpu::BindGroup orb_compute_group() const { return orbComputeGroup_; }
-            wgpu::BindGroupLayout orb_copy_layout() const { return orbCopyLayout_; }
-            wgpu::BindGroup orb_copy_group() const { return orbCopyGroup_; }
             void upload_orb_config(wgpu::Queue& queue, const GPUOrbConfig& cfg) {
                 writeStruct(queue, orbConfigBuffer_, cfg);
             }

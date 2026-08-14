@@ -202,7 +202,11 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             cpd.label = "Patch Heights (pass 1)";
             cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
             wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
-            c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
+            // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+            // FRAME carries the shadow-slot dynamic window; compute never moves it.
+            { cp.SetBindGroup(0, c->gpuState_.world_group());
+              cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
+            c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
             cp.End();
         }
 
@@ -212,8 +216,12 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             cpd.label = "Patch Gradients + Cells (pass 2)";
             cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
             wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
-            c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
-            c->renderer_.dispatch_generate_patch_cells(cp, c->gpuState_.patch_gen_group(), GPUState::patch_cell_workgroups());
+            // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+            // FRAME carries the shadow-slot dynamic window; compute never moves it.
+            { cp.SetBindGroup(0, c->gpuState_.world_group());
+              cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
+            c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
+            c->renderer_.dispatch_generate_patch_cells(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups());
             cp.End();
         }
     }
