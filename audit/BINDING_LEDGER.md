@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `dc4dae699692346a5e9b0ce4d294c5af1e4ab8db` |
-| | LOOM_2 U2 fix: two build breaks Jean's compiler caught — the gates were blind to both |
+| source commit | `502dee26b16abd2a228538530e157584d16dc9eb` |
+| | LOOM_2 U2 fix 2: the Cull vp seat faces the ro alias — Dawn refuted one F2 seat |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb2096d19f4045ee8f8e2dcbf3158dad2b484757624516d8ec6a81e596c48ab9` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:b872d3c7d502813c3a1610232e0aa53b04bb4d5b206ed97538189b59303e48ba` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1803c6e54f6b87cb7894e294358bf9c649bb17c5e8032c54352a970174b97394` |
@@ -36,7 +36,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/cartridge.hpp` | `e05536a92274f5148f015b3d1a579b8515c15bc2ed71738262eaaa567447d68d` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `1ca7675b025df444d72cf64d92c00bd94d450830b0bf71b7f6b99846f1272291` |
-| `src/cartridges/the_board/realization/render_passes.hpp` | `bd0faf9103203f330614ff8cdc50dc5c4728be4bcf73d85d2962b377a6954795` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `e52381765fbc0bc241285c8a8a8a01cc252a05ddc0bed95ce878613a8107564a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `0bfdbfd7184af3f0d437ac89841e11c18a06abb300c4e549f3b1e7451127498f` |
 
 The source commit is the last commit touching any of the four primary

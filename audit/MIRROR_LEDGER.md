@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `dc4dae699692346a5e9b0ce4d294c5af1e4ab8db` |
-| | LOOM_2 U2 fix: two build breaks Jean's compiler caught — the gates were blind to both |
+| source commit | `502dee26b16abd2a228538530e157584d16dc9eb` |
+| | LOOM_2 U2 fix 2: the Cull vp seat faces the ro alias — Dawn refuted one F2 seat |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1803c6e54f6b87cb7894e294358bf9c649bb17c5e8032c54352a970174b97394` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:eab0859f8556bfdcd3f26cda9f41cc1c4d7300b94f94615b59df7f2d0492de23` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb2096d19f4045ee8f8e2dcbf3158dad2b484757624516d8ec6a81e596c48ab9` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:b872d3c7d502813c3a1610232e0aa53b04bb4d5b206ed97538189b59303e48ba` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:7199d03b4bc897c21b84daf97220803af17588fdbe6d5973832c659f4895a66c` |
 | `tools/binding_ledger.py` | `sha256:1b0e50ce5818ea27658854071803afeee8444132ca31c39d01707f36c03063f2` |
-| `audit/BINDING_LEDGER.md` | `sha256:21a3aefaf66c3a417087762a22fbe0f77419b256c777941f4716c0d4a50c10a4` |
+| `audit/BINDING_LEDGER.md` | `sha256:71c6b4ec4690e8f3c34390a00790908452031715574f0c12dbe0cde450444d9f` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -79,7 +79,7 @@ Census cardinalities, reconciled against the ledger by ML-0:
 | `M2-0` | **PASS** | 98 declarations partitioned into 29 contiguous runs; 27 carry an attached comment block (rule A), 11 are Table H defended sites |
 | `M3-0` | **PASS** | every fifth-home hit fits the table shape — (a) 0 outside-declaration site(s), (b) 0 literal RHS, 0 other RHS, (c) 0 code hit(s) outside the three homes |
 | `M5-0` | **PASS** | 37 struct types named by slot store types; 32 resolve to a C++ twin, 5 do not (AgentBehaviorParams, AgentTierParams, FloatingEntityArray, ShadowSlot, UnifiedPaintingSlot) — findings, not STOPs |
-| `M7-0` | **PASS** | 110 SetBindGroup sites over 8 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
+| `M7-0` | **PASS** | 112 SetBindGroup sites over 8 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
 | `M4-h` | **PASS** | renderer handle field names derive from LAYOUTS.accessor by camel-casing, all 25 handles |
 | `ML-2w` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`; a byte-level read-back runs after the write |
 
@@ -1122,9 +1122,11 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `render_passes.hpp:568` | `render_main_pass` | 2 | `sceneStateGroup_` | — |
 | `render_passes.hpp:585` | `render_main_pass` | 2 | `galleryStateGroup_` | — |
 | `render_passes.hpp:586` | `render_main_pass` | 3 | `galleryTexturesGroup_` | — |
-| `render_passes.hpp:606` | `render_main_pass` | 1 | `emptyGroup_` | — |
-| `render_passes.hpp:607` | `render_main_pass` | 2 | `emptyGroup_` | — |
-| `render_passes.hpp:608` | `render_main_pass` | 3 | `emptyGroup_` | — |
+| `render_passes.hpp:606` | `render_main_pass` | 2 | `sceneStateGroup_` | — |
+| `render_passes.hpp:607` | `render_main_pass` | 3 | `sceneTexturesGroup_` | — |
+| `render_passes.hpp:614` | `render_main_pass` | 1 | `emptyGroup_` | — |
+| `render_passes.hpp:615` | `render_main_pass` | 2 | `emptyGroup_` | — |
+| `render_passes.hpp:616` | `render_main_pass` | 3 | `emptyGroup_` | — |
 | `renderer.hpp:395` | `dispatch_update_camera` | 2 | `frameKStateGroup_` | — |
 | `renderer.hpp:396` | `dispatch_update_camera` | 3 | `frameKTexturesGroup_` | — |
 | `renderer.hpp:417` | `dispatch_compute_vp` | 2 | `frameKStateGroup_` | — |
