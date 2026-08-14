@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `f20ead71e74715af85f22d4986c2830dffac6b43` |
-| | LOOM_1 U2: flip the registry — schema is now its authority |
+| source commit | `c3319317f148748a545032adb2de71a7f6d098e1` |
+| | LOOM_1 U3: flip the state.hpp blocks — one include, three functions |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:aaecd2c5f35ed2e2c0032c1789a502a34814d5547f8f0a6e5a0436f8a3d027bf` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:95df89aeed90295c8d780eb1b75906af90c5cc7f06321a1186afd225e7eb146f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:05a8c05010b5ad9db5b930736d492ee838892db19c2d27757183e47591ea08ba` |
@@ -79,6 +79,7 @@ Census cardinalities, reconciled against the ledger by ML-0:
 | `M2-0` | **PASS** | 98 declarations partitioned into 29 contiguous runs; 27 carry an attached comment block (rule A), 11 are Table H defended sites |
 | `M3-0` | **PASS** | every fifth-home hit fits the table shape — (a) 0 outside-declaration site(s), (b) 0 literal RHS, 0 other RHS, (c) 0 code hit(s) outside the three homes |
 | `M5-0` | **PASS** | 37 struct types named by slot store types; 32 resolve to a C++ twin, 5 do not (AgentBehaviorParams, AgentTierParams, FloatingEntityArray, ShadowSlot, UnifiedPaintingSlot) — findings, not STOPs |
+| `M7-0` | **PASS** | 45 SetBindGroup sites over 3 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
 | `M4-h` | **PASS** | renderer handle field names derive from LAYOUTS.accessor by camel-casing, all 25 handles |
 | `ML-2w` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`; a byte-level read-back runs after the write |
 
@@ -1001,6 +1002,68 @@ layout `galleryTextureBindGroupLayout_` → member `galleryTextureBindGroup_` (s
 | `renderEntityBindGroup_` | `Render Entity BindGroup (plan A: full IB)` | `FC_SEG_A_OFF` | `FC_SEG_A_BYTES` |
 | `renderEntityBindGroupPlanB_` | `Render Entity BindGroup (plan B: cap-only IB)` | `FC_SEG_B_OFF` | `FC_SEG_B_BYTES` |
 | `renderEntityBindGroupPlanC_` | `Render Entity BindGroup (plan C: LOD1 IB)` | `FC_SEG_C_OFF` | `FC_SEG_C_BYTES` |
+
+## M7 — the usage census (LOOM_2 U0)
+
+Where the groups are BOUND: every `SetBindGroup` call under `src/`,
+resolved to the state member it binds — through gpuState accessors,
+locals, and helper parameters (one caller hop). Witness M7-0 proves
+each site binds its group at exactly the index 0c-4 records for the
+group's layout. Dynamic-offset arguments ride verbatim. The recut's
+per-site rewrite list is exactly these rows.
+
+Boundary: every `*.hpp` / `*.cpp` under `src/` naming `SetBindGroup`
+or `GetBindGroupLayout` (`src/cartridges/the_board/bodies/gallery.hpp`, `src/cartridges/the_board/realization/render_passes.hpp`, `src/cartridges/the_board/realization/renderer.hpp`). `GetBindGroupLayout` uses: 0.
+Pipeline-layout LIST sites are M1.P's census (11 arrays, the shared
+wrapper, 18 wrapper calls) and are not recounted here.
+
+| site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
+|---|---|---|---|---|
+| `gallery.hpp:1502` | `render_snapshot_pass` | 0 | `photographerRenderEntityBindGroup_` | `1, &kSlotZero` |
+| `gallery.hpp:1503` | `render_snapshot_pass` | 1 | `renderTextureBindGroup_` | — |
+| `gallery.hpp:1529` | `render_snapshot_pass` | 0 | `galleryPhotographerEntityBindGroup_` | — |
+| `gallery.hpp:1530` | `render_snapshot_pass` | 1 | `galleryTextureBindGroup_` | — |
+| `render_passes.hpp:150` | `dispatch_placement_correction` | 1 | `computeTextureBindGroup_` | — |
+| `render_passes.hpp:197` | `dispatch_compute` | 0 | `computeEntityBindGroup_` | — |
+| `render_passes.hpp:198` | `dispatch_compute` | 1 | `computeTextureBindGroup_` | — |
+| `render_passes.hpp:199` | `dispatch_compute` | 2 | `roomBindGroup_` | — |
+| `render_passes.hpp:330` | `render_shadow_pass` | 0 | `renderEntityBindGroup_` | `1, &slotOffset` |
+| `render_passes.hpp:331` | `render_shadow_pass` | 1 | `shadowTextureBindGroup_` | — |
+| `render_passes.hpp:365` | `render_shadow_pass` | 0 | `renderEntityBindGroup_` | `1, &slotOffset` |
+| `render_passes.hpp:366` | `render_shadow_pass` | 1 | `shadowTextureBindGroup_` | — |
+| `render_passes.hpp:465` | `draw_shadow_all` | 1 | `galleryTextureBindGroup_` | — |
+| `render_passes.hpp:529` | `render_main_pass` | 1 | `renderTextureBindGroup_` | — |
+| `render_passes.hpp:553` | `render_main_pass` | 0 | `renderEntityBindGroup_` | `1, &kSlotZero` |
+| `render_passes.hpp:570` | `render_main_pass` | 0 | `galleryEntityBindGroup_` | — |
+| `render_passes.hpp:571` | `render_main_pass` | 1 | `galleryTextureBindGroup_` | — |
+| `renderer.hpp:418` | `dispatch_generate_patch_heights` | 0 | `patchGenBindGroup_` | — |
+| `renderer.hpp:429` | `dispatch_generate_patch_gradients` | 0 | `patchGenBindGroup_` | — |
+| `renderer.hpp:439` | `dispatch_generate_patch_cells` | 0 | `patchGenBindGroup_` | — |
+| `renderer.hpp:450` | `dispatch_compute_ribbon_rings` | 0 | `ribbonComputeBindGroup_` | — |
+| `renderer.hpp:460` | `dispatch_compute_photographer_vp` | 0 | `photographerComputeBindGroup_` | — |
+| `renderer.hpp:469` | `dispatch_entity_placement` | 0 | `entityPlacementComputeBindGroup_` | — |
+| `renderer.hpp:478` | `dispatch_frustum_cull` | 0 | `frustumCullBindGroup_` | — |
+| `renderer.hpp:492` | `dispatch_compute_pawn_aura` | 0 | `pawnAuraComputeGroup_` | — |
+| `renderer.hpp:503` | `dispatch_live_card_write` | 0 | `liveCardWriterGroup_` | — |
+| `renderer.hpp:518` | `dispatch_orb_init` | 0 | `orbComputeGroup_` | — |
+| `renderer.hpp:529` | `dispatch_orb_dynamics` | 0 | `orbComputeGroup_` | — |
+| `renderer.hpp:540` | `dispatch_orb_recolor` | 0 | `orbComputeGroup_` | — |
+| `renderer.hpp:551` | `dispatch_orb_copy_prev` | 0 | `orbCopyGroup_` | — |
+| `renderer.hpp:569` | `draw_orbs` | 0 | `renderEntityBindGroup_` | `1, &kShadowSlotZero` |
+| `renderer.hpp:570` | `draw_orbs` | 1 | `renderTextureBindGroup_` | — |
+| `renderer.hpp:587` | `dispatch_zone_gol_sync` | 0 | `zoneGolComputeBindGroup_` | — |
+| `renderer.hpp:604` | `dispatch_zone_gol_evolve` | 0 | `zoneGolComputeBindGroup_` | — |
+| `renderer.hpp:617` | `dispatch_zone_derive_params` | 0 | `zoneGolComputeBindGroup_` | — |
+| `renderer.hpp:629` | `dispatch_zone_seed_mask` | 0 | `zoneMaskGroup_` | — |
+| `renderer.hpp:644` | `dispatch_arch_mesh_gen` | 0 | `archMeshGenBindGroup_` | — |
+| `renderer.hpp:655` | `dispatch_column_mesh_gen` | 0 | `columnMeshGenBindGroup_` | — |
+| `renderer.hpp:665` | `dispatch_palm_mesh_gen` | 0 | `palmMeshGenBindGroup_` | — |
+| `renderer.hpp:675` | `dispatch_cactus_mesh_gen` | 0 | `cactusMeshGenBindGroup_` | — |
+| `renderer.hpp:685` | `dispatch_blade_mesh_gen` | 0 | `bladeMeshGenBindGroup_` | — |
+| `renderer.hpp:708` | `draw_patch_terrain_plan_slot` | 0 | `renderEntityBindGroupPlanB_`, `renderEntityBindGroupPlanC_`, `renderEntityBindGroup_` | `1, &kShadowSlotZero` |
+| `renderer.hpp:725` | `draw_patch_terrain_direct` | 0 | `photographerRenderEntityBindGroup_` | `1, &kShadowSlotZero` |
+| `renderer.hpp:726` | `draw_patch_terrain_direct` | 1 | `renderTextureBindGroup_` | — |
+| `renderer.hpp:950` | `draw_fade_overlay` | 0 | `meshGenEntityBindGroup_` | — |
 
 ## Appendix — the renderer handle convention
 

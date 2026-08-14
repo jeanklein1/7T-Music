@@ -1021,6 +1021,193 @@ def accessor_map():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# M7 — THE USAGE CENSUS (LOOM_2 U0)
+#
+# Where the groups are BOUND: every SetBindGroup call in src/, its
+# enclosing function, the group index it names, the state member it
+# resolves to, and any dynamic-offset arguments. The recut's rewrite
+# list is exactly these rows; M7-0 proves each site already binds its
+# group at the one index 0c-4 records for the group's layout.
+# ═══════════════════════════════════════════════════════════════════════
+
+def group_accessor_map():
+    """gpuState bind-group accessor name -> state.hpp member."""
+    state = BL.strip_cpp_comments(BL.read(BL.STATE_HPP))
+    out = {}
+    for m in re.finditer(
+            r"wgpu::BindGroup\s+(\w+)\s*\(\s*\)\s*const\s*\{\s*return\s+(\w+)\s*;\s*\}", state):
+        out[m.group(1)] = m.group(2)
+    return out
+
+
+def _m7_functions(text):
+    """[(name, params, body_start, body_end)] for every void/bool
+    function DEFINITION — indented members and column-0 free functions
+    alike. Span-keyed, not name-keyed: the bodies forward-declare their
+    pass functions, and a name-keyed map hands a declaration the next
+    function's body (which is how dispatch_compute once claimed
+    upload_ground_entries' span). The `{` guard skips declarations."""
+    out = []
+    for m in re.finditer(
+            r"(?:^|\n)[ \t]*(?:static\s+|inline\s+)*(?:void|bool)\s+(\w+)\s*\(",
+            text):
+        j = m.end() - 1
+        depth, k = 0, j
+        while k < len(text):
+            if text[k] == "(":
+                depth += 1
+            elif text[k] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        after = k + 1
+        while after < len(text) and text[after] in " \t\r\n":
+            after += 1
+        if after >= len(text) or text[after] != "{":
+            continue
+        depth, p = 0, after
+        while p < len(text):
+            if text[p] == "{":
+                depth += 1
+            elif text[p] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            p += 1
+        out.append((m.group(1), text[j + 1:k], after, p))
+    return out
+
+
+def _m7_enclosing(fns, pos):
+    """The innermost definition whose body contains pos."""
+    best = None
+    for name, params, b, e in fns:
+        if b <= pos <= e and (best is None or b > best[2]):
+            best = (name, params, b, e)
+    return best
+
+
+def usage_census(w, cen, groups, invokes):
+    acc = group_accessor_map()
+    member_layout = {}
+    builder_layout = None
+    for g in groups:
+        if g["member"]:
+            member_layout[g["member"]] = g["layout_member"]
+        else:
+            builder_layout = g["layout_member"]
+    for iv in invokes:
+        member_layout[iv["member"]] = builder_layout
+
+    # Census targets are the files that call SetBindGroup; the CALLER
+    # chase for helper parameters must search every C++ file under src/
+    # — the pass-recording helpers are invoked from body/surface files
+    # that never spell SetBindGroup themselves.
+    files = []
+    all_files = []
+    for root, dirs, fs in os.walk(os.path.join(REPO, "src")):
+        dirs.sort()
+        for f in sorted(fs):
+            if f.endswith((".hpp", ".cpp")):
+                path = os.path.join(root, f)
+                text = BL.strip_cpp_comments(BL.read_raw(path))
+                all_files.append((path, text))
+                if "SetBindGroup" in text or "GetBindGroupLayout" in text:
+                    files.append((path, text))
+
+    fns_of = {path: _m7_functions(text) for path, text in all_files}
+
+    def resolve_expr(expr, enc, text, depth=0):
+        """One group argument -> set of state.hpp bind group members.
+        enc is the enclosing definition (name, params, body_start,
+        body_end) or None."""
+        expr = norm(expr)
+        am = re.search(r"(\w+)\s*\(\s*\)\s*$", expr)
+        if am and am.group(1) in acc:
+            return {acc[am.group(1)]}
+        if re.fullmatch(r"\w+", expr) and depth < 3 and enc is not None:
+            body = text[enc[2]:enc[3]]
+            # a local bound earlier in the enclosing body?
+            lm = None
+            for a in re.finditer(
+                    r"(?:wgpu::BindGroup\s+|auto\s+)?%s\s*=\s*([^;=][^;]*);"
+                    % re.escape(expr), body):
+                lm = a.group(1)
+            if lm:
+                return resolve_expr(lm, enc, text, depth + 1)
+            # a parameter? chase every call site of the enclosing function.
+            params = BL.param_names(enc[1])
+            if expr in params:
+                pi = params.index(expr)
+                out = set()
+                for path2, text2 in all_files:
+                    for cm in re.finditer(r"[.>\s]%s\s*\(" % re.escape(enc[0]),
+                                          text2):
+                        j = cm.end() - 1
+                        depth2, k = 0, j
+                        while k < len(text2):
+                            if text2[k] == "(":
+                                depth2 += 1
+                            elif text2[k] == ")":
+                                depth2 -= 1
+                                if depth2 == 0:
+                                    break
+                            k += 1
+                        args2 = BL.split_args(text2[j + 1:k])
+                        if pi < len(args2):
+                            enc2 = _m7_enclosing(fns_of[path2], cm.start())
+                            out |= resolve_expr(args2[pi], enc2, text2,
+                                                depth + 1)
+                return out
+        return set()
+
+    rows = []
+    problems = []
+    get_layout_uses = 0
+    for path, text in files:
+        rel = os.path.relpath(path, REPO)
+        fns = fns_of[path]
+        get_layout_uses += len(re.findall(r"\bGetBindGroupLayout\b", text))
+        for m in re.finditer(r"(\w+)\.SetBindGroup\s*\(([^;]*)\)\s*;", text):
+            args = BL.split_args(m.group(2))
+            if len(args) < 2 or not re.fullmatch(r"\d+", args[0]):
+                problems.append("%s:%d: unparseable SetBindGroup args: %s"
+                                % (rel, BL.line_of(text, m.start()),
+                                   norm(m.group(0))))
+                continue
+            idx = int(args[0])
+            enc = _m7_enclosing(fns, m.start())
+            fname = enc[0] if enc else "(file scope)"
+            members = resolve_expr(args[1], enc, text)
+            offsets = ", ".join(args[2:]) if len(args) > 2 else None
+            if not members:
+                problems.append("%s:%d: group expression %r resolves to no "
+                                "state member" % (rel, BL.line_of(text, m.start()),
+                                                  norm(args[1])))
+            for mem in sorted(members):
+                lay = member_layout.get(mem)
+                want = cen["group_index"].get(lay)
+                if want != idx:
+                    problems.append("%s:%d: %s bound at index %d; 0c-4 places "
+                                    "its layout %s at %s"
+                                    % (rel, BL.line_of(text, m.start()), mem,
+                                       idx, lay, want))
+            rows.append({"file": rel, "line": BL.line_of(text, m.start()),
+                         "fn": fname, "index": idx, "expr": norm(args[1]),
+                         "members": sorted(members), "offsets": offsets})
+    w.record("M7-0", not problems,
+             "%d SetBindGroup sites over %d files, every group expression "
+             "resolves to a state member bound at exactly the index 0c-4 "
+             "records for its layout; %d GetBindGroupLayout use(s)"
+             % (len(rows), len(files), get_layout_uses)
+             if not problems else "STOP — " + "; ".join(problems[:12]))
+    return {"rows": rows, "files": [os.path.relpath(p, REPO) for p, _ in files],
+            "get_layout_uses": get_layout_uses}
+
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # M4 — THE COVERAGE VERDICT (the residue list is the crown)
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1234,7 +1421,7 @@ def code(s):
 
 def emit(path, wb, wm, counts, surfaces, reg_info, wgsl_info, state_info,
          pipe_info, m2, m3, m4rows, m5rows, groups, invokes, varied_slots,
-         per_slot, layouts, cen, acc_map, handle_rows):
+         per_slot, layouts, cen, acc_map, handle_rows, m7):
     sha, subj, hashes = provenance()
     L = []
     A = L.append
@@ -1635,6 +1822,31 @@ def emit(path, wb, wm, counts, surfaces, reg_info, wgsl_info, state_info,
           % (iv["member"], code(esc(iv["label"])), iv["offset_arg"], iv["size_arg"]))
     A("")
 
+    # ─── M7 ──────────────────────────────────────────────────────────
+    A("## M7 — the usage census (LOOM_2 U0)")
+    A("")
+    A("Where the groups are BOUND: every `SetBindGroup` call under `src/`,")
+    A("resolved to the state member it binds — through gpuState accessors,")
+    A("locals, and helper parameters (one caller hop). Witness M7-0 proves")
+    A("each site binds its group at exactly the index 0c-4 records for the")
+    A("group's layout. Dynamic-offset arguments ride verbatim. The recut's")
+    A("per-site rewrite list is exactly these rows.")
+    A("")
+    A("Boundary: every `*.hpp` / `*.cpp` under `src/` naming `SetBindGroup`")
+    A("or `GetBindGroupLayout` (%s). `GetBindGroupLayout` uses: %d."
+      % (", ".join("`%s`" % f for f in m7["files"]), m7["get_layout_uses"]))
+    A("Pipeline-layout LIST sites are M1.P's census (11 arrays, the shared")
+    A("wrapper, 18 wrapper calls) and are not recounted here.")
+    A("")
+    A("| site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |")
+    A("|---|---|---|---|---|")
+    for r in m7["rows"]:
+        A("| `%s:%d` | `%s` | %d | %s | %s |"
+          % (r["file"].rsplit("/", 1)[-1], r["line"], r["fn"], r["index"],
+             ", ".join("`%s`" % x for x in r["members"]) or "**unresolved**",
+             code(esc(r["offsets"])) if r["offsets"] else "—"))
+    A("")
+
     # ─── the handle convention ───────────────────────────────────────
     A("## Appendix — the renderer handle convention")
     A("")
@@ -1717,6 +1929,9 @@ def main():
     m5rows = struct_pairs(wm, b)
     print("  M5: %d struct pairs, %d without a twin"
           % (len(m5rows), sum(1 for r in m5rows if not r["twin"])))
+    m7 = usage_census(wm, c, groups, invokes)
+    print("  M7: %d SetBindGroup sites over %d files, %d GetBindGroupLayout uses"
+          % (len(m7["rows"]), len(m7["files"]), m7["get_layout_uses"]))
 
     per_slot, varied = slot_consistency(layouts)
     acc_map = accessor_map()
@@ -1763,7 +1978,8 @@ def main():
 
     text = emit(args.out, wb, wm, counts, surfaces, reg_info, wgsl_info,
                 state_info, pipe_info, m2, m3, m4rows, m5rows, groups,
-                invokes, varied, per_slot, layouts, c, acc_map, handle_rows)
+                invokes, varied, per_slot, layouts, c, acc_map, handle_rows,
+                m7)
     print("")
     print("PHASE 4 — THE ARTIFACT")
     print("  wrote %s (%d lines, %d bytes)"
