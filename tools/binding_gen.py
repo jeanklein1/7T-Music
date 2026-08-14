@@ -1026,21 +1026,31 @@ def check(args):
 # cannot place is a STOP carried in the plan's stop list.
 # ═══════════════════════════════════════════════════════════════════════
 
+# v2 AMENDMENTS (supersede v1 rows): A1 SCENE homes the two shared
+# render tables; A2 TERRAIN dissolves by cadence into PATCHGEN / CULL /
+# PLACE; A3 the rw faces leave FRAME for the new FRAME_K family
+# (compute_vp + update_camera), VP_READS/CAMERA_READS withdrawn; A4
+# AURA splits from AGENTS; A5 one EMPTY layout, entryCount==0 exempt
+# from 0c-4; A6 the second FRAME bind group (photographer backing) is
+# ratified.
 RECUT_WORLD = ["config", "tile_grid"]                              # R1
-RECUT_FRAME = ["signal", "vp_data", "render_vp", "camera_state",   # R2,
-               "render_camera", "render_lighting", "shadow_slot",  # in
+RECUT_FRAME = ["signal", "render_lighting", "shadow_slot",         # R2 v2,
+               "render_vp", "render_camera",                       # in
                "bilinear_sampler", "nearest_sampler"]              # order
-RECUT_FAMILIES = ["AGENTS", "TERRAIN", "ZONES", "ORBS", "RIBBON",
-                  "GALLERY", "MESHGEN", "SCENE", "SHADOW"]
+RECUT_FAMILIES = ["AGENTS", "AURA", "PATCHGEN", "CULL", "PLACE",
+                  "ZONES", "ORBS", "RIBBON", "GALLERY", "MESHGEN",
+                  "SCENE", "SHADOW", "FRAME_K"]
 RECUT_BAND = 20            # numbering band width per family, groups 2/3
 
 RECUT_COMPUTE_FAMILY = {
     "update_player_agent": "AGENTS", "update_other_agents": "AGENTS",
     "update_sphere": "AGENTS", "update_cube": "AGENTS",
-    "compute_pawn_aura": "AGENTS",
-    "generate_patch_heights": "TERRAIN", "generate_patch_gradients": "TERRAIN",
-    "generate_patch_cells": "TERRAIN", "frustum_cull_patches": "TERRAIN",
-    "compute_entity_placement": "TERRAIN",
+    "compute_pawn_aura": "AURA",
+    "generate_patch_heights": "PATCHGEN",
+    "generate_patch_gradients": "PATCHGEN",
+    "generate_patch_cells": "PATCHGEN",
+    "frustum_cull_patches": "CULL",
+    "compute_entity_placement": "PLACE",
     "zone_gol_sync": "ZONES", "zone_gol_evolve": "ZONES",
     "zone_derive_params": "ZONES", "zone_seed_mask": "ZONES",
     "write_live_card_heights": "ZONES", "write_live_card_resolve": "ZONES",
@@ -1051,7 +1061,7 @@ RECUT_COMPUTE_FAMILY = {
     "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
     "palm_mesh_gen": "MESHGEN", "cactus_mesh_gen": "MESHGEN",
     "blade_cluster_mesh_gen": "MESHGEN",
-    "compute_vp": None, "update_camera": None,   # WORLD+FRAME (+ reads)
+    "compute_vp": "FRAME_K", "update_camera": "FRAME_K",           # A3
 }
 
 # MESHGEN role convergence: the five kernels' scratch trios share slot
@@ -1069,7 +1079,14 @@ RECUT_AUTHORED_HOME = {
     "occupier_cmg": "AGENTS", "occupier_amg": "AGENTS",
     "field_head_poses": "AGENTS", "field_forces": "AGENTS",
     "field_ribbon": "AGENTS", "field_authored": "AGENTS",
-    "patch_grid": "TERRAIN", "photo_sampler": "TERRAIN",
+    # v1's TERRAIN parenthetical dissolved with A2; these two carry
+    # forward to PATCHGEN with their heightfield companions — flagged
+    # in the plan for v2 ratification.
+    "patch_grid": "PATCHGEN", "photo_sampler": "PATCHGEN",
+    # A1: the two shared render tables home with the main family.
+    "agent_figure_profiles": "SCENE", "render_ribbon": "SCENE",
+    # A3: the rw faces live with the kernels that write them.
+    "vp_data": "FRAME_K", "camera_state": "FRAME_K",
 }
 
 CORE_CAT = {"uniform": 12, "storage": 8, "sampled": 16,
@@ -1282,10 +1299,8 @@ def plan(args):
                 tgt = "WORLD"
             elif home == "FRAME":
                 tgt = "FRAME"
-            elif fam in ("SCENE", "SHADOW", "GALLERY", "AGENTS", "TERRAIN",
-                         "ZONES", "ORBS", "RIBBON", "MESHGEN"):
-                tgt = layout_name(fam, ng if home not in ("WORLD", "FRAME")
-                                  else 2)
+            elif fam in RECUT_FAMILIES:
+                tgt = layout_name(fam, ng)
             else:
                 tgt = None
             if tgt is None:
@@ -1298,22 +1313,9 @@ def plan(args):
                 seat["why"].add("read by " + fam)
             else:
                 seat["why"].add("home" if fam == home else "R4 read (%s)" % fam)
-        # The family-less pair (the map's "—" row): their reads become
-        # seats in DEDICATED read layouts — "+ read seats where reached"
-        # taken literally, so no family layout is dragged to a foreign
-        # index. Seat numbers stay the home slots' numbers.
-        for e_name, tag in (("compute_vp", "VP_READS"),
-                            ("update_camera", "CAMERA_READS")):
-            uses = rw.get(e_name, {})
-            if any(uses.get(sym) for sym in slots[key]):
-                if home not in ("WORLD", "FRAME"):
-                    nm = "%s_%s" % (tag, "STATE" if ng == 2 else "TEXTURES")
-                    seat = new_layouts.setdefault(nm, {}).setdefault(
-                        (ng, nb), {"decl": slots[key][0], "vis": set(),
-                                   "why": set()})
-                    seat["vis"].add("C")
-                    seat["why"].add("family-less read (%s)" % e_name)
-                    adopters.setdefault(e_name, set()).add(nm)
+        # (v2 A3: VP_READS / CAMERA_READS are withdrawn — compute_vp and
+        # update_camera are FRAME_K now, and the ordinary R4 machinery
+        # above seats their reads in FRAME_K's own groups.)
 
     # visibility of WORLD/FRAME seats: union over every pipeline that
     # reaches them (all pipelines bind these strata).
@@ -1353,18 +1355,43 @@ def plan(args):
                     strata[stratum] = nm
         elif fam == "FADE":
             strata[1] = None
-        else:                                   # compute_vp / update_camera
-            e_name = c["entry_const"].get(p.cs_entry)
-            for nm in sorted(adopters.get(e_name, ())):
-                stratum = 2 if nm.endswith("STATE") else 3
-                if strata[stratum] and strata[stratum] != nm:
-                    stops.append("%s needs two stratum-%d layouts: %s and %s"
-                                 % (p.member, stratum, strata[stratum], nm))
-                strata[stratum] = nm
+        else:
+            stops.append("pipeline %s has no family and no rule" % p.member)
         for i_, s_ in enumerate(strata):
             if s_ is None:
                 empty_indices.add(i_)
         pipe_strata[p.member] = strata
+
+    # ─── completeness: no placed slot may vanish, and every pipeline
+    #     must reach every slot it uses through its four strata. The
+    #     first draft of v2 lost five families' seats to a stale family
+    #     filter and the gate read their pipelines as zero-cost — these
+    #     two assertions make that hole loud forever.
+    # Seating is judged by NEW number, not by representative decl —
+    # the MESHGEN convergence seats five slots at one number, and that
+    # one seat serves them all.
+    seated_nums = {}
+    for nm, seats in new_layouts.items():
+        for num in seats:
+            seated_nums.setdefault(num, set()).add(nm)
+    for key in placement:
+        if key in new_slot and new_slot[key] not in seated_nums:
+            stops.append("slot %s (%s) is placed at %s but seated in NO "
+                         "layout" % (key, slots[key][0], new_slot[key]))
+    for p in c["pipelines"]:
+        reach_syms = set()
+        for const, st in p.entries():
+            e_name = c["entry_const"].get(const)
+            reach_syms |= b["reach"].get(e_name, (set(), set()))[1]
+        strata_set = {s_ for s_ in pipe_strata.get(p.member, []) if s_}
+        for sym in sorted(reach_syms):
+            key = slot_of.get(sym)
+            if key is None or key not in new_slot:
+                continue
+            if not (seated_nums.get(new_slot[key], set()) & strata_set):
+                stops.append("%s reaches %s but no stratum layout it binds "
+                             "carries its slot %s"
+                             % (p.member, sym, new_slot[key]))
 
     # ─── P-gate: predicted Table B ────────────────────────────────────
     def stage_counts(strata_list, reach_pred):
@@ -1426,7 +1453,7 @@ def emit_plan(P, out_path):
     esc = BL.md_escape
     L = []
     A = L.append
-    A("# THE RECUT PLAN (LOOM_2 U1)")
+    A("# THE RECUT PLAN, v2 (LOOM_2 U1 + stratum-map amendments A1-A6)")
     A("")
     A("Derived by `binding_gen.py --plan` from the authored stratum map and")
     A("the tree's reach closure. THE TOOL DERIVES; IT DOES NOT DECIDE —")
@@ -1456,11 +1483,28 @@ def emit_plan(P, out_path):
     A("  the five MESHGEN scratch trios CONVERGE onto one params, one")
     A("  vertices, one indices slot (MESHGEN3; column adds its ground")
     A("  read as MESHGEN4).")
-    A("- Family-less pipelines (compute_vp, update_camera) ADOPT the")
-    A("  family layout that holds what they read; fade_overlay binds")
-    A("  WORLD only. Render families derive from today's layout lists:")
-    A("  gallery-entity users are GALLERY, depth-only are SHADOW, the")
-    A("  fade overlay is FADE, the rest are SCENE.")
+    A("- fade_overlay binds WORLD only. Render families derive from")
+    A("  today's layout lists: gallery-entity users are GALLERY,")
+    A("  depth-only are SHADOW, the fade overlay is FADE, the rest are")
+    A("  SCENE.")
+    A("")
+    A("The v2 amendments, applied: A1 agent_figure_profiles and")
+    A("render_ribbon home SCENE, SHADOW takes R4 read seats. A2 TERRAIN")
+    A("dissolves by cadence into PATCHGEN / CULL / PLACE (patch_grid and")
+    A("photo_sampler carry their v1 authored homes forward to PATCHGEN")
+    A("with their heightfield companions — flagged for ratification).")
+    A("A3 FRAME keeps only the ro faces; the new FRAME_K family")
+    A("(compute_vp, update_camera) holds the rw faces and its kernels'")
+    A("R4 read seats; VP_READS / CAMERA_READS are withdrawn; compute")
+    A("readers of vp/camera seat the faces their kernels actually reach")
+    A("in their own family groups (where a kernel reads through a rw")
+    A("face, the seat is Storage and listed as such — the declaration")
+    A("rules the access, L22's derivation law). A4 AURA splits from")
+    A("AGENTS. A5 one zero-seat EMPTY layout and one shared empty group;")
+    A("0c-4 is restated to hold for every layout WITH entries, EMPTY")
+    A("exempt by the entryCount==0 predicate, which the tool asserts.")
+    A("A6 the second FRAME bind group (photographer backing) over the")
+    A("one FRAME layout is ratified into the group roster.")
     A("")
     if P["stops"]:
         A("## ★ STOP LIST — the rules could not place these ★")
@@ -1507,6 +1551,23 @@ def emit_plan(P, out_path):
                  "".join(st for st in "VFC" if st in seat["vis"]) or "—",
                  esc(", ".join(sorted(seat["why"])))))
         A("")
+        if nm == "FRAME":
+            A("A6, ratified: this one layout backs TWO groups — the main")
+            A("FRAME group and the photographer's, whose vp / camera ro")
+            A("faces bind the photographer's own buffers (the UMBRA")
+            A("duplicate pattern the M7 census surfaced).")
+            A("")
+        if nm == "AGENTS_STATE":
+            au = next((P["new_counts"][p_.member]["C"]["uniform"]
+                       for p_ in c["pipelines"]
+                       if P["fam_of_pipe"].get(p_.member) == "AGENTS"
+                       and p_.kind == "compute"), None)
+            A("THE AGENTS DEBT MARKER (A4, printed as ruled): \"uniform")
+            A("11/12; relief = panel coalescence.\"%s"
+              % ("" if au == 11 else
+                 " (Derived count this run: uniform %s/12 — the marker and"
+                 " the derivation disagree; flagged.)" % au))
+            A("")
     old_total = len(schema.SEATS)
     old_by_slot = {}
     for (lm, i), s_ in schema.SEATS.items():
@@ -1525,11 +1586,15 @@ def emit_plan(P, out_path):
                 for k in set(old_by_slot) | set(new_by_slot))
     A("Seats: %d today -> %d planned — %d duplicates collapse, %d new R4"
       % (old_total, total_new, coll, added))
-    A("read seats appear, net %+d. Layouts: %d today -> %d planned"
+    A("read seats appear, net %+d. Layouts: %d today -> %d planned, plus"
       % (total_new - old_total, len(P["layouts"]), len(P["new_layouts"])))
-    A("(+ EMPTY at indices %s — three empties or an amended 0c-4; the"
+    A("ONE zero-seat EMPTY layout and one shared empty group (A5), bound")
+    A("wherever a stratum is unused (indices %s this plan). 0c-4 is"
       % (", ".join(str(i) for i in sorted(P["empty_indices"])) or "none"))
-    A("plan provisions per-index empties and flags the choice).")
+    A("restated: one index per layout holds for every layout WITH")
+    A("entries; EMPTY is exempt by the entryCount==0 predicate — asserted")
+    A("here: every planned layout above carries at least one seat, and")
+    A("EMPTY carries exactly zero.")
     A("")
 
     A("## The old -> new number map (all 98 declarations)")
