@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `7fb80bcf6ecb5b40baf62d0c85d01584c30c2f48` |
-| | LOOM_2 U2-FIX: forensics clean on D1, A7 splits GALLERY by stage, P-scope and S-6 stand witness |
+| source commit | `024a8b536e63206edca871944b0e6ed163171bfb` |
+| | LOOM_2 U3 C1: schema corrections by the lawful path + three witnesses born red |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:613d3447aadf34886410fdeabdc4875316ea0e0f0698a29b21ebe132933b89cd` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6bd8c93e33ac01c2d94667772777ce364cdf2fa1cc0c695c59a2722e4e68ad24` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:75c6680af94895de8fbaf536b95dab3dcf02cda0c70197964675430ffe147d54` |
@@ -33,10 +33,10 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `fc302fd4de89105d9818c1b722c021458cc7ff13ba06a40e07b382f4becbdd66` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `714c5d340462218d09c2e79ff2e82857329a3eb389a0f00c15e96a650544d905` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `372b5f719db8eb6c38806768db2fabfa86692f7157f47d836e5b05bc294c1e62` |
-| `src/cartridges/the_board/cartridge.hpp` | `7a55c513bfa47d4d3eebca4f26b6696c7c79bbee61ab1b0f1440dd524b8710b9` |
+| `src/cartridges/the_board/cartridge.hpp` | `e05536a92274f5148f015b3d1a579b8515c15bc2ed71738262eaaa567447d68d` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `1ca7675b025df444d72cf64d92c00bd94d450830b0bf71b7f6b99846f1272291` |
-| `src/cartridges/the_board/realization/render_passes.hpp` | `bd0faf9103203f330614ff8cdc50dc5c4728be4bcf73d85d2962b377a6954795` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `e52381765fbc0bc241285c8a8a8a01cc252a05ddc0bed95ce878613a8107564a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `0bfdbfd7184af3f0d437ac89841e11c18a06abb300c4e549f3b1e7451127498f` |
 
 The source commit is the last commit touching any of the four primary

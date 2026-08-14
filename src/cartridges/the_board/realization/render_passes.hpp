@@ -598,6 +598,14 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         c->gallery_state_.slot_high_water
     );
 
+    // LOOM_2: the gallery fork left its pair at 2/3, and the orb draw
+    // is SCENE family (its per-draw binds were hoisted to the strata),
+    // so restore the scene pair first — the same restore-after-fork
+    // the compute pass does for the agents pair.
+    if constexpr (ROSTER.gallery) {
+    pass.SetBindGroup(2, c->gpuState_.scene_state_group());
+    pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
+    }
     render_orbs(orbs_state_, &orbs_deps_, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)

@@ -23,7 +23,7 @@ carry those facts, or leave them in place and patch around them.
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6bd8c93e33ac01c2d94667772777ce364cdf2fa1cc0c695c59a2722e4e68ad24` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:fca7b9ce3d96cf4e06c99b489dd4cbe9642c433665b0306a4efd062f71f17acf` |
 | `tools/binding_ledger.py` | `sha256:1b0e50ce5818ea27658854071803afeee8444132ca31c39d01707f36c03063f2` |
-| `audit/BINDING_LEDGER.md` | `sha256:30da99ccdce20db1b3dbc96b18cf0aacc46b269e28c68a158da9760c749d15e4` |
+| `audit/BINDING_LEDGER.md` | `sha256:f306c65301db0bd29982f35477854c64c695149f5c89fee755518261b0df2a89` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -79,7 +79,7 @@ Census cardinalities, reconciled against the ledger by ML-0:
 | `M2-0` | **PASS** | 98 declarations partitioned into 29 contiguous runs; 27 carry an attached comment block (rule A), 11 are Table H defended sites |
 | `M3-0` | **PASS** | every fifth-home hit fits the table shape — (a) 0 outside-declaration site(s), (b) 0 literal RHS, 0 other RHS, (c) 0 code hit(s) outside the three homes |
 | `M5-0` | **PASS** | 37 struct types named by slot store types; 32 resolve to a C++ twin, 5 do not (AgentBehaviorParams, AgentTierParams, FloatingEntityArray, ShadowSlot, UnifiedPaintingSlot) — findings, not STOPs |
-| `M7-0` | **PASS** | 110 SetBindGroup sites over 8 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
+| `M7-0` | **PASS** | 112 SetBindGroup sites over 8 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
 | `M4-h` | **PASS** | renderer handle field names derive from LAYOUTS.accessor by camel-casing, all 27 handles |
 | `ML-2w` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`; a byte-level read-back runs after the write |
 
@@ -1136,9 +1136,11 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `render_passes.hpp:568` | `render_main_pass` | 2 | `sceneStateGroup_` | — |
 | `render_passes.hpp:585` | `render_main_pass` | 2 | `galleryStateGroup_` | — |
 | `render_passes.hpp:586` | `render_main_pass` | 3 | `galleryTexturesGroup_` | — |
-| `render_passes.hpp:606` | `render_main_pass` | 1 | `emptyGroup_` | — |
-| `render_passes.hpp:607` | `render_main_pass` | 2 | `emptyGroup_` | — |
-| `render_passes.hpp:608` | `render_main_pass` | 3 | `emptyGroup_` | — |
+| `render_passes.hpp:606` | `render_main_pass` | 2 | `sceneStateGroup_` | — |
+| `render_passes.hpp:607` | `render_main_pass` | 3 | `sceneTexturesGroup_` | — |
+| `render_passes.hpp:614` | `render_main_pass` | 1 | `emptyGroup_` | — |
+| `render_passes.hpp:615` | `render_main_pass` | 2 | `emptyGroup_` | — |
+| `render_passes.hpp:616` | `render_main_pass` | 3 | `emptyGroup_` | — |
 | `renderer.hpp:399` | `dispatch_update_camera` | 2 | `frameKStateGroup_` | — |
 | `renderer.hpp:400` | `dispatch_update_camera` | 3 | `frameKTexturesGroup_` | — |
 | `renderer.hpp:421` | `dispatch_compute_vp` | 2 | `frameKStateGroup_` | — |
