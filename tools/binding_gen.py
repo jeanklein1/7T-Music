@@ -1158,6 +1158,365 @@ def check(args):
         problems.append("P-scope render-pass usage conflict(s) or "
                         "missing pass composition")
 
+    # ─── S-5b (U3): seat-face reachability. For every BUFFER seat,
+    #     the union of WGSL declarations its member pipelines actually
+    #     reach at that slot dictates the seat's face: any read_write
+    #     reach demands Storage; all-read demands ReadOnlyStorage;
+    #     uniform demands Uniform. A seat whose union face differs
+    #     from its decl_ref's face must name a declaration of the
+    #     union face. Born from the CULL vp seat: ratified through the
+    #     rw face (vp_data) while frustum_cull_patches reads fc_vp —
+    #     Dawn validates each entry point against the DECLARATION it
+    #     uses, and no slot-level join can see that. Seats reached by
+    #     no member pipeline assert nothing (unused group members are
+    #     legal) and are counted.
+    decls_at_slot = {}
+    for nm_, d_ in schema.DECLS.items():
+        decls_at_slot.setdefault((d_["group"], d_["binding"]), []).append(nm_)
+    members_of_layout = {}
+    for pm_, p_ in schema.PIPELINES.items():
+        for L_ in p_["layouts"]:
+            members_of_layout.setdefault(L_, []).append(pm_)
+    s5b_bad = []
+    s5b_unreached = 0
+    s5b_checked = 0
+    for (lay_, idx_), seat_ in sorted(schema.SEATS.items()):
+        d0 = schema.DECLS[seat_["decl"]]
+        if not d0["cpp"] or d0["cpp"][0] != "buffer":
+            continue
+        slot_ = (d0["group"], d0["binding"])
+        reached_ = set()
+        for pm_ in members_of_layout.get(lay_, []):
+            p_ = schema.PIPELINES[pm_]
+            for e_ in (p_["vs"], p_["fs"], p_["cs"]):
+                if not e_:
+                    continue
+                syms_ = b0["reach"].get(e_, (set(), set()))[1]
+                reached_.update(s_ for s_ in decls_at_slot[slot_]
+                                if s_ in syms_)
+        s5b_checked += 1
+        if not reached_:
+            s5b_unreached += 1
+            continue
+        spaces = {(schema.DECLS[s_]["address_space"],
+                   schema.DECLS[s_]["access"]) for s_ in reached_}
+        if ("storage", "read_write") in spaces and ("storage", "read") in spaces:
+            s5b_bad.append("%s[%d] %s: slot (%d,%d) reached through BOTH "
+                           "storage faces by member pipelines — one seat "
+                           "cannot serve both"
+                           % (lay_, idx_, seat_["decl"], slot_[0], slot_[1]))
+            continue
+        if ("storage", "read_write") in spaces:
+            want_ = "Storage"
+        elif ("storage", "read") in spaces:
+            want_ = "ReadOnlyStorage"
+        else:
+            want_ = "Uniform"
+        if d0["cpp"][1] != want_:
+            s5b_bad.append("%s[%d] seats %s as %s, but its member pipelines "
+                           "reach %s at slot (%d,%d) — the union face is %s"
+                           % (lay_, idx_, seat_["decl"], d0["cpp"][1],
+                              "/".join(sorted(reached_)), slot_[0], slot_[1],
+                              want_))
+    ok = not s5b_bad
+    print("  [%s] S-5b %d buffer seats face-checked against the union of "
+          "their member pipelines' reached declarations (%d reached by no "
+          "member pipeline — asserted nothing)%s"
+          % ("PASS" if ok else "FAIL", s5b_checked, s5b_unreached,
+             "" if ok else " — " + "; ".join(s5b_bad)))
+    if not ok:
+        problems.append("S-5b seat-face mismatch")
+
+    # ─── S-7 (U3): expression closure. Every free identifier in the
+    #     schema's emitted expressions (group entry size/offset,
+    #     min_binding_size, and the local constants' own right-hand
+    #     sides) must resolve at the gen.inc include point: Dim::
+    #     qualified, a sizeof argument, a constant declared at class
+    #     or namespace scope BEFORE the include (function-local
+    #     declarations are invisible there, whatever the line number
+    #     says), a constant in state.hpp's transitive include closure,
+    #     or an in-block constant the same group emits. Born from
+    #     residue #21: the Place block's PLANT_GROUND_COUNT rode a
+    #     size expression while its declaration lived inside a member
+    #     function — visible to grep, invisible to the compiler.
+    state_raw = BL.strip_cpp_comments(BL.read_raw(STATE_HPP))
+    inc_pos = state_raw.find('#include "binding_surface.gen.inc"')
+    before_inc = state_raw[:inc_pos]
+    depth_at_inc = before_inc.count("{") - before_inc.count("}")
+    visible = set()
+    for dm in re.finditer(
+            r"\b(?:static\s+)?(?:inline\s+)?constexpr\s+[\w:<>]+\s+(\w+)\s*[=\[{]",
+            before_inc):
+        d_at = before_inc[:dm.start()]
+        if d_at.count("{") - d_at.count("}") <= depth_at_inc:
+            visible.add(dm.group(1))
+    seen_inc = set()
+    queue_inc = [im.group(1) for im in
+                 re.finditer(r'#include\s+"([^"]+)"', before_inc)]
+    while queue_inc:
+        rel_ = queue_inc.pop()
+        if rel_ in seen_inc:
+            continue
+        seen_inc.add(rel_)
+        pth_ = os.path.join(BL.REPO, "src", rel_)
+        if not os.path.exists(pth_):
+            continue
+        t_ = BL.strip_cpp_comments(BL.read_raw(pth_))
+        for dm in re.finditer(
+                r"\b(?:static\s+)?(?:inline\s+)?constexpr\s+[\w:<>]+\s+(\w+)\s*[=\[{]", t_):
+            visible.add(dm.group(1))
+        queue_inc.extend(im.group(1) for im in
+                         re.finditer(r'#include\s+"([^"]+)"', t_))
+    s7_bad = []
+    s7_exprs = 0
+
+    def s7_check(expr_, local_names, where):
+        nonlocal_missing = []
+        e_ = expr_
+        while True:
+            e2 = re.sub(r"\bsizeof\s*\([^()]*\)", " ", e_)
+            if e2 == e_:
+                break
+            e_ = e2
+        e_ = re.sub(r"\bDim::\w+", " ", e_)
+        for tok in re.finditer(r"\b[A-Za-z_]\w*\b", e_):
+            t_ = tok.group(0)
+            if t_ in ("sizeof", "Dim"):
+                continue
+            if t_ in visible or t_ in local_names:
+                continue
+            nonlocal_missing.append("%s: %r unresolved" % (where, t_))
+        return nonlocal_missing
+
+    for gm_, row_ in sorted(schema.GROUPS.items()):
+        local_names = set()
+        for lc_ in row_.get("local_constants", []):
+            lm_ = re.search(r"\b(\w+)\s*=", lc_["text"])
+            if lm_:
+                local_names.add(lm_.group(1))
+        for lc_ in row_.get("local_constants", []):
+            rhs = lc_["text"].split("=", 1)[1] if "=" in lc_["text"] else ""
+            s7_exprs += 1
+            s7_bad += s7_check(rhs, local_names, "%s local constant" % gm_)
+        for i_, e_ in sorted(row_["entries"].items()):
+            for fld in ("size_expr", "offset_expr"):
+                if e_.get(fld):
+                    s7_exprs += 1
+                    s7_bad += s7_check(e_[fld], local_names,
+                                       "%s entries[%d].%s" % (gm_, i_, fld))
+    for (lay_, i_), seat_ in sorted(schema.SEATS.items()):
+        if seat_.get("min_binding_size"):
+            s7_exprs += 1
+            s7_bad += s7_check(str(seat_["min_binding_size"]), set(),
+                               "%s seats[%d].min_binding_size" % (lay_, i_))
+    ok = not s7_bad
+    print("  [%s] S-7  expression closure over %d emitted expressions: "
+          "every free identifier resolves at the include point "
+          "(%d class/namespace-scope constants + include closure)%s"
+          % ("PASS" if ok else "FAIL", s7_exprs, len(visible),
+             "" if ok else " — " + "; ".join(sorted(set(s7_bad)))))
+    if not ok:
+        problems.append("S-7 unresolved expression identifier(s)")
+
+    # ─── P-seq (U3): encode-order. Per pass span (compute AND render),
+    #     simulate the encoder: walk the span in text order, inlining
+    #     called helpers with per-call argument substitution and the
+    #     two static dispatch tables (DRAWABLES by pass mask;
+    #     FAMILY_DISPATCH by field-name hint); track the last-bound
+    #     groups at indices 2/3; at every Draw*/Dispatch* event the
+    #     current pair's LAYOUTS must equal the current pipeline's
+    #     strata 2/3. A SetPipeline naming two members (a ?: pick)
+    #     passes if EITHER matches — disclosed approximation. Born
+    #     from the orb draw: the gallery fork left its pair bound and
+    #     the hoisted orb draw inherited it; group-vs-layout agreement
+    #     is per-bind, encode ORDER is per-pass, and only a simulator
+    #     sees order.
+    acc2 = MC.group_accessor_map()
+    grp_layout = {gm_: row_["layout"] for gm_, row_ in schema.GROUPS.items()}
+    pipe_strata = {pm_: (p_["layouts"][2], p_["layouts"][3])
+                   for pm_, p_ in schema.PIPELINES.items()}
+    all_files2 = []
+    for root_, dirs_, fs_ in os.walk(os.path.join(BL.REPO, "src")):
+        dirs_.sort()
+        for f_ in sorted(fs_):
+            if f_.endswith((".hpp", ".cpp")):
+                pth_ = os.path.join(root_, f_)
+                all_files2.append((pth_, BL.strip_cpp_comments(BL.read_raw(pth_))))
+    fn_defs = {}
+    for pth_, text_ in all_files2:
+        for nm_, params_, bs_, be_ in MC._m7_functions(text_):
+            fn_defs.setdefault(nm_, []).append((params_, text_[bs_:be_]))
+    dt_text = next((t_ for p2, t_ in all_files2
+                    if p2.endswith("drawable_table.hpp")), "")
+    dt_rows = re.findall(r'\{\s*"\w+",\s*([^,]+),\s*(\w+)\s*\}', dt_text)
+    fd_text = ""
+    for p2, t_ in all_files2:
+        fm_ = re.search(r"FAMILY_DISPATCH\s*\[[^\]]*\]\s*=\s*\{", t_)
+        if fm_:
+            e2_ = t_.find("};", fm_.start())
+            fd_text = t_[fm_.start():e2_]
+            break
+    NOT_CALLS = {"SetBindGroup", "SetPipeline", "SetVertexBuffer",
+                 "SetIndexBuffer", "Draw", "DrawIndexed", "DrawIndirect",
+                 "DrawIndexedIndirect", "DispatchWorkgroups",
+                 "DispatchWorkgroupsIndirect", "BeginRenderPass",
+                 "BeginComputePass", "End", "if", "for", "while", "switch",
+                 "sizeof", "return"}
+    pseq_bad = []
+    pseq_draws = [0]
+    pseq_unresolved = []
+
+    def resolve_arg(arg_, env_):
+        am_ = re.search(r"(\w+)\s*\(\s*\)\s*$", arg_.strip())
+        if am_ and am_.group(1) in acc2:
+            return {acc2[am_.group(1)]}
+        if re.fullmatch(r"\w+", arg_.strip()):
+            return env_.get(arg_.strip(), set())
+        return set()
+
+    def walk(body, env, state, pipes, depth, where, filt=None):
+        if depth > 5:
+            return
+        evs = []
+        for m_ in re.finditer(r"\.SetBindGroup\s*\(([^;]*)\)\s*;", body):
+            a_ = BL.split_args(m_.group(1))
+            if len(a_) >= 2 and re.fullmatch(r"\d+", a_[0].strip()):
+                evs.append((m_.start(), "bind",
+                            (int(a_[0]), a_[1])))
+        for m_ in re.finditer(r"\.SetPipeline\s*\(([^;]+?)\)\s*;", body):
+            evs.append((m_.start(), "pipe",
+                        set(re.findall(r"(\w+Pipeline_)", m_.group(1)))))
+        for m_ in re.finditer(
+                r"\.(Draw|DrawIndexed|DrawIndirect|DrawIndexedIndirect|"
+                r"DispatchWorkgroups|DispatchWorkgroupsIndirect)\s*\(", body):
+            evs.append((m_.start(), "draw", m_.group(1)))
+        for m_ in re.finditer(r"\bFAMILY_DISPATCH\s*\[[^\]]*\]\s*\.\s*(\w+)\s*\(", body):
+            evs.append((m_.start(), "table_fd", m_.group(1)))
+        for m_ in re.finditer(r"\bdraw_table\s*\(([^;]*)\)\s*;", body):
+            evs.append((m_.start(), "table_dt", m_.group(1)))
+        for m_ in re.finditer(r"\b(\w+)\s*\(", body):
+            nm_ = m_.group(1)
+            if nm_ in NOT_CALLS or nm_ in ("draw_table",) or nm_ not in fn_defs:
+                continue
+            j_ = m_.end() - 1
+            d2_, k_ = 0, j_
+            while k_ < len(body):
+                if body[k_] == "(":
+                    d2_ += 1
+                elif body[k_] == ")":
+                    d2_ -= 1
+                    if d2_ == 0:
+                        break
+                k_ += 1
+            evs.append((m_.start(), "call", (nm_, body[j_ + 1:k_])))
+        evs.sort(key=lambda x: x[0])
+        for off_, kind_, pay_ in evs:
+            if kind_ == "bind":
+                idx_, expr_ = pay_
+                if idx_ not in (2, 3):
+                    continue
+                mem_ = resolve_arg(expr_, env)
+                if not mem_:
+                    pseq_unresolved.append("%s: unresolved group expr %r"
+                                           % (where, expr_.strip()))
+                    state[idx_] = None
+                else:
+                    state[idx_] = {grp_layout.get(m2) for m2 in mem_}
+            elif kind_ == "pipe":
+                pipes[0] = pay_ or env.get("__pipes__", set())
+            elif kind_ == "draw":
+                pseq_draws[0] += 1
+                if not pipes[0]:
+                    pseq_bad.append("%s: %s with no SetPipeline seen"
+                                    % (where, pay_))
+                    continue
+                okd = False
+                for cand in pipes[0]:
+                    st_ = pipe_strata.get(cand)
+                    if st_ is None:
+                        continue
+                    l2_, l3_ = st_
+                    if (state.get(2) and l2_ in state[2]
+                            and state.get(3) and l3_ in state[3]):
+                        okd = True
+                        break
+                if not okd:
+                    pseq_bad.append(
+                        "%s: %s under pipeline %s wants strata (%s, %s) but "
+                        "the last-bound 2/3 pair is (%s, %s)"
+                        % (where, pay_, "/".join(sorted(pipes[0])),
+                           *(pipe_strata.get(sorted(pipes[0])[0], ("?", "?"))),
+                           "/".join(sorted(state[2])) if state.get(2) else "-",
+                           "/".join(sorted(state[3])) if state.get(3) else "-"))
+            elif kind_ == "table_dt":
+                args_ = BL.split_args(pay_)
+                mask_ = args_[-1].strip() if args_ else ""
+                # b.shadow is pass state: the mask picks the branch the
+                # thunks take, so the simulator follows only that branch.
+                filt2 = "shadow" if mask_ == "DRAW_SHADOW" else "noshadow"
+                for maskexpr, thunk in dt_rows:
+                    if mask_ and mask_ in maskexpr and thunk in fn_defs:
+                        for params2, body2 in fn_defs[thunk]:
+                            walk(body2, {}, state, pipes, depth + 1,
+                                 where + ">" + thunk, filt2)
+            elif kind_ == "table_fd":
+                field_ = pay_
+                hints = [t2 for t2 in field_.split("_") if t2 not in
+                         ("dispatch", "")]
+                for nm2 in sorted(set(re.findall(r"\b(\w+)\b", fd_text))):
+                    if nm2 in fn_defs and all(h_ in nm2 for h_ in hints) \
+                            and nm2 != field_:
+                        for params2, body2 in fn_defs[nm2]:
+                            walk(body2, {}, state, pipes, depth + 1,
+                                 where + ">" + nm2)
+            elif kind_ == "call":
+                nm_, argstr = pay_
+                if filt == "shadow" and "shadow" not in nm_:
+                    continue
+                if filt == "noshadow" and "shadow" in nm_:
+                    continue
+                args_ = BL.split_args(argstr)
+                arg_pipes = set(re.findall(r"(\w+Pipeline_)", argstr))
+                for params2, body2 in fn_defs[nm_]:
+                    pnames = BL.param_names(params2)
+                    env2 = {}
+                    if arg_pipes or "__pipes__" in env:
+                        env2["__pipes__"] = arg_pipes or env["__pipes__"]
+                    for pi_, pn_ in enumerate(pnames):
+                        if pi_ < len(args_):
+                            r2 = resolve_arg(args_[pi_], env)
+                            if r2:
+                                env2[pn_] = r2
+                    walk(body2, env2, state, pipes, depth + 1,
+                         where + ">" + nm_, filt)
+
+    pass_spans2 = []
+    for pth_, text_ in all_files2:
+        fns_ = MC._m7_functions(text_)
+        for bm_ in re.finditer(
+                r"wgpu::(RenderPassEncoder|ComputePassEncoder)\s+(\w+)\s*=\s*"
+                r"\w+\.Begin(?:Render|Compute)Pass", text_):
+            enc_ = MC._m7_enclosing(fns_, bm_.start())
+            if enc_ is None:
+                continue
+            var_ = bm_.group(2)
+            em_ = re.search(r"\b%s\.End\s*\(\s*\)" % re.escape(var_),
+                            text_[bm_.end():enc_[3]])
+            span_end = bm_.end() + em_.end() if em_ else enc_[3]
+            pass_spans2.append((os.path.relpath(pth_, BL.REPO), enc_[0],
+                               text_, bm_.start(), span_end))
+    for rel_, fname_, text_, bs_, be_ in pass_spans2:
+        lo_ = BL.line_of(text_, bs_)
+        walk(text_[bs_:be_], {}, {2: None, 3: None}, [set()], 0,
+             "%s:%d(%s)" % (rel_.split("/")[-1], lo_, fname_))
+    ok = not pseq_bad and not pseq_unresolved and pseq_draws[0] > 0
+    print("  [%s] P-seq %d pass spans simulated in encode order, %d "
+          "draw/dispatch events checked against the last-bound 2/3 pair%s"
+          % ("PASS" if ok else "FAIL", len(pass_spans2), pseq_draws[0],
+             "" if ok else " — " + "; ".join(sorted(set(pseq_bad + pseq_unresolved))[:12])))
+    if not ok:
+        problems.append("P-seq encode-order violation(s)")
+
     # ─── S-6 (U2-FIX D1): commit integrity — the tree the witnesses
     #     saw is the tree that ships. Green only at the landing: the
     #     working tree is fully committed (porcelain empty) and HEAD

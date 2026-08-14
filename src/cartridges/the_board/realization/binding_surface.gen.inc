@@ -267,9 +267,14 @@
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[4].binding = bind::g2::vp_data;  // vp_data (storage — VP matrix for frustum planes)
+                    // U3-C1: decl_ref is the ro face. frustum_cull_patches reads fc_vp,
+                    // and the API validates each entry point against the DECLARATION it
+                    // uses — the ratified rw facing (vp_data) was refused at creation.
+                    // Same buffer, same number; the rw face stays in FRAME_K_STATE.
+                    // Witness S-5b holds every seat face to its reaching declarations.
+                    entries[4].binding = bind::g2::vp_data;  // fc_vp (read-only face of vp_data — VP matrix for frustum planes)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Cull State Layout";
@@ -1579,6 +1584,8 @@
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
+                    // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
 
                     entries[0].binding = bind::g2::patch_grid;
                     entries[0].buffer = patchGridBuffer_;

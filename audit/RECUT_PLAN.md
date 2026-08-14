@@ -154,6 +154,17 @@ THE AGENTS DEBT MARKER (A4, printed as ruled): "uniform
 | 64 | `fc_indirect` | storage | C | home |
 | 240 | `vp_data` | storage | C | R4 read (CULL) |
 
+**Defect epitaph (U3-C1).** The row above ratified the F2
+Storage-through-rw-face seat, and the API refused it at pipeline
+creation: `frustum_cull_patches` statically reads `fc_vp`, the
+`var<storage, read>` face, and WebGPU validates each entry point
+against the declaration it uses — a read-only shader var cannot ride
+a read_write layout seat. The seat as landed is `fc_vp` /
+ReadOnlyStorage — same buffer, same number, same registry constant;
+the rw face stays in FRAME_K_STATE. Witness S-5b now holds every
+seat's face to the union of its reaching declarations, so this class
+cannot ratify again.
+
 ### FRAME_K_STATE (group 2, 5 seats)
 
 | binding | decl | kind | visibility | why |
