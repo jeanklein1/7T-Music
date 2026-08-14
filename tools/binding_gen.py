@@ -1058,6 +1058,132 @@ def check(args):
     if not ok:
         problems.append("S-5 pipeline reach hole(s)")
 
+    # ─── P-scope (U2-FIX A7): per RENDER pass, merge the usages of
+    #     every group bindable in that pass — WebGPU gives a render
+    #     pass ONE usage scope spanning every entry of every bound
+    #     group, visibility regardless, used or not — and assert zero
+    #     buffer/texture usage conflicts (a writable usage with ANY
+    #     other usage of the same backing). Pass composition comes
+    #     from M7's site census: the pass function's own SetBindGroup
+    #     sites plus one hop into helpers it calls that bind. Texture
+    #     usages merge by backing VIEW name (two views of one texture
+    #     are not unified — disclosed approximation; buffers are
+    #     exact). Compute passes validate per dispatch and are out of
+    #     scope by construction. L23 is the law this witnesses.
+    wps = BL.Witnesses()
+    reg_c = BL.parse_registry(wps)
+    lys = BL.parse_layouts(wps, reg_c)
+    c0 = BL.phase_0c(wps, lys, b0)
+    grps, invs = MC.parse_groups(wps)
+    m7 = MC.usage_census(wps, c0, grps, invs, lys)
+    rows_by_fn = {}
+    for r_ in m7["rows"]:
+        rows_by_fn.setdefault((r_["file"], r_["fn"]), []).append(r_)
+    lay_by_member = {L["member"]: L for L in lys}
+    grp_by_member = {g_["member"]: g_ for g_ in grps if g_["member"]}
+    # A pass SPAN, not a function: the snapshot function encodes a
+    # compute pass and a render pass back to back, and a render scope
+    # that swallowed the compute binds would report the photographer
+    # working set as a render conflict. The span runs from the
+    # BeginRenderPass assignment to that encoder VARIABLE's .End().
+    render_passes = []
+    for rel in m7["files"]:
+        text = BL.strip_cpp_comments(BL.read_raw(os.path.join(BL.REPO, rel)))
+        fns = MC._m7_functions(text)
+        for bm in re.finditer(
+                r"wgpu::RenderPassEncoder\s+(\w+)\s*=\s*\w+\.BeginRenderPass",
+                text):
+            enc = MC._m7_enclosing(fns, bm.start())
+            if enc is None:
+                continue
+            var = bm.group(1)
+            em = re.search(r"\b%s\.End\s*\(\s*\)" % re.escape(var),
+                           text[bm.end():enc[3]])
+            span_end = bm.end() + em.end() if em else enc[3]
+            render_passes.append((rel, enc[0], bm.start(), span_end))
+    verdicts = []
+    pscope_bad = []
+    for rel, fname, bs, be in render_passes:
+        text = BL.strip_cpp_comments(BL.read_raw(os.path.join(BL.REPO, rel)))
+        lo, hi = (BL.line_of(text, bs), BL.line_of(text, be))
+        members = set()
+        for r_ in rows_by_fn.get((rel, fname), []):
+            if lo <= r_["line"] <= hi:
+                members.update(r_["members"])
+        body = text[bs:be]
+        for cm in re.finditer(r"\b(\w+)\s*\(", body):
+            callee = cm.group(1)
+            if callee == fname:
+                continue
+            for (f2, fn2), rs in rows_by_fn.items():
+                if fn2 == callee:
+                    for r_ in rs:
+                        members.update(r_["members"])
+        by_backing = {}
+        for mem in sorted(members):
+            g_ = grp_by_member.get(mem)
+            lay = lay_by_member.get(g_["layout_member"]) if g_ else None
+            if g_ is None or lay is None:
+                continue
+            seat_by_idx = {e2.entry_index: e2 for e2 in lay["entries"]}
+            for e_ in g_["entries"]:
+                le = seat_by_idx.get(e_["index"])
+                if le is None or le.kind == "sampler":
+                    continue
+                writable = ((le.kind == "buffer" and le.access == "Storage")
+                            or (le.kind == "storageTexture"
+                                and not le.access.startswith("ReadOnly")))
+                by_backing.setdefault(e_["backing"], []).append(
+                    (writable, mem, le.binding_const))
+        conflicts = ["%s: %s" % (bk, "; ".join(
+                        "%s in %s (%s)" % ("RW" if w_ else "RO", m_, bc)
+                        for w_, m_, bc in us))
+                     for bk, us in sorted(by_backing.items())
+                     if any(w_ for w_, _, _ in us) and len(us) > 1]
+        label = "%s:%d" % (fname, lo)
+        verdicts.append((label, len(members), len(by_backing), conflicts))
+        pscope_bad.extend("%s: %s" % (label, c_) for c_ in conflicts)
+    ok = not pscope_bad and len(render_passes) >= 3
+    print("  [%s] P-scope  %d render pass spans composed from M7; per-pass "
+          "usage merge:" % ("PASS" if ok else "FAIL", len(render_passes)))
+    for label, nm_, nb_, conflicts in verdicts:
+        print("           %-26s %2d groups, %2d backings, %d conflict(s)%s"
+              % (label, nm_, nb_, len(conflicts),
+                 "" if not conflicts else " — " + " | ".join(conflicts)))
+    if len(render_passes) < 3:
+        print("           EXPECTED at least 3 render passes "
+              "(shadow/main/snapshot); found %d — the witness cannot "
+              "be inert" % len(render_passes))
+    if not ok:
+        problems.append("P-scope render-pass usage conflict(s) or "
+                        "missing pass composition")
+
+    # ─── S-6 (U2-FIX D1): commit integrity — the tree the witnesses
+    #     saw is the tree that ships. Green only at the landing: the
+    #     working tree is fully committed (porcelain empty) and HEAD
+    #     equals the pushed upstream tip. A mid-flight run reports its
+    #     dirt honestly and fails; that is the point.
+    import subprocess as _sp
+
+    def _git(*a):
+        r_ = _sp.run(["git"] + list(a), cwd=BL.REPO,
+                     capture_output=True, text=True)
+        return r_.stdout.strip()
+    porcelain = _git("status", "--porcelain")
+    head_sha = _git("rev-parse", "HEAD")
+    up_sha = _git("rev-parse", "@{u}")
+    ok = (porcelain == "" and bool(up_sha) and head_sha == up_sha)
+    print("  [%s] S-6  commit integrity: %s"
+          % ("PASS" if ok else "FAIL",
+             "working tree clean; HEAD %s == pushed tip" % head_sha[:7]
+             if ok else
+             "porcelain %s; HEAD %s vs upstream %s"
+             % ("clean" if not porcelain else
+                "DIRTY (%d entries)" % len(porcelain.splitlines()),
+                head_sha[:7], up_sha[:7] if up_sha else "(none)")))
+    if not ok:
+        problems.append("S-6 commit integrity")
+
     print("")
     if problems:
         print("STOP \u2014 %d problem(s); the schema and the tree disagree, or "
@@ -1089,7 +1215,11 @@ RECUT_FRAME = ["signal", "render_lighting", "shadow_slot",         # R2 v2,
                "bilinear_sampler", "nearest_sampler"]              # order
 RECUT_FAMILIES = ["AGENTS", "AURA", "PATCHGEN", "CULL", "PLACE",
                   "ZONES", "ORBS", "RIBBON", "GALLERY", "MESHGEN",
-                  "SCENE", "SHADOW", "FRAME_K"]
+                  "SCENE", "SHADOW", "FRAME_K",
+                  # A7: the photographer kernel split from GALLERY — a
+                  # compute-only family, so the render stratum stays
+                  # read-only (L23).
+                  "PHOTO_K"]
 RECUT_BAND = 20            # numbering band width per family, groups 2/3
 
 RECUT_COMPUTE_FAMILY = {
@@ -1107,7 +1237,7 @@ RECUT_COMPUTE_FAMILY = {
     "orb_init": "ORBS", "orb_dynamics": "ORBS", "orb_recolor": "ORBS",
     "orb_state_prev_copy": "ORBS",
     "compute_ribbon_rings": "RIBBON",
-    "compute_photographer_vp": "GALLERY",
+    "compute_photographer_vp": "PHOTO_K",   # A7: was GALLERY pre-split
     "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
     "palm_mesh_gen": "MESHGEN", "cactus_mesh_gen": "MESHGEN",
     "blade_cluster_mesh_gen": "MESHGEN",
@@ -1442,6 +1572,40 @@ def plan(args):
                 stops.append("%s reaches %s but no stratum layout it binds "
                              "carries its slot %s"
                              % (p.member, sym, new_slot[key]))
+
+    # ─── P-scope, plan side (U2-FIX A7): the render stratum is
+    #     read-only — L23. A render pass merges every entry of every
+    #     bound group into ONE usage scope, visibility regardless; a
+    #     writable storage usage forbids any other usage of the same
+    #     buffer in the pass. Backings do not exist at plan time, so
+    #     the plan-side witness is the LAW itself: no stratum layout
+    #     bound by any render pipeline may carry a writable buffer or
+    #     writable storage-texture seat. Zero writable seats in render
+    #     scope implies zero writable-vs-other conflicts on any
+    #     resource. The check-side twin merges REAL backings per pass
+    #     composition (from M7) and demands zero conflicts.
+    render_bound_strata = set()
+    for p in c["pipelines"]:
+        if p.kind != "compute":
+            render_bound_strata.update(
+                s_ for s_ in pipe_strata.get(p.member, []) if s_)
+    pscope_rows = []
+    for nm in sorted(render_bound_strata):
+        writable = []
+        for (ng, nb), seat in sorted(new_layouts.get(nm, {}).items()):
+            cpp = schema.DECLS[seat["decl"]]["cpp"]
+            if cpp and ((cpp[0] == "buffer" and cpp[1] == "Storage")
+                        or (cpp[0] == "storageTexture"
+                            and not cpp[1].startswith("ReadOnly"))):
+                writable.append("%s at (%d,%d)" % (seat["decl"], ng, nb))
+        pscope_rows.append((nm, writable))
+        for w_ in writable:
+            stops.append("P-scope/L23: render-bound stratum %s seats "
+                         "writable %s" % (nm, w_))
+    if not any(w_ for _, w_ in pscope_rows):
+        findings.append("P-scope (plan side): %d render-bound strata, zero "
+                        "writable seats — L23 holds for the plan"
+                        % len(pscope_rows))
 
     # ─── P-gate: predicted Table B ────────────────────────────────────
     def stage_counts(strata_list, reach_pred):

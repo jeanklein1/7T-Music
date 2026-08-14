@@ -2010,6 +2010,8 @@ namespace t7 {
             wgpu::BindGroupLayout frameKTexturesLayout_;
             wgpu::BindGroupLayout galleryStateLayout_;
             wgpu::BindGroupLayout galleryTexturesLayout_;
+            wgpu::BindGroupLayout photoKStateLayout_;
+            wgpu::BindGroupLayout photoKTexturesLayout_;
             wgpu::BindGroupLayout meshgenStateLayout_;
             wgpu::BindGroupLayout orbsStateLayout_;
             wgpu::BindGroupLayout patchgenStateLayout_;
@@ -2036,6 +2038,8 @@ namespace t7 {
             wgpu::BindGroup frameKTexturesGroup_;
             wgpu::BindGroup galleryStateGroup_;
             wgpu::BindGroup galleryTexturesGroup_;
+            wgpu::BindGroup photoKStateGroup_;
+            wgpu::BindGroup photoKTexturesGroup_;
             wgpu::BindGroup meshgenStateGroup_;
             wgpu::BindGroup meshgenStateColumnGroup_;
             wgpu::BindGroup meshgenStatePalmGroup_;
@@ -2450,6 +2454,8 @@ namespace t7 {
             wgpu::BindGroupLayout frame_k_textures_layout() const { return frameKTexturesLayout_; }
             wgpu::BindGroupLayout gallery_state_layout() const { return galleryStateLayout_; }
             wgpu::BindGroupLayout gallery_textures_layout() const { return galleryTexturesLayout_; }
+            wgpu::BindGroupLayout photo_k_state_layout() const { return photoKStateLayout_; }
+            wgpu::BindGroupLayout photo_k_textures_layout() const { return photoKTexturesLayout_; }
             wgpu::BindGroupLayout meshgen_state_layout() const { return meshgenStateLayout_; }
             wgpu::BindGroupLayout orbs_state_layout() const { return orbsStateLayout_; }
             wgpu::BindGroupLayout patchgen_state_layout() const { return patchgenStateLayout_; }
@@ -2476,6 +2482,8 @@ namespace t7 {
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
             wgpu::BindGroup gallery_state_group() const { return galleryStateGroup_; }
             wgpu::BindGroup gallery_textures_group() const { return galleryTexturesGroup_; }
+            wgpu::BindGroup photo_k_state_group() const { return photoKStateGroup_; }
+            wgpu::BindGroup photo_k_textures_group() const { return photoKTexturesGroup_; }
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
             wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
             wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }

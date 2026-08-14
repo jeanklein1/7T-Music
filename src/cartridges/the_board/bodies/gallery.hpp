@@ -1455,7 +1455,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
           compute.SetBindGroup(0, c->gpuState_.world_group());
           compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
         c->renderer_.dispatch_compute_photographer_vp(
-            compute, c->gpuState_.gallery_state_group(), c->gpuState_.gallery_textures_group()
+            compute, c->gpuState_.photo_k_state_group(), c->gpuState_.photo_k_textures_group()
         );
         compute.End();
     }

@@ -125,6 +125,8 @@ namespace t7 {
             wgpu::BindGroupLayout frameLayout_;
             wgpu::BindGroupLayout galleryStateLayout_;
             wgpu::BindGroupLayout galleryTexturesLayout_;
+            wgpu::BindGroupLayout photoKStateLayout_;
+            wgpu::BindGroupLayout photoKTexturesLayout_;
             wgpu::BindGroupLayout meshgenStateLayout_;
             wgpu::BindGroupLayout orbsStateLayout_;
             wgpu::BindGroupLayout patchgenStateLayout_;
@@ -317,6 +319,8 @@ namespace t7 {
                 frameLayout_ = gpuState.frame_layout();
                 galleryStateLayout_ = gpuState.gallery_state_layout();
                 galleryTexturesLayout_ = gpuState.gallery_textures_layout();
+                photoKStateLayout_ = gpuState.photo_k_state_layout();
+                photoKTexturesLayout_ = gpuState.photo_k_textures_layout();
                 meshgenStateLayout_ = gpuState.meshgen_state_layout();
                 orbsStateLayout_ = gpuState.orbs_state_layout();
                 patchgenStateLayout_ = gpuState.patchgen_state_layout();
@@ -1394,8 +1398,10 @@ namespace t7 {
                 }
 
                 // Photographer VP compute pipeline (0D, reads pawn → writes VP)
+                // A7: the PHOTO_K strata — the photographer's compute working set,
+                // split from GALLERY so the render stratum stays read-only (L23).
                 if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, galleryStateLayout_, galleryTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, photoKStateLayout_, photoKTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_photographer_vp", "Compute Photographer VP (0D)",
                         pl, Entry::COMPUTE_PHOTOGRAPHER_VP, photographerVPPipeline_)) return false;

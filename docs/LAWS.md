@@ -573,3 +573,27 @@ generated; edit the schema and run `binding_gen.py --write`.
 `world.wgsl` declarations are checked mirrors: `binding_gen.py --check`
 must pass at every campaign's recon gate and before any commit that
 touches the surface.
+
+## L23 — THE RENDER STRATUM LAW
+
+A render pass has ONE usage scope. WebGPU merges every entry of every
+bound group into it — shader-stage visibility does not filter it, and
+it does not matter whether any draw touches the seat — and a writable
+storage usage forbids any other usage of the same buffer or texture in
+that scope. Compute passes validate per dispatch; render passes do not
+forgive.
+
+So: **render-bound strata carry no writable buffer seats — the render
+stratum is read-only.** A family that mixes a compute writer with
+render readers is two families (A7 split GALLERY into GALLERY, render,
+and PHOTO_K, compute, for exactly this). Witness: `P-scope`, in
+`binding_gen.py --plan` (the law, structurally — no writable seat in
+any render-bound planned stratum) and in `--check` (the merge — per
+render pass composed from M7's site census, every bound group's usages
+merged by backing, zero conflicts demanded across shadow, main and
+snapshot).
+
+Paid for at the LOOM_2 U2 land gate: the shared GALLERY stratum
+carried the photographer kernel's read-write working set into the main
+and snapshot passes, and Dawn refused every frame — an error class no
+mirror-agreement witness can see.
