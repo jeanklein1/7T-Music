@@ -574,26 +574,29 @@ generated; edit the schema and run `binding_gen.py --write`.
 must pass at every campaign's recon gate and before any commit that
 touches the surface.
 
-## L23 — THE RENDER STRATUM LAW
+## L23′ — THE SCOPE LAW (supersedes L23)
 
-A render pass has ONE usage scope. WebGPU merges every entry of every
-bound group into it — shader-stage visibility does not filter it, and
-it does not matter whether any draw touches the seat — and a writable
-storage usage forbids any other usage of the same buffer or texture in
-that scope. Compute passes validate per dispatch; render passes do not
-forgive.
+Within one synchronization scope, a buffer presents ONE writability.
+A render pass is one scope, WHOLE. A compute dispatch is one scope
+over its FULL bound groups. Neither is filtered by shader-stage
+visibility or by static use — Dawn merges every entry of every bound
+group, touched or not (Jean's boot log at the U4 gate is the
+evidence; L23's "compute validates per dispatch over what it uses"
+was the half of the truth that survived one gate).
 
-So: **render-bound strata carry no writable buffer seats — the render
-stratum is read-only.** A family that mixes a compute writer with
-render readers is two families (A7 split GALLERY into GALLERY, render,
-and PHOTO_K, compute, for exactly this). Witness: `P-scope`, in
-`binding_gen.py --plan` (the law, structurally — no writable seat in
-any render-bound planned stratum) and in `--check` (the merge — per
-render pass composed from M7's site census, every bound group's usages
-merged by backing, zero conflicts demanded across shadow, main and
-snapshot).
+So: **mixed-writability faces of one buffer never share a layout and
+are never co-bound in one scope.** A stratum serving a scope carries
+only the faces that scope may legally see — FRAME split by consumer
+mode (FRAME_R render / FRAME_C compute, A8a); ORBS carries its face
+partition in two layouts (A8b); GALLERY/PHOTO_K stand from A7.
 
-Paid for at the LOOM_2 U2 land gate: the shared GALLERY stratum
-carried the photographer kernel's read-write working set into the main
-and snapshot passes, and Dawn refused every frame — an error class no
-mirror-agreement witness can see.
+Witness: `P-scope`, both arms — the render arm per pass span, the
+compute arm per dispatch site over the full bound groups, plus the
+group-local law (no bind group backs one buffer through entries of
+mixed writability). **Pessimism is the law: no relaxation of the rule
+may ever be committed on a citation — only on a witnessed Dawn
+behavior test.**
+
+Paid for twice: A7's gallery working set in the render passes, then
+A8's FRAME ro windows and collapsed orb faces at the compute
+dispatches — the same law, learned one scope at a time.

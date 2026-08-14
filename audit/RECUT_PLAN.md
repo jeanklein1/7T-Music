@@ -446,6 +446,19 @@ EMPTY carries exactly zero.
 
 ## Predicted Table B against today's (declared, per stage)
 
+**Amendment A8 (U4).** The scope law corrected to L23': Dawn scopes a
+compute dispatch over the FULL bound groups — no visibility filter, no
+static-use filter (Jean's boot log is the evidence). ORBS restores the
+face partition (ORBS_A: orb_state rw / orb_config / orb_state_prev ro;
+ORBS_B: orb_state_ro / orb_config / orb_state_prev_rw), so the four
+orb rows below shed two storage charges each — amended from 4/4/0/2/0
+to 4/2/0/2/0. FRAME splits by consumer mode (FRAME_R render /
+FRAME_C compute), which changes NO declared row: the shed seats
+(lighting, shadow_slot, render_vp, render_camera) carry V/V|F
+visibility and never charged a compute row's declared count — the
+split removes them from the dispatch SCOPE, which declared counts
+never measured. All (group,binding) numbers unchanged.
+
 Every (pipeline, stage) row under the recut, with today's declared
 counts beside it. The gate law: uniform 12 / storage 8 / sampled 16
 / samplers 16 / storage-tex 4 per stage. Any exceedance is in the
@@ -469,10 +482,10 @@ STOP list above.
 | Compute Pawn Aura (2D) | C | 4/2/0/2/1 | 3/2/0/0/1 |
 | Live Card Heights (2D) | C | 4/3/0/2/2 | 2/3/0/0/1 |
 | Live Card Resolve (2D) | C | 4/3/0/2/2 | 2/3/0/0/1 |
-| Orb Init | C | 4/4/0/2/0 | 2/2/0/0/0 |
-| Orb Dynamics | C | 4/4/0/2/0 | 2/2/0/0/0 |
-| Orb Recolor | C | 4/4/0/2/0 | 2/2/0/0/0 |
-| Orb State Prev Copy | C | 4/4/0/2/0 | 1/2/0/0/0 |
+| Orb Init | C | 4/2/0/2/0 | 2/2/0/0/0 |
+| Orb Dynamics | C | 4/2/0/2/0 | 2/2/0/0/0 |
+| Orb Recolor | C | 4/2/0/2/0 | 2/2/0/0/0 |
+| Orb State Prev Copy | C | 4/2/0/2/0 | 1/2/0/0/0 |
 | GoL Zone Sync | C | 4/3/0/2/2 | 2/2/0/0/1 |
 | GoL Zone Evolve | C | 4/3/0/2/2 | 2/2/0/0/1 |
 | Zone Derive Params | C | 4/3/0/2/2 | 2/2/0/0/1 |

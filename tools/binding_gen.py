@@ -1144,8 +1144,9 @@ def check(args):
         verdicts.append((label, len(members), len(by_backing), conflicts))
         pscope_bad.extend("%s: %s" % (label, c_) for c_ in conflicts)
     ok = not pscope_bad and len(render_passes) >= 3
-    print("  [%s] P-scope  %d render pass spans composed from M7; per-pass "
-          "usage merge:" % ("PASS" if ok else "FAIL", len(render_passes)))
+    print("  [%s] P-scope(R)  %d render pass spans composed from M7; per-pass "
+          "usage merge (render arm of L23'):"
+          % ("PASS" if ok else "FAIL", len(render_passes)))
     for label, nm_, nb_, conflicts in verdicts:
         print("           %-26s %2d groups, %2d backings, %d conflict(s)%s"
               % (label, nm_, nb_, len(conflicts),
@@ -1365,6 +1366,8 @@ def check(args):
     pseq_bad = []
     pseq_draws = [0]
     pseq_unresolved = []
+    dispatch_snaps = []
+    visited_fns = set()
 
     def resolve_arg(arg_, env_):
         am_ = re.search(r"(\w+)\s*\(\s*\)\s*$", arg_.strip())
@@ -1374,9 +1377,10 @@ def check(args):
             return env_.get(arg_.strip(), set())
         return set()
 
-    def walk(body, env, state, pipes, depth, where, filt=None):
+    def walk(body, env, state, pipes, depth, where, filt=None, path=frozenset()):
         if depth > 5:
             return
+        visited_fns.update(path)
         evs = []
         for m_ in re.finditer(r"\.SetBindGroup\s*\(([^;]*)\)\s*;", body):
             a_ = BL.split_args(m_.group(1))
@@ -1413,15 +1417,14 @@ def check(args):
         for off_, kind_, pay_ in evs:
             if kind_ == "bind":
                 idx_, expr_ = pay_
-                if idx_ not in (2, 3):
-                    continue
                 mem_ = resolve_arg(expr_, env)
                 if not mem_:
-                    pseq_unresolved.append("%s: unresolved group expr %r"
-                                           % (where, expr_.strip()))
+                    if idx_ in (2, 3):
+                        pseq_unresolved.append("%s: unresolved group expr %r"
+                                               % (where, expr_.strip()))
                     state[idx_] = None
                 else:
-                    state[idx_] = {grp_layout.get(m2) for m2 in mem_}
+                    state[idx_] = set(mem_)
             elif kind_ == "pipe":
                 pipes[0] = pay_ or env.get("__pipes__", set())
             elif kind_ == "draw":
@@ -1430,14 +1433,21 @@ def check(args):
                     pseq_bad.append("%s: %s with no SetPipeline seen"
                                     % (where, pay_))
                     continue
+                lay2 = {grp_layout.get(m2) for m2 in state.get(2) or ()}
+                lay3 = {grp_layout.get(m2) for m2 in state.get(3) or ()}
+                # L23' compute arm: a dispatch scopes over the FULL bound
+                # groups — snapshot the whole bind state at the site.
+                if pay_.startswith("Dispatch"):
+                    dispatch_snaps.append(
+                        (where, {i2: set(state[i2]) for i2 in state
+                                 if state.get(i2)}))
                 okd = False
                 for cand in pipes[0]:
                     st_ = pipe_strata.get(cand)
                     if st_ is None:
                         continue
                     l2_, l3_ = st_
-                    if (state.get(2) and l2_ in state[2]
-                            and state.get(3) and l3_ in state[3]):
+                    if l2_ in lay2 and l3_ in lay3:
                         okd = True
                         break
                 if not okd:
@@ -1446,8 +1456,8 @@ def check(args):
                         "the last-bound 2/3 pair is (%s, %s)"
                         % (where, pay_, "/".join(sorted(pipes[0])),
                            *(pipe_strata.get(sorted(pipes[0])[0], ("?", "?"))),
-                           "/".join(sorted(state[2])) if state.get(2) else "-",
-                           "/".join(sorted(state[3])) if state.get(3) else "-"))
+                           "/".join(sorted(x or "?" for x in lay2)) or "-",
+                           "/".join(sorted(x or "?" for x in lay3)) or "-"))
             elif kind_ == "table_dt":
                 args_ = BL.split_args(pay_)
                 mask_ = args_[-1].strip() if args_ else ""
@@ -1458,7 +1468,7 @@ def check(args):
                     if mask_ and mask_ in maskexpr and thunk in fn_defs:
                         for params2, body2 in fn_defs[thunk]:
                             walk(body2, {}, state, pipes, depth + 1,
-                                 where + ">" + thunk, filt2)
+                                 where + ">" + thunk, filt2, path | {thunk})
             elif kind_ == "table_fd":
                 field_ = pay_
                 hints = [t2 for t2 in field_.split("_") if t2 not in
@@ -1468,9 +1478,11 @@ def check(args):
                             and nm2 != field_:
                         for params2, body2 in fn_defs[nm2]:
                             walk(body2, {}, state, pipes, depth + 1,
-                                 where + ">" + nm2)
+                                 where + ">" + nm2, filt, path | {nm2})
             elif kind_ == "call":
                 nm_, argstr = pay_
+                if nm_ in path:
+                    continue          # caller and helper share a name
                 if filt == "shadow" and "shadow" not in nm_:
                     continue
                 if filt == "noshadow" and "shadow" in nm_:
@@ -1488,7 +1500,7 @@ def check(args):
                             if r2:
                                 env2[pn_] = r2
                     walk(body2, env2, state, pipes, depth + 1,
-                         where + ">" + nm_, filt)
+                         where + ">" + nm_, filt, path | {nm_})
 
     pass_spans2 = []
     for pth_, text_ in all_files2:
@@ -1507,8 +1519,21 @@ def check(args):
                                text_, bm_.start(), span_end))
     for rel_, fname_, text_, bs_, be_ in pass_spans2:
         lo_ = BL.line_of(text_, bs_)
-        walk(text_[bs_:be_], {}, {2: None, 3: None}, [set()], 0,
-             "%s:%d(%s)" % (rel_.split("/")[-1], lo_, fname_))
+        visited_fns.add(fname_)
+        walk(text_[bs_:be_], {}, {0: None, 1: None, 2: None, 3: None},
+             [set()], 0, "%s:%d(%s)" % (rel_.split("/")[-1], lo_, fname_))
+    # COVERAGE, witnessed: every function whose body issues a draw or
+    # dispatch must be reached by some span walk — a green simulator
+    # with silently shrunk coverage is not a witness.
+    DRAWRX = re.compile(r"\.(?:Draw|DrawIndexed|DrawIndirect|"
+                        r"DrawIndexedIndirect|DispatchWorkgroups|"
+                        r"DispatchWorkgroupsIndirect)\s*\(")
+    unvisited = sorted(nm_ for nm_, defs_ in fn_defs.items()
+                       if nm_ not in visited_fns
+                       and any(DRAWRX.search(b_) for _, b_ in defs_))
+    if unvisited:
+        pseq_bad.append("COVERAGE: draw/dispatch-issuing function(s) never "
+                        "reached by any pass span: " + ", ".join(unvisited))
     ok = not pseq_bad and not pseq_unresolved and pseq_draws[0] > 0
     print("  [%s] P-seq %d pass spans simulated in encode order, %d "
           "draw/dispatch events checked against the last-bound 2/3 pair%s"
@@ -1516,6 +1541,74 @@ def check(args):
              "" if ok else " — " + "; ".join(sorted(set(pseq_bad + pseq_unresolved))[:12])))
     if not ok:
         problems.append("P-seq encode-order violation(s)")
+
+    # ─── P-scope(C) (U4/A8, L23'): the compute arm — PESSIMISTIC BY
+    #     LAW. Dawn scopes a compute dispatch over the FULL bound
+    #     groups: no visibility filter, no static-use filter (Jean's
+    #     boot log is the evidence). Per dispatch site, merge the
+    #     usages of every entry of every group bound at that site;
+    #     each buffer presents ONE writability. Plus the group-local
+    #     law: no bind group backs one buffer through entries of
+    #     mixed writability. NO relaxation of the pessimistic rule may
+    #     ever be committed on a citation — only on a witnessed Dawn
+    #     behavior test.
+    glocal_bad = []
+    for gm_, row_ in sorted(schema.GROUPS.items()):
+        by_b = {}
+        for i_, e_ in sorted(row_["entries"].items()):
+            cpp_ = schema.DECLS[e_["decl"]]["cpp"]
+            if not cpp_ or cpp_[0] != "buffer":
+                continue
+            by_b.setdefault(e_["backing"], []).append(
+                (cpp_[1] == "Storage", e_["decl"]))
+        for bk_, us_ in sorted(by_b.items()):
+            kinds_ = {w_ for w_, _ in us_}
+            if kinds_ == {True, False}:
+                glocal_bad.append("%s backs %s through mixed writability: %s"
+                                  % (gm_, bk_, "; ".join(
+                                      "%s(%s)" % (d_, "RW" if w_ else "RO")
+                                      for w_, d_ in us_)))
+    pscopec_bad = []
+    for where_, snap_ in dispatch_snaps:
+        by_b = {}
+        for i2, mems_ in sorted(snap_.items()):
+            for mem_ in sorted(mems_):
+                row_ = schema.GROUPS.get(mem_)
+                if row_ is None:
+                    continue
+                for i_, e_ in sorted(row_["entries"].items()):
+                    cpp_ = schema.DECLS[e_["decl"]]["cpp"]
+                    if not cpp_:
+                        continue
+                    if cpp_[0] == "buffer":
+                        w_ = cpp_[1] == "Storage"
+                    elif cpp_[0] == "storageTexture":
+                        w_ = not cpp_[1].startswith("ReadOnly")
+                    elif cpp_[0] == "texture":
+                        w_ = False
+                    else:
+                        continue
+                    by_b.setdefault(e_["backing"], []).append(
+                        (w_, mem_, e_["decl"]))
+        for bk_, us_ in sorted(by_b.items()):
+            if any(w_ for w_, _, _ in us_) and len(us_) > 1:
+                pscopec_bad.append("%s: %s — %s"
+                                   % (where_, bk_, "; ".join(
+                                       "%s in %s (%s)"
+                                       % ("RW" if w_ else "RO", m_, d_)
+                                       for w_, m_, d_ in us_)))
+    ok = not glocal_bad and not pscopec_bad and dispatch_snaps
+    print("  [%s] P-scope(C) %d dispatch sites snapshotted with full bound "
+          "groups; single-writability per buffer, pessimistic by law; "
+          "group-local: %d groups checked%s"
+          % ("PASS" if ok else "FAIL", len(dispatch_snaps),
+             len(schema.GROUPS),
+             "" if ok else " — " + " | ".join(
+                 sorted(set(glocal_bad))[:8] +
+                 sorted(set(pscopec_bad))[:24])))
+    if not ok:
+        problems.append("P-scope(C) compute-scope or group-local "
+                        "writability conflict(s)")
 
     # ─── S-6 (U2-FIX D1): commit integrity — the tree the witnesses
     #     saw is the tree that ships. Green only at the landing: the

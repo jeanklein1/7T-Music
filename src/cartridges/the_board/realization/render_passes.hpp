@@ -147,9 +147,8 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      compute.SetBindGroup(0, c->gpuState_.world_group());
-      compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { compute.SetBindGroup(0, c->gpuState_.world_group());
+      compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_entity_placement(
         compute, c->gpuState_.place_state_group(), c->gpuState_.place_textures_group()
     );
@@ -165,9 +164,8 @@ inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encode
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      compute.SetBindGroup(0, c->gpuState_.world_group());
-      compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { compute.SetBindGroup(0, c->gpuState_.world_group());
+      compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_live_card_write(
         compute, c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group()
     );
@@ -184,9 +182,8 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      compute.SetBindGroup(0, c->gpuState_.world_group());
-      compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { compute.SetBindGroup(0, c->gpuState_.world_group());
+      compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
 
     // The ribbon rings run FIRST and on their OWN group0 (the ribbon
     // compute group) — outside the pass-head contract below, which is
@@ -257,9 +254,8 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
         // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
         // FRAME carries the shadow-slot dynamic window; compute never moves it.
-        { const uint32_t kFrameSlot0 = 0;
-          compute.SetBindGroup(0, c->gpuState_.world_group());
-          compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+        { compute.SetBindGroup(0, c->gpuState_.world_group());
+          compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
         c->renderer_.dispatch_frustum_cull(
             compute, c->gpuState_.cull_state_group(), c->gpuState_.empty_group()
         );
@@ -340,7 +336,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
                 // distinguishes this light's draws from the last's, and
                 // LOOM_2 moved it into FRAME: one dynamic-offset bind per
                 // light is the whole per-light group traffic now.
-                pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &slotOffset);
+                pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &slotOffset);
 
                 const float vx = static_cast<float>(within * TILE_W);
                 pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
@@ -375,7 +371,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         // render_vp.light_vp; the window is never varied here.
         const uint32_t slotOffset = 0;
         pass.SetBindGroup(0, c->gpuState_.world_group());
-        pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &slotOffset);
+        pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &slotOffset);
         pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
         pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
 
@@ -540,7 +536,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // own slot) and is restored to the entity group after slot C, once,
     // for the table draws.
     pass.SetBindGroup(0, c->gpuState_.world_group());
-    pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kSlotZero);
+    pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kSlotZero);
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
 
     // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel

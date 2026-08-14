@@ -1451,9 +1451,8 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
         // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
         // FRAME carries the shadow-slot dynamic window; compute never moves it.
-        { const uint32_t kFrameSlot0 = 0;
-          compute.SetBindGroup(0, c->gpuState_.world_group());
-          compute.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+        { compute.SetBindGroup(0, c->gpuState_.world_group());
+          compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
         c->renderer_.dispatch_compute_photographer_vp(
             compute, c->gpuState_.photo_k_state_group(), c->gpuState_.photo_k_textures_group()
         );

@@ -122,13 +122,15 @@ namespace t7 {
             wgpu::BindGroupLayout emptyLayout_;
             wgpu::BindGroupLayout frameKStateLayout_;
             wgpu::BindGroupLayout frameKTexturesLayout_;
-            wgpu::BindGroupLayout frameLayout_;
+            wgpu::BindGroupLayout frameRLayout_;
+            wgpu::BindGroupLayout frameCLayout_;
             wgpu::BindGroupLayout galleryStateLayout_;
             wgpu::BindGroupLayout galleryTexturesLayout_;
             wgpu::BindGroupLayout photoKStateLayout_;
             wgpu::BindGroupLayout photoKTexturesLayout_;
             wgpu::BindGroupLayout meshgenStateLayout_;
-            wgpu::BindGroupLayout orbsStateLayout_;
+            wgpu::BindGroupLayout orbsAStateLayout_;
+            wgpu::BindGroupLayout orbsBStateLayout_;
             wgpu::BindGroupLayout patchgenStateLayout_;
             wgpu::BindGroupLayout patchgenTexturesLayout_;
             wgpu::BindGroupLayout placeStateLayout_;
@@ -316,13 +318,15 @@ namespace t7 {
                 emptyLayout_ = gpuState.empty_layout();
                 frameKStateLayout_ = gpuState.frame_k_state_layout();
                 frameKTexturesLayout_ = gpuState.frame_k_textures_layout();
-                frameLayout_ = gpuState.frame_layout();
+                frameRLayout_ = gpuState.frame_r_layout();
+                frameCLayout_ = gpuState.frame_c_layout();
                 galleryStateLayout_ = gpuState.gallery_state_layout();
                 galleryTexturesLayout_ = gpuState.gallery_textures_layout();
                 photoKStateLayout_ = gpuState.photo_k_state_layout();
                 photoKTexturesLayout_ = gpuState.photo_k_textures_layout();
                 meshgenStateLayout_ = gpuState.meshgen_state_layout();
-                orbsStateLayout_ = gpuState.orbs_state_layout();
+                orbsAStateLayout_ = gpuState.orbs_a_state_layout();
+                orbsBStateLayout_ = gpuState.orbs_b_state_layout();
                 patchgenStateLayout_ = gpuState.patchgen_state_layout();
                 patchgenTexturesLayout_ = gpuState.patchgen_textures_layout();
                 placeStateLayout_ = gpuState.place_state_layout();
@@ -1294,7 +1298,7 @@ namespace t7 {
 
             bool createComputePipelines() {
                 // Shared pipeline layout for all standard compute passes (Group 0 only)
-                wgpu::PipelineLayout computeLayout = strataLayoutFor(frameLayout_, frameKStateLayout_, frameKTexturesLayout_);
+                wgpu::PipelineLayout computeLayout = strataLayoutFor(frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);
                 if (!computeLayout) return false;
 
                 // Shared pipeline layout for compute pipelines that evaluate
@@ -1306,7 +1310,7 @@ namespace t7 {
                 // (POLICY_WALKER_AGENT — same texture binding for sample_pawn_aura).
                 // Created here (before any pipeline that needs it) so the kernel
                 // can reach it during behavior dispatch.
-                wgpu::PipelineLayout liveContribComputeLayout = strataLayoutFor(frameLayout_, frameKStateLayout_, frameKTexturesLayout_);
+                wgpu::PipelineLayout liveContribComputeLayout = strataLayoutFor(frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);
                 if (!liveContribComputeLayout) return false;
 
                 // THE ROOM (Option B, Batch F; FIELD_2 amendment): the two
@@ -1315,7 +1319,7 @@ namespace t7 {
                 // keeps the two-group layout untouched, so tenant-side
                 // binding growth (the occupier windows, the field pair)
                 // never widens its compile surface.
-                wgpu::PipelineLayout roomComputeLayout = strataLayoutFor(frameLayout_, agentsStateLayout_, agentsTexturesLayout_);
+                wgpu::PipelineLayout roomComputeLayout = strataLayoutFor(frameCLayout_, agentsStateLayout_, agentsTexturesLayout_);
                 if (!roomComputeLayout) return false;
 
                 // Pipeline: update_player_agent (0D, 1 thread — possessed slot only)
@@ -1367,7 +1371,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
                         pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
@@ -1375,7 +1379,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
                         pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
@@ -1383,7 +1387,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_cells (2D, on demand)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_cells", "Generate Patch Cells (2D, on demand)",
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
@@ -1391,7 +1395,7 @@ namespace t7 {
 
                 // Pipeline: compute_ribbon_rings (1D, per frame when ribbon active)
                 if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, ribbonStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, ribbonStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_ribbon_rings", "Compute Ribbon Rings (1D, per frame)",
                         pl, Entry::COMPUTE_RIBBON_RINGS, ribbonRingPipeline_)) return false;
@@ -1401,7 +1405,7 @@ namespace t7 {
                 // A7: the PHOTO_K strata — the photographer's compute working set,
                 // split from GALLERY so the render stratum stays read-only (L23).
                 if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, photoKStateLayout_, photoKTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, photoKStateLayout_, photoKTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_photographer_vp", "Compute Photographer VP (0D)",
                         pl, Entry::COMPUTE_PHOTOGRAPHER_VP, photographerVPPipeline_)) return false;
@@ -1413,7 +1417,7 @@ namespace t7 {
                     // cell-exact GoL fetch (GROUND_CARD_1 H5). Shared @group(1)
                     // declarations serve; unused group members are legal — the
                     // layout must cover the shader, not vice versa.
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, placeStateLayout_, placeTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, placeStateLayout_, placeTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_entity_placement", "Compute Entity Placement (0D)",
                         pl, Entry::COMPUTE_ENTITY_PLACEMENT, entityPlacementPipeline_)) return false;
@@ -1421,7 +1425,7 @@ namespace t7 {
 
                 // GPU frustum cull pipeline (dedicated layout)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, cullStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, cullStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("frustum_cull_patches", "Frustum Cull Patches",
                         pl, Entry::FRUSTUM_CULL_PATCHES, frustumCullPipeline_)) return false;
@@ -1429,7 +1433,7 @@ namespace t7 {
 
                 // Pawn aura compute pipeline (dedicated layout)
                 if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, auraStateLayout_, auraTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, auraStateLayout_, auraTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_pawn_aura", "Compute Pawn Aura (2D)",
                         pl, Entry::COMPUTE_PAWN_AURA, pawnAuraPipeline_)) return false;
@@ -1438,7 +1442,7 @@ namespace t7 {
                 // Live card writer pipelines (two-pass — TRUEBAND_CONTACT_1;
                 // the patch-gen dispatch-pair shape at card size)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("write_live_card_heights", "Live Card Heights (2D)",
                         pl, Entry::WRITE_LIVE_CARD_HEIGHTS, liveCardHeightsPipeline_)) return false;
@@ -1446,19 +1450,20 @@ namespace t7 {
                         pl, Entry::WRITE_LIVE_CARD_RESOLVE, liveCardResolvePipeline_)) return false;
                 }
 
-                // Orb compute pipelines (init + dynamics + recolor share the dedicated orb layout)
+                // Orb compute pipelines (init + dynamics + recolor share the A face set)
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, orbsStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, orbsAStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("orb_init", "Orb Init", pl, Entry::ORB_INIT, orbInitPipeline_)) return false;
                     if (!makeComputePipeline("orb_dynamics", "Orb Dynamics", pl, Entry::ORB_DYNAMICS, orbDynamicsPipeline_)) return false;
                     if (!makeComputePipeline("orb_recolor", "Orb Recolor", pl, Entry::ORB_RECOLOR, orbRecolorPipeline_)) return false;
                 }
 
-                // Orb copy-prev pipeline (Pass 9) — dedicated layout because
-                // it flips the access modes on orb_state / orb_state_prev.
+                // Orb copy-prev pipeline (Pass 9) — the B face set: it flips the
+                // access modes on orb_state / orb_state_prev (A8b restores the
+                // partition the recut collapsed).
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, orbsStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, orbsBStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("orb_state_prev_copy", "Orb State Prev Copy",
                         pl, Entry::ORB_STATE_PREV_COPY, orbCopyPrevPipeline_)) return false;
@@ -1466,7 +1471,7 @@ namespace t7 {
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_gol_sync", "GoL Zone Sync", pl, Entry::ZONE_GOL_SYNC, zoneGolSyncPipeline_)) return false;
                     if (!makeComputePipeline("zone_gol_evolve", "GoL Zone Evolve", pl, Entry::ZONE_GOL_EVOLVE, zoneGolEvolvePipeline_)) return false;
@@ -1474,14 +1479,14 @@ namespace t7 {
 
                 // Zone derive pipeline (shared GoL layout)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_derive_params", "Zone Derive Params", pl, Entry::ZONE_DERIVE_PARAMS, zoneDeriveParamsPipeline_)) return false;
                 }
 
                 // Zone mask pipeline (dedicated layout — UNIFIED_GROUND_1 U5)
                 if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, zonesStateLayout_, zonesTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_seed_mask", "Zone Seed Mask (2D)",
                         pl, Entry::ZONE_SEED_MASK, zoneSeedMaskPipeline_)) return false;
@@ -1492,35 +1497,35 @@ namespace t7 {
                 // pyramid mesh-gen pipeline CUT — mesh never drawn.
 
                 if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);   // bindings 193-195
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, meshgenStateLayout_, emptyLayout_);   // bindings 193-195
                     if (!pl) return false;
                     if (!makeComputePipeline("arch_mesh_gen", "Arch Mesh Gen",
                         pl, Entry::ARCH_MESH_GEN, archMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);  // bindings 196-198
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, meshgenStateLayout_, emptyLayout_);  // bindings 196-198
                     if (!pl) return false;
                     if (!makeComputePipeline("column_mesh_gen", "Column Mesh Gen",
                         pl, Entry::COLUMN_MESH_GEN, columnMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, meshgenStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("palm_mesh_gen", "Palm Mesh Gen",
                         pl, Entry::PALM_MESH_GEN, palmMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, meshgenStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("cactus_mesh_gen", "Cactus Mesh Gen",
                         pl, Entry::CACTUS_MESH_GEN, cactusMeshGenPipeline_)) return false;
                 }
 
                 if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor(frameLayout_, meshgenStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor(frameCLayout_, meshgenStateLayout_, emptyLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("blade_cluster_mesh_gen", "Blade Mesh Gen",
                         pl, Entry::BLADE_MESH_GEN, bladeMeshGenPipeline_)) return false;
@@ -1531,11 +1536,11 @@ namespace t7 {
 
             bool createRenderPipelines() {
                 // Shadow pipeline layout (entity + textures WITHOUT shadow map)
-                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor(frameLayout_, shadowStateLayout_, shadowTexturesLayout_);
+                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor(frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
                 if (!shadowRenderLayout) return false;
 
                 // Main render pipeline layout (entity + textures WITH shadow map)
-                wgpu::PipelineLayout renderLayout = strataLayoutFor(frameLayout_, sceneStateLayout_, sceneTexturesLayout_);
+                wgpu::PipelineLayout renderLayout = strataLayoutFor(frameRLayout_, sceneStateLayout_, sceneTexturesLayout_);
                 if (!renderLayout) return false;
 
                 // Shared depth stencil state
@@ -1903,7 +1908,7 @@ namespace t7 {
                 // Dedicated pipeline layout (galleryEntity + galleryTexture).
                 {
                     wgpu::PipelineLayoutDescriptor pld{};
-                    wgpu::PipelineLayout galleryLayout = strataLayoutFor(frameLayout_, galleryStateLayout_, galleryTexturesLayout_);
+                    wgpu::PipelineLayout galleryLayout = strataLayoutFor(frameRLayout_, galleryStateLayout_, galleryTexturesLayout_);
 
                     wgpu::ColorTargetState colorTarget{};
                     colorTarget.format = colorFormat_;
@@ -1954,7 +1959,7 @@ namespace t7 {
                 // Uses same bind group layouts as gallery frames (galleryEntity + galleryTexture)
                 {
                     wgpu::PipelineLayoutDescriptor pld{};
-                    wgpu::PipelineLayout wpLayout = strataLayoutFor(frameLayout_, galleryStateLayout_, galleryTexturesLayout_);
+                    wgpu::PipelineLayout wpLayout = strataLayoutFor(frameRLayout_, galleryStateLayout_, galleryTexturesLayout_);
 
                     wgpu::ColorTargetState colorTarget{};
                     colorTarget.format = colorFormat_;
@@ -2445,7 +2450,7 @@ namespace t7 {
                     // painting slots and array still come from the gallery
                     // texture layout. The COLOUR gallery pipelines keep the
                     // gallery entity layout; only the shadow pair moves.
-                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor(frameLayout_, shadowStateLayout_, shadowTexturesLayout_);
+                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor(frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
                     if (!galleryShadowLayout) return false;
 
                     if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",

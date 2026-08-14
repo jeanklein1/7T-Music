@@ -748,11 +748,10 @@ inline void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& 
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_init(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
+    c->renderer_.dispatch_orb_init(pass, c->gpuState_.orbs_a_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 
     std::cout << "[Orbs] Init dispatched: " << os.count
@@ -771,11 +770,10 @@ inline void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncode
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_recolor(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
+    c->renderer_.dispatch_orb_recolor(pass, c->gpuState_.orbs_a_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 }
 
@@ -788,11 +786,10 @@ inline void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEnco
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_copy_prev(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
+    c->renderer_.dispatch_orb_copy_prev(pass, c->gpuState_.orbs_b_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 }
 
@@ -809,11 +806,10 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     // FRAME carries the shadow-slot dynamic window; compute never moves it.
-    { const uint32_t kFrameSlot0 = 0;
-      pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_group(), 1, &kFrameSlot0); }
+    { pass.SetBindGroup(0, c->gpuState_.world_group());
+      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
-    c->renderer_.dispatch_orb_dynamics(pass, c->gpuState_.orbs_state_group(), c->gpuState_.empty_group(), wgs);
+    c->renderer_.dispatch_orb_dynamics(pass, c->gpuState_.orbs_a_state_group(), c->gpuState_.empty_group(), wgs);
     pass.End();
 }
 

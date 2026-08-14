@@ -2000,7 +2000,8 @@ namespace t7 {
             // ── LOOM_2 recut strata — layouts and groups (created in
             // binding_surface.gen.inc; declared here) ──
             wgpu::BindGroupLayout worldLayout_;
-            wgpu::BindGroupLayout frameLayout_;
+            wgpu::BindGroupLayout frameRLayout_;
+            wgpu::BindGroupLayout frameCLayout_;
             wgpu::BindGroupLayout agentsStateLayout_;
             wgpu::BindGroupLayout agentsTexturesLayout_;
             wgpu::BindGroupLayout auraStateLayout_;
@@ -2013,7 +2014,8 @@ namespace t7 {
             wgpu::BindGroupLayout photoKStateLayout_;
             wgpu::BindGroupLayout photoKTexturesLayout_;
             wgpu::BindGroupLayout meshgenStateLayout_;
-            wgpu::BindGroupLayout orbsStateLayout_;
+            wgpu::BindGroupLayout orbsAStateLayout_;
+            wgpu::BindGroupLayout orbsBStateLayout_;
             wgpu::BindGroupLayout patchgenStateLayout_;
             wgpu::BindGroupLayout patchgenTexturesLayout_;
             wgpu::BindGroupLayout placeStateLayout_;
@@ -2027,7 +2029,8 @@ namespace t7 {
             wgpu::BindGroupLayout zonesTexturesLayout_;
             wgpu::BindGroupLayout emptyLayout_;
             wgpu::BindGroup worldGroup_;
-            wgpu::BindGroup frameGroup_;
+            wgpu::BindGroup frameRGroup_;
+            wgpu::BindGroup frameCGroup_;
             wgpu::BindGroup framePhotographerGroup_;
             wgpu::BindGroup agentsStateGroup_;
             wgpu::BindGroup agentsTexturesGroup_;
@@ -2045,7 +2048,8 @@ namespace t7 {
             wgpu::BindGroup meshgenStatePalmGroup_;
             wgpu::BindGroup meshgenStateCactusGroup_;
             wgpu::BindGroup meshgenStateBladeGroup_;
-            wgpu::BindGroup orbsStateGroup_;
+            wgpu::BindGroup orbsAStateGroup_;
+            wgpu::BindGroup orbsBStateGroup_;
             wgpu::BindGroup patchgenStateGroup_;
             wgpu::BindGroup patchgenTexturesGroup_;
             wgpu::BindGroup placeStateGroup_;
@@ -2444,7 +2448,8 @@ namespace t7 {
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
             // ── LOOM_2 recut strata accessors ──
             wgpu::BindGroupLayout world_layout() const { return worldLayout_; }
-            wgpu::BindGroupLayout frame_layout() const { return frameLayout_; }
+            wgpu::BindGroupLayout frame_r_layout() const { return frameRLayout_; }
+            wgpu::BindGroupLayout frame_c_layout() const { return frameCLayout_; }
             wgpu::BindGroupLayout agents_state_layout() const { return agentsStateLayout_; }
             wgpu::BindGroupLayout agents_textures_layout() const { return agentsTexturesLayout_; }
             wgpu::BindGroupLayout aura_state_layout() const { return auraStateLayout_; }
@@ -2457,7 +2462,8 @@ namespace t7 {
             wgpu::BindGroupLayout photo_k_state_layout() const { return photoKStateLayout_; }
             wgpu::BindGroupLayout photo_k_textures_layout() const { return photoKTexturesLayout_; }
             wgpu::BindGroupLayout meshgen_state_layout() const { return meshgenStateLayout_; }
-            wgpu::BindGroupLayout orbs_state_layout() const { return orbsStateLayout_; }
+            wgpu::BindGroupLayout orbs_a_state_layout() const { return orbsAStateLayout_; }
+            wgpu::BindGroupLayout orbs_b_state_layout() const { return orbsBStateLayout_; }
             wgpu::BindGroupLayout patchgen_state_layout() const { return patchgenStateLayout_; }
             wgpu::BindGroupLayout patchgen_textures_layout() const { return patchgenTexturesLayout_; }
             wgpu::BindGroupLayout place_state_layout() const { return placeStateLayout_; }
@@ -2471,7 +2477,8 @@ namespace t7 {
             wgpu::BindGroupLayout zones_textures_layout() const { return zonesTexturesLayout_; }
             wgpu::BindGroupLayout empty_layout() const { return emptyLayout_; }
             wgpu::BindGroup world_group() const { return worldGroup_; }
-            wgpu::BindGroup frame_group() const { return frameGroup_; }
+            wgpu::BindGroup frame_r_group() const { return frameRGroup_; }
+            wgpu::BindGroup frame_c_group() const { return frameCGroup_; }
             wgpu::BindGroup frame_photographer_group() const { return framePhotographerGroup_; }
             wgpu::BindGroup agents_state_group() const { return agentsStateGroup_; }
             wgpu::BindGroup agents_textures_group() const { return agentsTexturesGroup_; }
@@ -2489,7 +2496,8 @@ namespace t7 {
             wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }
             wgpu::BindGroup meshgen_state_cactus_group() const { return meshgenStateCactusGroup_; }
             wgpu::BindGroup meshgen_state_blade_group() const { return meshgenStateBladeGroup_; }
-            wgpu::BindGroup orbs_state_group() const { return orbsStateGroup_; }
+            wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
+            wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
             wgpu::BindGroup patchgen_textures_group() const { return patchgenTexturesGroup_; }
             wgpu::BindGroup place_state_group() const { return placeStateGroup_; }

@@ -187,11 +187,14 @@ namespace t7 {
             // mirror, both directions, at every recon gate.
             // ──────────────────────────────────────────────────────────────
             // ──────────────────────────────────────────────────────────────
-            // L23 — THE RENDER STRATUM LAW (A7). A render pass merges every
-            // entry of every bound group into ONE usage scope; visibility does
-            // not filter it. So render-bound strata carry no writable buffer
-            // seats — the render stratum is read-only. Writers live in
-            // compute-only strata (FRAME_K, PHOTO_K). Witness: P-scope.
+            // L23-PRIME — THE SCOPE LAW (A8, superseding A7 L23). Within one
+            // synchronization scope — a render pass WHOLE, a compute dispatch
+            // over its FULL bound groups; no visibility filter, no static-use
+            // filter — a buffer presents ONE writability. Mixed-writability
+            // faces of one buffer never share a layout and are never co-bound
+            // in one scope. Witnesses: P-scope render arm + compute arm +
+            // the group-local law. Pessimism is the law: no relaxation on a
+            // citation — only on a witnessed Dawn behavior test.
             // ──────────────────────────────────────────────────────────────
 
         } // namespace bind

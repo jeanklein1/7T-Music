@@ -40,20 +40,19 @@
                     if (!worldLayout_) return false;
                 }
 
-                // Frame Layout — stratum 1 (per-frame camera/light state) of the LOOM_2 recut.
+                // Frame R Layout — stratum 1, RENDER consumers (A8a split by mode).
+                // L23-prime: one synchronization scope sees one writability per buffer;
+                // the compute face (signal-only FRAME_C) never carries the render ro
+                // windows, so compute dispatches never co-bind them against rw homes.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
-
-                    entries[0].binding = bind::g1::signal;  // signal (uniform — band blends, t_seconds)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     // WALLET_1revA: the light trio became one uniform block.
                     // Three F-stage storage seats freed across the whole
                     // entity family. TWIN: Lighting / GPULighting, 848 B.
-                    entries[1].binding = bind::g1::render_lighting;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[0].binding = bind::g1::render_lighting;
+                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX.
                     // The ONE dynamic-offset binding in the program. Each spot
@@ -64,37 +63,63 @@
                     // Every OTHER bind of this group passes offset 0 — a
                     // dynamic-offset layout requires the offset at every set,
                     // and a missed site fails loudly at validation.
-                    entries[2].binding = bind::g1::shadow_slot;
-                    entries[2].visibility = wgpu::ShaderStage::Vertex;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-                    entries[2].buffer.hasDynamicOffset = true;
-                    entries[2].buffer.minBindingSize = SHADOW_SLOT_SIZE;
+                    entries[1].binding = bind::g1::shadow_slot;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[1].buffer.hasDynamicOffset = true;
+                    entries[1].buffer.minBindingSize = SHADOW_SLOT_SIZE;
 
-                    entries[3].binding = bind::g1::render_vp;
+                    entries[2].binding = bind::g1::render_vp;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[3].binding = bind::g1::render_camera;
                     entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[4].binding = bind::g1::render_camera;
-                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
                     // now rides the card for its ground term (H4 [4c]); this pipeline
                     // family binds gallery groups, so the pair lives here too.
-                    entries[5].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
-                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute;
-                    entries[5].sampler.type = wgpu::SamplerBindingType::Filtering;
+                    entries[4].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
+                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[4].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[6].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
-                    entries[6].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute;
-                    entries[6].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+                    entries[5].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
+                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[5].sampler.type = wgpu::SamplerBindingType::NonFiltering;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Frame Layout";
+                    desc.label = "Frame R Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    frameLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!frameLayout_) return false;
+                    frameRLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!frameRLayout_) return false;
+                }
+
+                // Frame C Layout — stratum 1, COMPUTE consumers (A8a split by mode).
+                // signal + the two samplers; no dynamic seat, so compute pass heads
+                // bind with NO offset argument.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+
+                    entries[0].binding = bind::g1::signal;  // signal (uniform — band blends, t_seconds)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[1].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    entries[2].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Frame C Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frameCLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!frameCLayout_) return false;
                 }
 
                 // Agents State Layout — stratum 2 (Agents family) of the LOOM_2 recut.
@@ -493,9 +518,11 @@
                     if (!meshgenStateLayout_) return false;
                 }
 
-                // Orbs State Layout — stratum 2 (Orbs family) of the LOOM_2 recut.
+                // Orbs A State Layout — stratum 2, ORBS_A face set (A8b): orb_state rw,
+                // orb_config, orb_state_prev ro — init / dynamics / recolor. One buffer,
+                // one writability per scope (L23-prime); the faces partition disjointly.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::orb_state;  // orb_state (storage, read_write)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -509,20 +536,37 @@
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[3].binding = bind::g2::orb_state_ro;  // orb_state_ro (storage, read-only)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[4].binding = bind::g2::orb_state_prev_rw;  // orb_state_prev_rw (storage, read_write)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Orbs State Layout";
+                    desc.label = "Orbs A State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    orbsStateLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!orbsStateLayout_) return false;
+                    orbsAStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!orbsAStateLayout_) return false;
+                }
+
+                // Orbs B State Layout — stratum 2, ORBS_B face set (A8b): orb_state_ro,
+                // orb_config, orb_state_prev_rw — the prev-copy kernel.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+
+                    entries[0].binding = bind::g2::orb_state_ro;  // orb_state_ro (storage, read-only)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[1].binding = bind::g2::orb_config;  // orb_config (uniform)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = bind::g2::orb_state_prev_rw;  // orb_state_prev_rw (storage, read_write)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Orbs B State Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbsBStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!orbsBStateLayout_) return false;
                 }
 
                 // Patchgen State Layout — stratum 2 (Patchgen family) of the LOOM_2 recut.
@@ -950,83 +994,100 @@
                     if (!worldGroup_) return false;
                 }
 
-                // Projected from: galleryTextureBindGroup_, computeEntityBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, shadowTextureBindGroup_, renderTextureBindGroup_, computeTextureBindGroup_, galleryEntityBindGroup_, liveCardWriterGroup_.
+                // A8a: the render face of the old Frame BindGroup — same backings,
+                // same numbers; signal stays with the compute face.
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
+
+                    entries[0].binding = bind::g1::render_lighting;
+                    entries[0].buffer = lightingBuffer_;
+                    entries[0].size = sizeof(GPULighting);
+
+                    entries[1].binding = bind::g1::shadow_slot;
+                    entries[1].buffer = lightSlotBuffer_;
+                    entries[1].offset = 0;
+                    entries[1].size = SHADOW_SLOT_SIZE;
+
+                    entries[2].binding = bind::g1::render_vp;
+                    entries[2].buffer = vpBuffer_;
+                    entries[2].size = sizeof(GPUVPMatrix);
+
+                    entries[3].binding = bind::g1::render_camera;
+                    entries[3].buffer = cameraBuffer_;
+                    entries[3].size = sizeof(GPUCameraState);
+
+                    entries[4].binding = bind::g1::bilinear_sampler;
+                    entries[4].sampler = bilinearSampler_;
+
+                    entries[5].binding = bind::g1::nearest_sampler;
+                    entries[5].sampler = nearestSampler_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Frame R BindGroup";
+                    desc.layout = frameRLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frameRGroup_ = device_.CreateBindGroup(&desc);
+                    if (!frameRGroup_) return false;
+                }
+
+                // A8a: the compute face — signal + samplers only. No ro camera/vp
+                // windows here, so no compute dispatch ever scopes them against their
+                // rw homes (L23-prime); no dynamic seat, no offset argument.
+                {
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g1::signal;
                     entries[0].buffer = signalBuffer_;
                     entries[0].size = sizeof(GPUFrameSignal);
 
-                    entries[1].binding = bind::g1::render_lighting;
-                    entries[1].buffer = lightingBuffer_;
-                    entries[1].size = sizeof(GPULighting);
+                    entries[1].binding = bind::g1::bilinear_sampler;
+                    entries[1].sampler = bilinearSampler_;
 
-                    entries[2].binding = bind::g1::shadow_slot;
-                    entries[2].buffer = lightSlotBuffer_;
-                    entries[2].offset = 0;
-                    entries[2].size = SHADOW_SLOT_SIZE;
-
-                    entries[3].binding = bind::g1::render_vp;
-                    entries[3].buffer = vpBuffer_;
-                    entries[3].size = sizeof(GPUVPMatrix);
-
-                    entries[4].binding = bind::g1::render_camera;
-                    entries[4].buffer = cameraBuffer_;
-                    entries[4].size = sizeof(GPUCameraState);
-
-                    entries[5].binding = bind::g1::bilinear_sampler;
-                    entries[5].sampler = bilinearSampler_;
-
-                    entries[6].binding = bind::g1::nearest_sampler;
-                    entries[6].sampler = nearestSampler_;
+                    entries[2].binding = bind::g1::nearest_sampler;
+                    entries[2].sampler = nearestSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Frame BindGroup";
-                    desc.layout = frameLayout_;
+                    desc.label = "Frame C BindGroup";
+                    desc.layout = frameCLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    frameGroup_ = device_.CreateBindGroup(&desc);
-                    if (!frameGroup_) return false;
+                    frameCGroup_ = device_.CreateBindGroup(&desc);
+                    if (!frameCGroup_) return false;
                 }
 
                 // Projected from: galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
+
+                    entries[0].binding = bind::g1::render_lighting;
+                    entries[0].buffer = lightingBuffer_;
+                    entries[0].size = sizeof(GPULighting);
+
+                    entries[1].binding = bind::g1::shadow_slot;
+                    entries[1].buffer = lightSlotBuffer_;
+                    entries[1].offset = 0;
+                    entries[1].size = SHADOW_SLOT_SIZE;
+
+                    entries[2].binding = bind::g1::render_vp;
+                    entries[2].buffer = photographerVPBuffer_;
+                    entries[2].size = sizeof(GPUVPMatrix);
+
+                    entries[3].binding = bind::g1::render_camera;
+                    entries[3].buffer = photographerCameraBuffer_;
+                    entries[3].size = sizeof(GPUCameraState);
 
                     // Shared backing, completed from the primary variant.
-                    entries[0].binding = bind::g1::signal;
-                    entries[0].buffer = signalBuffer_;
-                    entries[0].size = sizeof(GPUFrameSignal);
-
-                    entries[1].binding = bind::g1::render_lighting;
-                    entries[1].buffer = lightingBuffer_;
-                    entries[1].size = sizeof(GPULighting);
-
-                    entries[2].binding = bind::g1::shadow_slot;
-                    entries[2].buffer = lightSlotBuffer_;
-                    entries[2].offset = 0;
-                    entries[2].size = SHADOW_SLOT_SIZE;
-
-                    entries[3].binding = bind::g1::render_vp;
-                    entries[3].buffer = photographerVPBuffer_;
-                    entries[3].size = sizeof(GPUVPMatrix);
-
-                    entries[4].binding = bind::g1::render_camera;
-                    entries[4].buffer = photographerCameraBuffer_;
-                    entries[4].size = sizeof(GPUCameraState);
+                    entries[4].binding = bind::g1::bilinear_sampler;
+                    entries[4].sampler = bilinearSampler_;
 
                     // Shared backing, completed from the primary variant.
-                    entries[5].binding = bind::g1::bilinear_sampler;
-                    entries[5].sampler = bilinearSampler_;
-
-                    // Shared backing, completed from the primary variant.
-                    entries[6].binding = bind::g1::nearest_sampler;
-                    entries[6].sampler = nearestSampler_;
+                    entries[5].binding = bind::g1::nearest_sampler;
+                    entries[5].sampler = nearestSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame BindGroup (Photographer)";
-                    desc.layout = frameLayout_;
+                    desc.layout = frameRLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
                     framePhotographerGroup_ = device_.CreateBindGroup(&desc);
@@ -1504,9 +1565,10 @@
                     if (!meshgenStateBladeGroup_) return false;
                 }
 
-                // Projected from: orbComputeGroup_, orbCopyGroup_.
+                // A8b: the A face set — orb_state rw / config / prev ro. Faces of one
+                // buffer never share a group (L23-prime, group-local law).
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::orb_state;
                     entries[0].buffer = orbStateBuffer_;
@@ -1520,21 +1582,39 @@
                     entries[2].buffer = orbStatePrevBuffer_;
                     entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    entries[3].binding = bind::g2::orb_state_ro;
-                    entries[3].buffer = orbStateBuffer_;
-                    entries[3].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
-
-                    entries[4].binding = bind::g2::orb_state_prev_rw;
-                    entries[4].buffer = orbStatePrevBuffer_;
-                    entries[4].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
-
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Orbs State BindGroup";
-                    desc.layout = orbsStateLayout_;
+                    desc.label = "Orbs A State BindGroup";
+                    desc.layout = orbsAStateLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    orbsStateGroup_ = device_.CreateBindGroup(&desc);
-                    if (!orbsStateGroup_) return false;
+                    orbsAStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!orbsAStateGroup_) return false;
+                }
+
+                // A8b: the B face set — orb_state ro / config / prev rw, for the
+                // prev-copy kernel.
+                {
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
+
+                    entries[0].binding = bind::g2::orb_state_ro;
+                    entries[0].buffer = orbStateBuffer_;
+                    entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[1].binding = bind::g2::orb_config;
+                    entries[1].buffer = orbConfigBuffer_;
+                    entries[1].size = sizeof(GPUOrbConfig);
+
+                    entries[2].binding = bind::g2::orb_state_prev_rw;
+                    entries[2].buffer = orbStatePrevBuffer_;
+                    entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Orbs B State BindGroup";
+                    desc.layout = orbsBStateLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbsBStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!orbsBStateGroup_) return false;
                 }
 
                 // Projected from: patchGenBindGroup_.
