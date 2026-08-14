@@ -1297,21 +1297,11 @@ namespace t7 {
             }
 
             bool createComputePipelines() {
-                // Shared pipeline layout for all standard compute passes (Group 0 only)
-                wgpu::PipelineLayout computeLayout = strataLayoutFor(frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);
-                if (!computeLayout) return false;
-
-                // Shared pipeline layout for compute pipelines that evaluate
-                // query_ground_flyer / query_ground_walker. Group 0 is the
-                // same compute-entity layout; Group 1 adds the aura texture +
-                // sampler needed by sample_pawn_aura on the compute path.
-                // Used by update_sphere, update_cube (POLICY_FLYER),
-                // update_player_agent (POLICY_WALKER), and update_other_agents
-                // (POLICY_WALKER_AGENT — same texture binding for sample_pawn_aura).
-                // Created here (before any pipeline that needs it) so the kernel
-                // can reach it during behavior dispatch.
-                wgpu::PipelineLayout liveContribComputeLayout = strataLayoutFor(frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);
-                if (!liveContribComputeLayout) return false;
+                // The FRAME_K pipeline layout: WORLD + FRAME_C + the frame-k
+                // pair. Serves update_camera and compute_vp — the two kernels
+                // that write the frame's vp/camera state.
+                wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor(frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);
+                if (!frameKComputeLayout) return false;
 
                 // THE ROOM (Option B, Batch F; FIELD_2 amendment): the two
                 // agent kernels AND the two floater kernels carry group 2
@@ -1345,7 +1335,7 @@ namespace t7 {
                 // Live-contributor layout — the camera clamp uses a walker-style
                 // policy that reads the aura texture (sample_pawn_aura).
                 if (!makeComputePipeline("update_camera", "Update Camera (0D)",
-                    liveContribComputeLayout, Entry::UPDATE_CAMERA, updateCameraPipeline_)) return false;
+                    frameKComputeLayout, Entry::UPDATE_CAMERA, updateCameraPipeline_)) return false;
 
                 // Pipeline: update_sphere (0D)
                 // Room layout (FIELD_2 tenancy) — coupling_terrain_to_sphere_orbit_height
@@ -1367,7 +1357,7 @@ namespace t7 {
 
                 // Pipeline: compute_vp (0D)
                 if (!makeComputePipeline("compute_vp", "Compute VP Matrix (0D)",
-                    computeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
+                    frameKComputeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
 
                 // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {

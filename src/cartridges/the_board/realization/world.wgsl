@@ -6283,6 +6283,7 @@ fn shadow_light_vp() -> mat4x4<f32> {
 // Separate pipeline layout. Dispatched per-patch when a new patch enters
 // the active set. Writes to one layer of the patch heightfield array.
 @group(2) @binding(40) var<uniform> patch_params: PatchParams;
+// .a = the terrain's reserve field — 28.125 MiB pre-paid, nine consumers wired, write nothing until a campaign names it (LOOM ruling).
 @group(3) @binding(40) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(1) var<uniform> tile_grid: TileGrid;
 @group(3) @binding(41) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
