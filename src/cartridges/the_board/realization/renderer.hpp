@@ -2492,7 +2492,8 @@ namespace t7 {
                     // painting slots and array still come from the gallery
                     // texture layout. The COLOUR gallery pipelines keep the
                     // gallery entity layout; only the shadow pair moves.
-                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor(frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
+                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor(frameRLayout_, shadowStateLayout_, shadowTexturesLayout_,
+                        sizeof(uint32_t));   // A10 (M-2's catch): these two shadow VSes read the shadow_slot immediate too — B6 set the size on shadowRenderLayout and missed this sibling layout
                     if (!galleryShadowLayout) return false;
 
                     if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",

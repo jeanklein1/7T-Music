@@ -11,7 +11,7 @@ Last commit touching any scanned file: `f8defbda201ba9acc3e45d065fc37d733760c007
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:01fc00eeb175129e766c82ffd34ce668d3d9f7e6d582abf4fdaab036a3caff03` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:15690124549f64924f7aabd2d406e73c7a8c1b662d942110a845aa64c0615cb1` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:65e33bf3197de5ce03ce8b28df4657252470c3d91d75a9a3e510fc11bfe679b0` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:7f93b986848a544da14af314abab303b41f5fccb89fff3e8f244f7dd0f6e004a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:14c76b751a27ddb4a4177a9b6426e016216d4891f4ae8d7f3a5f9c16c613efac` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:1564f21315f220c73d362ce0b517936f991e3c749e9c55c71452e60fdc65a486` |

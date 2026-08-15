@@ -12,8 +12,10 @@ proposing.
 ## Lane table — one row per (pipeline, stage)
 
 Each cell reads `used / free` against the per-stage Core limit in
-the header. The immediates lane is a byte budget — it reads 0
-everywhere today; it exists so the lane is visible.
+the header. The immediates lane is a byte budget, per pipeline
+layout rather than per stage — the schema's `immediate_size` fact
+(DOMESDAY_2 A10), captured from the pipeline-layout creation
+sites and cross-checked against the WGSL by witness M-2.
 
 | pipeline | member | stage | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 | immediates(bytes) /64 |
 |---|---|---|---|---|---|---|---|---|
@@ -78,19 +80,19 @@ everywhere today; it exists so the lane is visible.
 | Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 5 / 7 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | V | 4 / 8 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | F | 5 / 7 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
 | Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 | Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 
@@ -103,7 +105,7 @@ everywhere today; it exists so the lane is visible.
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
 | storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |
-| immediates(bytes) | 0 / 64 | 64 | (unused everywhere) |
+| immediates(bytes) | 4 / 64 | 60 | `shadowPatchTerrainPipeline_` V (+12 more) |
 
 ## Table A's shape, with the channel column
 
