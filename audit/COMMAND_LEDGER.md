@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `1356750d1ecad5cfeebc279e5b37f63dff03dfdc`
-(DOMESDAY_0 A3: one probe row — maxImmediateSize, granted vs 0 floor)
+Last commit touching any scanned file: `c4c537e8ee9e070bb4c0109216ae7cbbda493957`
+(DOMESDAY_0 B3: visible_patch_indices becomes an instance attribute)
 
 | file scanned | sha256 |
 |---|---|

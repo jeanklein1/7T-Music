@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `6ceec64d271bf365c45c1c4a278629d6753e7078` |
-| | DOMESDAY_0 B2: demote render_camera to uniform — same species as B1 |
+| source commit | `c4c537e8ee9e070bb4c0109216ae7cbbda493957` |
+| | DOMESDAY_0 B3: visible_patch_indices becomes an instance attribute |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:01d6dd18fd8b6eba19bc3c4ac2dc1c42716d3fd291c7e8582206306896b98d9d` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:a58dfd19ca006c345a13298393699c19969443f51e9a08c9dc83a84d7d14eaf8` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:8ddc851e6273b73e7da8059472a4e76e9d8601f77a474368fe2bba591640b4f2` |
