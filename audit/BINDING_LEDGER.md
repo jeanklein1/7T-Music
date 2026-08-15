@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `0c8b92336722e815b36c637f818c00d016c8d5d7` |
-| | DOMESDAY_1 B5: collapse the byte-identical scene groups (R2) |
+| source commit | `f8defbda201ba9acc3e45d065fc37d733760c007` |
+| | DOMESDAY_1 B6: shadow_slot becomes immediate data (R3) — first coin in the lane |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:d4a528ad73a3dc2f8dca679011fbce84fb133aa7a55f9ee7276f217e89981660` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:334deeefb9e46e123cc89fb63890b39fe7e72bef0e9ca85fbe86d9c978ae557a` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:af9e453778e6ee6f7d76f26c2581b75d8fd67fe44aacf894297569e983cb4340` |

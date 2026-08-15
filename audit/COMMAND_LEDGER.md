@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `051c37eec81e61009efee849b7fbca63fa2588eb`
-(DOMESDAY_1 B9: the parameter surface — ?seed= ?mood= ?cap= (LANTERN's deferred U2))
+Last commit touching any scanned file: `f8defbda201ba9acc3e45d065fc37d733760c007`
+(DOMESDAY_1 B6: shadow_slot becomes immediate data (R3) — first coin in the lane)
 
 | file scanned | sha256 |
 |---|---|
