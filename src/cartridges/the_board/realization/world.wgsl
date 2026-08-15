@@ -6251,7 +6251,9 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // and the sun VP's only writer is compute_vp — on the GPU, every
 // frame; a CPU-pushed matrix would give it two owners at two
 // cadences. An index has no owners and no cadence. Its failure mode
-// is a validation error, not a wrong pixel.
+// is a validation error, not a wrong pixel. Requires the device
+// feature immediate-address-space, requested-if-offered at boot
+// (F2-a, console.hpp — the request site is this fact's home).
 var<immediate> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
