@@ -1485,8 +1485,10 @@ def classify_expr(expr, env, bindings, consts, overrides, uniforms, params=()):
 
     # An index that is itself a load from another binding is an
     # INDIRECTION, whatever it is indexed by. This test comes first
-    # because `visible_patch_indices[patch_id]` is sequential in
-    # patch_id and still makes its consumer random-access.
+    # because an index like the pre-B3 `visible_patch_indices[patch_id]`
+    # is sequential in patch_id and still makes its consumer
+    # random-access (the rule outlives that example — DOMESDAY_0 B3
+    # migrated it to a vertex attribute).
     for m in re.finditer(r"(?<![\w.])([A-Za-z_]\w*)\s*\[", e):
         if m.group(1) in bindings:
             return IdxClass("indirected", m.group(1))
@@ -1540,6 +1542,16 @@ def taint_env(fn, bindings, consts, overrides, uniforms):
             env[name] = IdxClass("builtin_sequential", SEQ_BUILTINS[b])
         else:
             env[name] = IdxClass("builtin_derived", b)
+    # DOMESDAY_0 B3: an entry-point @location parameter is a VERTEX
+    # ATTRIBUTE input — per-instance or per-vertex data the fixed
+    # function fetched. As an index provenance it is arbitrary data
+    # (the attribute can carry anything), so it ranks with `other`,
+    # and its source names the location so the ledger can say where
+    # the index came from.
+    for pm in re.finditer(r"@location\s*\(\s*(\d+)\s*\)\s*(?:@[\w()]+\s*)*(\w+)\s*:",
+                          fn.params or ""):
+        env[pm.group(2)] = IdxClass("other",
+                                    "vertex attribute @location(%s)" % pm.group(1))
     for om in re.finditer(r"@builtin\s*\(\s*(\w+)\s*\)", fn.body[:0] or ""):
         pass
     for m in ASSIGN_RE.finditer(fn.body):
@@ -1639,25 +1651,29 @@ def phase_ext2(w, wgsl):
                                                   for k in sorted(counts))
              + ("; `other` rows enumerated below" if others else "; no `other` rows"))
 
-    # ─── W2-3 — the POSITIVE CONTROL. The classifier must call
-    #     visible_patch_indices[patch_id] sequential and
-    #     patch_instances[actual_id] indirected, in patch_terrain_vs.
-    #     If it does not, it is wrong in the exact way the survey was.
+    # ─── W2-3 — the POSITIVE CONTROL, re-anchored by DOMESDAY_0 B3.
+    #     The original control held visible_patch_indices[patch_id]
+    #     sequential and patch_instances[actual_id] indirected. B3
+    #     spent that row: the visible list arrives as an instance-step
+    #     vertex attribute and the binding is retired. The known truth
+    #     the classifier must now reproduce, in patch_terrain_vs: the
+    #     patch_instances index joins the direct path's instance
+    #     builtin with the indirect path's attribute input, so it must
+    #     NOT read as pure builtin_sequential, and its source must
+    #     name the vertex attribute. If it does not, the classifier is
+    #     wrong in the exact way the survey was.
     ctl = {}
     for s in sites:
-        if s["fn"] == "patch_terrain_vs" and s["symbol"] in ("visible_patch_indices",
-                                                             "patch_instances"):
+        if s["fn"] == "patch_terrain_vs" and s["symbol"] == "patch_instances":
             ctl[s["symbol"]] = s
-    ok = (ctl.get("visible_patch_indices") and
-          ctl["visible_patch_indices"]["cls"].cls == "builtin_sequential" and
-          ctl["visible_patch_indices"]["cls"].source == "instance" and
-          ctl.get("patch_instances") and
-          ctl["patch_instances"]["cls"].cls == "indirected")
+    pc = ctl.get("patch_instances")
+    ok = (pc is not None
+          and pc["cls"].cls != "builtin_sequential"
+          and "vertex attribute" in pc["cls"].source)
     w.record("W2-3", ok,
-             "positive control: patch_terrain_vs reads visible_patch_indices[%s] as %s "
-             "and patch_instances[%s] as %s"
-             % (ctl["visible_patch_indices"]["index"], ctl["visible_patch_indices"]["cls"],
-                ctl["patch_instances"]["index"], ctl["patch_instances"]["cls"])
+             "positive control: patch_terrain_vs reads patch_instances[%s] as %s "
+             "(direct-path sequential joined with the B3 vertex-attribute input)"
+             % (pc["index"], pc["cls"])
              if ok else "control FAILED: %s"
              % {k: (v["index"], str(v["cls"])) for k, v in ctl.items()})
 
@@ -3344,20 +3360,22 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("just how it is dispatched. RAW-clean is necessary, not sufficient: cadence")
     A("is the second gate and it lives in the dispatch schedule, not the shader.")
     A("")
-    A("**9. The vertex-buffer candidates are not the ones that were proposed (as of BUDGET_1).**")
-    A("`visible_patch_indices` IS eligible — one site, `[patch_id]`, sequential in")
-    A("`instance_index`, stride 4 B. `patch_instances` is BLOCKED by a mixed")
-    A("classification inside ONE entry point: `patch_terrain_vs` reads it")
-    A("sequentially on the direct path and `indirected(visible_patch_indices)`")
-    A("under the `USE_PATCH_INDIRECTION` override. `render_ring_xforms` is blocked")
+    A("**9. The vertex-buffer candidates are not the ones that were proposed (as of BUDGET_1; the eligible row spent by DOMESDAY_0 B3).**")
+    A("`visible_patch_indices` WAS eligible — one site, `[patch_id]`, sequential in")
+    A("`instance_index`, stride 4 B — and DOMESDAY_0 B3 spent that row: the")
+    A("visible list now arrives in `patch_terrain_vs` as an instance-step vertex")
+    A("attribute (`@location(0) visible_id`) and the binding is retired.")
+    A("`patch_instances` remains BLOCKED, now by the attribute join inside ONE")
+    A("entry point: `patch_terrain_vs` reads it sequentially on the direct path")
+    A("and through the `visible_id` attribute under the `USE_PATCH_INDIRECTION`")
+    A("override. `render_ring_xforms` is blocked")
     A("at `builtin_derived(vertex)` — segment arithmetic, many vertices per ring,")
     A("and its pipeline draws with instanceCount 1 besides. A third candidate")
     A("nobody named: `render_orb_state`, eligible on access pattern AND drawn")
     A("instanced, and a runtime-sized array — the class A2 cannot touch.")
     A("")
-    A("*TETRIS ORB_V took that third candidate.* It is the only one of the four")
-    A("that has moved; `visible_patch_indices` is still eligible and still")
-    A("unspent, and the two blocked rows are blocked for the same reasons.")
+    A("*TETRIS ORB_V took that third candidate; DOMESDAY_0 B3 took the first.*")
+    A("The two blocked rows stay blocked for the same reasons as at BUDGET_1.")
     A("")
     A("**10. The single-thread count is three numbers, not one (as of BUDGET_1).** %d entry points"
       % len(e3["wg1"]))
@@ -3758,7 +3776,9 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("the access happens in only one pipeline variant, and the variants share")
     A("the entry point and therefore the vertex signature. Moving such a binding")
     A("obliges the sibling variant to bind the slot too, or splits the entry")
-    A("point. `visible_patch_indices` is the row this applies to.")
+    A("point. `visible_patch_indices` was the row this applied to — DOMESDAY_0")
+    A("B3 moved it and paid exactly that cost: the direct variant binds the")
+    A("slot and leaves the attribute unread.")
     A("")
     A("| symbol | wgsl_type | stride | access classes | override gate | **verdict** | blockers |")
     A("|---|---|---|---|---|---|---|")
@@ -4224,7 +4244,8 @@ def main():
     for x in elig:
         print("    %-24s %s-step, stride %s B, %d access site(s)"
               % (x["decl"].symbol, x["step"], x["stride"], len(x["sites"])))
-    print("  the two bindings the survey named:")
+    print("  the bindings the survey named (visible_patch_indices spent by "
+          "DOMESDAY_0 B3 — absent rows print nothing):")
     for name in ("patch_instances", "render_ring_xforms", "visible_patch_indices"):
         x = next((y for y in e2["eligibility"] if y["decl"].symbol == name), None)
         if x:

@@ -1511,6 +1511,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     c->renderer_.draw_patch_terrain_direct(pass,
         c->gpuState_.scene_state_photographer_group(),
         c->gpuState_.scene_textures_group(),
+        c->gpuState_.visible_patch_indices_buffer(),   // B3: slot-0 bound, attribute unread (direct variant)
         c->gpuState_.patch_index_buffer_lod0_live(),
         c->gpuState_.patch_index_count_lod0_live(),
         c->world_state_.render_patch_count);

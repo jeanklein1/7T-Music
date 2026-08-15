@@ -547,16 +547,22 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // for the snapshot pass (R6), which culls against the
     // photographer's frustum and cannot read this plan.
     c->renderer_.begin_patch_terrain_plan(pass);   // OIL_1 U13: one SetPipeline for the three slots
+    // DOMESDAY_0 B3: the per-slot list window rides the vertex-buffer
+    // offset now (FC_SEG_A/B/C — the same segments the retired g2:62
+    // bind windows carved), delivered to the VS as @location(0).
     c->renderer_.draw_patch_terrain_plan_slot(pass,
-        c->gpuState_.scene_state_group(),            // plan A window
+        c->gpuState_.scene_state_group(),
+        c->gpuState_.visible_patch_indices_buffer(), FC_SEG_A_OFF, FC_SEG_A_BYTES,   // plan A window
         c->gpuState_.patch_index_buffer(),           // full IB (zone-overlapped)
         c->gpuState_.frustum_indirect_lod0(), 0);
     c->renderer_.draw_patch_terrain_plan_slot(pass,
-        c->gpuState_.scene_state_plan_b_group(),     // plan B window
+        c->gpuState_.scene_state_plan_b_group(),
+        c->gpuState_.visible_patch_indices_buffer(), FC_SEG_B_OFF, FC_SEG_B_BYTES,   // plan B window
         c->gpuState_.patch_index_buffer_cap_only(),  // cap-only IB (clean LOD0)
         c->gpuState_.frustum_indirect_lod0(), 20);
     c->renderer_.draw_patch_terrain_plan_slot(pass,
-        c->gpuState_.scene_state_plan_c_group(),     // plan C window
+        c->gpuState_.scene_state_plan_c_group(),
+        c->gpuState_.visible_patch_indices_buffer(), FC_SEG_C_OFF, FC_SEG_C_BYTES,   // plan C window
         c->gpuState_.patch_index_buffer_lod1(),      // LOD1 IB (culled at last)
         c->gpuState_.frustum_indirect_lod0(), 40);
     // Plan C left its window bound: restore the entity group the table

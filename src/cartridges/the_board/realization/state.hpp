@@ -3530,7 +3530,11 @@ namespace t7 {
                     PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
-                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host)
+                    SU | wgpu::BufferUsage::CopySrc     // CopySrc: the point readback (camera-host)
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B2: + Uniform for the g1:4 render_camera
+                    // window; the compute face (g2:241 camera_state) still
+                    // binds as storage.
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
@@ -3551,7 +3555,10 @@ namespace t7 {
                     sizeof(GPUFieldAuthored),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B1: + Uniform for the g1:3 render_vp window;
+                    // the compute face (g2:240 vp_data) still binds as storage.
                 // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
                 // WALLET_1revA: UNIFORM, not storage — the whole point of the
                 // block is that it stops spending F-stage storage seats.
@@ -3627,10 +3634,20 @@ namespace t7 {
                 // Self-Portrait Gallery
                 photographerVPBuffer_ = makeBuffer("Photographer VP",
                     sizeof(GPUVPMatrix),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B1: + Uniform — this buffer seats the SAME
+                    // frameRLayout_ render_vp slot through the photographer
+                    // group; the kernel face (g2:161 photographer_vp) still
+                    // binds as storage.
                 photographerCameraBuffer_ = makeBuffer("Photographer Camera",
                     sizeof(GPUCameraState),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B2: + Uniform — this buffer seats the SAME
+                    // frameRLayout_ render_camera slot through the
+                    // photographer group; the kernel face (g2:162
+                    // photographer_camera_out) still binds as storage.
                 photographerConfigBuffer_ = makeBuffer("Photographer Config",
                     sizeof(GPUPhotographerConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3659,7 +3676,13 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
                 visiblePatchIndicesBuffer_ = makeBuffer("Visible Patch Indices",
                     FC_LIST_BYTES,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Vertex);
+                    // DOMESDAY_0 B3: + Vertex — the render side pulls the
+                    // visible list as an instance-step attribute now; the
+                    // cull kernel's g2:63 fc_visible face still writes it
+                    // as storage (compute-written vertex pull is legal;
+                    // usage is a creation flag).
                 drawPlanBuffer_ = makeBuffer("Draw Plan Params",
                     sizeof(GPUDrawPlanParams),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);

@@ -746,36 +746,50 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
             }
 
-            // THE DRAW PLAN: one helper, three invocations — the entity
-            // group carries the list window, the args slot rides the
-            // offset (0 / 20 / 40 bytes into the 3 x 5-u32 args buffer).
-            // OIL_1 U13 (ledger: R19, C7): the three plan slots shared one
-            // pipeline and one texture group and re-set both — the pipeline
-            // is now set ONCE by begin_patch_terrain_plan and group1 rides
-            // the pass head. Group 0 stays per-slot: the plan A/B/C windows
-            // ARE three different bind groups, the one genuinely varying
-            // piece of state here.
+            // THE DRAW PLAN: one helper, three invocations — the args slot
+            // rides the offset (0 / 20 / 40 bytes into the 3 x 5-u32 args
+            // buffer). OIL_1 U13 (ledger: R19, C7): the three plan slots
+            // shared one pipeline and one texture group and re-set both —
+            // the pipeline is now set ONCE by begin_patch_terrain_plan and
+            // group1 rides the pass head.
+            // DOMESDAY_0 B3: the per-slot LIST WINDOW moved from the bind
+            // group (the retired g2:62 seat's A/B/C offset windows) to the
+            // SetVertexBuffer offset below — same segments, same bytes,
+            // fixed-function fetch. The plan A/B/C groups became identical
+            // when the seat left the layout; they keep their three names
+            // pending a collapse ruling, and group 2 still re-binds per
+            // slot as before.
             void begin_patch_terrain_plan(wgpu::RenderPassEncoder& pass) {
                 pass.SetPipeline(patchTerrainIndirectPipeline_);
             }
             void draw_patch_terrain_plan_slot(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup stateGroup,
+                wgpu::Buffer visibleList,
+                uint64_t visibleOffset,
+                uint64_t visibleBytes,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer indirectArgs,
                 uint64_t indirectOffset
             ) {
                 pass.SetBindGroup(2, stateGroup);
+                pass.SetVertexBuffer(0, visibleList, visibleOffset, visibleBytes);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
             // Direct terrain draw — uses non-indirect pipeline (outdoor or indoor variant).
             // For LOD1 outdoor, LOD0+LOD1 indoor, snapshot pass, etc.
+            // DOMESDAY_0 B3: the pipeline's vertex state requires slot 0
+            // bound even though this variant never reads the attribute
+            // (USE_PATCH_INDIRECTION=false). The full list (512 entries)
+            // covers every direct instance range the program draws
+            // (MAX_ACTIVE_PATCHES = 225).
             void draw_patch_terrain_direct(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
+                wgpu::Buffer visibleList,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount,
                 uint32_t instanceCount,
@@ -784,6 +798,7 @@ namespace t7 {
                 pass.SetPipeline(patchTerrainPipeline_);
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
+                pass.SetVertexBuffer(0, visibleList);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
@@ -1579,8 +1594,23 @@ namespace t7 {
                     });
                 };
 
-                // Patch terrain pipeline -- instanced, no vertex buffer
+                // Patch terrain pipeline -- instanced. DOMESDAY_0 B3: one
+                // instance-step vertex buffer (the visible list, u32 per
+                // instance). The direct variant leaves the attribute unread
+                // (USE_PATCH_INDIRECTION=false) but the entry point declares
+                // it, so every variant's vertex state must supply location 0.
                 {
+                    std::array<wgpu::VertexAttribute, 1> visAttrs{};
+                    visAttrs[0].format = wgpu::VertexFormat::Uint32;
+                    visAttrs[0].offset = 0;
+                    visAttrs[0].shaderLocation = 0;
+
+                    wgpu::VertexBufferLayout visVBL{};
+                    visVBL.arrayStride = 4;
+                    visVBL.stepMode = wgpu::VertexStepMode::Instance;
+                    visVBL.attributeCount = visAttrs.size();
+                    visVBL.attributes = visAttrs.data();
+
                     wgpu::FragmentState fragment{};
                     fragment.module = shaderModule_;
                     fragment.entryPoint = Entry::PATCH_TERRAIN_FS;
@@ -1592,8 +1622,8 @@ namespace t7 {
                     desc.layout = renderLayout;
                     desc.vertex.module = shaderModule_;
                     desc.vertex.entryPoint = Entry::PATCH_TERRAIN_VS;
-                    desc.vertex.bufferCount = 0;
-                    desc.vertex.buffers = nullptr;
+                    desc.vertex.bufferCount = 1;
+                    desc.vertex.buffers = &visVBL;
                     desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
                     desc.primitive.cullMode = wgpu::CullMode::Back;
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
@@ -1607,8 +1637,22 @@ namespace t7 {
                 }
 
                 // Indirect terrain variant — USE_PATCH_INDIRECTION=true.
-                // VS reads patch_instances[visible_patch_indices[instance_index]].
+                // DOMESDAY_0 B3: VS reads patch_instances[visible_id], the
+                // visible id arriving as the instance-step attribute below
+                // (the g2:62 storage seat is retired; the per-slot segment
+                // window rides the SetVertexBuffer offset).
                 {
+                    std::array<wgpu::VertexAttribute, 1> visAttrs{};
+                    visAttrs[0].format = wgpu::VertexFormat::Uint32;
+                    visAttrs[0].offset = 0;
+                    visAttrs[0].shaderLocation = 0;
+
+                    wgpu::VertexBufferLayout visVBL{};
+                    visVBL.arrayStride = 4;
+                    visVBL.stepMode = wgpu::VertexStepMode::Instance;
+                    visVBL.attributeCount = visAttrs.size();
+                    visVBL.attributes = visAttrs.data();
+
                     wgpu::ConstantEntry overrides[1]{};
                     overrides[0].key = "USE_PATCH_INDIRECTION"; overrides[0].value = 1.0;
 
@@ -1625,8 +1669,8 @@ namespace t7 {
                     desc.vertex.entryPoint = Entry::PATCH_TERRAIN_VS;
                     desc.vertex.constantCount = 1;
                     desc.vertex.constants = overrides;
-                    desc.vertex.bufferCount = 0;
-                    desc.vertex.buffers = nullptr;
+                    desc.vertex.bufferCount = 1;
+                    desc.vertex.buffers = &visVBL;
                     desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
                     desc.primitive.cullMode = wgpu::CullMode::Back;
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;

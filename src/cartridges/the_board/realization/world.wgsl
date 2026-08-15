@@ -135,8 +135,10 @@
 
 // ── Pipeline specialization overrides (set at pipeline creation) ────
 // Controls which VS path is used (direct patch access vs indirection through
-// visible_patch_indices — the latter is needed for GPU frustum-culled draws).
-override USE_PATCH_INDIRECTION: bool = false;  // true = read through visible_patch_indices
+// the visible_id instance attribute — the latter is needed for GPU
+// frustum-culled draws. DOMESDAY_0 B3: the visible list arrives by
+// instance-step vertex fetch now, not through a storage seat).
+override USE_PATCH_INDIRECTION: bool = false;  // true = read the visible_id attribute
 
 // §1.1 PROJECTIVE GEOMETRIC ALGEBRA
 
@@ -4602,11 +4604,15 @@ struct PatchTerrainVarying {
 @vertex
 fn patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
-    @builtin(instance_index) patch_id: u32
+    @builtin(instance_index) patch_id: u32,
+    @location(0) visible_id: u32
 ) -> PatchTerrainVarying {
-    // Direct or indirect patch lookup (override-controlled per pipeline variant)
+    // Direct or indirect patch lookup (override-controlled per pipeline
+    // variant). DOMESDAY_0 B3: the indirect path reads the visible list
+    // as an instance-step vertex attribute — same index stream the
+    // g2:62 storage seat used to deliver, fixed-function fetch now.
     var actual_id = patch_id;
-    if (USE_PATCH_INDIRECTION) { actual_id = visible_patch_indices[patch_id]; }
+    if (USE_PATCH_INDIRECTION) { actual_id = visible_id; }
     let pi = patch_instances[actual_id];
 
     // THE UNIFIED DECODE (UNIFIED_GROUND_1): legacy grid + skirt copies
@@ -6174,9 +6180,9 @@ fn point_pos() -> vec3<f32> {
 }
 
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
-@group(1) @binding(3) var<storage, read> render_vp: VPMatrix;
+@group(1) @binding(3) var<uniform> render_vp: VPMatrix;
 @group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;
-@group(1) @binding(4) var<storage, read> render_camera: CameraState;
+@group(1) @binding(4) var<uniform> render_camera: CameraState;
 @group(2) @binding(6) var<uniform> render_floating: FloatingEntityArray;
 
 // Possessed-agent helpers (render stage). VS/FS consumers that used
@@ -6291,7 +6297,6 @@ fn shadow_light_vp() -> mat4x4<f32> {
 
 // --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-29)
 @group(2) @binding(61) var<storage, read> patch_instances: array<PatchInstance>;
-@group(2) @binding(62) var<storage, read> visible_patch_indices: array<u32>;
 @group(3) @binding(44) var patch_heightfield_array_read: texture_2d_array<f32>;
 @group(3) @binding(45) var patch_cell_color_array_read: texture_2d_array<f32>;
 
@@ -10109,7 +10114,9 @@ fn compute_entity_placement() {
 // CPU pre-writes constant DrawIndexedIndirect fields and zeros instanceCount.
 // This shader atomicAdds instanceCount and appends visible patch indices.
 //
-// Main pass reads through visible_patch_indices indirection.
+// Main pass reads the visible list through the visible_id instance
+// attribute (DOMESDAY_0 B3 — pulled from fc_visible's buffer as a
+// vertex fetch; the storage seat g2:62 is retired).
 // Shadow pass uses direct patch_instances[instance_index] (no frustum cull).
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights

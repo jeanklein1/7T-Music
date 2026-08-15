@@ -71,11 +71,11 @@
 
                     entries[2].binding = bind::g1::render_vp;
                     entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[3].binding = bind::g1::render_camera;
                     entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
                     // now rides the card for its ground term (H4 [4c]); this pipeline
@@ -711,7 +711,7 @@
 
                 // Scene State Layout — stratum 2 (Scene family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
 
                     // Agent tier registry — same buffer as compute binding 111.
                     // Read by pawn_vs for entity color (tg.color_r/g/b).
@@ -734,32 +734,27 @@
                     entries[3].visibility = wgpu::ShaderStage::Vertex;
                     entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Visible patch indices (GPU frustum cull output — VS reads indirection)
-                    entries[4].binding = bind::g2::visible_patch_indices;
-                    entries[4].visibility = wgpu::ShaderStage::Vertex;
+                    // GoL zone config (fragment reads zone origins for lookup)
+                    entries[4].binding = bind::g2::zone_params;
+                    entries[4].visibility = wgpu::ShaderStage::Fragment;
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // GoL zone config (fragment reads zone origins for lookup)
-                    entries[5].binding = bind::g2::zone_params;
-                    entries[5].visibility = wgpu::ShaderStage::Fragment;
+                    entries[5].binding = bind::g2::render_ring_xforms;
+                    entries[5].visibility = wgpu::ShaderStage::Vertex;
                     entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[6].binding = bind::g2::render_ring_xforms;
-                    entries[6].visibility = wgpu::ShaderStage::Vertex;
-                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
                     // profile + palette. Uniform (not storage) for the same reason as
                     // the tier registry above: it keeps the vertex stage off the
                     // storage cap, which TETRIS ORB_V left standing at 6 of 8
                     // (BINDING_LEDGER Table B). 4032 B, session-constant.
-                    entries[7].binding = bind::g2::agent_figure_profiles;
+                    entries[6].binding = bind::g2::agent_figure_profiles;
+                    entries[6].visibility = wgpu::ShaderStage::Vertex;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[7].binding = bind::g2::render_ribbon;
                     entries[7].visibility = wgpu::ShaderStage::Vertex;
                     entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[8].binding = bind::g2::render_ribbon;
-                    entries[8].visibility = wgpu::ShaderStage::Vertex;
-                    entries[8].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Scene State Layout";
@@ -1748,7 +1743,7 @@
 
                 // Projected from: renderEntityBindGroup_, renderTextureBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::agent_tier_gains;
                     entries[0].buffer = agentTierGainsBuffer_;
@@ -1766,26 +1761,21 @@
                     entries[3].buffer = patchInstancesBuffer_;
                     entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[4].binding = bind::g2::visible_patch_indices;
-                    entries[4].buffer = visiblePatchIndicesBuffer_;
-                    entries[4].offset = FC_SEG_A_OFF;
-                    entries[4].size = FC_SEG_A_BYTES;
+                    entries[4].binding = bind::g2::zone_params;
+                    entries[4].buffer = zoneConfigBuffer_;
+                    entries[4].size = sizeof(GPUGoLZoneArray);
 
-                    entries[5].binding = bind::g2::zone_params;
-                    entries[5].buffer = zoneConfigBuffer_;
-                    entries[5].size = sizeof(GPUGoLZoneArray);
+                    entries[5].binding = bind::g2::render_ring_xforms;
+                    entries[5].buffer = ringTransformsBuffer_;
+                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[6].binding = bind::g2::render_ring_xforms;
-                    entries[6].buffer = ringTransformsBuffer_;
-                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[6].binding = bind::g2::agent_figure_profiles;
+                    entries[6].buffer = figureProfilesBuffer_;
+                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
-                    entries[7].binding = bind::g2::agent_figure_profiles;
-                    entries[7].buffer = figureProfilesBuffer_;
-                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    entries[8].binding = bind::g2::render_ribbon;
-                    entries[8].buffer = ribbonBuffer_;
-                    entries[8].size = sizeof(GPURibbonState);
+                    entries[7].binding = bind::g2::render_ribbon;
+                    entries[7].buffer = ribbonBuffer_;
+                    entries[7].size = sizeof(GPURibbonState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Scene State BindGroup";
@@ -1798,7 +1788,7 @@
 
                 // Projected from: renderEntityBindGroupPlanB_.
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::agent_tier_gains;
                     entries[0].buffer = agentTierGainsBuffer_;
@@ -1816,27 +1806,22 @@
                     entries[3].buffer = patchInstancesBuffer_;
                     entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[4].binding = bind::g2::visible_patch_indices;
-                    entries[4].buffer = visiblePatchIndicesBuffer_;
-                    entries[4].offset = FC_SEG_B_OFF;
-                    entries[4].size = FC_SEG_B_BYTES;
-
                     // Shared backing, completed from the primary variant.
-                    entries[5].binding = bind::g2::zone_params;
-                    entries[5].buffer = zoneConfigBuffer_;
-                    entries[5].size = sizeof(GPUGoLZoneArray);
+                    entries[4].binding = bind::g2::zone_params;
+                    entries[4].buffer = zoneConfigBuffer_;
+                    entries[4].size = sizeof(GPUGoLZoneArray);
 
-                    entries[6].binding = bind::g2::render_ring_xforms;
-                    entries[6].buffer = ringTransformsBuffer_;
-                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[5].binding = bind::g2::render_ring_xforms;
+                    entries[5].buffer = ringTransformsBuffer_;
+                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[7].binding = bind::g2::agent_figure_profiles;
-                    entries[7].buffer = figureProfilesBuffer_;
-                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[6].binding = bind::g2::agent_figure_profiles;
+                    entries[6].buffer = figureProfilesBuffer_;
+                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
-                    entries[8].binding = bind::g2::render_ribbon;
-                    entries[8].buffer = ribbonBuffer_;
-                    entries[8].size = sizeof(GPURibbonState);
+                    entries[7].binding = bind::g2::render_ribbon;
+                    entries[7].buffer = ribbonBuffer_;
+                    entries[7].size = sizeof(GPURibbonState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Scene State BindGroup (PlanB)";
@@ -1849,7 +1834,7 @@
 
                 // Projected from: renderEntityBindGroupPlanC_.
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::agent_tier_gains;
                     entries[0].buffer = agentTierGainsBuffer_;
@@ -1867,27 +1852,22 @@
                     entries[3].buffer = patchInstancesBuffer_;
                     entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[4].binding = bind::g2::visible_patch_indices;
-                    entries[4].buffer = visiblePatchIndicesBuffer_;
-                    entries[4].offset = FC_SEG_C_OFF;
-                    entries[4].size = FC_SEG_C_BYTES;
-
                     // Shared backing, completed from the primary variant.
-                    entries[5].binding = bind::g2::zone_params;
-                    entries[5].buffer = zoneConfigBuffer_;
-                    entries[5].size = sizeof(GPUGoLZoneArray);
+                    entries[4].binding = bind::g2::zone_params;
+                    entries[4].buffer = zoneConfigBuffer_;
+                    entries[4].size = sizeof(GPUGoLZoneArray);
 
-                    entries[6].binding = bind::g2::render_ring_xforms;
-                    entries[6].buffer = ringTransformsBuffer_;
-                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[5].binding = bind::g2::render_ring_xforms;
+                    entries[5].buffer = ringTransformsBuffer_;
+                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[7].binding = bind::g2::agent_figure_profiles;
-                    entries[7].buffer = figureProfilesBuffer_;
-                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[6].binding = bind::g2::agent_figure_profiles;
+                    entries[6].buffer = figureProfilesBuffer_;
+                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
-                    entries[8].binding = bind::g2::render_ribbon;
-                    entries[8].buffer = ribbonBuffer_;
-                    entries[8].size = sizeof(GPURibbonState);
+                    entries[7].binding = bind::g2::render_ribbon;
+                    entries[7].buffer = ribbonBuffer_;
+                    entries[7].size = sizeof(GPURibbonState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Scene State BindGroup (PlanC)";
@@ -1900,7 +1880,7 @@
 
                 // Projected from: photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::agent_tier_gains;
                     entries[0].buffer = agentTierGainsBuffer_;
@@ -1918,26 +1898,22 @@
                     entries[3].buffer = patchInstancesBuffer_;
                     entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[4].binding = bind::g2::visible_patch_indices;
-                    entries[4].buffer = visiblePatchIndicesBuffer_;
-                    entries[4].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
-
                     // Shared backing, completed from the primary variant.
-                    entries[5].binding = bind::g2::zone_params;
-                    entries[5].buffer = zoneConfigBuffer_;
-                    entries[5].size = sizeof(GPUGoLZoneArray);
+                    entries[4].binding = bind::g2::zone_params;
+                    entries[4].buffer = zoneConfigBuffer_;
+                    entries[4].size = sizeof(GPUGoLZoneArray);
 
-                    entries[6].binding = bind::g2::render_ring_xforms;
-                    entries[6].buffer = ringTransformsBuffer_;
-                    entries[6].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    entries[5].binding = bind::g2::render_ring_xforms;
+                    entries[5].buffer = ringTransformsBuffer_;
+                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[7].binding = bind::g2::agent_figure_profiles;
-                    entries[7].buffer = figureProfilesBuffer_;
-                    entries[7].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
+                    entries[6].binding = bind::g2::agent_figure_profiles;
+                    entries[6].buffer = figureProfilesBuffer_;
+                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
-                    entries[8].binding = bind::g2::render_ribbon;
-                    entries[8].buffer = ribbonBuffer_;
-                    entries[8].size = sizeof(GPURibbonState);
+                    entries[7].binding = bind::g2::render_ribbon;
+                    entries[7].buffer = ribbonBuffer_;
+                    entries[7].size = sizeof(GPURibbonState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Scene State BindGroup (Photographer)";
