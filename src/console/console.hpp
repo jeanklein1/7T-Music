@@ -121,6 +121,40 @@ namespace t7 {
         return "?";
     }
 
+    // ═══ THE FEATURE NAME TABLE (DOMESDAY_1 A8, R6) ══════════════════
+    //
+    // A switch over wgpu::FeatureName ENUMERATOR IDENTIFIERS — never
+    // numeric values, so the compiling header supplies every value and
+    // the build gate is the witness that each identifier exists. Names
+    // are the WebGPU spec's kebab-case feature strings. An id the
+    // switch does not know returns nullptr and the caller prints the
+    // number — unknown ids stay honest.
+    inline const char* feature_name(wgpu::FeatureName f) {
+        switch (f) {
+        case wgpu::FeatureName::CoreFeaturesAndLimits:         return "core-features-and-limits";
+        case wgpu::FeatureName::DepthClipControl:              return "depth-clip-control";
+        case wgpu::FeatureName::Depth32FloatStencil8:          return "depth32float-stencil8";
+        case wgpu::FeatureName::TimestampQuery:                return "timestamp-query";
+        case wgpu::FeatureName::TextureCompressionBC:          return "texture-compression-bc";
+        case wgpu::FeatureName::TextureCompressionBCSliced3D:  return "texture-compression-bc-sliced-3d";
+        case wgpu::FeatureName::TextureCompressionETC2:        return "texture-compression-etc2";
+        case wgpu::FeatureName::TextureCompressionASTC:        return "texture-compression-astc";
+        case wgpu::FeatureName::TextureCompressionASTCSliced3D: return "texture-compression-astc-sliced-3d";
+        case wgpu::FeatureName::IndirectFirstInstance:         return "indirect-first-instance";
+        case wgpu::FeatureName::ShaderF16:                     return "shader-f16";
+        case wgpu::FeatureName::RG11B10UfloatRenderable:       return "rg11b10ufloat-renderable";
+        case wgpu::FeatureName::BGRA8UnormStorage:             return "bgra8unorm-storage";
+        case wgpu::FeatureName::Float32Filterable:             return "float32-filterable";
+        case wgpu::FeatureName::Float32Blendable:              return "float32-blendable";
+        case wgpu::FeatureName::ClipDistances:                 return "clip-distances";
+        case wgpu::FeatureName::DualSourceBlending:            return "dual-source-blending";
+        case wgpu::FeatureName::Subgroups:                     return "subgroups";
+        case wgpu::FeatureName::TextureFormatsTier1:           return "texture-formats-tier1";
+        case wgpu::FeatureName::TextureFormatsTier2:           return "texture-formats-tier2";
+        default:                                               return nullptr;
+        }
+    }
+
 #ifdef __EMSCRIPTEN__
     // ═══ THE INSTANCE ANCHOR (PORT_4a) ═══════════════════════════════
     //
@@ -642,9 +676,11 @@ namespace t7 {
                     // program requests exactly one optional feature, so the
                     // named half is complete, not a sample.
                     //
-                    // Numeric ids, like the native line: mapping ids to
-                    // spelling needs an enumerator table this campaign has no
-                    // question for, and a number hides nothing.
+                    // DOMESDAY_1 A8 (R6): ids AND spellings — the pair is
+                    // the census. The names come from the enumerator
+                    // switch (feature_name, top of this file), never from
+                    // numeric values; an id the switch does not know
+                    // prints as its number.
                     //
                     // Prints on BOTH request paths — the fallback passthrough
                     // is the path where the numbers matter most.
@@ -661,6 +697,14 @@ namespace t7 {
                             << (device_.HasFeature(wgpu::FeatureName::TimestampQuery)
                                     ? "YES" : "no")
                             << " (the only optional feature this program requests)\n";
+                        std::cout << "[Device] features named: ";
+                        for (size_t i = 0; i < feats.featureCount; i++) {
+                            const char* nm = feature_name(feats.features[i]);
+                            if (i) std::cout << " ";
+                            if (nm) std::cout << nm;
+                            else std::cout << static_cast<uint32_t>(feats.features[i]);
+                        }
+                        std::cout << "\n";
                     }
                     // ═══ LANTERN U3 C1 — THE PIXEL CAP, NAMED ════════════
                     //
