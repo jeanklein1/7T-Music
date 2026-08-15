@@ -284,7 +284,7 @@
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g2::fc_visible;  // visible_patch_indices (storage, rw — output)
+                    entries[2].binding = bind::g2::fc_visible;  // cull-visible patch ids (storage, rw — output)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 

@@ -12716,16 +12716,16 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
 //   flock_coupling_intensity     polyphony → flock tightening
 //
 // Bind group topology:
-//   Compute (orb_init, orb_dynamics, orb_recolor) — main layout:
-//     @binding(410) orb_state         storage, read_write
-//     @binding(411) orb_config        uniform
-//     @binding(412) orb_state_prev    storage, read
-//   Compute (orb_state_prev_copy) — copy layout, inverse access:
-//     @binding(413) orb_state_ro      storage, read       (→ orb_state)
-//     @binding(414) orb_state_prev_rw storage, read_write (→ orb_state_prev)
-//   Render (orb_vs, orb_fs) — render_entity layout:
-//     @binding(201) render_vp         (already declared)
-//     @binding(280) render_camera     (already declared)
+//   Compute (orb_init, orb_dynamics, orb_recolor) — ORBS_A face set (g2):
+//     @binding(120) orb_state         storage, read_write
+//     @binding(121) orb_config        uniform
+//     @binding(122) orb_state_prev    storage, read
+//   Compute (orb_state_prev_copy) — ORBS_B face set (g2), inverse access:
+//     @binding(123) orb_state_ro      storage, read       (→ orb_state)
+//     @binding(124) orb_state_prev_rw storage, read_write (→ orb_state_prev)
+//   Render (orb_vs, orb_fs) — FRAME stratum (g1):
+//     @binding(3)   render_vp         (already declared)
+//     @binding(4)   render_camera     (already declared)
 //   ORB_V: the orb state itself is no longer a binding here. It rides an
 //   instance-step VERTEX BUFFER (renderer.hpp, orbStateVBL), one attribute
 //   per field, and orb_vs rebuilds the struct from its @location inputs.
@@ -13061,9 +13061,10 @@ fn orb_tier_flock_coh_gain(t: u32)   -> f32 { if (t == 0u) { return orb_config.t
 
 // Snapshot orb_state → orb_state_prev so the dynamics kernel can
 // read last frame's positions/velocities while writing the new ones.
-// Uses the dedicated copy layout's bindings (413 read, 414 read_write)
-// rather than 410/412, which are bound read_write/read in the main
+// Uses the dedicated copy layout's bindings (123 read, 124 read_write)
+// rather than 120/122, which are bound read_write/read in the main
 // layout — see the binding-layout comment above.
+// Swap-two-groups alternative DECLINED under L23' (DOMESDAY_1 R1).
 @compute @workgroup_size(64)
 fn orb_state_prev_copy(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
