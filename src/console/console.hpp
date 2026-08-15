@@ -914,17 +914,21 @@ namespace t7 {
 #ifdef __EMSCRIPTEN__
                 << " (browser default — this twin enables nothing)\n";
 #else
-                << " (instance: enableExperimental)\n";
+                << " (dev tier: unsafe enabled — the audience court is Chrome"
+                   " stable, which ships the lane standard)\n";
 #endif
 #ifndef __EMSCRIPTEN__
             // The whole ALLOWED set, named — the diagnostic half, so a
             // `no` above is a DIAGNOSED no in the same boot rather than
             // another round trip. GetWGSLLanguageFeatures reports what
-            // the instance ALLOWS, so if other experimental features are
-            // present and this one is not, the feature is not at
-            // experimental stage on this revision and the next knob is
-            // enableUnsafe (recorded, not taken — a bench that outruns
-            // the product stops being a bench).
+            // the instance ALLOWS, so this list says whether the feature
+            // is absent from the checkout entirely or merely un-enabled.
+            // F5-b took the knob this sentence used to hold in reserve:
+            // both experimental and unsafe are open on this twin now, so
+            // a `no` beside a populated list means the feature is not
+            // implemented at THIS revision at all — and the remedy is
+            // the one-generation law's other half, updating the native
+            // checkout to the pin, not another flag.
             //
             // THE EXPOSURE THIS GUARD DOES AND DOES NOT COVER, exactly:
             // the web twin still names three identifiers no probe covers
@@ -1104,16 +1108,26 @@ namespace t7 {
             // subject, this control chains at the stage that CONSUMES it,
             // which is that ruling's law rather than an exception to it.
             //
-            // enableExperimental ALONE, deliberately. enableUnsafe would
-            // widen the bench's dialect past anything the browser can
-            // offer the product, and a bench more permissive than the
-            // product stops being a bench — it would let native compile
-            // a shader the web twin refuses. If the testimony below says
-            // `no`, the dialect list beside it says whether this feature
-            // is merely un-enabled or absent at this revision, and THAT
-            // evidence — not another guess — decides the next knob.
+            // BOTH TIERS, AS OF F5-b — and the F3 reasoning that opened
+            // only the first is ANSWERED rather than overruled. F3 kept
+            // enableUnsafe shut because a bench more permissive than the
+            // product stops being a bench: it could compile a shader the
+            // audience's browser refuses. The evidence F5 gathered
+            // settles that worry in the other direction. At the pinned
+            // generation (third_party/emdawnwebgpu/PINNED.md) the
+            // immediate address space is a STANDARD language feature and
+            // Tint reports it FeatureStatus::kShipped — exposed by
+            // default, no control of any kind. So the audience court —
+            // Chrome stable — ships this lane, and opening the bench a
+            // tier deeper does not outrun the product; it catches this
+            // checkout UP to it. The permissiveness is bounded to this
+            // twin (native is the bench, per Jean's twins ruling) and to
+            // one generation: it becomes unnecessary the moment the
+            // native checkout tracks the pin, which is the
+            // one-generation law's other half.
             wgpu::DawnWireWGSLControl wgslControl{};
             wgslControl.enableExperimental = true;
+            wgslControl.enableUnsafe = true;   // F5-b: dev tier, this checkout only
 
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
                 toggles.enabledToggleCount = 1;
