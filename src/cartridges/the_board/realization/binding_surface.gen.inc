@@ -75,7 +75,7 @@
 
                     entries[3].binding = bind::g1::render_camera;
                     entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
                     // now rides the card for its ground term (H4 [4c]); this pipeline

@@ -3530,7 +3530,11 @@ namespace t7 {
                     PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
-                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host)
+                    SU | wgpu::BufferUsage::CopySrc     // CopySrc: the point readback (camera-host)
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B2: + Uniform for the g1:4 render_camera
+                    // window; the compute face (g2:241 camera_state) still
+                    // binds as storage.
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
@@ -3638,7 +3642,12 @@ namespace t7 {
                     // binds as storage.
                 photographerCameraBuffer_ = makeBuffer("Photographer Camera",
                     sizeof(GPUCameraState),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B2: + Uniform — this buffer seats the SAME
+                    // frameRLayout_ render_camera slot through the
+                    // photographer group; the kernel face (g2:162
+                    // photographer_camera_out) still binds as storage.
                 photographerConfigBuffer_ = makeBuffer("Photographer Config",
                     sizeof(GPUPhotographerConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);

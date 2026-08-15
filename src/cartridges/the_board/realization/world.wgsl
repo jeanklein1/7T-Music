@@ -6176,7 +6176,7 @@ fn point_pos() -> vec3<f32> {
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(1) @binding(3) var<uniform> render_vp: VPMatrix;
 @group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;
-@group(1) @binding(4) var<storage, read> render_camera: CameraState;
+@group(1) @binding(4) var<uniform> render_camera: CameraState;
 @group(2) @binding(6) var<uniform> render_floating: FloatingEntityArray;
 
 // Possessed-agent helpers (render stage). VS/FS consumers that used
