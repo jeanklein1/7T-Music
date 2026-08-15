@@ -90,6 +90,13 @@ namespace t7 {
     // a very large value = uncapped, the pre-PORT_3c behavior.
     inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
 
+    // ═══ THE FLOORS' ONE HOME (DOMESDAY_2 A12) ═══════════════════════
+    // The granted-vs-floor line used to hand-carry its six literals;
+    // they live in the schema's NEEDS table now, emitted here. This
+    // closes LANTERN's print-vs-enforce hazard: the log reads the
+    // wallet's own statement of need on the actual device.
+#include "console/limits_floor.gen.inc"
+
     // DOMESDAY_1 B9 — the runtime override: a ?cap= / --cap= present at
     // boot (clamped to [0.5, 3.0] at parse) replaces the constant for
     // THIS RUN; absent, the constant stands unchanged. Boot-read once,
@@ -623,34 +630,45 @@ namespace t7 {
                         //   Chrome-on-Android — the shadow_slot→immediate
                         //   ruling waits on this printed grant, and we
                         //   print before we spend.
+                        // DOMESDAY_2 A12 — the floors read the NEEDS table's
+                        // emitted constants; the literals left the C++. A13's
+                        // truthing rode along: the immediate row's floor is 4
+                        // since B6's first spend, and 'unused' died with it.
                         std::cout << "[Device] granted vs floor:"
-                            << " maxTextureDimension2D=" << got.maxTextureDimension2D << "/2048"
-                            << " maxTextureArrayLayers=" << got.maxTextureArrayLayers << "/225"
+                            << " maxTextureDimension2D=" << got.maxTextureDimension2D
+                            << "/" << FLOOR_MAX_TEXTURE_DIMENSION_2D
+                            << " maxTextureArrayLayers=" << got.maxTextureArrayLayers
+                            << "/" << FLOOR_MAX_TEXTURE_ARRAY_LAYERS
                             << " maxStorageBuffersPerShaderStage="
-                            << got.maxStorageBuffersPerShaderStage << "/8"
+                            << got.maxStorageBuffersPerShaderStage
+                            << "/" << FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE
                             << " maxUniformBuffersPerShaderStage="
-                            << got.maxUniformBuffersPerShaderStage << "/12"
+                            << got.maxUniformBuffersPerShaderStage
+                            << "/" << FLOOR_MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE
                             << " maxUniformBufferBindingSize="
-                            << got.maxUniformBufferBindingSize << "/65536"
-                            << " maxBindGroups=" << got.maxBindGroups << "/4"
+                            << got.maxUniformBufferBindingSize
+                            << "/" << FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE
+                            << " maxBindGroups=" << got.maxBindGroups
+                            << "/" << FLOOR_MAX_BIND_GROUPS
                             << " maxImmediateSize=" << got.maxImmediateSize
-                            << "/0 (floor — unused)\n";
+                            << "/" << FLOOR_MAX_IMMEDIATE_SIZE << " (floor)\n";
                         bool below = false;
-                        if (got.maxTextureDimension2D < 2048u) {
+                        if (got.maxTextureDimension2D < FLOOR_MAX_TEXTURE_DIMENSION_2D) {
                             std::cerr << "[Device] BELOW FLOOR: maxTextureDimension2D granted "
-                                << got.maxTextureDimension2D << ", floor 2048\n";
+                                << got.maxTextureDimension2D << ", floor "
+                                << FLOOR_MAX_TEXTURE_DIMENSION_2D << "\n";
                             below = true;
                         }
-                        if (got.maxStorageBuffersPerShaderStage < 8u) {
+                        if (got.maxStorageBuffersPerShaderStage < FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE) {
                             std::cerr << "[Device] BELOW FLOOR: maxStorageBuffersPerShaderStage"
                                          " granted " << got.maxStorageBuffersPerShaderStage
-                                << ", floor 8\n";
+                                << ", floor " << FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE << "\n";
                             below = true;
                         }
-                        if (got.maxUniformBufferBindingSize < 65536u) {
+                        if (got.maxUniformBufferBindingSize < FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE) {
                             std::cerr << "[Device] BELOW FLOOR: maxUniformBufferBindingSize"
                                          " granted " << got.maxUniformBufferBindingSize
-                                << ", floor 65536\n";
+                                << ", floor " << FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE << "\n";
                             below = true;
                         }
                         // PORT_6a (3) — the discard decision, BOTH ways. The

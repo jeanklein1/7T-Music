@@ -1281,6 +1281,75 @@ def glob_src():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# NEEDS — THE FLOORS' ONE HOME (DOMESDAY_2 A12)
+#
+# The boot's granted-vs-floor line hand-carried its floor literals;
+# the schema's NEEDS table is their home now, and --write emits
+# src/console/limits_floor.gen.inc for the boot print (and the
+# below-floor nets) to consume. Witness R-3: emitted bytes match the
+# schema, and every Dim:: source symbol exists — with its value
+# verified where the definition is statically evaluable.
+# ═══════════════════════════════════════════════════════════════════════
+
+FLOORS_INC = os.path.join(REPO, "src", "console", "limits_floor.gen.inc")
+
+
+def _floor_const_name(limit):
+    s = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Za-z])(?=\d)", "_", limit)
+    return "FLOOR_" + s.upper()
+
+
+def emit_floors(schema):
+    L = []
+    L.append("// %s" % NOTICE)
+    L.append("//")
+    L.append("// THE NEEDS TABLE (DOMESDAY_2 A12) — the program's own statement")
+    L.append("// of need, one constant per floor the granted-vs-floor line")
+    L.append("// prints. Sources and notes live in the schema's NEEDS rows;")
+    L.append("// witness R-3 holds emitted values to schema values and every")
+    L.append("// cited Dim:: symbol to its definition.")
+    width = max(len(_floor_const_name(k)) for k in schema.NEEDS)
+    for limit, row in schema.NEEDS.items():
+        L.append("inline constexpr uint32_t %-*s = %d;  // %s — %s"
+                 % (width, _floor_const_name(limit), row["floor"],
+                    row["source"], row["note"]))
+    return "\n".join(L) + "\n"
+
+
+def needs_symbol_check(schema):
+    """R-3's Dim:: half: every cited symbol exists in state.hpp, and
+    where its definition is statically evaluable (a literal, or a
+    product of known literals) the value matches the floor."""
+    st = BL.read_raw(STATE_HPP)
+    consts = {m.group(1): int(m.group(2)) for m in re.finditer(
+        r"constexpr\s+uint32_t\s+(\w+)\s*=\s*(\d+)\s*[;u]", st)}
+    bad = []
+    for limit, row in schema.NEEDS.items():
+        src = row["source"]
+        m = re.match(r"Dim::(\w+)$", src)
+        if not m:
+            continue
+        sym = m.group(1)
+        dm = re.search(r"constexpr\s+uint32_t\s+%s\s*=\s*([^;]+);"
+                       % re.escape(sym), st)
+        if not dm:
+            bad.append("%s: Dim::%s not found in state.hpp" % (limit, sym))
+            continue
+        expr = dm.group(1).strip()
+        val = None
+        if re.match(r"^\d+u?$", expr):
+            val = int(expr.rstrip("u"))
+        else:
+            pm = re.match(r"^(\w+)\s*\*\s*(\w+)$", expr)
+            if pm and pm.group(1) in consts and pm.group(2) in consts:
+                val = consts[pm.group(1)] * consts[pm.group(2)]
+        if val is not None and val != row["floor"]:
+            bad.append("%s: Dim::%s = %d, floor says %d"
+                       % (limit, sym, val, row["floor"]))
+    return bad
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CHECK
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1393,6 +1462,20 @@ def check(args):
             problems.append("MANIFEST emission diverges from disk")
     else:
         print("  MANIFEST.md: target not yet generated")
+    if os.path.exists(FLOORS_INC):
+        same = emit_floors(schema) == BL.read_raw(FLOORS_INC)
+        r3_syms = needs_symbol_check(schema)
+        print("  limits_floor.gen.inc: generated \u2014 %s" % ("OK" if same else "DIVERGES"))
+        print("  [%s] R-3  emitted floors equal the schema's %d NEEDS rows, and "
+              "every cited Dim:: symbol exists at its stated value%s"
+              % ("PASS" if same and not r3_syms else "FAIL", len(schema.NEEDS),
+                 "" if not r3_syms else " \u2014 " + "; ".join(r3_syms)))
+        if not same:
+            problems.append("floors emission diverges from disk")
+        if r3_syms:
+            problems.append("R-3 NEEDS symbol mismatch")
+    else:
+        print("  limits_floor.gen.inc: target not yet generated")
 
     print("")
     print("WITNESSES")
@@ -3389,7 +3472,7 @@ def main():
     g.add_argument("--check", action="store_true",
                    help="diff tree against schema, verify emitters and witnesses")
     g.add_argument("--write", nargs="?", const="all",
-                   choices=("registry", "inc", "manifest", "all"),
+                   choices=("registry", "inc", "manifest", "floors", "all"),
                    metavar="TARGET",
                    help="emit binding_registry.hpp, binding_surface.gen.inc "
                         "and/or audit/MANIFEST.md "
@@ -3459,6 +3542,9 @@ def main():
         if args.write in ("manifest", "all"):
             write_file(MANIFEST_MD, emit_manifest(schema))
             print("wrote %s" % os.path.relpath(MANIFEST_MD, REPO))
+        if args.write in ("floors", "all"):
+            write_file(FLOORS_INC, emit_floors(schema))
+            print("wrote %s" % os.path.relpath(FLOORS_INC, REPO))
         return 0
     if args.write_wgsl:
         schema = load_schema()

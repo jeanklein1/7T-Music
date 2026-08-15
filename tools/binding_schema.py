@@ -591,3 +591,22 @@ RESOURCES = {
     'meterQuerySet_': {'kind': 'querySet', 'label': 'Frame Meter Timestamps', 'count_expr': 'METER_QUERY_COUNT', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'depthTexture_': {'kind': 'texture', 'label': 'Depth Texture', 'format': 'depthFormat_', 'size': 'w, h, 1', 'samples': '1', 'file': 'src/console/console.hpp'},
 }
+
+# ═══ THE NEEDS TABLE (DOMESDAY_2 A12) ═══════════════════════════════
+# The program's own statement of need: each floor the boot's
+# granted-vs-floor line holds a granted limit against, with its source.
+# Where the source is a Dim:: symbol, witness R-3 verifies the symbol
+# exists and carries this value; where it is a Core default, the
+# program merely relies on the guaranteed floor and the note says what
+# stands on it. binding_gen.py --write emits
+# src/console/limits_floor.gen.inc from these rows — the literals live
+# here and nowhere else.
+NEEDS = {
+    'maxTextureDimension2D': {'floor': 2048, 'source': 'Dim::SHADOW_MAP_SIZE', 'note': 'the shadow atlas edge — the largest texture the program creates'},
+    'maxTextureArrayLayers': {'floor': 225, 'source': 'Dim::MAX_ACTIVE_PATCHES', 'note': 'the patch heightfield array depth; 225 of the 256 default is the tightest ceiling the program owns'},
+    'maxStorageBuffersPerShaderStage': {'floor': 8, 'source': 'core-default', 'note': 'the wallet fits the default; worst row 5 of 8 (MANIFEST)'},
+    'maxUniformBuffersPerShaderStage': {'floor': 12, 'source': 'core-default', 'note': 'worst row 11 of 12 — the agents compute family'},
+    'maxUniformBufferBindingSize': {'floor': 65536, 'source': 'core-default', 'note': 'every uniform window sits well under 64 KiB'},
+    'maxBindGroups': {'floor': 4, 'source': 'core-default', 'note': 'the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design'},
+    'maxImmediateSize': {'floor': 4, 'source': 'sizeof(uint32_t)', 'note': 'the shadow light index (DOMESDAY_1 B6) — the lane statute grants 64; the program stands on 4'},
+}
