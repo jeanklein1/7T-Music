@@ -616,8 +616,37 @@ namespace t7 {
             // defaults request grants 0 unless asked. The byte count is
             // the NEEDS table's own seventh row (limits_floor.gen.inc),
             // so the request and the testimony share one home.
+            //
+            // DOMESDAY_2 F3-f — ASK ONLY FOR WHAT THIS ADAPTER REPORTS.
+            // requestDevice REJECTS any required limit better than the
+            // adapter's own value, and a rejected modest request
+            // reissues as FULL PASSTHROUGH (the failure branch below) —
+            // which is the one shape PORT_6c/L14 forbids as a design,
+            // three paragraphs up. Worse, the granted-vs-floor census
+            // lives under `if (!passthrough)` and is skipped on that
+            // reissue, so the boot would lose the immediate lane's only
+            // printed number on exactly the device whose lane is in
+            // question. F3-b asked unconditionally and carried that
+            // risk; the gate below retires it.
+            //
+            // The Pixel reports maxImmediateSize=64 (A3's row, read at
+            // the DOMESDAY_1 boot), so this gate stands open there. It
+            // exists for the adapter that reports 0 — which cannot run
+            // the post-B6 shader anyway, and should say so through the
+            // census rather than through a silent fall to passthrough.
+            bool askedImmediate = false;
             if (!passthrough) {
-                limits.maxImmediateSize = FLOOR_MAX_IMMEDIATE_SIZE;   // NEEDS r7
+                wgpu::Limits adapterLimits{};
+                adapter_.GetLimits(&adapterLimits);
+                if (adapterLimits.maxImmediateSize >= FLOOR_MAX_IMMEDIATE_SIZE) {
+                    limits.maxImmediateSize = FLOOR_MAX_IMMEDIATE_SIZE;   // NEEDS r7
+                    askedImmediate = true;
+                } else {
+                    std::cout << "[Device] maxImmediateSize ask WITHHELD — adapter reports "
+                        << adapterLimits.maxImmediateSize << ", NEEDS r7 wants "
+                        << FLOOR_MAX_IMMEDIATE_SIZE << "; asking would reject the modest"
+                           " request and cost the compatibility path (L14)\n";
+                }
             }
             deviceDesc.requiredLimits = &limits;
 
@@ -633,9 +662,14 @@ namespace t7 {
                 // absent, never claimed as carried. A line that claimed
                 // the dialect and then denied it two lines later would
                 // be worse than a silent one.
-                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried:"
-                             " maxImmediateSize=" << FLOOR_MAX_IMMEDIATE_SIZE
-                    << " (NEEDS r7); wgsl:immediate_address_space (instance) "
+                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried: ";
+                if (askedImmediate) {
+                    std::cout << "maxImmediateSize=" << FLOOR_MAX_IMMEDIATE_SIZE
+                              << " (NEEDS r7)";
+                } else {
+                    std::cout << "none (maxImmediateSize withheld, see above)";
+                }
+                std::cout << "; wgsl:immediate_address_space (instance) "
                     << (wgslImmediate_ ? "present" : "ABSENT") << "\n";
             }
             if (!wgslImmediate_) {
@@ -1084,13 +1118,23 @@ namespace t7 {
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
                 toggles.enabledToggleCount = 1;
                 toggles.enabledToggles = kDxcToggle;
-                wgslControl.nextInChain = &toggles;   // both controls, one chain
+                // use_dxc rides BEHIND the WGSL control: two independent
+                // links in one chain, not two WGSL enablement mechanisms.
+                // Named so a future edit that guards or deletes the F3-a
+                // block cannot silently take use_dxc with it — PIVOT_0a
+                // already paid for one toggle that did not arrive.
+                wgslControl.nextInChain = &toggles;
             }
             idesc.nextInChain = &wgslControl;
-            // Vulkan and D3D12_Fxc chained nothing before TOGGLE_0: Vulkan
-            // reaches SPIR-V through Tint with no toggle, and Fxc is the
-            // untoggled path kept for archaeology. Under the control they
-            // chain the control alone; U2 restores the empty chain.
+            // THE CHAIN, POST-F3-a: its head is ALWAYS wgslControl — the
+            // immediate dialect is required on every plan, so no plan
+            // leaves this descriptor's chain empty any more. Vulkan and
+            // D3D12_Fxc chain the WGSL control alone (Vulkan reaches
+            // SPIR-V through Tint with no toggle; Fxc is the untoggled
+            // path kept for archaeology); the DXC plan appends `toggles`
+            // behind it. HISTORY, past tense: those two plans chained
+            // nothing before TOGGLE_0, and TOGGLE_0's U2 restored that
+            // empty chain — a state F3-a has since made unreachable.
 
             // Construct instance in place (non-copyable, non-movable)
             instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));

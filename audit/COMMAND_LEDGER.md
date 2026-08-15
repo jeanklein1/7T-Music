@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `e90de9daf160a1d0809944d757e5615bdd29d6cc`
-(DOMESDAY_2 F3-b: the wrong enum leaves; the limit and the testimony stay)
+Last commit touching any scanned file: `caf54b4e886a7f4a31052386bc243315a0daa2a1`
+(DOMESDAY_2 F3-e: the testimony stops contradicting itself; the declaration stops teaching the retracted doctrine)
 
 | file scanned | sha256 |
 |---|---|
@@ -19,7 +19,7 @@ Last commit touching any scanned file: `e90de9daf160a1d0809944d757e5615bdd29d6cc
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:a306f46c7f12533a37a7515e8f7636385395d40c0c6e3697d02a5557f13e37ba` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:e4a2855e62931c2b946b8f2265cf7944ecefd3bc51e3ad5412acb2c6cf335704` |
 | `src/incubator_dual.cpp` | `sha256:07ed7d0e2eb71ccca9972939529a04c1665582c0484f55362c7c835a4a9c5d33` |
-| `src/console/console.hpp` | `sha256:946c75cd78ff93fbe75c687f86b888c7b585eb9e6ae0054858199b785064be5f` |
+| `src/console/console.hpp` | `sha256:85059aea366378e0355d13ef40419022a6b1f78a50cd45705e3c45a47380f772` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -82,12 +82,12 @@ every landing.
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:1442` |
-| 2 | `begin_frame` | `src/console/console.hpp:1593` |
+| 1 | `initSurface` | `src/console/console.hpp:1486` |
+| 2 | `begin_frame` | `src/console/console.hpp:1637` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:1588`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:1632`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer

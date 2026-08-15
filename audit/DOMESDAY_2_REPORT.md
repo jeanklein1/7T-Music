@@ -251,7 +251,12 @@ The fixes:
   stage that *consumes* it, which is TOGGLE_1revA's standing law rather
   than an exception to it. The testimony, both twins:
   `[Device] wgsl language features: immediate-address-space=YES/no`,
-  asked of the instance via `HasWGSLLanguageFeature`.
+  asked of the instance via `HasWGSLLanguageFeature`. **F3-e supersedes
+  the exact string**: each twin appends the instance it measured —
+  `… =YES (instance: enableExperimental)` native,
+  `… =YES (browser default — this twin enables nothing)` web — so a
+  native log can never be read as a promise about the phone. The
+  handoff's string is normative as the *prefix*.
 - **F3-b** (`e90de9d`) — the wrong enum leaves entirely (zero
   `wgpu::FeatureName::ImmediateAddressSpace` references remain in the
   tree); `requiredFeatures` is timestamp-query-only on both twins
@@ -259,8 +264,14 @@ The fixes:
   (NEEDS r7), now unconditional on the web modest path, because that
   half of F2-a was always true: the shadow family's layouts declare 4
   immediate bytes and a core-defaults request grants 0 unless asked.
-  The exceptions line names the gate that exists:
-  `wgsl:immediate_address_space (instance) + maxImmediateSize=4 (NEEDS r7)`.
+  The exceptions line names the gate that exists. **F3-e and F3-f
+  supersede the exact string**, because a device request cannot carry a
+  dialect and must not claim bytes it withheld; what HEAD prints is
+  `exceptions carried: maxImmediateSize=4 (NEEDS r7); wgsl:immediate_address_space (instance) present|ABSENT`
+  — or `carried: none (maxImmediateSize withheld, see above)` when the
+  adapter cannot back the ask. Both halves of the handoff's string
+  survive as facts; only their grammar changed, from *claimed* to
+  *reported*.
 - **F3-c** (this section).
 - **F3-e** (`caf54b4`) — an adversarial verification pass over F3-a/F3-b
   (three independent lenses, then an adjudicator required to prove each
@@ -275,6 +286,21 @@ The fixes:
   device-feature doctrine and pointed at a request site F3-b had
   deleted. A9's and A7's lesson, third time: the token and the prose
   that explains it are one edit, never two.
+- **F3-f** (`3f25060`) — the same verification pass's major finding, and
+  a regression F3-b introduced: F2-a's `maxImmediateSize` ask was gated
+  (and, on a nonexistent device feature, never fired); F3-b made it
+  **unconditional**. WebGPU rejects a required limit better than the
+  adapter reports, and this file's rejection path reissues as full
+  passthrough — the one shape PORT_6c/L14 forbids as a design, stated
+  in that function's own banner — while the granted-vs-floor census
+  lives under `if (!passthrough)` and is therefore skipped on the
+  reissue. So on any adapter reporting `maxImmediateSize` under 4, the
+  boot would have lost the immediate lane's only printed number on
+  exactly the device whose lane was in question. The ask is now gated
+  on the adapter's own reported value, the withholding prints its
+  reason, and the exceptions line reports what was actually requested.
+  The Pixel reports 64 (A3's row at the DOMESDAY_1 boot), so the gate
+  stands open there; it exists for the adapter that reports 0.
 
 Three disclosures, so the next round starts from evidence:
 
