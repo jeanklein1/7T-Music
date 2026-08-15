@@ -71,7 +71,7 @@
 
                     entries[2].binding = bind::g1::render_vp;
                     entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[3].binding = bind::g1::render_camera;
                     entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;

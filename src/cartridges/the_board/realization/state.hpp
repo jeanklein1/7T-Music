@@ -3551,7 +3551,10 @@ namespace t7 {
                     sizeof(GPUFieldAuthored),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B1: + Uniform for the g1:3 render_vp window;
+                    // the compute face (g2:240 vp_data) still binds as storage.
                 // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
                 // WALLET_1revA: UNIFORM, not storage — the whole point of the
                 // block is that it stops spending F-stage storage seats.
@@ -3627,7 +3630,12 @@ namespace t7 {
                 // Self-Portrait Gallery
                 photographerVPBuffer_ = makeBuffer("Photographer VP",
                     sizeof(GPUVPMatrix),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Uniform);
+                    // DOMESDAY_0 B1: + Uniform — this buffer seats the SAME
+                    // frameRLayout_ render_vp slot through the photographer
+                    // group; the kernel face (g2:161 photographer_vp) still
+                    // binds as storage.
                 photographerCameraBuffer_ = makeBuffer("Photographer Camera",
                     sizeof(GPUCameraState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);

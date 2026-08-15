@@ -42,7 +42,7 @@ namespace t7 {
                 inline constexpr uint32_t signal                      = 0;
                 inline constexpr uint32_t render_lighting             = 1;
                 inline constexpr uint32_t shadow_slot                 = 2;
-                inline constexpr uint32_t render_vp                   = 3;
+                inline constexpr uint32_t render_vp                   = 3;  // uniform window onto the vp buffer (writer: g2:240 vp_data)
                 inline constexpr uint32_t render_camera               = 4;
                 inline constexpr uint32_t bilinear_sampler            = 5;
                 inline constexpr uint32_t nearest_sampler             = 6;
