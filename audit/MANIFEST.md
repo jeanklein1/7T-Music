@@ -46,31 +46,31 @@ everywhere today; it exists so the lane is visible.
 | Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Sphere Entity (Rasterized) | `spherePipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Monolith Entity (Rasterized) | `monolithPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Catenary Arch (Rasterized) | `archPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Catenary Arch (Rasterized) | `archPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Generative Column (Rasterized) | `columnPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Generative Column (Rasterized) | `columnPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Palm Tree (Rasterized) | `palmPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Palm Tree (Rasterized) | `palmPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Cactus (Rasterized) | `cactusPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Cactus (Rasterized) | `cactusPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Blade Cluster (Rasterized) | `bladePipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Sky Ribbon Entity | `ribbonPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | 9 / 3 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Orb Sky Layer | `orbRenderPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | V | 5 / 7 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | F | 5 / 7 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
@@ -152,7 +152,6 @@ declaration alone — no hand-authored field.
 | `patch_cell_color_array_write` | 3:41 | handle | `texture_storage_2d_array<rgba8unorm, write>` | storagetex |
 | `patch_height_scratch` | 2:41 | storage, read_write | `array<f32>` | storage |
 | `patch_instances` | 2:61 | storage, read | `array<PatchInstance>` | storage |
-| `visible_patch_indices` | 2:62 | storage, read | `array<u32>` | storage |
 | `patch_heightfield_array_read` | 3:44 | handle | `texture_2d_array<f32>` | sampled |
 | `patch_cell_color_array_read` | 3:45 | handle | `texture_2d_array<f32>` | sampled |
 | `zone_config` | 2:101 | storage, read_write | `GoLZoneArray` | storage |

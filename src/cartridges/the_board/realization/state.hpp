@@ -3676,7 +3676,13 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
                 visiblePatchIndicesBuffer_ = makeBuffer("Visible Patch Indices",
                     FC_LIST_BYTES,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
+                    | wgpu::BufferUsage::Vertex);
+                    // DOMESDAY_0 B3: + Vertex — the render side pulls the
+                    // visible list as an instance-step attribute now; the
+                    // cull kernel's g2:63 fc_visible face still writes it
+                    // as storage (compute-written vertex pull is legal;
+                    // usage is a creation flag).
                 drawPlanBuffer_ = makeBuffer("Draw Plan Params",
                     sizeof(GPUDrawPlanParams),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);

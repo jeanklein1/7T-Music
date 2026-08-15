@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (98 declarations over 83 slots;
+// The WGSL @binding literals in world.wgsl (97 declarations over 82 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -87,7 +87,6 @@ namespace t7 {
                 // CULL (60–79)
                 inline constexpr uint32_t fc_draw_plan                = 60;  // ECONOMY_1 draw plan: counts + zone rects (uniform, cull kernel only). Reuses the slot the retired terrain_mesh_indices freed — L6 item 5, the cmg precedent.
                 inline constexpr uint32_t patch_instances             = 61;  // aka fc_patches — aka fc_patches
-                inline constexpr uint32_t visible_patch_indices       = 62;
                 inline constexpr uint32_t fc_visible                  = 63;
                 inline constexpr uint32_t fc_indirect                 = 64;
 

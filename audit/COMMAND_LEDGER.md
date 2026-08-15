@@ -10,13 +10,13 @@ Last commit touching any scanned file: `1356750d1ecad5cfeebc279e5b37f63dff03dfdc
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:488b77a66fee17887c284a8efecc1a192e70c5d2d58f12c663dc38367c300451` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:beb005362e74d77af1306e779a2f6c0cd18230011d7d9b0a772a1c3f0413dc38` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:837312abc295b88414ca8517c17e1bc0f075f65fdd08778fac8f06be7c446cfd` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:86144b0bafe3d5e755e4584e98b10ccca8f9d4024938be1045166e1e12429613` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:6a9e9ec0ccd80ab9b7e01a7d368d9573237b40bab446b890bf46207f22002e8a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:207a97528689dae308e9aa9b1cf6717a9c71365dd9b01fc45f75dea3e2205fda` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:c0f9bb6ea32e7f747347a5c359364756ab179e90d551344da93b6e7e02fbb4d4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:f4fcbfdf8623b14a66b125496f905b6c890630ebd5059b5bab778879a38007df` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:e632bb344f96e9dee43f0b15acda203bf7105df5ba3ed2f78ffa69e159ce9f41` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:6c67d84be87aaff20dfa78040b594c132b629fcb09445394ff635bb42304dd8f` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:50b3df21e51598a0b72a16ef1d5ffa0584712b6186ebb9c1df77ac843076c9fa` |
 | `src/incubator_dual.cpp` | `sha256:05733ce6c9895a00c97fc3382470256e19a0e6717eb7fd94db470ecadeb07d41` |
 | `src/console/console.hpp` | `sha256:91840c9b40d4a0d6002fa9c07447f962644f11f78ae373a6f0d1c3e477192418` |
