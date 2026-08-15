@@ -43,7 +43,8 @@ void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     const GPUSpotLightArray& cpuSpotLights_);
 void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool cast_terrain);
 void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
-    wgpu::TextureView backbuffer, wgpu::TextureView depth,
+    wgpu::TextureView backbuffer, wgpu::TextureView msaaColor,
+    wgpu::TextureView depth,
     const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
 // Light matrix helpers (pure math — no MachineCtx)
 void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
@@ -492,14 +493,26 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
 // ═══ MAIN PASS ═══════════════════════════════════════════════════
 
 inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
-    wgpu::TextureView backbuffer, wgpu::TextureView depth,
+    wgpu::TextureView backbuffer, wgpu::TextureView msaaColor,
+    wgpu::TextureView depth,
     const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
 
+    // DOMESDAY_2 B10 — the msaa arm: when the boot param created a
+    // multisampled color target, the pass renders into it and RESOLVES
+    // into the backbuffer; the multisampled contents themselves are
+    // discarded (resolve is independent of storeOp — tiler-ideal).
+    // msaaColor null (msaa=1) leaves every field byte-identical to the
+    // pre-B10 descriptor.
     wgpu::RenderPassColorAttachment colorAttachment{};
     colorAttachment.view = backbuffer;
     colorAttachment.loadOp = wgpu::LoadOp::Clear;
     colorAttachment.storeOp = wgpu::StoreOp::Store;
     colorAttachment.clearValue = { (double)clearColor_[0], (double)clearColor_[1], (double)clearColor_[2], 1.0 };
+    if (msaaColor) {
+        colorAttachment.view = msaaColor;
+        colorAttachment.resolveTarget = backbuffer;
+        colorAttachment.storeOp = wgpu::StoreOp::Discard;
+    }
 
     wgpu::RenderPassDepthStencilAttachment depthAttachment{};
     depthAttachment.view = depth;

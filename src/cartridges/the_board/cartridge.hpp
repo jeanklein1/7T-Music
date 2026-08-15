@@ -871,6 +871,7 @@ namespace t7 {
                 wgpu::CommandEncoder& encoder;
                 wgpu::Queue& queue;
                 wgpu::TextureView     backbuffer;
+                wgpu::TextureView     msaaColor;   // B10: null at msaa=1
                 wgpu::TextureView     depth;
             };
 
@@ -2094,7 +2095,7 @@ namespace t7 {
                 auto& encoder = c.encoder;
                 auto backbuffer = c.backbuffer;
                 auto depth = c.depth;
-                render_main_pass(&machine_ctx_, encoder, backbuffer, depth, clearColor_, orbs_state_, orbs_deps_);
+                render_main_pass(&machine_ctx_, encoder, backbuffer, c.msaaColor, depth, clearColor_, orbs_state_, orbs_deps_);
             }
 
             // R20 — SNAPSHOT PASS (algo; gallery cadence). The photographer's
@@ -2357,8 +2358,9 @@ namespace t7 {
             // ── THE CONDUCTOR (render) — a LOOP over RENDER_SPINE (§1b) ─────
             void render(wgpu::CommandEncoder& encoder,
                 wgpu::TextureView backbuffer,
+                wgpu::TextureView msaaColor,
                 wgpu::TextureView depth) override {
-                RenderCtx ctx{ encoder, queue_, backbuffer, depth };   // OIL_1 U1: the cached queue — no per-frame GetQueue
+                RenderCtx ctx{ encoder, queue_, backbuffer, msaaColor, depth };   // OIL_1 U1: the cached queue — no per-frame GetQueue
                 if constexpr (INSTRUMENTS.frame_meter) meter_.window_frames++;
 
                 // THE FRAME METER — GPU half, harvest side. Mirrors the

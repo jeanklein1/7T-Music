@@ -280,7 +280,9 @@ static void frame() {
     encDesc.label = "frame";   // DOMESDAY_1 A9 (label law): named at creation
     wgpu::CommandEncoder encoder = app->console.device().CreateCommandEncoder(&encDesc);
 
-    app->render.render(encoder, app->console.backbuffer(), app->console.depth_view());
+    app->render.render(encoder, app->console.backbuffer(),
+        app->console.msaa_color_view(),   // B10: null at msaa=1
+        app->console.depth_view());
 
     wgpu::CommandBufferDescriptor cmdDesc{};
     if constexpr (t7::INSTRUMENTS.frame_meter) s_t0 = std::chrono::steady_clock::now();

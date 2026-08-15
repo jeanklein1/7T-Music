@@ -1159,22 +1159,25 @@ def capture_resources():
                          "count_expr": _norm_expr(cm.group(1)) if cm else None},
             "src/cartridges/the_board/realization/state.hpp")
 
-    # ── the console's depth texture (the main pass's depth attachment
-    #    backing — R-1 needs it resolvable).
-    m = re.search(r"depthTexture_\s*=\s*device_\.CreateTexture\(&(\w+)\)", co)
-    if m:
+    # ── the console's own textures (the main pass's depth attachment
+    #    backing, and B10's msaa color target — R-1 needs both
+    #    resolvable).
+    for m in re.finditer(r"(\w+)\s*=\s*device_\.CreateTexture\(&(\w+)\)", co):
         dm = list(re.finditer(r"wgpu::TextureDescriptor\s+%s\s*\{"
-                              % re.escape(m.group(1)), co[:m.start()]))
+                              % re.escape(m.group(2)), co[:m.start()]))
         region = co[dm[-1].start():m.start()] if dm else ""
-        lm = re.search(r"%s\.label\s*=\s*\"([^\"]*)\"" % re.escape(m.group(1)),
+        lm = re.search(r"%s\.label\s*=\s*\"([^\"]*)\"" % re.escape(m.group(2)),
                        region)
-        f = re.search(r"%s\.format\s*=\s*([^;]+);" % re.escape(m.group(1)), region)
-        s = re.search(r"%s\.size\s*=\s*\{([^}]*)\}" % re.escape(m.group(1)), region)
-        rows["depthTexture_"] = {
+        f = re.search(r"%s\.format\s*=\s*([^;]+);" % re.escape(m.group(2)), region)
+        s = re.search(r"%s\.size\s*=\s*\{([^}]*)\}" % re.escape(m.group(2)), region)
+        sc = re.search(r"%s\.sampleCount\s*=\s*([^;]+);" % re.escape(m.group(2)),
+                       region)
+        rows[m.group(1)] = {
             "kind": "texture", "label": lm.group(1) if lm else None,
             "format": _norm_expr(f.group(1)) if f else "(unset)",
             "size": _norm_expr(s.group(1)) if s else "(unset)",
-            "samples": "1", "file": "src/console/console.hpp"}
+            "samples": _norm_expr(sc.group(1)) if sc else "1",
+            "file": "src/console/console.hpp"}
     return rows
 
 
@@ -1225,8 +1228,10 @@ def resource_reach(resources, schema, acc, views):
             view = att.get("view") or ""
             for name in re.findall(r"(\w+)\(\)", view):
                 touch(name, "pass attachment")
-            if view.strip() == "depth":
+            if "depth" in re.findall(r"(?<![\w.])(\w+)", view):
                 touch("depthTexture_", "pass attachment")
+            if "msaaColor" in re.findall(r"(?<![\w.])(\w+)", view):
+                touch("msaaColorTexture_", "pass attachment")
             for name in re.findall(r"(?<![\w.(])(\w+_)\b", view):
                 touch(name, "pass attachment")
 
@@ -1520,10 +1525,13 @@ def check(args):
             names = re.findall(r"(\w+)\(\)", view)
             resolved = any(views.get(acc.get(nm, nm), acc.get(nm, nm))
                            in res_tree for nm in names)
-            if view.strip() in ("backbuffer",):
+            toks = re.findall(r"(?<![\w.])(\w+)", view)
+            if "backbuffer" in toks:
                 resolved = True   # the swapchain's texture — not ours to own
-            if view.strip() == "depth":
-                resolved = "depthTexture_" in res_tree
+            if "depth" in toks:
+                resolved = resolved or "depthTexture_" in res_tree
+            if "msaaColor" in toks:
+                resolved = resolved or "msaaColorTexture_" in res_tree
             if not resolved:
                 r1_bad.append("pass %r attachment %r" % (r["label"], view))
     print("  [%s] R-1  every seat backing and pass-attachment view resolves "

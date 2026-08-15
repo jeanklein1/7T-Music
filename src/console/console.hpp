@@ -1263,13 +1263,29 @@ namespace t7 {
         }
 
         void createDepthBuffer(uint32_t w, uint32_t h) {
+            // DOMESDAY_2 B10: the depth buffer carries the boot-read
+            // sample count, and the msaa color target rides this same
+            // recreate path so the debounce owns resizing. With msaa=1
+            // every descriptor below is byte-identical to the pre-B10
+            // shape and no msaa color texture exists.
             wgpu::TextureDescriptor depthDesc{};
             depthDesc.label = "Depth Texture";
             depthDesc.size = { w, h, 1 };
             depthDesc.format = depthFormat_;
+            depthDesc.sampleCount = effective_msaa();
             depthDesc.usage = wgpu::TextureUsage::RenderAttachment;
             depthTexture_ = device_.CreateTexture(&depthDesc);
             depthView_ = depthTexture_.CreateView();
+            if (effective_msaa() == 4u) {
+                wgpu::TextureDescriptor msaaDesc{};
+                msaaDesc.label = "MSAA Color Target";
+                msaaDesc.size = { w, h, 1 };
+                msaaDesc.format = surfaceConfig_.format;
+                msaaDesc.sampleCount = 4;
+                msaaDesc.usage = wgpu::TextureUsage::RenderAttachment;
+                msaaColorTexture_ = device_.CreateTexture(&msaaDesc);
+                msaaColorView_ = msaaColorTexture_.CreateView();
+            }
         }
 
 
@@ -2038,6 +2054,9 @@ namespace t7 {
         wgpu::Queue queue() { return queue_; }
         wgpu::TextureView backbuffer() const { return backbuffer_; }
         wgpu::TextureView depth_view() const { return depthView_; }
+        // B10: null when msaa=1 — the main pass reads the null as
+        // "render straight into the backbuffer, exactly as before".
+        wgpu::TextureView msaa_color_view() const { return msaaColorView_; }
         wgpu::TextureFormat color_format() const { return colorFormat_; }
         wgpu::TextureFormat depth_format() const { return depthFormat_; }
 
@@ -2127,6 +2146,10 @@ namespace t7 {
         // ── Depth ────────────────────────────────────────────────
         wgpu::TextureFormat depthFormat_ = wgpu::TextureFormat::Depth24Plus;
         wgpu::Texture depthTexture_;
+        // B10 — the msaa color target (created only when ?msaa=4; the
+        // frame resolves into the backbuffer). Rides createDepthBuffer.
+        wgpu::Texture msaaColorTexture_;
+        wgpu::TextureView msaaColorView_;
         wgpu::TextureView depthView_;
 
         // ── Timing ───────────────────────────────────────────────

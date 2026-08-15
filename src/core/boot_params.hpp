@@ -39,7 +39,17 @@ namespace t7 {
         bool has_seed = false; uint32_t seed = 0;
         bool has_mood = false; uint32_t mood = 0;
         bool has_cap  = false; float    cap  = 1.0f;
+        bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
     };
+
+    // B10 — the walk's last instrument: multisampling as a boot-read
+    // measurement affordance. {1, 4} only; the default stays 1 until
+    // the soak walk prices the matrix, and the default flip afterward
+    // is one constant. Pipelines are created once with this value —
+    // no mid-run mutation, per the surface's law.
+    inline uint32_t effective_msaa() {
+        return boot_params().has_msaa ? boot_params().msaa : 1u;
+    }
 
     // Set once by parse_boot_params (main, before any consumer);
     // read-only ever after.
@@ -54,11 +64,15 @@ namespace t7 {
             if (p.cap < 0.5f) p.cap = 0.5f;
             if (p.cap > 3.0f) p.cap = 3.0f;
         }
-        if (p.has_seed || p.has_mood || p.has_cap) {
+        if (p.has_msaa && p.msaa != 4u) {
+            p.msaa = 1u;   // B10: {1, 4} only; anything else -> 1
+        }
+        if (p.has_seed || p.has_mood || p.has_cap || p.has_msaa) {
             std::cout << "[Params]";
             if (p.has_seed) std::cout << " seed=" << p.seed;
             if (p.has_mood) std::cout << " mood=" << p.mood;
             if (p.has_cap)  std::cout << " cap=" << p.cap;
+            if (p.has_msaa) std::cout << " msaa=" << p.msaa;
             std::cout << "\n";
         }
     }
@@ -69,7 +83,7 @@ namespace t7 {
     // NaN = absent-or-malformed; integer/range checks land on the C++
     // side so the rule has one spelling per twin.
     inline void parse_boot_params(int, char**) {
-        double vals[3];
+        double vals[4];
         EM_ASM({
             var q = new URLSearchParams(location.search);
             var o = $0 >> 3;
@@ -82,6 +96,7 @@ namespace t7 {
             HEAPF64[o]     = num('seed');
             HEAPF64[o + 1] = num('mood');
             HEAPF64[o + 2] = num('cap');
+            HEAPF64[o + 3] = num('msaa');
         }, vals);
         BootParams& p = boot_params();
         if (!std::isnan(vals[0]) && vals[0] >= 0.0 && vals[0] <= 4294967295.0
@@ -94,6 +109,10 @@ namespace t7 {
         }
         if (!std::isnan(vals[2])) {
             p.has_cap = true; p.cap = static_cast<float>(vals[2]);
+        }
+        if (!std::isnan(vals[3]) && vals[3] == std::floor(vals[3])
+                && vals[3] >= 0.0 && vals[3] <= 4294967295.0) {
+            p.has_msaa = true; p.msaa = static_cast<uint32_t>(vals[3]);
         }
         boot_params_announce_();
     }
@@ -119,6 +138,11 @@ namespace t7 {
                 float v = std::strtof(a + 6, &end);
                 if (end && *end == '\0' && end != a + 6 && std::isfinite(v)) {
                     p.has_cap = true; p.cap = v;
+                }
+            } else if (std::strncmp(a, "--msaa=", 7) == 0) {
+                unsigned long long v = std::strtoull(a + 7, &end, 10);
+                if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
+                    p.has_msaa = true; p.msaa = static_cast<uint32_t>(v);
                 }
             }
         }

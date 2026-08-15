@@ -1594,6 +1594,7 @@ namespace t7 {
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
                     return tPipe(label, [&]() {
                         out = device_.CreateRenderPipeline(&desc);
                         return out != nullptr;
@@ -1635,6 +1636,7 @@ namespace t7 {
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                     if (!tPipe("patch_terrain", [&]() {
                         patchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
@@ -1682,6 +1684,7 @@ namespace t7 {
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                     if (!tPipe("patch_terrain_indirect", [&]() {
                         patchTerrainIndirectPipeline_ = device_.CreateRenderPipeline(&desc);
@@ -1819,6 +1822,7 @@ namespace t7 {
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                     if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
                     if (!tPipe("ribbon", [&]() {
@@ -1934,6 +1938,7 @@ namespace t7 {
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
                     desc.depthStencil = &orbDepth;
                     desc.fragment = &fragment;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                     if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — shader compile skipped when disabled
                     if (!tPipe("orb", [&]() {
@@ -1983,6 +1988,7 @@ namespace t7 {
                     desc.primitive.frontFace = wgpu::FrontFace::CCW;
                     desc.depthStencil = &galleryDepth;
                     desc.fragment = &frag;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                     if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                     if (!tPipe("gallery_frame", [&]() {
@@ -2029,6 +2035,7 @@ namespace t7 {
                         desc.primitive.frontFace = wgpu::FrontFace::CCW;
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
+                        desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                         if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                         if (!tPipe("wall_painting_canvas", [&]() {
@@ -2057,6 +2064,7 @@ namespace t7 {
                         desc.primitive.frontFace = wgpu::FrontFace::CCW;
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
+                        desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                         if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                         if (!tPipe("wall_painting_frame", [&]() {
@@ -2540,6 +2548,7 @@ namespace t7 {
                     desc.vertex.bufferCount = 0;
                     desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
                     desc.fragment = &frag;
+                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
 
                     wgpu::DepthStencilState fadeDepth{};
                     fadeDepth.format = depthFormat_;

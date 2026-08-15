@@ -74,8 +74,12 @@ public:
      * @param backbuffer Render target (surface texture view)
      * @param depth      Depth buffer view
      */
+    // DOMESDAY_2 B10: msaaColor is null at msaa=1 (render straight into
+    // the backbuffer); at msaa=4 it is the multisampled target and the
+    // backbuffer becomes the resolve destination.
     virtual void render(wgpu::CommandEncoder& encoder,
                         wgpu::TextureView backbuffer,
+                        wgpu::TextureView msaaColor,
                         wgpu::TextureView depth) = 0;
     
     // â”€â”€â”€ INPUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
