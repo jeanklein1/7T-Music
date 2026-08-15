@@ -42,20 +42,21 @@ namespace t7 {
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
     };
 
-    // B10 — the walk's last instrument: multisampling as a boot-read
-    // measurement affordance. {1, 4} only; the default stays 1 until
-    // the soak walk prices the matrix, and the default flip afterward
-    // is one constant. Pipelines are created once with this value —
-    // no mid-run mutation, per the surface's law.
-    inline uint32_t effective_msaa() {
-        return boot_params().has_msaa ? boot_params().msaa : 1u;
-    }
-
     // Set once by parse_boot_params (main, before any consumer);
     // read-only ever after.
     inline BootParams& boot_params() {
         static BootParams p;
         return p;
+    }
+
+    // B10 — the walk's last instrument: multisampling as a boot-read
+    // measurement affordance. {1, 4} only; the default stays 1 until
+    // the soak walk prices the matrix, and the default flip afterward
+    // is one constant. Pipelines are created once with this value —
+    // no mid-run mutation, per the surface's law. (F1-b: defined
+    // BELOW the accessor it reads — glaw1 caught the original order.)
+    inline uint32_t effective_msaa() {
+        return boot_params().has_msaa ? boot_params().msaa : 1u;
     }
 
     inline void boot_params_announce_() {
