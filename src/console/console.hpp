@@ -549,12 +549,35 @@ namespace t7 {
                         // PORT_6a (2) — granted vs the censused floor, always
                         // printed, so the numbers are on the record whether or
                         // not they disagree.
+                        //
+                        // LANTERN U1 — three rows added, each one a ceiling
+                        // this program's design actually stands on, and each
+                        // silent until now:
+                        //   maxTextureArrayLayers — the patch heightfield
+                        //     array is MAX_ACTIVE_PATCHES = 225 layers
+                        //     (state.hpp: "fits default maxTextureArrayLayers").
+                        //     225 of a 256 default is the tightest ceiling
+                        //     the program owns.
+                        //   maxUniformBuffersPerShaderStage — the LOOM wallet
+                        //     closed with the agents compute row at 11 of 12
+                        //     (BINDING_LEDGER Table B). One seat of margin.
+                        //   maxBindGroups — the LOOM recut spends all four
+                        //     strata at every pipeline. 4 of 4 is not margin,
+                        //     it is the design.
+                        // The DISCARD net below still reads the original
+                        // three: adding a floor to the discard decision is a
+                        // behavior change, not an instrument, and this
+                        // campaign prints only.
                         std::cout << "[Device] granted vs floor:"
                             << " maxTextureDimension2D=" << got.maxTextureDimension2D << "/2048"
+                            << " maxTextureArrayLayers=" << got.maxTextureArrayLayers << "/225"
                             << " maxStorageBuffersPerShaderStage="
                             << got.maxStorageBuffersPerShaderStage << "/8"
+                            << " maxUniformBuffersPerShaderStage="
+                            << got.maxUniformBuffersPerShaderStage << "/12"
                             << " maxUniformBufferBindingSize="
-                            << got.maxUniformBufferBindingSize << "/65536\n";
+                            << got.maxUniformBufferBindingSize << "/65536"
+                            << " maxBindGroups=" << got.maxBindGroups << "/4\n";
                         bool below = false;
                         if (got.maxTextureDimension2D < 2048u) {
                             std::cerr << "[Device] BELOW FLOOR: maxTextureDimension2D granted "
@@ -590,6 +613,44 @@ namespace t7 {
                     }
                     device_ = std::move(device);
                     queue_ = device_.GetQueue();
+                    // ═══ LANTERN U1 — THE GRANTS CENSUS, web half ════════
+                    //
+                    // The optional-feature treasury (L20), printed at last.
+                    // The web console named no feature at all, yet the meter
+                    // produced GPU timings — so timestamp-query was granted
+                    // and unreported, and its ONLY evidence was the ABSENCE
+                    // of the cartridge's "[METER] timestamp-query
+                    // unavailable" line. A grant witnessed by silence is P6's
+                    // exact complaint: a switch that cannot be seen to have
+                    // fired is indistinguishable from one that never fired.
+                    //
+                    // TWO FACTS, one line. What the adapter OFFERS bounds
+                    // which optional wings can ever open (L20 governs the
+                    // request, this governs the possibility). What the DEVICE
+                    // carries is what this boot actually got — and this
+                    // program requests exactly one optional feature, so the
+                    // named half is complete, not a sample.
+                    //
+                    // Numeric ids, like the native line: mapping ids to
+                    // spelling needs an enumerator table this campaign has no
+                    // question for, and a number hides nothing.
+                    //
+                    // Prints on BOTH request paths — the fallback passthrough
+                    // is the path where the numbers matter most.
+                    {
+                        wgpu::SupportedFeatures feats{};
+                        adapter_.GetFeatures(&feats);
+                        std::cout << "[Device] features: adapter offers "
+                            << feats.featureCount << " (";
+                        for (size_t i = 0; i < feats.featureCount; i++) {
+                            std::cout << (i ? " " : "")
+                                << static_cast<uint32_t>(feats.features[i]);
+                        }
+                        std::cout << "); granted timestamp-query="
+                            << (device_.HasFeature(wgpu::FeatureName::TimestampQuery)
+                                    ? "YES" : "no")
+                            << " (the only optional feature this program requests)\n";
+                    }
                     // PORT_6a (5) — the device the program actually keeps.
                     std::cout << "[Device] KEEPING the device from: " << which
                         << " (this is the one the frame loop runs on)\n";
