@@ -186,6 +186,45 @@ namespace t7 {
         }
     }
 
+#ifndef __EMSCRIPTEN__
+    // ═══ THE WGSL DIALECT'S NAMES (DOMESDAY_2 F3-a) ══════════════════
+    //
+    // A SECOND registry, and the one that actually holds the immediate
+    // lane's gate: WGSL LANGUAGE features are instance-scoped and carry
+    // their own enum. The 17 cases below are the full set at this Dawn
+    // revision, transcribed from Jean's header probe
+    // (webgpu_cpp.h:929-945) — enumerator identifiers, never numeric
+    // values, so the compiling header supplies each value and glaw1 is
+    // the witness that each exists.
+    //
+    // NATIVE ONLY. The web port's header is not in evidence (A2's wall
+    // stands), so that twin prints ids alone rather than guessing
+    // spellings — the F1-a lesson, applied before the bounce instead of
+    // after it.
+    inline const char* wgsl_language_feature_name(wgpu::WGSLLanguageFeatureName f) {
+        switch (f) {
+        case wgpu::WGSLLanguageFeatureName::ReadonlyAndReadwriteStorageTextures: return "readonly_and_readwrite_storage_textures";
+        case wgpu::WGSLLanguageFeatureName::Packed4x8IntegerDotProduct:          return "packed_4x8_integer_dot_product";
+        case wgpu::WGSLLanguageFeatureName::UnrestrictedPointerParameters:       return "unrestricted_pointer_parameters";
+        case wgpu::WGSLLanguageFeatureName::PointerCompositeAccess:              return "pointer_composite_access";
+        case wgpu::WGSLLanguageFeatureName::UniformBufferStandardLayout:         return "uniform_buffer_standard_layout";
+        case wgpu::WGSLLanguageFeatureName::SubgroupId:                          return "subgroup_id";
+        case wgpu::WGSLLanguageFeatureName::SizedBindingArray:                   return "sized_binding_array";
+        case wgpu::WGSLLanguageFeatureName::TexelBuffers:                        return "texel_buffers";
+        case wgpu::WGSLLanguageFeatureName::ChromiumPrint:                       return "chromium_print";
+        case wgpu::WGSLLanguageFeatureName::FragmentDepth:                       return "fragment_depth";
+        case wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace:               return "immediate_address_space";
+        case wgpu::WGSLLanguageFeatureName::SubgroupUniformity:                  return "subgroup_uniformity";
+        case wgpu::WGSLLanguageFeatureName::ChromiumTestingUnimplemented:        return "chromium_testing_unimplemented";
+        case wgpu::WGSLLanguageFeatureName::ChromiumTestingUnsafeExperimental:   return "chromium_testing_unsafe_experimental";
+        case wgpu::WGSLLanguageFeatureName::ChromiumTestingExperimental:         return "chromium_testing_experimental";
+        case wgpu::WGSLLanguageFeatureName::ChromiumTestingShippedWithKillswitch: return "chromium_testing_shipped_with_killswitch";
+        case wgpu::WGSLLanguageFeatureName::ChromiumTestingShipped:              return "chromium_testing_shipped";
+        default:                                                                 return nullptr;
+        }
+    }
+#endif
+
 #ifdef __EMSCRIPTEN__
     // ═══ THE INSTANCE ANCHOR (PORT_4a) ═══════════════════════════════
     //
@@ -820,6 +859,46 @@ namespace t7 {
         }
 #endif // __EMSCRIPTEN__
 
+        // ═══ THE DIALECT'S TESTIMONY (DOMESDAY_2 F3-a) ═══════════════
+        //
+        // THE LANE'S TRUE GATE, asked at the registry that holds it.
+        // F2-a specified a device feature; Jean's header probe settled
+        // that there is none — ImmediateAddressSpace exists ONLY as
+        // wgpu::WGSLLanguageFeatureName (webgpu_cpp.h:939), and the API
+        // half (SetImmediates, PipelineLayoutDescriptor::immediateSize,
+        // Limits::maxImmediateSize) is unconditional in the header. So
+        // the gate is the WGSL LANGUAGE feature, enabled at the
+        // INSTANCE and never requested at the device.
+        //
+        // Printed on BOTH twins, from the instance's own mouth. On the
+        // web this line IS the quadrant answer the Pixel boot owes us:
+        // Chrome's wgslLanguageFeatures surfaces through the same call.
+        void report_wgsl_language_features(const wgpu::Instance& inst) {
+            wgslImmediate_ = static_cast<bool>(inst.HasWGSLLanguageFeature(
+                wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace));
+            std::cout << "[Device] wgsl language features: immediate-address-space="
+                << (wgslImmediate_ ? "YES" : "no") << "\n";
+#ifndef __EMSCRIPTEN__
+            // The whole ALLOWED set, named — the diagnostic half, so a
+            // `no` above is a DIAGNOSED no in the same boot rather than
+            // another round trip. GetWGSLLanguageFeatures reports what
+            // the instance ALLOWS, so if other experimental features are
+            // present and this one is not, the feature is not at
+            // experimental stage on this revision and the next knob is
+            // enableUnsafe (recorded, not taken — a bench that outruns
+            // the product stops being a bench).
+            wgpu::SupportedWGSLLanguageFeatures wf{};
+            inst.GetWGSLLanguageFeatures(&wf);
+            std::cout << "[Device] wgsl dialect allowed (" << wf.featureCount << "):";
+            for (size_t i = 0; i < wf.featureCount; i++) {
+                const char* nm = wgsl_language_feature_name(wf.features[i]);
+                if (nm) std::cout << " " << nm;
+                else    std::cout << " " << static_cast<uint32_t>(wf.features[i]);
+            }
+            std::cout << "\n";
+#endif
+        }
+
         bool initWebGPU() {
 #ifdef __EMSCRIPTEN__
             // ── PORT_1b Region 2 (web): the async boot grammar ────
@@ -840,6 +919,10 @@ namespace t7 {
             // adds a second one that outlives every object in the
             // program. Both are external references by Dawn's counting.
             g_instanceAnchor = instance_;
+            // F3-a — the dialect's testimony, before anything asks the
+            // adapter for anything. On this twin the browser owns the
+            // allow-list; we only report which quadrant it put us in.
+            report_wgsl_language_features(instance_);
             bootState_ = BootState::RequestingAdapter;
             // SHIP_0 U2 — ASK FOR THE REAL GPU. Harmless on single-GPU
             // phones (the only adapter is the only answer); correct for a
@@ -960,11 +1043,35 @@ namespace t7 {
             static const char* const kDxcToggle[] = { "use_dxc" };
             wgpu::DawnTogglesDescriptor toggles{};
             wgpu::InstanceDescriptor idesc{};
+
+            // ── DOMESDAY_2 F3-a — THE IMMEDIATE DIALECT, ENABLED ──────
+            // var<immediate> (world.wgsl) is gated by the WGSL language
+            // feature immediate_address_space, which is instance-scoped
+            // and experimental-stage at this revision. DawnWireWGSLControl
+            // is the purpose-built control (webgpu_cpp.h:2588; members
+            // enableExperimental / enableUnsafe / enableTesting, confirmed
+            // by the header's own offsetof asserts at 5007-5012) and its
+            // chain root is the InstanceDescriptor — so unlike TOGGLE_1revA's
+            // subject, this control chains at the stage that CONSUMES it,
+            // which is that ruling's law rather than an exception to it.
+            //
+            // enableExperimental ALONE, deliberately. enableUnsafe would
+            // widen the bench's dialect past anything the browser can
+            // offer the product, and a bench more permissive than the
+            // product stops being a bench — it would let native compile
+            // a shader the web twin refuses. If the testimony below says
+            // `no`, the dialect list beside it says whether this feature
+            // is merely un-enabled or absent at this revision, and THAT
+            // evidence — not another guess — decides the next knob.
+            wgpu::DawnWireWGSLControl wgslControl{};
+            wgslControl.enableExperimental = true;
+
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
                 toggles.enabledToggleCount = 1;
                 toggles.enabledToggles = kDxcToggle;
-                idesc.nextInChain = &toggles;
+                wgslControl.nextInChain = &toggles;   // both controls, one chain
             }
+            idesc.nextInChain = &wgslControl;
             // Vulkan and D3D12_Fxc chained nothing before TOGGLE_0: Vulkan
             // reaches SPIR-V through Tint with no toggle, and Fxc is the
             // untoggled path kept for archaeology. Under the control they
@@ -972,6 +1079,11 @@ namespace t7 {
 
             // Construct instance in place (non-copyable, non-movable)
             instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));
+
+            // F3-a — the dialect's testimony, from the instance just
+            // built with the control chained above (line 1294's pattern
+            // for the portable handle).
+            report_wgsl_language_features(wgpu::Instance(instance_->Get()));
 
             std::vector<dawn::native::Adapter> adapters = instance_->EnumerateAdapters();
             if (adapters.empty()) {
@@ -2169,6 +2281,10 @@ namespace t7 {
         uint32_t initialHeight_ = 0;
         uint32_t currentWidth_ = 0;
         uint32_t currentHeight_ = 0;
+        // F3-a: the instance's answer on the immediate dialect, asked
+        // once at instance creation and read later by the device
+        // request's testimony and its loud line. One query, one home.
+        bool wgslImmediate_ = false;
         // DOMESDAY_1 B7 (R4) — the reconfigure settle window: a changed
         // framebuffer size must hold still this many consecutive frames
         // before the surface reconfigures (begin_frame). Boot configures
