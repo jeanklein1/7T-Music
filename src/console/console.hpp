@@ -179,9 +179,6 @@ namespace t7 {
         // below by enum order.
         case wgpu::FeatureName::PrimitiveIndex:                return "primitive-index";
         case wgpu::FeatureName::TextureComponentSwizzle:       return "texture-component-swizzle";
-        // F2-a: the lane's gate, named in the offers line (dawn-tagged,
-        // not a spec GPUFeatureName — the suffix says whose it is).
-        case wgpu::FeatureName::ImmediateAddressSpace:         return "immediate-address-space(dawn)";
         default:                                               return nullptr;
         }
     }
@@ -609,19 +606,17 @@ namespace t7 {
             // run from it is not evidence. Compatibility stands on its
             // own; do not re-argue this line with a number from this
             // laptop.
-            // DOMESDAY_2 F2-a — THE LANE'S REAL GATE. var<immediate> and
-            // the immediateSize pipeline layouts require the device
-            // feature immediate-address-space (dawn.json: WGSL language
-            // feature 11, tagged dawn); a granted LIMIT is not an
-            // enabled FEATURE — A3's probe read the ceiling of a lane
-            // whose door was still locked. Requested only if offered;
-            // the requested byte count is the NEEDS table's own seventh
-            // row (limits_floor.gen.inc), so the request and the
-            // testimony share one home. Not offered -> one loud line,
-            // and the existing failure surface stands, now named.
-            const bool immediateOffered =
-                adapter_.HasFeature(wgpu::FeatureName::ImmediateAddressSpace);
-            if (immediateOffered && !passthrough) {
+            // DOMESDAY_2 F3-b — THE LIMIT STAYS, THE WRONG ENUM GOES.
+            // F2-a asked the adapter for a device feature that does not
+            // exist at this revision (the header probe: the immediate
+            // address space is a WGSL LANGUAGE feature, instance-scoped
+            // — F3-a). What remains true, and what this modest request
+            // must still carry, is the LIMIT: the shadow family's
+            // pipeline layouts declare 4 immediate bytes, and a core
+            // defaults request grants 0 unless asked. The byte count is
+            // the NEEDS table's own seventh row (limits_floor.gen.inc),
+            // so the request and the testimony share one home.
+            if (!passthrough) {
                 limits.maxImmediateSize = FLOOR_MAX_IMMEDIATE_SIZE;   // NEEDS r7
             }
             deviceDesc.requiredLimits = &limits;
@@ -630,30 +625,24 @@ namespace t7 {
             if (passthrough) {
                 std::cout << "[Device] requesting FULL ADAPTER PASSTHROUGH limits"
                              " (fallback path)\n";
-            } else if (immediateOffered) {
-                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried:"
-                             " feature immediate-address-space, maxImmediateSize="
-                    << FLOOR_MAX_IMMEDIATE_SIZE << " (NEEDS r7)\n";
             } else {
-                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried: none"
-                             " (C6 cleared maxStorageBuffersPerShaderStage 9->8)\n";
+                // The modest path now ALWAYS carries one exception, and
+                // names the gate that actually exists: the dialect is
+                // the instance's (F3-a's testimony line above states
+                // whether we got it), the bytes are this request's.
+                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried:"
+                             " wgsl:immediate_address_space (instance) + maxImmediateSize="
+                    << FLOOR_MAX_IMMEDIATE_SIZE << " (NEEDS r7)\n";
             }
-            if (!immediateOffered) {
-                std::cout << "[Device] immediate-address-space NOT offered — the post-B6"
-                             " shader cannot compile on this adapter (R3 floor)\n";
+            if (!wgslImmediate_) {
+                std::cout << "[Device] immediate_address_space NOT in the instance's WGSL"
+                             " dialect — the post-B6 shader cannot compile here (R3 floor)\n";
             }
 
-            wgpu::FeatureName requiredFeatures[2] = {};
-            uint32_t requiredFeatureCount = 0;
+            wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
             if (adapter_.HasFeature(wgpu::FeatureName::TimestampQuery)) {
-                requiredFeatures[requiredFeatureCount++] = wgpu::FeatureName::TimestampQuery;
-            }
-            if (immediateOffered) {
-                requiredFeatures[requiredFeatureCount++] = wgpu::FeatureName::ImmediateAddressSpace;
-            }
-            if (requiredFeatureCount > 0) {
                 deviceDesc.requiredFeatures = requiredFeatures;
-                deviceDesc.requiredFeatureCount = requiredFeatureCount;
+                deviceDesc.requiredFeatureCount = 1;
             }
 
             adapter_.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
@@ -1279,30 +1268,23 @@ namespace t7 {
             // costs nothing until a pass writes a timestamp, and keeping the
             // request here means turning the instrument back on is one define
             // in the cartridge, with no host edit and no second door to find.
-            // DOMESDAY_2 F2-a — the lane's real gate, native twin: the
-            // limits ride full passthrough (maxImmediateSize included),
-            // but a granted limit is not an enabled feature — the
-            // immediate address space must be REQUESTED where offered.
-            const bool immediateOffered =
-                adapter.HasFeature(wgpu::FeatureName::ImmediateAddressSpace);
-            if (!immediateOffered) {
-                std::cout << "[Device] immediate-address-space NOT offered — the post-B6"
-                             " shader cannot compile on this adapter (R3 floor)\n";
+            // DOMESDAY_2 F3-b — the wrong enum leaves this twin too. The
+            // immediate lane needs no device feature (there is none);
+            // it needs the instance's WGSL dialect (F3-a) and the
+            // limit, which rides full passthrough here — the adapter's
+            // own maxImmediateSize, never a floor we have to ask for.
+            if (!wgslImmediate_) {
+                std::cout << "[Device] immediate_address_space NOT in the instance's WGSL"
+                             " dialect — the post-B6 shader cannot compile here (R3 floor)\n";
+            } else {
+                std::cout << "[Console] exceptions carried: wgsl:immediate_address_space"
+                             " (instance) + maxImmediateSize rides passthrough (NEEDS r7"
+                             " floor " << FLOOR_MAX_IMMEDIATE_SIZE << ")\n";
             }
-            wgpu::FeatureName requiredFeatures[2] = {};
-            uint32_t requiredFeatureCount = 0;
+            wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
             if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
-                requiredFeatures[requiredFeatureCount++] = wgpu::FeatureName::TimestampQuery;
-            }
-            if (immediateOffered) {
-                requiredFeatures[requiredFeatureCount++] = wgpu::FeatureName::ImmediateAddressSpace;
-                std::cout << "[Console] exceptions carried: feature immediate-address-space,"
-                             " maxImmediateSize rides passthrough (NEEDS r7 floor "
-                    << FLOOR_MAX_IMMEDIATE_SIZE << ")\n";
-            }
-            if (requiredFeatureCount > 0) {
                 deviceDesc.requiredFeatures = requiredFeatures;
-                deviceDesc.requiredFeatureCount = requiredFeatureCount;
+                deviceDesc.requiredFeatureCount = 1;
             }
 
             std::cout << "[Console] Adapter limits:"
