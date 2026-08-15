@@ -276,6 +276,7 @@ static void frame() {
             std::chrono::steady_clock::now() - s_t0).count();
 
     wgpu::CommandEncoderDescriptor encDesc{};
+    encDesc.label = "frame";   // DOMESDAY_1 A9 (label law): named at creation
     wgpu::CommandEncoder encoder = app->console.device().CreateCommandEncoder(&encDesc);
 
     app->render.render(encoder, app->console.backbuffer(), app->console.depth_view());

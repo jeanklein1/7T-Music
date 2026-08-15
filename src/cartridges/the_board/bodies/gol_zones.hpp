@@ -662,7 +662,11 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
 
     c->gpuState_.upload_zone_derive_requests(queue, gs.pending_derive_requests);
 
-    wgpu::CommandEncoder encoder = c->device_.CreateCommandEncoder();
+    // DOMESDAY_1 A9 (label law): labels are emitted where objects are
+    // created, from the creating function's name.
+    wgpu::CommandEncoderDescriptor encDesc{};
+    encDesc.label = "flush_zone_derive_requests";
+    wgpu::CommandEncoder encoder = c->device_.CreateCommandEncoder(&encDesc);
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Zone Derive Params";
     // The hidden submit's own pass still meters: this encoder submits
