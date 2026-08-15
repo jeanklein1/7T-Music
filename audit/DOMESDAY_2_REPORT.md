@@ -116,3 +116,36 @@ the meter's window closes each measurement. Native spelling:
 One line for the spirit: **the survey ends with every holding deeded
 or earning, every object owned, and one instrument in Jean's hand —
 what the frame can still afford is now a question with an address.**
+## §7 — the glaw1 arbitration, round one
+
+The campaign's first build bounce, in exactly the two units the _2
+handoff pre-declared as glaw1-arbitrated. The error text, verbatim —
+the specification:
+
+```
+C:\dev\7t\src\core\boot_params.hpp(51): error C3861: 'boot_params': identifier not found   (×2)
+C:\dev\7t\src\console\console.hpp(178): error C2838/C2065/C2131/C2051: 'SubgroupSizeControl' … case expression not constant
+```
+
+The two fixes, master direct:
+
+- **F1-a** (`7e9f8c8`) — the `SubgroupSizeControl` case deleted; only
+  it (`PrimitiveIndex` and `TextureComponentSwizzle` drew no error and
+  stay). A8's standing protocol executing, not a reversal; the id
+  keeps printing as a number on both twins until the Dawn checkout's
+  `wgpu::FeatureName` learns the identifier — the re-add condition,
+  recorded at the switch.
+- **F1-b** (`228ac37`) — the predicted defect class exactly: B10's
+  `effective_msaa()` was defined above the `boot_params()` accessor it
+  calls, in the same header. The block moved below the accessor —
+  no restructure, no rename, byte-identical bodies. All 13 consumer
+  sites verified resolving by grep.
+
+The three instruments rerun green — nothing schema-facing changed.
+
+**Standing note:** this build died in the first translation unit, and
+it was the first native compile since B6's frontier spellings
+(`var<immediate>`, `PipelineLayoutDescriptor::immediateSize`,
+`SetImmediates`) — a second stratum may follow once the compile
+proceeds past these two lines. Same channel if it does: send the
+error text exactly; it worked.
