@@ -568,6 +568,15 @@ namespace t7 {
                         // three: adding a floor to the discard decision is a
                         // behavior change, not an instrument, and this
                         // campaign prints only.
+                        //
+                        // DOMESDAY_0 A3 — one probe row: maxImmediateSize.
+                        //   The program spends nothing in the immediates
+                        //   lane today, so its floor is 0 and the row can
+                        //   never trip the nets. It exists because the
+                        //   statute says 64 default and the courthouse is
+                        //   Chrome-on-Android — the shadow_slot→immediate
+                        //   ruling waits on this printed grant, and we
+                        //   print before we spend.
                         std::cout << "[Device] granted vs floor:"
                             << " maxTextureDimension2D=" << got.maxTextureDimension2D << "/2048"
                             << " maxTextureArrayLayers=" << got.maxTextureArrayLayers << "/225"
@@ -577,7 +586,9 @@ namespace t7 {
                             << got.maxUniformBuffersPerShaderStage << "/12"
                             << " maxUniformBufferBindingSize="
                             << got.maxUniformBufferBindingSize << "/65536"
-                            << " maxBindGroups=" << got.maxBindGroups << "/4\n";
+                            << " maxBindGroups=" << got.maxBindGroups << "/4"
+                            << " maxImmediateSize=" << got.maxImmediateSize
+                            << "/0 (floor — unused)\n";
                         bool below = false;
                         if (got.maxTextureDimension2D < 2048u) {
                             std::cerr << "[Device] BELOW FLOOR: maxTextureDimension2D granted "
