@@ -6251,9 +6251,11 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // and the sun VP's only writer is compute_vp — on the GPU, every
 // frame; a CPU-pushed matrix would give it two owners at two
 // cadences. An index has no owners and no cadence. Its failure mode
-// is a validation error, not a wrong pixel. Requires the device
-// feature immediate-address-space, requested-if-offered at boot
-// (F2-a, console.hpp — the request site is this fact's home).
+// is a validation error, not a wrong pixel. Requires the WGSL
+// LANGUAGE feature immediate_address_space — instance-scoped, enabled
+// at instance creation (F3-a, console.hpp: the enablement site is this
+// fact's home) and never a device feature, which is what F2-a got
+// wrong — plus maxImmediateSize >= 4 (NEEDS r7).
 var<immediate> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.

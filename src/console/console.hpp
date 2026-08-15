@@ -626,13 +626,17 @@ namespace t7 {
                 std::cout << "[Device] requesting FULL ADAPTER PASSTHROUGH limits"
                              " (fallback path)\n";
             } else {
-                // The modest path now ALWAYS carries one exception, and
-                // names the gate that actually exists: the dialect is
-                // the instance's (F3-a's testimony line above states
-                // whether we got it), the bytes are this request's.
+                // TWO HALVES, AND ONLY ONE OF THEM IS THIS REQUEST'S TO
+                // CARRY. The bytes are carried here (the limit above).
+                // The dialect is the INSTANCE's and cannot be requested
+                // at a device at all — so it is REPORTED, present or
+                // absent, never claimed as carried. A line that claimed
+                // the dialect and then denied it two lines later would
+                // be worse than a silent one.
                 std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried:"
-                             " wgsl:immediate_address_space (instance) + maxImmediateSize="
-                    << FLOOR_MAX_IMMEDIATE_SIZE << " (NEEDS r7)\n";
+                             " maxImmediateSize=" << FLOOR_MAX_IMMEDIATE_SIZE
+                    << " (NEEDS r7); wgsl:immediate_address_space (instance) "
+                    << (wgslImmediate_ ? "present" : "ABSENT") << "\n";
             }
             if (!wgslImmediate_) {
                 std::cout << "[Device] immediate_address_space NOT in the instance's WGSL"
@@ -865,8 +869,19 @@ namespace t7 {
         void report_wgsl_language_features(const wgpu::Instance& inst) {
             wgslImmediate_ = static_cast<bool>(inst.HasWGSLLanguageFeature(
                 wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace));
+            // The verdict names the instance it measured. Native's YES
+            // is post-enablement (we forced experimental on); the web's
+            // is a stock browser's own answer. Identical strings on
+            // non-identical instances would let a native log be read as
+            // a promise about the phone, which is the one thing this
+            // line exists to settle.
             std::cout << "[Device] wgsl language features: immediate-address-space="
-                << (wgslImmediate_ ? "YES" : "no") << "\n";
+                << (wgslImmediate_ ? "YES" : "no")
+#ifdef __EMSCRIPTEN__
+                << " (browser default — this twin enables nothing)\n";
+#else
+                << " (instance: enableExperimental)\n";
+#endif
 #ifndef __EMSCRIPTEN__
             // The whole ALLOWED set, named — the diagnostic half, so a
             // `no` above is a DIAGNOSED no in the same boot rather than
@@ -876,6 +891,16 @@ namespace t7 {
             // experimental stage on this revision and the next knob is
             // enableUnsafe (recorded, not taken — a bench that outruns
             // the product stops being a bench).
+            //
+            // THE EXPOSURE THIS GUARD DOES AND DOES NOT COVER, exactly:
+            // the web twin still names three identifiers no probe covers
+            // — WGSLLanguageFeatureName, its ImmediateAddressSpace
+            // enumerator, and Instance::HasWGSLLanguageFeature — because
+            // the quadrant answer is unobtainable without them. What the
+            // guard buys is the other 17 enumerators plus
+            // GetWGSLLanguageFeatures and SupportedWGSLLanguageFeatures:
+            // exposure of 3 identifiers instead of 21. If the web build
+            // rejects any of the three, that is F1-a's protocol again.
             wgpu::SupportedWGSLLanguageFeatures wf{};
             inst.GetWGSLLanguageFeatures(&wf);
             std::cout << "[Device] wgsl dialect allowed (" << wf.featureCount << "):";
@@ -986,9 +1011,10 @@ namespace t7 {
             // documented layout-compatibility between wgpu:: and WGPU
             // structs.
             //
-            // LIFETIME: `kDxcToggle` is static; `toggles` and `idesc` need
-            // only outlive the emplace() call, and they do — Dawn copies
-            // what it needs out of the descriptor during construction.
+            // LIFETIME: `kDxcToggle` is static; `toggles`, `wgslControl`
+            // (F3-a) and `idesc` need only outlive the emplace() call,
+            // and they do — Dawn copies what it needs out of the
+            // descriptor during construction.
             // TOGGLE_0 (debt 12) — THE CONTROL RODE THIS ROAD, AND THE
             // ROAD WAS THE ANSWER.
             //
@@ -1070,8 +1096,10 @@ namespace t7 {
             instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));
 
             // F3-a — the dialect's testimony, from the instance just
-            // built with the control chained above (line 1294's pattern
-            // for the portable handle).
+            // built with the control chained above, through the same
+            // portable-handle construct initSurface uses
+            // (wgpu::Instance(instance_->Get())) — named rather than
+            // line-cited, because the line moved when this block landed.
             report_wgsl_language_features(wgpu::Instance(instance_->Get()));
 
             std::vector<dawn::native::Adapter> adapters = instance_->EnumerateAdapters();
@@ -1273,13 +1301,17 @@ namespace t7 {
             // it needs the instance's WGSL dialect (F3-a) and the
             // limit, which rides full passthrough here — the adapter's
             // own maxImmediateSize, never a floor we have to ask for.
+            // Same shape as the web twin's line, so the two logs tell
+            // one story: what this request carries, then what the
+            // instance either has or lacks. ([Console] here, [Device]
+            // there — each twin's own local convention, unchanged.)
+            std::cout << "[Console] exceptions carried: maxImmediateSize rides passthrough"
+                         " (NEEDS r7 floor " << FLOOR_MAX_IMMEDIATE_SIZE << ");"
+                         " wgsl:immediate_address_space (instance) "
+                << (wgslImmediate_ ? "present" : "ABSENT") << "\n";
             if (!wgslImmediate_) {
                 std::cout << "[Device] immediate_address_space NOT in the instance's WGSL"
                              " dialect — the post-B6 shader cannot compile here (R3 floor)\n";
-            } else {
-                std::cout << "[Console] exceptions carried: wgsl:immediate_address_space"
-                             " (instance) + maxImmediateSize rides passthrough (NEEDS r7"
-                             " floor " << FLOOR_MAX_IMMEDIATE_SIZE << ")\n";
             }
             wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
             if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
