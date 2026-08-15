@@ -199,3 +199,114 @@ which will state its quadrant: offered-and-requested (testimony
 line), core-shipped (no line, the lane just works), or unavailable
 (the loud line — and then R3 gets re-examined with evidence, not
 assumption).
+
+## §9 — the runtime arbitration, round three: a language feature, not a device feature
+
+Round two's fix specified the wrong enum. Jean's header probes
+(f0bf8ab, `webgpu_cpp.h`) are the specification, and one line settles
+it above all others:
+
+```
+939:    ImmediateAddressSpace = WGPUWGSLLanguageFeatureName_ImmediateAddressSpace,
+```
+
+— inside `928: enum class WGSLLanguageFeatureName : uint32_t {`. There
+is **no** device `FeatureName` for it at this revision. The probes also
+give the query and the control:
+
+```
+1797:    inline void GetWGSLLanguageFeatures(SupportedWGSLLanguageFeatures * features) const;
+1798:    inline Bool HasWGSLLanguageFeature(WGSLLanguageFeatureName feature) const;
+2588: struct DawnWireWGSLControl : ChainedStruct {
+5007: static_assert(offsetof(DawnWireWGSLControl, enableExperimental) == ...
+5009: static_assert(offsetof(DawnWireWGSLControl, enableUnsafe) == ...
+5011: static_assert(offsetof(DawnWireWGSLControl, enableTesting) == ...
+```
+
+**The corrected mechanism.** The API half is core-shaped and
+unconditional in the header — `SetImmediates` (2134/2160/2194),
+`PipelineLayoutDescriptor::immediateSize` (4159),
+`Limits::maxImmediateSize` (3875). Only the *dialect* is gated, and it
+is gated at the **instance**, experimental-stage, through
+`DawnWireWGSLControl`. Nothing about it is ever requested at the
+device. That is why F2-a's device request could not have worked at any
+value of any argument.
+
+**The error, named.** F2-a's specification was Claude's authoring
+error: a device feature invented from Dawn's error prose rather than
+read out of Dawn's type system. It was faithfully implemented, and it
+was correctly rejected by the runtime. The handoff's "pre-authorized
+second step" — the instance-level control — was in truth the first and
+only step; there was never a first step for it to be a fallback to.
+
+**The tuition, for the defended-site index:** *Dawn's error prose is
+not its type system — the enum's home, not the message's noun, names
+the gate.*
+
+The fixes:
+
+- **F3-a** (`fd56a58`) — `DawnWireWGSLControl{ enableExperimental = true }`
+  chained to the native `InstanceDescriptor` (the DXC toggle, when the
+  plan selects it, rides the same chain behind it). It chains at the
+  stage that *consumes* it, which is TOGGLE_1revA's standing law rather
+  than an exception to it. The testimony, both twins:
+  `[Device] wgsl language features: immediate-address-space=YES/no`,
+  asked of the instance via `HasWGSLLanguageFeature`.
+- **F3-b** (`e90de9d`) — the wrong enum leaves entirely (zero
+  `wgpu::FeatureName::ImmediateAddressSpace` references remain in the
+  tree); `requiredFeatures` is timestamp-query-only on both twins
+  again. The **limit** stays — `maxImmediateSize = FLOOR_MAX_IMMEDIATE_SIZE`
+  (NEEDS r7), now unconditional on the web modest path, because that
+  half of F2-a was always true: the shadow family's layouts declare 4
+  immediate bytes and a core-defaults request grants 0 unless asked.
+  The exceptions line names the gate that exists:
+  `wgsl:immediate_address_space (instance) + maxImmediateSize=4 (NEEDS r7)`.
+- **F3-c** (this section).
+
+Three disclosures, so the next round starts from evidence:
+
+1. **`enableExperimental` alone, `enableUnsafe` recorded and not
+   taken.** Enabling unsafe would widen the bench's dialect past
+   anything the browser can offer the product — a bench more permissive
+   than the product stops being a bench, because it would let native
+   compile a shader the web twin refuses. If the testimony says `no`,
+   the dialect list beside it (below) says whether the feature is
+   merely un-enabled or absent at this revision, and *that* decides the
+   next knob.
+2. **One addition beyond spec, native-only:**
+   `[Device] wgsl dialect allowed (N): …` — the instance's whole
+   allowed set, named through a 17-case switch transcribed from the
+   probe (929–945; transcription verified exact, in order, nothing
+   invented or omitted). It converts a possible `no` into a *diagnosed*
+   no inside the same boot, which is the whole lesson of three rounds.
+   Fenced `#ifndef __EMSCRIPTEN__`: the web port's header is not in
+   evidence, so that twin prints ids alone rather than guessing
+   spellings.
+3. **The one spelling taken without header evidence:** the web twin now
+   calls `Instance::HasWGSLLanguageFeature` with
+   `WGSLLanguageFeatureName::ImmediateAddressSpace`. The handoff
+   requires the testimony on both twins and it is the only way to learn
+   the web quadrant; the emdawnwebgpu header is outside the repository
+   (A2's wall). If the web build rejects either identifier, that is the
+   F1-a protocol again — send the error text, and the line degrades to
+   a native-only testimony with the web quadrant still owed.
+
+## §10 — the strategy rulings (slots, awaiting Jean's word)
+
+Recorded here as F3-d specifies: no code, two slots, filled when given.
+
+**Slot 1 — the twins ruling.** *Awaiting Jean.*
+- **KEEP-THROUGH-ORGAN** *(recommended)* — the web is the product, the
+  native twin is the bench; the bench retires when the web gains WGSL
+  hot reload **and** the port is vendored. The criterion, not the mood,
+  ends it.
+- **RETIRE-NOW** — then a retirement campaign is authored and glaw1
+  becomes the Emscripten link gate.
+
+**Slot 2 — the one-generation law.** *Awaiting Jean's ratification;
+numbered at first enforcement.* The native checkout's revision is
+pinned equal to the port's pinned revision; both recorded in-tree;
+updated as one act; a reference document without a stated revision is
+RECALLED, not CITED. (This campaign is its own argument: three
+arbitration rounds, each one a spelling read from a document whose
+revision was not pinned to the compiler's.)
