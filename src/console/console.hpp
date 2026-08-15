@@ -904,18 +904,23 @@ namespace t7 {
             wgslImmediate_ = static_cast<bool>(inst.HasWGSLLanguageFeature(
                 wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace));
             // The verdict names the instance it measured. Native's YES
-            // is post-enablement (we forced experimental on); the web's
-            // is a stock browser's own answer. Identical strings on
-            // non-identical instances would let a native log be read as
-            // a promise about the phone, which is the one thing this
-            // line exists to settle.
+            // is post-enablement (F5-d enables the allow_unsafe_apis
+            // instance toggle, which is the knob Dawn actually reads on
+            // this twin); the web's is a stock browser's own answer.
+            // Identical strings on non-identical instances would let a
+            // native log be read as a promise about the phone, which is
+            // the one thing this line exists to settle. The qualifier
+            // names the KNOB, not the struct beside it: F5-d proved
+            // DawnWireWGSLControl is read only by the wire client, so
+            // crediting it here would be a boot log testifying to a
+            // switch that never fired (P6).
             std::cout << "[Device] wgsl language features: immediate-address-space="
                 << (wgslImmediate_ ? "YES" : "no")
 #ifdef __EMSCRIPTEN__
                 << " (browser default — this twin enables nothing)\n";
 #else
-                << " (dev tier: unsafe enabled — the audience court is Chrome"
-                   " stable, which ships the lane standard)\n";
+                << " (dev tier: allow_unsafe_apis — the audience court is"
+                   " Chrome stable, which ships the lane standard)\n";
 #endif
 #ifndef __EMSCRIPTEN__
             // The whole ALLOWED set, named — the diagnostic half, so a
@@ -923,12 +928,15 @@ namespace t7 {
             // another round trip. GetWGSLLanguageFeatures reports what
             // the instance ALLOWS, so this list says whether the feature
             // is absent from the checkout entirely or merely un-enabled.
-            // F5-b took the knob this sentence used to hold in reserve:
-            // both experimental and unsafe are open on this twin now, so
-            // a `no` beside a populated list means the feature is not
-            // implemented at THIS revision at all — and the remedy is
-            // the one-generation law's other half, updating the native
-            // checkout to the pin, not another flag.
+            // F5-b took the knob this sentence used to hold in reserve
+            // and F5-d made it arrive: the instance runs with
+            // allow_unsafe_apis, which is the ONLY gate Dawn consults
+            // for a kUnsafeExperimental language feature at f0bf8ab. So
+            // a `no` beside a populated list can no longer mean "some
+            // other flag" — it means the feature is not implemented at
+            // THIS revision at all, and the remedy is the
+            // one-generation law's other half, updating the native
+            // checkout to the pin.
             //
             // THE EXPOSURE THIS GUARD DOES AND DOES NOT COVER, exactly:
             // the web twin still names three identifiers no probe covers
@@ -1093,62 +1101,116 @@ namespace t7 {
             // this one and not the device's. Left as configuration rather
             // than deleted: removing it would erase PIVOT_0d-ii's finding
             // along with its subject.
-            static const char* const kDxcToggle[] = { "use_dxc" };
+            // F5-d — the two enabled-toggle sets. `allow_unsafe_apis`
+            // is on EVERY plan (see the block below); `use_dxc` joins it
+            // only under the DXC plan, which is why there are two arrays
+            // rather than one array and a count: both are static, so
+            // neither depends on this frame's stack.
+            static const char* const kUnsafeToggle[]    = { "allow_unsafe_apis" };
+            static const char* const kUnsafeDxcToggles[] = { "allow_unsafe_apis", "use_dxc" };
             wgpu::DawnTogglesDescriptor toggles{};
             wgpu::InstanceDescriptor idesc{};
 
             // ── DOMESDAY_2 F3-a — THE IMMEDIATE DIALECT, ENABLED ──────
-            // var<immediate> (world.wgsl) is gated by the WGSL language
-            // feature immediate_address_space, which is instance-scoped
-            // and experimental-stage at this revision. DawnWireWGSLControl
-            // is the purpose-built control (webgpu_cpp.h:2588; members
-            // enableExperimental / enableUnsafe / enableTesting, confirmed
-            // by the header's own offsetof asserts at 5007-5012) and its
-            // chain root is the InstanceDescriptor — so unlike TOGGLE_1revA's
-            // subject, this control chains at the stage that CONSUMES it,
-            // which is that ruling's law rather than an exception to it.
+            // ── DOMESDAY_2 F5-d — BY THE KNOB THAT ACTUALLY ARRIVES ───
             //
-            // BOTH TIERS, AS OF F5-b — and the F3 reasoning that opened
-            // only the first is ANSWERED rather than overruled. F3 kept
-            // enableUnsafe shut because a bench more permissive than the
-            // product stops being a bench: it could compile a shader the
-            // audience's browser refuses. The evidence F5 gathered
-            // settles that worry in the other direction. At the pinned
-            // generation (third_party/emdawnwebgpu/PINNED.md) the
-            // immediate address space is a STANDARD language feature and
-            // Tint reports it FeatureStatus::kShipped — exposed by
-            // default, no control of any kind. So the audience court —
-            // Chrome stable — ships this lane, and opening the bench a
-            // tier deeper does not outrun the product; it catches this
-            // checkout UP to it. The permissiveness is bounded to this
-            // twin (native is the bench, per Jean's twins ruling) and to
-            // one generation: it becomes unnecessary the moment the
-            // native checkout tracks the pin, which is the
-            // one-generation law's other half.
+            // var<immediate> (world.wgsl) is gated by the WGSL language
+            // feature immediate_address_space, which is instance-scoped.
+            // F3-a and F5-b reached for DawnWireWGSLControl (webgpu_cpp.h
+            // :2588; enableExperimental / enableUnsafe / enableTesting,
+            // offsetof asserts at 5007-5012) because its chain root IS
+            // the instance descriptor and its three members name exactly
+            // the three tiers. The header made it look like the control.
+            //
+            // IT IS NOT THE CONTROL ON THIS TWIN. Read out of Dawn's own
+            // sources at the pinned native revision (f0bf8ab, verified
+            // this round from upstream, not from memory):
+            //
+            //   · DawnWireWGSLControl is consumed in exactly one place —
+            //     src/dawn/wire/client/Instance.cpp (Instance::Initialize
+            //     unpacks it, GatherWGSLFeatures reads its three bools).
+            //     Nothing under src/dawn/native/ reads it. This twin
+            //     links dawn::native directly (dawnProcSetProcs above,
+            //     dawn::native::Instance below) — there is no wire — so
+            //     the struct is unpacked by ValidateAndUnpack, found to
+            //     be a legal chain root (dawn.json: "chain roots":
+            //     ["instance descriptor"]), and then read by no one.
+            //     Accepted and ignored: PIVOT_0a's exact species.
+            //   · The native gate is a TOGGLE. InstanceBase::
+            //     GatherWGSLFeatures switches on tint::wgsl::
+            //     GetLanguageFeatureStatus(f) and, for
+            //     FeatureStatus::kUnsafeExperimental, sets
+            //     `enable = mToggles.IsEnabled(Toggle::AllowUnsafeAPIs)`
+            //     — that status is not reachable by
+            //     ExposeWGSLExperimentalFeatures, which appears one case
+            //     below it, on kExperimental only.
+            //   · At f0bf8ab, kImmediateAddressSpace IS
+            //     kUnsafeExperimental (src/tint/lang/wgsl/
+            //     feature_status.cc, the Experimental group), and
+            //     dawn.json entry 11 carries "tags": ["dawn"] — a Dawn
+            //     extension, not yet the statute's standard feature.
+            //   · Toggle::AllowUnsafeAPIs spells "allow_unsafe_apis" and
+            //     is ToggleStage::Instance (src/dawn/native/Toggles.cpp),
+            //     defaulted false at CreateInstance.
+            //
+            // So the tier F5-b correctly identified needs the toggle to
+            // carry it, and the toggle's consuming stage is the INSTANCE
+            // — which makes this site TOGGLE_1revA's law again, not an
+            // exception: it chains where it is read. It also does not
+            // depend on the instance -> adapter -> device inheritance
+            // TOGGLE_0 proved unreliable here, because the reader is the
+            // instance itself.
+            //
+            // WHY OPEN IT AT ALL, F3's worry answered rather than
+            // overruled. F3 kept the unsafe tier shut because a bench
+            // more permissive than the product stops being a bench: it
+            // could compile a shader the audience's browser refuses. At
+            // the pinned generation (third_party/emdawnwebgpu/PINNED.md)
+            // the immediate address space is a STANDARD language feature
+            // and Tint reports it FeatureStatus::kShipped — "exposed by
+            // default and cannot be turned off" (feature_status.h). The
+            // audience court ships the lane; opening this bench a tier
+            // deeper does not outrun the product, it catches this
+            // checkout UP to it. The widening is bounded to this twin
+            // (native is the bench, per Jean's twins ruling) and to one
+            // generation: `allow_unsafe_apis` also suppresses validation
+            // on other not-yet-secure entry points, which is a real cost
+            // and the reason it goes away the moment the native checkout
+            // tracks the pin — the one-generation law's other half.
+            //
+            // THE WIRE CONTROL STAYS, correctly labelled. It is the
+            // right control for a wire client and costs one ignored
+            // chain link here; deleting it would erase the finding along
+            // with its subject, as use_dxc's banner above says of
+            // PIVOT_0d-ii. What it must never again be is the thing this
+            // boot's dialect line is read as crediting.
             wgpu::DawnWireWGSLControl wgslControl{};
             wgslControl.enableExperimental = true;
-            wgslControl.enableUnsafe = true;   // F5-b: dev tier, this checkout only
+            wgslControl.enableUnsafe = true;   // wire-path only — INERT on dawn::native
 
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
+                toggles.enabledToggleCount = 2;
+                toggles.enabledToggles = kUnsafeDxcToggles;
+            } else {
                 toggles.enabledToggleCount = 1;
-                toggles.enabledToggles = kDxcToggle;
-                // use_dxc rides BEHIND the WGSL control: two independent
-                // links in one chain, not two WGSL enablement mechanisms.
-                // Named so a future edit that guards or deletes the F3-a
-                // block cannot silently take use_dxc with it — PIVOT_0a
-                // already paid for one toggle that did not arrive.
-                wgslControl.nextInChain = &toggles;
+                toggles.enabledToggles = kUnsafeToggle;
             }
+            // The toggles ride BEHIND the WGSL control: independent links
+            // in one chain, not two WGSL enablement mechanisms. Named so
+            // a future edit that guards or deletes the F3-a block cannot
+            // silently take the toggles with it — PIVOT_0a already paid
+            // for one toggle that did not arrive, and F5-d for a second.
+            wgslControl.nextInChain = &toggles;
             idesc.nextInChain = &wgslControl;
-            // THE CHAIN, POST-F3-a: its head is ALWAYS wgslControl — the
-            // immediate dialect is required on every plan, so no plan
-            // leaves this descriptor's chain empty any more. Vulkan and
-            // D3D12_Fxc chain the WGSL control alone (Vulkan reaches
-            // SPIR-V through Tint with no toggle; Fxc is the untoggled
-            // path kept for archaeology); the DXC plan appends `toggles`
-            // behind it. HISTORY, past tense: those two plans chained
-            // nothing before TOGGLE_0, and TOGGLE_0's U2 restored that
-            // empty chain — a state F3-a has since made unreachable.
+            // THE CHAIN, POST-F5-d: head is ALWAYS wgslControl, and
+            // `toggles` is ALWAYS behind it — the immediate dialect is
+            // required on every plan and its real knob lives in the
+            // toggles, so no plan leaves this descriptor's chain empty
+            // or toggle-less any more. The DXC plan adds one more string
+            // to the same array; it no longer owns the link. HISTORY,
+            // past tense: Vulkan and D3D12_Fxc chained nothing before
+            // TOGGLE_0, and TOGGLE_0's U2 restored that empty chain — a
+            // state F3-a made unreachable and F5-d keeps unreachable.
 
             // Construct instance in place (non-copyable, non-movable)
             instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));

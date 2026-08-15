@@ -149,7 +149,10 @@
 // Generation note (DOMESDAY_2 F5): at the pinned emdawnwebgpu
 // generation this extension is STANDARD and Tint reports it
 // FeatureStatus::kShipped — exposed by default, no instance control.
-// Older generations gate it; see third_party/emdawnwebgpu/PINNED.md.
+// Older generations gate it: at the native checkout's f0bf8ab it is
+// kUnsafeExperimental, which Dawn opens only for the instance toggle
+// `allow_unsafe_apis` (console.hpp, F5-d). See
+// third_party/emdawnwebgpu/PINNED.md.
 requires immediate_address_space;
 
 // ── Pipeline specialization overrides (set at pipeline creation) ────
