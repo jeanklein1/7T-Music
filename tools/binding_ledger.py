@@ -1782,9 +1782,14 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*device_\.CreatePipelineLayout\(\s*&(\w+)\s*\)", src):
         events.append((m.start(), "create", m.group(1), m.group(2), None))
+    # DOMESDAY_1 B6: strataLayoutFor grew an optional fourth argument
+    # (immediateSize — an expression, possibly with one paren level,
+    # e.g. sizeof(uint32_t)). The layout list is still the first three
+    # plus the implicit WORLD; the immediate size is not a group layout.
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*strataLayoutFor\(\s*"
-            r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)", src):
+            r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*"
+            r"(?:,\s*(?:[^()]|\([^()]*\))*)?\)", src):
         events.append((m.start(), "for", m.group(1),
                        ["worldLayout_", m.group(2), m.group(3), m.group(4)], None))
 

@@ -180,11 +180,16 @@ namespace t7 {
             // creation — no behavior/pixel effect.)
             wgpu::PipelineLayout strataLayoutFor(wgpu::BindGroupLayout frame,
                                                  wgpu::BindGroupLayout state,
-                                                 wgpu::BindGroupLayout tex) {
+                                                 wgpu::BindGroupLayout tex,
+                                                 uint32_t immediateSize = 0) {
+                // DOMESDAY_1 B6 (R3): immediateSize is nonzero only for the
+                // layout whose module entry points read the shadow_slot
+                // immediate (the shadow family); everything else stays 0.
                 std::array<wgpu::BindGroupLayout, 4> sa = { worldLayout_, frame, state, tex };
                 wgpu::PipelineLayoutDescriptor d{};
                 d.bindGroupLayoutCount = sa.size();
                 d.bindGroupLayouts = sa.data();
+                d.immediateSize = immediateSize;
                 return device_.CreatePipelineLayout(&d);
             }
             bool makeComputePipeline(const char* label, const char* dbgLabel,
@@ -1541,7 +1546,8 @@ namespace t7 {
 
             bool createRenderPipelines() {
                 // Shadow pipeline layout (entity + textures WITHOUT shadow map)
-                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor(frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
+                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor(frameRLayout_, shadowStateLayout_, shadowTexturesLayout_,
+                    sizeof(uint32_t));   // B6 (R3): the shadow_slot immediate — the shadow VSes read it
                 if (!shadowRenderLayout) return false;
 
                 // Main render pipeline layout (entity + textures WITH shadow map)
@@ -2471,11 +2477,13 @@ namespace t7 {
                     // bind-group layouts. Do not grow either one.
                     if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
                     // ATLAS_1revB G2 — group 0 is the RENDER-ENTITY layout here,
-                    // not the gallery entity layout. Under D2'/D3" these two
+                    // not the gallery entity layout. Under D2' these two
                     // shadow VSes call shadow_light_vp(), which reads
-                    // render_lighting and shadow_slot; the gallery entity layout
-                    // carries neither, so Dawn would reject both pipelines at
-                    // creation. It is a strict subset for everything they DO
+                    // render_lighting (and, since B6, the shadow_slot
+                    // IMMEDIATE — a pipeline-layout fact, not a group
+                    // member); the gallery entity layout carries no
+                    // render_lighting, so Dawn would reject both pipelines
+                    // at creation. It is a strict subset for everything they DO
                     // use — config (Uniform), render_vp and render_camera (both
                     // ReadOnlyStorage) are present on the render-entity layout
                     // with the same types — so nothing is lost by the swap, and

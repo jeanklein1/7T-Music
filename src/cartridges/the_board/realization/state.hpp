@@ -1625,14 +1625,10 @@ namespace t7 {
         inline constexpr wgpu::TextureFormat kShadowDepthFormat =
             wgpu::TextureFormat::Depth16Unorm;
 
-        inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
-        // The BINDING size, not the payload. ShadowSlot carries one u32,
-        // but WGSL rounds a struct in the UNIFORM address space up to a
-        // 16-byte alignment, so the shader's minimum binding size is 16.
-        // Declaring 4 here would be smaller than what the shader requires
-        // and Dawn rejects the layout; 16 is the honest number and still
-        // sits well inside the 256-byte window.
-        inline constexpr uint32_t SHADOW_SLOT_SIZE   = 16;
+        // DOMESDAY_1 B6 (R3): SHADOW_SLOT_STRIDE / SHADOW_SLOT_SIZE are
+        // retired with the dynamic-offset machinery they measured — the
+        // shadow light index is immediate data now (one u32, no buffer,
+        // no window, no offset arithmetic).
 
         struct MeshVertex {
             float pos[3];
@@ -1898,7 +1894,6 @@ namespace t7 {
             // WALLET_1revA: one 848 B uniform buffer where three storage
             // buffers stood. GPULighting {sun, points, spots}.
             wgpu::Buffer lightingBuffer_;
-            wgpu::Buffer lightSlotBuffer_;       // ATLAS_1revB D3": 4 × 256 B windows, window i == i
             wgpu::Buffer portalArrayBuffer_;
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
@@ -2056,9 +2051,9 @@ namespace t7 {
             wgpu::BindGroup placeTexturesGroup_;
             wgpu::BindGroup ribbonStateGroup_;
             wgpu::BindGroup sceneStateGroup_;
-            wgpu::BindGroup sceneStatePlanBGroup_;
-            wgpu::BindGroup sceneStatePlanCGroup_;
-            wgpu::BindGroup sceneStatePhotographerGroup_;
+            // DOMESDAY_1 B5 (R2): the PlanB / PlanC / Photographer scene
+            // groups collapsed into sceneStateGroup_ — B3 retired the
+            // segment windows that were their only difference.
             wgpu::BindGroup sceneTexturesGroup_;
             wgpu::BindGroup shadowStateGroup_;
             wgpu::BindGroup shadowTexturesGroup_;
@@ -2504,9 +2499,6 @@ namespace t7 {
             wgpu::BindGroup place_textures_group() const { return placeTexturesGroup_; }
             wgpu::BindGroup ribbon_state_group() const { return ribbonStateGroup_; }
             wgpu::BindGroup scene_state_group() const { return sceneStateGroup_; }
-            wgpu::BindGroup scene_state_plan_b_group() const { return sceneStatePlanBGroup_; }
-            wgpu::BindGroup scene_state_plan_c_group() const { return sceneStatePlanCGroup_; }
-            wgpu::BindGroup scene_state_photographer_group() const { return sceneStatePhotographerGroup_; }
             wgpu::BindGroup scene_textures_group() const { return sceneTexturesGroup_; }
             wgpu::BindGroup shadow_state_group() const { return shadowStateGroup_; }
             wgpu::BindGroup shadow_textures_group() const { return shadowTexturesGroup_; }
@@ -3564,20 +3556,9 @@ namespace t7 {
                 // block is that it stops spending F-stage storage seats.
                 lightingBuffer_ = makeBuffer("Lighting", sizeof(GPULighting),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                // ATLAS_1revB D3" — the light-index windows. Written ONCE,
-                // here, and never again: window i holds the constant i, so
-                // the buffer has no owner, no cadence and no way to go
-                // stale. The whole mechanism is the OFFSET moving, not the
-                // bytes.
-                lightSlotBuffer_ = makeBuffer("Shadow Light Slot Windows",
-                    MAX_SPOT_LIGHTS * SHADOW_SLOT_STRIDE,
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                if (lightSlotBuffer_) {
-                    auto q = device_.GetQueue();
-                    for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
-                        q.WriteBuffer(lightSlotBuffer_, i * SHADOW_SLOT_STRIDE,
-                                      &i, sizeof(uint32_t));
-                }
+                // DOMESDAY_1 B6 (R3): the ATLAS_1revB D3" light-index
+                // window buffer is retired — the shadow light index rides
+                // immediate data now (SetImmediates, render_passes.hpp).
                 portalArrayBuffer_ = makeBuffer("Portal Array", sizeof(GPUPortalArray), UU);
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
@@ -3691,7 +3672,7 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldAuthoredBuffer_ &&
-                    vpBuffer_ && lightingBuffer_ && lightSlotBuffer_ && patchParamsBuffer_ &&
+                    vpBuffer_ && lightingBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&

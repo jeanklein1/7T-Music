@@ -45,7 +45,7 @@
                 // the compute face (signal-only FRAME_C) never carries the render ro
                 // windows, so compute dispatches never co-bind them against rw homes.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     // WALLET_1revA: the light trio became one uniform block.
                     // Three F-stage storage seats freed across the whole
@@ -54,39 +54,24 @@
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    // ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX.
-                    // The ONE dynamic-offset binding in the program. Each spot
-                    // light owns a 256-byte window holding its own index; the
-                    // shadow pass moves the window per light-group inside a
-                    // single pass, which is what lets one pass serve every
-                    // light a texture owns and retires the per-tile Load.
-                    // Every OTHER bind of this group passes offset 0 — a
-                    // dynamic-offset layout requires the offset at every set,
-                    // and a missed site fails loudly at validation.
-                    entries[1].binding = bind::g1::shadow_slot;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex;
+                    entries[1].binding = bind::g1::render_vp;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-                    entries[1].buffer.hasDynamicOffset = true;
-                    entries[1].buffer.minBindingSize = SHADOW_SLOT_SIZE;
 
-                    entries[2].binding = bind::g1::render_vp;
+                    entries[2].binding = bind::g1::render_camera;
                     entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[3].binding = bind::g1::render_camera;
-                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
                     // now rides the card for its ground term (H4 [4c]); this pipeline
                     // family binds gallery groups, so the pair lives here too.
-                    entries[4].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
-                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[4].sampler.type = wgpu::SamplerBindingType::Filtering;
+                    entries[3].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
+                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[5].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
-                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[5].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+                    entries[4].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
+                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[4].sampler.type = wgpu::SamplerBindingType::NonFiltering;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frame R Layout";
@@ -992,30 +977,25 @@
                 // A8a: the render face of the old Frame BindGroup — same backings,
                 // same numbers; signal stays with the compute face.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = bind::g1::render_lighting;
                     entries[0].buffer = lightingBuffer_;
                     entries[0].size = sizeof(GPULighting);
 
-                    entries[1].binding = bind::g1::shadow_slot;
-                    entries[1].buffer = lightSlotBuffer_;
-                    entries[1].offset = 0;
-                    entries[1].size = SHADOW_SLOT_SIZE;
+                    entries[1].binding = bind::g1::render_vp;
+                    entries[1].buffer = vpBuffer_;
+                    entries[1].size = sizeof(GPUVPMatrix);
 
-                    entries[2].binding = bind::g1::render_vp;
-                    entries[2].buffer = vpBuffer_;
-                    entries[2].size = sizeof(GPUVPMatrix);
+                    entries[2].binding = bind::g1::render_camera;
+                    entries[2].buffer = cameraBuffer_;
+                    entries[2].size = sizeof(GPUCameraState);
 
-                    entries[3].binding = bind::g1::render_camera;
-                    entries[3].buffer = cameraBuffer_;
-                    entries[3].size = sizeof(GPUCameraState);
+                    entries[3].binding = bind::g1::bilinear_sampler;
+                    entries[3].sampler = bilinearSampler_;
 
-                    entries[4].binding = bind::g1::bilinear_sampler;
-                    entries[4].sampler = bilinearSampler_;
-
-                    entries[5].binding = bind::g1::nearest_sampler;
-                    entries[5].sampler = nearestSampler_;
+                    entries[4].binding = bind::g1::nearest_sampler;
+                    entries[4].sampler = nearestSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame R BindGroup";
@@ -1053,32 +1033,27 @@
 
                 // Projected from: galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = bind::g1::render_lighting;
                     entries[0].buffer = lightingBuffer_;
                     entries[0].size = sizeof(GPULighting);
 
-                    entries[1].binding = bind::g1::shadow_slot;
-                    entries[1].buffer = lightSlotBuffer_;
-                    entries[1].offset = 0;
-                    entries[1].size = SHADOW_SLOT_SIZE;
+                    entries[1].binding = bind::g1::render_vp;
+                    entries[1].buffer = photographerVPBuffer_;
+                    entries[1].size = sizeof(GPUVPMatrix);
 
-                    entries[2].binding = bind::g1::render_vp;
-                    entries[2].buffer = photographerVPBuffer_;
-                    entries[2].size = sizeof(GPUVPMatrix);
-
-                    entries[3].binding = bind::g1::render_camera;
-                    entries[3].buffer = photographerCameraBuffer_;
-                    entries[3].size = sizeof(GPUCameraState);
+                    entries[2].binding = bind::g1::render_camera;
+                    entries[2].buffer = photographerCameraBuffer_;
+                    entries[2].size = sizeof(GPUCameraState);
 
                     // Shared backing, completed from the primary variant.
-                    entries[4].binding = bind::g1::bilinear_sampler;
-                    entries[4].sampler = bilinearSampler_;
+                    entries[3].binding = bind::g1::bilinear_sampler;
+                    entries[3].sampler = bilinearSampler_;
 
                     // Shared backing, completed from the primary variant.
-                    entries[5].binding = bind::g1::nearest_sampler;
-                    entries[5].sampler = nearestSampler_;
+                    entries[4].binding = bind::g1::nearest_sampler;
+                    entries[4].sampler = nearestSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame BindGroup (Photographer)";
@@ -1784,144 +1759,6 @@
                     desc.entries = entries.data();
                     sceneStateGroup_ = device_.CreateBindGroup(&desc);
                     if (!sceneStateGroup_) return false;
-                }
-
-                // Projected from: renderEntityBindGroupPlanB_.
-                {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
-
-                    entries[0].binding = bind::g2::agent_tier_gains;
-                    entries[0].buffer = agentTierGainsBuffer_;
-                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
-
-                    entries[1].binding = bind::g2::render_agents;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[2].binding = bind::g2::render_floating;
-                    entries[2].buffer = floatingEntityBuffer_;
-                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
-
-                    entries[3].binding = bind::g2::patch_instances;
-                    entries[3].buffer = patchInstancesBuffer_;
-                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-
-                    // Shared backing, completed from the primary variant.
-                    entries[4].binding = bind::g2::zone_params;
-                    entries[4].buffer = zoneConfigBuffer_;
-                    entries[4].size = sizeof(GPUGoLZoneArray);
-
-                    entries[5].binding = bind::g2::render_ring_xforms;
-                    entries[5].buffer = ringTransformsBuffer_;
-                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[6].binding = bind::g2::agent_figure_profiles;
-                    entries[6].buffer = figureProfilesBuffer_;
-                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    entries[7].binding = bind::g2::render_ribbon;
-                    entries[7].buffer = ribbonBuffer_;
-                    entries[7].size = sizeof(GPURibbonState);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Scene State BindGroup (PlanB)";
-                    desc.layout = sceneStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    sceneStatePlanBGroup_ = device_.CreateBindGroup(&desc);
-                    if (!sceneStatePlanBGroup_) return false;
-                }
-
-                // Projected from: renderEntityBindGroupPlanC_.
-                {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
-
-                    entries[0].binding = bind::g2::agent_tier_gains;
-                    entries[0].buffer = agentTierGainsBuffer_;
-                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
-
-                    entries[1].binding = bind::g2::render_agents;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[2].binding = bind::g2::render_floating;
-                    entries[2].buffer = floatingEntityBuffer_;
-                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
-
-                    entries[3].binding = bind::g2::patch_instances;
-                    entries[3].buffer = patchInstancesBuffer_;
-                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-
-                    // Shared backing, completed from the primary variant.
-                    entries[4].binding = bind::g2::zone_params;
-                    entries[4].buffer = zoneConfigBuffer_;
-                    entries[4].size = sizeof(GPUGoLZoneArray);
-
-                    entries[5].binding = bind::g2::render_ring_xforms;
-                    entries[5].buffer = ringTransformsBuffer_;
-                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[6].binding = bind::g2::agent_figure_profiles;
-                    entries[6].buffer = figureProfilesBuffer_;
-                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    entries[7].binding = bind::g2::render_ribbon;
-                    entries[7].buffer = ribbonBuffer_;
-                    entries[7].size = sizeof(GPURibbonState);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Scene State BindGroup (PlanC)";
-                    desc.layout = sceneStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    sceneStatePlanCGroup_ = device_.CreateBindGroup(&desc);
-                    if (!sceneStatePlanCGroup_) return false;
-                }
-
-                // Projected from: photographerRenderEntityBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
-
-                    entries[0].binding = bind::g2::agent_tier_gains;
-                    entries[0].buffer = agentTierGainsBuffer_;
-                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
-
-                    entries[1].binding = bind::g2::render_agents;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[2].binding = bind::g2::render_floating;
-                    entries[2].buffer = floatingEntityBuffer_;
-                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
-
-                    entries[3].binding = bind::g2::patch_instances;
-                    entries[3].buffer = patchInstancesBuffer_;
-                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-
-                    // Shared backing, completed from the primary variant.
-                    entries[4].binding = bind::g2::zone_params;
-                    entries[4].buffer = zoneConfigBuffer_;
-                    entries[4].size = sizeof(GPUGoLZoneArray);
-
-                    entries[5].binding = bind::g2::render_ring_xforms;
-                    entries[5].buffer = ringTransformsBuffer_;
-                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[6].binding = bind::g2::agent_figure_profiles;
-                    entries[6].buffer = figureProfilesBuffer_;
-                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    entries[7].binding = bind::g2::render_ribbon;
-                    entries[7].buffer = ribbonBuffer_;
-                    entries[7].size = sizeof(GPURibbonState);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Scene State BindGroup (Photographer)";
-                    desc.layout = sceneStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    sceneStatePhotographerGroup_ = device_.CreateBindGroup(&desc);
-                    if (!sceneStatePhotographerGroup_) return false;
                 }
 
                 // Projected from: renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, renderTextureBindGroup_, photographerRenderEntityBindGroup_.

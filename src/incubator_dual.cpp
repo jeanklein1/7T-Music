@@ -58,6 +58,7 @@
 #endif
 
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.watcher_ticks gates the hot-reload progress dot
+#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — parse_boot_params at the top of main
 #include <iostream>
 #include <filesystem>
 #include <system_error>   // std::error_code — the watcher's non-throwing stat
@@ -309,6 +310,10 @@ static void frame() {
 // =========================================================================
 
 int main(int argc, char* argv[]) {
+    // DOMESDAY_1 B9 — the parameter surface, parsed before ANY
+    // consumer: the cartridge ctor (inside `new App()` below) reads
+    // seed and mood; the console reads cap. One read, never again.
+    t7::parse_boot_params(argc, argv);
     std::cout << "\n";
     std::cout << "========================================\n";
     // PORT_2d — one line per twin, and each states what its own build

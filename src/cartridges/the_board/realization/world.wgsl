@@ -6237,30 +6237,22 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // the fragment stage as `render_lighting.sun` / `.points` / `.spots`.
 @group(1) @binding(1) var<uniform> render_lighting: Lighting;
 
-// ─── ATLAS_1revB D3" — THE SHADOW TILE'S LIGHT INDEX ───────────────
-// One u32, delivered by DYNAMIC OFFSET: the buffer holds one 256-byte
-// window per spot light, window i containing the literal i, written
-// once at boot and never again. The shadow pass sets the offset per
-// light-group inside a single pass; every other bind of this group
-// passes 0.
+// ─── THE SHADOW TILE'S LIGHT INDEX (DOMESDAY_1 B6, R3) ─────────────
+// One u32, delivered as IMMEDIATE DATA: the shadow pass sets it per
+// light inside a single pass (SetImmediates, render_passes.hpp), and
+// the whole dynamic-offset machinery this replaces — the 256-byte
+// window buffer, the strided boot writes, the offset argument at
+// every bind of the FRAME group — has left the program. A3 printed
+// the grant (the Pixel gave maxImmediateSize=64); this is the first
+// spend in that lane.
 //
-// WHY AN INDEX AND NOT THE MATRIX. A matrix window would need the SUN's
-// matrix in window 0, and the sun VP's only writer is compute_vp — on
-// the GPU, every frame. A CPU-filled window would give slot 0 two
-// owners at two cadences, which is the exact collision the first gate
-// found and D2' was adopted to escape. An index has no owners and no
-// cadence: it is a constant per window. Its failure mode is a
-// validation error, not a wrong pixel.
-// 16 bytes: one payload word and the padding the uniform address space's
-// 16-byte struct alignment implies. Spelled out rather than left implicit
-// so the C++ SHADOW_SLOT_SIZE beside it has something to mirror.
-struct ShadowSlot {
-    li: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-}
-@group(1) @binding(2) var<uniform> shadow_slot: ShadowSlot;
+// WHY AN INDEX AND NOT THE MATRIX (D2', unchanged by the carrier). A
+// matrix immediate would need the SUN's matrix on the outdoor path,
+// and the sun VP's only writer is compute_vp — on the GPU, every
+// frame; a CPU-pushed matrix would give it two owners at two
+// cadences. An index has no owners and no cadence. Its failure mode
+// is a validation error, not a wrong pixel.
+var<immediate> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
 // Outdoors (no spots) the sun VP is render_vp.light_vp, written by
@@ -6272,7 +6264,7 @@ fn shadow_light_vp() -> mat4x4<f32> {
     if (render_lighting.spots.count == 0u) {
         return render_vp.light_vp;
     }
-    return render_lighting.spots.lights[shadow_slot.li].view_proj;
+    return render_lighting.spots.lights[shadow_slot].view_proj;
 }
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
