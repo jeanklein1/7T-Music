@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `325aa198a2bd2862f7763ae28289baedabc19a0f`
-(DOMESDAY_2 A13: deeds and truthing)
+Last commit touching any scanned file: `3adc7f0869ec5582c0c917ed6a230356e4f0c915`
+(DOMESDAY_2 B10: ?msaa= — the walk's last instrument)
 
 | file scanned | sha256 |
 |---|---|

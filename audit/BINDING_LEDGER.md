@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `325aa198a2bd2862f7763ae28289baedabc19a0f` |
-| | DOMESDAY_2 A13: deeds and truthing |
+| source commit | `3adc7f0869ec5582c0c917ed6a230356e4f0c915` |
+| | DOMESDAY_2 B10: ?msaa= — the walk's last instrument |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:a120e9139649cda2790911e17fd59cf453f47ad2552a600e5da4dd1bed782c5d` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:334deeefb9e46e123cc89fb63890b39fe7e72bef0e9ca85fbe86d9c978ae557a` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:af9e453778e6ee6f7d76f26c2581b75d8fd67fe44aacf894297569e983cb4340` |
