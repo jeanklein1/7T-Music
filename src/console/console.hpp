@@ -1332,19 +1332,40 @@ namespace t7 {
             const int fbPreCapW = fbWidth, fbPreCapH = fbHeight;   // FRAME_1 (temporary)
             apply_pixel_cap(fbWidth, fbHeight);   // PORT_3c — before the compare
 #endif
+            // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. The bare not-equal
+            // this replaces reconfigured the surface and recreated the
+            // depth buffer on every frame of a resize animation
+            // (COMMAND_LEDGER §3 holds the old trigger verbatim). A new
+            // size must now hold still for RECONFIGURE_SETTLE_FRAMES
+            // consecutive frames before the surface moves; the accepted
+            // cost is ≤100 ms of scale softness while a resize animates.
+            // The FRAME_1 print stays — it is this unit's acceptance
+            // witness: the next boot should show it fire ~once per
+            // settled size instead of a burst.
             if (fbWidth > 0 && fbHeight > 0 &&
                 (static_cast<uint32_t>(fbWidth) != currentWidth_ ||
                     static_cast<uint32_t>(fbHeight) != currentHeight_)) {
-
-                currentWidth_ = static_cast<uint32_t>(fbWidth);
-                currentHeight_ = static_cast<uint32_t>(fbHeight);
-                surfaceConfig_.width = currentWidth_;
-                surfaceConfig_.height = currentHeight_;
-                surface_.Configure(&surfaceConfig_);
-                createDepthBuffer(currentWidth_, currentHeight_);
+                if (static_cast<uint32_t>(fbWidth) == pendingWidth_ &&
+                    static_cast<uint32_t>(fbHeight) == pendingHeight_) {
+                    if (++stableFrames_ >= RECONFIGURE_SETTLE_FRAMES) {
+                        currentWidth_ = static_cast<uint32_t>(fbWidth);
+                        currentHeight_ = static_cast<uint32_t>(fbHeight);
+                        surfaceConfig_.width = currentWidth_;
+                        surfaceConfig_.height = currentHeight_;
+                        surface_.Configure(&surfaceConfig_);
+                        createDepthBuffer(currentWidth_, currentHeight_);
+                        stableFrames_ = 0;
 #ifdef __EMSCRIPTEN__
-                frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 (temporary)
+                        frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 (temporary)
 #endif
+                    }
+                } else {
+                    pendingWidth_ = static_cast<uint32_t>(fbWidth);
+                    pendingHeight_ = static_cast<uint32_t>(fbHeight);
+                    stableFrames_ = 1;
+                }
+            } else {
+                stableFrames_ = 0;
             }
 
             // Delta time
@@ -2033,6 +2054,14 @@ namespace t7 {
         uint32_t initialHeight_ = 0;
         uint32_t currentWidth_ = 0;
         uint32_t currentHeight_ = 0;
+        // DOMESDAY_1 B7 (R4) — the reconfigure settle window: a changed
+        // framebuffer size must hold still this many consecutive frames
+        // before the surface reconfigures (begin_frame). Boot configures
+        // immediately (initSurface); this gates the per-frame path only.
+        static constexpr uint32_t RECONFIGURE_SETTLE_FRAMES = 6;
+        uint32_t pendingWidth_ = 0;
+        uint32_t pendingHeight_ = 0;
+        uint32_t stableFrames_ = 0;
 
         // ── Gpu Device ───────────────────────────────────────────
 #ifndef __EMSCRIPTEN__
