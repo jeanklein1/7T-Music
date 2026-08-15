@@ -1464,10 +1464,19 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     uint32_t layer = gs.pending_snapshot.target_layer;
     std::cout << "[Photographer] Rendering snapshot -> layer " << layer << "\n";
 
+    // DOMESDAY_2 B10 — the msaa arm mirrors the main pass: render into
+    // the multisampled target, resolve into the single-sample offscreen
+    // color the portfolio copy chain reads, discard the samples. With
+    // msaa=1 every field is byte-identical to the pre-B10 descriptor.
     wgpu::RenderPassColorAttachment colorAtt{};
     colorAtt.view = c->gpuState_.offscreen_color_view();
     colorAtt.loadOp = wgpu::LoadOp::Clear;
     colorAtt.storeOp = wgpu::StoreOp::Store;
+    if (c->gpuState_.offscreen_msaa_color_view()) {
+        colorAtt.view = c->gpuState_.offscreen_msaa_color_view();
+        colorAtt.resolveTarget = c->gpuState_.offscreen_color_view();
+        colorAtt.storeOp = wgpu::StoreOp::Discard;
+    }
     colorAtt.clearValue = { (double)c->clearColor_[0], (double)c->clearColor_[1], (double)c->clearColor_[2], 1.0 };
 
     wgpu::RenderPassDepthStencilAttachment depthAtt{};

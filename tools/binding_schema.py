@@ -572,7 +572,8 @@ RESOURCES = {
     'orbQuadVB_': {'kind': 'buffer', 'label': 'Orb Quad VB', 'size_expr': 'sizeof(quadVerts)', 'usage': 'wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'orbQuadIB_': {'kind': 'buffer', 'label': 'Orb Quad IB', 'size_expr': 'sizeof(quadIndices)', 'usage': 'wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'offscreenColorTexture_': {'kind': 'texture', 'label': 'Offscreen Snapshot Color', 'format': 'colorFormat', 'size': 'Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1', 'samples': '1', 'file': 'src/cartridges/the_board/realization/state.hpp'},
-    'offscreenDepthTexture_': {'kind': 'texture', 'label': 'Offscreen Snapshot Depth', 'format': 'wgpu::TextureFormat::Depth24Plus', 'size': 'Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1', 'samples': '1', 'file': 'src/cartridges/the_board/realization/state.hpp'},
+    'offscreenDepthTexture_': {'kind': 'texture', 'label': 'Offscreen Snapshot Depth', 'format': 'wgpu::TextureFormat::Depth24Plus', 'size': 'Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1', 'samples': 'effective_msaa()', 'file': 'src/cartridges/the_board/realization/state.hpp'},
+    'offscreenMsaaColorTexture_': {'kind': 'texture', 'label': 'Offscreen Snapshot MSAA Color', 'format': 'colorFormat', 'size': 'Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1', 'samples': '4', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'zoneLifeTexture_': {'kind': 'texture', 'label': 'GoL Zone Life Texture Array', 'format': 'wgpu::TextureFormat::R32Float', 'size': 'Dim::GOL_ZONE_GRID, Dim::GOL_ZONE_GRID, Dim::MAX_GOL_ZONES', 'samples': '1', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'pawnAuraTexture_': {'kind': 'texture', 'label': 'Pawn Aura (RGBA16Float)', 'format': 'wgpu::TextureFormat::RGBA16Float', 'size': 'PAWN_AURA_N, PAWN_AURA_N, 1', 'samples': '1', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'liveCardTexture_': {'kind': 'texture', 'label': 'Live Card (RGBA16Float — GROUND_CARD_1)', 'format': 'wgpu::TextureFormat::RGBA16Float', 'size': 'Dim::LIVE_CARD_SIZE, Dim::LIVE_CARD_SIZE, 1', 'samples': '1', 'file': 'src/cartridges/the_board/realization/state.hpp'},
@@ -589,7 +590,8 @@ RESOURCES = {
     'shadowSampler_': {'kind': 'sampler', 'label': 'Shadow Sampler (PCF comparison)', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'paintingSampler_': {'kind': 'sampler', 'label': 'Painting Sampler (bilinear, clamp)', 'file': 'src/cartridges/the_board/realization/state.hpp'},
     'meterQuerySet_': {'kind': 'querySet', 'label': 'Frame Meter Timestamps', 'count_expr': 'METER_QUERY_COUNT', 'file': 'src/cartridges/the_board/realization/state.hpp'},
-    'depthTexture_': {'kind': 'texture', 'label': 'Depth Texture', 'format': 'depthFormat_', 'size': 'w, h, 1', 'samples': '1', 'file': 'src/console/console.hpp'},
+    'depthTexture_': {'kind': 'texture', 'label': 'Depth Texture', 'format': 'depthFormat_', 'size': 'w, h, 1', 'samples': 'effective_msaa()', 'file': 'src/console/console.hpp'},
+    'msaaColorTexture_': {'kind': 'texture', 'label': 'MSAA Color Target', 'format': 'surfaceConfig_.format', 'size': 'w, h, 1', 'samples': '4', 'file': 'src/console/console.hpp'},
 }
 
 # ═══ THE NEEDS TABLE (DOMESDAY_2 A12) ═══════════════════════════════

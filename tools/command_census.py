@@ -166,6 +166,19 @@ def _norm(expr):
     return re.sub(r"\s+", " ", expr.strip())
 
 
+def _grab_all(region, pat, flags=0):
+    """Every distinct assigned value, in source order — a field assigned
+    once reads as before; a field re-assigned in a conditional arm
+    (DOMESDAY_2 B10's msaa branch) reads as 'base or arm'."""
+    seen, out = set(), []
+    for m in re.finditer(pat, region, flags):
+        v = _norm(m.group(1))
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+    return " or ".join(out) if out else None
+
+
 def attachment_facts(region, desc):
     """The descriptor's attachments, read from the assignments that
     precede the Begin call inside this site's region."""
@@ -178,9 +191,12 @@ def attachment_facts(region, desc):
         color = {"var": cv}
         for key, pat in (("view", r"%s\.view = (.*?);"),
                          ("loadOp", r"%s\.loadOp = wgpu::LoadOp::(\w+)"),
-                         ("storeOp", r"%s\.storeOp = wgpu::StoreOp::(\w+)")):
-            g = _grab(region, pat % re.escape(cv), re.S)
-            color[key] = _norm(g.group(1)) if g else "(unset)"
+                         ("storeOp", r"%s\.storeOp = wgpu::StoreOp::(\w+)"),
+                         ("resolveTarget", r"%s\.resolveTarget = (.*?);")):
+            v = _grab_all(region, pat % re.escape(cv), re.S)
+            color[key] = v if v is not None else "(unset)"
+        if color["resolveTarget"] == "(unset)":
+            del color["resolveTarget"]
         row["colors"].append(color)
     m = _grab(region, r"%s\.depthStencilAttachment = &(\w+)" % re.escape(desc))
     if m:
@@ -428,9 +444,11 @@ def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
     A.append("|---|---|---|---|---|---|---|---|")
     for i, r in enumerate(rows):
         if r["kind"] == "render":
-            colors = "; ".join("%s/%s → `%s`" % (c["loadOp"], c["storeOp"],
-                                                 c["view"])
-                               for c in r["colors"]) or "(none: depth-only)"
+            colors = "; ".join(
+                "%s/%s → `%s`%s" % (c["loadOp"], c["storeOp"], c["view"],
+                                    (" resolve → `%s`" % c["resolveTarget"])
+                                    if c.get("resolveTarget") else "")
+                for c in r["colors"]) or "(none: depth-only)"
             d = r["depth"]
             if d:
                 ro = d["depthReadOnly"] if d["depthReadOnly"] is not None else "(absent)"

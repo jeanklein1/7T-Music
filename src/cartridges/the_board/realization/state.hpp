@@ -28,6 +28,7 @@
 //     bind groups        bind::g0/g1 only — the registry is the map
 
 #include "core/instruments.hpp"                  // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter gates the GPU half's creation + arming (compile-time, T7_INSTRUMENTS; default off)
+#include "core/boot_params.hpp"                  // DOMESDAY_2 B10: effective_msaa — boot-read sample count for the snapshot targets
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
@@ -2120,6 +2121,8 @@ namespace t7 {
             wgpu::TextureView offscreenColorView_;
             wgpu::Texture offscreenDepthTexture_;
             wgpu::TextureView offscreenDepthView_;
+            wgpu::Texture offscreenMsaaColorTexture_;     // B10: msaa=4 only
+            wgpu::TextureView offscreenMsaaColorView_;
 
 
             // GPU frustum culling — LOD0 only.
@@ -2657,10 +2660,26 @@ namespace t7 {
                     wgpu::TextureDescriptor desc{};
                     desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
                     desc.format = wgpu::TextureFormat::Depth24Plus;
+                    desc.sampleCount = effective_msaa();   // B10: 1 = pre-B10 shape
                     desc.usage = wgpu::TextureUsage::RenderAttachment;
                     offscreenDepthTexture_ = makeTexture("Offscreen Snapshot Depth", desc);
                     if (!offscreenDepthTexture_) return false;
                     offscreenDepthView_ = offscreenDepthTexture_.CreateView();
+                }
+                // DOMESDAY_2 B10 — the snapshot's msaa color target, created
+                // only when the boot param asked for it: the pass renders here
+                // at count 4 and resolves into offscreenColorTexture_; the
+                // portfolio copy chain downstream reads the resolved
+                // single-sample color exactly as today.
+                if (effective_msaa() == 4u) {
+                    wgpu::TextureDescriptor desc{};
+                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
+                    desc.format = colorFormat;
+                    desc.sampleCount = 4;
+                    desc.usage = wgpu::TextureUsage::RenderAttachment;
+                    offscreenMsaaColorTexture_ = makeTexture("Offscreen Snapshot MSAA Color", desc);
+                    if (!offscreenMsaaColorTexture_) return false;
+                    offscreenMsaaColorView_ = offscreenMsaaColorTexture_.CreateView();
                 }
 
                 if (!create_gallery_texture_group()) return false;
@@ -3158,6 +3177,9 @@ namespace t7 {
             // --- Gallery system ---
             wgpu::TextureView offscreen_color_view() const { return offscreenColorView_; }
             wgpu::TextureView offscreen_depth_view() const { return offscreenDepthView_; }
+            // B10: null when msaa=1 — the snapshot pass reads the null as
+            // "render straight into the offscreen color, exactly as before".
+            wgpu::TextureView offscreen_msaa_color_view() const { return offscreenMsaaColorView_; }
             wgpu::Texture offscreen_color_texture() const { return offscreenColorTexture_; }
 
             // Three-array painting system accessors
