@@ -579,11 +579,42 @@ if(EMSCRIPTEN)
     # release: -DEMDAWNWEBGPU_PORT=path/to/emdawnwebgpu.port.py
     # (the source-tree port file is NOT usable un-built — it checks for
     # generated headers; use the release package or the remote port).
-    set(EMDAWNWEBGPU_PORT "emdawnwebgpu" CACHE STRING
-        "emdawnwebgpu port for --use-port: the built-in remote port name, or a path to emdawnwebgpu.port.py from a Dawn release")
+    #
+    # DOMESDAY_2 F5-a — THE ONE-GENERATION LAW, FIRST ENFORCEMENT.
+    # The emsdk-bundled remote port is the oldest WebGPU in the
+    # toolchain: its RenderPassEncoder has no SetImmediates and its
+    # WGSLLanguageFeatureName has no ImmediateAddressSpace, so the
+    # post-B6 shader cannot build against it. The pin lives in
+    # third_party/emdawnwebgpu (see PINNED.md for the release tag, the
+    # asset, and the census that cleared it); this block prefers it the
+    # moment its bytes are present and NAMES which port it chose either
+    # way — the fallback is never silent.
+    set(T7_VENDORED_EMDAWNWEBGPU
+        "${CMAKE_SOURCE_DIR}/third_party/emdawnwebgpu/emdawnwebgpu_pkg/emdawnwebgpu.port.py")
+    set(EMDAWNWEBGPU_PORT "" CACHE STRING
+        "emdawnwebgpu port for --use-port. EMPTY (the default) = AUTO: the vendored pin at third_party/emdawnwebgpu if present, else Emscripten's built-in remote port. Set explicitly to a port-file path, or to the literal name 'emdawnwebgpu', to override the choice.")
+    if(EMDAWNWEBGPU_PORT)
+        set(T7_EMDAWNWEBGPU_PORT "${EMDAWNWEBGPU_PORT}")
+        set(T7_EMDAWNWEBGPU_ORIGIN "explicit -DEMDAWNWEBGPU_PORT")
+        if(EMDAWNWEBGPU_PORT STREQUAL "emdawnwebgpu" AND EXISTS "${T7_VENDORED_EMDAWNWEBGPU}")
+            message(WARNING
+                "EMDAWNWEBGPU_PORT is set to the emsdk built-in remote port, but a VENDORED pin "
+                "exists at third_party/emdawnwebgpu. The pin is being ignored — clear the cache "
+                "entry (-UEMDAWNWEBGPU_PORT) to use it. See third_party/emdawnwebgpu/PINNED.md.")
+        endif()
+    elseif(EXISTS "${T7_VENDORED_EMDAWNWEBGPU}")
+        set(T7_EMDAWNWEBGPU_PORT "${T7_VENDORED_EMDAWNWEBGPU}")
+        set(T7_EMDAWNWEBGPU_ORIGIN "VENDORED PIN (third_party/emdawnwebgpu — PINNED.md)")
+    else()
+        set(T7_EMDAWNWEBGPU_PORT "emdawnwebgpu")
+        set(T7_EMDAWNWEBGPU_ORIGIN
+            "emsdk built-in remote port — THE PIN IS INCOMPLETE (third_party/emdawnwebgpu/PINNED.md names the asset to drop in); the post-B6 immediate lane will not build against this generation")
+    endif()
+    message(STATUS "  emdawnwebgpu port: ${T7_EMDAWNWEBGPU_PORT}")
+    message(STATUS "    origin:          ${T7_EMDAWNWEBGPU_ORIGIN}")
     set(T7_WEB_PORTS
         "--use-port=contrib.glfw3"
-        "--use-port=${EMDAWNWEBGPU_PORT}"
+        "--use-port=${T7_EMDAWNWEBGPU_PORT}"
     )
 
     # PORT_2c — THE DIAGNOSTIC TWIN. -O2 strips the checks that would

@@ -133,6 +133,25 @@
 
 // §1 FOUNDATIONS
 
+// ── Language extensions (WGSL §4.1.2) ───────────────────────────────
+// THE SHADER NAMES ITS OWN DEPENDENCY. `var<immediate>` (the shadow
+// light index, §7.0's declaration — DOMESDAY_1 B6) is the immediate
+// address space, WGSL §14.3, reached through the standard language
+// extension below. Declaring it here is the statute's own mechanism
+// for exactly this: an implementation that lacks the extension fails
+// the shader HERE, by name, instead of failing later at a var it does
+// not understand.
+//
+// Directives precede every declaration in a WGSL module, so this is
+// the earliest legal line in the file and must stay above the first
+// `override`.
+//
+// Generation note (DOMESDAY_2 F5): at the pinned emdawnwebgpu
+// generation this extension is STANDARD and Tint reports it
+// FeatureStatus::kShipped — exposed by default, no instance control.
+// Older generations gate it; see third_party/emdawnwebgpu/PINNED.md.
+requires immediate_address_space;
+
 // ── Pipeline specialization overrides (set at pipeline creation) ────
 // Controls which VS path is used (direct patch access vs indirection through
 // the visible_id instance attribute — the latter is needed for GPU
