@@ -556,18 +556,18 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         c->gpuState_.patch_index_buffer(),           // full IB (zone-overlapped)
         c->gpuState_.frustum_indirect_lod0(), 0);
     c->renderer_.draw_patch_terrain_plan_slot(pass,
-        c->gpuState_.scene_state_plan_b_group(),
+        c->gpuState_.scene_state_group(),            // B5 (R2): the one scene group
         c->gpuState_.visible_patch_indices_buffer(), FC_SEG_B_OFF, FC_SEG_B_BYTES,   // plan B window
         c->gpuState_.patch_index_buffer_cap_only(),  // cap-only IB (clean LOD0)
         c->gpuState_.frustum_indirect_lod0(), 20);
     c->renderer_.draw_patch_terrain_plan_slot(pass,
-        c->gpuState_.scene_state_plan_c_group(),
+        c->gpuState_.scene_state_group(),            // B5 (R2): the one scene group
         c->gpuState_.visible_patch_indices_buffer(), FC_SEG_C_OFF, FC_SEG_C_BYTES,   // plan C window
         c->gpuState_.patch_index_buffer_lod1(),      // LOD1 IB (culled at last)
         c->gpuState_.frustum_indirect_lod0(), 40);
-    // Plan C left its window bound: restore the entity group the table
-    // draws read (group1 is untouched by the slots).
-    pass.SetBindGroup(2, c->gpuState_.scene_state_group());
+    // DOMESDAY_1 B5 (R2): the PlanB/PlanC windows collapsed into the
+    // one scene group, so plan C left the RIGHT group bound — the old
+    // restore is retired with the groups it restored from.
 
     // The drawable table — main members, canonical order. All opaque and
     // depth-tested, so order among them is immaterial; this is where the

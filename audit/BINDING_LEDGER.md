@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `c4c537e8ee9e070bb4c0109216ae7cbbda493957` |
-| | DOMESDAY_0 B3: visible_patch_indices becomes an instance attribute |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:01d6dd18fd8b6eba19bc3c4ac2dc1c42716d3fd291c7e8582206306896b98d9d` |
-| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:a58dfd19ca006c345a13298393699c19969443f51e9a08c9dc83a84d7d14eaf8` |
+| source commit | `efa0b38af56c912d974eb6de173539893c36baa5` |
+| | DOMESDAY_1 A7: stale-prose sweep — delete, don't annotate |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:b99f1f74dc6f01ca41579df01193a2472c2828f9eaa5d68bf0d1ed085a6d1357` |
+| `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:9e721f1e964e7d83b745cdab25bdac0d54de31b8f9d1b79869e07114a1adb7c6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:8ddc851e6273b73e7da8059472a4e76e9d8601f77a474368fe2bba591640b4f2` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:86144b0bafe3d5e755e4584e98b10ccca8f9d4024938be1045166e1e12429613` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:4e332b462af564cc2c55a7885f18dcb1ed7694dcd356672823be492d06feebcb` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:0c869075da8d6a1411ac97f5dcf171d834ceaad552d88d3e6a728ba79dd8907f` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -29,14 +29,14 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `6c67d84be87aaff20dfa78040b594c132b629fcb09445394ff635bb42304dd8f` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `c0f9bb6ea32e7f747347a5c359364756ab179e90d551344da93b6e7e02fbb4d4` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `e499177f2d9cf1a73e763159c3ca2105c7a4842c601879dfce75e1d4fd607b73` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `03dd052b244e2f0a6f13612640373799d69198fd75e44269608b60932ba1af9d` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `50b3df21e51598a0b72a16ef1d5ffa0584712b6186ebb9c1df77ac843076c9fa` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `f4fcbfdf8623b14a66b125496f905b6c890630ebd5059b5bab778879a38007df` |
 | `src/cartridges/the_board/cartridge.hpp` | `6a9e9ec0ccd80ab9b7e01a7d368d9573237b40bab446b890bf46207f22002e8a` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `1ca7675b025df444d72cf64d92c00bd94d450830b0bf71b7f6b99846f1272291` |
-| `src/cartridges/the_board/realization/render_passes.hpp` | `837312abc295b88414ca8517c17e1bc0f075f65fdd08778fac8f06be7c446cfd` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `237906e133e098ecbf20280d272ad3eb527599736ac6a773fdb37253ba9e80b2` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `207a97528689dae308e9aa9b1cf6717a9c71365dd9b01fc45f75dea3e2205fda` |
 
 The source commit is the last commit touching any of the four primary
@@ -75,7 +75,7 @@ matters only where a binding is a window onto a shared buffer.
 | `0a-3` | **PASS** | no duplicate binding number inside any layout |
 | `0a-4` | **PASS** | every row carries a resolved kind (buffer/sampler/texture/storageTexture) |
 | `0a-5` | **PASS** | every row names at least one of Vertex/Fragment/Compute, and no other stage token appears |
-| `0a-6` | **PASS** | 37 bind groups over 29 layouts, every one a bijection with its layout; 3 layout(s) back more than one group — frameRLayout_: Frame R BindGroup, Frame BindGroup (Photographer); meshgenStateLayout_: Meshgen State BindGroup, Meshgen State BindGroup (Column), Meshgen State BindGroup (Palm), Meshgen State BindGroup (Cactus), Meshgen State BindGroup (Blade); sceneStateLayout_: Scene State BindGroup, Scene State BindGroup (PlanB), Scene State BindGroup (PlanC), Scene State BindGroup (Photographer) |
+| `0a-6` | **PASS** | 34 bind groups over 29 layouts, every one a bijection with its layout; 2 layout(s) back more than one group — frameRLayout_: Frame R BindGroup, Frame BindGroup (Photographer); meshgenStateLayout_: Meshgen State BindGroup, Meshgen State BindGroup (Column), Meshgen State BindGroup (Palm), Meshgen State BindGroup (Cactus), Meshgen State BindGroup (Blade) |
 | `0b-0` | **PASS** | 97 @group( occurrences, 97 declarations parsed |
 | `0b-1` | **PASS** | banner reproduced: 97 declarations over 82 slots; aliases bladeg_indices, bladeg_params, bladeg_vertices, cactusg_indices, cactusg_params, cactusg_vertices, cmg_indices, cmg_params, cmg_vertices, fc_config, fc_patches, fc_vp, palmg_indices, palmg_params, palmg_vertices |
 | `0b-4` | **PASS** | WGSL layout calculator reproduces all three byte counts the program states in prose: agent_figure_profiles 4032 B, field_head_poses 6400 B, field_authored 144 B |
@@ -106,7 +106,7 @@ matters only where a binding is a window onto a shared buffer.
 | `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (9 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 13 (arch_mesh_gen, blade_cluster_mesh_gen, cactus_mesh_gen, column_mesh_gen, compute_entity_placement, compute_photographer_vp, compute_vp, palm_mesh_gen, update_camera, update_cube, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 8 (compute_entity_placement, compute_photographer_vp, compute_vp, update_camera, update_cube, update_other_agents, update_player_agent, update_sphere). The 7 that differ: arch_mesh_gen (wg1=True, single-dispatch=False), blade_cluster_mesh_gen (wg1=True, single-dispatch=False), cactus_mesh_gen (wg1=True, single-dispatch=False), column_mesh_gen (wg1=True, single-dispatch=False), palm_mesh_gen (wg1=True, single-dispatch=False), update_other_agents (wg1=False, single-dispatch=True), zone_derive_params (wg1=True, single-dispatch=False). |
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
-| `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 7 (sole trigger at 0), FXC 20 (sole trigger at 4), law-ref 50 (sole trigger at 23), measured 12 (sole trigger at 2), witness 17 (sole trigger at 2), hangs 0 (sole trigger at 0), compile-time 10 (sole trigger at 0), landed-at 4 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 7 (sole trigger at 1), per-stage 10 (sole trigger at 0), slot-cap 15 (sole trigger at 8) |
+| `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 7 (sole trigger at 0), FXC 20 (sole trigger at 4), law-ref 54 (sole trigger at 27), measured 12 (sole trigger at 2), witness 17 (sole trigger at 2), hangs 0 (sole trigger at 0), compile-time 10 (sole trigger at 0), landed-at 4 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 7 (sole trigger at 1), per-stage 10 (sole trigger at 0), slot-cap 15 (sole trigger at 8) |
 | `W4-2` | **PASS** | positive control, keyed by symbol and by binding: all 6 known-defended sites found with a non-empty trigger set — update_player_agent [FXC, compile-time, landed-at, law-ref, measured, time-cost, witness]; update_other_agents [FXC, compile-time, landed-at, law-ref, time-cost, witness]; (file banner) [FXC, budget, compile-time, law-ref, per-stage, witness]; pawn_ground_resolve [FXC, compile-time, law-ref]; bind::g2::agent_tier_gains [per-stage, slot-cap]; bind::g2::agent_figure_profiles [slot-cap] |
 | `G2-eol` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`, so no host can translate the terminator; a byte-level read-back runs after the write |
 
@@ -207,7 +207,7 @@ intersection is 7. `update_other_agents` dispatches ONE workgroup at
 `@workgroup_size(32)` — which is exactly the shape the kernel-split banner
 prices at 48 seconds of FXC.
 
-**11. 77 defended sites.** Table H marks where the program already paid to
+**11. 81 defended sites.** Table H marks where the program already paid to
 learn something. It cites and does not quote, so it cannot go stale against
 the prose it points at.
 
@@ -215,7 +215,7 @@ the prose it points at.
 campaign's (as of BUDGET_1; the control re-keyed at LOOM_2).** BUDGET_1 removed two layout seats and renumbered the
 survivors, and `W4-2` failed — not because the sweep was wrong, and not
 because the instrument stopped finding the defended prose. It found all
-77 sites with identical trigger sets. What broke was the CONTROL'S KEY:
+81 sites with identical trigger sets. What broke was the CONTROL'S KEY:
 it named two defended sites `Render Entity Layout entries[16]` and
 `entries[17]`, and a campaign whose job is removing layout entries
 renumbers the survivors.
@@ -1042,7 +1042,7 @@ comment matches any of:
 |---|---|---|---|
 | `time-cost` | `\b\d+(?:\.\d+)?\s*(?:ms\|s\|sec\|secs\|second\|seconds\|min\|minute\|minutes)\b` | 7 | 0 |
 | `FXC` | `\bFXC\b` | 20 | 4 |
-| `law-ref` | `\bL\d+\b\|\b[A-Z_]{3,} LAW\b\|docs/LAWS\.md` | 50 | 23 |
+| `law-ref` | `\bL\d+\b\|\b[A-Z_]{3,} LAW\b\|docs/LAWS\.md` | 54 | 27 |
 | `measured` | `\bmeasured\b\|\bmeasurement\b` | 12 | 2 |
 | `witness` | `\bwitness\b` | 17 | 2 |
 | `hangs` | `\bhangs\b` | 0 — **prospective** | 0 |
@@ -1095,26 +1095,26 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2359 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2362 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4599 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4659 | `budget`, `per-stage` | A:proximity |
-| `Agents State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4671 | `slot-cap` | A:proximity |
-| `Agents State Layout entries[8]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4679 | `slot-cap` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4807 | `witness` | A:proximity |
-| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4890 | `law-ref` | A:proximity |
-| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4895 | `law-ref` | A:proximity |
-| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4963 | `law-ref`, `witness` | A:proximity, B:named |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5034 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5047 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5228 | `per-stage`, `slot-cap` | A:proximity |
-| `Scene State Layout entries[1]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5232 | `per-stage`, `slot-cap` | A:proximity |
-| `Scene State Layout entries[2]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5236 | `per-stage`, `slot-cap` | A:proximity |
-| `Scene State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5240 | `per-stage`, `slot-cap` | A:proximity |
-| `Scene State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5258 | `slot-cap` | A:proximity |
-| `Scene State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5262 | `slot-cap` | A:proximity |
-| `Scene State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5267 | `slot-cap` | A:proximity |
-| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5364 | `slot-cap` | A:proximity |
-| `Shadow State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5368 | `slot-cap` | A:proximity |
-| `Shadow State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5373 | `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4596 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4656 | `budget`, `per-stage` | A:proximity |
+| `Agents State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4668 | `slot-cap` | A:proximity |
+| `Agents State Layout entries[8]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4676 | `slot-cap` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4804 | `witness` | A:proximity |
+| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4887 | `law-ref` | A:proximity |
+| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4892 | `law-ref` | A:proximity |
+| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4960 | `law-ref`, `witness` | A:proximity, B:named |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5031 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5044 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5225 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[1]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5229 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[2]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5233 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5237 | `per-stage`, `slot-cap` | A:proximity |
+| `Scene State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5255 | `slot-cap` | A:proximity |
+| `Scene State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5259 | `slot-cap` | A:proximity |
+| `Scene State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5264 | `slot-cap` | A:proximity |
+| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5361 | `slot-cap` | A:proximity |
+| `Shadow State Layout entries[6]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5365 | `slot-cap` | A:proximity |
+| `Shadow State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5370 | `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 262 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 409 | `law-ref` | A:proximity, B:named |
@@ -1165,8 +1165,12 @@ one column that can.
 | `fc_visible` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 10131 | `law-ref` | A:proximity, B:named |
 | `fc_indirect` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 10132 | `law-ref` | A:proximity, B:named |
 | `blade_cluster_mesh_gen` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 12485 | `budget` | A:proximity, C:body |
+| `orb_state` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 12910 | `law-ref` | A:proximity, B:named |
+| `orb_state_prev` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 12915 | `law-ref` | A:proximity, B:named |
 | `orb_sample_palette` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 12970 | `FXC` | A:proximity, C:body |
-| `orb_dynamics` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 13206 | `FXC`, `law-ref` | A:proximity, C:body |
+| `orb_state_prev_copy` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 13069 | `law-ref` | A:proximity |
+| `orb_init` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 13076 | `law-ref` | A:proximity, C:body |
+| `orb_dynamics` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 13207 | `FXC`, `law-ref` | A:proximity, C:body |
 
 ## Appendix 1 — the WGSL declaration table (0b-i)
 
@@ -1518,10 +1522,9 @@ summarised by binding rather than listed.
 | `frustum_cull_patches` | `fc_visible` | `FC_SEG_C_BASE + slot` | `indirected(fc_indirect)` | w | — | 10259 |
 | `generate_patch_gradients` | `patch_height_scratch` | `(u32(gy) * res + u32(gx)) * 2u` | `builtin_derived(workgroup_id)` | r | — | 8938 |
 | `generate_patch_heights` | `patch_height_scratch` | `base` | `builtin_derived(global_invocation_id)` | w | — | 8913 |
-| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 13210 |
-| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13498 |
-| `orb_dynamics` | `orb_state_prev` | `j` | `builtin_derived(global_invocation_id)` | r | — | 13357 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13142 |
+| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 13211 |
+| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13499 |
+| `orb_dynamics` | `orb_state_prev` | `j` | `builtin_derived(global_invocation_id)` | r | — | 13358 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13143 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13144 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13145 |
@@ -1533,12 +1536,13 @@ summarised by binding rather than listed.
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13151 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13152 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13153 |
-| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 13185 |
-| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13198 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13154 |
+| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 13186 |
 | `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13199 |
 | `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13200 |
-| `orb_state_prev_copy` | `orb_state_prev_rw` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13071 |
-| `orb_state_prev_copy` | `orb_state_ro` | `i` | `builtin_derived(global_invocation_id)` | r | — | 13071 |
+| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13201 |
+| `orb_state_prev_copy` | `orb_state_prev_rw` | `i` | `builtin_derived(global_invocation_id)` | w | — | 13072 |
+| `orb_state_prev_copy` | `orb_state_ro` | `i` | `builtin_derived(global_invocation_id)` | r | — | 13072 |
 | `palm_mesh_gen` | `palmg_indices` | `ib_base + i` | `builtin_derived(global_invocation_id)` | w | — | 11771 |
 | `palm_mesh_gen` | `palmg_indices` | `ib_base + ii` | `builtin_derived(global_invocation_id)` | w | — | 11833 |
 | `palm_mesh_gen` | `palmg_indices` | `ib_base + ii` | `builtin_derived(global_invocation_id)` | w | — | 11834 |

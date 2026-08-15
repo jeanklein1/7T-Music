@@ -2056,9 +2056,9 @@ namespace t7 {
             wgpu::BindGroup placeTexturesGroup_;
             wgpu::BindGroup ribbonStateGroup_;
             wgpu::BindGroup sceneStateGroup_;
-            wgpu::BindGroup sceneStatePlanBGroup_;
-            wgpu::BindGroup sceneStatePlanCGroup_;
-            wgpu::BindGroup sceneStatePhotographerGroup_;
+            // DOMESDAY_1 B5 (R2): the PlanB / PlanC / Photographer scene
+            // groups collapsed into sceneStateGroup_ — B3 retired the
+            // segment windows that were their only difference.
             wgpu::BindGroup sceneTexturesGroup_;
             wgpu::BindGroup shadowStateGroup_;
             wgpu::BindGroup shadowTexturesGroup_;
@@ -2504,9 +2504,6 @@ namespace t7 {
             wgpu::BindGroup place_textures_group() const { return placeTexturesGroup_; }
             wgpu::BindGroup ribbon_state_group() const { return ribbonStateGroup_; }
             wgpu::BindGroup scene_state_group() const { return sceneStateGroup_; }
-            wgpu::BindGroup scene_state_plan_b_group() const { return sceneStatePlanBGroup_; }
-            wgpu::BindGroup scene_state_plan_c_group() const { return sceneStatePlanCGroup_; }
-            wgpu::BindGroup scene_state_photographer_group() const { return sceneStatePhotographerGroup_; }
             wgpu::BindGroup scene_textures_group() const { return sceneTexturesGroup_; }
             wgpu::BindGroup shadow_state_group() const { return shadowStateGroup_; }
             wgpu::BindGroup shadow_textures_group() const { return shadowTexturesGroup_; }

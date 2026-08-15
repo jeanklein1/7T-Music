@@ -1505,11 +1505,11 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     const uint32_t kSlotZero = 0;
     pass.SetBindGroup(0, c->gpuState_.world_group());
     pass.SetBindGroup(1, c->gpuState_.frame_photographer_group(), 1, &kSlotZero);
-    pass.SetBindGroup(2, c->gpuState_.scene_state_photographer_group());
+    pass.SetBindGroup(2, c->gpuState_.scene_state_group());   // B5 (R2): the one scene group
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
 
     c->renderer_.draw_patch_terrain_direct(pass,
-        c->gpuState_.scene_state_photographer_group(),
+        c->gpuState_.scene_state_group(),
         c->gpuState_.scene_textures_group(),
         c->gpuState_.visible_patch_indices_buffer(),   // B3: slot-0 bound, attribute unread (direct variant)
         c->gpuState_.patch_index_buffer_lod0_live(),
