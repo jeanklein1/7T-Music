@@ -149,3 +149,53 @@ it was the first native compile since B6's frontier spellings
 `SetImmediates`) — a second stratum may follow once the compile
 proceeds past these two lines. Same channel if it does: send the
 error text exactly; it worked.
+
+## §8 — the runtime arbitration: the lane's real gate
+
+Round two, from Dawn's validator rather than MSVC. The two primary
+error lines, verbatim:
+
+```
+Error while parsing WGSL: shader requires the language feature 'immediate_address_space', but it is not enabled
+[Invalid PipelineLayout (unlabeled)] is invalid
+```
+
+One root cause: `var<immediate>` (world.wgsl) and the
+`immediateSize = 4` pipeline layouts require the device feature
+`ImmediateAddressSpace` — dawn.json: WGSL language feature
+`immediate_address_space`, value 11, tagged `dawn`; the
+`pipeline layout descriptor`'s `immediate size` member; `limits`'
+`max immediate size` — and the boot requested core defaults +
+timestamp-query only. Every invalid module, pipeline, and submit in
+the log was cascade from that one gate.
+
+The fixes, master direct:
+
+- **F2-a** (`837f481`) — both twins request the feature where the
+  adapter offers it; the web twin's modest path carries
+  `maxImmediateSize = FLOOR_MAX_IMMEDIATE_SIZE` (the NEEDS table's own
+  seventh row, sourced from `limits_floor.gen.inc`, never a literal),
+  and the testimony line names the exception. Not offered → one loud
+  line and the failure surface stands, named. `feature_name()` gains
+  `immediate-address-space(dawn)`. The pre-authorized second step
+  (the instance-level WGSL control, native-only) was NOT taken — it
+  engages only if the runtime bounces again with the feature granted.
+- **F2-b1** (`74b73a2`) — the label law's second enforcement,
+  triggered by the error message's own `(unlabeled)`, mirroring the
+  first: `strataLayoutFor` takes a leading label, all 27 call sites
+  named.
+- **F2-b2** (`3007afc`) — the ledger parser learns the label argument
+  (its own commit, per the instrument law); all three instruments
+  green.
+- **F2-c** (`c7de848`) — the `var<immediate>` banner points at the
+  request site; the request site remains the fact's home.
+
+**The learning, stated for the defended-site index:** a granted limit
+is not an enabled feature — A3 probed the ceiling of a lane whose
+door was still locked; probe the gate you intend to walk through.
+B6's first parse in any court was this boot; the web twin is equally
+untested post-B6 and faces the same gate at the next Pixel boot,
+which will state its quadrant: offered-and-requested (testimony
+line), core-shipped (no line, the lane just works), or unavailable
+(the loud line — and then R3 gets re-examined with evidence, not
+assumption).
