@@ -26,6 +26,7 @@
 //   }
 
 #include "core/input_event.hpp"
+#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — ?cap= / --cap= (effective_pixel_cap below)
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -88,6 +89,17 @@ namespace t7 {
     // moving it changes nothing else. 1.0 = CSS-pixel rendering;
     // a very large value = uncapped, the pre-PORT_3c behavior.
     inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
+
+    // DOMESDAY_1 B9 — the runtime override: a ?cap= / --cap= present at
+    // boot (clamped to [0.5, 3.0] at parse) replaces the constant for
+    // THIS RUN; absent, the constant stands unchanged. Boot-read once,
+    // no mid-run reread — the soak walk's key, so cap 2.25 can be
+    // priced against the purse on the audience device without a
+    // rebuild per arm.
+    inline float effective_pixel_cap() {
+        return boot_params().has_cap ? boot_params().cap
+                                     : MAX_DEVICE_PIXEL_RATIO;
+    }
 
     // ═══ THE COMPILER PLAN (PIVOT_0, 2026-08-12) ═════════════════════
     //
@@ -734,8 +746,11 @@ namespace t7 {
                     //
                     // PRINT ONLY. This line does not steer the cap, change
                     // its value, or touch apply_pixel_cap().
-                    std::cout << "[Device] pixel cap: " << MAX_DEVICE_PIXEL_RATIO
-                        << " (compile-time constant, not a setting); device dpr "
+                    std::cout << "[Device] pixel cap: " << effective_pixel_cap()
+                        << (boot_params().has_cap
+                                ? " (boot param — this run only)"
+                                : " (compile-time constant, not a setting)")
+                        << "; device dpr "
                         << emscripten_get_device_pixel_ratio() << "\n";
                     // PORT_6a (5) — the device the program actually keeps.
                     std::cout << "[Device] KEEPING the device from: " << which
@@ -1265,10 +1280,11 @@ namespace t7 {
             int winW = 0, winH = 0;
             glfwGetWindowSize(window_, &winW, &winH);
             if (winW <= 0 || winH <= 0 || fbWidth <= 0 || fbHeight <= 0) return;
+            const float cap = effective_pixel_cap();   // B9: param-overridable for this run
             const float ratio = static_cast<float>(fbWidth) / static_cast<float>(winW);
-            if (ratio <= MAX_DEVICE_PIXEL_RATIO) return;
-            fbWidth  = static_cast<int>(static_cast<float>(winW) * MAX_DEVICE_PIXEL_RATIO);
-            fbHeight = static_cast<int>(static_cast<float>(winH) * MAX_DEVICE_PIXEL_RATIO);
+            if (ratio <= cap) return;
+            fbWidth  = static_cast<int>(static_cast<float>(winW) * cap);
+            fbHeight = static_cast<int>(static_cast<float>(winH) * cap);
             if (fbWidth  < 1) fbWidth  = 1;
             if (fbHeight < 1) fbHeight = 1;
         }

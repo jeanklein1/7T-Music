@@ -49,6 +49,7 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
+#include "core/boot_params.hpp"                                    // DOMESDAY_1 B9 — ?seed= / ?mood= boot overrides (ctor, the one authoring site)
 #include "core/instruments.hpp"                                    // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter / .periodic_census gate the recurring self-measurement (compile-time, T7_INSTRUMENTS; default off)
 #include "cartridges/the_board/contracts/roster.hpp"
 #include "cartridges/the_board/demos/demo.hpp"             // THE SELECTED SENTENCE: DEMO + ROSTER (compile-time, INCUBATE_DEMO; default full)
@@ -504,6 +505,15 @@ namespace t7 {
                 // (above this class) decides, and DEMO.seed is what the pin
                 // restores. This line is the campaign's whole edit site.
                 world_state_.active_seed = boot_seed();
+                // DOMESDAY_1 B9 — the parameter surface: a seed present at
+                // boot (?seed= / --seed=) overrides the draw at this one
+                // authoring site. Measurement first; boot-read; no mid-run
+                // mutation.
+                const char* seed_origin = BOOT_SEED_ORIGIN;
+                if (boot_params().has_seed) {
+                    world_state_.active_seed = boot_params().seed;
+                    seed_origin = "param";
+                }
                 // THE WITNESS (P6). One line, at boot, immediately after the
                 // choice and before any consumer — zero frame cost. It prints
                 // on both twins; on the web it reaches the DETAILS panel
@@ -511,8 +521,21 @@ namespace t7 {
                 // line into the log), which is how Jean reads it. This line is
                 // what keeps a randomized world reportable.
                 std::cout << "[World] Boot seed=" << world_state_.active_seed
-                          << " (" << BOOT_SEED_ORIGIN << ")\n";
+                          << " (" << seed_origin << ")\n";
                 mood_state_.active = DEMO.boot_mood;
+                // B9 — a mood present at boot (?mood= / --mood=) forces the
+                // boot mood at this one authoring site; an out-of-range
+                // index is refused OUT LOUD (P6 — a switch that half-fired
+                // must not look fired).
+                if (boot_params().has_mood) {
+                    if (boot_params().mood < MOOD_COUNT) {
+                        mood_state_.active = boot_params().mood;
+                    } else {
+                        std::cout << "[Params] mood=" << boot_params().mood
+                                  << " out of range (MOOD_COUNT="
+                                  << MOOD_COUNT << ") — ignored\n";
+                    }
+                }
 
 #ifdef __EMSCRIPTEN__
                 // EXHIBIT_0 — THE EXHIBITION IS A FETCH, AND IT STARTS HERE.
