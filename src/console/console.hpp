@@ -170,12 +170,15 @@ namespace t7 {
         case wgpu::FeatureName::Subgroups:                     return "subgroups";
         case wgpu::FeatureName::TextureFormatsTier1:           return "texture-formats-tier1";
         case wgpu::FeatureName::TextureFormatsTier2:           return "texture-formats-tier2";
-        // DOMESDAY_2 A13 — three spec-cited additions (glaw1 prunes any
-        // the header lacks); the Pixel's unknown ids 21/22 are expected
-        // to resolve to the first two by enum order.
+        // DOMESDAY_2 A13 — spec-cited additions, glaw1-pruned (F1-a):
+        // SubgroupSizeControl was rejected by the native Dawn header
+        // and removed per A8's standing protocol — its id keeps
+        // printing as a number on both twins; re-add the case when the
+        // Dawn checkout's wgpu::FeatureName learns the identifier. The
+        // Pixel's unknown ids 21/22 are expected to resolve to the two
+        // below by enum order.
         case wgpu::FeatureName::PrimitiveIndex:                return "primitive-index";
         case wgpu::FeatureName::TextureComponentSwizzle:       return "texture-component-swizzle";
-        case wgpu::FeatureName::SubgroupSizeControl:           return "subgroup-size-control";
         default:                                               return nullptr;
         }
     }
