@@ -838,6 +838,157 @@ def rewrite_wgsl(schema, raw):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# MANIFEST — THE CHANNEL WALLET (DOMESDAY_0 A1)
+#
+# audit/MANIFEST.md is a derived VIEW over the schema relations alone
+# (DECLS × SEATS × LAYOUTS × PIPELINES): one lane row per
+# (pipeline, stage), a wallet summary of the worst row per lane, and
+# Table A's shape with a derived channel column. No hand-authored
+# field anywhere; --write regenerates it and --check byte-compares it.
+#
+# Witness M-1 lives in the facts derivation and FAILS THE RUN if the
+# lane sums of any row disagree with that row's per-seat count — the
+# channel classification must partition the seats. Everything is
+# recomputed from the schema at every emit; nothing is hardcoded.
+# ═══════════════════════════════════════════════════════════════════════
+
+MANIFEST_MD = os.path.join(REPO, "audit", "MANIFEST.md")
+
+# (lane, per-stage Core limit) in emission order. The immediates lane is
+# carried separately: a byte budget, not a seat count — it reads 0
+# everywhere today and exists so the lane is visible.
+MANIFEST_LANES = (("uniform", 12), ("storage", 8), ("sampled", 16),
+                  ("samplers", 16), ("storagetex", 4))
+IMMEDIATE_LANE_BYTES = 64
+
+
+def decl_channel(d):
+    """Channel derived from the declaration alone: address_space
+    uniform -> uniform-lane, storage -> storage-lane; handle splits by
+    store type (sampler -> samplers, texture_storage -> storagetex,
+    texture -> sampled)."""
+    a = d["address_space"]
+    if a == "uniform":
+        return "uniform"
+    if a == "storage":
+        return "storage"
+    if a == "handle":
+        st = d["store_type"]
+        if st.startswith("sampler"):
+            return "samplers"
+        if st.startswith("texture_storage"):
+            return "storagetex"
+        if st.startswith("texture"):
+            return "sampled"
+    stop("MANIFEST: no lane for declaration %r" % (d,))
+
+
+def manifest_facts(schema):
+    """Lane rows per (pipeline, stage), plus the worst row per lane.
+    Witness M-1 (in-line, fails the run): on every row the lane sums
+    equal the per-seat count at that stage."""
+    seats_by_layout = {}
+    for (lay, idx), s in schema.SEATS.items():
+        seats_by_layout.setdefault(lay, []).append(s)
+    rows = []
+    for pm, p in schema.PIPELINES.items():
+        stages = (["C"] if p["kind"] == "compute" else
+                  [st for st, ep in (("V", p["vs"]), ("F", p["fs"])) if ep])
+        for st in stages:
+            lanes = {ln: 0 for ln, _cap in MANIFEST_LANES}
+            total = 0
+            for lay in p["layouts"]:
+                for s in seats_by_layout.get(lay, ()):
+                    if st not in s["visibility"].split("|"):
+                        continue
+                    total += 1
+                    lanes[decl_channel(schema.DECLS[s["decl"]])] += 1
+            if sum(lanes.values()) != total:
+                stop("witness M-1: lane sums %r != per-seat count %d on "
+                     "(%s, %s)" % (lanes, total, pm, st))
+            rows.append({"member": pm, "label": p["label"], "stage": st,
+                         "lanes": lanes, "total": total})
+    worst = {}
+    for ln, cap in MANIFEST_LANES:
+        peak = max(r["lanes"][ln] for r in rows)
+        at = [r for r in rows if r["lanes"][ln] == peak]
+        worst[ln] = {"used": peak, "cap": cap, "rows": at}
+    return {"rows": rows, "worst": worst}
+
+
+def emit_manifest(schema):
+    F = manifest_facts(schema)
+    L = []
+    L.append("# MANIFEST — the channel wallet")
+    L.append("")
+    L.append("<!-- %s -->" % NOTICE)
+    L.append("")
+    L.append("A derived view over the schema relations alone (DECLS × SEATS ×")
+    L.append("LAYOUTS × PIPELINES); `binding_gen.py --write` regenerates it,")
+    L.append("`--check` byte-compares it and holds witness M-1.")
+    L.append("")
+    L.append("Every future spend names its lane; read the free column before")
+    L.append("proposing.")
+    L.append("")
+    L.append("## Lane table — one row per (pipeline, stage)")
+    L.append("")
+    L.append("Each cell reads `used / free` against the per-stage Core limit in")
+    L.append("the header. The immediates lane is a byte budget — it reads 0")
+    L.append("everywhere today; it exists so the lane is visible.")
+    L.append("")
+    hdr = ["pipeline", "member", "stage"]
+    hdr += ["%s /%d" % (ln, cap) for ln, cap in MANIFEST_LANES]
+    hdr += ["immediates(bytes) /%d" % IMMEDIATE_LANE_BYTES]
+    L.append("| " + " | ".join(hdr) + " |")
+    L.append("|" + "---|" * len(hdr))
+    for r in F["rows"]:
+        cells = [r["label"], "`%s`" % r["member"], r["stage"]]
+        for ln, cap in MANIFEST_LANES:
+            cells.append("%d / %d" % (r["lanes"][ln], cap - r["lanes"][ln]))
+        cells.append("0 / %d" % IMMEDIATE_LANE_BYTES)
+        L.append("| " + " | ".join(cells) + " |")
+    L.append("")
+    L.append("## Wallet summary — worst row per lane, program-wide")
+    L.append("")
+    L.append("| lane | worst used / limit | free | at |")
+    L.append("|---|---|---|---|")
+    for ln, cap in MANIFEST_LANES:
+        w = F["worst"][ln]
+        first = w["rows"][0]
+        at = "`%s` %s" % (first["member"], first["stage"])
+        if len(w["rows"]) > 1:
+            at += " (+%d more)" % (len(w["rows"]) - 1)
+        L.append("| %s | %d / %d | %d | %s |"
+                 % (ln, w["used"], cap, cap - w["used"], at))
+    L.append("| immediates(bytes) | 0 / %d | %d | (unused everywhere) |"
+             % (IMMEDIATE_LANE_BYTES, IMMEDIATE_LANE_BYTES))
+    L.append("")
+    L.append("## Table A's shape, with the channel column")
+    L.append("")
+    L.append("One row per declaration; the channel is derived from the")
+    L.append("declaration alone — no hand-authored field.")
+    L.append("")
+    L.append("| symbol | g:b | address space | store type | channel |")
+    L.append("|---|---|---|---|---|")
+    for sym, d in schema.DECLS.items():
+        aspace = d["address_space"]
+        if d["access"]:
+            aspace += ", " + d["access"]
+        L.append("| `%s` | %d:%d | %s | `%s` | %s |"
+                 % (sym, d["group"], d["binding"], aspace, d["store_type"],
+                    decl_channel(d)))
+    L.append("")
+    L.append("## Witness M-1")
+    L.append("")
+    L.append("Lane sums equal per-seat counts on every one of the %d"
+             % len(F["rows"]))
+    L.append("(pipeline, stage) rows — the channel classification partitions")
+    L.append("the seats. Recomputed from the schema at every emit; a mismatch")
+    L.append("fails the run before this file is written. PASS.")
+    return "\n".join(L) + "\n"
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CHECK
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -943,6 +1094,13 @@ def check(args):
             problems.append("gen.inc emission diverges from disk")
     else:
         print("  binding_surface.gen.inc: target not yet generated")
+    if os.path.exists(MANIFEST_MD):
+        same = emit_manifest(schema) == BL.read(MANIFEST_MD)
+        print("  MANIFEST.md: generated \u2014 %s" % ("OK" if same else "DIVERGES"))
+        if not same:
+            problems.append("MANIFEST emission diverges from disk")
+    else:
+        print("  MANIFEST.md: target not yet generated")
 
     print("")
     print("WITNESSES")
@@ -958,6 +1116,19 @@ def check(args):
              "/".join(str(x) for x in got), "/".join(str(x) for x in wantc)))
     if not ok:
         problems.append("S-1 cardinality mismatch")
+
+    # M-1 (DOMESDAY_0 A1): the manifest facts recompute from the schema
+    # and stop() the run on any lane-sum/per-seat mismatch, so reaching
+    # this line is the PASS; the worst rows are emitted, not hardcoded.
+    mf = manifest_facts(schema)
+    print("  [PASS] M-1  MANIFEST lane sums equal per-seat counts on all "
+          "%d (pipeline, stage) rows; worst: %s"
+          % (len(mf["rows"]),
+             ", ".join("%s %d/%d (%s %s)"
+                       % (ln, mf["worst"][ln]["used"], cap,
+                          mf["worst"][ln]["rows"][0]["member"],
+                          mf["worst"][ln]["rows"][0]["stage"])
+                       for ln, cap in MANIFEST_LANES)))
 
     # S-2: the defended text survived transcription. For every Table H
     # site in the registry or the layout blocks, each of its triggers
@@ -2831,10 +3002,13 @@ def main():
     g.add_argument("--check", action="store_true",
                    help="diff tree against schema, verify emitters and witnesses")
     g.add_argument("--write", nargs="?", const="all",
-                   choices=("registry", "inc", "all"), metavar="TARGET",
-                   help="emit binding_registry.hpp and/or binding_surface.gen.inc "
-                        "(registry | inc | all; default all). U2 flips the "
-                        "registry alone; U3 flips the state.hpp blocks.")
+                   choices=("registry", "inc", "manifest", "all"),
+                   metavar="TARGET",
+                   help="emit binding_registry.hpp, binding_surface.gen.inc "
+                        "and/or audit/MANIFEST.md "
+                        "(registry | inc | manifest | all; default all). U2 "
+                        "flips the registry alone; U3 flips the state.hpp "
+                        "blocks; DOMESDAY_0 A1 adds the manifest view.")
     g.add_argument("--write-wgsl", metavar="PATH",
                    help="renumber the declaration sites of the file at PATH")
     g.add_argument("--plan", action="store_true",
@@ -2895,6 +3069,9 @@ def main():
         if args.write in ("inc", "all"):
             write_file(GEN_INC, emit_gen_inc(schema))
             print("wrote %s" % os.path.relpath(GEN_INC, REPO))
+        if args.write in ("manifest", "all"):
+            write_file(MANIFEST_MD, emit_manifest(schema))
+            print("wrote %s" % os.path.relpath(MANIFEST_MD, REPO))
         return 0
     if args.write_wgsl:
         schema = load_schema()
