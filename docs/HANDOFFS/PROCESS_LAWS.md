@@ -206,6 +206,31 @@ It is P9 one more layer out. There the cached label was a git ref; here it was
 the shell's own output. Both times the reasoning was sound and the input to it
 was a summary that had quietly dropped the disconfirming case.
 
+## P12 — LAND-GATING IS TRIGGERED BY WHAT A GATE COULD CATCH
+
+A unit rides a held branch when a gate could catch something in it, and
+lands on master when no gate could. Frame, binding surface, or runtime
+behavior → **held branch, glaw1 + the visual gate**. Log output or audit
+artifacts only → **master, glaw1 alone**.
+
+The test is not how large the diff is or how careful the author feels.
+It is whether the gate has anything to look at: a visual gate cannot
+catch a boot line that prints one more number, and a revert would have
+nothing to unwind. Holding such a unit costs a branch, a merge, and a
+name that outlives its campaign — three ceremonies purchasing nothing.
+
+*Paid for by:* LANTERN U3, adopted by Jean's amendment in the same
+handoff. The LOOM sequence held one branch across four campaigns —
+recut, fixes, close-out, then a census and two boot lines — and by the
+end its name (`mirror-census-binding-ledger`) described none of what it
+carried. The recut earned every ceremony it got; the log lines earned
+none of theirs.
+
+Corollary, and the reason the rule is worth a number: the branch is a
+*declaration of risk*. Holding everything makes the declaration
+meaningless, and the campaign that genuinely needs a visual gate is the
+one that pays for the noise.
+
 ---
 
 ## CANDIDATE (unnumbered) — THE GATE ROW NAMES THE ARTIFACT
