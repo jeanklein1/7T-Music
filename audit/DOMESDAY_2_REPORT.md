@@ -262,6 +262,19 @@ The fixes:
   The exceptions line names the gate that exists:
   `wgsl:immediate_address_space (instance) + maxImmediateSize=4 (NEEDS r7)`.
 - **F3-c** (this section).
+- **F3-e** (`caf54b4`) — an adversarial verification pass over F3-a/F3-b
+  (three independent lenses, then an adjudicator required to prove each
+  finding from the file) caught two real defects and four truths. The
+  defects are worth naming because both are *this campaign's own
+  recurring species*: (i) the web modest path claimed
+  `wgsl:immediate_address_space` unconditionally and could deny it two
+  lines later — a boot log contradicting itself, so both twins now
+  print what the request CARRIES separately from what the instance
+  HAS; and (ii) **the retraction had stopped at the token** — F2-c's
+  comment at the `var<immediate>` declaration still taught the
+  device-feature doctrine and pointed at a request site F3-b had
+  deleted. A9's and A7's lesson, third time: the token and the prose
+  that explains it are one edit, never two.
 
 Three disclosures, so the next round starts from evidence:
 
