@@ -14,12 +14,12 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `3adc7f0869ec5582c0c917ed6a230356e4f0c915` |
-| | DOMESDAY_2 B10: ?msaa= — the walk's last instrument |
+| source commit | `74b73a2c26c12f8f16c5a7195b487099546e726e` |
+| | DOMESDAY_2 F2-b1: pipeline layouts are named at creation |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:a120e9139649cda2790911e17fd59cf453f47ad2552a600e5da4dd1bed782c5d` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:334deeefb9e46e123cc89fb63890b39fe7e72bef0e9ca85fbe86d9c978ae557a` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:af9e453778e6ee6f7d76f26c2581b75d8fd67fe44aacf894297569e983cb4340` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:46c2d4069bd1c38865fa0841b6dce750696b570354a6ac7da1ab95f32c366edc` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:cb2066f41e1b23c9bed20c80e5aedcceb4362ed58ec873bdab525b83a9ca4bcd` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:38ec06c6763f9ba7e4294cc1ce29f6193be7ded75ea62ce84d708f68ff5d25c1` |
 
 
@@ -1091,8 +1091,8 @@ one column that can.
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
 | `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 88 | `law-ref` | A:proximity |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2373 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2376 | `measured` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2378 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2381 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
 | `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4596 | `law-ref` | A:proximity, B:named |
 | `Agents State Layout entries[3]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4656 | `budget`, `per-stage` | A:proximity |

@@ -1803,14 +1803,18 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*device_\.CreatePipelineLayout\(\s*&(\w+)\s*\)", src):
         events.append((m.start(), "create", m.group(1), m.group(2), None))
-    # DOMESDAY_1 B6: strataLayoutFor grew an optional fourth argument
-    # (immediateSize — an expression, possibly with one paren level,
-    # e.g. sizeof(uint32_t)). The layout list is still the first three
-    # plus the implicit WORLD; the immediate size is not a group layout.
-    # DOMESDAY_2 A10: the argument is now CAPTURED and resolved to
-    # bytes, so a pipeline can carry its immediate_size fact.
+    # DOMESDAY_1 B6: strataLayoutFor grew an optional immediateSize
+    # argument (an expression, possibly with one paren level, e.g.
+    # sizeof(uint32_t)). DOMESDAY_2 A10 captures it and resolves to
+    # bytes, so a pipeline carries its immediate_size fact.
+    # DOMESDAY_2 F2-b2: the label law gave the builder a LEADING
+    # string argument (F2-b1) — the layouts are now arguments two
+    # through four, the immediate size the optional fifth. The label
+    # itself is display prose; the layout list is still these three
+    # plus the implicit WORLD.
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*strataLayoutFor\(\s*"
+            r"\"[^\"]*\"\s*,\s*"
             r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*"
             r"(?:,\s*((?:[^()]|\([^()]*\))*?)\s*)?\)", src):
         events.append((m.start(), "for", m.group(1),

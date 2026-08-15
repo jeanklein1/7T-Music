@@ -5,13 +5,13 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `3adc7f0869ec5582c0c917ed6a230356e4f0c915`
-(DOMESDAY_2 B10: ?msaa= — the walk's last instrument)
+Last commit touching any scanned file: `74b73a2c26c12f8f16c5a7195b487099546e726e`
+(DOMESDAY_2 F2-b1: pipeline layouts are named at creation)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:3e0119e36648e8754ecd055ed584181983dc1d6266fadb060303ded01a50c80e` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:46c2d4069bd1c38865fa0841b6dce750696b570354a6ac7da1ab95f32c366edc` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:cb2066f41e1b23c9bed20c80e5aedcceb4362ed58ec873bdab525b83a9ca4bcd` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:876f3651bcc1d6a2d31f3c65a207d690f2cb1a4795d929ad79c6129559ea0932` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:14c76b751a27ddb4a4177a9b6426e016216d4891f4ae8d7f3a5f9c16c613efac` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:1564f21315f220c73d362ce0b517936f991e3c749e9c55c71452e60fdc65a486` |
@@ -19,7 +19,7 @@ Last commit touching any scanned file: `3adc7f0869ec5582c0c917ed6a230356e4f0c915
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:a306f46c7f12533a37a7515e8f7636385395d40c0c6e3697d02a5557f13e37ba` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:e4a2855e62931c2b946b8f2265cf7944ecefd3bc51e3ad5412acb2c6cf335704` |
 | `src/incubator_dual.cpp` | `sha256:07ed7d0e2eb71ccca9972939529a04c1665582c0484f55362c7c835a4a9c5d33` |
-| `src/console/console.hpp` | `sha256:4f2261216bb7b881ab00dea0b0b885a014d4805f31bb4ce5b3d006a2b6a8cfa5` |
+| `src/console/console.hpp` | `sha256:85e1ff1a6cec9a452afe0e7fd948a3ebf7f89e3b085630de3232286d6cfe4a97` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -82,12 +82,12 @@ every landing.
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:1260` |
-| 2 | `begin_frame` | `src/console/console.hpp:1411` |
+| 1 | `initSurface` | `src/console/console.hpp:1316` |
+| 2 | `begin_frame` | `src/console/console.hpp:1467` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:1406`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:1462`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer
