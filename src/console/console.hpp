@@ -651,6 +651,37 @@ namespace t7 {
                                     ? "YES" : "no")
                             << " (the only optional feature this program requests)\n";
                     }
+                    // ═══ LANTERN U3 C1 — THE PIXEL CAP, NAMED ════════════
+                    //
+                    // The largest lever over the frame's biggest GPU row,
+                    // and the device block did not mention it. Every purse
+                    // number this program has printed was measured UNDER
+                    // this cap, so a device-fact block that hides it
+                    // overstates the treasury.
+                    //
+                    // THREE FACTS, because none of them is useful alone:
+                    // the cap in force, the ratio the device reports, and
+                    // that the cap is a COMPILE-TIME CONSTANT. A reader
+                    // seeing a cap below the device's ratio must know
+                    // whether that is a setting to change or a rebuild to
+                    // schedule — it is a rebuild (console.hpp ·
+                    // MAX_DEVICE_PIXEL_RATIO, consumed by
+                    // Console::apply_pixel_cap()).
+                    //
+                    // emscripten_get_device_pixel_ratio() reads
+                    // window.devicePixelRatio straight from the browser, so
+                    // it answers here regardless of canvas layout state —
+                    // no work is moved to reach it, and the line does not
+                    // wait for the first frame. The GLFW framebuffer/window
+                    // ratio would ALSO answer, but only after the library
+                    // has sized the canvas from #frame (FRAME_0), which has
+                    // not happened at device adoption.
+                    //
+                    // PRINT ONLY. This line does not steer the cap, change
+                    // its value, or touch apply_pixel_cap().
+                    std::cout << "[Device] pixel cap: " << MAX_DEVICE_PIXEL_RATIO
+                        << " (compile-time constant, not a setting); device dpr "
+                        << emscripten_get_device_pixel_ratio() << "\n";
                     // PORT_6a (5) — the device the program actually keeps.
                     std::cout << "[Device] KEEPING the device from: " << which
                         << " (this is the one the frame loop runs on)\n";
