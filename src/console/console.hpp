@@ -170,6 +170,12 @@ namespace t7 {
         case wgpu::FeatureName::Subgroups:                     return "subgroups";
         case wgpu::FeatureName::TextureFormatsTier1:           return "texture-formats-tier1";
         case wgpu::FeatureName::TextureFormatsTier2:           return "texture-formats-tier2";
+        // DOMESDAY_2 A13 — three spec-cited additions (glaw1 prunes any
+        // the header lacks); the Pixel's unknown ids 21/22 are expected
+        // to resolve to the first two by enum order.
+        case wgpu::FeatureName::PrimitiveIndex:                return "primitive-index";
+        case wgpu::FeatureName::TextureComponentSwizzle:       return "texture-component-swizzle";
+        case wgpu::FeatureName::SubgroupSizeControl:           return "subgroup-size-control";
         default:                                               return nullptr;
         }
     }
@@ -1363,7 +1369,7 @@ namespace t7 {
             int fbWidth, fbHeight;
             glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
 #ifdef __EMSCRIPTEN__
-            const int fbPreCapW = fbWidth, fbPreCapH = fbHeight;   // FRAME_1 (temporary)
+            const int fbPreCapW = fbWidth, fbPreCapH = fbHeight;   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
             apply_pixel_cap(fbWidth, fbHeight);   // PORT_3c — before the compare
 #endif
             // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. The bare not-equal
@@ -1390,7 +1396,7 @@ namespace t7 {
                         createDepthBuffer(currentWidth_, currentHeight_);
                         stableFrames_ = 0;
 #ifdef __EMSCRIPTEN__
-                        frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 (temporary)
+                        frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
 #endif
                     }
                 } else {

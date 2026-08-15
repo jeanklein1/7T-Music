@@ -2611,6 +2611,10 @@ namespace t7 {
                     };
 
                 // Snapshot staging — photographer writes here, promotion copies from here
+                // DEEDED: the photographer's portfolio. 32 speculative shots
+                // persist here between capture and hang-time curation; retiring
+                // this pool changes which shots hang. Do not retire without a
+                // photographer-model ruling (DOMESDAY R5 withdrawal, _1 report B8).
                 snapshotStagingTexture_ = makeTextureArray("Snapshot Staging",
                     Dim::STAGING_LAYERS,
                     wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc);
@@ -2619,6 +2623,11 @@ namespace t7 {
                     "Snapshot Staging View", Dim::STAGING_LAYERS);
 
                 // Authored staging — disk images loaded here, promotion copies from here
+                // DEEDED: the painting inventory. Prefetch-decoded canvases wait
+                // here across world rebuilds; on unified memory a CPU-side
+                // inventory costs the same bytes, and decode-at-hang regresses
+                // the transition. Re-open only via a browser-owned (ImageBitmap)
+                // path on a vendored port (DOMESDAY R5 withdrawal).
                 authoredStagingTexture_ = makeTextureArray("Authored Staging",
                     Dim::STAGING_LAYERS,
                     wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc);
