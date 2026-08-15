@@ -146,7 +146,6 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::PlacementCorrection);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { compute.SetBindGroup(0, c->gpuState_.world_group());
       compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_entity_placement(
@@ -163,7 +162,6 @@ inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encode
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::LiveCardWrite);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { compute.SetBindGroup(0, c->gpuState_.world_group());
       compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_live_card_write(
@@ -181,7 +179,6 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::DispatchCompute);
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { compute.SetBindGroup(0, c->gpuState_.world_group());
       compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
 
@@ -253,8 +250,7 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
         cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::FrustumCull);
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
         // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-        // FRAME carries the shadow-slot dynamic window; compute never moves it.
-        { compute.SetBindGroup(0, c->gpuState_.world_group());
+            { compute.SetBindGroup(0, c->gpuState_.world_group());
           compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
         c->renderer_.dispatch_frustum_cull(
             compute, c->gpuState_.cull_state_group(), c->gpuState_.empty_group()
@@ -294,10 +290,13 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         // Now each texture is cleared once, drawn for every light it owns
         // under per-light viewports, and stored once: 96 -> 32 MiB at four
         // lights, 48 -> 16 at two. No LoadOp::Load survives in this
-        // function. The per-light matrix arrives by dynamic offset (D3"),
-        // which is what makes one pass able to serve several lights — a
-        // buffer write cannot be recorded inside a render pass, and that
-        // copy is exactly what forced the split before.
+        // function. The per-light index arrives as IMMEDIATE DATA since
+        // DOMESDAY_1 B6 (it rode a dynamic offset from ATLAS_1revB D3"
+        // until then) — either way a value that can change inside a
+        // render pass, which is what makes one pass able to serve
+        // several lights; a buffer write cannot be recorded inside a
+        // render pass, and that copy is exactly what forced the split
+        // before.
         //
         // A pass opens only if its texture owns at least one active light.
         const uint32_t live = (cpuSpotLights_.count < MAX_SPOT_LIGHTS)
@@ -323,20 +322,22 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
 
             wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
-            // LOOM_2 pass head: WORLD + the SHADOW pair, once per pass.
+            // LOOM_2 pass head: WORLD + FRAME + the SHADOW pair, once per
+            // pass. DOMESDAY_1 B6 (R3): FRAME binds with no offset
+            // argument — the dynamic-offset machinery left the program.
             pass.SetBindGroup(0, c->gpuState_.world_group());
+            pass.SetBindGroup(1, c->gpuState_.frame_r_group());
             pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
             pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
 
             for (uint32_t li = first; li < first + 2 && li < live; li++) {
                 const uint32_t within = li % 2;   // 0 = left half, 1 = right
-                const uint32_t slotOffset = li * SHADOW_SLOT_STRIDE;
 
-                // D3" — the light window is the one thing that
+                // B6 (R3) — the light index is the one thing that
                 // distinguishes this light's draws from the last's, and
-                // LOOM_2 moved it into FRAME: one dynamic-offset bind per
-                // light is the whole per-light group traffic now.
-                pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &slotOffset);
+                // it rides IMMEDIATE DATA now: one SetImmediates per
+                // light is the whole per-light traffic.
+                pass.SetImmediates(0, &li, sizeof(uint32_t));
 
                 const float vx = static_cast<float>(within * TILE_W);
                 pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
@@ -368,12 +369,14 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
         // OIL_1 U12 — the pass-head binds (see the atlas arm above).
         // Outdoor draws for the sun, which shadow_light_vp() reads from
-        // render_vp.light_vp; the window is never varied here.
-        const uint32_t slotOffset = 0;
+        // render_vp.light_vp; the shadow_slot immediate is unread on
+        // this path (spots.count == 0) and set to 0 for determinism.
+        const uint32_t kLightZero = 0;
         pass.SetBindGroup(0, c->gpuState_.world_group());
-        pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &slotOffset);
+        pass.SetBindGroup(1, c->gpuState_.frame_r_group());
         pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
         pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
+        pass.SetImmediates(0, &kLightZero, sizeof(uint32_t));
 
         draw_shadow_all(c, pass, /*cast_terrain=*/true);
         pass.End();
@@ -467,10 +470,11 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // not name groups a future creation-side gate could leave null.
     // ATLAS_1revB G2 — group 0 is NOT rebound here any more. The two shadow
     // artwork pipelines take the RENDER-ENTITY layout at group 0 now (they
-    // need render_lighting and shadow_slot, which the gallery entity layout
-    // does not carry), and the pass head already bound it with this light's
-    // window. Only the texture group changes. One fewer bind per light, and
-    // group 0 no longer moves mid-tile.
+    // need render_lighting, which the gallery entity layout does not
+    // carry; the shadow_slot light index rides the pipeline layout as
+    // immediate data since B6), and the pass head already bound it. Only
+    // the texture group changes. One fewer bind per light, and group 0
+    // no longer moves mid-tile.
     // LOOM_2: the artwork shadow draws are SHADOW family — their strata
     // are already bound, and the old texture-group fork is retired.
     c->renderer_.draw_shadow_wall_paintings(
@@ -525,18 +529,16 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-    // ATLAS_1revB D3" — the main pass never varies the light window.
-    const uint32_t kSlotZero = 0;
-
-    // OIL_1 U13 (ledger: R19, C7) — THE PASS-HEAD BIND. group1 (the
-    // render texture group) is the same for every entity draw in this
-    // pass, plan slots included, so it is bound once here and never
-    // again. group0 is NOT bound here: it is genuinely per-slot (the
-    // plan A/B/C windows are three different groups, each bound by its
-    // own slot) and is restored to the entity group after slot C, once,
-    // for the table draws.
+    // OIL_1 U13 (ledger: R19, C7) — THE PASS-HEAD BIND, restated for
+    // the LOOM_2 numbering and the B5 collapse: groups 0 (WORLD),
+    // 1 (FRAME) and 3 (scene textures) are the same for every draw in
+    // this pass, so they bind once here. Group 2 is set by the plan
+    // slot helper — since B5 all three slots bind the ONE scene group,
+    // and the table draws inherit it after slot C.
+    // DOMESDAY_1 B6 (R3): FRAME binds with no offset argument — the
+    // main family's pipelines carry no immediate and no dynamic seat.
     pass.SetBindGroup(0, c->gpuState_.world_group());
-    pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kSlotZero);
+    pass.SetBindGroup(1, c->gpuState_.frame_r_group());
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
 
     // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel

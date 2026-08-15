@@ -46,51 +46,51 @@ everywhere today; it exists so the lane is visible.
 | Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Sphere Entity (Rasterized) | `spherePipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Monolith Entity (Rasterized) | `monolithPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Catenary Arch (Rasterized) | `archPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Catenary Arch (Rasterized) | `archPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Generative Column (Rasterized) | `columnPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Generative Column (Rasterized) | `columnPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Palm Tree (Rasterized) | `palmPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Palm Tree (Rasterized) | `palmPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Cactus (Rasterized) | `cactusPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Cactus (Rasterized) | `cactusPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Blade Cluster (Rasterized) | `bladePipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Sky Ribbon Entity | `ribbonPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | 9 / 3 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | 8 / 4 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Orb Sky Layer | `orbRenderPipeline_` | F | 6 / 6 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Gallery Frame | `galleryFramePipeline_` | V | 5 / 7 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Gallery Frame | `galleryFramePipeline_` | V | 4 / 8 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | F | 5 / 7 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 5 / 7 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 4 / 8 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 5 / 7 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | V | 5 / 7 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Wall Painting Frame | `wallPaintingFramePipeline_` | V | 4 / 8 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | F | 5 / 7 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 8 / 4 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 7 / 5 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 | Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 
@@ -140,7 +140,6 @@ declaration alone — no hand-authored field.
 | `ring_xforms` | 2:141 | storage, read_write | `array<RibbonRingTransform, 400>` | storage |
 | `head_poses` | 2:142 | storage, read | `array<vec4<f32>, 400>` | storage |
 | `render_lighting` | 1:1 | uniform | `Lighting` | uniform |
-| `shadow_slot` | 1:2 | uniform | `ShadowSlot` | uniform |
 | `bilinear_sampler` | 1:5 | handle | `sampler` | samplers |
 | `nearest_sampler` | 1:6 | handle | `sampler` | samplers |
 | `shadow_map` | 3:200 | handle | `texture_depth_2d` | sampled |

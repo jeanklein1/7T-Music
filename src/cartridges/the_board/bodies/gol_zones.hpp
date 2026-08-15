@@ -675,7 +675,6 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
     desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolDeriveFlush);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_zone_derive_params(
@@ -764,7 +763,6 @@ inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& e
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_zone_gol_sync(pass,
@@ -778,7 +776,6 @@ inline void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder&
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     c->renderer_.dispatch_zone_gol_evolve(pass,

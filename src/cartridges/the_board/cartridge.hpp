@@ -1779,8 +1779,7 @@ namespace t7 {
                     cpd.timestampWrites = gpuState_.meter_arm_compute((uint32_t)RPhase::EntityMeshGen);
                     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
                     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-                    // FRAME carries the shadow-slot dynamic window; compute never moves it.
-                    { pass.SetBindGroup(0, gpuState_.world_group());
+                                    { pass.SetBindGroup(0, gpuState_.world_group());
                       pass.SetBindGroup(1, gpuState_.frame_c_group()); }
                     // dispatch skips disabled families structurally:
                     // dirty[f] stays false for a disabled family (never

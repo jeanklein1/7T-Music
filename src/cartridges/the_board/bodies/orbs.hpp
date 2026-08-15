@@ -747,7 +747,6 @@ inline void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& 
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
@@ -769,7 +768,6 @@ inline void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncode
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
@@ -785,7 +783,6 @@ inline void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEnco
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;
@@ -805,7 +802,6 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
     cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::OrbSky);
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    // FRAME carries the shadow-slot dynamic window; compute never moves it.
     { pass.SetBindGroup(0, c->gpuState_.world_group());
       pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
     uint32_t wgs = (os.count + 63u) / 64u;

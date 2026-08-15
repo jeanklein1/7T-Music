@@ -203,7 +203,6 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
             wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
             // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-            // FRAME carries the shadow-slot dynamic window; compute never moves it.
             { cp.SetBindGroup(0, c->gpuState_.world_group());
               cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
             c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
@@ -217,7 +216,6 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
             wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
             // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-            // FRAME carries the shadow-slot dynamic window; compute never moves it.
             { cp.SetBindGroup(0, c->gpuState_.world_group());
               cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
             c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());

@@ -1450,8 +1450,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
         cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::SnapshotPass);
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
         // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-        // FRAME carries the shadow-slot dynamic window; compute never moves it.
-        { compute.SetBindGroup(0, c->gpuState_.world_group());
+            { compute.SetBindGroup(0, c->gpuState_.world_group());
           compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
         c->renderer_.dispatch_compute_photographer_vp(
             compute, c->gpuState_.photo_k_state_group(), c->gpuState_.photo_k_textures_group()
@@ -1499,12 +1498,11 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // terrain fork AND every table draw below (the helpers no longer
     // bind their own). Bound before the first draw so the terrain fork
     // keeps its own bindings byte-for-byte.
-    // ATLAS_1revB D3" — the render-entity layout is dynamic-offset now and
-    // every set of it supplies one. The photographer draws no shadow tiles,
-    // so its window never moves.
-    const uint32_t kSlotZero = 0;
+    // DOMESDAY_1 B6 (R3): FRAME binds with no offset argument — the
+    // dynamic-offset machinery left the program; the photographer's
+    // pipelines carry no immediate.
     pass.SetBindGroup(0, c->gpuState_.world_group());
-    pass.SetBindGroup(1, c->gpuState_.frame_photographer_group(), 1, &kSlotZero);
+    pass.SetBindGroup(1, c->gpuState_.frame_photographer_group());
     pass.SetBindGroup(2, c->gpuState_.scene_state_group());   // B5 (R2): the one scene group
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
 
