@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `c4c537e8ee9e070bb4c0109216ae7cbbda493957`
-(DOMESDAY_0 B3: visible_patch_indices becomes an instance attribute)
+Last commit touching any scanned file: `83bcfbbcc1942e4f86bb5f4c0734ed9a6bf67719`
+(DOMESDAY_1 A9-fix: every command encoder is named at creation)
 
 | file scanned | sha256 |
 |---|---|
@@ -14,12 +14,12 @@ Last commit touching any scanned file: `c4c537e8ee9e070bb4c0109216ae7cbbda493957
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:86144b0bafe3d5e755e4584e98b10ccca8f9d4024938be1045166e1e12429613` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:6a9e9ec0ccd80ab9b7e01a7d368d9573237b40bab446b890bf46207f22002e8a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:207a97528689dae308e9aa9b1cf6717a9c71365dd9b01fc45f75dea3e2205fda` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:c0f9bb6ea32e7f747347a5c359364756ab179e90d551344da93b6e7e02fbb4d4` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:03dd052b244e2f0a6f13612640373799d69198fd75e44269608b60932ba1af9d` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:f4fcbfdf8623b14a66b125496f905b6c890630ebd5059b5bab778879a38007df` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:6c67d84be87aaff20dfa78040b594c132b629fcb09445394ff635bb42304dd8f` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:50b3df21e51598a0b72a16ef1d5ffa0584712b6186ebb9c1df77ac843076c9fa` |
-| `src/incubator_dual.cpp` | `sha256:05733ce6c9895a00c97fc3382470256e19a0e6717eb7fd94db470ecadeb07d41` |
-| `src/console/console.hpp` | `sha256:91840c9b40d4a0d6002fa9c07447f962644f11f78ae373a6f0d1c3e477192418` |
+| `src/incubator_dual.cpp` | `sha256:5429477552bc22a95179df60fc9b0a99d4e269130e4985db6cb7c902c59321ba` |
+| `src/console/console.hpp` | `sha256:19da0384feddfff57158934ee69a58bba630d64cab62595060d06a2719769308` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -43,9 +43,9 @@ in `console.hpp`.
 | 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1757` | — | — | — |
 | 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:204` | — | — | — |
 | 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:218` | — | — | — |
-| 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:672` | — | — | — |
-| 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:761` | — | — | — |
-| 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:775` | — | — | — |
+| 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:676` | — | — | — |
+| 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:765` | — | — | — |
+| 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:779` | — | — | — |
 | 14 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:198` | — | — | — |
 | 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1451` | — | — | — |
 | 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1495` | Clear/Store → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
@@ -60,23 +60,34 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:690` |
-| 2 | `app->queue.Submit` | `frame` | `src/incubator_dual.cpp:286` |
+| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:694` |
+| 2 | `app->queue.Submit` | `frame` | `src/incubator_dual.cpp:287` |
 
 2 submit sites. The frame's one submit rides the incubator's
 render tick; the GoL derive flush issues its own (the cartridge
 phase table marks it `F_SUBMIT`, cartridge.hpp).
 
+### Encoder-creation sites (the label law, DOMESDAY_1 A9)
+
+Labels are emitted where objects are created, from the creating
+function's name — never hand-swept again; witness C-7 stands at
+every landing.
+
+| # | label | enclosing function | site |
+|---|---|---|---|
+| 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:669` |
+| 2 | `"frame"` | `frame` | `src/incubator_dual.cpp:280` |
+
 ## §3 — the swapchain reconfigure trigger
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:1177` |
-| 2 | `begin_frame` | `src/console/console.hpp:1299` |
+| 1 | `initSurface` | `src/console/console.hpp:1221` |
+| 2 | `begin_frame` | `src/console/console.hpp:1343` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:1291`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:1335`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer
@@ -135,3 +146,4 @@ carries the same op (PASS_0 F2, `gallery.hpp`
 | `C-4` | **PASS** | renderer.hpp encodes no pass of its own (Begin*Pass sites: 0) |
 | `C-5` | **PASS** | exactly one main scene pass row (label 'Rasterized Scene'): found 1 |
 | `C-6` | **PASS** | (a) no depth LoadOp::Load anywhere (0), no other pass names the main depth view (none); (b) Table A depth bindings are shadow_map/spot_shadow_map and the console depth usage is wgpu::TextureUsage::RenderAttachment |
+| `C-7` | **PASS** | label law: every encoder-creation site (2) and pass-begin site (20) carries a label |

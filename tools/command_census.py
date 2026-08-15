@@ -249,6 +249,42 @@ def census_passes(w):
     return rows
 
 
+ENCODER_RE = re.compile(r"CreateCommandEncoder\(\s*(?:&(\w+))?\s*\)")
+
+
+def census_encoders(w, pass_rows):
+    """DOMESDAY_1 A9 — the label law's instrument half (witness C-7):
+    every encoder-creation and pass-begin site carries a label. Labels
+    are emitted where objects are created, from the creating function's
+    name — never hand-swept again; C-7 stands at every landing."""
+    sites = []
+    for path in INPUTS:
+        text = read_raw(path)
+        relp = os.path.relpath(path, REPO)
+        for m in ENCODER_RE.finditer(text):
+            fn, _ = enclosing_function(text, m.start())
+            label = None
+            if m.group(1):
+                fn_head = 0
+                for fm in FN_RE.finditer(text, 0, m.start()):
+                    fn_head = fm.start()
+                g = _grab(text[fn_head:m.start()],
+                          r"%s\.label = \"([^\"]*)\"" % re.escape(m.group(1)))
+                label = g.group(1) if g else None
+            sites.append({"file": relp, "line": line_of(text, m.start()),
+                          "fn": fn, "label": label})
+    bad = (["%s:%d (encoder)" % (s["file"], s["line"])
+            for s in sites if not s["label"]]
+           + ["%s:%d (pass)" % (r["file"], r["line"])
+              for r in pass_rows if r["label"] == "(unlabeled)"])
+    w.record("C-7", not bad,
+             "label law: every encoder-creation site (%d) and pass-begin "
+             "site (%d) carries a label%s"
+             % (len(sites), len(pass_rows),
+                "" if not bad else " — UNLABELED: " + "; ".join(bad)))
+    return sites
+
+
 def census_submits():
     subs = []
     for path in INPUTS:
@@ -359,7 +395,7 @@ def finding_d_discard(w, rows):
 # EMISSION
 # ═══════════════════════════════════════════════════════════════════════
 
-def emit(w, rows, subs, reconf_sites, trigger, dd):
+def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
     A = []
     A.append("# COMMAND_LEDGER — the pass census (DOMESDAY_0 A4)")
     A.append("")
@@ -427,6 +463,20 @@ def emit(w, rows, subs, reconf_sites, trigger, dd):
              % len(subs))
     A.append("render tick; the GoL derive flush issues its own (the cartridge")
     A.append("phase table marks it `F_SUBMIT`, cartridge.hpp).")
+    A.append("")
+    A.append("### Encoder-creation sites (the label law, DOMESDAY_1 A9)")
+    A.append("")
+    A.append("Labels are emitted where objects are created, from the creating")
+    A.append("function's name — never hand-swept again; witness C-7 stands at")
+    A.append("every landing.")
+    A.append("")
+    A.append("| # | label | enclosing function | site |")
+    A.append("|---|---|---|---|")
+    for i, s in enumerate(encoders):
+        A.append("| %d | %s | `%s` | `%s:%d` |"
+                 % (i + 1,
+                    ("`\"%s\"`" % s["label"]) if s["label"] else "**(unlabeled)**",
+                    s["fn"], s["file"], s["line"]))
     A.append("")
     A.append("## §3 — the swapchain reconfigure trigger")
     A.append("")
@@ -507,6 +557,7 @@ def main():
              "renderer.hpp encodes no pass of its own (Begin*Pass sites: %d)"
              % renderer_hits)
     dd = finding_d_discard(w, rows)
+    encoders = census_encoders(w, rows)
 
     print("DOMESDAY_0 A4 — the command ledger")
     print("")
@@ -523,7 +574,7 @@ def main():
               "until ruled on." % len(w.failures()))
         return 1
     if not args.check:
-        text = emit(w, rows, subs, reconf_sites, trigger, dd)
+        text = emit(w, rows, subs, reconf_sites, trigger, dd, encoders)
         with open(args.out, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         bx = verify_bytes(args.out)
