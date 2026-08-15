@@ -56,6 +56,12 @@ by design, not spendable). Dynamic offsets: 1/8 uniform
 - **Immediates: WITNESS-PENDING.** Push-constant/immediate-data
   budgets have no census and no witness; do not spend what nothing
   measures. First campaign to want them builds the witness first.
+- **The DPR cap is compile-time, not a runtime knob (LANTERN U0
+  amendment).** `MAX_DEVICE_PIXEL_RATIO = 1.5f` (`console.hpp`) is the
+  whole channel: no URL parameter and no other runtime control exists
+  anywhere in the tree, so this ceiling cannot be spent or probed on a
+  live device until a campaign builds the channel
+  (`audit/LANTERN_CENSUS.md` §B1).
 
 ## The laws this campaign added
 
