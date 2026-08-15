@@ -1002,6 +1002,285 @@ def emit_manifest(schema):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# RESOURCES — THE OBJECT CENSUS (DOMESDAY_2 A11)
+#
+# The graph's last open edge: seats point at backings the schema does
+# not own. RESOURCES closes it — one row per GPU object (buffer,
+# texture, sampler, query set; the sampler and query-set kinds extend
+# the handoff's buffer|texture pair so "one row per GPU object" holds
+# literally), bootstrapped from the creation sites with verbatim
+# expressions. Witnesses: R-1 (every seat backing and every pass
+# attachment resolves to exactly one row), R-2 (every row is reached —
+# zero orphans expected; found orphans are FLAGGED, never deleted),
+# R-Label (every row carries a label — the A11-fix census standing).
+# ═══════════════════════════════════════════════════════════════════════
+
+CONSOLE_HPP = os.path.join(REPO, "src", "console", "console.hpp")
+
+_RES_USE_CALLS = (
+    # (call token, why it counts as reach)
+    "WriteBuffer", "WriteTexture", "CopyBufferToBuffer",
+    "CopyTextureToTexture", "CopyTextureToBuffer", "CopyBufferToTexture",
+    "SetVertexBuffer", "SetIndexBuffer", "DrawIndirect",
+    "DrawIndexedIndirect", "ResolveQuerySet", "MapAsync",
+    # the state.hpp upload wrappers over WriteBuffer, and the drawable
+    # table's helper convention: an object handed to a draw_/dispatch_
+    # helper is in use (the helper's own Set*Buffer sees only the
+    # parameter name).
+    "writeArray", "writeStruct",
+)
+_RES_HELPER_CALL = r"\b(?:draw|dispatch)_\w+\s*\("
+
+
+def _norm_expr(s):
+    return re.sub(r"\s+", " ", s.strip())
+
+
+def _split_args(s):
+    """Top-level comma split, paren/brace aware."""
+    out, depth, cur = [], 0, []
+    for ch in s:
+        if ch in "({[":
+            depth += 1
+        elif ch in ")}]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        out.append("".join(cur))
+    return [x.strip() for x in out]
+
+
+def _strip_line_comments(expr):
+    return _norm_expr(re.sub(r"//[^\n]*", " ", expr))
+
+
+def capture_resources():
+    """One row per GPU object, from the creation sites (state.hpp's
+    makeBuffer/makeTexture/makeTextureArray/CreateSampler/CreateQuerySet
+    plus the console's depth texture). Expressions verbatim, normalized
+    for whitespace, comments stripped."""
+    rows = {}
+    st = BL.read_raw(STATE_HPP)
+    co = BL.read_raw(CONSOLE_HPP)
+
+    def add(member, row, where):
+        if member in rows:
+            stop("RESOURCES: %s created twice (%s and %s)"
+                 % (member, rows[member]["file"], where))
+        row["file"] = where
+        rows[member] = row
+
+    # ── buffers: every one goes through makeBuffer(label, size, usage).
+    for m in re.finditer(r"(\w+)\s*=\s*makeBuffer\(", st):
+        depth, p = 1, m.end()
+        while p < len(st) and depth:
+            if st[p] == "(":
+                depth += 1
+            elif st[p] == ")":
+                depth -= 1
+            p += 1
+        args = _split_args(st[m.end():p - 1])
+        if len(args) != 3 or not args[0].startswith('"'):
+            stop("RESOURCES: unparsed makeBuffer at %s" % args[:1])
+        add(m.group(1), {"kind": "buffer",
+                         "label": args[0].strip().strip('"'),
+                         "size_expr": _strip_line_comments(args[1]),
+                         "usage": _strip_line_comments(args[2])},
+            "src/cartridges/the_board/realization/state.hpp")
+
+    # ── textures through makeTexture(label, desc): descriptor fields
+    #    read from the region since the previous capture site.
+    def tex_fields(region, dvar):
+        g = lambda pat: (re.search(pat % re.escape(dvar), region, re.S)
+                         or [None, None])[1]
+        size = g(r"%s\.size\s*=\s*\{([^}]*)\}")
+        fmt = g(r"%s\.format\s*=\s*([^;]+);")
+        samples = g(r"%s\.sampleCount\s*=\s*([^;]+);")
+        return {"format": _norm_expr(fmt) if fmt else "(unset)",
+                "size": _norm_expr(size) if size else "(unset)",
+                "samples": _norm_expr(samples) if samples else "1"}
+
+    prev_end = 0
+    for m in re.finditer(r"(\w+)\s*=\s*makeTexture\(\s*\"([^\"]+)\"\s*,\s*(\w+)\s*\)", st):
+        region = st[prev_end:m.start()]
+        # scope the descriptor region to this site's own block: fields
+        # since the LAST assignment of this descriptor variable's
+        # declaration.
+        dm = list(re.finditer(r"wgpu::TextureDescriptor\s+%s\s*\{"
+                              % re.escape(m.group(3)), st[:m.start()]))
+        region = st[dm[-1].start():m.start()] if dm else region
+        f = tex_fields(region, m.group(3))
+        add(m.group(1), {"kind": "texture", "label": m.group(2),
+                         "format": f["format"], "size": f["size"],
+                         "samples": f["samples"]},
+            "src/cartridges/the_board/realization/state.hpp")
+        prev_end = m.end()
+
+    # ── the three painting arrays ride the makeTextureArray lambda:
+    #    size and format are the lambda's own shape.
+    for m in re.finditer(
+            r"(\w+)\s*=\s*makeTextureArray\(\s*\"([^\"]+)\"\s*,([^;]*)\);",
+            st, re.S):
+        args = _split_args(m.group(3))
+        if len(args) != 2:
+            stop("RESOURCES: unparsed makeTextureArray for %s" % m.group(1))
+        add(m.group(1), {"kind": "texture", "label": m.group(2),
+                         "format": "colorFormat",
+                         "size": "Dim::PAINTING_RESOLUTION, "
+                                 "Dim::PAINTING_RESOLUTION, "
+                                 + _strip_line_comments(args[0]),
+                         "samples": "1"},
+            "src/cartridges/the_board/realization/state.hpp")
+
+    # ── samplers and the meter query set.
+    for m in re.finditer(r"(\w+)\s*=\s*device_\.CreateSampler\(&(\w+)\)", st):
+        dm = list(re.finditer(r"wgpu::SamplerDescriptor\s+%s\s*\{"
+                              % re.escape(m.group(2)), st[:m.start()]))
+        region = st[dm[-1].start():m.start()] if dm else ""
+        lm = re.search(r"%s\.label\s*=\s*\"([^\"]*)\"" % re.escape(m.group(2)),
+                       region)
+        add(m.group(1), {"kind": "sampler",
+                         "label": lm.group(1) if lm else None},
+            "src/cartridges/the_board/realization/state.hpp")
+    for m in re.finditer(r"(\w+)\s*=\s*device_\.CreateQuerySet\(&(\w+)\)", st):
+        dm = list(re.finditer(r"wgpu::QuerySetDescriptor\s+%s\s*\{"
+                              % re.escape(m.group(2)), st[:m.start()]))
+        region = st[dm[-1].start():m.start()] if dm else ""
+        lm = re.search(r"%s\.label\s*=\s*\"([^\"]*)\"" % re.escape(m.group(2)),
+                       region)
+        cm = re.search(r"%s\.count\s*=\s*([^;]+);" % re.escape(m.group(2)),
+                       region)
+        add(m.group(1), {"kind": "querySet",
+                         "label": lm.group(1) if lm else None,
+                         "count_expr": _norm_expr(cm.group(1)) if cm else None},
+            "src/cartridges/the_board/realization/state.hpp")
+
+    # ── the console's depth texture (the main pass's depth attachment
+    #    backing — R-1 needs it resolvable).
+    m = re.search(r"depthTexture_\s*=\s*device_\.CreateTexture\(&(\w+)\)", co)
+    if m:
+        dm = list(re.finditer(r"wgpu::TextureDescriptor\s+%s\s*\{"
+                              % re.escape(m.group(1)), co[:m.start()]))
+        region = co[dm[-1].start():m.start()] if dm else ""
+        lm = re.search(r"%s\.label\s*=\s*\"([^\"]*)\"" % re.escape(m.group(1)),
+                       region)
+        f = re.search(r"%s\.format\s*=\s*([^;]+);" % re.escape(m.group(1)), region)
+        s = re.search(r"%s\.size\s*=\s*\{([^}]*)\}" % re.escape(m.group(1)), region)
+        rows["depthTexture_"] = {
+            "kind": "texture", "label": lm.group(1) if lm else None,
+            "format": _norm_expr(f.group(1)) if f else "(unset)",
+            "size": _norm_expr(s.group(1)) if s else "(unset)",
+            "samples": "1", "file": "src/console/console.hpp"}
+    return rows
+
+
+def resource_maps():
+    """accessor -> member and view member -> texture member, both from
+    state.hpp (plus the console's depth view)."""
+    st = BL.read_raw(STATE_HPP)
+    co = BL.read_raw(CONSOLE_HPP)
+    acc = {}
+    for m in re.finditer(
+            r"wgpu::(?:Buffer|Texture|TextureView|Sampler|QuerySet)\s+"
+            r"(\w+)\(\)\s*const\s*\{\s*return\s+(\w+)\s*;\s*\}", st):
+        acc[m.group(1)] = m.group(2)
+    views = {}
+    for m in re.finditer(r"(\w+)\s*=\s*(\w+)\.CreateView\(", st + co):
+        views[m.group(1)] = m.group(2)
+    # the painting arrays' views ride the makeArrayView lambda
+    for m in re.finditer(r"(\w+)\s*=\s*makeArrayView\((\w+)\s*,", st):
+        views[m.group(1)] = m.group(2)
+    for m in re.finditer(r"wgpu::TextureView\s+(\w+)\(\)\s*const\s*\{\s*return\s+(\w+)\s*;\s*\}", co):
+        acc[m.group(1)] = m.group(2)
+    return acc, views
+
+
+def resource_reach(resources, schema, acc, views):
+    """Which rows are reached, and through what. Reach kinds: bind-group
+    backing (schema GROUPS), pass attachment (the command census's
+    rows), or a use-site call (Write*/Copy*/SetVertex/SetIndex/
+    Draw*Indirect/ResolveQuerySet/MapAsync argument text)."""
+    reached = {k: set() for k in resources}
+
+    def touch(name, why):
+        member = acc.get(name, name)
+        member = views.get(member, member)
+        if member in reached:
+            reached[member].add(why)
+            return True
+        return False
+
+    for g in schema.GROUPS.values():
+        for e in g["entries"].values():
+            touch(e["backing"], "bind-group entry")
+
+    CC = _load("command_census")
+    for r in CC.census_passes(CC.Witnesses()):
+        for att in ([c for c in r["colors"]]
+                    + ([r["depth"]] if r["depth"] else [])):
+            view = att.get("view") or ""
+            for name in re.findall(r"(\w+)\(\)", view):
+                touch(name, "pass attachment")
+            if view.strip() == "depth":
+                touch("depthTexture_", "pass attachment")
+            for name in re.findall(r"(?<![\w.(])(\w+_)\b", view):
+                touch(name, "pass attachment")
+
+    use_files = sorted(
+        set(glob_src()) | {STATE_HPP, CONSOLE_HPP})
+    for path in use_files:
+        text = BL.read_raw(path)
+        for m in re.finditer(_RES_HELPER_CALL, text):
+            depth, p = 1, m.end()
+            while p < len(text) and depth:
+                if text[p] == "(":
+                    depth += 1
+                elif text[p] == ")":
+                    depth -= 1
+                p += 1
+            for name in re.findall(r"(\w+)\s*\(\)", text[m.end():p - 1]):
+                touch(name, "draw/dispatch argument")
+        for call in _RES_USE_CALLS:
+            for m in re.finditer(r"\b%s\s*\(" % call, text):
+                depth, p = 1, m.end()
+                while p < len(text) and depth:
+                    if text[p] == "(":
+                        depth += 1
+                    elif text[p] == ")":
+                        depth -= 1
+                    p += 1
+                argtext = text[m.end():p - 1]
+                for name in re.findall(r"(\w+)\s*\(\)", argtext):
+                    touch(name, call)
+                for name in re.findall(r"(?<![\w.])(\w+_)\b", argtext):
+                    touch(name, call)
+        # dest.texture = X assignments feed WriteTexture/Copy* structs
+        for m in re.finditer(r"\.texture\s*=\s*([^;]+);", text):
+            for name in re.findall(r"(\w+)\s*\(\)", m.group(1)):
+                touch(name, "copy/write target")
+            for name in re.findall(r"(?<![\w.])(\w+_)\b", m.group(1)):
+                touch(name, "copy/write target")
+        # attachment .view = accessor() sites (shadow passes etc.)
+        for m in re.finditer(r"\.view\s*=\s*([^;]+);", text):
+            for name in re.findall(r"(\w+)\s*\(\)", m.group(1)):
+                touch(name, "pass attachment")
+    return reached
+
+
+def glob_src():
+    out = []
+    for root, _dirs, files in os.walk(os.path.join(REPO, "src")):
+        for f in files:
+            if f.endswith((".hpp", ".cpp", ".inc")):
+                out.append(os.path.join(root, f))
+    return out
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CHECK
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1129,6 +1408,68 @@ def check(args):
              "/".join(str(x) for x in got), "/".join(str(x) for x in wantc)))
     if not ok:
         problems.append("S-1 cardinality mismatch")
+
+    # ─── RESOURCES (DOMESDAY_2 A11) — the object census, diffed both
+    #     directions like every relation, then the three witnesses.
+    res_tree = capture_resources()
+    lines = []
+    n_res = diff_relation("RESOURCES", res_tree,
+                          getattr(schema, "RESOURCES", {}), lines)
+    print("  RESOURCES %3d rows  %s"
+          % (len(res_tree), "agree" if not lines else "MISMATCH"))
+    for ln in lines[:20]:
+        print("  " + ln)
+    problems.extend(lines)
+
+    acc, views = resource_maps()
+    r1_bad = []
+    for gname, g in schema.GROUPS.items():
+        for e in g["entries"].values():
+            member = views.get(e["backing"], e["backing"])
+            if member not in res_tree:
+                r1_bad.append("%s backing %s" % (gname, e["backing"]))
+    CC = _load("command_census")
+    cc_rows = CC.census_passes(CC.Witnesses())
+    for r in cc_rows:
+        for att in ([c for c in r["colors"]]
+                    + ([r["depth"]] if r["depth"] else [])):
+            view = att.get("view") or ""
+            names = re.findall(r"(\w+)\(\)", view)
+            resolved = any(views.get(acc.get(nm, nm), acc.get(nm, nm))
+                           in res_tree for nm in names)
+            if view.strip() in ("backbuffer",):
+                resolved = True   # the swapchain's texture — not ours to own
+            if view.strip() == "depth":
+                resolved = "depthTexture_" in res_tree
+            if not resolved:
+                r1_bad.append("pass %r attachment %r" % (r["label"], view))
+    print("  [%s] R-1  every seat backing and pass-attachment view resolves "
+          "to exactly one RESOURCES row (%d backings, %d passes; the "
+          "swapchain backbuffer exempt by nature)%s"
+          % ("PASS" if not r1_bad else "FAIL",
+             sum(len(g["entries"]) for g in schema.GROUPS.values()),
+             len(cc_rows),
+             "" if not r1_bad else " — " + "; ".join(sorted(set(r1_bad))[:8])))
+    if r1_bad:
+        problems.append("R-1 unresolved backing(s)")
+
+    reached = resource_reach(res_tree, schema, acc, views)
+    orphans = sorted(k for k, v in reached.items() if not v)
+    print("  [%s] R-2  every RESOURCES row is reached (bind-group entry, "
+          "pass attachment, draw/dispatch argument, or copy/write site): "
+          "%d rows, %d orphan(s)%s"
+          % ("PASS" if not orphans else "FAIL", len(res_tree), len(orphans),
+             "" if not orphans else " — FLAGGED (deletion is a ruling): "
+             + ", ".join(orphans)))
+    if orphans:
+        problems.append("R-2 orphan resource(s)")
+
+    unlabeled = sorted(k for k, r in res_tree.items() if not r.get("label"))
+    print("  [%s] R-Label  every RESOURCES row carries a label (%d rows)%s"
+          % ("PASS" if not unlabeled else "FAIL", len(res_tree),
+             "" if not unlabeled else " — UNLABELED: " + ", ".join(unlabeled)))
+    if unlabeled:
+        problems.append("R-Label unlabeled resource(s)")
 
     # M-1 (DOMESDAY_0 A1): the manifest facts recompute from the schema
     # and stop() the run on any lane-sum/per-seat mismatch, so reaching
