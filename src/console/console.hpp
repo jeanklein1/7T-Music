@@ -402,6 +402,36 @@ namespace t7 {
             }
 
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#ifdef __EMSCRIPTEN__
+            // ═══ CAP_1 — THE PORT STOPS SIZING THE BACKING STORE ═════════
+            //
+            // contrib.glfw3 is Hi-DPI aware by default (Config.h:46,
+            // fScaleFramebuffer{GLFW_TRUE}), and "aware" means it OWNS the
+            // canvas backing store: Window::setCanvasSize computes
+            // floor(css × devicePixelRatio) and emglfw3w_set_size assigns it
+            // straight to canvas.width/height. That is the pre-cap size the
+            // Pixel reported. PORT_3c's cap never touched it — the cap only
+            // altered the number we passed to Configure, and under the old
+            // emdawnwebgpu generation Configure won, so the cap appeared to
+            // work. Under the new generation the surface tracks the CANVAS,
+            // the canvas is the port's uncapped number, and the cap was
+            // silently defeated on the one device it exists for.
+            //
+            // The port offers this switch and no other: hi-DPI on or off,
+            // with no way to supply a scale (Window.h getScale() returns
+            // fMonitorScale or 1.0f; there is no setter and no port option).
+            // So OFF it goes, and the cap moves wholly into app code where a
+            // min() can live. With this FALSE the port writes
+            // canvas.width = css and glfwGetFramebufferSize returns CSS px.
+            //
+            // Writing the backing store ourselves afterwards is SAFE, and the
+            // reason is specific: emglfw3w_set_size pins the canvas CSS size
+            // separately, via setCSSValue("width", …, "important"). Backing
+            // store and layout size are decoupled, so assigning canvas.width
+            // cannot change layout and cannot re-enter the port's
+            // ResizeObserver. There is no feedback loop to fear.
+            glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, GLFW_FALSE);
+#endif
 
             window_ = glfwCreateWindow(initialWidth_, initialHeight_, title, nullptr, nullptr);
             if (!window_) {
@@ -1490,14 +1520,26 @@ namespace t7 {
 
             surfaceConfig_.device = device_;
             surfaceConfig_.format = colorFormat_;
-            // FRAME_0 — CURRENT, not initial. pump_boot allocates the
-            // depth buffer from currentWidth_/currentHeight_, so reading
-            // a different pair here is a divergence waiting for someone
-            // to poll events during boot. Today nothing does and the two
-            // are seeded equal in init(), so this is a no-op — but
-            // FRAME_0 is what makes a resize reachable before this line,
-            // and initialWidth_/Height_ now have exactly one job:
-            // glfwCreateWindow's arguments.
+            // CAP_1 — THE FIRST CONFIGURE TAKES TARGET, NOT THE BOOT ARGS.
+            // currentWidth_/currentHeight_ were seeded from init()'s
+            // arguments, which are glfwCreateWindow's arguments and nothing
+            // else. Configuring the surface with them put a number nobody
+            // measured into the one place the frame is defined. The same
+            // expression the resize path uses answers it here, once, from the
+            // canvas that actually exists by now — and the canvas backing
+            // store is written from it in the same breath, so boot enters the
+            // frame loop with the two already agreeing.
+#ifdef __EMSCRIPTEN__
+            {
+                uint32_t tw = 0, th = 0;
+                compute_target_size(tw, th);
+                if (tw > 0 && th > 0) {
+                    currentWidth_  = tw;
+                    currentHeight_ = th;
+                    write_canvas_backing_store(tw, th);
+                }
+            }
+#endif
             surfaceConfig_.width = currentWidth_;
             surfaceConfig_.height = currentHeight_;
             surfaceConfig_.presentMode = wgpu::PresentMode::Fifo;
@@ -1510,7 +1552,7 @@ namespace t7 {
         // THE FRAME-SIZED ATTACHMENTS (ACQ_0). Every texture whose size is
         // defined as "the frame's size" is created here and nowhere else, so
         // there is exactly one place that can disagree with the acquired
-        // texture — and acquire_surface_texture is its only caller.
+        // texture — and reconcile_frame_attachments is its only caller.
         //
         // The census that fixed this membership: the depth buffer and, at
         // msaa=4, the MSAA color target. The gallery's offscreen depth/color
@@ -1577,17 +1619,49 @@ namespace t7 {
         // which is what this comment used to claim and what the element's
         // own inline style always overrode. That CSS size is independent
         // of the backing-store size this caps. Fewer pixels, same layout.
-        void apply_pixel_cap(int& fbWidth, int& fbHeight) const {
-            int winW = 0, winH = 0;
-            glfwGetWindowSize(window_, &winW, &winH);
-            if (winW <= 0 || winH <= 0 || fbWidth <= 0 || fbHeight <= 0) return;
-            const float cap = effective_pixel_cap();   // B9: param-overridable for this run
-            const float ratio = static_cast<float>(fbWidth) / static_cast<float>(winW);
-            if (ratio <= cap) return;
-            fbWidth  = static_cast<int>(static_cast<float>(winW) * cap);
-            fbHeight = static_cast<int>(static_cast<float>(winH) * cap);
-            if (fbWidth  < 1) fbWidth  = 1;
-            if (fbHeight < 1) fbHeight = 1;
+        // ═══ CAP_1 — THE ONE EXPRESSION ══════════════════════════════
+        //
+        //     target = css × min(devicePixelRatio, PIXEL_CAP)
+        //
+        // This is the only place that expression exists. It is BOTH the
+        // canvas backing-store size AND the size the surface is configured
+        // with, so those two can no longer disagree — which is the whole
+        // point, because under the new emdawnwebgpu generation the surface
+        // reads the canvas and a disagreement is a dropped frame.
+        //
+        // It replaces PORT_3c's apply_pixel_cap, which inferred the ratio as
+        // framebuffer/window because the port had already applied the DPR.
+        // The port does not any more (GLFW_SCALE_FRAMEBUFFER is FALSE, see
+        // initGLFW), so the ratio would now be a constant 1 and the cap would
+        // silently never engage. The DPR is asked for directly instead.
+        //
+        // No other site may call glfwGetFramebufferSize or read the device
+        // pixel ratio to derive a surface or canvas size. They consume target.
+        void compute_target_size(uint32_t& tw, uint32_t& th) const {
+            int cssW = 0, cssH = 0;
+            glfwGetWindowSize(window_, &cssW, &cssH);
+            if (cssW <= 0 || cssH <= 0) { tw = 0; th = 0; return; }
+            const double dpr = emscripten_get_device_pixel_ratio();
+            const double cap = static_cast<double>(effective_pixel_cap());
+            const double s   = (dpr > 0.0 && dpr < cap) ? dpr : cap;
+            const int w = static_cast<int>(std::floor(cssW * s));
+            const int h = static_cast<int>(std::floor(cssH * s));
+            tw = static_cast<uint32_t>(w < 1 ? 1 : w);
+            th = static_cast<uint32_t>(h < 1 ? 1 : h);
+        }
+
+        // THE ONE WRITER of the canvas backing store. Idempotence-guarded the
+        // same way the port guards its own write, so a settled size costs
+        // nothing. Assigning canvas.width also CLEARS the canvas, which is
+        // another reason this rides the settle window rather than every frame.
+        void write_canvas_backing_store(uint32_t w, uint32_t h) const {
+            EM_ASM({
+                var c = (typeof Module !== 'undefined' && Module.canvas)
+                        ? Module.canvas : document.getElementById('canvas');
+                if (!c) return;
+                if (c.width  !== $0) c.width  = $0;
+                if (c.height !== $1) c.height = $1;
+            }, w, h);
         }
 
         // ═══ FRAME_1 U0 — TEMPORARY INSTRUMENTATION ══════════════════
@@ -1607,6 +1681,12 @@ namespace t7 {
         void frame1_report(int fbPreW, int fbPreH, int fbPostW, int fbPostH) const {
             int winW = 0, winH = 0;
             glfwGetWindowSize(window_, &winW, &winH);
+            // CAP_1: the fourth number. acquired is what the GPU actually
+            // handed us last frame; in steady state it must equal postCap
+            // (= target). If those two ever diverge and stay diverged, the
+            // single-writer law has been broken somewhere upstream.
+            const int acqW = static_cast<int>(acquiredWidth_);
+            const int acqH = static_cast<int>(acquiredHeight_);
             EM_ASM({
                 var f  = document.getElementById('frame');
                 var c  = document.getElementById('canvas');
@@ -1622,6 +1702,7 @@ namespace t7 {
                   + ' glfwWin='   + $0 + 'x' + $1
                   + ' fbPreCap='  + $2 + 'x' + $3
                   + ' fbPostCap=' + $4 + 'x' + $5
+                  + ' acquired='  + $6 + 'x' + $7
                   + ' inner='     + window.innerWidth + 'x' + window.innerHeight
                   + ' visualVP='  + (vv ? r2(vv.width) + 'x' + r2(vv.height) : 'absent')
                   + ' dpr='       + window.devicePixelRatio
@@ -1631,7 +1712,7 @@ namespace t7 {
                   + ' canvasCSS='   + (c ? (c.style.width || '(none)') + 'x'
                                           + (c.style.height || '(none)') : 'ABSENT')
                   + ' canvasBuf='   + (c ? c.width + 'x' + c.height : 'ABSENT'));
-            }, winW, winH, fbPreW, fbPreH, fbPostW, fbPostH);
+            }, winW, winH, fbPreW, fbPreH, fbPostW, fbPostH, acqW, acqH);
         }
 #endif
 
@@ -1643,11 +1724,24 @@ namespace t7 {
 #endif
 
             // Handle resize
-            int fbWidth, fbHeight;
-            glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
+            int fbWidth = 0, fbHeight = 0;
 #ifdef __EMSCRIPTEN__
-            const int fbPreCapW = fbWidth, fbPreCapH = fbHeight;   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
-            apply_pixel_cap(fbWidth, fbHeight);   // PORT_3c — before the compare
+            // CAP_1: on this twin the wanted size comes from ONE expression
+            // and from nowhere else. The framebuffer query below is read for
+            // the FRAME_1 witness alone and never feeds a size — with
+            // GLFW_SCALE_FRAMEBUFFER FALSE it is CSS px and should now equal
+            // glfwWin, and that equality IS the proof that the port stopped
+            // scaling behind us.
+            int fbPreCapW = 0, fbPreCapH = 0;
+            glfwGetFramebufferSize(window_, &fbPreCapW, &fbPreCapH);
+            {
+                uint32_t tw = 0, th = 0;
+                compute_target_size(tw, th);
+                fbWidth  = static_cast<int>(tw);
+                fbHeight = static_cast<int>(th);
+            }
+#else
+            glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
 #endif
             // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. A new size must hold
             // still for RECONFIGURE_SETTLE_FRAMES consecutive frames before
@@ -1677,6 +1771,13 @@ namespace t7 {
                         currentHeight_ = static_cast<uint32_t>(fbHeight);
                         surfaceConfig_.width = currentWidth_;
                         surfaceConfig_.height = currentHeight_;
+#ifdef __EMSCRIPTEN__
+                        // CAP_1: the canvas and the surface take the SAME
+                        // number, in the same breath. The canvas first, so the
+                        // surface is configured against a canvas that already
+                        // has the shape being asked for.
+                        write_canvas_backing_store(currentWidth_, currentHeight_);
+#endif
                         surface_.Configure(&surfaceConfig_);
                         // No attachment recreation here — see the banner above.
                         stableFrames_ = 0;
