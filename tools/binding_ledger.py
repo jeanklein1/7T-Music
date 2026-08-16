@@ -4160,17 +4160,16 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     A("A proposal that touches a row here is a proposal that must read the prose")
     A("at that site before it argues with it.")
     A("")
-    A("**REBASED 110 → 74 on 2026-08-12, and 74 is the ruling of record.** The")
-    A("cause was PIVOT_0c's despelling of the ROSTER-GATE tag in `renderer.hpp`:")
-    A("forty identical `— FXC skipped when disabled` annotations each matched the")
-    A("`FXC` trigger, so ONE lesson repeated forty times was counted as forty")
-    A("defended sites, thirty-six of them duplicates. Removing the retired")
-    A("compiler's name removed them. This is a REFINEMENT of the predicate's")
-    A("reach, not a deletion of defended prose — no site lost its comment, and")
-    A("every one of `W4-2`'s six positive controls still resolves. A count that")
-    A("drops because boilerplate stopped matching is the index getting more")
-    A("honest, and the earlier 110 should be read as inflated rather than this")
-    A("74 as depleted.")
+    # PROBATE_E2 (P5, one home): this paragraph used to NARRATE the
+    # 110 → 74 rebase and call 74 "the ruling of record". A hand-carried
+    # number in a regenerated file is a number with two homes, and this
+    # one went stale by six sites across two campaigns while still
+    # calling itself the record. The count is computed now; the history
+    # has a home that does not regenerate.
+    A("%d sites at this run. The index's history — every rebase, with causes"
+      % len(e4["sites"]))
+    A("— lives in audit/FXC_LAWS_RECORD.md §index-history; a regenerated")
+    A("artifact carries no hand-carried number (P5, one home).")
     A("")
     A("**The predicate, verbatim (W4-1).** A site is DEFENDED if its attached")
     A("comment matches any of:")
