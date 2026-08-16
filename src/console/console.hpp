@@ -77,6 +77,15 @@ namespace t7 {
     // wallet's own statement of need on the actual device.
 #include "console/limits_floor.gen.inc"
 
+    // ═══ THE FEATURE WALLET'S ONE HOME (PROBATE_F) ═══════════════════
+    // The device-request site hand-carried its feature list the same way
+    // the floor line once hand-carried its literals. The schema's
+    // FEATURES table is its home now: nineteen optional features are
+    // offered, one is granted, five are vaulted with a price, and
+    // witness F-1 holds the emitted request to the schema's granted set.
+    // A grant is a schema edit plus Jean's gate — never an edit here.
+#include "console/features_wallet.gen.inc"
+
     // DOMESDAY_1 B9 — the runtime override: a ?cap= / --cap= present at
     // boot (clamped to [0.5, 3.0] at parse) replaces the constant for
     // THIS RUN; absent, the constant stands unchanged. Boot-read once,
@@ -649,10 +658,24 @@ namespace t7 {
                              " dialect — the post-B6 shader cannot compile here (R3 floor)\n";
             }
 
-            wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
-            if (adapter_.HasFeature(wgpu::FeatureName::TimestampQuery)) {
-                deviceDesc.requiredFeatures = requiredFeatures;
-                deviceDesc.requiredFeatureCount = 1;
+            // PROBATE_F — THE REQUEST READS THE WALLET, NOT A LITERAL.
+            // The list is FEATURE_WALLET_GRANTED (features_wallet.gen.inc,
+            // emitted from the schema's FEATURES table); this site asks
+            // for what the adapter actually offers of it and nothing
+            // else. A feature the adapter lacks is dropped rather than
+            // demanded — requestDevice REJECTS an unofferable required
+            // feature, and a rejected modest request reissues as full
+            // passthrough (L14), the one shape the design forbids.
+            wgpu::FeatureName askedFeatures[FEATURE_WALLET_GRANTED_COUNT] = {};
+            size_t askedFeatureCount = 0;
+            for (uint32_t i = 0; i < FEATURE_WALLET_GRANTED_COUNT; i++) {
+                if (adapter_.HasFeature(FEATURE_WALLET_GRANTED[i])) {
+                    askedFeatures[askedFeatureCount++] = FEATURE_WALLET_GRANTED[i];
+                }
+            }
+            if (askedFeatureCount > 0) {
+                deviceDesc.requiredFeatures = askedFeatures;
+                deviceDesc.requiredFeatureCount = askedFeatureCount;
             }
 
             adapter_.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
@@ -807,6 +830,21 @@ namespace t7 {
                             << (device_.HasFeature(wgpu::FeatureName::TimestampQuery)
                                     ? "YES" : "no")
                             << " (the only optional feature this program requests)\n";
+                        // PROBATE_F — THE WALLET LINE. The line above says
+                        // what this boot GOT; this one says what the
+                        // program's treasury ASKS FOR and what it has
+                        // deliberately left unspent. Both halves come from
+                        // the schema's FEATURES table, so the testimony
+                        // cannot drift from the request beside it.
+                        std::cout << "[Device] feature wallet: granted ";
+                        for (uint32_t i = 0; i < FEATURE_WALLET_GRANTED_COUNT; i++) {
+                            std::cout << (i ? " " : "")
+                                << FEATURE_WALLET_GRANTED_NAMES[i]
+                                << (device_.HasFeature(FEATURE_WALLET_GRANTED[i])
+                                        ? "" : "(WITHHELD by adapter)");
+                        }
+                        std::cout << "; vaulted " << FEATURE_WALLET_VAULTED_COUNT
+                            << " (schema FEATURES)\n";
                         std::cout << "[Device] features named: ";
                         for (size_t i = 0; i < feats.featureCount; i++) {
                             const char* nm = feature_name(feats.features[i]);

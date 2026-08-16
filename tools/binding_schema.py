@@ -632,3 +632,20 @@ NEEDS = {
     'maxBindGroups': {'floor': 4, 'source': 'core-default', 'note': 'the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design'},
     'maxImmediateSize': {'floor': 32, 'source': 'sizeof(GPUPatchParams)', 'note': 'the patchgen params (PROBATE_I) — the lane statute grants 64; the program stands on 32; shadow_slot rides within it'},
 }
+
+# ═══ THE FEATURE WALLET (PROBATE_F) ═════════════════════════════════
+# No optional feature is requested at the device except through
+# status='granted' here, and no row is granted without a fallback
+# ruling. binding_gen.py --write emits the request list and the wallet
+# print from these rows — the literals live here and nowhere else.
+# 'vaulted' = offered by the floor device, deliberately unrequested,
+# priced for a future campaign. A grant is a schema edit plus Jean's
+# gate, never an ad-hoc request-site edit.
+FEATURES = {
+    'timestamp-query': {'status': 'granted', 'consumer': 'the METER (per-pass GPU timing)', 'fallback': 'meters go silent; the frame loop is untouched', 'coverage': 'near-universal'},
+    'shader-f16': {'status': 'vaulted', 'consumer': 'none yet — candidate: terrain fragment ALU', 'fallback': 'the f32 shader exactly as it stands', 'coverage': 'Valhall yes (Pixel console 2026-08-16); per-browser check precedes any grant'},
+    'texture-compression-astc': {'status': 'vaulted', 'consumer': 'none yet — candidate: authored painting uploads (TEX_C0, parked)', 'fallback': 'rgba8unorm decode-and-upload as today', 'coverage': 'mobile; adapter guarantees BC or (ETC2+ASTC), so the trio below covers every device'},
+    'texture-compression-etc2': {'status': 'vaulted', 'consumer': 'partner row of astc', 'fallback': 'as astc', 'coverage': 'mobile guarantee partner of astc'},
+    'texture-compression-bc': {'status': 'vaulted', 'consumer': 'desktop half of the astc row', 'fallback': 'as astc', 'coverage': 'desktop'},
+    'subgroups': {'status': 'vaulted', 'consumer': 'none — prospective (reduction-shaped passes)', 'fallback': 'n/a until a consumer is named', 'coverage': 'offered on the floor; uneven elsewhere'},
+}

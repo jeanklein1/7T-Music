@@ -1321,6 +1321,71 @@ def emit_floors(schema):
     return "\n".join(L) + "\n"
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# FEATURES — THE WALLET'S ONE HOME (PROBATE_F)
+#
+# The device-request site hand-carried its feature list; the schema's
+# FEATURES table is its home now, and --write emits
+# src/console/features_wallet.gen.inc for the request AND the boot print
+# to consume. Same shape as NEEDS one shelf over: data here, literals
+# nowhere else, a witness holding the emission to the schema.
+#
+# THE ENUM SPELLING IS DERIVED, NOT STORED — kebab-case key to the
+# PascalCase wgpu::FeatureName enumerator, so a granted row needs no
+# second spelling anyone could edit out of step. P1: this is a
+# hypothesis about the header, and the C++ compiler is its guard — a
+# derivation the header does not carry is a build error at glaw1 naming
+# the exact identifier, never a silently dropped request. Only GRANTED
+# rows are derived; a vaulted row is never named to the device, so its
+# spelling costs nothing until the campaign that grants it.
+# ═══════════════════════════════════════════════════════════════════════
+
+FEATURES_INC = os.path.join(REPO, "src", "console", "features_wallet.gen.inc")
+
+
+def _feature_enum(key):
+    return "".join(p[:1].upper() + p[1:] for p in key.split("-"))
+
+
+def emit_features(schema):
+    granted = [k for k, r in schema.FEATURES.items() if r["status"] == "granted"]
+    vaulted = [k for k, r in schema.FEATURES.items() if r["status"] == "vaulted"]
+    L = []
+    L.append("// %s" % NOTICE)
+    L.append("//")
+    L.append("// THE FEATURE WALLET (PROBATE_F) — the program's optional-feature")
+    L.append("// treasury. Nothing is requested at the device except through a")
+    L.append("// status='granted' row in the schema's FEATURES table, and no row")
+    L.append("// is granted without a fallback ruling. Witness F-1 holds this")
+    L.append("// emission to the schema; the boot's wallet line reads it too, so")
+    L.append("// the request and the testimony share one home.")
+    L.append("//")
+    L.append("// VAULTED rows are offered by the floor device and deliberately")
+    L.append("// unrequested — priced for a future campaign, never asked for here:")
+    for k in vaulted:
+        r = schema.FEATURES[k]
+        L.append("//   %s — consumer: %s; fallback: %s" % (k, r["consumer"], r["fallback"]))
+    L.append("")
+    L.append("inline constexpr uint32_t FEATURE_WALLET_GRANTED_COUNT = %d;" % len(granted))
+    L.append("inline constexpr uint32_t FEATURE_WALLET_VAULTED_COUNT = %d;" % len(vaulted))
+    L.append("")
+    L.append("// (a) THE REQUEST LIST — the only place this program names an")
+    L.append("//     optional feature to the device.")
+    L.append("inline constexpr wgpu::FeatureName FEATURE_WALLET_GRANTED[] = {")
+    for k in granted:
+        r = schema.FEATURES[k]
+        L.append("    wgpu::FeatureName::%s,   // %s — fallback: %s"
+                 % (_feature_enum(k), r["consumer"], r["fallback"]))
+    L.append("};")
+    L.append("")
+    L.append("// (b) THE WALLET PRINT — the same rows, as the names a reader knows.")
+    L.append("inline constexpr const char* FEATURE_WALLET_GRANTED_NAMES[] = {")
+    for k in granted:
+        L.append("    \"%s\"," % k)
+    L.append("};")
+    return "\n".join(L) + "\n"
+
+
 def needs_symbol_check(schema):
     """R-3's Dim:: half: every cited symbol exists in state.hpp, and
     where its definition is statically evaluable (a literal, or a
@@ -1481,6 +1546,29 @@ def check(args):
             problems.append("R-3 NEEDS symbol mismatch")
     else:
         print("  limits_floor.gen.inc: target not yet generated")
+    if os.path.exists(FEATURES_INC):
+        same = emit_features(schema) == BL.read_raw(FEATURES_INC)
+        # F-1 (PROBATE_F): the REQUEST is exactly the schema's granted
+        # set — read back off the emitted bytes, not off the dict that
+        # produced them, so a hand-edit of the include is caught.
+        disk = BL.read_raw(FEATURES_INC)
+        asked = re.findall(r"wgpu::FeatureName::(\w+),", disk)
+        want = [_feature_enum(k) for k, r in schema.FEATURES.items()
+                if r["status"] == "granted"]
+        f1 = same and asked == want
+        print("  features_wallet.gen.inc: generated — %s"
+              % ("OK" if same else "DIVERGES"))
+        print("  [%s] F-1  the device request is exactly the schema's granted "
+              "set: {%s} (%d vaulted, unrequested)"
+              % ("PASS" if f1 else "FAIL", ", ".join(asked) or "—",
+                 sum(1 for r in schema.FEATURES.values()
+                     if r["status"] == "vaulted")))
+        if not same:
+            problems.append("features emission diverges from disk")
+        if not f1:
+            problems.append("F-1 request set != schema granted set")
+    else:
+        print("  features_wallet.gen.inc: target not yet generated")
 
     print("")
     print("WITNESSES")
@@ -3556,6 +3644,8 @@ def main():
         if args.write in ("floors", "all"):
             write_file(FLOORS_INC, emit_floors(schema))
             print("wrote %s" % os.path.relpath(FLOORS_INC, REPO))
+            write_file(FEATURES_INC, emit_features(schema))
+            print("wrote %s" % os.path.relpath(FEATURES_INC, REPO))
         return 0
     if args.write_wgsl:
         schema = load_schema()
