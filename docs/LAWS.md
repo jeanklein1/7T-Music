@@ -663,6 +663,31 @@ the only campaign that can remove it for free.
 Standing subjects today: `RibbonState.is_roaming`,
 `RibbonRingTransform._pad0`, and `OrbConfig`'s driverless gen-1 block.
 
+## L27 — THE JOIN-COHERENCE LAW
+
+A schema datum and the emitter that joins on it move in one commit;
+splitting a key from its join manufactures a red between commits.
+
+A key is only half a fact — the other half is the code that looks it up.
+Land one without the other and every witness that reads the pair goes red
+in the gap, which teaches the next reader that red is normal there. This
+is the ONE sanctioned form of an instrument and its subject sharing a
+commit, and the commit message must name it.
+
+*Paid for twice, one round apart.* PROBATE_I taught `imm_bytes_of` a new
+`sizeof()` spelling in the same commit that put that spelling in the
+schema — split, `--check` would have compared 32 against a parsed 0 for
+as long as the split lasted. PROBATE_E1 re-keyed `DEMAND_RULINGS` to
+stable ids in the same commit that taught Table D to join on them —
+split, the loud-orphan warning would have fired fourteen times on a tree
+that was exactly as correct before as after. Both are the same shape: a
+red that reports nothing except that the campaign chose to land two
+halves apart.
+
+The corollary is the useful half: a warning path that fires only in the
+gap between two commits is not a finding, and a round that never opens
+the gap never has to tell its reader to ignore one.
+
 ## SUNSET_0 (2026-08-16) — the web twin is the program
 Native is archived at tag `native-sunset`. Resurrection is
 archaeology from the tag, not maintenance. The witness chain is:
