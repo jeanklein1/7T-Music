@@ -355,7 +355,9 @@ namespace t7 {
         void pump_boot() {
             if (bootState_ != BootState::Configuring) return;
             if (!initSurface()) { bootState_ = BootState::Failed; return; }
-            createDepthBuffer(currentWidth_, currentHeight_);
+            // ACQ_0: no depth buffer here. It is built at the first acquire,
+            // at the size that acquire reports — a placeholder created now
+            // could only be a guess, and a guess is what dropped the frames.
             lastTime_ = std::chrono::high_resolution_clock::now();
             bootState_ = BootState::Ready;
         }
@@ -363,8 +365,10 @@ namespace t7 {
 
         // ═══ §2 INITIALIZATION ═══════════════════════════════════
         //
-        // Call order: initGLFW → initWebGPU → initSurface → createDepthBuffer.
-        // Each step depends on the previous. If any fails, init returns false.
+        // Call order: initGLFW → initWebGPU → initSurface. Each step depends
+        // on the previous. If any fails, init returns false. The depth
+        // buffer is NOT part of boot any more (ACQ_0) — the first acquire
+        // builds it, because the first acquire is the first honest size.
 
     public:
         bool init(const char* title, uint32_t width, uint32_t height) {
@@ -379,8 +383,9 @@ namespace t7 {
             // Native: the device exists synchronously — finish boot here,
             // exactly the pre-PORT_1b sequence, ending Ready.
             if (!initSurface())     { bootState_ = BootState::Failed; return false; }
-            createDepthBuffer(width, height);
-
+            // ACQ_0: the depth buffer is built at the first acquire (see
+            // acquire_surface_texture). Nothing sized by the frame is
+            // allocated before there is a frame to size it by.
             lastTime_ = std::chrono::high_resolution_clock::now();
             bootState_ = BootState::Ready;
 #endif
@@ -1502,12 +1507,28 @@ namespace t7 {
             return true;
         }
 
+        // THE FRAME-SIZED ATTACHMENTS (ACQ_0). Every texture whose size is
+        // defined as "the frame's size" is created here and nowhere else, so
+        // there is exactly one place that can disagree with the acquired
+        // texture — and acquire_surface_texture is its only caller.
+        //
+        // The census that fixed this membership: the depth buffer and, at
+        // msaa=4, the MSAA color target. The gallery's offscreen depth/color
+        // pair does NOT join — those are sized by painting aspect, not by
+        // the surface, and they live in state.hpp with their own lifetime.
+        //
+        // DOMESDAY_2 B10: the depth buffer carries the boot-read sample
+        // count, and the msaa color target rides this same recreate path.
+        // With msaa=1 every descriptor below is byte-identical to the
+        // pre-B10 shape and no msaa color texture exists.
         void createDepthBuffer(uint32_t w, uint32_t h) {
-            // DOMESDAY_2 B10: the depth buffer carries the boot-read
-            // sample count, and the msaa color target rides this same
-            // recreate path so the debounce owns resizing. With msaa=1
-            // every descriptor below is byte-identical to the pre-B10
-            // shape and no msaa color texture exists.
+            // Destroy before recreate: the old textures are a frame size
+            // that no longer exists, and holding them is how a stale view
+            // finds its way into an encoder.
+            if (depthTexture_)     depthTexture_.Destroy();
+            if (msaaColorTexture_) msaaColorTexture_.Destroy();
+            msaaColorTexture_ = nullptr;
+            msaaColorView_    = nullptr;
             wgpu::TextureDescriptor depthDesc{};
             depthDesc.label = "Depth Texture";
             depthDesc.size = { w, h, 1 };
@@ -1628,16 +1649,24 @@ namespace t7 {
             const int fbPreCapW = fbWidth, fbPreCapH = fbHeight;   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
             apply_pixel_cap(fbWidth, fbHeight);   // PORT_3c — before the compare
 #endif
-            // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. The bare not-equal
-            // this replaces reconfigured the surface and recreated the
-            // depth buffer on every frame of a resize animation
-            // (COMMAND_LEDGER §3 holds the old trigger verbatim). A new
-            // size must now hold still for RECONFIGURE_SETTLE_FRAMES
-            // consecutive frames before the surface moves; the accepted
-            // cost is ≤100 ms of scale softness while a resize animates.
-            // The FRAME_1 print stays — it is this unit's acceptance
-            // witness: the next boot should show it fire ~once per
-            // settled size instead of a burst.
+            // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. A new size must hold
+            // still for RECONFIGURE_SETTLE_FRAMES consecutive frames before
+            // the surface is reconfigured; the accepted cost is ≤100 ms of
+            // scale softness while a resize animates.
+            //
+            // ACQ_0 — ITS JURISDICTION IS CONFIGURE INTENT, AND NOTHING ELSE.
+            // This branch decides what the app ASKS the surface for: format,
+            // present mode, and the size it would like. It may NEVER again
+            // gate the recreation of a frame-sized attachment. It used to
+            // call createDepthBuffer, and that was the defect — a debounced
+            // attachment is by construction a frame or more behind a surface
+            // that resizes on its own clock, and the gap between them is a
+            // dropped submit. Attachments follow the acquired texture now
+            // (acquire_surface_texture), which cannot lag because it IS the
+            // frame. Debouncing intent is still worth doing; debouncing truth
+            // never was.
+            //
+            // The FRAME_1 print stays — it is this unit's acceptance witness.
             if (fbWidth > 0 && fbHeight > 0 &&
                 (static_cast<uint32_t>(fbWidth) != currentWidth_ ||
                     static_cast<uint32_t>(fbHeight) != currentHeight_)) {
@@ -1649,7 +1678,7 @@ namespace t7 {
                         surfaceConfig_.width = currentWidth_;
                         surfaceConfig_.height = currentHeight_;
                         surface_.Configure(&surfaceConfig_);
-                        createDepthBuffer(currentWidth_, currentHeight_);
+                        // No attachment recreation here — see the banner above.
                         stableFrames_ = 0;
 #ifdef __EMSCRIPTEN__
                         frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
@@ -1679,11 +1708,46 @@ namespace t7 {
             return dt;
         }
 
+        // ═══ ACQ_0 — THE ACQUIRED TEXTURE IS THE ONLY WITNESS OF FRAME SIZE ═══
+        //
+        // The old emdawnwebgpu generation handed back surface textures at the
+        // last CONFIGURED size, so a stale depth buffer and a stale swapchain
+        // stayed consistent with each other and the debounce was safe. The new
+        // generation's surface tracks the CANVAS's actual size at acquire. Two
+        // writers, one of them now moving on its own clock: at boot and around
+        // every resize there was a window where the depth attachment and the
+        // backbuffer disagreed, Dawn invalidated the whole "frame" encoder, and
+        // the ENTIRE submit dropped. Not a dropped draw — a dropped frame. The
+        // one-shot GPU work that happened to be encoded in those frames (spawn
+        // patch generation, the ground atlas, live-card seeding) was lost
+        // silently, and patch caching then preserved the loss. That is the flat
+        // black spawn region, and it is the whole of it.
+        //
+        // So validity may never again depend on two writers agreeing. The size
+        // is read off the texture we were just handed, every frame, before any
+        // encoding — not from the configure intent, not from the framebuffer
+        // query, not from a cached value that was true when it was written.
+        //
+        // This is also the ONLY creation path for the depth buffer now: the
+        // boot placeholder is gone, and the first acquire builds it. There is
+        // no frame on which an encoder can be created whose depth size was not
+        // read from that frame's own acquired texture, because the one consumer
+        // of depth_view() runs after this returns true.
         bool acquire_surface_texture() {
             surface_.GetCurrentTexture(&surfaceTexture_);
             if (surfaceTexture_.status != wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal &&
                 surfaceTexture_.status != wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal) {
+                // Item 5: no acquire, no encoding. The caller returns before it
+                // creates the frame encoder, so a failed acquire costs a frame
+                // and nothing else.
                 return false;
+            }
+            const uint32_t aw = surfaceTexture_.texture.GetWidth();
+            const uint32_t ah = surfaceTexture_.texture.GetHeight();
+            if (aw != acquiredWidth_ || ah != acquiredHeight_ || !depthTexture_) {
+                acquiredWidth_  = aw;
+                acquiredHeight_ = ah;
+                createDepthBuffer(aw, ah);   // synchronous, before any encoding
             }
             backbuffer_ = surfaceTexture_.texture.CreateView();
             return true;
@@ -2304,8 +2368,14 @@ namespace t7 {
         uint32_t height() const { return currentHeight_; }
 
         float aspect_ratio() const {
-            if (currentHeight_ == 0) return 1.0f;
-            return static_cast<float>(currentWidth_) / static_cast<float>(currentHeight_);
+            // ACQ_0: the acquired size is the frame's real shape, so the
+            // projection follows it rather than the configure intent. Before
+            // the first acquire there is nothing to report and the intent is
+            // the best available answer.
+            const uint32_t w = acquiredWidth_  ? acquiredWidth_  : currentWidth_;
+            const uint32_t h = acquiredHeight_ ? acquiredHeight_ : currentHeight_;
+            if (h == 0) return 1.0f;
+            return static_cast<float>(w) / static_cast<float>(h);
         }
 
         GLFWwindow* window() const { return window_; }
@@ -2351,8 +2421,13 @@ namespace t7 {
 #endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;
+        // CONFIGURE INTENT — what the app asks the surface for (ACQ_0).
         uint32_t currentWidth_ = 0;
         uint32_t currentHeight_ = 0;
+        // FRAME TRUTH — the last acquired texture's own size. Written only by
+        // acquire_surface_texture, read by the attachments and the aspect.
+        uint32_t acquiredWidth_ = 0;
+        uint32_t acquiredHeight_ = 0;
         // F3-a: the instance's answer on the immediate dialect, asked
         // once at instance creation and read later by the device
         // request's testimony and its loud line. One query, one home.
