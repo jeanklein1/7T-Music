@@ -49,7 +49,7 @@ DIST_MUSIC = os.path.join(DIST, "music")
 # index.html is SOURCE (tracked); the other three are build output
 # (.gitignore'd). All four ship — but index.html is the only one that is
 # TRANSFORMED on the way (BUILDID_0), not copied.
-ARTIFACTS = ["index.html", "the_board.js", "the_board.wasm", "the_board.data"]
+ARTIFACTS = ["index.html", "organ_panel.js", "the_board.js", "the_board.wasm", "the_board.data"]
 
 # ── BUILDID_0 — THE STALE PAIR ───────────────────────────────────
 # The three build files always move together on disk, but their URLs

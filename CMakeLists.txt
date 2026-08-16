@@ -231,6 +231,13 @@ if(EMSCRIPTEN)
     set(T7_WEB_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl")
     target_link_options(incubator_dual PRIVATE
         ${T7_WEB_PORTS}
+        # ORGAN_0b — the panel's ABI. EMSCRIPTEN_KEEPALIVE keeps the
+        # functions from being garbage-collected, but ccall/cwrap are
+        # runtime methods and are NOT exported by default; without this the
+        # panel would find Module.cwrap undefined and wait forever. The
+        # cost is a few hundred bytes of glue, on every build, so that an
+        # instrument does not need its own build configuration.
+        "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
         "-sALLOW_MEMORY_GROWTH=1"
         "-sSTACK_SIZE=4MB"
         "-sFETCH"

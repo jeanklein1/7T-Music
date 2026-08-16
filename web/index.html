@@ -948,6 +948,21 @@
     s.onerror = function () { fallback('the_board.js failed to load'); };
     document.body.appendChild(s);
 
+    // ORGAN_0c — the control panel, gated at ?organ=1. The file always
+    // ships and always loads; it returns on its second line without the
+    // flag, so it builds no DOM, adds no stylesheet, starts no timer and
+    // calls nothing. It does NOT hook this boot's choreography — no
+    // onRuntimeInitialized, no wrapping of Module.print — because that
+    // choreography carries the watchdog and the fallback and is not worth
+    // risking for an instrument. It waits by asking instead.
+    // NOT terminal on failure, deliberately: a panel that fails to load
+    // must never be able to take the world down with it.
+    var op = document.createElement('script');
+    op.src = 'organ_panel.js?v=' + BUILD;
+    op.async = true;
+    op.onerror = function () { console.log('[ORGAN] panel script absent'); };
+    document.body.appendChild(op);
+
     // WATCHDOG. If the boot neither presents nor fails — the shape a
     // driver hang takes, and the shape a renamed "Controls:" line would
     // also take — the visitor still gets a designed destination rather
