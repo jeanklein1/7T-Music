@@ -16,6 +16,12 @@
 # reformat anything under this path; it is not ours to shape.
 third_party/emdawnwebgpu/emdawnwebgpu_pkg/** -text
 
+# GATE_1 — the console gate's vendored headers, same law as the payload
+# above: PROVENANCE.md records a sha256 for each, and a checkout that
+# translated them would make that hash uncheckable on the platform that
+# most needs to check it.
+tools/gates/console_gate/stubs/GLFW/** -text
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #

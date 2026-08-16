@@ -63,6 +63,23 @@ shader-shape change is proven by witnesses, never by argument, and no
 witness substitutes for another. naga is the per-commit gate; the web build
 + boot is the witness of record; each browser gates at its own.
 
+**THE PER-COMMIT GATES, NAMED (GATE_1, 2026-08-16).** Two, and they answer
+different questions:
+
+| gate | invocation | subject |
+|---|---|---|
+| naga | `naga src/cartridges/the_board/realization/world.wgsl` | the WGSL module |
+| console | `python3 tools/gates/console_gate/run.py` | `console.hpp` against the vendored WebGPU/GLFW surface |
+
+The console gate is here because glaw1's translation unit is
+`cartridge.hpp`, which does not include `console.hpp` — so for the life of
+the tree glaw1 answered GREEN to console edits it had never read. An absent
+witness wearing a witness's name is worse than no witness, because it is
+counted. It compiles against the emdawnwebgpu payload pinned in
+`third_party/emdawnwebgpu/PINNED.md` and never a system or emsdk copy;
+its own banner states its boundary (syntax and types, no linking, no
+semantics), and the web boot remains the witness of record past it.
+
 *This strike is L15 collecting a debt on the largest referent in the tree —
 see L15, and note that the three retired constraints are exactly the kind
 of prose that goes on asserting itself long after its subject is gone.*
