@@ -6940,8 +6940,10 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 //
 // `|` and not `||`: the non-short-circuiting form. Both operands are
 // always evaluated, which keeps this function's branch count exactly
-// what the height test had — the L2 posture for the collision/ground
-// chain (no new runtime branching). max(dxz, 1e-4) makes the divide
+// what the height test had. No living law governs branching in this
+// chain — L2 was struck (PIVOT_0; audit/FXC_LAWS_RECORD.md). The shape
+// stands until a measurement asks; a reshape's witness is the
+// per-browser boot. max(dxz, 1e-4) makes the divide
 // total; dxz is 0 only when the candidate did not move on that axis,
 // where dh is 0 too and the noise floor already passed it.
 fn slope_passable(dh: f32, dxz: f32) -> bool {
@@ -7229,7 +7231,10 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // left this kernel with this wire — landing it there too would
     // apply the push twice. Free agents are untouched: their velocity
     // persists, so their path already consumes the rows.
-    // A VALUE change on the existing candidate — no new branches (L2).
+    // A VALUE change on the existing candidate, adding no branch. That
+    // is a description of the wire, not a constraint on it: L2 was
+    // struck (PIVOT_0; audit/FXC_LAWS_RECORD.md), and no living law
+    // governs branching here.
     {
         // SHELL_0: 1.0 for the law's dt — occupier_contact answers in wu/s
         // and the pos-add below integrates it ONCE. signal.dt here made the
