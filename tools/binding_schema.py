@@ -632,7 +632,7 @@ NEEDS = {
     'maxTextureDimension2D': {'floor': 2048, 'source': 'Dim::SHADOW_MAP_SIZE', 'note': 'the shadow atlas edge — the largest texture the program creates'},
     'maxTextureArrayLayers': {'floor': 225, 'source': 'Dim::MAX_ACTIVE_PATCHES', 'note': 'the patch heightfield array depth; 225 of the 256 default is the tightest ceiling the program owns'},
     'maxStorageBuffersPerShaderStage': {'floor': 8, 'source': 'core-default', 'note': 'the wallet fits the default; worst row 5 of 8 (MANIFEST)'},
-    'maxUniformBuffersPerShaderStage': {'floor': 12, 'source': 'core-default', 'note': 'worst row 11 of 12 — the agents compute family'},
+    'maxUniformBuffersPerShaderStage': {'floor': 12, 'source': 'core-default', 'note': 'the wallet fits the default; worst row per MANIFEST\'s lane table'},
     'maxUniformBufferBindingSize': {'floor': 65536, 'source': 'core-default', 'note': 'every uniform window sits well under 64 KiB'},
     'maxBindGroups': {'floor': 4, 'source': 'core-default', 'note': 'the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design'},
     'maxImmediateSize': {'floor': 4, 'source': 'sizeof(uint32_t)', 'note': 'the shadow light index (DOMESDAY_1 B6) — the lane statute grants 64; the program stands on 4'},
