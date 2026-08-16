@@ -1798,6 +1798,29 @@ namespace t7 {
         static_assert(sizeof(GPUFieldBus) == 6656);
         static_assert(offsetof(GPUFieldBus, ribbon)   == 6400);
         static_assert(offsetof(GPUFieldBus, authored) == 6512);
+
+        // ── FRAME R (CHORD_3) ─────────────────────────────────────────
+        // The render frame's block: lighting, the view-projection matrix,
+        // the camera. Mirrors world.wgsl::FrameR BYTE-FOR-BYTE (L3).
+        //
+        // TWO AUTHORS, ONE BLOCK. lighting is CPU-authored (upload_lights,
+        // mood.hpp). vp and camera are GPU-SOVEREIGN — compute_vp and
+        // update_camera write them, and they reach this block by
+        // CopyBufferToBuffer on the frame's own encoder. The CPU never
+        // reads them back; the readback law is why the copy exists at all.
+        //
+        // TWO INSTANCES back the two bind groups over frameRLayout_: main
+        // (vp_data / camera_state) and photographer (photographer_vp /
+        // photographer_camera_out). Same layout, same block, two frames
+        // of reference.
+        struct alignas(16) GPUFrameR {
+            GPULighting    lighting;  //   0
+            GPUVPMatrix    vp;        // 848
+            GPUCameraState camera;    // 976
+        };
+        static_assert(sizeof(GPUFrameR) == 1024);
+        static_assert(offsetof(GPUFrameR, vp)     == 848);
+        static_assert(offsetof(GPUFrameR, camera) == 976);
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
         static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");
         static_assert(sizeof(GPUPointLightArray) == 272, "GPUPointLightArray must be 272 bytes");
@@ -1952,9 +1975,12 @@ namespace t7 {
             GPUFieldAuthored fieldAuthoredStage_{};  // FIELD_4: the sovereign CPU copy, kept at the writer (the ribbon's lure reads it)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer vpBuffer_;
-            // WALLET_1revA: one 848 B uniform buffer where three storage
-            // buffers stood. GPULighting {sun, points, spots}.
-            wgpu::Buffer lightingBuffer_;
+            // CHORD_3 — FRAME R, two instances of one 1024 B block where
+            // three uniform buffers stood. Inside it, WALLET_1revA's
+            // lighting still holds the ground it won: one 848 B uniform
+            // member where three storage buffers used to be.
+            wgpu::Buffer frameRMainBuffer_;
+            wgpu::Buffer frameRPhotoBuffer_;
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
             // (created only when the device carries timestamp-query) and the
@@ -2359,12 +2385,40 @@ namespace t7 {
             // so the block is composed there and written whole; the
             // offset-write alternative at 0/48/320 was not needed.
             void upload_lighting(wgpu::Queue& queue, const GPULighting& lighting) {
-                writeStruct(queue, lightingBuffer_, lighting);
+                // CHORD_3: two windows, one home. The block sits at offset 0
+                // of both instances, and the photographer lights the same
+                // world the main camera does.
+                queue.WriteBuffer(frameRMainBuffer_, offsetof(GPUFrameR, lighting),
+                    &lighting, sizeof(GPULighting));
+                queue.WriteBuffer(frameRPhotoBuffer_, offsetof(GPUFrameR, lighting),
+                    &lighting, sizeof(GPULighting));
+            }
+
+            // ── CHORD_3: THE GPU TRUTH ARRIVES BY COPY ────────────────
+            // vp and camera are written by compute_vp / update_camera and
+            // read by the render stages. The CPU is not in that loop and
+            // must not be (the readback law), so the frame's own encoder
+            // carries them from their sovereign homes into the block,
+            // after the pass that wrote them has closed. Both offsets and
+            // both sizes are multiples of 4, as copyBufferToBuffer needs.
+            void encode_frame_r_main_sync(wgpu::CommandEncoder& encoder) {
+                encoder.CopyBufferToBuffer(vpBuffer_, 0, frameRMainBuffer_,
+                    offsetof(GPUFrameR, vp), sizeof(GPUVPMatrix));
+                encoder.CopyBufferToBuffer(cameraBuffer_, 0, frameRMainBuffer_,
+                    offsetof(GPUFrameR, camera), sizeof(GPUCameraState));
+            }
+
+            // The photographer's instance, same law, its own sources.
+            void encode_frame_r_photo_sync(wgpu::CommandEncoder& encoder) {
+                encoder.CopyBufferToBuffer(photographerVPBuffer_, 0, frameRPhotoBuffer_,
+                    offsetof(GPUFrameR, vp), sizeof(GPUVPMatrix));
+                encoder.CopyBufferToBuffer(photographerCameraBuffer_, 0, frameRPhotoBuffer_,
+                    offsetof(GPUFrameR, camera), sizeof(GPUCameraState));
             }
 
             // ATLAS_1revB U3" — stage_spot_vps and spot_vp_staging() are
             // retired. They filled a 256-byte duplicate of bytes
-            // upload_lighting had already sent to lightingBuffer_ from the
+            // upload_lighting had already sent to the lighting block from the
             // same cpuSpotLights_ array: every spot light's view_proj is a
             // member of GPUSpotLight, at offset 320 of GPULighting. The
             // shadow VS reads it there now, through shadow_light_vp(), which
@@ -3659,11 +3713,12 @@ namespace t7 {
                     PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
-                    SU | wgpu::BufferUsage::CopySrc     // CopySrc: the point readback (camera-host)
-                    | wgpu::BufferUsage::Uniform);
-                    // DOMESDAY_0 B2: + Uniform for the g1:4 render_camera
-                    // window; the compute face (g2:241 camera_state) still
-                    // binds as storage.
+                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host) AND the CHORD_3 block copy
+                    // CHORD_3: Uniform dropped. DOMESDAY_0 B2's g1:4 window
+                    // is gone; the camera reaches the render stages as
+                    // frame_r.camera, copied from here on the frame encoder.
+                    // The compute face (g2:241 camera_state) still binds as
+                    // storage.
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
@@ -3685,14 +3740,18 @@ namespace t7 {
                 fieldBusBuffer_ = makeBuffer("Field Bus", sizeof(GPUFieldBus), UU);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
-                    | wgpu::BufferUsage::Uniform);
-                    // DOMESDAY_0 B1: + Uniform for the g1:3 render_vp window;
-                    // the compute face (g2:240 vp_data) still binds as storage.
-                // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides lightingBuffer_, which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
-                // WALLET_1revA: UNIFORM, not storage — the whole point of the
-                // block is that it stops spending F-stage storage seats.
-                lightingBuffer_ = makeBuffer("Lighting", sizeof(GPULighting),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                    | wgpu::BufferUsage::CopySrc);
+                    // CHORD_3: Uniform out, CopySrc in. DOMESDAY_0 B1's g1:3
+                    // window is gone; the matrix reaches the render stages
+                    // as frame_r.vp, copied from here on the frame encoder.
+                    // The compute face (g2:240 vp_data) still binds as storage.
+                // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides the frame-R block's lighting member (CHORD_3), which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
+                // CHORD_3: two instances of the 1024 B render-frame block.
+                // WALLET_1revA's ruling rides inside it unchanged — UNIFORM,
+                // not storage, because the whole point of the lighting block
+                // is that it stops spending F-stage storage seats.
+                frameRMainBuffer_  = makeBuffer("Frame R (Main)", sizeof(GPUFrameR), UU);
+                frameRPhotoBuffer_ = makeBuffer("Frame R (Photographer)", sizeof(GPUFrameR), UU);
                 // DOMESDAY_1 B6 (R3): the ATLAS_1revB D3" light-index
                 // window buffer is retired — the shadow light index rides
                 // immediate data now (SetImmediates, render_passes.hpp).
@@ -3752,19 +3811,19 @@ namespace t7 {
                 photographerVPBuffer_ = makeBuffer("Photographer VP",
                     sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
-                    | wgpu::BufferUsage::Uniform);
-                    // DOMESDAY_0 B1: + Uniform — this buffer seats the SAME
-                    // frameRLayout_ render_vp slot through the photographer
-                    // group; the kernel face (g2:161 photographer_vp) still
-                    // binds as storage.
+                    | wgpu::BufferUsage::CopySrc);
+                    // CHORD_3: Uniform out, CopySrc in — DOMESDAY_0 B1's
+                    // shared frameRLayout_ slot is gone; the matrix reaches
+                    // the photographer's block by copy. The kernel face
+                    // (g2:161 photographer_vp) still binds as storage.
                 photographerCameraBuffer_ = makeBuffer("Photographer Camera",
                     sizeof(GPUCameraState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
-                    | wgpu::BufferUsage::Uniform);
-                    // DOMESDAY_0 B2: + Uniform — this buffer seats the SAME
-                    // frameRLayout_ render_camera slot through the
-                    // photographer group; the kernel face (g2:162
-                    // photographer_camera_out) still binds as storage.
+                    | wgpu::BufferUsage::CopySrc);
+                    // CHORD_3: Uniform out, CopySrc in — DOMESDAY_0 B2's
+                    // shared frameRLayout_ slot is gone; the camera reaches
+                    // the photographer's block by copy. The kernel face
+                    // (g2:162 photographer_camera_out) still binds as storage.
                 photographerConfigBuffer_ = makeBuffer("Photographer Config",
                     sizeof(GPUPhotographerConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3808,7 +3867,7 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
-                    vpBuffer_ && lightingBuffer_ && patchParamsBuffer_ &&
+                    vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&

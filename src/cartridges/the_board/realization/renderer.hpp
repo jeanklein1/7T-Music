@@ -2483,8 +2483,8 @@ namespace t7 {
                     // not reach here, so this rebuilds the SAME pair of bind group
                     // layouts — layout-compatible with the two color families, and
                     // the whole reason this campaign is small: the gallery entity
-                    // group already binds vpBuffer_ at sizeof(GPUVPMatrix), so
-                    // render_vp.light_vp is already reachable, and the gallery
+                    // group already binds the frame-R block at sizeof(GPUFrameR),
+                    // so frame_r.vp.light_vp is already reachable, and the gallery
                     // texture group binds no shadow map, so it is already legal
                     // inside a depth-only pass. ZERO new bindings, ZERO new
                     // bind-group layouts. Do not grow either one.
@@ -2492,14 +2492,14 @@ namespace t7 {
                     // ATLAS_1revB G2 — group 0 is the RENDER-ENTITY layout here,
                     // not the gallery entity layout. Under D2' these two
                     // shadow VSes call shadow_light_vp(), which reads
-                    // render_lighting (and, since B6, the shadow_slot
+                    // frame_r.lighting (and, since B6, the shadow_slot
                     // IMMEDIATE — a pipeline-layout fact, not a group
                     // member); the gallery entity layout carries no
-                    // render_lighting, so Dawn would reject both pipelines
+                    // frame_r block, so Dawn would reject both pipelines
                     // at creation. It is a strict subset for everything they DO
-                    // use — config (Uniform), render_vp and render_camera (both
-                    // ReadOnlyStorage) are present on the render-entity layout
-                    // with the same types — so nothing is lost by the swap, and
+                    // use — config (Uniform) and frame_r.vp / frame_r.camera,
+                    // which CHORD_3 folded into that one block — so nothing is
+                    // lost by the swap, and
                     // draw_shadow_all sheds a bind per light because group 0 no
                     // longer changes mid-tile. Group 1 is untouched: the
                     // painting slots and array still come from the gallery

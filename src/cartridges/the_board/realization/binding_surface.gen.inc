@@ -45,33 +45,32 @@
                 // the compute face (signal-only FRAME_C) never carries the render ro
                 // windows, so compute dispatches never co-bind them against rw homes.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
+                    // FRAME R (CHORD_3) — the render frame in one uniform block:
+                    // lighting (CPU-authored, WALLET_1revA’s 848 B trio) plus vp and
+                    // camera, which are GPU-SOVEREIGN and arrive by encoder copy from
+                    // vp_data / camera_state each frame. The CPU never reads them, so
+                    // the readback law is untouched and three uniform seats became
+                    // one. Two bind groups ride this layout — main and photographer
+                    // — over two instances of the block.
                     // WALLET_1revA: the light trio became one uniform block.
                     // Three F-stage storage seats freed across the whole
                     // entity family. TWIN: Lighting / GPULighting, 848 B.
-                    entries[0].binding = bind::g1::render_lighting;
+                    entries[0].binding = bind::g1::frame_r;  // frame_r (uniform, 1024 B — CHORD_3)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[1].binding = bind::g1::render_vp;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[2].binding = bind::g1::render_camera;
-                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
                     // now rides the card for its ground term (H4 [4c]); this pipeline
                     // family binds gallery groups, so the pair lives here too.
-                    entries[3].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
-                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
+                    entries[1].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
+                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[4].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
-                    entries[4].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[4].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+                    entries[2].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
+                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[2].sampler.type = wgpu::SamplerBindingType::NonFiltering;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frame R Layout";
@@ -960,25 +959,17 @@
                 // A8a: the render face of the old Frame BindGroup — same backings,
                 // same numbers; signal stays with the compute face.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g1::render_lighting;
-                    entries[0].buffer = lightingBuffer_;
-                    entries[0].size = sizeof(GPULighting);
+                    entries[0].binding = bind::g1::frame_r;
+                    entries[0].buffer = frameRMainBuffer_;
+                    entries[0].size = sizeof(GPUFrameR);
 
-                    entries[1].binding = bind::g1::render_vp;
-                    entries[1].buffer = vpBuffer_;
-                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[1].binding = bind::g1::bilinear_sampler;
+                    entries[1].sampler = bilinearSampler_;
 
-                    entries[2].binding = bind::g1::render_camera;
-                    entries[2].buffer = cameraBuffer_;
-                    entries[2].size = sizeof(GPUCameraState);
-
-                    entries[3].binding = bind::g1::bilinear_sampler;
-                    entries[3].sampler = bilinearSampler_;
-
-                    entries[4].binding = bind::g1::nearest_sampler;
-                    entries[4].sampler = nearestSampler_;
+                    entries[2].binding = bind::g1::nearest_sampler;
+                    entries[2].sampler = nearestSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame R BindGroup";
@@ -1016,27 +1007,19 @@
 
                 // Projected from: galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g1::render_lighting;
-                    entries[0].buffer = lightingBuffer_;
-                    entries[0].size = sizeof(GPULighting);
-
-                    entries[1].binding = bind::g1::render_vp;
-                    entries[1].buffer = photographerVPBuffer_;
-                    entries[1].size = sizeof(GPUVPMatrix);
-
-                    entries[2].binding = bind::g1::render_camera;
-                    entries[2].buffer = photographerCameraBuffer_;
-                    entries[2].size = sizeof(GPUCameraState);
+                    entries[0].binding = bind::g1::frame_r;
+                    entries[0].buffer = frameRPhotoBuffer_;
+                    entries[0].size = sizeof(GPUFrameR);
 
                     // Shared backing, completed from the primary variant.
-                    entries[3].binding = bind::g1::bilinear_sampler;
-                    entries[3].sampler = bilinearSampler_;
+                    entries[1].binding = bind::g1::bilinear_sampler;
+                    entries[1].sampler = bilinearSampler_;
 
                     // Shared backing, completed from the primary variant.
-                    entries[4].binding = bind::g1::nearest_sampler;
-                    entries[4].sampler = nearestSampler_;
+                    entries[2].binding = bind::g1::nearest_sampler;
+                    entries[2].sampler = nearestSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame BindGroup (Photographer)";

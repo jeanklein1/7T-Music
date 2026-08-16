@@ -1458,6 +1458,13 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
         compute.End();
     }
 
+    // CHORD_3 — the photographer's instance of the render-frame block.
+    // Same law as the main camera's (render_passes.hpp, dispatch_compute):
+    // the kernel just above is the sovereign writer, the pass boundary is
+    // the ordering, and the snapshot pass below reads frame_r.vp /
+    // frame_r.camera through the photographer bind group.
+    c->gpuState_.encode_frame_r_photo_sync(encoder);
+
     // Only render the snapshot if a capture is pending
     if (!gs.pending_snapshot.active) return;
     gs.pending_snapshot.active = false;

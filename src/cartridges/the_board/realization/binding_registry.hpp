@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (91 declarations over 76 slots;
+// The WGSL @binding literals in world.wgsl (89 declarations over 74 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -40,9 +40,7 @@ namespace t7 {
             namespace g1 {
                 // FRAME — R2 v2: the per-frame ro faces, the light system, the shadow window, the two shared samplers.
                 inline constexpr uint32_t signal                      = 0;
-                inline constexpr uint32_t render_lighting             = 1;
-                inline constexpr uint32_t render_vp                   = 3;  // uniform window onto the vp buffer (writer: g2:240 vp_data)
-                inline constexpr uint32_t render_camera               = 4;  // uniform window onto the camera buffer (writer: g2:241 camera_state)
+                inline constexpr uint32_t frame_r                     = 1;  // FrameR — CHORD_3: lighting + vp + camera, one uniform block per frame. Two instances (main, photographer) back two groups over one layout; vp and camera arrive by encoder copy from the GPU-sovereign homes (g2:240 vp_data, g2:241 camera_state), never by readback
                 inline constexpr uint32_t bilinear_sampler            = 5;
                 inline constexpr uint32_t nearest_sampler             = 6;
             } // namespace g1

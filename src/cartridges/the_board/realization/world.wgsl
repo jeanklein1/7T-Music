@@ -3934,13 +3934,13 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // `normal` is unit at every caller — the terrain FS normalizes its
     // gradient normal and both entity FS pass normalize(in.normal) — so
     // this scale is exact rather than approximately exact.
-    let light_dir = -render_lighting.sun.direction;   // toward the light
+    let light_dir = -frame_r.lighting.sun.direction;   // toward the light
     let ndotl     = clamp(dot(normal, light_dir), 0.0, 1.0);
     let offset_w  = normal * (SHADOW_TEXEL_WORLD * PCF_RADIUS_TEXELS
                               * (0.33 + 0.67 * (1.0 - ndotl)));
 
     // Transform to light clip space
-    let light_clip = render_vp.light_vp * vec4(world_pos + offset_w, 1.0);
+    let light_clip = frame_r.vp.light_vp * vec4(world_pos + offset_w, 1.0);
     let light_ndc = light_clip.xyz / light_clip.w;
 
     let shadow_uv = vec2(
@@ -4046,7 +4046,7 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
 // Normal-offset exists to escape a GEOMETRIC self-shadowing surface, so it
 // reads the second; ndotl is a shading fact and reads the first.
 fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
-    let light_dir = -render_lighting.sun.direction;  // toward light
+    let light_dir = -frame_r.lighting.sun.direction;  // toward light
     let ndotl = max(dot(normal, light_dir), 0.0);
 
     // Sun PCF stays off when spots are active: indoors the sun map's
@@ -4055,21 +4055,21 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
     // longer overwritten (the per-tile copy died in ATLAS_1revB).
     // Restoring indoor sun shadow needs its own map content — future ruling.
     var shadow = 1.0;
-    if (render_lighting.spots.count == 0u) {
+    if (frame_r.lighting.spots.count == 0u) {
         shadow = sample_shadow_pcf(world_pos, geo_normal);
     }
 
-    return render_lighting.sun.color * render_lighting.sun.intensity * ndotl * shadow;
+    return frame_r.lighting.sun.color * frame_r.lighting.sun.intensity * ndotl * shadow;
 }
 
 // --- Point Lights (diffuse only, no shadows)
 
 fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     var total = vec3(0.0);
-    let count = min(render_lighting.points.count, MAX_POINT_LIGHTS);
+    let count = min(frame_r.lighting.points.count, MAX_POINT_LIGHTS);
 
     for (var i: u32 = 0u; i < count; i++) {
-        let light = render_lighting.points.lights[i];
+        let light = frame_r.lighting.points.lights[i];
         let light_vec = light.position - world_pos;
         let dist = length(light_vec);
         let light_dir = light_vec / max(dist, 0.001);
@@ -4145,7 +4145,7 @@ const SPOT_PCF_RADIUS_TEXELS: f32 = 2.5;
 // float format bought 6.0e-8 NDC) until P2 deleted it outright. That
 // window was the campaign's thinnest ice.
 fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_index: u32) -> f32 {
-    let light = render_lighting.spots.lights[light_index];
+    let light = frame_r.lighting.spots.lights[light_index];
 
     // THE SPOT NORMAL OFFSET. The frustum is perspective, so texel world-size
     // is not constant — which is why UMBRA ruled this path offset-free. Derive
@@ -4279,10 +4279,10 @@ fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_ind
 
 fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
     var total = vec3(0.0);
-    let count = min(render_lighting.spots.count, MAX_SPOT_LIGHTS);
+    let count = min(frame_r.lighting.spots.count, MAX_SPOT_LIGHTS);
 
     for (var i: u32 = 0u; i < count; i++) {
-        let light = render_lighting.spots.lights[i];
+        let light = frame_r.lighting.spots.lights[i];
         if (light.intensity <= 0.0) { continue; }
 
         let light_vec = light.position - world_pos;
@@ -4335,7 +4335,7 @@ fn veil_t(world_pos: vec3<f32>) -> f32 {
 // terrain passes its pre-aura normal.
 fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
     // Ambient (always present)
-    let ambient = base_color * render_lighting.sun.ambient;
+    let ambient = base_color * frame_r.lighting.sun.ambient;
 
     // Directional light with shadows
     let sun = base_color * calc_directional_light(world_pos, normal, geo_normal);
@@ -4349,7 +4349,7 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     let lit = ambient + sun + points + spot;
 
     // Fog — the EYE-anchored atmospheric term (a view effect; stays).
-    let dist = distance(world_pos, render_camera.pos);
+    let dist = distance(world_pos, frame_r.camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     let fogged = mix(lit, config.fog_color, fog);
 
@@ -4692,7 +4692,7 @@ fn patch_terrain_vs(
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: PatchTerrainVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.gradients = height_data.yz + live.yz;
     out.patch_uv = uv;
@@ -4841,7 +4841,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     if (tag_alpha > 0.001) {
         let mode = unpack_cell_tag_mode(tag_alpha);
         if ((mode & CELL_ANIM_GOL) != 0u) {
-            let cam_dist = distance(render_camera.pos, in.world_pos);
+            let cam_dist = distance(frame_r.camera.pos, in.world_pos);
             let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
 
             if (fade > 0.01) {
@@ -5330,7 +5330,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     }
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(rotated_pos + pawn_p, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(rotated_pos + pawn_p, 1.0);
     out.world_pos = rotated_pos + pawn_p;
     out.normal = rotated_normal;
     out.entity_color = body_color;
@@ -5349,7 +5349,7 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
     let world_pos = in.pos * r + fe.pos;
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = fe.color;
@@ -5426,7 +5426,7 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     let face_color = clamp(fe.color + vec3(dr, dg, db), vec3(0.0), vec3(1.0));
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = world_normal;
     out.entity_color = face_color;
@@ -5574,7 +5574,7 @@ fn arch_vs(in: ArchVertexInput) -> EntityVarying {
     world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
@@ -5604,7 +5604,7 @@ fn column_vs(in: ArchVertexInput) -> EntityVarying {
     world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
@@ -5643,7 +5643,7 @@ struct ShellVertexInput {
 @vertex
 fn shell_vs(in: ShellVertexInput) -> EntityVarying {
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(in.pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(in.pos, 1.0);
     out.world_pos = in.pos;
     out.normal = in.normal;
     out.entity_color = in.color;
@@ -5988,7 +5988,7 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     let world_normal = sw_mp(orient, local_normal);
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = world_normal;
 
@@ -6219,9 +6219,7 @@ fn point_pos() -> vec3<f32> {
 }
 
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
-@group(1) @binding(3) var<uniform> render_vp: VPMatrix;
 @group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;
-@group(1) @binding(4) var<uniform> render_camera: CameraState;
 @group(2) @binding(6) var<uniform> render_floating: FloatingEntityArray;
 
 // Possessed-agent helpers (render stage). VS/FS consumers that used
@@ -6237,7 +6235,7 @@ fn render_pawn_pos() -> vec3<f32> {
 // the body; the eye-fog in shade_lit keeps the eye, the VEIL keeps the
 // point).
 fn render_point_pos() -> vec3<f32> {
-    if (point_camera_hosted()) { return render_camera.pos; }
+    if (point_camera_hosted()) { return frame_r.camera.pos; }
     return render_pawn_pos();
 }
 fn render_pawn_vel_xz() -> vec2<f32> {
@@ -6273,8 +6271,19 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // --- Light system (Group 0: render, bindings 320-339)
 // WALLET_1revA: one uniform block, not three storage bindings. 321 and
 // 322 are retired; the sun, the point array and the spot array reach
-// the fragment stage as `render_lighting.sun` / `.points` / `.spots`.
-@group(1) @binding(1) var<uniform> render_lighting: Lighting;
+// the fragment stage as `frame_r.lighting.sun` / `.points` / `.spots`.
+// FRAME R (CHORD_3) — the render frame's block: lighting (CPU-
+// authored) + vp + camera (GPU-sovereign, arriving by encoder copy
+// from vp_data / camera_state each frame — the CPU never reads
+// them). Two instances back two bind groups over this layout: main
+// and photographer. Mirrors GPUFrameR in state.hpp BYTE-FOR-BYTE
+// (1024 B). Offsets: lighting 0, vp 848, camera 976.
+struct FrameR {
+    lighting: Lighting,
+    vp: VPMatrix,
+    camera: CameraState,
+}
+@group(1) @binding(1) var<uniform> frame_r: FrameR;
 
 // ─── THE SHADOW TILE'S LIGHT INDEX (DOMESDAY_1 B6, R3) ─────────────
 // One u32, delivered as IMMEDIATE DATA: the shadow pass sets it per
@@ -6298,16 +6307,16 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 var<immediate> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
-// Outdoors (no spots) the sun VP is render_vp.light_vp, written by
+// Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by
 // compute_vp and read here exactly as the 13 shadow VSes read it
 // before. Indoors it is the per-light matrix that already rides the
 // lighting buffer, the same array sample_spot_shadow_pcf indexes in the
 // fragment stage. Nothing is duplicated and nothing new is written.
 fn shadow_light_vp() -> mat4x4<f32> {
-    if (render_lighting.spots.count == 0u) {
-        return render_vp.light_vp;
+    if (frame_r.lighting.spots.count == 0u) {
+        return frame_r.vp.light_vp;
     }
-    return render_lighting.spots.lights[shadow_slot].view_proj;
+    return frame_r.lighting.spots.lights[shadow_slot].view_proj;
 }
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
@@ -10499,7 +10508,7 @@ fn gallery_frame_vs(
         return out;
     }
 
-    out.clip_pos = render_vp.m * vec4(g.world, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(g.world, 1.0);
     // THE SLOT'S uv_scale, which this path used to drop on the floor. The wall
     // path has always applied it (compute_wall_painting_geometry); this one
     // emitted raw uv, so a slot occupying part of its layer drew the whole
@@ -10557,7 +10566,7 @@ fn gallery_frame_fs(in: GalleryVarying) -> @location(0) vec4<f32> {
     var color = painting_color.rgb;
 
     // Distance fog only (scene consistency — paintings far away dissolve into fog)
-    let dist = distance(in.world_pos, render_camera.pos);
+    let dist = distance(in.world_pos, frame_r.camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     color = mix(color, config.fog_color, fog);
 
@@ -10757,7 +10766,7 @@ fn wall_painting_vs(@builtin(vertex_index) vid: u32) -> WallPaintingVarying {
 
     var out = compute_wall_painting_geometry(slot, pidx, local_vid);
     out.world_pos.y += sample_live_card(out.world_pos.xz).x;
-    out.clip_pos = render_vp.m * vec4(out.world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(out.world_pos, 1.0);
     return out;
 }
 
@@ -10770,7 +10779,7 @@ fn wall_painting_canvas_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
     if (tex_color.a < 0.01) { discard; }
 
     let lit = tex_color.rgb * 0.9;
-    let dist = distance(in.world_pos, render_camera.pos);
+    let dist = distance(in.world_pos, frame_r.camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     return vec4(mix(lit, config.fog_color, fog), 1.0);
 }
@@ -10780,7 +10789,7 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
     if (in.is_canvas == 1u) { discard; }
 
     let lit = in.frame_color * 0.8;
-    let dist = distance(in.world_pos, render_camera.pos);
+    let dist = distance(in.world_pos, frame_r.camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     return vec4(mix(lit, config.fog_color, fog), 1.0);
 }
@@ -12057,7 +12066,7 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
@@ -12441,7 +12450,7 @@ fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
@@ -12698,7 +12707,7 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
@@ -12759,8 +12768,8 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
 //     @binding(123) orb_state_ro      storage, read       (→ orb_state)
 //     @binding(124) orb_state_prev_rw storage, read_write (→ orb_state_prev)
 //   Render (orb_vs, orb_fs) — FRAME stratum (g1):
-//     @binding(3)   render_vp         (already declared)
-//     @binding(4)   render_camera     (already declared)
+//     @binding(3)   frame_r.vp         (already declared)
+//     @binding(4)   frame_r.camera     (already declared)
 //   ORB_V: the orb state itself is no longer a binding here. It rides an
 //   instance-step VERTEX BUFFER (renderer.hpp, orbStateVBL), one attribute
 //   per field, and orb_vs rebuilds the struct from its @location inputs.
@@ -13569,8 +13578,8 @@ fn orb_vs(
 
     // Build world-space camera basis from azimuth/elevation — matches
     // build_view_projection_matrix conventions exactly.
-    let az = render_camera.azimuth;
-    let el = render_camera.elevation;
+    let az = frame_r.camera.azimuth;
+    let el = frame_r.camera.elevation;
     let cos_el = cos(el);
     let sin_el = sin(el);
     let cos_az = cos(az);
@@ -13583,15 +13592,15 @@ fn orb_vs(
     // orb.pos is dome-local; the dome is a SKYBOX (Jean's
     // ruling): centered on the camera EYE, all three axes, every
     // frame — the sky rises when you fly and never parallaxes away.
-    // render_camera is already in this VS (the billboard basis above);
+    // frame_r.camera is already in this VS (the billboard basis above);
     // orb_config.dome_center_* is dead, its bytes retained for ABI.
-    let dome_center = render_camera.pos;
+    let dome_center = frame_r.camera.pos;
     let world_pos = dome_center + orb.pos
         + cam_right * (quad_pos.x * orb.size)
         + cam_up    * (quad_pos.y * orb.size);
 
     var out: OrbVSOut;
-    out.clip_pos = render_vp.m * vec4<f32>(world_pos, 1.0);
+    out.clip_pos = frame_r.vp.m * vec4<f32>(world_pos, 1.0);
     out.uv = quad_pos;
     out.color = orb.current_color;
     out.brightness = orb.brightness;

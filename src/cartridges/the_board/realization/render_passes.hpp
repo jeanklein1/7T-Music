@@ -213,6 +213,14 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
         c->gpuState_.frame_k_state_group(), c->gpuState_.frame_k_textures_group());
 
     compute.End();
+
+    // CHORD_3 — the GPU truth reaches the render frame. update_camera and
+    // compute_vp above are the sovereign writers of camera_state and
+    // vp_data; frame_r.camera / frame_r.vp are the render stages' windows
+    // onto them. The copy is encoded HERE, after the pass closes, because
+    // the pass boundary is the ordering guarantee — and by copy rather
+    // than by CPU hand because the readback law forbids the other route.
+    c->gpuState_.encode_frame_r_main_sync(encoder);
 }
 
 inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
@@ -370,7 +378,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
         // OIL_1 U12 — the pass-head binds (see the atlas arm above).
         // Outdoor draws for the sun, which shadow_light_vp() reads from
-        // render_vp.light_vp; the shadow_slot immediate is unread on
+        // frame_r.vp.light_vp; the shadow_slot immediate is unread on
         // this path (spots.count == 0) and set to 0 for determinism.
         const uint32_t kLightZero = 0;
         pass.SetBindGroup(0, c->gpuState_.world_group());
@@ -471,7 +479,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // not name groups a future creation-side gate could leave null.
     // ATLAS_1revB G2 — group 0 is NOT rebound here any more. The two shadow
     // artwork pipelines take the RENDER-ENTITY layout at group 0 now (they
-    // need render_lighting, which the gallery entity layout does not
+    // need frame_r.lighting, which the gallery entity layout does not
     // carry; the shadow_slot light index rides the pipeline layout as
     // immediate data since B6), and the pass head already bound it. Only
     // the texture group changes. One fewer bind per light, and group 0

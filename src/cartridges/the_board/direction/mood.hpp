@@ -598,7 +598,7 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
                                   c->cpuSpotLights_.lights[i].view_proj);
         }
         // ATLAS_1revB U3" — the staging write is gone. upload_lights sends
-        // this same cpuSpotLights_ array whole into lightingBuffer_, view_proj
+        // this same cpuSpotLights_ array whole into the frame-R block, view_proj
         // members included, and the shadow VS reads it there.
         c->mood_state_.spot_light_active = true;
     } else {
