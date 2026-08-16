@@ -1674,6 +1674,65 @@ namespace t7 {
             th = static_cast<uint32_t>(h < 1 ? 1 : h);
         }
 
+        // The canvas's own answer. Read back rather than remembered, because
+        // what this frame needs to know is not what WE last wrote — it is
+        // what the backing store says right now, after everyone has written.
+        void read_canvas_backing_store(uint32_t& w, uint32_t& h) const {
+            w = static_cast<uint32_t>(EM_ASM_INT({
+                var c = (typeof Module !== 'undefined' && Module.canvas)
+                        ? Module.canvas : document.getElementById('canvas');
+                return c ? c.width : 0;
+            }));
+            h = static_cast<uint32_t>(EM_ASM_INT({
+                var c = (typeof Module !== 'undefined' && Module.canvas)
+                        ? Module.canvas : document.getElementById('canvas');
+                return c ? c.height : 0;
+            }));
+        }
+
+        // ═══ CAP_2 — THE APP IS THE LAST WRITER, PROVEN AT THE FRAME BOUNDARY ═══
+        //
+        // CAP_1 stopped the port SCALING (GLFW_SCALE_FRAMEBUFFER=FALSE) but did
+        // not stop it WRITING: Window::setCanvasSize still runs
+        // emglfw3w_set_size on every resize observation and assigns
+        // canvas.width = css. In this emdawnwebgpu generation the canvas wins
+        // over Configure at acquire, so on the Pixel the port's 448 beat the
+        // app's 672 and the reference device rendered at dpr 1.0 instead of the
+        // capped 1.5. Frames stayed valid — ACQ_0's promise held — but the
+        // intent was silently defeated downward, which is the quieter failure.
+        //
+        // The boot log named the mechanism: the port wrote first, acquire built
+        // a texture at the port's number, and the app's write landed after the
+        // frame that needed it. The fix is NOT to write earlier. Ordering
+        // against another writer's event is an assumption, and the campaign has
+        // now paid twice for assumptions about who runs when. A frame boundary
+        // is a fact: once per frame, before the acquire that reads the canvas,
+        // ask the canvas what it says and make it say target if it does not.
+        //
+        // Cost in steady state is one comparison and no write. A write fires
+        // only on drift, and drift only happens when the port wrote — so
+        // reassertions count resize EVENTS, not frames. A per-frame storm would
+        // mean the port found a writer path that fires every frame, which is a
+        // finding and not a tuning problem: the log line exists to surface it.
+        void reassert_canvas_target() {
+            uint32_t tw = 0, th = 0;
+            compute_target_size(tw, th);
+            if (tw == 0 || th == 0) return;
+            uint32_t cw = 0, ch = 0;
+            read_canvas_backing_store(cw, ch);
+            if (cw == tw && ch == th) return;   // the common case: nothing to do
+            write_canvas_backing_store(tw, th);
+            currentWidth_  = tw;
+            currentHeight_ = th;
+            surfaceConfig_.width  = tw;
+            surfaceConfig_.height = th;
+            surface_.Configure(&surfaceConfig_);
+            // Loud on purpose: SOAK counts these. Expected ≤1 per resize event
+            // and 0 in steady state.
+            std::cout << "[CAP] reasserted " << tw << "x" << th
+                      << " (canvas drifted to " << cw << "x" << ch << ")\n";
+        }
+
         // THE ONE WRITER of the canvas backing store. Idempotence-guarded the
         // same way the port guards its own write, so a settled size costs
         // nothing. Assigning canvas.width also CLEARS the canvas, which is
@@ -1784,6 +1843,19 @@ namespace t7 {
             // frame. Debouncing intent is still worth doing; debouncing truth
             // never was.
             //
+            // CAP_2 — AND IN PRACTICE THIS BRANCH NOW RARELY FIRES. The
+            // frame-boundary reassertion reconciles canvas and surface to
+            // target as soon as either drifts, and it writes currentWidth_/
+            // currentHeight_ when it does, so by the time control reaches
+            // here the compare below is usually already equal. The settle
+            // window survives as the slower path for a size that changes
+            // without the canvas drifting; its ≤100 ms of scale softness is
+            // no longer what governs a resize. That is a real change to B7's
+            // effect and it is stated rather than discovered: reasserting
+            // immediately is the price of the app being the last writer, and
+            // the port is already reallocating the backing store on every one
+            // of those events anyway.
+            //
             // The FRAME_1 print stays — it is this unit's acceptance witness.
             if (fbWidth > 0 && fbHeight > 0 &&
                 (static_cast<uint32_t>(fbWidth) != currentWidth_ ||
@@ -1829,6 +1901,15 @@ namespace t7 {
             // rates; essential across a browser tab-suspend, where rAF
             // hands back a multi-second gap.
             dt = std::clamp(dt, 0.0f, 0.1f);
+
+#ifdef __EMSCRIPTEN__
+            // CAP_2 — the last word, at the frame boundary. glfwPollEvents at
+            // the head of this function is where the port applies any queued
+            // resize, so by here every other writer for this frame has spoken.
+            // Nothing between this line and the acquire touches the canvas:
+            // the update phase is CPU state and the render phase has not begun.
+            reassert_canvas_target();
+#endif
 
             return dt;
         }
