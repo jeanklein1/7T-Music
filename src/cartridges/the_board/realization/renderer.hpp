@@ -322,6 +322,116 @@ namespace t7 {
             Renderer(const Renderer&) = delete;
             Renderer& operator=(const Renderer&) = delete;
 
+            // ═══ PROBATE_SEAL3 — THE FLOOR THAT STOPS ════════════════
+            //
+            // Both consoles asked for this. The R3 check NARRATED and
+            // proceeded: it printed "the post-B6 shader cannot compile
+            // here", then compiled it anyway, then ran a frame loop on
+            // a dead device that emitted thousands of validation lines,
+            // while the [Pipeline] timers printed success-shaped zeroes
+            // for pipelines that had never been created. On Firefox the
+            // missing JS surface threw uncaught, every frame, forever.
+            // Four symptoms, one cause: nothing in the program treated
+            // "this device cannot run me" as a REASON TO STOP.
+            //
+            // THE PREDICATE, evaluated before any GPU object exists:
+            //   1. the immediate address space is in the instance's WGSL
+            //      dialect  (console.hpp, instance-scoped — F3-a)
+            //   2. the device granted maxImmediateSize >= the program's
+            //      floor  (NEEDS r7, limits_floor.gen.inc)
+            //   3. setImmediates exists on the compute pass encoder's
+            //      JS surface  (the generation's own API, not a limit —
+            //      the emsdk hole F5F found, one encoder over)
+            //   4. the shader received == the shader shipped  (SEAL2)
+            //
+            // Any arm false: no module, no pipelines, no frame loop, and
+            // one [Floor] line naming the arm. The shell matches that
+            // line and shows the audience card (index.html, onLine), so
+            // a viewer in the wrong browser meets a designed sentence
+            // instead of a black canvas over console spam.
+            //
+            // Arms 1-3 are checked HERE because they are properties of
+            // the device and the page, knowable before a single object
+            // is made. Arm 4 is checked in loadShader(), where the bytes
+            // first exist, and reported through serveWitnessed_.
+            //
+            // WHY THIS IS NOT A LIMIT CHECK. maxImmediateSize is a
+            // number the device reports; setImmediates is a method the
+            // JS glue either carries or does not. DOMESDAY_2 F3-b spent
+            // a round learning that these are different questions with
+            // different homes, and F5F spent one learning that a header
+            // can promise a call the payload lacks. The floor asks all
+            // of them because each has failed alone.
+            bool floorHolds(const wgpu::Device& device) {
+                bool ok = true;
+
+                // THE FLOOR IS THE PROGRAM'S OWN LARGEST IMMEDIATE, and
+                // it is spelled with the same expression NEEDS r7 sources
+                // from (`sizeof(GPUPatchParams)`, binding_schema.py). Not
+                // FLOOR_MAX_IMMEDIATE_SIZE: that constant lives in
+                // console.hpp's namespace and cartridge.hpp — glaw1's own
+                // translation unit — does not include console.hpp. Reading
+                // the struct the pipeline layouts actually declare keeps
+                // the request and the check from drifting without giving
+                // the fact a second home.
+                const uint32_t immediateFloor =
+                    static_cast<uint32_t>(sizeof(GPUPatchParams));
+                wgpu::Limits granted{};
+                device.GetLimits(&granted);
+                if (granted.maxImmediateSize < immediateFloor) {
+                    std::cout << "[Floor] STOP — maxImmediateSize granted "
+                        << granted.maxImmediateSize << ", the program stands on "
+                        << immediateFloor
+                        << " (NEEDS r7). patch_params and shadow_slot ride the"
+                           " immediates lane; without it no pipeline in this"
+                           " program can be built.\n";
+                    ok = false;
+                }
+#ifdef __EMSCRIPTEN__
+                // The dialect and the method, asked of the page itself.
+                // A device limit cannot answer either: the WGSL dialect
+                // is instance-scoped (F3-a) and the encoder method is a
+                // property of the shipped glue (F5F).
+                const int surface = EM_ASM_INT({
+                    if (!navigator.gpu) return 0;
+                    // 1 = dialect present. wgslLanguageFeatures is a
+                    // setlike; older glue may not carry it at all.
+                    var f = navigator.gpu.wgslLanguageFeatures;
+                    var dialect = !!(f && typeof f.has === 'function'
+                                     && f.has('immediate_address_space'));
+                    // 2 = setImmediates on the COMPUTE pass encoder's
+                    // prototype. Checked on the prototype, not on an
+                    // instance: no pass exists yet, and creating one to
+                    // ask would be a GPU object made before the floor
+                    // that decides whether to make GPU objects.
+                    var enc = (typeof GPUComputePassEncoder !== 'undefined')
+                              ? GPUComputePassEncoder.prototype : null;
+                    var method = !!(enc && typeof enc.setImmediates === 'function');
+                    return (dialect ? 1 : 0) | (method ? 2 : 0);
+                });
+                if (!(surface & 1)) {
+                    std::cout << "[Floor] STOP — immediate_address_space is not in this"
+                                 " browser's WGSL dialect. The shader declares"
+                                 " var<immediate> and cannot compile here (R3 floor).\n";
+                    ok = false;
+                }
+                if (!(surface & 2)) {
+                    std::cout << "[Floor] STOP — GPUComputePassEncoder.setImmediates is"
+                                 " absent from this browser's WebGPU surface. The patchgen"
+                                 " passes set their params through it every patch; without"
+                                 " it the terrain cannot be generated.\n";
+                    ok = false;
+                }
+#endif
+                if (!ok) {
+                    std::cout << "[Floor] This work needs a current Chromium-based browser"
+                                 " with WebGPU immediates. Nothing further is created —"
+                                 " no shader module, no pipelines, no frame loop."
+                                 " PROBATE_SEAL3.\n";
+                }
+                return ok;
+            }
+
             bool init(
                 wgpu::Device device,
                 const GPUState& gpuState,
@@ -329,6 +439,7 @@ namespace t7 {
                 wgpu::TextureFormat depthFormat
             ) {
                 device_ = device;
+                if (!floorHolds(device)) return false;
                 agentsStateLayout_ = gpuState.agents_state_layout();
                 agentsTexturesLayout_ = gpuState.agents_textures_layout();
                 auraStateLayout_ = gpuState.aura_state_layout();
@@ -362,6 +473,7 @@ namespace t7 {
                 depthFormat_ = depthFormat;
 
                 if (!loadShader()) return false;
+                requestShaderVerdict();   // PROBATE_SEAL3 — see the note above it
 
                 auto t0 = std::chrono::high_resolution_clock::now();
                 if (!createComputePipelines()) return false;
@@ -1411,7 +1523,7 @@ namespace t7 {
                 auto tShader0 = std::chrono::high_resolution_clock::now();
                 shaderModule_ = device_.CreateShaderModule(&desc);
                 auto tShader1 = std::chrono::high_resolution_clock::now();
-                std::cout << "[Renderer] Shader compile:    "
+                std::cout << "[Renderer] Shader compile (create call):    "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(tShader1 - tShader0).count()
                     << " ms\n";
                 return shaderModule_ != nullptr;
@@ -1441,6 +1553,72 @@ namespace t7 {
             // boot path already is (synchronous, pre-frame-loop). On the
             // web that is the browser's own event loop turning; there is
             // no frame in flight to stall.
+            // IT CANNOT BE AWAITED ON THIS TWIN, and pretending otherwise
+            // would be the worse defect. GetCompilationInfo resolves on
+            // the browser's event loop; the boot path is synchronous and
+            // the build carries no -sASYNCIFY (CMakeLists), so a spin
+            // waiting for the verdict would turn a wrong shader into a
+            // hung tab. WaitAny with a timeout needs the same event loop
+            // and TimedWaitAny is not offered on this surface.
+            //
+            // So the request is FIRED here and the verdict lands when it
+            // lands — after pipeline creation, in the common case. What
+            // that buys is still the whole of the Pixel's confusion:
+            // the real errors, with their real line numbers, printed
+            // once, next to a `[Dist]` line that says whether the bytes
+            // were even the right bytes. And an error raises `[Floor]
+            // STOP`, so the visitor gets the card rather than a black
+            // canvas under a scrolling log.
+            //
+            // The corruption case — the one that actually happened — is
+            // already stopped SYNCHRONOUSLY and earlier, by the digest
+            // check in loadShader(): no module is created at all. This
+            // arm is the net under everything else a module can fail at,
+            // and it is honest about being a net rather than a gate.
+            void requestShaderVerdict() {
+                if (!shaderModule_) return;
+                shaderModule_.GetCompilationInfo(
+                    wgpu::CallbackMode::AllowSpontaneous,
+                    [](wgpu::CompilationInfoRequestStatus status,
+                       wgpu::CompilationInfo const* info) {
+                        if (status != wgpu::CompilationInfoRequestStatus::Success) {
+                            // The QUESTION failed, not the shader. An
+                            // unanswered question is not a verdict, and
+                            // must not be reported as one.
+                            std::cout << "[Shader] compilation info unavailable —"
+                                         " the module is unwitnessed\n";
+                            return;
+                        }
+                        if (!info) return;
+                        uint32_t errors = 0, warnings = 0;
+                        for (size_t i = 0; i < info->messageCount; i++) {
+                            const auto& m = info->messages[i];
+                            const std::string text(m.message.data, m.message.length);
+                            if (m.type == wgpu::CompilationMessageType::Error) {
+                                errors++;
+                                std::cout << "[Shader] ERROR " << m.lineNum << ":"
+                                    << m.linePos << " " << text << "\n";
+                            } else if (m.type == wgpu::CompilationMessageType::Warning) {
+                                warnings++;
+                                std::cout << "[Shader] warning " << m.lineNum << ":"
+                                    << m.linePos << " " << text << "\n";
+                            }
+                        }
+                        std::cout << "[Shader] world.wgsl compiled: " << errors
+                            << " error(s), " << warnings << " warning(s)\n";
+                        if (errors) {
+                            std::cout << "[Floor] STOP — world.wgsl did not compile."
+                                         " Every [Pipeline] number in this log is a"
+                                         " create call on a module that never compiled,"
+                                         " not a compile time. If the errors above name"
+                                         " a line near the END of the file, read the"
+                                         " [Dist] line first: a truncated serve reads"
+                                         " exactly like a syntax error."
+                                         " PROBATE_SEAL3.\n";
+                        }
+                    });
+            }
+
             bool createComputePipelines() {
                 // The FRAME_K pipeline layout: WORLD + FRAME_C + the frame-k
                 // pair. Serves update_camera and compute_vp — the two kernels

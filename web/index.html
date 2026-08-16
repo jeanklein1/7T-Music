@@ -470,6 +470,39 @@
       record('[shell] FALLBACK: ' + reason);
     }
 
+    // PROBATE_SEAL3 — STATE 2b: the program itself ruled the device out.
+    //
+    // Distinct from fallback(), and the distinction is the point.
+    // fallback() fires when the SHELL cannot find WebGPU at all. This
+    // fires when WebGPU is present, the wasm booted, and the program's
+    // own floor found the one thing it cannot do without — the immediate
+    // address space, its granted size, the encoder method that sets it,
+    // or a shader whose bytes match the ones this build shipped.
+    //
+    // Until now that verdict was a console line the program printed and
+    // then ignored: it went on to compile a shader it had just said
+    // could not compile, ran a frame loop against a dead device, and
+    // filled the log with thousands of validation errors while the
+    // visitor watched a black canvas. On Firefox the missing JS surface
+    // threw uncaught, every frame. The card is what a person should have
+    // been meeting for all of it.
+    //
+    // Jean gates the exact wording and the look; this is the sober
+    // default. Reload is NOT offered — a browser does not grow a feature
+    // between two presses of the same button, and offering the retry
+    // would be the interface lying about what went wrong.
+    function floor(reason) {                // STATE 2b — ruled out by the program
+      if (terminal) return;
+      terminal = true;
+      showCard(
+        'This work needs a current Chromium-based browser with WebGPU immediates.',
+        'It runs today in Chrome and Edge on Android and desktop. A recording lives ' +
+        'above. If you want to see it on the machine you have, ' + CONTACT + '.',
+        false
+      );
+      record('[shell] FLOOR: ' + reason);
+    }
+
     function lost(reason) {                 // STATE 3 — was running, then died
       // Fires even after the veil lifted: a death mid-flight must
       // REPLACE the world, not sit invisibly behind a frozen frame.
@@ -852,6 +885,14 @@
       // TERMINAL STATES FIRST — these tests must win over any status
       // wording, and each binds to a line whose text is load-bearing
       // where it is printed.
+      // PROBATE_SEAL3 — the program's own floor outranks every status
+      // line, and it is checked FIRST among the terminal tests because
+      // it is the only one that fires while the boot still looks
+      // healthy: the wasm is running, WebGPU exists, and the device is
+      // simply not one this work can run on. `[Floor] STOP` is printed
+      // exactly where the floor fails (renderer.hpp floorHolds, and
+      // loadShader for the serve digest) and is load-bearing text there.
+      if (text.indexOf('[Floor] STOP') > -1) { floor(text); return; }
       if (text.indexOf('[Device] LOST') > -1) { lost(text); return; }
       if (text.indexOf('RequestAdapter failed:') > -1) { fallback(text); return; }
       if (text.indexOf('Failed to create WebGPU instance') > -1) { fallback(text); return; }
