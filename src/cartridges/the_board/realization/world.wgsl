@@ -15,9 +15,16 @@
 // The web twin is the program (SUNSET_0; native archived at tag
 // native-sunset). Supported compilers: Tint→DXC (SM6.0+) on
 // Windows Chrome,
-// Tint→MSL, Tint→SPIR-V, naga (Firefox). FXC is unsupported;
-// its retired laws live in audit/FXC_LAWS_RECORD.md. naga is
-// the per-commit gate (CC); the web build + boot is the witness of
+// Tint→MSL, Tint→SPIR-V. Firefox: PENDING — naga 30 lacks
+// immediate_address_space; the floor of record is the Tint trio
+// until a Firefox boot witnesses otherwise (Jean's witness,
+// queued). FXC is unsupported;
+// its retired laws live in audit/FXC_LAWS_RECORD.md. naga gates
+// the module THROUGH THE IMMEDIATE SHIM (tools/wgsl_gate.py; the
+// transform is the gate's pinned half). The immediate address
+// space itself is witnessed by boots alone — one generation wider
+// than the blind spot this block already names. The web build +
+// boot is the witness of
 // record; the [Pipeline] timer prices compile time per kernel.
 // NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance and
 // minBindingSize are Dawn's checks at pipeline creation, so the web boot

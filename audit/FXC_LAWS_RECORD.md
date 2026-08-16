@@ -159,3 +159,10 @@ history tense or is the pivot statement itself.
 | 2026-08-12 | 110 → 74 | PIVOT_0c despelled the ROSTER-GATE boilerplate: one lesson counted forty times |
 | between PIVOT_0c and 3e18c39 | 74 → 68 | six sites left the index across two campaigns without the preamble following — the hand number this section exists to retire |
 | PROBATE (2026-08-16) | 68 → 68 | orb_sample_palette out (FXC was its sole trigger); update_sphere in (named by the rewritten kernel-split banner citing the Table E bar) |
+
+## PROBATE_E appendix — the gate ruling of 2026-08-16 (E3)
+
+| symbol / site | ruling | old text (verbatim) |
+|---|---|---|
+| `(file banner)` — COMPILER FLOOR block, `world.wgsl`, the supported-compilers line | AMENDED | `// Tint→MSL, Tint→SPIR-V, naga (Firefox). FXC is unsupported;` — naga 30 rejects `requires immediate_address_space;` outright, so no naga-backed browser has been witnessed compiling this module since DOMESDAY_2 F3-a introduced the directive. Firefox is marked **PENDING** rather than supported: the floor of record is the Tint trio until one Firefox boot testifies. Claiming a compiler the program has never seen accept it is the same class of error as a count with two homes. |
+| `(file banner)` — COMPILER FLOOR block, `world.wgsl`, the per-commit gate clause | AMENDED | `// its retired laws live in audit/FXC_LAWS_RECORD.md. naga is` `// the per-commit gate (CC); the web build + boot is the witness of` `// record; the [Pipeline] timer prices compile time per kernel.` — the clause named a gate that had been failing open for a whole campaign: naga refused the module at `3e18c39` and at every commit back to F3-a, and nothing said so. The gate is now `tools/wgsl_gate.py`, whose transform is pinned in the tree, and the banner names the blind spot the transform creates — the immediate address space itself, witnessed by boots alone. |
