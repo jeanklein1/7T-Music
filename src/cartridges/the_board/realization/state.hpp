@@ -2045,8 +2045,11 @@ namespace t7 {
             uint32_t meterPairCount_ = 0;
             uint32_t meterNextIndex_ = 0;
 
-            wgpu::Buffer patchParamsBuffer_;
-            wgpu::Buffer patchStagingBuffer_;    // N×GPUPatchParams for batched generation
+            // PROBATE_I: patchParamsBuffer_ and patchStagingBuffer_ are
+            // retired. `patch_params` is `var<immediate>` (world.wgsl
+            // §7.0a) and GPUPatchParams is the value type handed to
+            // SetImmediates at the dispatch site — no seat, no backing,
+            // no 225-slot ladder to take turns in.
             wgpu::Buffer patchInstancesBuffer_;
             // OIL_1 U10: shadow of the last-uploaded instance packing +
             // first-upload flag — the upload_patch_instances gate.
@@ -2478,9 +2481,9 @@ namespace t7 {
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
-            void upload_patch_params(wgpu::Queue& queue, const GPUPatchParams& params) {
-                writeStruct(queue, patchParamsBuffer_, params);
-            }
+            // PROBATE_I: upload_patch_params is retired with its buffer —
+            // the params reach the shader through SetImmediates on the
+            // patchgen compute passes (surface/patch_system.hpp).
 
             void upload_tile_grid(wgpu::Queue& queue, const GPUTileGrid& grid) {
                 writeStruct(queue, tileGridBuffer_, grid);
@@ -3613,14 +3616,10 @@ namespace t7 {
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
 
             // --- Batch patch generation ---
-            wgpu::Buffer patch_params_buffer() const { return patchParamsBuffer_; }
-            wgpu::Buffer patch_staging_buffer() const { return patchStagingBuffer_; }
-            void upload_patch_staging(wgpu::Queue& queue, const GPUPatchParams* params,
-                uint32_t count, uint32_t offset = 0) {
-                queue.WriteBuffer(patchStagingBuffer_,
-                    offset * sizeof(GPUPatchParams),
-                    params, sizeof(GPUPatchParams) * count);
-            }
+            // PROBATE_I: the three staging doors — patch_params_buffer,
+            // patch_staging_buffer and upload_patch_staging — are retired
+            // with the two buffers behind them. A batch's params are CPU
+            // values now, set per patch on the pass encoder.
 
         private:
 
@@ -3916,10 +3915,11 @@ namespace t7 {
                         METER_QUERY_COUNT * sizeof(uint64_t),
                         wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 }
-                patchParamsBuffer_ = makeBuffer("Patch Params", sizeof(GPUPatchParams), UU);
-                patchStagingBuffer_ = makeBuffer("Patch Params Staging",
-                    sizeof(GPUPatchParams) * Dim::MAX_ACTIVE_PATCHES,
-                    wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                // PROBATE_I: "Patch Params" (32 B) and "Patch Params
+                // Staging" (225 × 32 B) are no longer created — the
+                // immediates lane carries the struct, so the budget
+                // stops paying for a buffer pair the pass encoder
+                // replaces.
                 tileGridBuffer_ = makeBuffer("Tile Grid", sizeof(GPUTileGrid), UU);
                 patchInstancesBuffer_ = makeBuffer("Patch Instances",
                     sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES,
@@ -3996,8 +3996,8 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
-                    vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ && patchParamsBuffer_ &&
-                    patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
+                    vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
+                    tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&

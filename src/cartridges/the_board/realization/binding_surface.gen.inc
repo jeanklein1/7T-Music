@@ -538,19 +538,15 @@
 
                 // Patchgen State Layout — stratum 2 (Patchgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
-                    entries[0].binding = bind::g2::patch_params;
+                    entries[0].binding = bind::g2::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[1].binding = bind::g2::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
+                    entries[1].binding = bind::g2::pyramid_instances;  // pyramid_instances
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g2::pyramid_instances;  // pyramid_instances
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Patchgen State Layout";
@@ -1532,19 +1528,15 @@
 
                 // Projected from: patchGenBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
 
-                    entries[0].binding = bind::g2::patch_params;
-                    entries[0].buffer = patchParamsBuffer_;
-                    entries[0].size = sizeof(GPUPatchParams);
+                    entries[0].binding = bind::g2::patch_height_scratch;
+                    entries[0].buffer = patchHeightScratchBuffer_;
+                    entries[0].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
 
-                    entries[1].binding = bind::g2::patch_height_scratch;
-                    entries[1].buffer = patchHeightScratchBuffer_;
-                    entries[1].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
-
-                    entries[2].binding = bind::g2::pyramid_instances;
-                    entries[2].buffer = pyramidInstancesBuffer_;
-                    entries[2].size = sizeof(GPUPyramidArray);
+                    entries[1].binding = bind::g2::pyramid_instances;
+                    entries[1].buffer = pyramidInstancesBuffer_;
+                    entries[1].size = sizeof(GPUPyramidArray);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Patchgen State BindGroup";

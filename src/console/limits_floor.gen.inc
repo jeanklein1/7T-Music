@@ -11,4 +11,4 @@ inline constexpr uint32_t FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE = 8;  // co
 inline constexpr uint32_t FLOOR_MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE = 12;  // core-default — the wallet fits the default; worst row per MANIFEST's lane table
 inline constexpr uint32_t FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE      = 65536;  // core-default — every uniform window sits well under 64 KiB
 inline constexpr uint32_t FLOOR_MAX_BIND_GROUPS                      = 4;  // core-default — the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design
-inline constexpr uint32_t FLOOR_MAX_IMMEDIATE_SIZE                   = 4;  // sizeof(uint32_t) — the shadow light index (DOMESDAY_1 B6) — the lane statute grants 64; the program stands on 4
+inline constexpr uint32_t FLOOR_MAX_IMMEDIATE_SIZE                   = 32;  // sizeof(GPUPatchParams) — the patchgen params (PROBATE_I) — the lane statute grants 64; the program stands on 32; shadow_slot rides within it

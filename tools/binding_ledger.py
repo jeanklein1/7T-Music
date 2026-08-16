@@ -1807,7 +1807,12 @@ def imm_bytes_of(expr, w=None):
     if e.isdigit():
         return int(e)
     known = {"sizeof(uint32_t)": 4, "sizeof(u32)": 4, "sizeof(float)": 4,
-             "sizeof(uint64_t)": 8}
+             "sizeof(uint64_t)": 8,
+             # PROBATE_I: the patchgen params struct. 32 is not asserted
+             # here — state.hpp carries
+             # `static_assert(sizeof(GPUPatchParams) == 32)`, so the
+             # struct's own home is what holds this entry honest.
+             "sizeof(GPUPatchParams)": 32}
     if e in known:
         return known[e]
     if w is not None:

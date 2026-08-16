@@ -1386,7 +1386,8 @@ namespace t7 {
 
                 // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
+                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
                         pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
@@ -1394,7 +1395,8 @@ namespace t7 {
 
                 // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
+                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
                         pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
@@ -1402,7 +1404,8 @@ namespace t7 {
 
                 // Pipeline: generate_patch_cells (2D, on demand)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
+                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_cells", "Generate Patch Cells (2D, on demand)",
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
