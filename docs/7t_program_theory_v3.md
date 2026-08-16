@@ -69,7 +69,13 @@ pier fused two concepts the taxonomy always kept apart —
 Piers are thereby demoted from system to CAST: one realization of
 rule + ornament, kept where it pleases the eye, replaceable where it
 does not. The FXC realization laws (proxied rect solids, bounded
-loops, no new branches) are CAST-SCOPED and stand untouched. The
+loops, no new branches) were CAST-SCOPED, and they are RETIRED —
+struck as L2 by PIVOT_0, 2026-08-12; the record is
+`audit/FXC_LAWS_RECORD.md`. The shapes they produced are still in the
+tree and are not thereby wrong; they are simply no longer required,
+and undoing one needs its own measurement. What the cast-scoping
+claim asserted survives the retirement intact: those laws never
+reached above the realization line. The
 honest boundary holds: a heightfield is one-height-per-column; the
 substrate-direction generalization remains a declared future cast.
 
@@ -199,8 +205,10 @@ THE PROGRAM IS THE THEORY; WebGPU IS L5'S CURRENT CAST. GPU
 sovereignty split intent from realization; the arrow law pushed
 realization to the leaves; strata, roles, drivers, sampler, witness,
 contracts are engine-agnostic sentences. Leaving Dawn would be a
-recast of L5 plus retirement of the cast-scoped FXC laws — everything
-above that line travels whole. The systematicity is the asset; the
+recast of L5 alone — the cast-scoped FXC laws are already retired
+(PIVOT_0; `audit/FXC_LAWS_RECORD.md`), so that half of the price is
+paid — and everything above that line travels whole. The
+systematicity is the asset; the
 engine is its current instrument.
 
 ## COMPLETION CRITERION (v3)

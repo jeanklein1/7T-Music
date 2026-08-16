@@ -1,5 +1,7 @@
 # Dawn — build reference
 
+Documents the ARCHIVED native build (native-sunset, PIVOT_0). Kept as record; nothing here binds the web twin.
+
 Dawn is a prebuilt external dependency, not a submodule. This document
 records HOW the Dawn tree at `C:\dev\dawn\out` was produced.
 

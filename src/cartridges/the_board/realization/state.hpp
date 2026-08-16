@@ -4878,10 +4878,12 @@ namespace t7 {
                 config_.veil_dither = 0.0f;   // THE RIM: default = icing tints (mechanism 1 alone)
                 // THE MOSAIC (MOSAIC_0/1) — trencadís dials, pinned at rest.
                 // THE MOSAIC IS ON (MOSAIC_2). The probe's reason for a
-                // runtime gate is discharged — FXC compiled the walk. The
-                // dial stays as the panel's switch and METER_1's A/B, and it
-                // rests open. No key binds it: a key is diagnostics, this is
-                // the design.
+                // runtime gate is discharged — the walk compiles on the
+                // supported floor. (The compiler that first proved it was
+                // FXC, retired at PIVOT_0; audit/FXC_LAWS_RECORD.md
+                // §PROBATE.) The dial stays as the panel's switch and
+                // METER_1's A/B, and it rests open. No key binds it: a key
+                // is diagnostics, this is the design.
                 config_.mosaic_enable        = 1.0f;
                 config_.mosaic_shard_size    = Dim::MOSAIC_SHARD_SIZE_DEFAULT;
                 config_.mosaic_passage_scale = Dim::MOSAIC_PASSAGE_DEFAULT;
