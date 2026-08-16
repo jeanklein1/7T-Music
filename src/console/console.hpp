@@ -2005,11 +2005,10 @@ namespace t7 {
 
     public:
         void shutdown() {
-            // WIT_2 — the session's verdict, once. Printed even at zero:
-            // a witness that only speaks when it has bad news is
-            // indistinguishable from a witness that was never armed.
-            std::cout << "[METER] dropped_submits " << t7::g_dropped_submits
-                      << " (session total)\n";
+            // WIT_2b — the session's verdict, through the one formatting
+            // site (core/instruments.hpp), so teardown and the window close
+            // cannot drift into two spellings of one witness.
+            t7::print_dropped_submits("session total");
             if (window_) {
                 glfwDestroyWindow(window_);
                 window_ = nullptr;

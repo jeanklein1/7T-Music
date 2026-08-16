@@ -1592,7 +1592,16 @@ namespace t7 {
                         meter_.reset();
                     }
                     else if (INSTRUMENTS.frame_meter && meter_.window_frames > 0) {
-                        char line[160];
+                        // WIT_2b — 256, not 160. Pulling dropped_submits out of
+                        // this header brought the realistic line back to 149 of
+                        // 160, and a 10-byte margin is precisely how the last
+                        // one was lost: a hostile window (seven-digit frame
+                        // counts, four-digit fps, a wide envelope) still renders
+                        // 169. Sizing for the worst case retires the CLASS of
+                        // defect instead of this instance of it. A char[256] on
+                        // the stack, once per 30 s window, costs nothing worth
+                        // counting.
+                        char line[256];
                         const float wall_s = std::chrono::duration<float>(
                             std::chrono::steady_clock::now() - meter_.window_start).count();
                         const float fps = wall_s > 0.0f
@@ -1607,7 +1616,7 @@ namespace t7 {
                                 // full note.
                                 "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms"
                                 " | envelope mean %.2f max %.2f ms -> purse %.2f ms"
-                                " | gpu mean/max (per-frame sum) | dropped_submits %u\n",
+                                " | gpu mean/max (per-frame sum)\n",
                                 meter_.window_frames, fps, meter_.gpu_sampled_frames,
                                 FrameMeter::FRAME_BUDGET_MS,
                                 // HEADROOM_0 U1 — the purse. The envelope is a
@@ -1620,15 +1629,15 @@ namespace t7 {
                                 (double)meter_.gpu_envelope.max_ms,
                                 FrameMeter::FRAME_BUDGET_MS -
                                     (meter_.gpu_sampled_frames > 0
-                                        ? meter_.gpu_envelope.sum_ms / meter_.gpu_sampled_frames : 0.0),
-                                t7::g_dropped_submits);   // WIT_2
+                                        ? meter_.gpu_envelope.sum_ms / meter_.gpu_sampled_frames : 0.0));
                         else
                             std::snprintf(line, sizeof line,
-                                "[METER] window %uf  fps %.1f | budget %.1f ms"
-                                " | dropped_submits %u\n",
-                                meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS,
-                                t7::g_dropped_submits);
+                                "[METER] window %uf  fps %.1f | budget %.1f ms\n",
+                                meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS);
                         std::cout << line;
+                        // WIT_2b — alone, and unconditional. Never appended to
+                        // a formatted line again.
+                        t7::print_dropped_submits("window");
                         double u_sum = 0.0, r_sum = 0.0;
                         for (const URow& row : UPDATE_SPINE) {
                             if (!row.enabled) continue;

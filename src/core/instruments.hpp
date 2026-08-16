@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstdio>   // WIT_2b — the witness prints its own line
 
 // ═══ THE INSTRUMENTS DIAL ════════════════════════════════════════════
 //
@@ -111,6 +112,27 @@ namespace t7 {
     // mechanism for one-shot GPU work earns its place — and not before,
     // because a re-arm that hides a dropped frame is worse than the frame.
     inline uint32_t g_dropped_submits = 0;
+
+    // ── WIT_2b — AND IT GETS ITS OWN LINE ─────────────────────────────
+    //
+    // WIT_2 appended the count to the [METER] window header and it was
+    // never once read on a machine that had it to report. The header is
+    // formatted with snprintf into char[160]; with the GPU arm armed the
+    // line renders 169 characters, ` | dropped_submits` begins at byte
+    // 148, and the buffer cuts at 159 — mid-token, at `| dropped_`. The
+    // CPU arm fits in 68, so the counter printed on exactly the machines
+    // that had no timestamp-query and stayed silent on every machine that
+    // did. A witness appended to a crowded line is a witness with a
+    // truncation hazard for a mouth.
+    //
+    // So it speaks alone, and it speaks ALWAYS — including at zero, which
+    // is the whole point: a witness that only speaks when guilty cannot be
+    // distinguished from one that was never armed. One formatting site,
+    // here, beside the counter; the window close and the teardown both
+    // call it rather than each spelling the line their own way.
+    inline void print_dropped_submits(const char* when) {
+        std::printf("[WIT] dropped_submits %u (%s)\n", g_dropped_submits, when);
+    }
 
     // THE FIRST EDGE — a meter that measures and never reports is a cost
     // with no reading. The [METER] table prints on the census cadence (one
