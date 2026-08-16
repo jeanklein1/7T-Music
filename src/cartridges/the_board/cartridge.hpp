@@ -1609,7 +1609,7 @@ namespace t7 {
                                 // full note.
                                 "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms"
                                 " | envelope mean %.2f max %.2f ms -> purse %.2f ms"
-                                " | gpu mean/max (per-frame sum)\n",
+                                " | gpu mean/max (per-frame sum) | dropped_submits %u\n",
                                 meter_.window_frames, fps, meter_.gpu_sampled_frames,
                                 FrameMeter::FRAME_BUDGET_MS,
                                 // HEADROOM_0 U1 — the purse. The envelope is a
@@ -1622,11 +1622,14 @@ namespace t7 {
                                 (double)meter_.gpu_envelope.max_ms,
                                 FrameMeter::FRAME_BUDGET_MS -
                                     (meter_.gpu_sampled_frames > 0
-                                        ? meter_.gpu_envelope.sum_ms / meter_.gpu_sampled_frames : 0.0));
+                                        ? meter_.gpu_envelope.sum_ms / meter_.gpu_sampled_frames : 0.0),
+                                t7::g_dropped_submits);   // WIT_2
                         else
                             std::snprintf(line, sizeof line,
-                                "[METER] window %uf  fps %.1f | budget %.1f ms\n",
-                                meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS);
+                                "[METER] window %uf  fps %.1f | budget %.1f ms"
+                                " | dropped_submits %u\n",
+                                meter_.window_frames, fps, FrameMeter::FRAME_BUDGET_MS,
+                                t7::g_dropped_submits);
                         std::cout << line;
                         double u_sum = 0.0, r_sum = 0.0;
                         for (const URow& row : UPDATE_SPINE) {

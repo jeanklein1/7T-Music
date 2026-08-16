@@ -27,6 +27,7 @@
 
 #include "core/input_event.hpp"
 #include "core/boot_params.hpp"   // DOMESDAY_1 B9 — ?cap= / --cap= (effective_pixel_cap below)
+#include "core/instruments.hpp"  // WIT_2 — t7::g_dropped_submits, the frame-validity witness
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -250,6 +251,25 @@ namespace t7 {
     // Nothing releases it: Emscripten does not run static destructors
     // (EXIT_RUNTIME is off and main never returns — it unwinds).
     inline wgpu::Instance g_instanceAnchor;
+
+    // ═══ WIT_2 — IS THIS ERROR A DROPPED FRAME? ══════════════════════
+    //
+    // Dawn reports a submit of an invalidated command buffer as a
+    // VALIDATION error naming the command buffer as invalid. Matching on
+    // both halves — the type AND the two words — keeps the count off every
+    // other validation error the program could ever raise, which matters
+    // because the number's whole value is that zero means one specific
+    // thing. Substring matching is the honest tool here: the message text is
+    // Dawn's to word, so a stricter parse would be a guess about a string we
+    // do not own, and a looser one would count the wrong frames.
+    inline void note_if_dropped_submit(wgpu::ErrorType type, std::string_view msg) {
+        if (type != wgpu::ErrorType::Validation) return;
+        if (msg.find("CommandBuffer") == std::string_view::npos &&
+            msg.find("command buffer") == std::string_view::npos) return;
+        if (msg.find("invalid") == std::string_view::npos &&
+            msg.find("Invalid") == std::string_view::npos) return;
+        ++t7::g_dropped_submits;
+    }
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -604,8 +624,10 @@ namespace t7 {
             // Deliberately unguarded — boot wants verbose errors.
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) {
+                    const std::string_view text(msg.data, msg.length);
                     std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
-                        << std::string_view(msg.data, msg.length) << std::endl;
+                        << text << std::endl;
+                    note_if_dropped_submit(type, text);   // WIT_2
                 });
             // PORT_3a — the loss door. AllowSpontaneous so it fires from
             // the browser event loop without a pump. `this` is safe to
@@ -1355,8 +1377,10 @@ namespace t7 {
 
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
+                    const std::string_view text(message.data, message.length);
                     std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
-                        << std::string_view(message.data, message.length) << std::endl;
+                        << text << std::endl;
+                    note_if_dropped_submit(type, text);   // WIT_2
                 });
             // PORT_3a — the loss door, installed on BOTH twins. Native
             // loss is rarer but real (TDR, GPU reset, driver update), the
@@ -2486,6 +2510,11 @@ namespace t7 {
 
     public:
         void shutdown() {
+            // WIT_2 — the session's verdict, once. Printed even at zero:
+            // a witness that only speaks when it has bad news is
+            // indistinguishable from a witness that was never armed.
+            std::cout << "[METER] dropped_submits " << t7::g_dropped_submits
+                      << " (session total)\n";
             if (window_) {
                 glfwDestroyWindow(window_);
                 window_ = nullptr;

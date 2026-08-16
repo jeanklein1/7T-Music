@@ -88,6 +88,30 @@ namespace t7 {
     inline constexpr Instruments INSTRUMENTS =
         instruments_config( T7_INSTRUMENT_COL(T7_INSTRUMENTS) );
 
+    // ═══ WIT_2 — THE DROPPED-SUBMIT WITNESS ══════════════════════════
+    //
+    // Counts uncaptured VALIDATION errors whose message names an invalid
+    // command buffer at submit — the signature of a whole frame being
+    // thrown away. ACQ_0 removed the cause that made this happen (a depth
+    // attachment that disagreed with the acquired texture), and this is how
+    // anyone knows it stayed removed: the failure it witnesses is SILENT
+    // otherwise. A dropped submit loses whatever one-shot GPU work happened
+    // to be encoded that frame — spawn patch generation, the ground atlas,
+    // live-card seeding — and the world simply comes up wrong later, far
+    // from here.
+    //
+    // NOT GOVERNED BY THE DIAL, deliberately, and the banner above says why:
+    // this is a loud correctness check, not a recurring measurement. It
+    // increments only when something is WRONG, which is never, so it costs
+    // nothing when right — the same standing the ROSTER residue proof and
+    // the SPINE boot validation have. Turning the meter off must not turn
+    // the witness off, because SOAK's gate reads it.
+    //
+    // SOAK's gate is ZERO. If it ever reads nonzero again, a re-arm
+    // mechanism for one-shot GPU work earns its place — and not before,
+    // because a re-arm that hides a dropped frame is worse than the frame.
+    inline uint32_t g_dropped_submits = 0;
+
     // THE FIRST EDGE — a meter that measures and never reports is a cost
     // with no reading. The [METER] table prints on the census cadence (one
     // interval, one paste-back block), so the timing arm REQUIRES the census
