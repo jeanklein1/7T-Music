@@ -60,8 +60,8 @@ witness. Nothing about it changed.
 
 **The witness protocol survives too**, minus the compiler it named: a
 shader-shape change is proven by witnesses, never by argument, and no
-witness substitutes for another. naga is the per-commit gate; glaw1 + boot
-is the witness of record; each browser gates at its own.
+witness substitutes for another. naga is the per-commit gate; the web build
++ boot is the witness of record; each browser gates at its own.
 
 *This strike is L15 collecting a debt on the largest referent in the tree —
 see L15, and note that the three retired constraints are exactly the kind
@@ -600,3 +600,12 @@ behavior test.**
 Paid for twice: A7's gallery working set in the render passes, then
 A8's FRAME ro windows and collapsed orb faces at the compute
 dispatches — the same law, learned one scope at a time.
+
+## SUNSET_0 (2026-08-16) — the web twin is the program
+Native is archived at tag `native-sunset`. Resurrection is
+archaeology from the tag, not maintenance. The witness chain is:
+naga gates the WGSL module per commit (CC-runnable); the web build
++ boot witnesses pipeline-layout conformance and minBindingSize
+(the classes naga cannot see — ATLAS_1revB). The audience floor
+(WebGPU core defaults) and the compiler floor (PIVOT_0) are
+unchanged by this sunset.

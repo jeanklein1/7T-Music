@@ -1,8 +1,10 @@
 # emdawnwebgpu — THE PIN
 
-*one-generation law — the web twin's WebGPU generation is this pin; the
-native checkout tracks it; a reference document without a stated
-revision is RECALLED, not CITED.*
+*one-generation law — the program's WebGPU generation is this pin; a
+reference document without a stated revision is RECALLED, not CITED.
+(Until SUNSET_0 the law had a second clause, that the native checkout
+track the pin. That clause is history: the twin was archived at tag
+`native-sunset` instead of caught up.)*
 
 DOMESDAY_2 F5-a. This is the law's first enforcement.
 

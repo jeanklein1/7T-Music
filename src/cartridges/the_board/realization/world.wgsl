@@ -9,17 +9,18 @@
 // sovereign: CPU dead-reckoning exists only for placement, picking,
 // and step decisions; the visual reality is here.
 //
-// THE LAWS THAT GOVERN THIS FILE — src/docs/LAWS.md:
+// THE LAWS THAT GOVERN THIS FILE — docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
 // ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12) ══════════════════
-// This module is single-source for both twins. Supported
-// compilers: Tint→DXC (SM6.0+) on native and Windows Chrome,
+// The web twin is the program (SUNSET_0; native archived at tag
+// native-sunset). Supported compilers: Tint→DXC (SM6.0+) on
+// Windows Chrome,
 // Tint→MSL, Tint→SPIR-V, naga (Firefox). FXC is unsupported;
 // its retired laws live in audit/FXC_LAWS_RECORD.md. naga is
-// the per-commit gate (CC); glaw1 + boot is the witness of
+// the per-commit gate (CC); the web build + boot is the witness of
 // record; the [Pipeline] timer prices compile time per kernel.
 // NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance and
-// minBindingSize are Dawn's checks at pipeline creation, so glaw1/boot
+// minBindingSize are Dawn's checks at pipeline creation, so the web boot
 // witnesses them and naga cannot. ATLAS_1revB caught two defects of
 // exactly that class by hand — a shader referencing bindings its
 // pipeline layout did not carry, and a uniform struct whose 16-byte
@@ -29,9 +30,9 @@
 // Witness protocol, unchanged by the pivot: a shader-shape
 // change is proven by witnesses, not argument, and no witness
 // substitutes for another — each browser gates at its own.
-//   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage; the room
-//   family sits at 6/8 storage — the two occupier windows ride uniform
-//   (TETRIS WALLET_0; demotion record: BINDING_LEDGER Table C).
+//   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage;
+//   per-row occupancy is MANIFEST.md's lane table — the banner names
+//   the witness, not its value (TETRIS WALLET_0; demotions: Table C).
 //   This budget is L14, NOT a compiler law: core defaults bind on
 //   every backend and survived FXC's retirement unchanged.
 //   L3  mirror — §2.1 structs ↔ state.hpp byte-for-byte; §3.4
@@ -149,9 +150,8 @@
 // Generation note (DOMESDAY_2 F5): at the pinned emdawnwebgpu
 // generation this extension is STANDARD and Tint reports it
 // FeatureStatus::kShipped — exposed by default, no instance control.
-// Older generations gate it: at the native checkout's f0bf8ab it is
-// kUnsafeExperimental, which Dawn opens only for the instance toggle
-// `allow_unsafe_apis` (console.hpp, F5-d). See
+// Older generations gate it at a tier an instance has to open, which
+// is why the pin is a pin and not a preference. See
 // third_party/emdawnwebgpu/PINNED.md.
 requires immediate_address_space;
 
@@ -1099,7 +1099,7 @@ struct TileGridEntry {
 // TILE_GRID ceiling — the pinned capacity pair's WGSL half; twin:
 // Dim::TILE_GRID_CAPACITY (state.hpp). Authored, NOT derived from the
 // radius — the dial never touches it. Raise it in BOTH rooms or
-// glaw1/Dawn objects.
+// the compile gate/Dawn objects.
 const TILE_GRID_CAPACITY: u32 = 1024u;
 
 struct TileGrid {
@@ -1755,9 +1755,9 @@ struct DesignConfig {
 // TWO ROOMS, ONE PANEL — the mirror rule (the binding-registry
 // ceiling, said honestly): the C++ room is surface/terrain_looks.hpp.
 // Same rows, same order. No machine gate crosses the language gap —
-// glaw1 is WGSL-blind and WGSL cannot include headers — so the
-// discipline is: every VALUE lives in exactly ONE room, and the other
-// room carries the row as a named pointer only (no cross-language
+// the C++ compile gate is WGSL-blind and WGSL cannot include headers
+// — so the discipline is: every VALUE lives in exactly ONE room, and
+// the other room carries the row as a named pointer only (no cross-language
 // number exists to drift). The only shared text is the row index
 // below. Nets: the boot rig (the world must look identical) for
 // values; Dawn binding validation for uniform layout; the C6 registry
