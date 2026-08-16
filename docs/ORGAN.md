@@ -17,6 +17,27 @@ Idleness law restated: a parameter without a coupling in this run is
 a control-panel design constant; any procedural parameter is a
 coupling candidate by design.
 
+## The tier determines the dial (ORGAN_2)
+THE RULING. A parameter's tier decides what kind of dial it may wear.
+A driven parameter gets dials on its DRIVER — rest value, gain,
+range — and never a dial on the value. Putting a tier-1 dial on a
+tier-3 parameter builds a control that argues with the driver every
+frame and loses every frame; the operator sees a slider that snaps
+back and reads it as a broken panel rather than as a parameter that
+already has an author.
+
+WHAT THIS SETTLES. O1a's per-frame readings are not defects and want
+no repair. `fog_density`, `fog_color`, `aura_enabled` and
+`pawn_aura_height` are tier-3 parameters wearing tier-1 dials — the
+enrollment was wrong about the tier, not the plumbing. The write path
+reaches them correctly (O1d proved the upload is honest); their
+drivers simply speak again a millisecond later, which is what a
+driver is for.
+
+WHAT IT DOES NOT SETTLE. A driven parameter still needs somewhere
+durable to put a rest value and a gain, and that surface does not
+exist yet. Naming the ruling is not the same as building it.
+
 ## The compiled-registry law
 The registry is COMPILED, not parsed. Enrollment is one macro line
 beside the field it enrolls; the compiler produces the manifest from
@@ -99,15 +120,23 @@ instance value by id alone, so one file can carry several moods and
 an import puts each back where it came from.
 
 ### Open for ORGAN_2
-- Twelve of the sixteen enrolled dials have no definition target.
-  Four (atmosphere) have no mood field to define; eight (the tiers)
-  have an author that is not a mood, so `MoodProfile` is the wrong
-  place to reach for. Any of them that O1a reads as PER-FRAME is a
-  dial whose panel write cannot last and has nowhere durable to go —
-  that is the finding, and it wants a definition surface of its own,
-  not a target invented in `MoodProfile`.
-- `clear_color` is the mirror case: a definition with no instance
-  dial, because `clearColor_` is not one of the three homes.
+Twelve of the sixteen enrolled dials have no definition target, and
+they divide into two different problems.
+
+- THE FOUR ATMOSPHERE DIALS are DRIVEN, and the ruling above is their
+  answer: they must not carry a dial on the value at all. What they
+  need is a driver surface — rest value, gain, range on
+  `phase_motion_drivers`' canvas pipe and on `tick_pawn_couplings`'
+  presence ramp. Inventing a `MoodProfile` field for them would give
+  a tier-3 parameter a tier-1 definition and lose the same argument
+  one layer up.
+- THE EIGHT AGENT-TIER DIALS have an author that is not a mood
+  (`upload_agent_registries`, once at world init), so `MoodProfile`
+  is the wrong place to reach for. They need a non-mood definition
+  surface — a definition that belongs to the world rather than to the
+  mood.
+- `clear_color` is the mirror case: a definition with no home on the
+  panel's side, because `clearColor_` is not one of the three homes.
 - `config.sun_direction` beside `lighting.sun.direction` — two
   apparent homes for one fact, carried in from CHORD.
 
@@ -164,9 +193,10 @@ which function did the writing.
 A CONFIG dial that loses its value therefore loses it to a CPU AUTHOR, not
 to the upload. `fog_density` / `fog_color` are rewritten every frame by
 `phase_motion_drivers` from the visual canvas; `aura_enabled` /
-`pawn_aura_height` every frame by `tick_pawn_couplings`. That is an
-ORGAN_2 question — those four need a definition surface — and not
-something the write path can fix.
+`pawn_aura_height` every frame by `tick_pawn_couplings`. Nothing in the
+write path can fix that, and nothing should try: by the ORGAN_2 ruling
+these are tier-3 parameters wearing tier-1 dials, and the repair is a
+driver surface, not a definition for the value.
 
 ## Access
 The panel exists only under `?organ=1`; backtick toggles visibility.
