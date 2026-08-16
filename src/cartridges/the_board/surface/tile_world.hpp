@@ -314,7 +314,7 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     }
 
     static constexpr uint32_t POOL_IDX = 3;
-    if (MOOD_TABLE[c->mood_state_.active].indoor) {
+    if (mood_def(c->mood_state_.active).indoor) {
         weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
     }
     else {

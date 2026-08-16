@@ -676,7 +676,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     PawnState& pawn_state) {
     mood = std::min(mood, MOOD_COUNT - 1);
     c->mood_state_.active = mood;
-    const auto& m = MOOD_TABLE[mood];
+    const auto& m = mood_def(mood);   // O1b — the definition IN FORCE
 
     // Frustum cull is mood-driven (not tied to indoor/outdoor).
     c->renderer_.set_frustum_cull_active(m.allow_frustum_cull);
@@ -900,7 +900,7 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
         float room_half = (bmax - bmin) * 0.5f;
 
         float WALL_MARGIN;
-        if (MOOD_TABLE[c->mood_state_.active].indoor) {
+        if (mood_def(c->mood_state_.active).indoor) {
             const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
             const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
             const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
@@ -956,7 +956,7 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
             chosen_rotation = candidates[side].rotation;
         }
 
-        const auto& retMood = MOOD_TABLE[c->mood_state_.back_portal_return_mood % MOOD_COUNT];
+        const auto& retMood = mood_def(c->mood_state_.back_portal_return_mood);
         PortalDestination dest{};
         dest.seed = c->mood_state_.back_portal_return_seed;
         dest.finite = retMood.finite;
@@ -985,7 +985,7 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
     // ─── Non-finite fallback (open-world back-portal) ───────────────
     // Open worlds don't normally request back-portals, but if they do
     // we keep the legacy fixed-position behavior at backPortalPosition_.
-    const auto& retMood = MOOD_TABLE[c->mood_state_.back_portal_return_mood % MOOD_COUNT];
+    const auto& retMood = mood_def(c->mood_state_.back_portal_return_mood);
     PortalDestination dest{};
     dest.seed = c->mood_state_.back_portal_return_seed;
     dest.finite = retMood.finite;
@@ -1019,7 +1019,7 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     float room_half = (bmax - bmin) * 0.5f;
 
     float margin;
-    if (MOOD_TABLE[c->mood_state_.active].indoor) {
+    if (mood_def(c->mood_state_.active).indoor) {
         const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
         const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
         const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
@@ -1106,7 +1106,7 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         // Fixed destinations by order: [0] deeper in, [1] the way out
         uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7800u + i);
         uint32_t mood = fwd_moods[spawned];
-        const auto& mp = MOOD_TABLE[mood];
+        const auto& mp = mood_def(mood);
         PortalDestination dest{};
         dest.seed = dest_seed;
         dest.mood = mood;
@@ -1165,7 +1165,7 @@ inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCt
 
     uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 8800u);
     uint32_t mood = pick_portal_mood(c->world_state_.active_seed, 8900u);
-    const auto& mp = MOOD_TABLE[mood];
+    const auto& mp = mood_def(mood);
     PortalDestination dest{};
     dest.seed = dest_seed;
     dest.mood = mood;
@@ -1254,7 +1254,7 @@ inline void request_mood_transition(TransitionPhase& phase, PortalDestination& p
     if (phase != TransitionPhase::IDLE) return;
     if (mood >= MOOD_COUNT) return;
 
-    const auto& mp = MOOD_TABLE[mood];
+    const auto& mp = mood_def(mood);
     uint32_t dest_seed = cpu_hash(ws.active_seed, 999u);
     uint32_t radius = derive_finite_radius(dest_seed, mp);
     pending = { dest_seed, mp.finite, radius, mood };

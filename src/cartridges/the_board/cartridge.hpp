@@ -742,6 +742,10 @@ namespace t7 {
                 // which is why organ_manifest may be called by a page that
                 // loaded before the program finished booting.
                 t7::organ::bind_home(&gpuState_);
+                // O1b — and the live mood id, borrowed rather than copied:
+                // a definition is addressed BY mood, and the panel must
+                // never be editing a mood the program has left.
+                t7::organ::bind_mood(&mood_state_.active);
 
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
@@ -1330,7 +1334,26 @@ namespace t7 {
             // ORGAN_0b — the panel's frame-boundary flush, forwarded. The
             // cartridge owns gpuState_, so the loop asks the cartridge; the
             // panel never reaches past this into the homes.
-            void organ_flush(wgpu::Queue& queue) { gpuState_.organ_flush(queue); }
+            //
+            // O1b — and the DEFINITION re-apply, which belongs here for the
+            // same reason: this is the layer that owns both the mood deps
+            // and the queue, and the registry knows neither. The panel wrote
+            // what the mood MEANS; apply_mood_lighting is the program's own
+            // author, run unchanged, and it is what turns that into the
+            // instance. One re-apply per frame however many edits arrived.
+            //
+            // Only for the LIVE mood. An edit to another mood's definition
+            // is stored and takes effect the next time the program enters
+            // it — re-applying it now would paint this world with another
+            // world's sun.
+            void organ_flush(wgpu::Queue& queue) {
+                uint32_t def_mood = 0;
+                if (t7::organ::take_definition_dirty(def_mood)
+                    && def_mood == mood_state_.active) {
+                    apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
+                }
+                gpuState_.organ_flush(queue);
+            }
 
             // O1a — the contested-dial observation, forwarded the same way.
             // It reads the homes and writes nothing but its own counters, so

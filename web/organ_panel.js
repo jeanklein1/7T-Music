@@ -10,6 +10,13 @@
 // stylesheet, no timer, no ccall. The audience path is byte-identical, and
 // that is why the file may ship unconditionally.
 //
+// DEFINITION OR PREVIEW (O1b). A dial marked * has a mood DEFINITION
+// behind its home. In definition mode — the default — writing it changes
+// what the live mood MEANS and lets the program's own mood apply produce
+// the picture; the edit survives the next mood change. In preview mode the
+// write goes to the instance, which is immediate and temporary. Dials
+// without a * have no definition to write and behave the same either way.
+//
 // CONTEST MARKERS (O1a). Every row carries the C++ instrument's reading of
 // whether the panel's last word on that dial still stands — free / event /
 // frame, with the number of frames it stood. The panel does not compute
@@ -51,6 +58,8 @@
     '#organ button{background:#14181d;color:#c8ccd2;border:1px solid #303742;font:inherit;' +
     'padding:3px 9px;cursor:pointer}' +
     '#organ button:hover{border-color:#5c93c4}' +
+    '#organ button.on{background:#1d2a36;border-color:#5c93c4;color:#cfe0ef}' +
+    '#organ .star{color:#5c93c4}' +
     '#organ .foot{margin-top:12px;padding-top:6px;border-top:1px solid #1d222a;color:#6b7480}' +
     '#organ .bar{display:flex;gap:6px;margin-bottom:6px}';
 
@@ -59,6 +68,7 @@
   var importNote = '';
   var touched = {};             // manifest index -> this session has written it
   var CLASS = ['free', 'event', 'frame'];   // organ_contest's three readings
+  var definitionMode = true;    // O1b — the durable write is the default one
 
   function clamp(v, p) { return v < p.min ? p.min : v > p.max ? p.max : v; }
   function hex(v) {
@@ -73,12 +83,35 @@
             parseInt(s.substr(3, 2), 16) / 255,
             parseInt(s.substr(5, 2), 16) / 255];
   }
+  // TARGET: -1 writes the instance, a mood id writes that mood's
+  // definition. A dial with no definition falls back to the instance in the
+  // C++ — the panel does not need to know which, and asking here would put
+  // the routing in two places.
   function push(p, v) {
     // The write is also the question the contest instrument answers: until
     // the panel has said something, there is nothing for another author to
-    // contradict.
-    touched[p.i] = 1;
-    C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0);
+    // contradict. A definition write is NOT that question — it never
+    // touches the instance — so only the preview path marks the dial.
+    var target = definitionMode ? C.mood() : -1;
+    if (!(definitionMode && p.def)) touched[p.i] = 1;
+    C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
+          target);
+  }
+  function pushDef(p, v, mood) {
+    C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
+          mood);
+  }
+
+  // Every row is built the same way at the end: show() moves the widgets,
+  // apply() moves them and writes wherever the mode points, setDef() writes
+  // one named mood's definition and only shows it when that mood is live.
+  function finish(r) {
+    r.apply = function (nv) { r.show(nv); push(r.p, nv); };
+    r.setDef = function (mood, nv) {
+      pushDef(r.p, nv, mood);
+      if (mood === C.mood()) r.show(nv);
+    };
+    return r;
   }
 
   function buildRow(p, host) {
@@ -86,6 +119,12 @@
     var row = document.createElement('div'); row.className = 'row';
     var lbl = document.createElement('span'); lbl.className = 'lbl';
     lbl.textContent = p.label; lbl.title = p.id;
+    if (p.def) {
+      var star = document.createElement('span'); star.className = 'star';
+      star.textContent = ' *';
+      star.title = 'has a mood definition';
+      lbl.appendChild(star);
+    }
     row.appendChild(lbl);
     var mk = document.createElement('span'); mk.className = 'mk';
     mk.textContent = '\u00b7';
@@ -96,9 +135,9 @@
       cb.checked = v[0] > 0.5;
       cb.addEventListener('input', function () { v[0] = cb.checked ? 1 : 0; push(p, v); });
       row.appendChild(cb); row.appendChild(mk); host.appendChild(row);
-      return { p: p, mk: mk,
-               apply: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; push(p, v); },
-               read: function () { return v; } };
+      return finish({ p: p, mk: mk,
+               show: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; },
+               read: function () { return v; } });
     }
 
     if (n > 1) {
@@ -139,9 +178,9 @@
         for (var k = 0; k < n; k++) { sliders[k].s.value = v[k]; sliders[k].num.value = v[k]; }
         if (isCol) col.value = hex(v);
       };
-      return { p: p, mk: mk,
-               apply: function (nv) { v = nv.slice(); push(p, v); sync(); },
-               read: function () { return v; } };
+      return finish({ p: p, mk: mk,
+               show: function (nv) { v = nv.slice(); sync(); },
+               read: function () { return v; } });
     }
 
     var sl = document.createElement('input'); sl.type = 'range';
@@ -157,9 +196,9 @@
     sl.addEventListener('input', set(sl));
     nm.addEventListener('input', set(nm));
     row.appendChild(sl); row.appendChild(nm); row.appendChild(mk); host.appendChild(row);
-    return { p: p, mk: mk,
-             apply: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; push(p, v); },
-             read: function () { return v; } };
+    return finish({ p: p, mk: mk,
+             show: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; },
+             read: function () { return v; } });
   }
 
   function build(manifest) {
@@ -171,8 +210,21 @@
     root.appendChild(h);
 
     var bar = document.createElement('div'); bar.className = 'bar';
+    var bd = document.createElement('button'); bd.textContent = 'definition';
+    var bp = document.createElement('button'); bp.textContent = 'preview';
+    bd.title = 'write what the live mood MEANS — the edit survives a mood change';
+    bp.title = 'write the instance — immediate, and the next author may take it back';
+    var setMode = function (def) {
+      definitionMode = def;
+      bd.className = def ? 'on' : '';
+      bp.className = def ? '' : 'on';
+    };
+    bd.addEventListener('click', function () { setMode(true); });
+    bp.addEventListener('click', function () { setMode(false); });
+    setMode(true);
     var bx = document.createElement('button'); bx.textContent = 'export';
     var bi = document.createElement('button'); bi.textContent = 'import';
+    bar.appendChild(bd); bar.appendChild(bp);
     bar.appendChild(bx); bar.appendChild(bi); root.appendChild(bar);
 
     var group = null;
@@ -189,17 +241,34 @@
     var foot = document.createElement('div'); foot.className = 'foot';
     var status = document.createElement('div');
     var legend = document.createElement('div'); legend.className = 'legend';
-    legend.textContent = 'contest: free = the panel\u2019s word stands  \u00b7  ' +
-                         'event = lost on an occasion  \u00b7  frame = lost at once  ' +
-                         '(n = frames it stood)';
+    legend.textContent =
+      'contest: free = the panel\u2019s word stands  \u00b7  ' +
+      'event = lost on an occasion  \u00b7  frame = lost at once  ' +
+      '(n = frames it stood). Only PREVIEW writes ask the question \u2014 a ' +
+      'definition write never touches the instance, so a starred dial reads ' +
+      '\u00b7 until you drag it in preview.';
     foot.appendChild(status); foot.appendChild(legend);
     root.appendChild(foot);
     document.body.appendChild(root);
 
     // ── export / import ──────────────────────────────────────────────
+    // A DEFINITION BELONGS TO A MOOD, so its key names one: "<mood>/<id>".
+    // An instance value has no mood and keys by id alone. One file can
+    // therefore carry several moods' definitions, and importing it puts
+    // each back where it came from rather than into whichever mood happens
+    // to be live at the time.
     bx.addEventListener('click', function () {
+      var m = C.mood();
       var out = {};
-      rows.forEach(function (r) { out[r.p.id] = r.read(); });
+      rows.forEach(function (r) {
+        if (r.p.def) {
+          var n = lanes(r.p.type), d = [];
+          for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
+          out[m + '/' + r.p.id] = d;
+        } else {
+          out[r.p.id] = r.read();
+        }
+      });
       var blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -219,8 +288,17 @@
           var byId = {};
           rows.forEach(function (r) { byId[r.p.id] = r; });
           Object.keys(obj).forEach(function (k) {
-            if (byId[k]) { byId[k].apply([].concat(obj[k])); applied++; }
-            else skipped++;   // an id this build does not enroll
+            var cut = k.indexOf('/');
+            if (cut > 0) {                       // "<mood>/<id>" — a definition
+              var mood = parseInt(k.slice(0, cut), 10);
+              var r = byId[k.slice(cut + 1)];
+              if (r && r.p.def && mood >= 0) { r.setDef(mood, [].concat(obj[k])); applied++; }
+              else skipped++;                    // no such dial, or it has no definition
+            } else if (byId[k]) {
+              byId[k].apply([].concat(obj[k])); applied++;
+            } else {
+              skipped++;                         // an id this build does not enroll
+            }
           });
           importNote = 'import: ' + applied + ' applied, ' + skipped + ' unknown';
         };
@@ -243,7 +321,9 @@
           ? CLASS[k] + ' ' + C.contestFrames(r.p.i)
           : '\u00b7';
       });
-      status.textContent = rows.length + ' dials  ·  flushed ' + C.flushes() +
+      status.textContent = rows.length + ' dials  ·  mood ' + C.mood() +
+                           '  ·  ' + (definitionMode ? 'definition' : 'preview') +
+                           '  ·  flushed ' + C.flushes() +
                            '  ·  rejected ' + C.rejects() +
                            '  ·  contested ' + contested + '/' + rows.length +
                            (importNote ? '  ·  ' + importNote : '');
@@ -271,12 +351,14 @@
     try {
       C = {
         manifest: M.cwrap('organ_manifest', 'string', []),
-        set:      M.cwrap('organ_set', null, ['number','number','number','number','number','number','number']),
+        set:      M.cwrap('organ_set', null, ['number','number','number','number','number','number','number','number']),
         rejects:  M.cwrap('organ_rejected_count', 'number', []),
         flushes:  M.cwrap('organ_flush_count', 'number', []),
         count:    M.cwrap('organ_param_count', 'number', []),
         contest:       M.cwrap('organ_contest', 'number', ['number']),
-        contestFrames: M.cwrap('organ_contest_frames', 'number', ['number'])
+        contestFrames: M.cwrap('organ_contest_frames', 'number', ['number']),
+        mood:          M.cwrap('organ_mood', 'number', []),
+        defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number'])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());

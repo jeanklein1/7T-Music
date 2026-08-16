@@ -243,6 +243,44 @@ static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].wall_height == 25.0f, "MOOD_TABLE co
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].allow_frustum_cull == true,  "MOOD_TABLE column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].allow_frustum_cull == false, "MOOD_TABLE column drift: allow_frustum_cull (tail)");
 
+// ═══ THE MOOD DEFINITION IN FORCE (O1b) ══════════════════════════
+// MOOD_TABLE above is the DESIGNED definition: constexpr, asserted,
+// the value the program ships with. MOOD_LIVE is the definition IN
+// FORCE — seeded from the design when the program loads, and the one
+// thing every RUNTIME reader reads. The split exists because a panel
+// that can only write the INSTANCE writes something the next mood
+// apply takes back; to change what a mood MEANS, the panel has to
+// reach the definition, and a constexpr table is not reachable.
+//
+// ONE HOME, NOT TWO. MOOD_TABLE keeps exactly two jobs — seeding this
+// array and standing under the asserts above — and no runtime reader
+// is left pointing at it. The constexpr readers in bodies/gallery.hpp
+// are the deliberate exception: they are compile-time budgets derived
+// from the DESIGN, and a wall's geometry allowance is not a live dial.
+//
+// THE ELIGIBILITY RULE (docs/ORGAN.md, "Instance and definition").
+// A field may take a definition target in the ORGAN registry only if
+// the mood apply is its ONLY runtime reader. The atmospheric group —
+// sun_direction, sun_color, sun_intensity, sun_ambient, clear_color —
+// passes: apply_mood_lighting is the one place they are read, and
+// re-running it is how a change to them lands. The structural group —
+// finite, the radii, indoor, ceiling_type, wall_height,
+// terrain_amp_ceiling, the allow_* flags — does not: it is read all
+// over world GENERATION, and rewriting it without regenerating the
+// world would mean nothing at best and disagree at worst.
+inline MoodProfile MOOD_LIVE[MOOD_COUNT] = {
+    MOOD_TABLE[0], MOOD_TABLE[1], MOOD_TABLE[2], MOOD_TABLE[3],
+};
+static_assert(MOOD_COUNT == 4,
+    "MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
+    "a new mood needs its row here as well as in MOOD_TABLE");
+
+// The one runtime door onto a mood's fields. Non-const because the
+// panel writes through it; every reader takes it by const reference.
+inline MoodProfile& mood_def(uint32_t mood) {
+    return MOOD_LIVE[mood % MOOD_COUNT];
+}
+
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.
 // DEPS-FORM: the driver world holds no MachineCtx; the door

@@ -157,10 +157,10 @@ inline bool generic_select(MachineCtx* c,
     //    solid extents are derived from the scaled params). THE
     //    INDOOR MODULE dispatches on its policy table: NATURAL
     //    skips; EXACT and CAP run the family's adapter hook. ──
-    if (MOOD_TABLE[c->mood_state_.active].indoor
+    if (mood_def(c->mood_state_.active).indoor
         && INDOOR_TREATMENT[traits.family_id].size != IndoorSize::NATURAL
         && adapter.apply_indoor_rescale) {
-        adapter.apply_indoor_rescale(inst, MOOD_TABLE[c->mood_state_.active].wall_height);
+        adapter.apply_indoor_rescale(inst, mood_def(c->mood_state_.active).wall_height);
     }
 
     // ── Per-family derived values ──
@@ -1036,7 +1036,7 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
             aa.is_portal = true;
             uint32_t dest_seed = cpu_hash(aa.position_hash, 1u);
             uint32_t mood = pick_portal_mood(aa.position_hash, 2u);
-            const auto& mp = MOOD_TABLE[mood];
+            const auto& mp = mood_def(mood);
             aa.destination.seed = dest_seed;
             aa.destination.mood = mood;
             aa.destination.finite = mp.finite;
