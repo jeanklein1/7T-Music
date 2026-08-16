@@ -1964,6 +1964,9 @@ namespace t7 {
 
             wgpu::Device device_;
             GPUDesignConfig config_{};
+            // ORGAN — one bit per panel-writable block; see organ_flush.
+            uint32_t organDirty_ = 0;
+            uint32_t organLastFlush_ = 0;
             bool configDirty_ = true;      // true at boot → first frame always uploads
             bool configDynamic_ = false;   // mood override: true = upload every frame
             wgpu::TextureFormat colorFormat_ = wgpu::TextureFormat::BGRA8Unorm;  // set in initOffscreenResources
@@ -2005,6 +2008,14 @@ namespace t7 {
             // member where three storage buffers used to be.
             wgpu::Buffer frameRMainBuffer_;
             wgpu::Buffer frameRPhotoBuffer_;
+            // ORGAN_0b — THE LIGHTING HOME. CHORD_3 gave lighting two GPU
+            // windows but left its CPU side composed on the stack at the
+            // authoring site (upload_lights, mood.hpp), so there was nothing
+            // for a dial to hold. This is that home: upload_lighting stores
+            // through it, so it always carries what the GPU last received,
+            // and the panel edits it in place. A mood change re-authors it,
+            // which is correct — a mood is a bigger authority than a dial.
+            GPULighting lightingStage_{};
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
             // (created only when the device carries timestamp-query) and the
@@ -2412,6 +2423,7 @@ namespace t7 {
             // so the block is composed there and written whole; the
             // offset-write alternative at 0/48/320 was not needed.
             void upload_lighting(wgpu::Queue& queue, const GPULighting& lighting) {
+                lightingStage_ = lighting;   // ORGAN_0b: the home records what shipped
                 // CHORD_3: two windows, one home. The block sits at offset 0
                 // of both instances, and the photographer lights the same
                 // world the main camera does.
@@ -3694,6 +3706,60 @@ namespace t7 {
             }
 
         public:
+            // ═══ ORGAN — THE PANEL'S WRITE SURFACE ═══════════════════════
+            //
+            // Exactly these three homes, named one at a time, and nothing
+            // else. This IS the sovereignty boundary from docs/ORGAN.md,
+            // written as code rather than as a promise: a home the panel may
+            // write has an accessor here, and a home it may not has none. GPU
+            // truth — positions, vp, camera, simulation state — is absent by
+            // construction, not by discipline.
+            //
+            // Returning raw pointers is deliberate. The registry addresses
+            // members by compiler-sworn offsetof from the block's base, so
+            // the base is all it needs; and the ABI refuses any (block,
+            // offset, type) triple the registry does not carry, so the
+            // pointer is never a general-purpose door.
+            GPUDesignConfig*       organ_config_home()     { return &config_; }
+            GPULighting*           organ_lighting_home()   { return &lightingStage_; }
+            GPUAgentRoomConstants* organ_agent_room_home() { return &agentRoomStage_; }
+
+            void organ_mark_dirty(uint32_t block) { organDirty_ |= (1u << block); }
+            uint32_t organ_last_flush_count() const { return organLastFlush_; }
+
+            // The frame-boundary flush (docs/ORGAN.md, "The write path").
+            // A slider drag is many events and one WriteBuffer: the events
+            // only set bits, and this runs once a frame through the SAME
+            // upload paths CHORD built. Nothing here duplicates an upload.
+            void organ_flush(wgpu::Queue& queue) {
+                organLastFlush_ = 0;
+                if (!organDirty_) return;
+                if (organDirty_ & (1u << 0)) {          // DesignConfig
+                    configDirty_ = true;                // its own existing gate
+                    upload_config(queue);
+                    ++organLastFlush_;
+                }
+                if (organDirty_ & (1u << 1)) {          // Lighting
+                    upload_lighting(queue, lightingStage_);
+                    ++organLastFlush_;
+                }
+                if (organDirty_ & (1u << 2)) {          // the agents' room
+                    // tier_gains is ONE home with TWO windows (CHORD's ruling):
+                    // agent_room's and scene_constants'. The authoring site
+                    // writes every window it owns, so both go here.
+                    queue.WriteBuffer(agentRoomBuffer_,
+                        offsetof(GPUAgentRoomConstants, tier_gains),
+                        agentRoomStage_.tier_gains,
+                        sizeof(agentRoomStage_.tier_gains));
+                    queue.WriteBuffer(sceneConstantsBuffer_,
+                        offsetof(GPUSceneConstants, tier_gains),
+                        agentRoomStage_.tier_gains,
+                        sizeof(agentRoomStage_.tier_gains));
+                    ++organLastFlush_;
+                }
+                organDirty_ = 0;
+            }
+
             // PORT_4b — public: the correct call site is the END of the
             // cartridge's init_renderer, after initOffscreenResources and
             // after the authored paintings are staged. The budget's job is

@@ -185,6 +185,12 @@ static void frame() {
     }
 
     float dt = app->console.begin_frame();
+    // ORGAN_0b — THE DIRTY FLUSH, at the frame boundary and nowhere else.
+    // begin_frame has just polled events and run CAP_2's reconcile, so every
+    // writer for this frame has spoken; the panel's edits since the last
+    // frame are bits, and this turns them into at most one WriteBuffer per
+    // block. A slider drag is many events and one upload (docs/ORGAN.md).
+    app->render.organ_flush(app->queue);
     if constexpr (t7::INSTRUMENTS.frame_meter)
         s_begin = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - s_t0).count();

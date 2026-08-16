@@ -64,6 +64,7 @@
 #include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
 #include "cartridges/the_board/contracts/floaters.hpp"   // floater TYPES (ActiveSphere/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
+#include "console/organ_registry.hpp"   // ORGAN_0b — the compiled dial registry + its C ABI (needs the home types above)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
 #include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/Dim::PATCH_EXTENT
@@ -736,6 +737,11 @@ namespace t7 {
                 // block's claim to be the cartridge's last init line
                 // stays true.
                 gpuState_.report_gpu_budget();
+                // ORGAN_0b — the panel's homes exist by now, so bind them.
+                // One pointer, set once; the ABI is inert until this runs,
+                // which is why organ_manifest may be called by a page that
+                // loaded before the program finished booting.
+                t7::organ::bind_home(&gpuState_);
 
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
@@ -1321,6 +1327,11 @@ namespace t7 {
             }
 
             // ── THE CONDUCTOR (update) — a LOOP over UPDATE_SPINE (§1a) ─────
+            // ORGAN_0b — the panel's frame-boundary flush, forwarded. The
+            // cartridge owns gpuState_, so the loop asks the cartridge; the
+            // panel never reaches past this into the homes.
+            void organ_flush(wgpu::Queue& queue) { gpuState_.organ_flush(queue); }
+
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
