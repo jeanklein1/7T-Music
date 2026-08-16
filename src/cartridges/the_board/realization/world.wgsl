@@ -18,7 +18,12 @@
 // Tint→MSL, Tint→SPIR-V. Firefox: PENDING — naga 30 lacks
 // immediate_address_space; the floor of record is the Tint trio
 // until a Firefox boot witnesses otherwise (Jean's witness,
-// queued). FXC is unsupported;
+// queued). Regaining Firefox is priced: a generated no-immediates
+// module (the wgsl_gate transform as generator) plus, on that path
+// only, the per-patch staging machinery PROBATE_I retired — two
+// boot paths, doubled witnesses. HELD until naga ships the
+// extension or an exhibition demands the spend; the card is the
+// boundary meanwhile (Jean's gate). FXC is unsupported;
 // its retired laws live in audit/FXC_LAWS_RECORD.md. naga gates
 // the module THROUGH THE IMMEDIATE SHIM (tools/wgsl_gate.py; the
 // transform is the gate's pinned half). The immediate address
