@@ -8,6 +8,14 @@
 # The pin stays on its own merit: a CRLF checkout would churn every shader diff.)
 *.wgsl text eol=lf
 
+# F5F — THE VENDORED PAYLOAD IS AN ARTIFACT, NOT OUR PROSE. `* text=auto`
+# above would translate these on a Windows checkout, and then the working
+# tree would stop being byte-for-byte upstream — which is the one property
+# the zip sha256 recorded in third_party/emdawnwebgpu/PINNED.md exists to
+# let anyone re-check. -text pins the bytes on every platform. Do not
+# reformat anything under this path; it is not ours to shape.
+third_party/emdawnwebgpu/emdawnwebgpu_pkg/** -text
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #

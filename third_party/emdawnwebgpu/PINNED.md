@@ -1,4 +1,66 @@
-# emdawnwebgpu — THE PIN
+# PINNED — emdawnwebgpu
+generation: v20260814.182433
+zip sha256: c2983584f5841de83fc7c460abe9385392df1de05151d4e487394f8319c15e0e
+fetched: 2026-08-16 (F5F-a)
+law: the pin is the vendored payload itself; this file is its
+receipt. The build consumes ONLY the in-tree port (F5F-b); a
+missing payload is a configure-time FATAL, never a fallback.
+witness: the payload must declare SetImmediates,
+ImmediateAddressSpace and the immediate-size limit — the three
+symbols the tree calls (console.hpp §F5-d, render_passes.hpp
+shadow_slot, world.wgsl `requires immediate_address_space`).
+
+## The artifact
+
+| field | value |
+|---|---|
+| upstream | `google/dawn` |
+| release tag | `v20260814.182433` |
+| tagged commit | `56f332d7d8d03f36149f201ab8cce8aee187e8c6` |
+| asset | `emdawnwebgpu_pkg-v20260814.182433.zip` |
+| zip sha256 | `c2983584f5841de83fc7c460abe9385392df1de05151d4e487394f8319c15e0e` |
+| zip bytes | 133561 |
+| vendored at | `third_party/emdawnwebgpu/emdawnwebgpu_pkg/` (18 files) |
+| port file | `third_party/emdawnwebgpu/emdawnwebgpu_pkg/emdawnwebgpu.port.py` |
+
+`VERSION.txt` inside the payload names revision
+`56f332d7d8d03f36149f201ab8cce8aee187e8c6`, byte-equal to the tagged commit
+the F5-a census read from upstream — so the artifact and the record agree
+without either being asked to trust the other.
+
+The payload's bytes are upstream's. `.gitattributes` marks the whole
+directory `-text` so `* text=auto` cannot translate them on a Windows
+checkout; that is what keeps the sha256 above re-checkable anywhere.
+
+## The witness, re-run against the bytes
+
+F5-a's census read `src/dawn/dawn.json` — the authority the header is
+*generated from*. This one reads the generated header itself, which is what
+the compiler will actually open:
+
+| the tree calls | the payload declares |
+|---|---|
+| `inst.HasWGSLLanguageFeature(wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace)` (console.hpp) | `webgpu_cpp.h:1408` `HasWGSLLanguageFeature`, `:748` the enumerator |
+| `pass.SetImmediates(0, &li, sizeof(uint32_t))` (render_passes.hpp) | `webgpu_cpp.h:1607/1633/1666` `SetImmediates(uint32_t, void const*, size_t)` — render pass, compute pass, render bundle |
+| `d.immediateSize = …` (renderer.hpp) | `webgpu_cpp.h:1892` `PipelineLayoutDescriptor::immediateSize` |
+| `maxImmediateSize` (NEEDS r7) | `webgpu_cpp.h:2397` `Limits::maxImmediateSize` |
+| `requires immediate_address_space;` (world.wgsl) | `library_webgpu_enum_tables.js`, `webgpu.h` |
+
+A WITNESS ATTESTS THE ARTIFACT, NOT THE INTENTION.
+
+## history
+
+Below is F5-a's record, kept verbatim. It is the account of a pin that was
+correct on paper and absent on disk — every fact it states about the
+upstream tree still holds, and its "The bytes — FLAGGED, not vendored"
+section is the debt F5F-a paid. Two of its closing claims are superseded and
+are left standing as history rather than corrected: the fetch it calls
+impossible succeeded from this session (the proxy serves the release-asset
+host even though it still refuses `api.github.com`), and "No build-system
+edit follows" is exactly what F5F-b overturned — the preference it describes
+was the defect, because a preference can silently choose the other thing.
+
+### emdawnwebgpu — THE PIN (F5-a, 2026-08-14)
 
 *one-generation law — the program's WebGPU generation is this pin; a
 reference document without a stated revision is RECALLED, not CITED.
