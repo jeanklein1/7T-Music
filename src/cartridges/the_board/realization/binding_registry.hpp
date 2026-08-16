@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (93 declarations over 78 slots;
+// The WGSL @binding literals in world.wgsl (91 declarations over 76 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -59,10 +59,8 @@ namespace t7 {
                 inline constexpr uint32_t agent_tier_gains            = 4;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
-                inline constexpr uint32_t field_head_poses            = 9;  // vec4<f32>[400] — uniform window onto headPosesBuffer_ (C6: demoted from read-only storage for the 8-storage default fit; same buffer, new reachability; the occupier-window pattern)
+                inline constexpr uint32_t field_bus                   = 9;  // FieldBus — CHORD_2: head_poses + ribbon + authored, one uniform block at frame cadence (6656 B; the fastest member governs)
                 inline constexpr uint32_t field_forces                = 10;  // vec4<f32>[FIELD_SUBSCRIBER_CAP] — read_write, the field's one output
-                inline constexpr uint32_t field_ribbon                = 11;  // RibbonState — uniform window onto ribbonBuffer_ (ring count / visibility / cube_size for the ring emitter loop; same pattern as g2:2)
-                inline constexpr uint32_t field_authored              = 12;  // FieldAuthored — uniform, 144 B (count header + 4 emitters × 2 vec4)
 
                 // AURA (20–39)
                 inline constexpr uint32_t pawn_aura_cfg               = 20;

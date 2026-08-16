@@ -19,11 +19,11 @@ sites and cross-checked against the WGSL by witness M-2.
 
 | pipeline | member | stage | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 | immediates(bytes) /64 |
 |---|---|---|---|---|---|---|---|---|
-| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Sphere (0D) | `updateSpherePipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Cube (0D) | `updateCubePipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
 | Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
@@ -116,16 +116,14 @@ declaration alone — no hand-authored field.
 |---|---|---|---|---|
 | `agent_tier_gains` | 2:4 | uniform | `array<AgentTierParams, 4>` | uniform |
 | `agent_figure_profiles` | 2:200 | uniform | `array<PawnFigure, 14>` | uniform |
-| `field_head_poses` | 2:9 | uniform | `array<vec4<f32>, 400>` | uniform |
 | `field_forces` | 2:10 | storage, read_write | `array<vec4<f32>, FIELD_SUBSCRIBERS>` | storage |
-| `field_ribbon` | 2:11 | uniform | `RibbonState` | uniform |
-| `field_authored` | 2:12 | uniform | `FieldAuthored` | uniform |
 | `pyramid_instances` | 2:42 | uniform | `PyramidArray` | uniform |
 | `signal` | 1:0 | uniform | `FrameSignal` | uniform |
 | `config` | 0:0 | uniform | `DesignConfig` | uniform |
 | `vp_data` | 2:240 | storage, read_write | `VPMatrix` | storage |
 | `agent_state` | 2:0 | storage, read_write | `array<AgentState, 32>` | storage |
 | `agent_room` | 2:1 | uniform | `AgentRoomConstants` | uniform |
+| `field_bus` | 2:9 | uniform | `FieldBus` | uniform |
 | `camera_state` | 2:241 | storage, read_write | `CameraState` | storage |
 | `floating_entities` | 2:2 | storage, read_write | `FloatingEntityArray` | storage |
 | `ribbon_state` | 2:140 | uniform | `RibbonState` | uniform |

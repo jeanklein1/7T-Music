@@ -2549,11 +2549,9 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 // (CHORD_1) — same mesh-param rows the mesh-gen kernels read: one
 // authored geometry, one home; the rows and the mesh can never disagree.
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
-// force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
-// new reachability, not a new fact.
-@group(2) @binding(9) var<uniform> field_head_poses : array<vec4<f32>, 400>;
+// force sum out. Both windows in ride field_bus now (CHORD_2); the
+// force sum keeps the storage seat it always had.
 @group(2) @binding(10) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;
-@group(2) @binding(11) var<uniform> field_ribbon : RibbonState;
 // The authored table (FIELD_4) — mirrors GPUFieldAuthored in
 // state.hpp BYTE-FOR-BYTE (144 B; the static_assert is the
 // handshake). Per emitter i: rows[2i] = {x, y, z, S};
@@ -2565,7 +2563,16 @@ struct FieldAuthored {
     _p2: u32,
     rows: array<vec4<f32>, 8>,
 }
-@group(2) @binding(12) var<uniform> field_authored : FieldAuthored;
+// THE FIELD BUS (CHORD_2) — the field's three windows, one block,
+// one write per frame. Mirrors GPUFieldBus in state.hpp
+// BYTE-FOR-BYTE (6656 B). Offsets: head_poses 0, ribbon 6400,
+// authored 6512.
+struct FieldBus {
+    head_poses: array<vec4<f32>, 400>,
+    ribbon: RibbonState,
+    authored: FieldAuthored,
+}
+@group(2) @binding(9) var<uniform> field_bus: FieldBus;
 
 // THE OCCUPIER SHELL (SHELL_0). The row answers in wu/s and the caller
 // integrates once; the body half is the CALLER's own radius, passed in.
@@ -8031,13 +8038,13 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // Rings emit — every subscriber. CPU-authored centerline poses
     // through the g2 window; liveness is the ring kernel's own
     // predicate; the bound is a uniform (banner rule 2). Ring radius:
-    // field_ribbon.cube_size * 0.5 — the mount's half-extent reading
+    // field_bus.ribbon.cube_size * 0.5 — the mount's half-extent reading
     // of the one cube_size home (bodies/ribbon.hpp, cube_size * 0.5f).
-    if (field_ribbon.is_visible == 1u && field_ribbon.cube_count >= 2u) {
-        let ring_n = min(field_ribbon.cube_count, 400u);
+    if (field_bus.ribbon.is_visible == 1u && field_bus.ribbon.cube_count >= 2u) {
+        let ring_n = min(field_bus.ribbon.cube_count, 400u);
         for (var k = 0u; k < ring_n; k++) {
-            f += field_pair(sub_pos, field_head_poses[k].xyz, r_s,
-                            field_ribbon.cube_size * 0.5, sub_i, 296u + k);
+            f += field_pair(sub_pos, field_bus.head_poses[k].xyz, r_s,
+                            field_bus.ribbon.cube_size * 0.5, sub_i, 296u + k);
         }
     }
     // Standing geometry emits (FIELD_3; FIELD_B4a: EVERY subscriber).
@@ -8079,10 +8086,10 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     if (sub_i >= 32u) {
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).
-        let na = min(field_authored.count, 4u);
+        let na = min(field_bus.authored.count, 4u);
         for (var i = 0u; i < na; i++) {
-            let a0 = field_authored.rows[2u * i];
-            let a1 = field_authored.rows[2u * i + 1u];
+            let a0 = field_bus.authored.rows[2u * i];
+            let a1 = field_bus.authored.rows[2u * i + 1u];
             if (a1.z < 0.5) { continue; }
             let advec = sub_pos - a0.xyz;
             let alen = length(advec);

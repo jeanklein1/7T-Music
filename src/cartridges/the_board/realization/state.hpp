@@ -1778,6 +1778,26 @@ namespace t7 {
         static_assert(offsetof(GPURibbonState, color_b) == 96, "color_b must sit 16-aligned at the old struct end (96)");
         static_assert(offsetof(GPURibbonState, hue_spread) == 108, "hue_spread must sit at CB-1's retired tail pad (108)");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
+
+        // ── THE FIELD BUS (CHORD_2) ───────────────────────────────────
+        // The field's three uniform windows in one block: the ring poses
+        // in, the ribbon state in, the authored emitter table in. Frame
+        // cadence — the fastest member governs. Mirrors
+        // world.wgsl::FieldBus BYTE-FOR-BYTE (L3).
+        //
+        // WINDOWS, NOT HOMES (docs/CHORD.md): every member's home is
+        // elsewhere and stays there. head_poses and ribbon are also seated
+        // by the ribbon pipeline (g2:142, g2:140) and the render rooms
+        // (g2:201) on the SAME buffers; those seats are other windows, not
+        // other facts, and each authoring site writes every window it owns.
+        struct alignas(16) GPUFieldBus {
+            float            head_poses[Dim::RIBBON_MAX_RINGS][4];  //    0
+            GPURibbonState   ribbon;                                // 6400
+            GPUFieldAuthored authored;                              // 6512
+        };
+        static_assert(sizeof(GPUFieldBus) == 6656);
+        static_assert(offsetof(GPUFieldBus, ribbon)   == 6400);
+        static_assert(offsetof(GPUFieldBus, authored) == 6512);
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
         static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");
         static_assert(sizeof(GPUPointLightArray) == 272, "GPUPointLightArray must be 272 bytes");
@@ -1924,7 +1944,11 @@ namespace t7 {
             wgpu::Buffer ringTransformsBuffer_;
             wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
             wgpu::Buffer fieldForcesBuffer_;  // FIELD_2: vec4<f32>[FIELD_SUBSCRIBER_CAP] — the field's one output, GPU-only (g2:3)
-            wgpu::Buffer fieldAuthoredBuffer_;  // FIELD_4: the authored table (uniform, g2:5) — the CPU stage is sovereign
+            // CHORD_2 — THE FIELD BUS, one buffer where three stood
+            // (head poses, ribbon state, authored table). Each window's
+            // authoring site writes it at its own offset; nothing here is
+            // a home, so there is no stage copy to drift.
+            wgpu::Buffer fieldBusBuffer_;
             GPUFieldAuthored fieldAuthoredStage_{};  // FIELD_4: the sovereign CPU copy, kept at the writer (the ribbon's lure reads it)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer vpBuffer_;
@@ -2383,27 +2407,45 @@ namespace t7 {
                 writeStruct(queue, patchGridBuffer_, grid);
             }
 
+            // ── CHORD_2: the ribbon state wears TWO windows ───────────
+            // ribbonBuffer_ is the home the ribbon pipeline and the render
+            // rooms read (g2:140, g2:201); field_bus.ribbon is the agents
+            // room's window onto the same fact. Every writer below writes
+            // both at the same field offset — that is the charter's rule,
+            // and it is why no CPU stage copy is needed here. RIBBON_WINDOW
+            // is the one place the second address is computed.
+            static constexpr uint64_t RIBBON_WINDOW = offsetof(GPUFieldBus, ribbon);
+
             void upload_ribbon_time(wgpu::Queue& queue, float time) {
                 // Only update the time field (offset 12 = after anchor[3])
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, time), &time, sizeof(float));
+                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, time), &time, sizeof(float));
             }
 
             void upload_ribbon_color(wgpu::Queue& queue, const float (&color)[3]) {
                 // Only update the color[3] field (offset 32 — see GPURibbonState layout)
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, color), color, sizeof(color));
+                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, color), color, sizeof(color));
             }
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 writeStruct(queue, ribbonBuffer_, ribbon);
+                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW, &ribbon, sizeof(GPURibbonState));
             }
 
             void upload_ribbon_wave_amps(wgpu::Queue& queue, float lateral_amp, float vertical_amp) {
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
+                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
+                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
             }
 
+            // Same pairing for the ring poses: headPosesBuffer_ is the
+            // ribbon pipeline's storage face (g2:142); field_bus.head_poses
+            // sits at offset 0 of the block.
             void upload_ribbon_head_poses(wgpu::Queue& queue, const float* data, size_t bytes) {
                 queue.WriteBuffer(headPosesBuffer_, 0, data, bytes);
+                queue.WriteBuffer(fieldBusBuffer_, offsetof(GPUFieldBus, head_poses), data, bytes);
             }
 
             void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
@@ -2462,7 +2504,9 @@ namespace t7 {
             // 144 B WriteBuffer per frame — lean, no dirty gate.
             void upload_field_authored(wgpu::Queue& queue, const GPUFieldAuthored& t) {
                 fieldAuthoredStage_ = t;
-                queue.WriteBuffer(fieldAuthoredBuffer_, 0, &t, sizeof(GPUFieldAuthored));
+                // CHORD_2: the table's only GPU seat is the bus window now.
+                queue.WriteBuffer(fieldBusBuffer_, offsetof(GPUFieldBus, authored),
+                    &t, sizeof(GPUFieldAuthored));
             }
             const GPUFieldAuthored& field_authored_stage() const { return fieldAuthoredStage_; }
 
@@ -3630,15 +3674,15 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
                     sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform);
-                    // C6: + Uniform for the g2 field_head_poses window; the
-                    // g0:122 ribbon-render window still binds as storage.
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    // CHORD_2: Uniform dropped — C6's g2 field_head_poses
+                    // window rides fieldBusBuffer_ now; the ribbon
+                    // pipeline's storage face is all that is left here.
                 fieldForcesBuffer_ = makeBuffer("Field Forces",
                     sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP,
                     wgpu::BufferUsage::Storage);
-                fieldAuthoredBuffer_ = makeBuffer("Field Authored",
-                    sizeof(GPUFieldAuthored),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                // CHORD_2: one 6656 B uniform block where three buffers stood.
+                fieldBusBuffer_ = makeBuffer("Field Bus", sizeof(GPUFieldBus), UU);
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
                     | wgpu::BufferUsage::Uniform);
@@ -3763,7 +3807,7 @@ namespace t7 {
 
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
-                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldAuthoredBuffer_ &&
+                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && lightingBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
