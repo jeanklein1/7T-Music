@@ -124,46 +124,40 @@ target_include_directories(incubator_dual PRIVATE
 
 if(EMSCRIPTEN)
     # ── PORT_1c: the web twin ────────────────────────────────────────────
-    # GLFW verbatim via contrib.glfw3 (emscripten ports registry,
-    # >= 3.1.55). WebGPU via emdawnwebgpu; the default is Emscripten's
-    # built-in "remote" port (--use-port=emdawnwebgpu, auto-downloads a
-    # pinned package). Override with a downloaded port file from a Dawn
-    # release: -DEMDAWNWEBGPU_PORT=path/to/emdawnwebgpu.port.py
-    # (the source-tree port file is NOT usable un-built — it checks for
-    # generated headers; use the release package or the remote port).
+    # GLFW verbatim via contrib.glfw3 (emscripten ports registry, >= 3.1.55).
+    # WebGPU via the emdawnwebgpu generation VENDORED IN THIS TREE — and only
+    # that one.
     #
-    # DOMESDAY_2 F5-a — THE ONE-GENERATION LAW, FIRST ENFORCEMENT.
-    # The emsdk-bundled remote port is the oldest WebGPU in the
-    # toolchain: its RenderPassEncoder has no SetImmediates and its
-    # WGSLLanguageFeatureName has no ImmediateAddressSpace, so the
-    # post-B6 shader cannot build against it. The pin lives in
-    # third_party/emdawnwebgpu (see PINNED.md for the release tag, the
-    # asset, and the census that cleared it); this block prefers it the
-    # moment its bytes are present and NAMES which port it chose either
-    # way — the fallback is never silent.
-    set(T7_VENDORED_EMDAWNWEBGPU
+    # F5F — A WITNESS ATTESTS THE ARTIFACT, NOT THE INTENTION.
+    # F5-a pinned a generation on paper and wired a PREFERENCE for it: use
+    # the vendored port if its bytes are present, else fall back to the port
+    # built into Emscripten (the bare registry name, deliberately not spelled
+    # here so the invariant grep for it stays clean). The bytes were never
+    # fetched, so every build took the fallback — and that port downloads the
+    # EMSDK's own pinned version, a generation that predates the immediates
+    # API. The result was three compile errors
+    # (console.hpp HasWGSLLanguageFeature/ImmediateAddressSpace,
+    # render_passes.hpp SetImmediates ×2) that read as code defects and were
+    # a missing payload. A preference is what let that happen quietly: it had
+    # a second thing it was willing to be.
+    #
+    # So there is no preference here any more, and no override. One path,
+    # checked once; absence is a configure-time FATAL. The payload is
+    # third_party/emdawnwebgpu/emdawnwebgpu_pkg/ and PINNED.md is its receipt.
+    set(T7_EMDAWNWEBGPU_PORT
         "${CMAKE_SOURCE_DIR}/third_party/emdawnwebgpu/emdawnwebgpu_pkg/emdawnwebgpu.port.py")
-    set(EMDAWNWEBGPU_PORT "" CACHE STRING
-        "emdawnwebgpu port for --use-port. EMPTY (the default) = AUTO: the vendored pin at third_party/emdawnwebgpu if present, else Emscripten's built-in remote port. Set explicitly to a port-file path, or to the literal name 'emdawnwebgpu', to override the choice.")
-    if(EMDAWNWEBGPU_PORT)
-        set(T7_EMDAWNWEBGPU_PORT "${EMDAWNWEBGPU_PORT}")
-        set(T7_EMDAWNWEBGPU_ORIGIN "explicit -DEMDAWNWEBGPU_PORT")
-        if(EMDAWNWEBGPU_PORT STREQUAL "emdawnwebgpu" AND EXISTS "${T7_VENDORED_EMDAWNWEBGPU}")
-            message(WARNING
-                "EMDAWNWEBGPU_PORT is set to the emsdk built-in remote port, but a VENDORED pin "
-                "exists at third_party/emdawnwebgpu. The pin is being ignored — clear the cache "
-                "entry (-UEMDAWNWEBGPU_PORT) to use it. See third_party/emdawnwebgpu/PINNED.md.")
-        endif()
-    elseif(EXISTS "${T7_VENDORED_EMDAWNWEBGPU}")
-        set(T7_EMDAWNWEBGPU_PORT "${T7_VENDORED_EMDAWNWEBGPU}")
-        set(T7_EMDAWNWEBGPU_ORIGIN "VENDORED PIN (third_party/emdawnwebgpu — PINNED.md)")
-    else()
-        set(T7_EMDAWNWEBGPU_PORT "emdawnwebgpu")
-        set(T7_EMDAWNWEBGPU_ORIGIN
-            "emsdk built-in remote port — THE PIN IS INCOMPLETE (third_party/emdawnwebgpu/PINNED.md names the asset to drop in); the post-B6 immediate lane will not build against this generation")
+    if(NOT EXISTS "${T7_EMDAWNWEBGPU_PORT}")
+      message(FATAL_ERROR
+        "emdawnwebgpu payload missing at ${T7_EMDAWNWEBGPU_PORT}. "
+        "The build consumes ONLY the in-tree generation (F5F). "
+        "Fetch per third_party/emdawnwebgpu/PINNED.md. "
+        "A witness attests the artifact, not the intention.")
     endif()
     message(STATUS "  emdawnwebgpu port: ${T7_EMDAWNWEBGPU_PORT}")
-    message(STATUS "    origin:          ${T7_EMDAWNWEBGPU_ORIGIN}")
+    message(STATUS "    generation:      in-tree pin (third_party/emdawnwebgpu/PINNED.md)")
+    # Both --use-port flags must reach BOTH the compile and the link command
+    # (emdawnwebgpu's README requires it), which is why this is one list used
+    # at both sites rather than two spellings that can drift apart.
     set(T7_WEB_PORTS
         "--use-port=contrib.glfw3"
         "--use-port=${T7_EMDAWNWEBGPU_PORT}"
