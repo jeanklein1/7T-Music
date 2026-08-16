@@ -62,6 +62,15 @@
 # THE NATIVE ARM IS NOT COMPILED, and after SUNSET_1 there is none to
 # compile.
 #
+# ── THE EM_ASM DOCTRINE (GATEHOUSE_G3) ──────────────────────────────
+# EM_ASM bodies are preprocessor territory: JS string literals inside
+# them are double-quoted, always. The empty single quote is not a style
+# choice — it is an invalid pp-token wearing one.
+#
+# The lint arm below enforces that mechanically, BEFORE clang runs, so
+# the class is unwritable rather than merely uncompilable. It costs
+# milliseconds and does not need a compiler at all.
+#
 # USAGE
 #   python3 tools/gates/console_gate/run.py           # gate; exit 1 on failure
 #   python3 tools/gates/console_gate/run.py --print   # also echo the commands
@@ -98,6 +107,57 @@ TUS = [
     ("console", '#include "console/console.hpp"\n'),
 ]
 
+# ── THE EM_ASM LINT ─────────────────────────────────────────────────
+# Scanned over the tree's own sources. Not the vendored headers: they are
+# a pin, they carry no EM_ASM of ours, and a gate that reports a finding
+# nobody may fix is a gate that gets ignored.
+LINT_EXTS = (".hpp", ".cpp", ".h")
+EM_ASM_OPEN = re.compile(r"\bEM_ASM(?:_INT|_DOUBLE|_PTR|_ARGS)?\s*\(|\bEM_JS\s*\(")
+EMPTY_CHAR = re.compile(r"''")
+
+
+def em_asm_bodies(text):
+    """Yield (start_index, end_index) for each EM_ASM/EM_JS argument list.
+
+    Brace/paren depth counting from the opening paren. Crude on purpose:
+    the question is only which lines sit inside such a call, and a body
+    that confuses this scanner is a body worth a human's eye anyway.
+    """
+    for m in EM_ASM_OPEN.finditer(text):
+        i = text.index("(", m.start())
+        depth = 0
+        for j in range(i, len(text)):
+            c = text[j]
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+                if depth == 0:
+                    yield i, j
+                    break
+
+
+def lint_em_asm():
+    hits = []
+    for base, _dirs, files in os.walk(SRC):
+        for fn in sorted(files):
+            if not fn.endswith(LINT_EXTS):
+                continue
+            path = os.path.join(base, fn)
+            try:
+                text = open(path, encoding="utf-8").read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            if "EM_ASM" not in text and "EM_JS" not in text:
+                continue
+            for a, b in em_asm_bodies(text):
+                for m in EMPTY_CHAR.finditer(text, a, b):
+                    line = text.count("\n", 0, m.start()) + 1
+                    src_line = text.split("\n")[line - 1].strip()
+                    hits.append((os.path.relpath(path, ROOT), line, src_line))
+    return hits
+
+
 def main() -> int:
     for path, what in ((SRC, "src/"),
                        (STUBS, "the stub dir"),
@@ -110,6 +170,18 @@ def main() -> int:
                       "compiles against the PIN and never against a system or "
                       "emsdk copy — fetch per third_party/emdawnwebgpu/PINNED.md.")
             return 1
+
+    # ── ARM 1: the lint, before any compiler ────────────────────────
+    hits = lint_em_asm()
+    if hits:
+        print("tu-gate: FAIL — empty single-quoted literal inside an EM_ASM/EM_JS body")
+        for rel, line, src_line in hits:
+            print("  %s:%d: %s" % (rel, line, src_line))
+        print("  EM_ASM bodies are preprocessor territory: JS string literals")
+        print("  inside them are double-quoted, always. `''` is an EMPTY")
+        print("  CHARACTER CONSTANT — an invalid pp-token, not a style choice.")
+        print("  Write \"\" instead; JS reads it identically. (GATEHOUSE_G3)")
+        return 1
 
     cxx = shutil.which("clang++") or shutil.which("g++")
     if cxx is None:
@@ -151,7 +223,7 @@ def main() -> int:
 
             proc = subprocess.run(cmd, capture_output=True, text=True)
             blob = (proc.stdout or "") + (proc.stderr or "")
-            # READ THE TESTIMONY, not just the verdict.
+            # ── ARM 2: READ THE TESTIMONY, not just the verdict ──────
             # `warning:` is red. A warning exits 0, which is precisely
             # how this gate reported green while clang was naming two
             # defects in the file the round had just rewritten.
@@ -172,6 +244,7 @@ def main() -> int:
               "pinned emdawnwebgpu surface with ZERO diagnostics [%s]"
               % (len(TUS), os.path.basename(cxx)))
         print("  TUs: %s" % ", ".join("%s.hpp" % n for n, _ in TUS))
+        print("  EM_ASM lint: clean (no empty single-quoted literal in any body)")
         return 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
