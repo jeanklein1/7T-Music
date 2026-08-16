@@ -32,35 +32,14 @@
 #include <webgpu/webgpu_cpp.h>
 
 // ── PORT_1b Region 1: platform includes ──────────────────────────
-// Native links dawn::native and exposes the OS window handle for the
-// surface. Web (emdawnwebgpu) has neither; contrib.glfw3 ships no
-// glfw3native.h, so the whole expose block is native-only too.
-#ifndef __EMSCRIPTEN__
-#include <dawn/native/DawnNative.h>
-#include <dawn/dawn_proc.h>
-#if __has_include("dawn/common/Version_autogen.h")
-#include "dawn/common/Version_autogen.h"
-#define T7_DAWN_VERSION 1
-#else
-#define T7_DAWN_VERSION 0
-#endif
-#endif
+// One program, one set (SUNSET_1). WebGPU arrives through emdawnwebgpu
+// and the window through contrib.glfw3; there is no OS handle to expose
+// and no native Dawn to link, so nothing here is conditional any more.
 #include <GLFW/glfw3.h>
 
-#ifndef __EMSCRIPTEN__
-#if defined(_WIN32)
-#define GLFW_EXPOSE_NATIVE_WIN32
-#elif defined(__linux__)
-#define GLFW_EXPOSE_NATIVE_X11
-#elif defined(__APPLE__)
-#define GLFW_EXPOSE_NATIVE_COCOA
-#endif
-#include <GLFW/glfw3native.h>
-#else
 #include <emscripten.h>
 #include <emscripten/html5.h>
 #include <GLFW/emscripten_glfw3.h>   // emscripten_glfw_make_canvas_resizable (FRAME_0)
-#endif
 
 #include <algorithm>
 #include <vector>
@@ -184,46 +163,7 @@ namespace t7 {
         }
     }
 
-#ifndef __EMSCRIPTEN__
-    // ═══ THE WGSL DIALECT'S NAMES (DOMESDAY_2 F3-a) ══════════════════
-    //
-    // A SECOND registry, and the one that actually holds the immediate
-    // lane's gate: WGSL LANGUAGE features are instance-scoped and carry
-    // their own enum. The 17 cases below are the full set at this Dawn
-    // revision, transcribed from Jean's header probe
-    // (webgpu_cpp.h:929-945) — enumerator identifiers, never numeric
-    // values, so the compiling header supplies each value and glaw1 is
-    // the witness that each exists.
-    //
-    // NATIVE ONLY. The web port's header is not in evidence (A2's wall
-    // stands), so that twin prints ids alone rather than guessing
-    // spellings — the F1-a lesson, applied before the bounce instead of
-    // after it.
-    inline const char* wgsl_language_feature_name(wgpu::WGSLLanguageFeatureName f) {
-        switch (f) {
-        case wgpu::WGSLLanguageFeatureName::ReadonlyAndReadwriteStorageTextures: return "readonly_and_readwrite_storage_textures";
-        case wgpu::WGSLLanguageFeatureName::Packed4x8IntegerDotProduct:          return "packed_4x8_integer_dot_product";
-        case wgpu::WGSLLanguageFeatureName::UnrestrictedPointerParameters:       return "unrestricted_pointer_parameters";
-        case wgpu::WGSLLanguageFeatureName::PointerCompositeAccess:              return "pointer_composite_access";
-        case wgpu::WGSLLanguageFeatureName::UniformBufferStandardLayout:         return "uniform_buffer_standard_layout";
-        case wgpu::WGSLLanguageFeatureName::SubgroupId:                          return "subgroup_id";
-        case wgpu::WGSLLanguageFeatureName::SizedBindingArray:                   return "sized_binding_array";
-        case wgpu::WGSLLanguageFeatureName::TexelBuffers:                        return "texel_buffers";
-        case wgpu::WGSLLanguageFeatureName::ChromiumPrint:                       return "chromium_print";
-        case wgpu::WGSLLanguageFeatureName::FragmentDepth:                       return "fragment_depth";
-        case wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace:               return "immediate_address_space";
-        case wgpu::WGSLLanguageFeatureName::SubgroupUniformity:                  return "subgroup_uniformity";
-        case wgpu::WGSLLanguageFeatureName::ChromiumTestingUnimplemented:        return "chromium_testing_unimplemented";
-        case wgpu::WGSLLanguageFeatureName::ChromiumTestingUnsafeExperimental:   return "chromium_testing_unsafe_experimental";
-        case wgpu::WGSLLanguageFeatureName::ChromiumTestingExperimental:         return "chromium_testing_experimental";
-        case wgpu::WGSLLanguageFeatureName::ChromiumTestingShippedWithKillswitch: return "chromium_testing_shipped_with_killswitch";
-        case wgpu::WGSLLanguageFeatureName::ChromiumTestingShipped:              return "chromium_testing_shipped";
-        default:                                                                 return nullptr;
-        }
-    }
-#endif
 
-#ifdef __EMSCRIPTEN__
     // ═══ THE INSTANCE ANCHOR (PORT_4a) ═══════════════════════════════
     //
     // A SECOND external reference to the WebGPU Instance, in static
@@ -270,9 +210,7 @@ namespace t7 {
             msg.find("Invalid") == std::string_view::npos) return;
         ++t7::g_dropped_submits;
     }
-#endif
 
-#ifdef __EMSCRIPTEN__
     // ═══ SHIP_1 — TOUCH ══════════════════════════════════════════════
     //
     // THE PANEL. CameraControls' form, one module over: one organized
@@ -333,7 +271,6 @@ namespace t7 {
     // element the port registered its own touch handlers on. That identity
     // is what makes the deregistration below hit its target.
     inline constexpr const char* TOUCH_TARGET = "Module['canvas']";
-#endif
 
     class Console {
 
@@ -399,16 +336,6 @@ namespace t7 {
 
             if (!initGLFW(title))   { bootState_ = BootState::Failed; return false; }
             if (!initWebGPU())      { bootState_ = BootState::Failed; return false; }
-#ifndef __EMSCRIPTEN__
-            // Native: the device exists synchronously — finish boot here,
-            // exactly the pre-PORT_1b sequence, ending Ready.
-            if (!initSurface())     { bootState_ = BootState::Failed; return false; }
-            // ACQ_0: the depth buffer is built at the first acquire (see
-            // acquire_surface_texture). Nothing sized by the frame is
-            // allocated before there is a frame to size it by.
-            lastTime_ = std::chrono::high_resolution_clock::now();
-            bootState_ = BootState::Ready;
-#endif
             // Web: initWebGPU only STARTED the request chain; the frame
             // gate pumps Configuring → Ready when the device lands.
             return true;
@@ -422,7 +349,6 @@ namespace t7 {
             }
 
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-#ifdef __EMSCRIPTEN__
             // ═══ CAP_1 — THE PORT STOPS SIZING THE BACKING STORE ═════════
             //
             // contrib.glfw3 is Hi-DPI aware by default (Config.h:46,
@@ -451,7 +377,6 @@ namespace t7 {
             // cannot change layout and cannot re-enter the port's
             // ResizeObserver. There is no feedback loop to fear.
             glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, GLFW_FALSE);
-#endif
 
             window_ = glfwCreateWindow(initialWidth_, initialHeight_, title, nullptr, nullptr);
             if (!window_) {
@@ -469,13 +394,6 @@ namespace t7 {
                 auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
                 if (!console) return;
 
-#ifndef __EMSCRIPTEN__
-                // Native-only: the browser owns ESC (pointer-lock exit).
-                if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-                    console->request_close();
-                    return;
-                }
-#endif
 
                 // Numpad * — the pointer door. A window command of the same
                 // class as ESC: it never reaches the cartridge fan, and the
@@ -516,7 +434,6 @@ namespace t7 {
                 if (console) console->inject_scroll(static_cast<float>(yoffset));
                 });
 
-#ifdef __EMSCRIPTEN__
             // ═══ FRAME_0 — THE LINK THAT WAS NEVER MADE ══════════════
             //
             // The fluid frame was a contract with a missing middle. The
@@ -576,11 +493,9 @@ namespace t7 {
             // listeners exactly once, at window creation, so no resize
             // path can land between our deregistration and our claim.
             claim_touch_stream();
-#endif
             return true;
         }
 
-#ifdef __EMSCRIPTEN__
         // ═══ PORT_5d — THE DEVICE REQUEST, TWICE IF NEEDED ═══════════
         //
         // The web twin asked for the adapter's MAXIMUM limits, the same
@@ -941,7 +856,6 @@ namespace t7 {
                     bootState_ = BootState::Configuring;
                 });
         }
-#endif // __EMSCRIPTEN__
 
         // ═══ THE DIALECT'S TESTIMONY (DOMESDAY_2 F3-a) ═══════════════
         //
@@ -954,57 +868,27 @@ namespace t7 {
         // the gate is the WGSL LANGUAGE feature, enabled at the
         // INSTANCE and never requested at the device.
         //
-        // Printed on BOTH twins, from the instance's own mouth. On the
-        // web this line IS the quadrant answer the Pixel boot owes us:
-        // Chrome's wgslLanguageFeatures surfaces through the same call.
+        // From the instance's own mouth. This line IS the quadrant answer
+        // the Pixel boot owes us: Chrome's wgslLanguageFeatures surfaces
+        // through the same call.
         void report_wgsl_language_features(const wgpu::Instance& inst) {
             wgslImmediate_ = static_cast<bool>(inst.HasWGSLLanguageFeature(
                 wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace));
             // The verdict names the instance it measured. SUNSET_0: the
             // one instance left is a stock browser's and this twin
             // enables nothing, so the qualifier says exactly that and
-            // credits no knob. The rule that shaped it stands: credit the
-            // KNOB Dawn reads, never the struct beside it — F5-d proved
-            // DawnWireWGSLControl is read only by the wire client, and a
-            // boot log must not testify to a switch that never fired
-            // (P6).
+            // credits no knob. The rule that shaped it stands and outlived
+            // its subject: credit the knob the implementation reads, never
+            // the struct beside it, because a boot log must not testify to
+            // a switch that never fired (P6). The chain that taught it is
+            // gone with the native arm (SUNSET_1); the record is
+            // DOMESDAY_2 F5-d.
             std::cout << "[Device] wgsl language features: immediate-address-space="
                 << (wgslImmediate_ ? "YES" : "no")
                 << " (browser default — this twin enables nothing)\n";
-#ifndef __EMSCRIPTEN__
-            // The whole ALLOWED set, named — the diagnostic half, so a
-            // `no` above is a DIAGNOSED no in the same boot rather than
-            // another round trip. GetWGSLLanguageFeatures reports what
-            // the instance ALLOWS, so this list says whether the feature
-            // is absent from the checkout entirely or merely un-enabled.
-            // SUNSET_0: no toggle is enabled here any more, so a `no`
-            // beside a populated list is once again a plain "not
-            // allowed at this instance" and not a claim about which
-            // gate withheld it.
-            //
-            // THE EXPOSURE THIS GUARD DOES AND DOES NOT COVER, exactly:
-            // the web twin still names three identifiers no probe covers
-            // — WGSLLanguageFeatureName, its ImmediateAddressSpace
-            // enumerator, and Instance::HasWGSLLanguageFeature — because
-            // the quadrant answer is unobtainable without them. What the
-            // guard buys is the other 17 enumerators plus
-            // GetWGSLLanguageFeatures and SupportedWGSLLanguageFeatures:
-            // exposure of 3 identifiers instead of 21. If the web build
-            // rejects any of the three, that is F1-a's protocol again.
-            wgpu::SupportedWGSLLanguageFeatures wf{};
-            inst.GetWGSLLanguageFeatures(&wf);
-            std::cout << "[Device] wgsl dialect allowed (" << wf.featureCount << "):";
-            for (size_t i = 0; i < wf.featureCount; i++) {
-                const char* nm = wgsl_language_feature_name(wf.features[i]);
-                if (nm) std::cout << " " << nm;
-                else    std::cout << " " << static_cast<uint32_t>(wf.features[i]);
-            }
-            std::cout << "\n";
-#endif
         }
 
         bool initWebGPU() {
-#ifdef __EMSCRIPTEN__
             // ── PORT_1b Region 2 (web): the async boot grammar ────
             // emdawnwebgpu (P0-verified): AllowSpontaneous callbacks fire
             // from the browser event loop between rAF turns — no pump
@@ -1078,440 +962,10 @@ namespace t7 {
                     request_device_web(/*passthrough=*/false);
                 });
             return true;
-#else
-            dawnProcSetProcs(&dawn::native::GetProcs());
-
-            // PIVOT_0d E1 — THE TOGGLE CHAIN, AT THE ROOT.
-            //
-            // `use_dxc` is ToggleStage::Adapter (dawn/native/Toggles.cpp),
-            // and toggles flow DOWNWARD only: instance -> adapter
-            // (Instance.cpp, adapterToggles.InheritFrom) -> device
-            // (Adapter.cpp, deviceToggles.InheritFrom). PIVOT_0a chained it
-            // on the DEVICE descriptor, which is downstream of the stage
-            // that reads it, so it was accepted and ignored — no error, no
-            // warning. The boot log said DXC and FXC compiled for 19,745 ms
-            // and then access-violated. The instance descriptor is upstream
-            // of both stages and is the only root that reaches an
-            // adapter-stage toggle.
-            //
-            // The C++ descriptors are used rather than the C ones because
-            // wgpu::DawnTogglesDescriptor and these two field names are
-            // PROVEN against this Dawn — PIVOT_0a compiled them. Only the
-            // cast and the constructor arity are new, and the cast is the
-            // documented layout-compatibility between wgpu:: and WGPU
-            // structs.
-            //
-            // LIFETIME: `kDxcToggle` is static; `toggles`, `wgslControl`
-            // (F3-a) and `idesc` need only outlive the emplace() call,
-            // and they do — Dawn copies what it needs out of the
-            // descriptor during construction.
-            // TOGGLE_0 (debt 12) — THE CONTROL RODE THIS ROAD, AND THE
-            // ROAD WAS THE ANSWER.
-            //
-            // Boot 2 proved use_dxc did not take; it did not prove why.
-            // Either Dawn validated and refused DXC on this Kepler-era
-            // driver, or the chain never propagated at all — a refused
-            // toggle and an unchained toggle both read as absent.
-            //
-            // TOGGLE_0 chained disable_symbol_renaming HERE to separate
-            // them: a Tint toggle with no backend of its own, able to ride
-            // the working Vulkan boot, travelling the identical road so
-            // that the road itself was what got tested. It is
-            // ToggleStage::Device, one hop further down than use_dxc's
-            // Adapter stage, so its arrival would have proven the whole
-            // instance -> adapter -> device chain.
-            //
-            // IT DID NOT ARRIVE. The boot read (9). That is branch (b):
-            // the inheritance this site depends on does not deliver on
-            // this Dawn, and Boot 2's verdict softens accordingly — DXC
-            // may never have reached Dawn at all. The control has moved to
-            // its consuming stage (the device descriptor) and the history
-            // is kept here because it is the reason this site is no longer
-            // trusted with anything that must arrive.
-            //
-            // TOGGLE_1revA U1' — THE CONTROL HAS MOVED DOWNSTREAM.
-            // TOGGLE_0 chained disable_symbol_renaming here, at the
-            // instance, and the boot read (9): it never arrived. Branch
-            // (b) — instance -> adapter -> device inheritance does not
-            // deliver on this Dawn. The control now chains at the stage
-            // that CONSUMES it, the device descriptor, which is the ruling
-            // this campaign adopts as standing law.
-            //
-            // use_dxc STAYS HERE, plan-gated and untouched. It is
-            // ToggleStage::Adapter, so the device descriptor would be too
-            // late for it — PIVOT_0a proved that, silently. If the D3D12
-            // plan is ever revived, its consuming root is
-            // RequestAdapterOptions (dawn.json's third chain root), not
-            // this one and not the device's. Left as configuration rather
-            // than deleted: removing it would erase PIVOT_0d-ii's finding
-            // along with its subject.
-            // SUNSET_0 — the dev-tier instance toggle is gone with the
-            // twin it served. F5-d opened it for exactly one purpose,
-            // reaching the immediate lane on the old native generation,
-            // and it cost real validation on other not-yet-secure entry
-            // points for as long as it was open. The one-generation law's
-            // other half never came; the twin was archived instead
-            // (docs/LAWS.md SUNSET_0, tag `native-sunset`). `use_dxc`
-            // stays, plan-gated, for the reason its own banner above
-            // gives.
-            static const char* const kDxcToggle[] = { "use_dxc" };
-            wgpu::DawnTogglesDescriptor toggles{};
-            wgpu::InstanceDescriptor idesc{};
-
-            // ── DOMESDAY_2 F3-a — THE WIRE CONTROL, CORRECTLY LABELLED ──
-            //
-            // var<immediate> (world.wgsl) is gated by the WGSL language
-            // feature immediate_address_space, which is instance-scoped.
-            // F3-a and F5-b reached for DawnWireWGSLControl (webgpu_cpp.h
-            // :2588; enableExperimental / enableUnsafe / enableTesting)
-            // because its chain root IS the instance descriptor and its
-            // three members name exactly the three tiers. The header made
-            // it look like the control.
-            //
-            // IT WAS NEVER THE CONTROL ON THIS PATH. Read out of Dawn's own
-            // sources at the archived native revision f0bf8ab:
-            // DawnWireWGSLControl is consumed in exactly one place —
-            // src/dawn/wire/client/Instance.cpp — and nothing under
-            // src/dawn/native/ reads it. A tree linking dawn::native
-            // directly has no wire, so the struct is unpacked by
-            // ValidateAndUnpack, found to be a legal chain root, and then
-            // read by no one. Accepted and ignored: PIVOT_0a's exact
-            // species. The native gate was a TOGGLE instead
-            // (InstanceBase::GatherWGSLFeatures reads
-            // Toggle::AllowUnsafeAPIs for a kUnsafeExperimental feature),
-            // which is what F5-d enabled and SUNSET_0 removed with the
-            // twin.
-            //
-            // IT STAYS, for the reason use_dxc's banner above gives of
-            // PIVOT_0d-ii: deleting it would erase the finding along with
-            // its subject. What it must never be read as is the thing
-            // this boot's dialect line credits.
-            wgpu::DawnWireWGSLControl wgslControl{};
-            wgslControl.enableExperimental = true;
-            wgslControl.enableUnsafe = true;   // wire-path only — INERT on dawn::native
-
-            if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
-                toggles.enabledToggleCount = 1;
-                toggles.enabledToggles = kDxcToggle;
-            }
-            // The toggles ride BEHIND the WGSL control: independent links
-            // in one chain, not two WGSL enablement mechanisms. Named so
-            // a future edit that guards or deletes the F3-a block cannot
-            // silently take the toggles with it — PIVOT_0a already paid
-            // for one toggle that did not arrive.
-            wgslControl.nextInChain = &toggles;
-            idesc.nextInChain = &wgslControl;
-            // THE CHAIN, POST-SUNSET_0: head is always wgslControl and
-            // `toggles` is always behind it, but the DXC plan is the only
-            // one that puts a string in the array — every other plan
-            // chains a toggle-less descriptor, which is the state
-            // TOGGLE_0's U2 restored and F5-d had made unreachable.
-
-            // Construct instance in place (non-copyable, non-movable)
-            instance_.emplace(reinterpret_cast<const WGPUInstanceDescriptor*>(&idesc));
-
-            // F3-a — the dialect's testimony, from the instance just
-            // built with the control chained above, through the same
-            // portable-handle construct initSurface uses
-            // (wgpu::Instance(instance_->Get())) — named rather than
-            // line-cited, because the line moved when this block landed.
-            report_wgsl_language_features(wgpu::Instance(instance_->Get()));
-
-            std::vector<dawn::native::Adapter> adapters = instance_->EnumerateAdapters();
-            if (adapters.empty()) {
-                std::cerr << "No WebGPU adapters found\n";
-                return false;
-            }
-
-            // The platform line: Dawn's own 20-byte SHA1
-            // (all-zero when the build is unhashed).
-#if T7_DAWN_VERSION
-            {
-                static constexpr char hexd[] = "0123456789abcdef";
-                std::string dawnRev; dawnRev.reserve(40);
-                for (uint8_t b : dawn::kDawnVersion) {
-                    dawnRev += hexd[b >> 4]; dawnRev += hexd[b & 0x0F];
-                }
-                std::cout << "[Console] Dawn revision: " << dawnRev << "\n";
-            }
-#else
-            std::cout << "[Console] Dawn revision: unavailable "
-                         "(Version_autogen.h not on the include path)\n";
-#endif
-#ifdef NDEBUG
-            std::cout << "[Console] Build: Release\n";
-#else
-            std::cout << "[Console] Build: Debug\n";
-#endif
-
-            // PROBE_1 C1 — the adapter log: every adapter Dawn
-            // enumerates, then the pick. The tree records what it
-            // runs on; every METER number is uninterpretable
-            // without this line.
-            auto sv = [](wgpu::StringView s) {
-                return std::string_view(s.data, s.length);
-            };
-            auto backend_name = [](wgpu::BackendType b) {
-                switch (b) {
-                case wgpu::BackendType::D3D12:    return "D3D12";
-                case wgpu::BackendType::D3D11:    return "D3D11";
-                case wgpu::BackendType::Vulkan:   return "Vulkan";
-                case wgpu::BackendType::Metal:    return "Metal";
-                case wgpu::BackendType::OpenGL:   return "OpenGL";
-                case wgpu::BackendType::OpenGLES: return "OpenGLES";
-                case wgpu::BackendType::Null:     return "Null";
-                default:                          return "?";
-                }
-            };
-            auto type_name = [](wgpu::AdapterType t) {
-                switch (t) {
-                case wgpu::AdapterType::DiscreteGPU:   return "discrete";
-                case wgpu::AdapterType::IntegratedGPU: return "integrated";
-                case wgpu::AdapterType::CPU:           return "CPU";
-                default:                               return "unknown";
-                }
-            };
-            for (size_t i = 0; i < adapters.size(); i++) {
-                wgpu::Adapter a = wgpu::Adapter(adapters[i].Get());
-                wgpu::AdapterInfo info{};
-                a.GetInfo(&info);
-                std::cout << "[Console] Adapter " << i << ": "
-                    << type_name(info.adapterType) << " / "
-                    << backend_name(info.backendType) << " | "
-                    << sv(info.device) << " (" << sv(info.description)
-                    << ") vendor=" << sv(info.vendor) << "\n";
-            }
-
-            // Adapter selection (landed, PROBE_1): DiscreteGPU
-            // outranks integrated; the backend breaks ties.
-            // Falls back to index 0.
-            //
-            // Dawn's native Instance accepts wgpu::RequestAdapterOptions
-            // (a chain root for toggles; carries backendType). This code
-            // deliberately enumerates UNFILTERED so the boot log lists all
-            // adapters, and picks by the scorer below; kCompilerPlan's
-            // backend preference is a tie-break, not a guarantee — the
-            // effect witnesses after CreateDevice report what was actually
-            // picked and enabled. Toggles ride the instance descriptor:
-            // instance -> adapter -> device inheritance
-            // (dawn/native Instance.cpp, Adapter.cpp).
-            constexpr wgpu::BackendType kPreferredBackend =
-                (kCompilerPlan == CompilerPlan::Vulkan) ? wgpu::BackendType::Vulkan
-                                                        : wgpu::BackendType::D3D12;
-            size_t adapterPick = 0;
-            {
-                int best = -1;
-                for (size_t i = 0; i < adapters.size(); i++) {
-                    wgpu::Adapter a = wgpu::Adapter(adapters[i].Get());
-                    wgpu::AdapterInfo info{};
-                    a.GetInfo(&info);
-                    int score =
-                        (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
-                      + (info.backendType == kPreferredBackend              ? 1 : 0);
-                    if (score > best) { best = score; adapterPick = i; }
-                }
-            }
-            dawn::native::Adapter& nativeAdapter = adapters[adapterPick];
-            wgpu::Adapter adapter = wgpu::Adapter(nativeAdapter.Get());
-            // PIVOT_0d E1 — the index alone made the reader cross-reference
-            // the enumeration above to learn which backend won. The scorer's
-            // backend preference is a TIE-BREAK, not a guarantee, so the
-            // backend that was actually picked is the fact worth printing.
-            // (The loop's `info` is loop-local; re-fetch for the winner.)
-            wgpu::AdapterInfo pickedInfo{};
-            adapter.GetInfo(&pickedInfo);
-            std::cout << "[Console] Adapter selected: index=" << adapterPick
-                << " backend=" << backend_name(pickedInfo.backendType) << "\n";
-
-            wgpu::DeviceDescriptor deviceDesc{};
-            deviceDesc.label = "7T Device";
-
-            // TOGGLE_0 U2 — THE CONTROL IS RETIRED. VERDICT: BRANCH (b).
-            //
-            // What stood here: a two-name DawnTogglesDescriptor on
-            // deviceDesc.nextInChain — disable_symbol_renaming as the
-            // control, t7_not_a_toggle as the garnish. It is gone because
-            // it has done its work, and a control left armed becomes dead
-            // code, and dead code is a liar.
-            //
-            // THE READING (Jean, native Vulkan, Dawn f0bf8ab, 2026-08-13,
-            // binary built at 9489b8d — i.e. AFTER the chain was re-sited
-            // to this device descriptor):
-            //
-            //     [Console] Toggles used (10): … disable_symbol_renaming …
-            //
-            // Count 9 → 10, the control present. THE POSITIVE HALF IS
-            // PROVEN: chained at the stage that consumes it, a Dawn toggle
-            // arrives, and it arrives visibly at GetTogglesUsed.
-            //
-            // WHAT IS NOT PROVEN, STATED PLAINLY. TOGGLE_0's table read a
-            // present control as branch (a) — "the instance chain works,
-            // Boot 2 was Dawn refusing DXC". That inference is void here,
-            // because the binary that produced this reading does not chain
-            // the control on the instance descriptor. TOGGLE_0 U1 armed it
-            // there at 30c9a7c; no boot ever ran that binary (the `(9)`
-            // reading predates the control entirely — TOGGLE_1 U0 proved
-            // the `if constexpr` left idesc.nextInChain null on the Vulkan
-            // plan). So the instance chain has never been tested with a
-            // toggle in it, and BRANCH (b) IS UNPROVEN, NOT CONFIRMED.
-            //
-            // Debt 12 therefore closes as MOOT rather than as (a) or (b):
-            // the question it asked — "does the instance chain propagate?"
-            // — no longer gates anything, because L21 routes every future
-            // toggle to its consuming stage and never relies on
-            // inheritance. Reopening it costs one boot with the control
-            // re-armed on idesc; nothing in the queue wants that boot.
-            //
-            // The general fact, now L21: a Dawn toggle must be chained at
-            // the descriptor of the stage that CONSUMES it. use_dxc is
-            // ToggleStage::Adapter and stays on the instance/adapter path
-            // above; disable_symbol_renaming is ToggleStage::Device and
-            // took from here on the first boot that asked it to.
-            //
-            // The garnish testified to nothing and was always expected to:
-            // its silence was ruled inadmissible when it was armed, and it
-            // stayed silent. No inference is drawn from it.
-            //
-            // The witness that outlives both is GetTogglesUsed below. It
-            // is not the control; it is the readout, and it stays.
-
-            deviceDesc.SetUncapturedErrorCallback(
-                [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
-                    const std::string_view text(message.data, message.length);
-                    std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
-                        << text << std::endl;
-                    note_if_dropped_submit(type, text);   // WIT_2
-                });
-            // PORT_3a — the loss door, installed on BOTH twins. Native
-            // loss is rarer but real (TDR, GPU reset, driver update), the
-            // honest-death policy is the same, and one shape in two
-            // branches is cheaper to keep true than two policies.
-            deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
-                [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
-                       wgpu::StringView message) {
-                    deviceLost_ = true;
-                    std::cerr << "[Device] LOST reason=" << static_cast<int>(reason)
-                        << " : " << std::string_view(message.data, message.length) << std::endl;
-                });
-
-            // Query adapter limits and request the full capacity.
-            // The default maxStorageBuffersPerShaderStage (8) is too tight
-            // once generative objects each add render bindings.
-            wgpu::Limits adapterLimits{};
-            adapter.GetLimits(&adapterLimits);
-
-            deviceDesc.requiredLimits = &adapterLimits;
-
-            // THE FRAME METER (timestamp-query): request the feature when
-            // the adapter carries it; consumers check device.HasFeature.
-            // Absent → no unsafe-API chasing; downstream degrades loudly
-            // to CPU rows only.
-            //
-            // The REQUEST stays unconditional on purpose. Whether the meter
-            // arms is a cartridge decision (INSTRUMENTS.frame_meter,
-            // core/instruments.hpp) and this is the host — a granted feature
-            // costs nothing until a pass writes a timestamp, and keeping the
-            // request here means turning the instrument back on is one define
-            // in the cartridge, with no host edit and no second door to find.
-            // DOMESDAY_2 F3-b — the wrong enum leaves this twin too. The
-            // immediate lane needs no device feature (there is none);
-            // it needs the instance's WGSL dialect (F3-a) and the
-            // limit, which rides full passthrough here — the adapter's
-            // own maxImmediateSize, never a floor we have to ask for.
-            // Same shape as the web twin's line, so the two logs tell
-            // one story: what this request carries, then what the
-            // instance either has or lacks. ([Console] here, [Device]
-            // there — each twin's own local convention, unchanged.)
-            std::cout << "[Console] exceptions carried: maxImmediateSize rides passthrough"
-                         " (NEEDS r7 floor " << FLOOR_MAX_IMMEDIATE_SIZE << ");"
-                         " wgsl:immediate_address_space (instance) "
-                << (wgslImmediate_ ? "present" : "ABSENT") << "\n";
-            if (!wgslImmediate_) {
-                std::cout << "[Device] immediate_address_space NOT in the instance's WGSL"
-                             " dialect — the post-B6 shader cannot compile here (R3 floor)\n";
-            }
-            wgpu::FeatureName requiredFeatures[1] = { wgpu::FeatureName::TimestampQuery };
-            if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
-                deviceDesc.requiredFeatures = requiredFeatures;
-                deviceDesc.requiredFeatureCount = 1;
-            }
-
-            std::cout << "[Console] Adapter limits:"
-                << " storageBuffers/stage=" << adapterLimits.maxStorageBuffersPerShaderStage
-                << " uniformBuffers/stage=" << adapterLimits.maxUniformBuffersPerShaderStage
-                << " bindingsPerGroup=" << adapterLimits.maxBindingsPerBindGroup
-                << "\n";
-
-            // PIVOT_0 E4 — every future log self-attributes. A [Pipeline]
-            // table with no compiler beside it is uninterpretable, and
-            // this campaign exists because one was.
-            //
-            // PIVOT_0d E3 — labelled (request), because that is all it is.
-            // This line prints what the program ASKED FOR, before the
-            // device exists; it said DXC while FXC compiled, for 19,745 ms,
-            // and was not lying — it was answering a different question.
-            // The EFFECT is reported after CreateDevice by the toggles
-            // witness. P6 wants both halves: the request and the effect.
-            std::cout << "[Console] Compiler plan (request): "
-                << compiler_plan_name(kCompilerPlan) << "\n";
-
-            // PROBE_1 C1 — the full enumerated feature list (numeric;
-            // settles LEDGER_1 F4-2 at zero cost). Nothing is
-            // requested here beyond what the tree already requests.
-            {
-                wgpu::SupportedFeatures feats{};
-                adapter.GetFeatures(&feats);
-                std::cout << "[Console] Adapter features (" << feats.featureCount << "):";
-                for (size_t i = 0; i < feats.featureCount; i++) {
-                    std::cout << " " << static_cast<uint32_t>(feats.features[i]);
-                }
-                std::cout << "\n";
-                std::cout << "[Console] feature multi-draw-indirect="
-                    << (adapter.HasFeature(wgpu::FeatureName::MultiDrawIndirect) ? "YES" : "no")
-                    << " timestamp-query="
-                    << (adapter.HasFeature(wgpu::FeatureName::TimestampQuery) ? "YES" : "no")
-                    << "\n";
-            }
-
-            device_ = adapter.CreateDevice(&deviceDesc);
-            if (!device_) {
-                std::cerr << "Failed to create WebGPU device\n";
-                return false;
-            }
-
-            // PIVOT_0d E2 — THE EFFECT WITNESS. Everything above this line
-            // is a request; this is the answer. dawn::native::GetTogglesUsed
-            // reports the toggles Dawn ACTUALLY enabled on the device, after
-            // its own inheritance and after any ForceSet it applied.
-            //
-            // Paid for by PIVOT_0a: `use_dxc` was chained on the DEVICE
-            // descriptor, and it is a ToggleStage::Adapter toggle
-            // (dawn/native/Toggles.cpp), so it was silently inert. The boot
-            // log said "Compiler plan: DXC" and FXC compiled anyway. A
-            // switch that cannot be seen to have fired is indistinguishable
-            // from one that never fired (P6) — so the switch testifies now.
-            //
-            // The full list, not a use_dxc grep: it is one boot line, and
-            // the next toggle mystery will not be this one.
-            {
-                auto used = dawn::native::GetTogglesUsed(device_.Get());
-                std::cout << "[Console] Toggles used (" << used.size() << "):";
-                for (size_t i = 0; i < used.size(); i++) {
-                    std::cout << (i ? ", " : " ") << used[i];
-                }
-                std::cout << "\n";
-            }
-
-            queue_ = device_.GetQueue();
-            adapter_ = adapter;
-
-            return true;
-#endif // __EMSCRIPTEN__
         }
 
         bool initSurface() {
             wgpu::SurfaceDescriptor surfaceDesc{};
-#ifdef __EMSCRIPTEN__
             // ── PORT_1b Region 3 (web): the canvas surface ────────
             // P0-verified spelling: wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector
             // (dawn.json "emscripten surface source canvas HTML selector",
@@ -1521,21 +975,6 @@ namespace t7 {
             surfaceDesc.nextInChain = &canvasSource;
 
             surface_ = instance_.CreateSurface(&surfaceDesc);
-#else
-#if defined(_WIN32)
-            wgpu::SurfaceSourceWindowsHWND hwndSource{};
-            hwndSource.hwnd = glfwGetWin32Window(window_);
-            hwndSource.hinstance = GetModuleHandle(nullptr);
-            surfaceDesc.nextInChain = &hwndSource;
-#elif defined(__linux__)
-            wgpu::SurfaceSourceXlibWindow x11Source{};
-            x11Source.display = glfwGetX11Display();
-            x11Source.window = glfwGetX11Window(window_);
-            surfaceDesc.nextInChain = &x11Source;
-#endif
-
-            surface_ = wgpu::Instance(instance_->Get()).CreateSurface(&surfaceDesc);
-#endif // __EMSCRIPTEN__
 
             wgpu::SurfaceCapabilities caps;
             surface_.GetCapabilities(adapter_, &caps);
@@ -1553,7 +992,6 @@ namespace t7 {
             // canvas that actually exists by now — and the canvas backing
             // store is written from it in the same breath, so boot enters the
             // frame loop with the two already agreeing.
-#ifdef __EMSCRIPTEN__
             {
                 uint32_t tw = 0, th = 0;
                 compute_target_size(tw, th);
@@ -1563,7 +1001,6 @@ namespace t7 {
                     write_canvas_backing_store(tw, th);
                 }
             }
-#endif
             surfaceConfig_.width = currentWidth_;
             surfaceConfig_.height = currentHeight_;
             surfaceConfig_.presentMode = wgpu::PresentMode::Fifo;
@@ -1623,7 +1060,6 @@ namespace t7 {
         //   → [encode & submit] → present() → [back to running()]
 
     private:
-#ifdef __EMSCRIPTEN__
         // PORT_3c — clamp the EFFECTIVE device-pixel ratio, web only.
         //
         // Under contrib.glfw3 the GLFW contract holds: window size is CSS
@@ -1797,18 +1233,14 @@ namespace t7 {
                   + ' canvasBuf='   + (c ? c.width + 'x' + c.height : 'ABSENT'));
             }, winW, winH, fbPreW, fbPreH, fbPostW, fbPostH, acqW, acqH);
         }
-#endif
 
     public:
         float begin_frame() {
             glfwPollEvents();
-#ifdef __EMSCRIPTEN__
             emit_touch_intents();   // SHIP_1 — the frame tick consumes the gestures
-#endif
 
             // Handle resize
             int fbWidth = 0, fbHeight = 0;
-#ifdef __EMSCRIPTEN__
             // CAP_1: on this twin the wanted size comes from ONE expression
             // and from nowhere else. The framebuffer query below is read for
             // the FRAME_1 witness alone and never feeds a size — with
@@ -1823,9 +1255,6 @@ namespace t7 {
                 fbWidth  = static_cast<int>(tw);
                 fbHeight = static_cast<int>(th);
             }
-#else
-            glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
-#endif
             // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. A new size must hold
             // still for RECONFIGURE_SETTLE_FRAMES consecutive frames before
             // the surface is reconfigured; the accepted cost is ≤100 ms of
@@ -1867,19 +1296,15 @@ namespace t7 {
                         currentHeight_ = static_cast<uint32_t>(fbHeight);
                         surfaceConfig_.width = currentWidth_;
                         surfaceConfig_.height = currentHeight_;
-#ifdef __EMSCRIPTEN__
                         // CAP_1: the canvas and the surface take the SAME
                         // number, in the same breath. The canvas first, so the
                         // surface is configured against a canvas that already
                         // has the shape being asked for.
                         write_canvas_backing_store(currentWidth_, currentHeight_);
-#endif
                         surface_.Configure(&surfaceConfig_);
                         // No attachment recreation here — see the banner above.
                         stableFrames_ = 0;
-#ifdef __EMSCRIPTEN__
                         frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
-#endif
                     }
                 } else {
                     pendingWidth_ = static_cast<uint32_t>(fbWidth);
@@ -1902,14 +1327,12 @@ namespace t7 {
             // hands back a multi-second gap.
             dt = std::clamp(dt, 0.0f, 0.1f);
 
-#ifdef __EMSCRIPTEN__
             // CAP_2 — the last word, at the frame boundary. glfwPollEvents at
             // the head of this function is where the port applies any queued
             // resize, so by here every other writer for this frame has spoken.
             // Nothing between this line and the acquire touches the canvas:
             // the update phase is CPU state and the render phase has not begun.
             reassert_canvas_target();
-#endif
 
             return dt;
         }
@@ -1960,9 +1383,6 @@ namespace t7 {
         }
 
         void present() {
-#ifndef __EMSCRIPTEN__
-            surface_.Present();
-#endif
             // ── PORT_1b Region 4 (web): no-op — presentation is implicit
             // at rAF return. P0-verified: emdawnwebgpu's wgpuSurfacePresent
             // exists but ABORTS ("wgpuSurfacePresent is unsupported (use
@@ -2017,7 +1437,6 @@ namespace t7 {
         // tree consumes only deltas, so the previous position is console
         // state — not a static hiding in a callback body.
         void feed_cursor(double x, double y) {
-#ifdef __EMSCRIPTEN__
             // SHIP_1 U1 — THE BACKSTOP. claim_touch_stream() removed the
             // port's touch handlers, so nothing should synthesize a
             // cursor from a finger any more. Should is not a guarantee:
@@ -2032,7 +1451,6 @@ namespace t7 {
                 lastCursorY_ = y;
                 return;
             }
-#endif
             if (!cursorPrimed_) {
                 lastCursorX_ = x;
                 lastCursorY_ = y;
@@ -2057,9 +1475,7 @@ namespace t7 {
         }
 
         void inject_mouse_button(int button, bool pressed) {
-#ifdef __EMSCRIPTEN__
             if (any_touch_active()) return;   // the backstop's other half
-#endif
             InputEvent event{};
             event.type = InputEvent::Type::MouseButton;
             event.button = button;
@@ -2074,7 +1490,6 @@ namespace t7 {
             inputEvents_.push_back(event);
         }
 
-#ifdef __EMSCRIPTEN__
         // ═══ SHIP_1 U1 — THE TOUCH STREAM, CLAIMED ═══════════════
         //
         // THE PROBLEM, precisely. contrib.glfw3 registers its own
@@ -2504,7 +1919,6 @@ namespace t7 {
         }
 
     public:
-#endif   // __EMSCRIPTEN__
 
         // ── Consumer (main loop reads then clears) ───────────────
 
@@ -2615,7 +2029,6 @@ namespace t7 {
     private:
         // ── Window ───────────────────────────────────────────────
         GLFWwindow* window_ = nullptr;
-#ifdef __EMSCRIPTEN__
         // ── SHIP_1 — the claimed touch stream ────────────────────
         TouchPoint touches_[MAX_TRACKED_TOUCHES]{};
         uint64_t   nextTouchSeq_ = 1;   // 0 stays "never born"
@@ -2629,7 +2042,6 @@ namespace t7 {
         bool       rightTapPending_ = false;// one of a clean pair has lifted; waiting on the other
         bool       tapAuraPending_ = false; // edge-fired verbs, spent on the next tick
         bool       tapPossessPending_ = false;
-#endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;
         // CONFIGURE INTENT — what the app asks the surface for (ACQ_0).
@@ -2653,11 +2065,7 @@ namespace t7 {
         uint32_t stableFrames_ = 0;
 
         // ── Gpu Device ───────────────────────────────────────────
-#ifndef __EMSCRIPTEN__
-        std::optional<dawn::native::Instance> instance_;
-#else
         wgpu::Instance instance_;   // portable handle; owns the async request chain
-#endif
         wgpu::Adapter adapter_;
         wgpu::Device device_;
         wgpu::Queue queue_;

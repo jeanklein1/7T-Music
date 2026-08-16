@@ -537,7 +537,6 @@ namespace t7 {
                     }
                 }
 
-#ifdef __EMSCRIPTEN__
                 // EXHIBIT_0 — THE EXHIBITION IS A FETCH, AND IT STARTS HERE.
                 // This is the earliest instant a GalleryState exists to fill,
                 // and on the web twin it runs inside main() BEFORE
@@ -551,7 +550,6 @@ namespace t7 {
                 // No device, no queue, no GPU touched: this fetch fills a
                 // vector of names and nothing more.
                 kick_exhibition_manifest_fetch(gallery_state_);
-#endif
             }
 
             Cartridge(const Cartridge&) = delete;

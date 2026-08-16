@@ -90,8 +90,13 @@ def main() -> int:
 
         cmd = [
             cxx, "-fsyntax-only", "-std=gnu++20", "-w",
-            # The web arm is the program (SUNSET_0). GLFW_INCLUDE_NONE keeps
-            # glfw3.h from reaching for an OpenGL header this tree never uses.
+            # SUNSET_1 deleted every __EMSCRIPTEN__ guard, so this define no
+            # longer selects an arm — no source reads it. It stays for
+            # FIDELITY: emcc always defines it, the Emscripten headers may
+            # branch on it themselves, and a gate that compiles under
+            # different macros than the build is answering a different
+            # question. GLFW_INCLUDE_NONE keeps glfw3.h from reaching for an
+            # OpenGL header this tree never uses.
             "-D__EMSCRIPTEN__", "-DGLFW_INCLUDE_NONE",
             "-I", SRC,
             "-I", STUBS,

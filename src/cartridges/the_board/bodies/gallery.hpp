@@ -41,10 +41,8 @@
 #include <iostream>    // capture / gallery / authored logs   // (impl, merged)
 #include <string>      // manifest paths, std::stoi   // (impl, merged)
 #include <vector>      // manifest + pixel staging   // (impl, merged)
-#ifdef __EMSCRIPTEN__
 #include <cstring>            // std::strncpy — emscripten_fetch_attr_t::requestMethod   (EXHIBIT_0)
 #include <emscripten/fetch.h> // the web twin's byte source: the network, not a filesystem (EXHIBIT_0)
-#endif
 
 namespace t7 {
 namespace the_board {
@@ -549,7 +547,6 @@ struct AuthoredStagingRecord {
     float uv_scale_y = 1.0f;
     bool valid = false;
     bool consumed = false;
-#ifdef __EMSCRIPTEN__
     // EXHIBIT_0 — A REQUEST IS NOT A PICTURE. On the native twin a load
     // either fills this record or fails, inside one call; over the
     // network the two are separated by a round trip. `pending` names
@@ -559,7 +556,6 @@ struct AuthoredStagingRecord {
     // arrival AND on failure — a slot that never clears is a slot the
     // rotation can never reuse.
     bool pending = false;
-#endif
 };
 
 // Pending texture promotions (staging → exhibition, executed in render)
@@ -626,7 +622,6 @@ struct GalleryState {
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
-#ifdef __EMSCRIPTEN__
     // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
     // The native twin has no state here because its loads are calls
     // that return with the picture. The web twin's do not, so the two
@@ -646,7 +641,6 @@ struct GalleryState {
     // "No paintings folder found" is a true sentence every time it is
     // asked before the manifest lands; it is only worth SAYING once.
     bool authored_absence_logged = false;
-#endif
 
     // The occupancy array is the whole record. A companion count used to
     // ride beside it, incremented at every claim and decremented at every
@@ -1660,7 +1654,6 @@ inline void authored_stage_decoded_image(GalleryState& gs, GPUState& gpu, wgpu::
         << " (aspect " << rec.aspect_ratio << ")\n";
 }
 
-#ifdef __EMSCRIPTEN__
 
 // ═══ THE EXHIBITION ARRIVES OVER THE NETWORK ═════════════════════
 
@@ -1772,8 +1765,8 @@ inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
     // whole comment:
     //   · The gate's own warning is about NATIVE Dawn, where the loss
     //     destroys the objects and driving them afterwards is heap
-    //     corruption. This path is __EMSCRIPTEN__-only and cannot reach
-    //     that case.
+    //     corruption. This program does not run on native Dawn at all
+    //     (SUNSET_1) and cannot reach that case.
     //   · On this twin the queue is a JS WebGPU handle. Per the spec,
     //     work submitted to a lost device is dropped — a no-op, not a
     //     fault.
@@ -1875,35 +1868,9 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
     pump_authored_fetches(gs, gpu, queue);
 }
 
-#else
-
-// ── Authored Image Loading (staging model) ──
-
-inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
-    int width = 0, height = 0, channels = 0;
-    unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
-    if (!data) {
-        // Try fallback paths
-        std::string alt = std::string("7t/") + path;
-        data = stbi_load(alt.c_str(), &width, &height, &channels, 4);
-    }
-    if (!data) {
-        std::cerr << "[Authored] Failed to load: " << path << "\n";
-        return;
-    }
-
-    std::cout << "[Authored] Loaded: " << path
-        << " (" << width << "x" << height << ") → staging " << staging_layer << "\n";
-
-    authored_stage_decoded_image(gs, gpu, queue, staging_layer, disk_index, data, width, height);
-    stbi_image_free(data);
-}
-
-#endif   // __EMSCRIPTEN__ — the byte source, and only the byte source
 
 // ── Paintings folder scan ──
 
-#ifdef __EMSCRIPTEN__
 
 // THE MANIFEST PARSE, BY HAND. exhibition.json is a flat object of
 // string arrays that tools/web_dist.py in THIS repo writes — a JSON
@@ -2002,55 +1969,6 @@ inline void scan_paintings_folder(GalleryState& gs) {
     std::cout << "[Authored] No paintings folder found\n";
 }
 
-#else
-
-inline void scan_paintings_folder(GalleryState& gs) {
-    namespace fs = std::filesystem;
-    gs.authored_disk_manifest.clear();
-
-    // Try multiple base paths (build dir vs working dir)
-    static constexpr const char* SEARCH_DIRS[] = {
-        "assets/paintings",
-        "7t/assets/paintings",
-    };
-
-    fs::path found_dir;
-    for (const char* dir : SEARCH_DIRS) {
-        if (fs::exists(dir) && fs::is_directory(dir)) {
-            found_dir = dir;
-            break;
-        }
-    }
-    if (found_dir.empty()) {
-        std::cout << "[Authored] No paintings folder found\n";
-        return;
-    }
-
-    for (const auto& entry : fs::directory_iterator(found_dir)) {
-        if (!entry.is_regular_file()) continue;
-        std::string name = entry.path().filename().string();
-        // Match PAINTING_*.jpg or PAINTING_*.jpeg (case-insensitive extension)
-        if (name.rfind("PAINTING_", 0) != 0) continue;
-        std::string ext = entry.path().extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-        if (ext != ".jpg" && ext != ".jpeg") continue;
-        gs.authored_disk_manifest.push_back(entry.path().string());
-    }
-
-    // Sort by numeric value after PAINTING_ (not lexicographic)
-    // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100
-    // The rule itself now lives at authored_extract_number, above —
-    // the web twin sorts its manifest by the same one.
-    std::sort(gs.authored_disk_manifest.begin(), gs.authored_disk_manifest.end(),
-        [](const std::string& a, const std::string& b) {
-            return authored_extract_number(a) < authored_extract_number(b);
-        });
-
-    std::cout << "[Authored] Scanned " << found_dir.string()
-        << " — found " << gs.authored_disk_manifest.size() << " paintings\n";
-}
-
-#endif   // __EMSCRIPTEN__ — the manifest's source, and only its source
 
 inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
     if (gs.authored_textures_loaded) return;
@@ -2060,9 +1978,6 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         scan_paintings_folder(gs);
     }
     if (gs.authored_disk_manifest.empty()) {
-#ifndef __EMSCRIPTEN__
-        gs.authored_textures_loaded = true;
-#endif
         // WEB: THE FLAG DOES NOT LATCH ON AN EMPTY MANIFEST. Native's
         // "empty" is a verdict — the folder was walked and there is
         // nothing there — so latching is right: a second walk would
@@ -2085,7 +2000,6 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
     uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
     for (uint32_t i = 0; i < to_load; i++) {
-#ifdef __EMSCRIPTEN__
         // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR. Today the flag
         // below makes this loop run exactly once, so nothing can be
         // valid or pending yet — but the flag no longer latches on an
@@ -2094,7 +2008,6 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         // One line, and the interlock stops being the only thing
         // standing between this loop and thrown-away work.
         if (gs.authored_staging[i].valid || gs.authored_staging[i].pending) continue;
-#endif
         load_authored_image_to_staging(gs, gpu, queue, i, i, gs.authored_disk_manifest[i].c_str());
         // WEB: adds nothing here — the record cannot be valid yet, and
         // the tally is recomputed at each arrival instead. The line
@@ -2130,20 +2043,17 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
             if (gs.authored_staging[i].disk_index < 256)
                 disk_in_use[gs.authored_staging[i].disk_index] = true;
         }
-#ifdef __EMSCRIPTEN__
         // A SLOT IN FLIGHT ALREADY OWNS ITS PAINTING. It is not valid
         // yet, so the test above cannot see it — and without this the
         // cursor would hand the same disk index to a second slot and
         // the wall would hang the same picture twice.
         if (gs.authored_staging[i].pending && gs.authored_staging[i].disk_index < 256)
             disk_in_use[gs.authored_staging[i].disk_index] = true;
-#endif
     }
 
     uint32_t rotated = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         if (!gs.authored_staging[i].consumed) continue;  // keep unconsumed
-#ifdef __EMSCRIPTEN__
         // A SLOT ALREADY IN FLIGHT IS NOT ROTATED. The loop below reads
         // the disk cursor, ADVANCES it, and then assumes the load took —
         // it marks the painting in use and counts a rotation. On this
@@ -2153,7 +2063,6 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
         // happened. Skipping here costs the slot nothing; its fetch is
         // already on its way.
         if (gs.authored_staging[i].pending) continue;
-#endif
 
         // Find next disk image not already in a surviving slot
         uint32_t attempts = 0;

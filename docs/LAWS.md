@@ -626,3 +626,7 @@ naga gates the WGSL module per commit (CC-runnable); the web build
 (the classes naga cannot see — ATLAS_1revB). The audience floor
 (WebGPU core defaults) and the compiler floor (PIVOT_0) are
 unchanged by this sunset.
+
+SUNSET_1 (2026-08-16): the native arms are deleted from shared files;
+__EMSCRIPTEN__ guards collapsed; the tree compiles one program.
+Resurrection remains archaeology from tag `native-sunset`.
