@@ -67,6 +67,32 @@ ARTIFACTS = ["index.html", "organ_panel.js", "the_board.js", "the_board.wasm", "
 BUILD_ID_PLACEHOLDER = "__BUILD_ID__"
 BUILD_ID_LEN = 12
 
+# ── PROBATE_SEAL2 — THE SERVE WITNESS ────────────────────────────
+# The Pixel was served a world.wgsl cut mid-token 665 bytes from its
+# end, and every gate in the tree was green — correctly, because the
+# tree was clean and this script copies the shader's package byte for
+# byte. Nothing stood between dist/ and the device, so the defect
+# announced itself as a syntax error in a file that has none.
+#
+# The shader's digest is computed here, from the same bytes the link
+# packages, and baked into the page. At boot the loader hashes what it
+# actually received and compares (renderer.hpp, loadShader). One fact,
+# two ends, compared where the audience stands.
+#
+# THE SOURCE FILE IS THE SUBJECT, deliberately. --preload-file packs
+# this exact path into the_board.data (CMakeLists, T7_WEB_SHADER), so a
+# digest taken here also catches a STALE .data — a build whose link did
+# not rerun ships a shader older than its source, and that failure looks
+# identical to a truncation from the audience's side. One witness, both
+# corridors.
+#
+# Eight hex: the short form the console prints, long enough to name a
+# corruption and short enough to read off a phone at arm's length.
+SHADER_SHA_PLACEHOLDER = "__SHADER_SHA__"
+SHADER_SHA_LEN = 8
+SHADER_SRC = os.path.join(ROOT, "src", "cartridges", "the_board",
+                          "realization", "world.wgsl")
+
 # THE SAME NUMBER THE PROGRAM STAGES AT. The authored loader scales every
 # painting to fit Dim::PAINTING_RESOLUTION (src/cartridges/the_board/
 # realization/state.hpp) and pads to that square before upload, and it
@@ -476,6 +502,26 @@ def main():
         print("  new wasm. Restore `var BUILD = '%s';` in the shell." % BUILD_ID_PLACEHOLDER)
         return 4
 
+    # PROBATE_SEAL2 — THE THIRD REFUSAL, and for the reason the first two
+    # come before rmtree. A shell with no digest slot ships a page whose
+    # serve nothing witnesses, which is precisely the state the Pixel
+    # incident found the program in. Shipping that silently would retire
+    # the witness by omission — the one failure mode a witness must not
+    # have.
+    if SHADER_SHA_PLACEHOLDER not in shell_src:
+        print("")
+        print("REFUSING TO SHIP AN UNWITNESSED SERVE.")
+        print("  %s carries no %s placeholder." % (shell_src_path, SHADER_SHA_PLACEHOLDER))
+        print("  Without it the boot cannot compare the shader it received against the")
+        print("  shader this build packaged, and a truncated or stale world.wgsl reaches")
+        print("  the audience as a syntax error in a file that has none (PROBATE_SEAL).")
+        print("  Restore `var SHADER_SHA = '%s';` in the shell." % SHADER_SHA_PLACEHOLDER)
+        return 6
+    if not os.path.isfile(SHADER_SRC):
+        print("")
+        print("REFUSING TO SHIP: %s is missing — nothing to witness." % SHADER_SRC)
+        return 6
+
     # POSTER_0 — THE SECOND REFUSAL, and before rmtree for the reason the
     # first one is: a dist that cannot be completed must not cost the
     # previous one. A renamed PAINTING_200 fails the build loudly here
@@ -504,7 +550,17 @@ def main():
     # bytes a visitor will run.
     with open(os.path.join(DIST, "the_board.wasm"), "rb") as fh:
         build_id = hashlib.sha256(fh.read()).hexdigest()[:BUILD_ID_LEN]
+    # PROBATE_SEAL2 — read as BYTES, hashed whole. No decode, no newline
+    # translation, no substitution: the digest is of the file as it sits
+    # on disk, which is the only thing --preload-file packs. Text mode
+    # here would make the two ends disagree on every CRLF host, and a
+    # witness that reports MISMATCH on a good serve gets switched off.
+    with open(SHADER_SRC, "rb") as fh:
+        shader_bytes = fh.read()
+    shader_sha_full = hashlib.sha256(shader_bytes).hexdigest()
+    shader_sha = shader_sha_full[:SHADER_SHA_LEN]
     shell_out = shell_src.replace(BUILD_ID_PLACEHOLDER, build_id)
+    shell_out = shell_out.replace(SHADER_SHA_PLACEHOLDER, shader_sha)
     with open(os.path.join(DIST, "index.html"), "w", encoding="utf-8", newline="") as fh:
         fh.write(shell_out)
 
@@ -578,6 +634,10 @@ def main():
     print("  %-18s %s   <- sha256(the_board.wasm)[:%d]; the .js/.wasm/.data query"
           % ("build id", build_id, BUILD_ID_LEN))
     print("  %-18s %s" % ("", "Deploy twice without rebuilding and this must not change."))
+    print("  %-18s %s   <- sha256(world.wgsl)[:%d] over %d bytes; the boot compares"
+          % ("shader sha", shader_sha, SHADER_SHA_LEN, len(shader_bytes)))
+    print("  %-18s %s" % ("", "Pixel console must read: [Dist] world.wgsl sha=%s expected=%s MATCH"
+                          % (shader_sha, shader_sha)))
 
     # The verdict above already weighed these, from source sizes. This is
     # the confirmation on the bytes actually written — and it is a hard

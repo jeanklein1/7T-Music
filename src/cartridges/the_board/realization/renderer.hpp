@@ -4,7 +4,11 @@
 // ==================================================
 
 #include "cartridges/the_board/realization/state.hpp"
+#include "core/sha256.hpp"   // PROBATE_SEAL2 — the serve witness's digest
 #include <webgpu/webgpu_cpp.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>      // EM_ASM — reads the baked shader digest
+#endif
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -153,6 +157,11 @@ namespace t7 {
             wgpu::ShaderModule shaderModule_;
             std::string shaderSource_;
             std::string shaderPath_;
+            // PROBATE_SEAL2/3 — what the serve witness saw, kept so the
+            // floor can state it once and the report can quote it.
+            std::string shaderSha_;
+            size_t shaderBytes_ = 0;
+            bool serveWitnessed_ = false;
 
             struct PipelineTiming { std::string label; long long ms; };
             std::vector<PipelineTiming> pipelineTimings_;
@@ -1305,6 +1314,93 @@ namespace t7 {
                     std::cout << "Loaded shader from: " << loadedPath << "\n";
                 }
 
+                // ═══ PROBATE_SEAL2 — THE SERVE WITNESS ═══════════════
+                //
+                // BEFORE the module is created, compare the shader this
+                // program RECEIVED against the shader the build SHIPPED.
+                //
+                // The Pixel was served a world.wgsl cut mid-token 665
+                // bytes from its end and reported `:13639:28 expected
+                // ')'` inside orb_vs — a syntax error in a file that has
+                // none. The tree was clean, --check was green, the WGSL
+                // gate was green, and the packaging copies the bundle
+                // byte for byte. Every witness the program owned was
+                // looking at the right thing and none of them was
+                // standing in the corridor where the bytes actually go
+                // wrong: build -> dist -> upload -> CDN -> device.
+                //
+                // web_dist.py bakes sha256(world.wgsl)[:8] into the page
+                // at deploy; this hashes what MEMFS actually handed us.
+                // Truncation, a stale the_board.data, a half-written CDN
+                // object and a cache serving last week's bytes all land
+                // here as one legible line instead of as a parse error
+                // three hundred lines from the real problem.
+                //
+                // NATIVE/OFFLINE: no page, no digest, nothing to
+                // compare. `expected` is then empty and the line says
+                // UNWITNESSED — a fact, not a failure. The floor treats
+                // it as satisfied, because a shader read off local disk
+                // never crossed the corridor this witness watches.
+                const std::string got = t7::sha256_short(shaderSource_);
+                std::string expected;
+#ifdef __EMSCRIPTEN__
+                {
+                    // One EM_ASM, bytes into a stack buffer through
+                    // HEAPU8 — boot_params.hpp's pattern exactly (it
+                    // writes doubles through HEAPF64). Deliberately NOT
+                    // stringToNewUTF8/EM_ASM_PTR: those need a runtime
+                    // helper to be present in the shipped glue, and F5F
+                    // is this program's standing lesson about betting on
+                    // an API the payload may not carry. A digest is
+                    // 8 ASCII hex characters; a 16-byte buffer and a
+                    // hand-written copy need nothing but the heap view.
+                    char buf[16] = {};
+                    EM_ASM({
+                        var s = (typeof SHADER_SHA === 'string') ? SHADER_SHA : '';
+                        // An unsubstituted placeholder is NOT a digest —
+                        // it means someone opened web/index.html directly
+                        // instead of the dist/ copy web_dist generates.
+                        // Report absent rather than mismatched.
+                        if (s.indexOf('__') === 0) s = '';
+                        var n = Math.min(s.length, $1 - 1);
+                        for (var i = 0; i < n; i++)
+                            HEAPU8[$0 + i] = s.charCodeAt(i) & 0x7f;
+                        HEAPU8[$0 + n] = 0;
+                    }, buf, static_cast<int>(sizeof(buf)));
+                    buf[sizeof(buf) - 1] = '\0';
+                    expected = buf;
+                }
+#endif
+                shaderBytes_ = shaderSource_.size();
+                shaderSha_ = got;
+                if (expected.empty()) {
+                    std::cout << "[Dist] world.wgsl sha=" << got
+                        << " expected=(none) UNWITNESSED — no baked digest"
+                           " (native, or a page web_dist did not generate)\n";
+                    serveWitnessed_ = true;
+                }
+                else if (expected == got) {
+                    std::cout << "[Dist] world.wgsl sha=" << got
+                        << " expected=" << expected << " MATCH ("
+                        << shaderSource_.size() << " bytes)\n";
+                    serveWitnessed_ = true;
+                }
+                else {
+                    // THE STOP, not a warning. A module built from bytes
+                    // the build did not ship is a module whose every
+                    // downstream error is misdirection.
+                    std::cout << "[Dist] world.wgsl sha=" << got
+                        << " expected=" << expected << " MISMATCH ("
+                        << shaderSource_.size() << " bytes received)\n";
+                    std::cout << "[Floor] STOP — the shader this device received is not the"
+                                 " shader this build shipped. No module is created; no"
+                                 " pipeline is compiled; no frame runs. Hard-refresh first"
+                                 " (a truncated fetch is the cheapest explanation), then"
+                                 " redeploy. PROBATE_SEAL2.\n";
+                    serveWitnessed_ = false;
+                    return false;
+                }
+
                 wgpu::ShaderSourceWGSL wgslSource{};
                 wgslSource.code = shaderSource_.c_str();
 
@@ -1321,6 +1417,30 @@ namespace t7 {
                 return shaderModule_ != nullptr;
             }
 
+            // ═══ PROBATE_SEAL3 — THE TIMER TELLS THE TRUTH ═══════════
+            //
+            // CreateShaderModule is ASYNCHRONOUS about errors: it hands
+            // back a non-null module immediately and reports the parse
+            // result later, through GetCompilationInfo. So on the Pixel
+            // — with a shader cut mid-token — every one of these came
+            // out looking like a healthy boot:
+            //
+            //   [Renderer] Shader compile: 3 ms      (a create call)
+            //   [Pipeline] gen_patch_heights: 0 ms   (never compiled)
+            //   … fifty-eight more zeroes …
+            //
+            // Zero milliseconds is what a pipeline built on a broken
+            // module costs, and printed in a column of successes it
+            // reads as "fast", not as "absent". The timing line already
+            // says "create call" now; this is the other half — the
+            // module's own verdict, waited for, BEFORE any pipeline is
+            // built on it. Nothing downstream gets to print a number
+            // about a module that did not compile.
+            //
+            // The wait is a spin on the device queue, which is what this
+            // boot path already is (synchronous, pre-frame-loop). On the
+            // web that is the browser's own event loop turning; there is
+            // no frame in flight to stall.
             bool createComputePipelines() {
                 // The FRAME_K pipeline layout: WORLD + FRAME_C + the frame-k
                 // pair. Serves update_camera and compute_vp — the two kernels

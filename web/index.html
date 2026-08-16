@@ -912,11 +912,39 @@
     // script's refusal-to-ship check has one thing to count.
     var BUILD = '__BUILD_ID__';
 
+    // ── PROBATE_SEAL2 — THE SERVE WITNESS ──────────────────────
+    //
+    // The Pixel was served a world.wgsl cut mid-token 665 bytes from
+    // its end. The tree was clean, every gate was green, and the
+    // packaging copies the shader's bundle byte for byte — so the
+    // defect lived in the one stretch nothing witnessed: the corridor
+    // between the build and the device. It reached the audience as
+    // `:13639:28 expected ')'`, a syntax error in a file that has none.
+    //
+    // tools/web_dist.py substitutes the placeholder below with the
+    // first 8 hex of sha256(world.wgsl) — the same file --preload-file
+    // packs into the_board.data. The program hashes the bytes it
+    // actually loaded and compares (renderer.hpp, loadShader). The
+    // whole incident becomes one console line, and a MISMATCH stops
+    // the boot rather than narrating it.
+    //
+    // Same rule as BUILD: the placeholder appears exactly ONCE in this
+    // file, so the substitution has one target and web_dist's
+    // refusal-to-ship check has one thing to count.
+    var SHADER_SHA = '__SHADER_SHA__';
+
     // contrib.glfw3 convention: its default canvas selector is literally
     // "Module['canvas']" (emscripten-glfw Config.h kDefaultCanvasSelector),
     // so handing the canvas to Module wires the GLFW window to it.
     // Pointer Lock is requested by contrib.glfw3 on the first user
     // gesture — the browser requires one; hence the hint.
+    // PROBATE_SEAL2 — the digest reaches the program as a global, read
+    // once in loadShader(). A Module field would be the tidier home,
+    // but Module is rebuilt by the glue and the read happens long after
+    // that; a plain global is the one thing both sides can name without
+    // depending on Emscripten's lifecycle.
+    window.SHADER_SHA = SHADER_SHA;
+
     window.Module = {
       canvas: document.getElementById('canvas'),
       // The .wasm and the .data are fetched by the glue, not by us, so
