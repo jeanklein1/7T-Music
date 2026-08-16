@@ -573,6 +573,61 @@ RESOURCES = {
 # stands on it. binding_gen.py --write emits
 # src/console/limits_floor.gen.inc from these rows — the literals live
 # here and nowhere else.
+# ═══ THE CLASSIFIER CONTROL (LOOM_3) — W2-3's positive control, as DATA ═══
+#
+# W2-3 proves the access-pattern classifier can still tell a direct-path
+# sequential read from one joined with a vertex-attribute input — the exact
+# distinction the logistics survey got backwards in both directions. A
+# positive control needs a site that is known to exhibit the thing, and this
+# is it. It lived in binding_ledger.py as a hardcoded (function, symbol)
+# pair; it lives here for the same reason DEFENDED_SITES does.
+CLASSIFIER_CONTROL = {
+    'entry_point': 'patch_terrain_vs',
+    'decl': 'patch_instances',
+    'expect_source_contains': 'vertex attribute',
+    'note': "patch_terrain_vs reads patch_instances[actual_id] as other(vertex "
+            "attribute @location(0)) — the direct path joined with the B3 "
+            "vertex-attribute input. If the classifier stops naming the "
+            "attribute, it is wrong in the exact way the survey was.",
+}
+
+# ═══ DEFENDED SITES (LOOM_3) — W4-2's positive control, as DATA ═══════
+#
+# An instrument that cannot find what we already know is there is not an
+# instrument, and W4-2 is the check that proves the defended-site index
+# still finds it. Its control used to be a hand-written list inside
+# binding_ledger.py, and it was re-keyed three times by campaigns that
+# never touched the witness's subject: BUDGET_1 (the keys were layout
+# ENTRY INDICES, and a removed row renumbered them), LOOM_2 (the seats
+# moved stratum), CHORD_4 (two seats merged into one block). Every one of
+# those forced an instrument commit to keep a witness green — 0b-1's
+# defect, and standing order 3 forbids that commit riding the subject's.
+#
+# So the control lives HERE, in the schema, which is already the one home
+# for the binding surface (L22). A key is a BINDING CONSTANT or an ENTRY
+# POINT — identities, not positions and not prose. The LOOM_2 re-key
+# proved constants survive a move; CHORD_4 proved a merge changes which
+# constant, and a merge is a schema edit anyway, so the fact lands in the
+# file the merge already opens.
+#
+# `file` is where the defended prose is expected to live; `note` is why
+# the site is defended, for a reader who finds this list before the prose.
+DEFENDED_SITES = [
+    {'key': 'update_player_agent', 'file': 'world.wgsl',
+     'note': 'the FXC compile-time record — 20,227 ms, then an access violation (WALLET_0)'},
+    {'key': 'update_other_agents', 'file': 'world.wgsl',
+     'note': 'the agent-kernel split, priced at 48 s of FXC compile (L2 strike)'},
+    {'key': '(file banner)', 'file': 'world.wgsl',
+     'note': 'the COMPILER FLOOR block — the audience floor and the witness protocol'},
+    {'key': 'pawn_ground_resolve', 'file': 'world.wgsl',
+     'note': 'the ground-resolve shape, held against an FXC-era rewrite'},
+    {'key': 'bind::g2::scene_constants in Scene State Layout', 'file': 'state.hpp',
+     'note': 'UNIFORM not storage: the render VERTEX stage is at the per-stage '
+             'storage cap and uniform has its own budget. CHORD_4 merged the '
+             'tier registry and the figure table into this block and their two '
+             'defences with them.'},
+]
+
 NEEDS = {
     'maxTextureDimension2D': {'floor': 2048, 'source': 'Dim::SHADOW_MAP_SIZE', 'note': 'the shadow atlas edge — the largest texture the program creates'},
     'maxTextureArrayLayers': {'floor': 225, 'source': 'Dim::MAX_ACTIVE_PATCHES', 'note': 'the patch heightfield array depth; 225 of the 256 default is the tightest ceiling the program owns'},

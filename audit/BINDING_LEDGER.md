@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `2366333be034fbde470a43b90509c930d50a3eec` |
-| | CHORD_4: scene_constants — the render room's mood-cadence seats become one (V 8→4 across CHORD) |
+| source commit | `ba327a7f38a93f98f47241add52604027c12688a` |
+| | CHORD_5: render_floating promoted to read-only storage — the entity-growth wall falls |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:cb7d486aea1b044be92c01a7ed4196aeea4c68baea3402933662c95b21d09f81` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:3377d59ee50e9e9ac6d2f3a8232bb343a56e059527d2a8fe0e5d579dd389bddf` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:0a43090367f752e3a50c637a23f3c5bc89c5caeb9d96eaeddca3d7213397eeb9` |
@@ -29,11 +29,11 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `e5b2cabb501e3ff55a397c66151cec6d1ac4a8330faeac6651b29fca008e106c` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `336340b048fc2e033f99f0a3e8c480cfcec87f41104261c0aadc41ddfc2141e4` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `1564f21315f220c73d362ce0b517936f991e3c749e9c55c71452e60fdc65a486` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `e4a2855e62931c2b946b8f2265cf7944ecefd3bc51e3ad5412acb2c6cf335704` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `b639467fd2bc5dd97a47b258007e097741976e805e604521b2bb072a86afb2fe` |
-| `src/cartridges/the_board/cartridge.hpp` | `14e77c572775461cb09b442925619f556e8c257f31b27b1771e9f8635ae7afa1` |
+| `src/cartridges/the_board/cartridge.hpp` | `3c7cbe8b253ad2077fcb1fcc2e07cad9f64de90b109535b8ab81026f3334b3fe` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `3a8aca71c76d78901c22dde59ba0329a08dd5184882dc95e8da9dc6a8841da8d` |
 | `src/cartridges/the_board/direction/mood.hpp` | `0e7693b1b221e0355e0574f1d1ad2e95cacbdde3e1658e3c7bb82d45316feb7a` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `9a0e6132b15e7f865120da314d3a79daa1afe3822f7e1505f450625afca02f58` |
@@ -78,7 +78,7 @@ matters only where a binding is a window onto a shared buffer.
 | `0a-6` | **PASS** | 34 bind groups over 29 layouts, every one a bijection with its layout; 2 layout(s) back more than one group — frameRLayout_: Frame R BindGroup, Frame BindGroup (Photographer); meshgenStateLayout_: Meshgen State BindGroup, Meshgen State BindGroup (Column), Meshgen State BindGroup (Palm), Meshgen State BindGroup (Cactus), Meshgen State BindGroup (Blade) |
 | `0b-0` | **PASS** | 87 @group( occurrences, 87 declarations parsed |
 | `0b-1` | **PASS** | banner reproduced: 87 declarations over 72 slots; aliases bladeg_indices, bladeg_params, bladeg_vertices, cactusg_indices, cactusg_params, cactusg_vertices, cmg_indices, cmg_params, cmg_vertices, fc_config, fc_patches, fc_vp, palmg_indices, palmg_params, palmg_vertices |
-| `0b-4` | **PASS** | WGSL layout calculator reproduces both byte counts the program states in prose twice over: agent_room 6928 B, field_bus 6656 B |
+| `0b-4` | **PASS** | WGSL layout calculator reproduces every byte count the module's BYTE-FOR-BYTE markers state (6 struct(s), marker-registered): SceneConstants 4336 B, RibbonState 112 B, FieldAuthored 144 B, FieldBus 6656 B, AgentRoomConstants 6928 B, FrameR 1024 B |
 | `0b-5` | **PASS** | the uniform-legality predicate clears all 17 declarations the program already places in the uniform address space |
 | `0b-2` | **PASS** | 294 functions, 65 entry points (28 vertex, 8 fragment, 29 compute) |
 | `0b-3` | **PASS** | every @compute entry point carries a @workgroup_size |

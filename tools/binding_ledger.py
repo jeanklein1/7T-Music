@@ -46,6 +46,30 @@ WORLD_WGSL = os.path.join(REAL, "world.wgsl")
 
 DEFAULT_OUT = os.path.join(REPO, "audit", "BINDING_LEDGER.md")
 
+
+def _load_schema():
+    """binding_schema.py — the one home for facts about the binding surface.
+
+    LOOM_3: witnesses read their control sets from the schema instead of
+    carrying hand-written copies, so a rename in the subject never requires
+    an edit in the witness. Loaded by path, not by package import, for the
+    same reason binding_gen.py does it: the tools directory is not a package
+    and the schema is DATA ONLY — no logic, no imports, nothing to cycle on.
+    """
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "binding_schema.py")
+    if not os.path.exists(path):
+        sys.exit("binding_ledger: tools/binding_schema.py is missing — the "
+                 "witnesses read their control sets from it (LOOM_3)")
+    spec = importlib.util.spec_from_file_location("binding_schema", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+schema = _load_schema()
+
 # ─── The Core defaults (WebGPU §3.6.2 "limits"). The guaranteed floor on
 #     every machine that hands you an adapter, and therefore the web
 #     twin's real ceiling. ────────────────────────────────────────────
@@ -953,11 +977,13 @@ def parse_wgsl_decls(w, src, structs, consts):
     #     reality". A malformed or missing banner is a FAILURE, not a skip
     #     — an unparseable authority is the same defect as a wrong one,
     #     and skipping would make the witness silently inert.
-    expect_aliases = ["bladeg_indices", "bladeg_params", "bladeg_vertices",
-                      "cactusg_indices", "cactusg_params", "cactusg_vertices",
-                      "cmg_indices", "cmg_params", "cmg_vertices",
-                      "fc_config", "fc_patches", "fc_vp",
-                      "palmg_indices", "palmg_params", "palmg_vertices"]
+    #     LOOM_3: the alias list is DERIVED, not typed. An alias is exactly a
+    #     DECLS row carrying alias_of, so the schema already knows the whole
+    #     set and knew it before this line was ever written. Fifteen decl
+    #     names sat here until now, and any rename among them would have
+    #     forced an instrument commit to keep 0b-1 green — the same defect
+    #     0b-1's own banner describes, still standing in 0b-1's own body.
+    expect_aliases = sorted(k for k, v in schema.DECLS.items() if v.get("alias_of"))
     bm = re.search(r"world\.wgsl\s*\((\d+)\s+declarations\s+over\s+(\d+)\s+slots",
                    read(REGISTRY_HPP))
     if bm is None:
@@ -979,37 +1005,65 @@ def parse_wgsl_decls(w, src, structs, consts):
                     len(decls), len(slots), ", ".join(aliases) or "none"))
 
     # ─── The layout calculator, checked against the PROGRAM's own prose.
-    #     Three byte counts are written down in state.hpp and
-    #     binding_registry.hpp by the people who sized the buffers. If the
-    #     calculator cannot reproduce all three, no A2 row it produces is
-    #     worth reading.
-    #     THE CONTROL SET MOVED ONCE (CHORD). Its first three symbols were
-    #     agent_figure_profiles 4032, field_head_poses 6400 and
-    #     field_authored 144 — two of which CHORD_2 merged into a block and
-    #     the third of which CHORD_4 does, so the control named subjects
-    #     that a redistricting campaign was always going to retire. This is
-    #     0b-1's defect one witness over: a literal here, keyed to a
-    #     declaration, forces every subject campaign that moves that
-    #     declaration to edit an INSTRUMENT to stay green — which standing
-    #     order 3 forbids from riding the same commit.
+    #     If the calculator cannot reproduce the byte counts the people who
+    #     sized these structs wrote down, no A2 row it produces is worth
+    #     reading.
     #
-    #     The replacements are chosen to OUTLIVE the campaign and to test
-    #     the calculator harder. A merged block exercises member alignment,
-    #     array stride and struct round-up all at once, where a flat
-    #     array<vec4> exercised none of them; and both numbers are stated
-    #     twice in the program, in the WGSL banner and in a C++
-    #     static_assert, so the control has two independent sources.
-    by_symbol = {d.symbol: d for d in decls}
-    stated = [("agent_room", 6928, "world.wgsl AgentRoomConstants banner + state.hpp static_assert(sizeof(GPUAgentRoomConstants) == 6928)"),
-              ("field_bus", 6656, "world.wgsl FieldBus banner + state.hpp static_assert(sizeof(GPUFieldBus) == 6656)")]
-    off = []
-    for sym, want, where in stated:
-        got = by_symbol[sym].layout.size if sym in by_symbol else None
+    #     ═══ LOOM_3 — THE MARKER IS THE REGISTRATION ═══════════════════
+    #
+    #     A RENAME IN THE SUBJECT MUST NEVER REQUIRE AN EDIT IN THE WITNESS.
+    #     This control used to be a hand-written list of declaration names,
+    #     and it was edited twice in one campaign: CHORD_2 merged two of its
+    #     three symbols into a block and CHORD_4 merged the third, so each
+    #     time the subject moved, an INSTRUMENT commit had to move with it —
+    #     which standing order 3 forbids from riding the same commit, so the
+    #     witness went red on master in between. That is 0b-1's defect, one
+    #     witness over, and the cure is the same one 0b-1 got: stop keeping a
+    #     list, and read the program's own convention instead.
+    #
+    #     THE CONVENTION IS ALREADY THERE. L3 makes every mirrored struct
+    #     announce itself in world.wgsl with `BYTE-FOR-BYTE (N B`, because a
+    #     mirror without its size written down is not a handshake. So the
+    #     marker enrolls the struct: every one found is checked, and the
+    #     struct checked is the next one declared after it.
+    #
+    #     WRITING THE MARKER IS HOW YOU JOIN. An author who adds a mirrored
+    #     struct and states its size in the banner — which L3 already asks
+    #     for — has registered it here, with no edit to this file and nothing
+    #     to remember. An author who renames one has done nothing at all,
+    #     because no name is written down here to go stale.
+    #
+    #     It also widened the control for free: the list held two structs, the
+    #     convention finds every mirrored struct in the module, including the
+    #     two that FELL OUT of the old list when CHORD turned them from
+    #     declarations into members.
+    raw_for_markers = read(WORLD_WGSL)
+    marker_re = re.compile(r"BYTE-FOR-BYTE[^)]*?\(\s*(\d+)\s*B\b", re.S)
+    struct_re = re.compile(r"^\s*struct\s+(\w+)\s*\{", re.M)
+    stated, off = [], []
+    for m in marker_re.finditer(raw_for_markers):
+        want = int(m.group(1))
+        nxt = struct_re.search(raw_for_markers, m.end())
+        line = raw_for_markers[:m.start()].count("\n") + 1
+        if nxt is None:
+            off.append("marker at world.wgsl:%d states %d B but no struct "
+                       "declaration follows it" % (line, want))
+            continue
+        name = nxt.group(1)
+        lay = layout_of(name, structs, consts)
+        got = lay.size if lay else None
+        stated.append((name, want))
         if got != want:
-            off.append("%s: source says %s, calculator says %s (%s)" % (sym, want, got, where))
+            off.append("%s (world.wgsl:%d): prose says %s, calculator says %s"
+                       % (name, line, want, got))
+    if not stated and not off:
+        off.append("no BYTE-FOR-BYTE markers found in world.wgsl — the "
+                   "registration convention has gone missing, and an empty "
+                   "control is not a passing one")
     w.record("0b-4", not off,
-             "WGSL layout calculator reproduces both byte counts the program states in "
-             "prose twice over: agent_room 6928 B, field_bus 6656 B"
+             "WGSL layout calculator reproduces every byte count the module's "
+             "BYTE-FOR-BYTE markers state (%d struct(s), marker-registered): %s"
+             % (len(stated), ", ".join("%s %d B" % s for s in stated))
              if not off else "; ".join(off))
 
     # ─── The uniform-legality predicate, checked against the program.
@@ -1677,14 +1731,14 @@ def phase_ext2(w, wgsl):
     #     NOT read as pure builtin_sequential, and its source must
     #     name the vertex attribute. If it does not, the classifier is
     #     wrong in the exact way the survey was.
-    ctl = {}
-    for s in sites:
-        if s["fn"] == "patch_terrain_vs" and s["symbol"] == "patch_instances":
-            ctl[s["symbol"]] = s
-    pc = ctl.get("patch_instances")
+    #     LOOM_3: the control's identity comes from the schema
+    #     (CLASSIFIER_CONTROL), not from two names typed here.
+    cc = schema.CLASSIFIER_CONTROL
+    pc = next((s for s in sites
+               if s["fn"] == cc["entry_point"] and s["symbol"] == cc["decl"]), None)
     ok = (pc is not None
           and pc["cls"].cls != "builtin_sequential"
-          and "vertex attribute" in pc["cls"].source)
+          and cc["expect_source_contains"] in pc["cls"].source)
     w.record("W2-3", ok,
              "positive control: patch_terrain_vs reads patch_instances[%s] as %s "
              "(direct-path sequential joined with the B3 vertex-attribute input)"
@@ -3016,24 +3070,16 @@ def phase_ext4(w, wgsl, layouts, cen):
              "%d trigger tokens, emitted verbatim into the artifact: %s"
              % (len(TRIGGERS), ", ".join(n for n, _ in TRIGGERS)))
 
-    # The control set, defined ONCE. W4-3's overfit guard and W4-2's
-    # positive control read the same list; keeping two hand-written copies
-    # is how the index-keyed names drifted out of step with the tree.
-    # LOOM_2 re-home: the recut moved the two defended seats from Render
-    # Entity Layout (g0) to Scene State Layout (g2). The key follows the
-    # binding identity to its new home — same seats, same buffers, same
-    # defended prose; only the stratum address changed.
-    # CHORD_4 merge: those two seats — agent_tier_gains and
-    # agent_figure_profiles — became MEMBERS of one block, scene_constants,
-    # and the defence merged with them. It is the same argument it always
-    # was (the render VERTEX stage is at the per-stage storage cap; uniform
-    # has its own budget), now made once for the block instead of twice for
-    # its parts, which is why six controls became five and not four.
-    want = [("update_player_agent", "world.wgsl"),
-            ("update_other_agents", "world.wgsl"),
-            ("(file banner)", "world.wgsl"),
-            ("pawn_ground_resolve", "world.wgsl"),
-            ("bind::g2::scene_constants in Scene State Layout", "state.hpp")]
+    # The control set, defined ONCE — and NOT here (LOOM_3). W4-3's overfit
+    # guard and W4-2's positive control both read it from
+    # binding_schema.py's DEFENDED_SITES, which is the schema's job: the
+    # one home for facts about the binding surface (L22). Three campaigns
+    # re-keyed this list while it lived in the instrument, each forcing an
+    # instrument commit to keep a witness green; a key that lives in the
+    # schema is edited by the campaign that moves its subject, in the file
+    # that campaign already has open. The schema's banner carries the
+    # history and the reasoning.
+    want = [(row["key"], row["file"]) for row in schema.DEFENDED_SITES]
 
     # ─── W4-3 — the guard on W4-2. Two triggers were ADDED to make the
     #     control pass, which is what a control is for — but an instrument
@@ -4354,11 +4400,14 @@ def main():
         byfile.setdefault(f.file, []).append(f)
     for fl, items in sorted(byfile.items()):
         print("    %s: %d" % (fl, len(items)))
-    print("  the six positive-control sites:")
+    # LOOM_3: read from the schema, and note what this line used to be — it
+    # still said "six" and still named `Render Entity Layout entries[16]/[17]`,
+    # keys W4-2's control abandoned two re-keys before this sweep found them.
+    # A stale console line is a small lie, but it is the same lie.
+    _ctl_keys = {row["key"] for row in schema.DEFENDED_SITES}
+    print("  the %d positive-control sites:" % len(_ctl_keys))
     for f in e4["sites"]:
-        if f.symbol in ("update_player_agent", "update_other_agents", "pawn_ground_resolve",
-                        "(file banner)", "Render Entity Layout entries[16]",
-                        "Render Entity Layout entries[17]"):
+        if f.symbol in _ctl_keys:
             print("    %-36s %-16s %s:%d  [%s]  via %s"
                   % (f.symbol, f.kind, f.file, f.line, ", ".join(f.triggers),
                      ", ".join(f.rules)))
