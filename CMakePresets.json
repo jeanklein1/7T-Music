@@ -12,45 +12,6 @@
       }
     },
     {
-      "name": "native",
-      "hidden": true,
-      "inherits": "the-board",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "DAWN_DIR": "C:/dev/dawn",
-        "DAWN_BUILD": "C:/dev/dawn/out"
-      }
-    },
-    {
-      "name": "the-board-full",
-      "displayName": "the_board — full",
-      "inherits": "native"
-    },
-    {
-      "name": "the-board-full-release",
-      "displayName": "the_board — full (Release)",
-      "inherits": "the-board-full",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "the-board-minimal",
-      "displayName": "the_board — minimal",
-      "inherits": "native",
-      "cacheVariables": {
-        "THE_BOARD_DEMO": "minimal"
-      }
-    },
-    {
-      "name": "the-board-full-release-meter",
-      "displayName": "the_board — full (Release, frame meter armed)",
-      "inherits": "the-board-full-release",
-      "cacheVariables": {
-        "T7_INSTRUMENTS": "meter"
-      }
-    },
-    {
       "name": "the-board-web",
       "displayName": "the_board — web (Emscripten, first light)",
       "inherits": "the-board",
@@ -88,26 +49,6 @@
     }
   ],
   "buildPresets": [
-    {
-      "name": "the-board-full",
-      "configurePreset": "the-board-full",
-      "targets": [ "incubator_dual" ]
-    },
-    {
-      "name": "the-board-full-release",
-      "configurePreset": "the-board-full-release",
-      "targets": [ "incubator_dual" ]
-    },
-    {
-      "name": "the-board-minimal",
-      "configurePreset": "the-board-minimal",
-      "targets": [ "incubator_dual" ]
-    },
-    {
-      "name": "the-board-full-release-meter",
-      "configurePreset": "the-board-full-release-meter",
-      "targets": [ "incubator_dual" ]
-    },
     {
       "name": "the-board-web",
       "configurePreset": "the-board-web",

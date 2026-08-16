@@ -630,3 +630,6 @@ unchanged by this sunset.
 SUNSET_1 (2026-08-16): the native arms are deleted from shared files;
 __EMSCRIPTEN__ guards collapsed; the tree compiles one program.
 Resurrection remains archaeology from tag `native-sunset`.
+
+SUNSET_2: the presets carry the web flow only; the guard fires first and
+names the preset.

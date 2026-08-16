@@ -2,6 +2,27 @@
 cmake_minimum_required(VERSION 3.16)
 project(7t_visualizer VERSION 0.1.0 LANGUAGES CXX)
 
+# ═══ SUNSET_2 — THE GUARD FIRES FIRST, AND NAMES THE ROAD ════════════════════
+#
+# SUNSET_0's refusal was correct but it was the LAST thing a wrong configure
+# printed: the cartridge banner, the seed line and the config axis all spoke
+# first, so a tree that was never going to configure looked like it was
+# configuring. It is the first thing now. Nothing above this line prints.
+#
+# The occasion was Visual Studio auto-selecting a retired native preset and
+# the guard catching it. The guard did its job; the furniture that invited
+# the attempt is gone with SUNSET_2 (CMakePresets.json carries the web flow
+# only), and this message names the presets that actually exist rather than
+# an emcmake incantation this tree does not use. A sign that names a road
+# nobody drives is how the wrong turn gets taken twice.
+if(NOT EMSCRIPTEN)
+    message(FATAL_ERROR
+        "This tree builds the WEB twin only (SUNSET_0). Use the web presets: "
+        "cmake --preset the-board-web && cmake --build --preset the-board-web "
+        "(also: the-board-web-meter, the-board-web-debug). "
+        "Native is archived at tag `native-sunset` — docs/LAWS.md.")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -260,18 +281,6 @@ if(EMSCRIPTEN)
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"
         LINK_DEPENDS "${T7_WEB_SHADER}"
     )
-else()
-    # SUNSET_0 — THE WEB TWIN IS THE PROGRAM. There is no native target to
-    # configure any more: the Dawn section, the link libraries, the MSVC
-    # options, the asset copy and the DXC runtime search all left with the
-    # twin they served. Resurrection is archaeology from tag `native-sunset`,
-    # not a branch of this file. Failing here rather than configuring an
-    # empty target is the honest else-branch: a tree that quietly produced a
-    # program linking no WebGPU would teach the wrong thing twice.
-    message(FATAL_ERROR
-        "This tree builds the WEB twin only (SUNSET_0). Configure under the "
-        "Emscripten toolchain: emcmake cmake -S . -B build-web. The native "
-        "twin is archived at tag `native-sunset` — see docs/LAWS.md SUNSET_0.")
 endif()
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}"
