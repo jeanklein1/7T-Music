@@ -3141,10 +3141,12 @@ fn contrib_pawn_aura_at_self() -> f32 {
 // Ground Query API — per-policy specializations
 //
 // One entry point per policy. Each consumer declares its policy at
-// its own call site (a compile-time constant choice of function) so
-// FXC sees uniform branching and can dead-code-eliminate anything
-// outside that policy's contributor set. Runtime policy dispatch is
-// deliberately avoided — see contracts/ground_architecture.hpp (POLICIES[]).
+// its own call site (a compile-time constant choice of function), so a
+// specialization carries only its own policy's contributor set and every
+// backend drops the rest — ordinary dead-code elimination of a uniform
+// branch, not one compiler's kindness. (The pricing this once carried
+// was FXC's; audit/FXC_LAWS_RECORD.md §PROBATE.) Runtime policy dispatch
+// is deliberately avoided — see contracts/ground_architecture.hpp (POLICIES[]).
 //
 // Contributor sets mirror POLICIES[] in contracts/ground_architecture.hpp.
 // The architecture overview above this section explains classes, DAG,
@@ -3235,9 +3237,11 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // pawn-centered suppression factor inline — algebraically identical to
 //   h += contrib_gol_zones_at(xz);
 //   h -= contrib_gol_suppression_at(xz, consumer_pos);
-// but avoids a second full pass over the GoL zone loop (which
-// compounds significantly under FXC loop unrolling). See
-// contrib_gol_suppression_at for the standalone subtractive form.
+// but avoids a second full pass over the GoL zone loop — one traversal
+// of the zone set instead of two, which is a saving on every backend and
+// at every unroll factor. (Shaped under FXC — retired, PIVOT_0;
+// audit/FXC_LAWS_RECORD.md §PROBATE.) See contrib_gol_suppression_at for
+// the standalone subtractive form.
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     return query_ground_walker_pair(xz, qi).x;
 }
@@ -3972,8 +3976,8 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     let clamped_uv = clamp(shadow_uv, vec2(0.001), vec2(0.999));
 
     // 4x4 PCF — sixteen taps, fully unrolled, hardware bilinear per tap
-    // through the comparison sampler. FXC-clean by construction: no array,
-    // no loop for it to unroll, no dynamic index.
+    // through the comparison sampler. By construction: no array, no loop
+    // to unroll, no dynamic index.
     //
     // textureSampleCompareLevel, NOT textureSampleCompare: it takes no
     // implicit derivatives, so no uniformity diagnostic can fire and the
@@ -6983,8 +6987,10 @@ fn pawn_ground_resolve(
 //
 // Behaviors only modify a.vel_x / a.vel_z. The post-step applies the
 // rest: drag, speed cap, position integration, ground snap, heading
-// from velocity. Pulled out of each behavior body so FXC compiles
-// the common epilogue once per kernel rather than ten times.
+// from velocity. Factored out of each behavior body — good structure on
+// its own. (Shaped under the FXC compile-cost law — retired, PIVOT_0;
+// audit/FXC_LAWS_RECORD.md §PROBATE.) No living law bars branching in
+// this chain; reshape only with a measured reason.
 
 // ─── Shared step trigger ─────────────────────────────────────────
 // Most behaviors are beat-gated: they apply an impulse once per
@@ -7777,21 +7783,23 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 
 // ─── Compute kernels ─────────────────────────────────────────────
 //
-// The agent kernel is split in two for compile-time reasons.
-// The original unified kernel placed behavior_player_controlled
-// (heavy: walker policy, step-climb, tilt, full contributor chain)
-// and behavior_random_walk (light: single agent-policy ground snap)
-// in a single switch statement. FXC inlined both branch bodies for
-// every one of 32 dispatched threads, producing a pipeline compile
-// that landed at 48s. Adding more algorithmic behaviors would
-// compound the cost.
+// The agent kernel is split in two, and the reason is MECHANICAL, not
+// a compiler's. The original unified kernel placed
+// behavior_player_controlled (heavy: walker policy, step-climb, tilt,
+// full contributor chain) and behavior_random_walk (light: single
+// agent-policy ground snap) in a single switch statement. That shape was
+// first bought at a compile-cost bench — the price is history now and it
+// is on the record (audit/FXC_LAWS_RECORD.md §PROBATE).
 //
-// PIVOT_0: that 48 s was FXC's price, and FXC is retired
-// (audit/FXC_LAWS_RECORD.md). WHETHER DXC PRICES THE UNIFIED KERNEL
-// THE SAME WAY IS UNMEASURED. The split stands until someone measures
-// it — the [Pipeline] per-kernel timer is the instrument, and merging
-// these two back is a change that must carry its own witness, not an
-// inference from the floor having moved.
+// WHAT BARS RE-UNIFICATION TODAY IS TABLE E. Every ordered pair among
+// update_player_agent / update_other_agents / update_sphere / update_cube
+// carries a RAW hazard — agent_state between the agent kernels,
+// floating_entities between the floater kernels, field_forces across the
+// divide — so all twelve are BARRED. Merging two kernels deletes the
+// implicit inter-dispatch barrier that makes their ordering correct, and
+// WGSL has no device-wide barrier to put back. That holds on every
+// backend and under every compiler; it would still hold if compile time
+// were free. The split is a correctness structure now, not a budget one.
 //
 // Split shape:
 //   update_player_agent   — 1 thread. Only the possessed slot, only
@@ -13029,7 +13037,8 @@ fn orb_hsv_to_rgb(hsv: vec3<f32>) -> vec3<f32> {
 // Sample a color from the orb palette via weighted pocket selection.
 // Returns HSV as vec3<f32>(hue, saturation, value).
 // Layout is unrolled because WGSL uniform blocks can't hold arrays of
-// structs cheaply and explicit ifs let FXC see a uniform-bounded chain.
+// structs cheaply; the explicit ifs are a uniform-bounded chain over a
+// fixed pocket count.
 fn orb_sample_palette(seed: u32) -> vec3<f32> {
     let roll = hash_property(seed, 8u);
 
@@ -13081,9 +13090,9 @@ fn orb_sample_palette(seed: u32) -> vec3<f32> {
 //
 // WGSL can't dynamically index struct fields, so each tier attribute
 // gets its own 4-way dispatch. All branches are on uniform values
-// (tier_count, per-invocation tier_idx) so FXC handles them without
-// divergence penalty. The pattern is mechanical; it's kept in this
-// compact form so the obvious repetition doesn't dominate the file.
+// (tier_count, per-invocation tier_idx). The pattern is mechanical;
+// it's kept in this compact form so the obvious repetition doesn't
+// dominate the file.
 
 // Coherent-noise seed. When Brownian's coherence gesture bit is
 // active, neighbouring orbs share a hash by quantizing position to
@@ -13303,7 +13312,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // ═══ 2. RULE DISPATCH ═════════════════════════════════════
     // Uniform branch — every invocation in the workgroup takes
-    // the same path, no FXC divergence penalty.
+    // the same path, so the branch never diverges.
     if (orb_config.motion_rule == 0u) {
         // ── BROWNIAN (gesture-modulated) ─────────────────────
         // drift / gather / rise / gust / tide / swell
