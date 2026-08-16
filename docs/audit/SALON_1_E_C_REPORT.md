@@ -1,5 +1,7 @@
 # SALON_1 — E-c REPORT: the frames can cast, and there is almost nothing to cast into
 
+HISTORICAL SNAPSHOT — laws and values herein may be superseded; the living law is docs/LAWS.md. Known drift: the L2.4 ceiling clause survived into L14, and the core default is 8.
+
 Report-first. **No edit is in this commit.** Read at `a579a0f`;
 `origin/master == master` confirmed before any anchor was derived.
 

@@ -1,5 +1,7 @@
 # SALON_1 — STAGE A: RECON
 
+HISTORICAL SNAPSHOT — laws and values herein may be superseded; the living law is docs/LAWS.md. Known drift: the L2.4 ceiling clause survived into L14, and the core default is 8.
+
 Read-only. Zero edits to `src/**` outside this file. Zero builds.
 Every claim below was read at the named `path:line` in this tree at
 `4483b3b`. Where the handoff names a value, the value was re-read

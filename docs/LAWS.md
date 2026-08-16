@@ -688,6 +688,33 @@ The corollary is the useful half: a warning path that fires only in the
 gap between two commits is not a finding, and a round that never opens
 the gap never has to tell its reader to ignore one.
 
+## L28 — MINUTES ARE STAMPED, NEVER REWRITTEN
+
+Audit reports are minutes: stamped, never edited; a known drift is named
+on the stamp, not corrected in the text.
+
+A report is a record of what was believed on a date, and its value is
+that it does not move. Correcting a number inside one destroys the only
+thing it was for — a reader can no longer tell what the campaign
+actually thought, and every later citation of it becomes unverifiable.
+But an unmarked stale report is worse than a marked one: a reader greps
+it, believes it, and is wrong (P4's own test).
+
+So the stamp does both jobs. It says the text is historical, it points
+at the living law, and where a specific drift is KNOWN it names that
+drift on the stamp — so the reader meets the correction before the
+error, and the minutes stay minutes.
+
+*Paid for by:* `docs/audit/SALON_1.md`, which cites `L2.4`'s ceiling as
+a live constraint at a value wrong twice over — the clause survived L2's
+striking into **L14**, and the core default is **8**, not the 10 the
+report carries. PROBATE_E's EF6 flagged it rather than editing it, and
+this law is the ruling that flag asked for. The same stamp settles
+`SALON_1_E_C_REPORT.md` beside it.
+
+The sibling rule is P4's: being in an `audit/` or `past docs/` folder is
+shelving, not filing. Filing is visible inside the file.
+
 ## SUNSET_0 (2026-08-16) — the web twin is the program
 Native is archived at tag `native-sunset`. Resurrection is
 archaeology from the tag, not maintenance. The witness chain is:

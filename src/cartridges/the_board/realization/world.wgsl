@@ -7976,8 +7976,14 @@ fn update_player_agent() {
 // body arc is CLOSED (every body-class presence pair lives here);
 // the point arc is OPEN and undesigned. The rulings below bind any
 // edit to this block; they were paid for at the phase-B gates.
-// (Durable home per the L2-banner precedent: the law lives where
-// it binds. audit/FIELD_BRIDGE.md indexes it.)
+// (DURABLE HOME: a law lives where its consumers read, which for the
+// presence law is this block — every body-class presence pair is
+// below it, and an edit to any of them meets these rulings on the way
+// past. audit/FIELD_BRIDGE.md indexes it. The siting precedent was
+// first set by the L2 banner, struck since — PIVOT_0,
+// audit/FXC_LAWS_RECORD.md; the practice outlived the law that
+// demonstrated it, which is the whole reason it is restated here in
+// its own words.)
 //  R1  Presence migrates; APPROACH stays behavioral — the
 //      flee/dodge personalities and the boids' desire (alignment,
 //      cohesion) are never field terms.
