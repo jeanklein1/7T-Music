@@ -323,7 +323,7 @@
       });
       status.textContent = rows.length + ' dials  ·  mood ' + C.mood() +
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
-                           '  ·  flushed ' + C.flushes() +
+                           '  ·  reconciled ' + C.flushes() +
                            '  ·  rejected ' + C.rejects() +
                            '  ·  contested ' + contested + '/' + rows.length +
                            (importNote ? '  ·  ' + importNote : '');

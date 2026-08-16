@@ -64,7 +64,15 @@ inline int lanes_of(uint8_t type) {
 
 // ─── Block ids ────────────────────────────────────────────────────────
 // One per CPU home GPUState hands the panel, and the numbering is the bit
-// position organ_mark_dirty uses. There is deliberately no id for
+// position organ_mark_dirty uses.
+//
+// A BLOCK ID IS NOT A PROMISE ABOUT HOW THE HOME REACHES THE GPU (O1d).
+// config_ is STAGED and its upload is the spine's, off its own configDirty_;
+// lightingStage_ and agentRoomStage_ are flushed by organ_flush. The panel
+// says "this home changed" and the home decides what that costs — which is
+// why organ_mark_dirty routes and this enum does not.
+//
+// There is deliberately no id for
 // GPUSceneConstants: its tier_gains are a WINDOW onto the agents' room
 // (CHORD's WINDOWS-NOT-HOMES ruling), its figure profiles are packed from
 // a constexpr table, and its ribbon's home lives in bodies/ribbon.hpp — so
@@ -451,6 +459,9 @@ EMSCRIPTEN_KEEPALIVE inline float organ_get(int block, int offset, int lane) {
 EMSCRIPTEN_KEEPALIVE inline int organ_rejected_count(void) {
     return (int)t7::organ::g_rejected;
 }
+// Blocks the panel's edits RECONCILED on the last frame boundary — not
+// blocks written at that boundary. config_ counts here and uploads in the
+// spine (O1d); the panel labels this "reconciled" for exactly that reason.
 EMSCRIPTEN_KEEPALIVE inline int organ_flush_count(void) {
     return t7::organ::g_home
          ? (int)t7::organ::g_home->organ_last_flush_count() : 0;

@@ -133,6 +133,41 @@ survival count — the frames the panel's word stood. The instrument
 reports and does not act: what a reading MEANS for the panel is a
 separate ruling, and that ruling wants a census as its evidence.
 
+### Staged or composed, and one dirty bit per home (O1d)
+A panel write survives its upload only if the home is what the upload
+SENDS. Censused, for the three enrolled homes:
+
+| home | how it reaches the GPU | staged or composed |
+| --- | --- | --- |
+| `config_` | `upload_config` → `writeStruct(configBuffer_, config_)`; two targeted writes also read `config_` | STAGED — sent as it stands |
+| `agentRoomStage_` | `upload_agent_registries`, the portal write, `organ_flush` — all write FROM the stage | STAGED — the sovereign CPU copy |
+| `lightingStage_` | `upload_lights` (mood.hpp) COMPOSES a fresh `GPULighting` from the deps and hands it to `upload_lighting` | COMPOSED — and `upload_lighting` stores it back into the home, so the home always carries what the GPU last received |
+
+Every writer of all three GPU blocks was checked: no site writes any of
+them from anything but its home, and no site writes the frame-R lighting
+region except `upload_lighting`. So no home is composed-at-upload WITHOUT
+storing through the home, and the remedy `lightingStage_` carries is the
+only one needed.
+
+ONE DIRTY BIT PER HOME. `config_` already had one — `configDirty_`, the
+flag `upload_config` tests and the spine's own per-frame upload consumes.
+ORGAN raises that flag rather than keeping a second beside it, and
+`organ_flush` writes nothing for config: a second upload there would be a
+second writer for one fact with nothing new to say. The routing lives in
+`organ_mark_dirty`, in the home, because which flag a home uses is the
+home's knowledge and not the panel's. `organTouched_` is named for what
+it is — for lighting and the agents' room it IS the dirty bit, and for
+config it is only the witness's record. The panel's status line says
+`reconciled` for the same reason: it counts what the panel caused, not
+which function did the writing.
+
+A CONFIG dial that loses its value therefore loses it to a CPU AUTHOR, not
+to the upload. `fog_density` / `fog_color` are rewritten every frame by
+`phase_motion_drivers` from the visual canvas; `aura_enabled` /
+`pawn_aura_height` every frame by `tick_pawn_couplings`. That is an
+ORGAN_2 question — those four need a definition surface — and not
+something the write path can fix.
+
 ## Access
 The panel exists only under `?organ=1`; backtick toggles visibility.
 Without the flag, no DOM is built, no export is called, the audience

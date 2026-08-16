@@ -1964,8 +1964,19 @@ namespace t7 {
 
             wgpu::Device device_;
             GPUDesignConfig config_{};
-            // ORGAN — one bit per panel-writable block; see organ_flush.
-            uint32_t organDirty_ = 0;
+            // ORGAN — one bit per panel-writable block, raised by
+            // organ_mark_dirty and cleared by organ_flush.
+            //
+            // TOUCHED, NOT DIRTY (O1d). For lightingStage_ and
+            // agentRoomStage_ this bit IS the dirty bit, because organ_flush
+            // is their only upload path. For config_ it is only the witness's
+            // record: config_ already HAS a dirty bit — configDirty_, the
+            // flag upload_config actually tests and the spine's own
+            // per-frame upload consumes — and a fact's home has one dirty
+            // bit. So organ_mark_dirty raises THAT one for config_ and keeps
+            // no second flag beside it; the bit here is left to the witness,
+            // and organ_flush's config arm writes nothing.
+            uint32_t organTouched_ = 0;
             uint32_t organLastFlush_ = 0;
             bool configDirty_ = true;      // true at boot → first frame always uploads
             bool configDynamic_ = false;   // mood override: true = upload every frame
@@ -3724,7 +3735,14 @@ namespace t7 {
             GPULighting*           organ_lighting_home()   { return &lightingStage_; }
             GPUAgentRoomConstants* organ_agent_room_home() { return &agentRoomStage_; }
 
-            void organ_mark_dirty(uint32_t block) { organDirty_ |= (1u << block); }
+            // The panel's one door for "this home changed". It raises the
+            // home's OWN dirty flag where the home has one, and the witness
+            // bit always — routing lives here, in the home, because which
+            // flag a home uses is the home's knowledge and not the panel's.
+            void organ_mark_dirty(uint32_t block) {
+                organTouched_ |= (1u << block);
+                if (block == 0) configDirty_ = true;   // config_'s one dirty bit
+            }
             uint32_t organ_last_flush_count() const { return organLastFlush_; }
 
             // The frame-boundary flush (docs/ORGAN.md, "The write path").
@@ -3733,17 +3751,24 @@ namespace t7 {
             // upload paths CHORD built. Nothing here duplicates an upload.
             void organ_flush(wgpu::Queue& queue) {
                 organLastFlush_ = 0;
-                if (!organDirty_) return;
-                if (organDirty_ & (1u << 0)) {          // DesignConfig
-                    configDirty_ = true;                // its own existing gate
-                    upload_config(queue);
+                if (!organTouched_) return;
+                if (organTouched_ & (1u << 0)) {        // DesignConfig
+                    // NO UPLOAD HERE, on purpose (O1d). config_ is staged,
+                    // not composed: upload_config sends the struct exactly as
+                    // it stands, and the spine runs it every frame off
+                    // configDirty_ — which organ_mark_dirty has already
+                    // raised. A second upload at this site would be a second
+                    // writer for one fact with nothing new to say. The count
+                    // still rises because the panel's edit WAS reconciled;
+                    // the witness reports what the panel caused, not which
+                    // function did the writing.
                     ++organLastFlush_;
                 }
-                if (organDirty_ & (1u << 1)) {          // Lighting
+                if (organTouched_ & (1u << 1)) {        // Lighting
                     upload_lighting(queue, lightingStage_);
                     ++organLastFlush_;
                 }
-                if (organDirty_ & (1u << 2)) {          // the agents' room
+                if (organTouched_ & (1u << 2)) {        // the agents' room
                     // tier_gains is ONE home with TWO windows (CHORD's ruling):
                     // agent_room's and scene_constants'. The authoring site
                     // writes every window it owns, so both go here.
@@ -3757,7 +3782,7 @@ namespace t7 {
                         sizeof(agentRoomStage_.tier_gains));
                     ++organLastFlush_;
                 }
-                organDirty_ = 0;
+                organTouched_ = 0;
             }
 
             // PORT_4b — public: the correct call site is the END of the
