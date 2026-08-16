@@ -3223,7 +3223,65 @@ def check_comments():
     return [(frag, where, frag.lower() in low) for frag, where in CHECKED_COMMENTS]
 
 
-def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
+# ═══ THE ROOM FAMILY, BY IDENTITY (PROBATE_E1) ═══════════════════════
+#
+# The room family is FOUR ENTRY POINTS. It is not a layout name, and
+# every attempt to name it by one has rotted: ATLAS_1revB's fix keyed the
+# derivation to `roomLayout_`, LOOM_2 renamed that layout to
+# `agentsStateLayout_`, the filter silently matched nothing, and
+# `max(..., default=0)` printed a confident **0 of 8** for a family
+# standing at 5 of 8 — in TWO places (finding 4 and Table D's room row),
+# for two campaigns, until PROBATE's report caught it.
+#
+# An entry point is an identity: renaming one is a shader edit `--check`
+# already sees, and a name this list carries that no pipeline reaches is
+# a FAILED WITNESS below, never a silent zero. That is the whole
+# difference between this derivation and the two it replaces.
+#
+# IT RUNS IN THE WITNESS PHASE, not inside emit(). Witnesses recorded
+# during emission are swallowed — `w.report()` has already run and the
+# gate has already passed — so a check placed there fires into nothing
+# and looks exactly like a check that passed (P6, and ECONOMY_1 E1's
+# inert arm). Verified by negative control: typo an entry-point name and
+# this witness FAILS the run.
+#
+# ONE HOME, TWO READERS: finding 4 and Table D's room row both read what
+# this returns. A third body of the defect is not available.
+ROOM_ENTRY_POINTS = ("update_player_agent", "update_other_agents",
+                     "update_sphere", "update_cube")
+
+
+def room_family_census(budget, cen, join, w):
+    want = set(ROOM_ENTRY_POINTS)
+    found, rows, members = set(), [], set()
+    for b in budget:
+        eps = {cen["entry_const"].get(c, c) for c, _ in b["pipeline"].entries()}
+        if eps & want:
+            rows.append(b)
+            found |= eps & want
+            members |= set(b["pipeline"].group_layouts)
+    missing = sorted(want - found)
+    w.record("E1-identity", not missing,
+             ("the room family resolves to %d (pipeline, stage) rows over %d "
+              "layouts, from all %d entry points by name"
+              % (len(rows), len(members), len(want))) if not missing else
+             ("the room family names entry point(s) NO pipeline carries: %s — "
+              "fix the name here or in the module, but never let this "
+              "derivation resolve to nothing and print a zero"
+              % ", ".join(missing)))
+    # DEMOTABLE = a seat of this family that Table C already carries as an
+    # A2 CANDIDATE. Not "could be demoted in principle" — the A2 verdict,
+    # joined by the seat's own layout member and slot category.
+    return {
+        "storage": max((b["declared"]["storage"] for b in rows), default=0),
+        "demotable": sum(1 for x in join["a2"] if x["pass"]
+                         and x["row"]["layout"]["member"] in members
+                         and slot_category(x["row"]["e"]) == "storage"),
+        "rows": rows, "members": members,
+    }
+
+
+def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     sha, subj, hashes = provenance()
     rows, budget = join["rows"], join["budget"]
     o = []
@@ -3362,19 +3420,23 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
              CORE_DYN_STORAGE))
         A("witness `0d-1` is the gate this figure answers to.")
     A("")
-    room_family_storage = max(
-        (b["declared"]["storage"] for b in budget
-         if any("roomLayout_" in g for g in b["pipeline"].group_layouts)), default=0)
+    room_family_storage = room["storage"]
+    room_demotable = room["demotable"]
     A("**4. The tightest row is not where the handoff expected it (as of BUDGET_1).** BUDGET_0's")
     A("handoff expected the main render family's VERTEX stage at storage 8/8. It")
     if main_v:
         A("reads **storage %d of %d**. The tightest row in the program is"
           % (main_v["declared"]["storage"], CORE["storage"]))
     # ATLAS_1revB found this paragraph asserting "the ROOM FAMILY" and naming
-    # roomLayout_ regardless of which row was actually tightest. That was
+    # a layout regardless of which row was actually tightest. That was
     # silently true while the room family held the row and false the moment it
     # did not. The family is now DERIVED from the tightest row's own pipeline
     # layout, so the sentence cannot outlive its subject.
+    #
+    # PROBATE_E1: and the family it is compared against is derived from
+    # ENTRY POINTS (see the block above), not from a layout name. The
+    # original form of this guard named `roomLayout_` — which is how a
+    # fix written against a rename became the rename's next victim.
     A("**%s / %s at %s %d of %d** — over the concatenated groups %s,"
       % (md_escape(tight["pipeline"].label), tight["stage"], tcat,
          tight["declared"][tcat], CORE[tcat],
@@ -3389,8 +3451,8 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     # longer exists is worse than no quote, so the banner is cited, not quoted,
     # and the room family's own figure is measured rather than remembered.
     A("`world.wgsl`'s COMPILER FLOOR banner carries the standing demotion rule for")
-    A("the room family, which stands at %d of %d storage. And"
-      % (room_family_storage, CORE["storage"]))
+    A("the room family, which stands at %d of %d storage with %d demotable seats. And"
+      % (room_family_storage, CORE["storage"], room_demotable))
     A("its `actual` column reads %d too: **an A1 sweep buys nothing on the one row"
       % tight["actual"][tcat])
     A("with no margin.**")
@@ -3753,43 +3815,63 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     A("")
     A("**Jean's, and their home is the schema.** The four judgment cells —")
     A("demand, what it buys, what it costs, ruling — are joined in from")
-    A("`DEMAND_RULINGS` in `tools/binding_schema.py` (PROBATE_D) by the exact")
-    A("queued-item key string this table prints. Nothing in Tier A needs a")
+    A("`DEMAND_RULINGS` in `tools/binding_schema.py` (PROBATE_D) by each queued")
+    A("item's STABLE ID (PROBATE_E1) — `a2:{binding_const}@{layout_member}`, or")
+    A("`room-wall` for the wall — never by the prose printed in the first")
+    A("column, which is free to be rewritten. Nothing in Tier A needs a")
     A("demand to justify it — a declaration that claims a stage it cannot reach")
     A("was never true. These are the items that DO.")
     A("")
     A("Three columns are CENSUS FACTS, not judgments — 0f is what makes them")
-    A("computable. A ruling is a schema edit and Jean-gated like any other; a")
-    A("key this emitter prints and the schema does not carry leaves its cells")
+    A("computable. A ruling is a schema edit and Jean-gated like any other; an")
+    A("id this emitter builds and the schema does not carry leaves its cells")
     A("empty and prints a warning at the console, so a rename can orphan a")
     A("ruling loudly but never silently.")
     A("")
     A("| queued item | fusion barred? | can leave the storage wallet? | site defended? | demand | what it buys | what it costs | ruling |")
     A("|---|---|---|---|---|---|---|---|")
+    # PROBATE_E1 — EVERY QUEUED ITEM CARRIES A STABLE ID. The join to
+    # DEMAND_RULINGS runs on the id, never on the printed prose, so a
+    # sentence may be rewritten (as this round rewrites the room row's)
+    # without orphaning the ruling attached to it. An id is built from
+    # identities only — a binding constant and a layout member, or a
+    # fixed name for the wall.
     queued = []
     for x in join["a2"]:
         if x["pass"]:
             queued.append(("A2 demotion — `%s` @group(%s) @binding(%s) in %s (%s B)"
                            % (x["row"]["primary"], x["row"]["group"],
                               x["row"]["e"].binding_number, x["row"]["layout"]["label"],
-                              x["size"]), x["row"]["primary"]))
+                              x["size"]), x["row"]["primary"],
+                           "a2:%s@%s" % (x["row"]["e"].binding_const,
+                                         x["row"]["layout"]["member"])))
     for kind, what, _ in join["a3"]:
-        queued.append(("A3 removal — %s" % what, what.split()[-2] if " " in what else what))
+        queued.append(("A3 removal — %s" % what,
+                       what.split()[-2] if " " in what else what,
+                       "a3:%s" % what))
     for x in e2["eligibility"]:
         if x["eligible"]:
             queued.append(("Vertex-buffer move — `%s` (%s-step, stride %s B); the only "
                            "wallet that can hold a runtime-sized array"
-                           % (x["decl"].symbol, x["step"], x["stride"]), x["decl"].symbol))
+                           % (x["decl"].symbol, x["step"], x["stride"]),
+                           x["decl"].symbol, "vb:%s" % x["decl"].symbol))
     # ATLAS_1revB: this row printed the PROGRAM-WIDE tightest row's storage and
     # attributed it to the room family. Coincidentally right until the tightest
     # row moved off the room family; then it asserted a number the room family
     # does not hold. Measure the room family itself.
-    room_rows = [b for b in budget if any("roomLayout_" in g for g in b["pipeline"].group_layouts)]
-    room_storage = max((b["declared"]["storage"] for b in room_rows), default=0)
-    queued.append(("The room family's storage stage stands at %d of %d. Any new storage "
-                   "binding reachable from update_player_agent / update_other_agents / "
-                   "update_sphere / update_cube needs a demotion to pay for it."
-                   % (room_storage, CORE["storage"]), "update_player_agent"))
+    # PROBATE_E1: the sentence is COMPUTED, from the identity-derived room
+    # family above. Both of its numbers are measured each run — the stand
+    # and the number of its seats Table C already calls demotable — and
+    # the row's join id (`room-wall`) is independent of every word of it.
+    queued.append(("The room family's storage lane stands at %d of %d with %d "
+                   "demotable seats (%d = its seats holding an A2 CANDIDATE "
+                   "verdict). Any new storage binding reachable from "
+                   "update_player_agent / update_other_agents / update_sphere / "
+                   "update_cube needs a demotion to pay for it, and none is for "
+                   "sale."
+                   % (room_family_storage, CORE["storage"],
+                      room_demotable, room_demotable),
+                   "update_player_agent", "room-wall"))
     defended_syms = {f.symbol for f in e4["sites"]}
     elig_syms = {x["decl"].symbol for x in e2["eligibility"] if x["eligible"]}
     # PROBATE_D — THE JUDGMENT CELLS COME FROM THE SCHEMA. The join key is
@@ -3799,19 +3881,19 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     # missing one that says so.
     rulings = getattr(schema, "DEMAND_RULINGS", {})
     matched = set()
-    for q, sym in queued:
+    for q, sym, qid in queued:
         barred = "n/a"
         if sym in {r["a"] for r in e1["raw"]} | {r["b"] for r in e1["raw"]}:
             hz = sorted({h for r in e1["raw"] if sym in (r["a"], r["b"])
                          for h in r["hazard"]})
             barred = ("**yes** — " + ", ".join("`%s`" % h for h in hz)) if hz else "no"
-        r = rulings.get(q)
+        r = rulings.get(qid)
         if r is None:
-            print("  [WARN] Table D: no DEMAND_RULINGS row for key %r — four "
-                  "judgment cells emitted empty (PROBATE_D join)" % q)
+            print("  [WARN] Table D: no DEMAND_RULINGS row for id %r — four "
+                  "judgment cells emitted empty (PROBATE_E1 join)" % qid)
             judgment = ("", "", "", "")
         else:
-            matched.add(q)
+            matched.add(qid)
             judgment = (r["demand"], r["buys"], r["costs"], r["ruling"])
         A("| %s | %s | %s | %s | %s | %s | %s | %s |"
           % (md_escape(q), barred,
@@ -3819,8 +3901,8 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
              ("**yes** — see Table H" if sym in defended_syms else "no"),
              *(md_escape(c) for c in judgment)))
     for orphan in sorted(set(rulings) - matched):
-        print("  [WARN] Table D: DEMAND_RULINGS carries a ruling for key %r "
-              "that this table no longer prints (PROBATE_D join)" % orphan)
+        print("  [WARN] Table D: DEMAND_RULINGS carries a ruling for id %r "
+              "that this table no longer prints (PROBATE_E1 join)" % orphan)
     A("")
 
     # ─── 6. TABLE E — the RAW hazard table (BUDGET_0f-1) ──────────────
@@ -4442,6 +4524,9 @@ def main():
                   % (f.symbol, f.kind, f.file, f.line, ", ".join(f.triggers),
                      ", ".join(f.rules)))
 
+    # PROBATE_E1: derived BEFORE the gate so E1-identity can fail the run.
+    room = room_family_census(d["budget"], c, d, w)
+
     print("")
     print("WITNESSES")
     w.report()
@@ -4457,7 +4542,7 @@ def main():
         print("--check: all witnesses pass, nothing written.")
         return 0
 
-    text = emit(args.out, w, column, layouts, b, c, d, e1, e2, e3, e4)
+    text = emit(args.out, w, column, layouts, b, c, d, e1, e2, e3, e4, room)
     print("")
     print("PHASE 0e — THE ARTIFACT")
     print("  wrote %s (%d lines, %d bytes)"
