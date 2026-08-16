@@ -607,8 +607,37 @@ def main():
     paintings_dist_bytes = dir_bytes(painting_paths)
     music_dist_bytes = dir_bytes(music_paths)
     poster_dist_bytes = dir_bytes(poster_paths)
+    # ── GATEHOUSE_G4 — THE CACHE LAW, THE CORRIDOR'S LAST DOOR ───────
+    #
+    # The Pixel replayed yesterday's build, and the versioning was not
+    # the problem — BUILDID_0 works. The problem is one layer up: the
+    # `?v=` keys are only as fresh as THE PAGE THAT NAMES THEM. A cached
+    # index.html hands out yesterday's keys, and every asset behind them
+    # is then correctly, obediently stale. The stale-pair defect
+    # BUILDID_0 closed for siblings reopens for the whole build the
+    # moment the index itself is the cached object.
+    #
+    # Cloudflare Pages reads dist/_headers. The index is no-cache — it
+    # must be revalidated on every load, so a plain reload always fetches
+    # the page that names the current keys. NOTHING ELSE IS LISTED: the
+    # versioned assets keep default caching precisely BECAUSE a fresh
+    # index always names fresh keys, and busting them too would throw
+    # away the whole point of the id.
+    #
+    # `no-cache` and not `no-store`: revalidate, do not refuse to keep.
+    # A 304 on an unchanged index is free and correct; what must never
+    # happen is the browser answering from its own copy without asking.
+    #
+    # Written HERE, after everything else, on the refusal-safe path —
+    # like the rest of dist/, so a run that cannot complete never costs
+    # the previous deploy.
+    with open(os.path.join(DIST, "_headers"), "w",
+              encoding="utf-8", newline="\n") as fh:
+        fh.write("/\n  Cache-Control: no-cache\n"
+                 "/index.html\n  Cache-Control: no-cache\n")
+
     file_count = (len(ARTIFACTS) + len(painting_paths) + len(music_paths)
-                  + len(poster_paths) + 1)
+                  + len(poster_paths) + 2)
 
     print("  %-18s %14d  %9.2f  %7d" % ("paintings (dist)", paintings_dist_bytes,
                                         mib(paintings_dist_bytes), len(painting_paths)))
@@ -663,6 +692,7 @@ def main():
 
     print("")
     print("WROTE %s  (%d files)" % (DIST, file_count))
+    print("  _headers           index is no-cache; a plain reload now fetches the current build")
 
     print("")
     print("DEPLOY — exact commands")
