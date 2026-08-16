@@ -3021,14 +3021,19 @@ def phase_ext4(w, wgsl, layouts, cen):
     # is how the index-keyed names drifted out of step with the tree.
     # LOOM_2 re-home: the recut moved the two defended seats from Render
     # Entity Layout (g0) to Scene State Layout (g2). The key follows the
-    # binding identity to its new home — same two seats, same buffers,
-    # same defended prose; only the stratum address changed.
+    # binding identity to its new home — same seats, same buffers, same
+    # defended prose; only the stratum address changed.
+    # CHORD_4 merge: those two seats — agent_tier_gains and
+    # agent_figure_profiles — became MEMBERS of one block, scene_constants,
+    # and the defence merged with them. It is the same argument it always
+    # was (the render VERTEX stage is at the per-stage storage cap; uniform
+    # has its own budget), now made once for the block instead of twice for
+    # its parts, which is why six controls became five and not four.
     want = [("update_player_agent", "world.wgsl"),
             ("update_other_agents", "world.wgsl"),
             ("(file banner)", "world.wgsl"),
             ("pawn_ground_resolve", "world.wgsl"),
-            ("bind::g2::agent_tier_gains in Scene State Layout", "state.hpp"),
-            ("bind::g2::agent_figure_profiles in Scene State Layout", "state.hpp")]
+            ("bind::g2::scene_constants in Scene State Layout", "state.hpp")]
 
     # ─── W4-3 — the guard on W4-2. Two triggers were ADDED to make the
     #     control pass, which is what a control is for — but an instrument

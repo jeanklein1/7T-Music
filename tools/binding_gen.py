@@ -2356,16 +2356,19 @@ RECUT_MESHGEN_ROLE = re.compile(r"^(?:amg|cmg|palmg|cactusg|bladeg)_"
 # though the ribbon kernel writes the head-poses buffer); TERRAIN's
 # line names patch_grid; photo_sampler is R5's special sampler and
 # rides with its heightfield companions.
+# CHORD re-key: the five decls this table used to name on the AGENTS side
+# (the two occupier windows and three of the field's four slots) and the two
+# it named on the SCENE side are MEMBERS now, not declarations, so the keys
+# follow their blocks. The homes are unchanged — a merge moved the address,
+# never the authorship.
 RECUT_AUTHORED_HOME = {
-    "occupier_cmg": "AGENTS", "occupier_amg": "AGENTS",
-    "field_head_poses": "AGENTS", "field_forces": "AGENTS",
-    "field_ribbon": "AGENTS", "field_authored": "AGENTS",
+    "agent_room": "AGENTS", "field_bus": "AGENTS", "field_forces": "AGENTS",
     # v1's TERRAIN parenthetical dissolved with A2; these two carry
     # forward to PATCHGEN with their heightfield companions — flagged
     # in the plan for v2 ratification.
     "patch_grid": "PATCHGEN", "photo_sampler": "PATCHGEN",
-    # A1: the two shared render tables home with the main family.
-    "agent_figure_profiles": "SCENE", "render_ribbon": "SCENE",
+    # A1: the shared render tables home with the main family.
+    "scene_constants": "SCENE",
     # A3: the rw faces live with the kernels that write them.
     "vp_data": "FRAME_K", "camera_state": "FRAME_K",
 }
