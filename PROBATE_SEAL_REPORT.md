@@ -114,6 +114,7 @@ program asks it itself, in one line, before it does anything else.
 | SF6 | §S3.1 | `FLOOR_MAX_IMMEDIATE_SIZE` | use the emitted floor constant | it lives in **`console.hpp`'s namespace**, and `cartridge.hpp` — glaw1's own translation unit — does not include console.hpp. The generated `.inc` has no include guard, and including it in a second namespace would put the constants somewhere else again | `graduated` — the floor is spelled `sizeof(GPUPatchParams)`, which is **the same expression NEEDS r7 sources from** (`binding_schema.py`). One home, no second copy, and the check cannot drift from the request. |
 | SF7 | §S2/§S3 (method) | `renderer.hpp` | — | **nothing in this container had ever compiled `renderer.hpp`** — the console gate's TU is `console.hpp`, and glaw1 (which does compile `cartridge.hpp`) is Jean's. My PROBATE_I C++ edits had never been type-checked either | `graduated` — I ran the cartridge TU through the console gate's own stub surface and vendored headers (`clang++ -fsyntax-only`, `#include "cartridges/the_board/cartridge.hpp"`). It **caught three real errors** before they reached Jean (SF3, SF5, and an undeclared-identifier from the JS body). Deliberately **not pinned as a new gate**: glaw1 already compiles this TU, and the console gate exists precisely because glaw1 did *not* cover console.hpp. Adding a ceremony that duplicates glaw1 would be the P12 mistake. |
 | SF8 | §S0 (observation) | the incident's most likely cause | — | 665 bytes lost at an **unaligned** offset, 99.9 % through the file | recorded, not acted on. A truncated transfer is the cheapest explanation and the one a hard refresh disproves or confirms immediately. §S2 makes the question answerable forever after, whatever the answer is this time. |
+| SF9 | §S6 (this report) | the digest in the numbers table and in Jean's checklist | a value to check against | **a stale literal.** The chain was verified at `14079f5c`, then §S5 edited a comment in `world.wgsl` and the digest correctly moved to `b0c081ba`. The draft carried the old number into the checklist as the thing to compare against | `graduated` — caught by the closing gate sweep, not by care, and fixed at the source: the checklist now names **the line `web_dist.py` prints at deploy** and no digest is written down as a constant anywhere. A hand-carried number that outlived its referent, inside the report arguing against hand-carried numbers — the campaign's own law, collected one last time, from the author of the sentence. |
 
 ---
 
@@ -123,10 +124,26 @@ program asks it itself, in one line, before it does anything else.
 
 | end | value |
 |---|---|
-| `hashlib.sha256(world.wgsl)[:8]` (build side, `web_dist.py`) | **`14079f5c`** |
-| `t7::sha256_short` over the same bytes (boot side, `src/core/sha256.hpp`) | **`14079f5c`** |
-| substituted into `dist/index.html` by a real `web_dist.py` run | **`14079f5c`** |
-| bytes hashed | 636 955 |
+| `hashlib.sha256(world.wgsl)[:8]` (build side, `web_dist.py`) | **`b0c081ba`** |
+| `t7::sha256_short` over the same bytes (boot side, `src/core/sha256.hpp`) | **`b0c081ba`** |
+| substituted into `dist/index.html` by a real `web_dist.py` run | verified at `14079f5c`, the value before §S5 |
+| bytes hashed | 637 327 |
+
+**THE DIGEST IS NOT A CONSTANT, AND THIS TABLE ALMOST SHIPPED AS IF IT
+WERE.** The chain was first verified at `14079f5c` / 636 955 bytes; §S5
+then edited a comment in `world.wgsl`, and the digest correctly became
+`b0c081ba` / 637 327 bytes. The draft of this report carried the old
+number into Jean's checklist as a literal to check against — a
+hand-carried value that outlived its referent inside the very report
+arguing against hand-carried values, caught by the closing gate sweep
+rather than by care.
+
+It is worth more than the embarrassment: **the chain was verified twice,
+at two different file states, and agreed both times.** That is a
+stronger result than one agreement, and it is the reason the checklist
+below names *the line `web_dist.py` prints at deploy* rather than any
+digest at all. Every edit to `world.wgsl` moves this number, by design —
+that is the witness working, not drifting.
 
 The two implementations are held to each other by
 `tools/gates/sha256_gate/`, which compiles the header and compares
@@ -205,7 +222,7 @@ blind spot, not close it. The boot remains the witness of record.
 |---|---|---|
 | §S0 | **done** | Tree clean; cut located at byte 636 290 of 636 955, unaligned, 665 short. Packaging disproved by inspection; serve side unfetchable (SF1). |
 | §S1 | **skipped-unit** | Its condition is false — no packaging site can cut a shader (SF2). The upload/CDN branch has nothing to commit; the deploy is Jean's. |
-| §S2 | **done** | One fact, two ends, verified to agree on `14079f5c` by a negative-controlled gate. Third refusal added to `web_dist.py`, and it fires before `rmtree` so a bad shell never costs the previous dist. |
+| §S2 | **done** | One fact, two ends, verified to agree by a negative-controlled gate — twice, at two different file states (`14079f5c` before §S5, `b0c081ba` after). Third refusal added to `web_dist.py`, and it fires before `rmtree` so a bad shell never costs the previous dist. |
 | §S3 | **done, graduated** | Floor stops on four arms before any GPU object; the card is a third state beside `fallback` and `lost`, reusing the existing `showCard`. §S3.3 is a net, not a gate, and says so (SF3). |
 | §S4 | **skipped-unit** | `TINT-UNPRICED` (SF4). Priced as a guarded hypothesis for the machine that can run it. |
 | §S5 | **done** | EF5 restated in the banner's own words with L2 as past-tense provenance; EF6 stamped, both files, text untouched; L28 on the books. |
@@ -223,7 +240,12 @@ blind spot, not close it. The boot remains the witness of record.
 2. **Then rebuild and redeploy.** `web_dist.py` now prints a `shader
    sha` line and tells you exactly what the Pixel console must read.
 3. **After redeploy, on the Pixel:**
-   - `[Dist] world.wgsl sha=14079f5c expected=14079f5c MATCH`
+   - `[Dist] world.wgsl sha=… expected=… MATCH`, with both halves equal
+     to **the `shader sha` line `web_dist.py` printed at deploy**. Do not
+     check it against any digest written down here or anywhere else: the
+     value moves with every edit to `world.wgsl`, and the build's own
+     output is the only copy that cannot be stale. `web_dist.py` prints
+     the exact line to expect, immediately below the shader sha.
    - all pipelines compile; `[Shader] world.wgsl compiled: 0 error(s)`
    - zero validation errors
    - **the terrain intact on the pinned seed** — heights, cell colours,
