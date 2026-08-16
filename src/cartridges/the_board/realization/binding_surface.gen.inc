@@ -109,18 +109,24 @@
 
                 // Agents State Layout — stratum 2 (Agents family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
+                    // THE AGENTS' ROOM CONSTANTS (CHORD_1) — five uniform seats
+                    // became one block: portals, the behavior registry, the tier
+                    // registry, and the two occupier windows. One cadence
+                    // (world/mood), one author (CPU), one upload. The seats it
+                    // replaced were bindings 1, 3, 4, 7 and 8; the room's uniform
+                    // row went 11 of 12 to 7 of 12.
                     // (GROUND_CARD_1 [5c] evictions: tile_grid 25, pier_instances 26,
                     //  pyramid_instances 30, zone_config 160, zone_life 161 left this
                     //  layout. Agents ride the baked ground path (145/146/152) + the
                     //  card (g1:34); the zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[1].binding = bind::g2::portal_array;  // portal_array (uniform — proximity check in behavior_player_controlled)
+                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 6928 B — CHORD_1)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
@@ -128,51 +134,29 @@
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // Agent registries (uniform — read-only, fixed size,
-                    // never changes during a session). Originally tried as
-                    // ReadOnlyStorage but pushed compute storage buffer
-                    // count past the 8-per-stage Core default; uniform has
-                    // its own 12-per-stage budget and these tables
-                    // (≤ 512 B total) fit comfortably.
-                    entries[3].binding = bind::g2::agent_behaviors;  // agent_behaviors
+                    entries[3].binding = bind::g2::field_head_poses;  // field_head_poses (uniform window — C6: demoted from read-only storage so the room family fits the 8-storage default; 6,400 B, well under the 64 KiB uniform cap)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[4].binding = bind::g2::agent_tier_gains;  // agent_tier_gains
+                    entries[4].binding = bind::g2::field_forces;  // field_forces (read_write storage)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = bind::g2::occupier_cmg;  // occupier_cmg (uniform window — TETRIS WALLET_0: demoted from read-only storage so the room family drops to 6 of 8 storage; 4,096 B, well under the 64 KiB uniform cap)
+                    entries[5].binding = bind::g2::field_ribbon;  // field_ribbon (uniform window)
                     entries[5].visibility = wgpu::ShaderStage::Compute;
                     entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[6].binding = bind::g2::occupier_amg;  // occupier_amg (uniform window — TETRIS WALLET_0; 1,280 B)
+                    entries[6].binding = bind::g2::field_authored;  // field_authored (uniform, FIELD_4)
                     entries[6].visibility = wgpu::ShaderStage::Compute;
                     entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[7].binding = bind::g2::field_head_poses;  // field_head_poses (uniform window — C6: demoted from read-only storage so the room family fits the 8-storage default; 6,400 B, well under the 64 KiB uniform cap)
+                    entries[7].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[8].binding = bind::g2::field_forces;  // field_forces (read_write storage)
+                    entries[8].binding = bind::g2::camera_state;
                     entries[8].visibility = wgpu::ShaderStage::Compute;
                     entries[8].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[9].binding = bind::g2::field_ribbon;  // field_ribbon (uniform window)
-                    entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[10].binding = bind::g2::field_authored;  // field_authored (uniform, FIELD_4)
-                    entries[10].visibility = wgpu::ShaderStage::Compute;
-                    entries[10].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[11].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[12].binding = bind::g2::camera_state;
-                    entries[12].visibility = wgpu::ShaderStage::Compute;
-                    entries[12].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Agents State Layout";
@@ -1066,59 +1050,43 @@
 
                 // Projected from: computeEntityBindGroup_, roomBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 13> entries{};
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].buffer = agentStateBuffer_;
                     entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
-                    entries[1].binding = bind::g2::portal_array;
-                    entries[1].buffer = portalArrayBuffer_;
-                    entries[1].size = sizeof(GPUPortalArray);
+                    entries[1].binding = bind::g2::agent_room;
+                    entries[1].buffer = agentRoomBuffer_;
+                    entries[1].size = sizeof(GPUAgentRoomConstants);
 
                     entries[2].binding = bind::g2::floating_entities;
                     entries[2].buffer = floatingEntityBuffer_;
                     entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
-                    entries[3].binding = bind::g2::agent_behaviors;
-                    entries[3].buffer = agentBehaviorsBuffer_;
-                    entries[3].size = GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef);
+                    entries[3].binding = bind::g2::field_head_poses;
+                    entries[3].buffer = headPosesBuffer_;
+                    entries[3].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
 
-                    entries[4].binding = bind::g2::agent_tier_gains;
-                    entries[4].buffer = agentTierGainsBuffer_;
-                    entries[4].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[4].binding = bind::g2::field_forces;
+                    entries[4].buffer = fieldForcesBuffer_;
+                    entries[4].size = sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP;
 
-                    entries[5].binding = bind::g2::occupier_cmg;
-                    entries[5].buffer = columnMeshParamsBuffer_;
-                    entries[5].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
+                    entries[5].binding = bind::g2::field_ribbon;
+                    entries[5].buffer = ribbonBuffer_;
+                    entries[5].size = sizeof(GPURibbonState);
 
-                    entries[6].binding = bind::g2::occupier_amg;
-                    entries[6].buffer = archMeshParamsBuffer_;
-                    entries[6].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
+                    entries[6].binding = bind::g2::field_authored;
+                    entries[6].buffer = fieldAuthoredBuffer_;
+                    entries[6].size = sizeof(GPUFieldAuthored);
 
-                    entries[7].binding = bind::g2::field_head_poses;
-                    entries[7].buffer = headPosesBuffer_;
-                    entries[7].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+                    entries[7].binding = bind::g2::patch_grid;
+                    entries[7].buffer = patchGridBuffer_;
+                    entries[7].size = sizeof(GPUPatchGrid);
 
-                    entries[8].binding = bind::g2::field_forces;
-                    entries[8].buffer = fieldForcesBuffer_;
-                    entries[8].size = sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP;
-
-                    entries[9].binding = bind::g2::field_ribbon;
-                    entries[9].buffer = ribbonBuffer_;
-                    entries[9].size = sizeof(GPURibbonState);
-
-                    entries[10].binding = bind::g2::field_authored;
-                    entries[10].buffer = fieldAuthoredBuffer_;
-                    entries[10].size = sizeof(GPUFieldAuthored);
-
-                    entries[11].binding = bind::g2::patch_grid;
-                    entries[11].buffer = patchGridBuffer_;
-                    entries[11].size = sizeof(GPUPatchGrid);
-
-                    entries[12].binding = bind::g2::camera_state;
-                    entries[12].buffer = cameraBuffer_;
-                    entries[12].size = sizeof(GPUCameraState);
+                    entries[8].binding = bind::g2::camera_state;
+                    entries[8].buffer = cameraBuffer_;
+                    entries[8].size = sizeof(GPUCameraState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Agents State BindGroup";

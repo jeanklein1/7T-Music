@@ -1730,6 +1730,36 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPortalArray) == 16 + MAX_GPU_PORTALS * 32,
             "GPUPortalArray layout check");
+
+        // ── THE AGENTS' ROOM CONSTANTS (CHORD_1) ──────────────────────
+        // Five uniform seats became one block. Everything here is
+        // CPU-authored at world/mood cadence, so one block is one binding
+        // and one upload per beat of that clock. Mirrors
+        // world.wgsl::AgentRoomConstants BYTE-FOR-BYTE; the asserts below
+        // are the handshake (L3 — both rooms, same commit).
+        //
+        // WINDOWS, NOT HOMES (docs/CHORD.md): tier_gains and the two
+        // occupier arrays each have exactly one CPU home and one authoring
+        // site; this block is a transport window onto them, and the
+        // authoring site writes every window it owns.
+        struct alignas(16) GPUAgentRoomConstants {
+            GPUPortalArray      portals;                                  //    0
+            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040
+            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1360
+            GPUColumnMeshParams occupier_cmg[Dim::MAX_COLUMN_INSTANCES];  // 1552
+            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 5648
+        };
+        static_assert(sizeof(GPUAgentRoomConstants) == 6928);
+        static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 1040);
+        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1360);
+        static_assert(offsetof(GPUAgentRoomConstants, occupier_cmg) == 1552);
+        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 5648);
+        // The two registries are contiguous, which is what lets
+        // upload_agent_registries spend ONE write on both.
+        static_assert(offsetof(GPUAgentRoomConstants, behaviors)
+            + sizeof(GPUAgentBehaviorDef) * GPU_AGENT_BEHAVIOR_COUNT
+            == offsetof(GPUAgentRoomConstants, tier_gains),
+            "behaviors and tier_gains must stay adjacent — the registry upload writes them as one range");
         static_assert(sizeof(GPUAgentState) == 96, "GPUAgentState must be 96 bytes");
         static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
@@ -1876,11 +1906,17 @@ namespace t7 {
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
-            // Agent registries — uploaded once at world-init from the C++
-            // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
-            // of truth lives in bodies/agents.hpp; the GPU side reads
-            // these buffers via storage bindings 110 / 111.
-            wgpu::Buffer agentBehaviorsBuffer_;
+            // CHORD_1 — THE AGENTS' ROOM, one buffer where five stood
+            // (portals, behaviors, tier gains, and the two occupier
+            // windows). agentRoomStage_ is the sovereign CPU copy: every
+            // authoring site updates it in place and then spends ONE
+            // WriteBuffer at that member's own offset, so no site has to
+            // know what the others wrote.
+            wgpu::Buffer agentRoomBuffer_;
+            GPUAgentRoomConstants agentRoomStage_{};
+            // The tier registry's OTHER window — the scene and shadow
+            // layouts still seat it standalone until CHORD_4. The single
+            // source of truth lives in bodies/agents.hpp.
             wgpu::Buffer agentTierGainsBuffer_;
             wgpu::Buffer figureProfilesBuffer_;   // GPUPawnFigure[PAWN_FIGURE_COUNT] — uniform, render VS only (H2)
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_;
@@ -1895,7 +1931,6 @@ namespace t7 {
             // WALLET_1revA: one 848 B uniform buffer where three storage
             // buffers stood. GPULighting {sun, points, spots}.
             wgpu::Buffer lightingBuffer_;
-            wgpu::Buffer portalArrayBuffer_;
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
             // (created only when the device carries timestamp-query) and the
@@ -2244,7 +2279,18 @@ namespace t7 {
                 uint32_t behavior_count,
                 const GPUAgentTierDef* tiers,
                 uint32_t tier_count) {
-                writeArray(queue, agentBehaviorsBuffer_, behaviors, behavior_count);
+                std::memcpy(agentRoomStage_.behaviors, behaviors,
+                    sizeof(GPUAgentBehaviorDef) * behavior_count);
+                std::memcpy(agentRoomStage_.tier_gains, tiers,
+                    sizeof(GPUAgentTierDef) * tier_count);
+                // CHORD_1: both registries in one write — they are adjacent
+                // in the block and the static_assert above says so.
+                queue.WriteBuffer(agentRoomBuffer_,
+                    offsetof(GPUAgentRoomConstants, behaviors),
+                    agentRoomStage_.behaviors,
+                    sizeof(agentRoomStage_.behaviors) + sizeof(agentRoomStage_.tier_gains));
+                // The tier registry's second window (scene + shadow, until
+                // CHORD_4) — two windows, one home.
                 writeArray(queue, agentTierGainsBuffer_, tiers, tier_count);
             }
 
@@ -2441,6 +2487,14 @@ namespace t7 {
             // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)
             void upload_arch_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUArchMeshParams& params) {
                 writeSlot(queue, archMeshParamsBuffer_, slot, params);
+                // CHORD_1 — the occupier window on the same row. The mesh-gen
+                // kernel reads the storage face above; the agents room reads
+                // this one. One authored geometry, one home; the authoring
+                // site writes every window it owns, so the rows and the mesh
+                // can never disagree.
+                agentRoomStage_.occupier_amg[slot] = params;
+                writeSlot(queue, agentRoomBuffer_, slot, params,
+                    offsetof(GPUAgentRoomConstants, occupier_amg));
             }
 
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
@@ -3043,6 +3097,11 @@ namespace t7 {
             // GPU mesh gen: write params for a single column slot (80 bytes per spawn/evict)
             void upload_column_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUColumnMeshParams& params) {
                 writeSlot(queue, columnMeshParamsBuffer_, slot, params);
+                // CHORD_1 — the occupier window on the same row (see
+                // upload_arch_mesh_params_slot for the ruling).
+                agentRoomStage_.occupier_cmg[slot] = params;
+                writeSlot(queue, agentRoomBuffer_, slot, params,
+                    offsetof(GPUAgentRoomConstants, occupier_cmg));
             }
 
             // Column GPU mesh gen bind group
@@ -3367,7 +3426,10 @@ namespace t7 {
             }
 
             void upload_portal_array(wgpu::Queue& queue, const GPUPortalArray& arr) {
-                writeStruct(queue, portalArrayBuffer_, arr);
+                agentRoomStage_.portals = arr;
+                queue.WriteBuffer(agentRoomBuffer_,
+                    offsetof(GPUAgentRoomConstants, portals),
+                    &agentRoomStage_.portals, sizeof(agentRoomStage_.portals));
             }
 
             void upload_zone_life(wgpu::Queue& queue, uint32_t slot,
@@ -3541,9 +3603,9 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                agentBehaviorsBuffer_ = makeBuffer("Agent Behaviors Table",
-                    GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                // CHORD_1: one 6928 B uniform block where five buffers stood.
+                agentRoomBuffer_ = makeBuffer("Agents' Room Constants",
+                    sizeof(GPUAgentRoomConstants), UU);
                 agentTierGainsBuffer_ = makeBuffer("Agent Tier Gains Table",
                     GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3590,7 +3652,6 @@ namespace t7 {
                 // DOMESDAY_1 B6 (R3): the ATLAS_1revB D3" light-index
                 // window buffer is retired — the shadow light index rides
                 // immediate data now (SetImmediates, render_passes.hpp).
-                portalArrayBuffer_ = makeBuffer("Portal Array", sizeof(GPUPortalArray), UU);
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
                 // usage; the descriptor was hand-rolled only because
@@ -3709,7 +3770,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ &&
+                    agentRoomBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
@@ -4045,8 +4106,10 @@ namespace t7 {
                 // Mesh gen params buffer (16 × 80 bytes — MOSAIC_1 growth; size derives from sizeof below)
                 archMeshParamsBuffer_ = makeBuffer("Arch Mesh Params",
                     Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform |
-                    wgpu::BufferUsage::CopyDst);
+                    // CHORD_1: Uniform dropped — the occupier window it served
+                    // now rides agentRoomBuffer_; the mesh-gen kernels'
+                    // read-only storage face is all that is left on this buffer.
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
                 if (!archVertexBuffer_ || !archIndexBuffer_ || !archGroundBuffer_ ||
                     !archMeshParamsBuffer_) return false;
@@ -4087,8 +4150,10 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 columnMeshParamsBuffer_ = makeBuffer("Column Mesh Params",
                     Dim::MAX_COLUMN_INSTANCES * sizeof(GPUColumnMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform |
-                    wgpu::BufferUsage::CopyDst);
+                    // CHORD_1: Uniform dropped — the occupier window it served
+                    // now rides agentRoomBuffer_; the mesh-gen kernels'
+                    // read-only storage face is all that is left on this buffer.
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
                 if (!columnVertexBuffer_ || !columnIndexBuffer_ || !columnGroundBuffer_ ||
                     !columnMeshParamsBuffer_) return false;

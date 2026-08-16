@@ -19,11 +19,11 @@ sites and cross-checked against the WGSL by witness M-2.
 
 | pipeline | member | stage | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 | immediates(bytes) /64 |
 |---|---|---|---|---|---|---|---|---|
-| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 11 / 1 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 11 / 1 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Sphere (0D) | `updateSpherePipeline_` | C | 11 / 1 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Cube (0D) | `updateCubePipeline_` | C | 11 / 1 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Sphere (0D) | `updateSpherePipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Update Cube (0D) | `updateCubePipeline_` | C | 7 / 5 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
 | Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
@@ -100,7 +100,7 @@ sites and cross-checked against the WGSL by witness M-2.
 
 | lane | worst used / limit | free | at |
 |---|---|---|---|
-| uniform | 11 / 12 | 1 | `updatePlayerAgentPipeline_` C (+3 more) |
+| uniform | 8 / 12 | 4 | `patchTerrainPipeline_` V (+12 more) |
 | storage | 5 / 8 | 3 | `updatePlayerAgentPipeline_` C (+7 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
@@ -114,11 +114,8 @@ declaration alone — no hand-authored field.
 
 | symbol | g:b | address space | store type | channel |
 |---|---|---|---|---|
-| `agent_behaviors` | 2:3 | uniform | `array<AgentBehaviorParams, 10>` | uniform |
 | `agent_tier_gains` | 2:4 | uniform | `array<AgentTierParams, 4>` | uniform |
 | `agent_figure_profiles` | 2:200 | uniform | `array<PawnFigure, 14>` | uniform |
-| `occupier_cmg` | 2:7 | uniform | `array<ColumnMeshParams, 32>` | uniform |
-| `occupier_amg` | 2:8 | uniform | `array<ArchMeshParams, 16>` | uniform |
 | `field_head_poses` | 2:9 | uniform | `array<vec4<f32>, 400>` | uniform |
 | `field_forces` | 2:10 | storage, read_write | `array<vec4<f32>, FIELD_SUBSCRIBERS>` | storage |
 | `field_ribbon` | 2:11 | uniform | `RibbonState` | uniform |
@@ -128,7 +125,7 @@ declaration alone — no hand-authored field.
 | `config` | 0:0 | uniform | `DesignConfig` | uniform |
 | `vp_data` | 2:240 | storage, read_write | `VPMatrix` | storage |
 | `agent_state` | 2:0 | storage, read_write | `array<AgentState, 32>` | storage |
-| `portal_array` | 2:1 | uniform | `PortalArray` | uniform |
+| `agent_room` | 2:1 | uniform | `AgentRoomConstants` | uniform |
 | `camera_state` | 2:241 | storage, read_write | `CameraState` | storage |
 | `floating_entities` | 2:2 | storage, read_write | `FloatingEntityArray` | storage |
 | `ribbon_state` | 2:140 | uniform | `RibbonState` | uniform |

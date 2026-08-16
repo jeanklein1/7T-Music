@@ -900,7 +900,6 @@ struct AgentBehaviorParams {
 }
 
 
-@group(2) @binding(3) var<uniform> agent_behaviors: array<AgentBehaviorParams, 10>;
 
 struct AgentTierParams {
     step_gain:     f32,
@@ -2546,11 +2545,9 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 
 // ── THE OCCUPIER ROWS (BATCH F-B) — the standing bodies' word ──────
 // Columns, antennas, and arch legs push walkers as PRESENCE bodies.
-// The windows live in THE AGENTS' ROOM (group 2), read-only onto the
-// SAME mesh-param buffers the mesh-gen kernels read — one authored
-// geometry, one home; the rows and the mesh can never disagree.
-@group(2) @binding(7) var<uniform> occupier_cmg: array<ColumnMeshParams, 32>;
-@group(2) @binding(8) var<uniform> occupier_amg: array<ArchMeshParams, 16>;
+// The occupier windows ride agent_room.occupier_cmg / .occupier_amg
+// (CHORD_1) — same mesh-param rows the mesh-gen kernels read: one
+// authored geometry, one home; the rows and the mesh can never disagree.
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
 // force sum out. Same buffers the ribbon pipeline binds (g0:120/122) —
 // new reachability, not a new fact.
@@ -2656,7 +2653,7 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     // ground by accident and never fired on a hill; since SHELL_0 opened the
     // unconditional tangential path, not firing means normalize(vec2(0,0)).
     for (var i = 0u; i < 32u; i++) {
-        let cm = occupier_cmg[i];
+        let cm = agent_room.occupier_cmg[i];
         if (cm.is_active == 0u) { continue; }
         let prof = row_occupier(cm.shaft_radius + body_radius);
         let r = influence_response(self_p, vec2(0.0),
@@ -2670,7 +2667,7 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     // skin. The SPAN stays open — walking through the doorway is the
     // arch's whole meaning; only the legs push.
     for (var i = 0u; i < 16u; i++) {
-        let am = occupier_amg[i];
+        let am = agent_room.occupier_amg[i];
         if (am.is_active == 0u) { continue; }
         let leg_r = max(am.thickness, am.depth) * 0.5 + body_radius;
         let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
@@ -6172,7 +6169,20 @@ struct PortalArray {
     _pad2: u32,
     portals: array<PortalEntry, 32>,
 }
-@group(2) @binding(1)  var<uniform> portal_array: PortalArray;
+// THE AGENTS' ROOM CONSTANTS (CHORD_1) — one cadence, one block.
+// Everything here is CPU-authored at world/mood cadence. Mirrors
+// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (6928 B; the
+// static_asserts are the handshake). Offsets: portals 0,
+// behaviors 1040, tier_gains 1360, occupier_cmg 1552,
+// occupier_amg 5648.
+struct AgentRoomConstants {
+    portals: PortalArray,
+    behaviors: array<AgentBehaviorParams, 10>,
+    tier_gains: array<AgentTierParams, 4>,
+    occupier_cmg: array<ColumnMeshParams, 32>,
+    occupier_amg: array<ArchMeshParams, 16>,
+}
+@group(2) @binding(1) var<uniform> agent_room: AgentRoomConstants;
 
 @group(2) @binding(241)  var<storage, read_write> camera_state: CameraState;
 @group(2) @binding(2) var<storage, read_write> floating_entities: FloatingEntityArray;
@@ -6974,8 +6984,8 @@ fn step_trigger(step_rate: f32) -> StepTrigger {
 // params); only the contract narrowed.
 //
 // Each behavior reads its own (drag, speed_cap) from
-// agent_behaviors[id], with tier scaling applied via
-// agent_tier_gains[tier_idx].speed_gain — that's why both the
+// agent_room.behaviors[id], with tier scaling applied via
+// agent_room.tier_gains[tier_idx].speed_gain — that's why both the
 // raw cap and the tier multiplier come in as parameters.
 fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: f32) -> AgentState {
     var a = agent_in;
@@ -7064,7 +7074,7 @@ fn agent_settle(agent_in: AgentState) -> AgentState {
 // agent_settle (the kernel calls it AFTER the gather). The kernel switch
 // dispatches on agent.behavior_id; slot numbers must match the
 // AgentBehaviorId enum in bodies/agents.hpp. Behavior parameters
-// come from agent_behaviors[behavior_id] (uploaded once at world
+// come from agent_room.behaviors[behavior_id] (uploaded once at world
 // init from the C++ AGENT_BEHAVIORS table).
 
 // ─── Behavior: PlayerControlled ──────────────────────────────────
@@ -7269,8 +7279,8 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // by the same P5 path.
     agent.portal_trigger = -1;
     let probe = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
-    for (var pi = 0u; pi < portal_array.count; pi++) {
-        let p = portal_array.portals[pi];
+    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
+        let p = agent_room.portals.portals[pi];
         let dx = probe.x - p.x;
         let dz = probe.z - p.z;
         let lat = dx * p.facing_cos + dz * p.facing_sin;
@@ -7303,9 +7313,9 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
 fn behavior_random_walk(agent_in: AgentState) -> AgentState {
     var a = agent_in;
 
-    let b = agent_behaviors[1u];
+    let b = agent_room.behaviors[1u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Step trigger — beat-gated. step_rate is steps per beat.
     let s = step_trigger(b.step_rate);
@@ -7337,9 +7347,9 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[2u];
+    let b = agent_room.behaviors[2u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Travel direction — derived from seed, stable across the agent's life.
     let travel_dir = hash_property(a.seed, 9100u) * 6.28318530718;
@@ -7410,9 +7420,9 @@ fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
     let dt        = signal.dt;
     let t_beats   = signal.t_beats;
 
-    let b = agent_behaviors[5u];
+    let b = agent_room.behaviors[5u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Waypoint advances at b.step_rate (per beat). Each waypoint
     // is a hash-derived offset from home, scaled by step_size × tier.
@@ -7452,9 +7462,9 @@ fn behavior_wanderer(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[3u];
+    let b = agent_room.behaviors[3u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Step trigger.
     let s = step_trigger(b.step_rate);
@@ -7490,9 +7500,9 @@ fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[4u];
+    let b = agent_room.behaviors[4u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Step trigger — small random noise impulse.
     let s = step_trigger(b.step_rate);
@@ -7528,9 +7538,9 @@ fn behavior_pursuit(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[6u];
+    let b = agent_room.behaviors[6u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Steer toward THE POINT (the emitter), not the raw possessed slot:
     // point_pos() is the possessed body in pawn-host (identical target there)
@@ -7575,9 +7585,9 @@ fn behavior_flee(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[7u];
+    let b = agent_room.behaviors[7u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Flee THE POINT, not the raw possessed slot (TIDY_1 T2a; see pursuit).
     let p = point_pos();
@@ -7620,9 +7630,9 @@ fn behavior_flock2d(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[8u];
+    let b = agent_room.behaviors[8u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     // Step trigger — flock decisions are beat-gated.
     let s = step_trigger(b.step_rate);
@@ -7695,9 +7705,9 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
 
-    let b = agent_behaviors[9u];
+    let b = agent_room.behaviors[9u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_tier_gains[tier];
+    let g = agent_room.tier_gains[tier];
 
     let s = step_trigger(b.step_rate);
     if (s.fired) {
@@ -7833,7 +7843,7 @@ fn update_player_agent() {
     // order (ribbon → player → others → camera → sphere → cube → vp) are
     // the disclosed softness: one-frame asymmetries the springs absorb.
     {
-        let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
+        let g_self = agent_room.tier_gains[min(agent.tier_idx, 3u)];
         // (FIELD_B2: the agent↔agent presence row migrated to the
         // field — the possessed EMITS at ×PAWN_CONTACT_MASS_MULT in
         // field_sum and yields to nothing; the flee-dodge stays.)
@@ -7841,7 +7851,7 @@ fn update_player_agent() {
             if (k == slot) { continue; }
             let other = agent_state[k];
             if (other.is_active == 0u) { continue; }
-            let og = agent_tier_gains[min(other.tier_idx, 3u)];
+            let og = agent_room.tier_gains[min(other.tier_idx, 3u)];
             let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
@@ -7966,7 +7976,7 @@ fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
 fn field_sum(sub_i: u32) -> vec3<f32> {
     // Subscriber resolve — lane map at the FIELD consts. Radii ride
     // the CONTACT vocabulary: agents
-    // agent_tier_gains[...].contact_radius, floaters fe.body_radius
+    // agent_room.tier_gains[...].contact_radius, floaters fe.body_radius
     // (the S2c ruling: the sphere's OWN body).
     var sub_pos: vec3<f32>;
     var r_s: f32;
@@ -7974,7 +7984,7 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
         let a = agent_state[sub_i];
         if (a.is_active == 0u || sub_i == config.possessed_slot) { return vec3(0.0); }
         sub_pos = vec3(a.pos_x, a.pos_y, a.pos_z);
-        r_s = agent_tier_gains[min(a.tier_idx, 3u)].contact_radius;
+        r_s = agent_room.tier_gains[min(a.tier_idx, 3u)].contact_radius;
     } else {
         let fe = floating_entities.entities[sub_i - 32u];
         if (fe.is_active == 0u) { return vec3(0.0); }
@@ -7994,7 +8004,7 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
         if (sub_i < 32u && k == sub_i) { continue; }   // self
         let a = agent_state[k];
         if (a.is_active == 0u) { continue; }
-        let og = agent_tier_gains[min(a.tier_idx, 3u)];
+        let og = agent_room.tier_gains[min(a.tier_idx, 3u)];
         var og_mass = og.contact_mass;
         if (k == config.possessed_slot) {
             og_mass = select(0.0, og_mass * PAWN_CONTACT_MASS_MULT, sub_i < 32u);
@@ -8047,14 +8057,14 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // collision/ground chain (banner rules 2, 3).
     var occ = vec3(0.0);
     for (var i = 0u; i < 32u; i++) {
-        let cm = occupier_cmg[i];
+        let cm = agent_room.occupier_cmg[i];
         if (cm.is_active == 0u) { continue; }
         occ += field_pair(sub_pos,
                           vec3(cm.center_x, sub_pos.y, cm.center_z),
                           r_s, cm.shaft_radius, sub_i, 700u + i);
     }
     for (var i = 0u; i < 16u; i++) {
-        let am = occupier_amg[i];
+        let am = agent_room.occupier_amg[i];
         if (am.is_active == 0u) { continue; }
         let leg_r = max(am.thickness, am.depth) * 0.5;
         let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
@@ -8143,7 +8153,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     // order (ribbon → player → others → camera → sphere → cube → vp) are
     // the disclosed softness: one-frame asymmetries the springs absorb.
     {
-        let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
+        let g_self = agent_room.tier_gains[min(agent.tier_idx, 3u)];
         // (FIELD_B2: the agent↔agent presence row migrated to the
         // field — crowd spacing is field_sum's now, mass-weighted;
         // the flee-dodge personality stays here.)
@@ -8151,7 +8161,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             if (k == slot) { continue; }
             let other = agent_state[k];
             if (other.is_active == 0u) { continue; }
-            let og = agent_tier_gains[min(other.tier_idx, 3u)];
+            let og = agent_room.tier_gains[min(other.tier_idx, 3u)];
             let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed

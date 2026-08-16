@@ -68,8 +68,8 @@ inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 // The head's CPU sum reads the three standing families from separate
 // arrays (columns / antennas / arch legs), so it can weigh them
 // independently — the GPU cannot without a slot split, since columns
-// and antennas share occupier_cmg. Ribbon-only: these do not touch
-// what floaters and agents feel.
+// and antennas share agent_room.occupier_cmg. Ribbon-only: these do
+// not touch what floaters and agents feel.
 //
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination (F5): 0 / 0.5 / 1.0 — the
