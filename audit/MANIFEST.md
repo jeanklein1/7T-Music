@@ -48,51 +48,51 @@ sites and cross-checked against the WGSL by witness M-2.
 | Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | 4 / 8 | 3 / 5 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | F | 4 / 8 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Catenary Arch (Rasterized) | `archPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Catenary Arch (Rasterized) | `archPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Generative Column (Rasterized) | `columnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Generative Column (Rasterized) | `columnPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Palm Tree (Rasterized) | `palmPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Palm Tree (Rasterized) | `palmPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Cactus (Rasterized) | `cactusPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Cactus (Rasterized) | `cactusPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
 | Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 | Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 
@@ -101,7 +101,7 @@ sites and cross-checked against the WGSL by witness M-2.
 | lane | worst used / limit | free | at |
 |---|---|---|---|
 | uniform | 5 / 12 | 7 | `updatePlayerAgentPipeline_` C (+6 more) |
-| storage | 5 / 8 | 3 | `updatePlayerAgentPipeline_` C (+7 more) |
+| storage | 5 / 8 | 3 | `updatePlayerAgentPipeline_` C (+20 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
 | storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |
@@ -127,7 +127,7 @@ declaration alone — no hand-authored field.
 | `floating_entities` | 2:2 | storage, read_write | `FloatingEntityArray` | storage |
 | `ribbon_state` | 2:140 | uniform | `RibbonState` | uniform |
 | `render_agents` | 2:5 | storage, read | `array<AgentState, 32>` | storage |
-| `render_floating` | 2:6 | uniform | `FloatingEntityArray` | uniform |
+| `render_floating` | 2:6 | storage, read | `FloatingEntityArray` | storage |
 | `render_ring_xforms` | 2:143 | storage, read | `array<RibbonRingTransform, 400>` | storage |
 | `entity_ground_atlas` | 3:81 | handle | `texture_2d<f32>` | sampled |
 | `ring_xforms` | 2:141 | storage, read_write | `array<RibbonRingTransform, 400>` | storage |

@@ -684,9 +684,15 @@
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
+                    // CHORD_5 — PROMOTED BACK TO READ-ONLY STORAGE. The DOMESDAY
+                    // demotion bought storage seats when storage was the famine; post-
+                    // LOOM the famine moved to uniforms, and 54,912 B of a 65,536 B
+                    // uniform binding was a wall on entity growth, not a saving. The
+                    // storage rows afford the seat now. Demotion: BINDING_LEDGER
+                    // Table C. Reversal: docs/CHORD.md.
                     entries[1].binding = bind::g2::render_floating;
                     entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     entries[2].binding = bind::g2::patch_instances;
                     entries[2].visibility = wgpu::ShaderStage::Vertex;
@@ -790,9 +796,15 @@
                     entries[0].visibility = wgpu::ShaderStage::Vertex;
                     entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
+                    // CHORD_5 — PROMOTED BACK TO READ-ONLY STORAGE. The DOMESDAY
+                    // demotion bought storage seats when storage was the famine; post-
+                    // LOOM the famine moved to uniforms, and 54,912 B of a 65,536 B
+                    // uniform binding was a wall on entity growth, not a saving. The
+                    // storage rows afford the seat now. Demotion: BINDING_LEDGER
+                    // Table C. Reversal: docs/CHORD.md.
                     entries[1].binding = bind::g2::render_floating;
                     entries[1].visibility = wgpu::ShaderStage::Vertex;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     entries[2].binding = bind::g2::patch_instances;
                     entries[2].visibility = wgpu::ShaderStage::Vertex;

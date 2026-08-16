@@ -6230,7 +6230,10 @@ fn point_pos() -> vec3<f32> {
 
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;
-@group(2) @binding(6) var<uniform> render_floating: FloatingEntityArray;
+// CHORD_5: promoted back to read-only storage — the uniform ceiling
+// (54,912 of 65,536 B) was a wall on entity growth; post-LOOM the
+// storage rows afford the seat. Demotion: Table C. Reversal: CHORD.md.
+@group(2) @binding(6) var<storage, read> render_floating: FloatingEntityArray;
 
 // Possessed-agent helpers (render stage). VS/FS consumers that used
 // to read render_pawn.pos etc. go through these.

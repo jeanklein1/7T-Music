@@ -3753,7 +3753,13 @@ namespace t7 {
                     // storage.
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
-                    SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
+                    SU | wgpu::BufferUsage::CopySrc);
+                    // CHORD_5: Uniform dropped. g2:6 render_floating was this
+                    // buffer's only uniform binding, and it is read-only
+                    // storage again — the 54,912 B block was at 83.8% of the
+                    // uniform binding ceiling, which is a wall on entity
+                    // growth rather than a saving. Same buffer, same bytes,
+                    // no repack (behaviour preservation, L3).
                 // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + readback staging droppable, but ribbonBuffer_/ringTransformsBuffer_ are exclusive-in-Render-Entity + Photographer. Retire = re-section those groups.
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
