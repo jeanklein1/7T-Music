@@ -672,9 +672,9 @@ namespace t7 {
             float mosaic_facet;
             // TUNE_1 A3 — the possessed figure's eye height, in world units.
             // CPU-derived (FPV_EYE_RATIO x that figure's own height) because
-            // the compute stage cannot see agent_figure_profiles: binding 112
-            // is a render-VS-only uniform and update_camera's layout does not
-            // carry it. First of the three tail pads, reused in place — same
+            // the compute stage cannot see scene_constants.figure_profiles:
+            // g2:200 is a render-VS-only uniform block and update_camera's
+            // layout does not carry it. First of the three tail pads, reused in place — same
             // position, same type, sizeof 592 UNMOVED (the possessed_slot /
             // veil_dither / indoor_height_cap precedent). Was _pad592_0.
             float fpv_eye_height;
@@ -1821,6 +1821,31 @@ namespace t7 {
         static_assert(sizeof(GPUFrameR) == 1024);
         static_assert(offsetof(GPUFrameR, vp)     == 848);
         static_assert(offsetof(GPUFrameR, camera) == 976);
+
+        // ── SCENE CONSTANTS (CHORD_4) ─────────────────────────────────
+        // The render room's mood-cadence block: the tier-gains window,
+        // the figure profiles, the ribbon window. Mirrors
+        // world.wgsl::SceneConstants BYTE-FOR-BYTE (L3).
+        //
+        // UNIFORM, not storage, for the reason the tier registry and the
+        // figure table each carried alone before the merge: the render
+        // VERTEX stage sits at the per-stage STORAGE cap and uniform has
+        // its own budget. Do not "upgrade" this block.
+        //
+        // TWO SEATS, ONE BLOCK: the scene layout and the shadow layout
+        // both bind it at g2:200. And two of its three members are
+        // WINDOWS (docs/CHORD.md) — tier_gains' home also shows through
+        // agent_room.tier_gains, ribbon's through the ribbon pipeline's
+        // g2:140 and field_bus.ribbon. Each authoring site writes every
+        // window it owns.
+        struct alignas(16) GPUSceneConstants {
+            GPUAgentTierDef tier_gains[GPU_AGENT_TIER_COUNT];   //    0
+            GPUPawnFigure   figure_profiles[PAWN_FIGURE_COUNT]; //  192
+            GPURibbonState  ribbon;                             // 4224
+        };
+        static_assert(sizeof(GPUSceneConstants) == 4336);
+        static_assert(offsetof(GPUSceneConstants, figure_profiles) == 192);
+        static_assert(offsetof(GPUSceneConstants, ribbon)          == 4224);
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
         static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");
         static_assert(sizeof(GPUPointLightArray) == 272, "GPUPointLightArray must be 272 bytes");
@@ -1957,11 +1982,10 @@ namespace t7 {
             // know what the others wrote.
             wgpu::Buffer agentRoomBuffer_;
             GPUAgentRoomConstants agentRoomStage_{};
-            // The tier registry's OTHER window — the scene and shadow
-            // layouts still seat it standalone until CHORD_4. The single
-            // source of truth lives in bodies/agents.hpp.
-            wgpu::Buffer agentTierGainsBuffer_;
-            wgpu::Buffer figureProfilesBuffer_;   // GPUPawnFigure[PAWN_FIGURE_COUNT] — uniform, render VS only (H2)
+            // CHORD_4 — SCENE CONSTANTS, one buffer where three stood
+            // (the tier registry's render window, the figure table, the
+            // render-side ribbon window). Seated twice: scene and shadow.
+            wgpu::Buffer sceneConstantsBuffer_;
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
@@ -2339,9 +2363,11 @@ namespace t7 {
                     offsetof(GPUAgentRoomConstants, behaviors),
                     agentRoomStage_.behaviors,
                     sizeof(agentRoomStage_.behaviors) + sizeof(agentRoomStage_.tier_gains));
-                // The tier registry's second window (scene + shadow, until
-                // CHORD_4) — two windows, one home.
-                writeArray(queue, agentTierGainsBuffer_, tiers, tier_count);
+                // CHORD_4: the registry's second window is the scene block's
+                // now — the standalone buffer C1 kept alive retired with it.
+                queue.WriteBuffer(sceneConstantsBuffer_,
+                    offsetof(GPUSceneConstants, tier_gains),
+                    agentRoomStage_.tier_gains, sizeof(agentRoomStage_.tier_gains));
             }
 
             // One-shot upload of the pawn figure table. Packs PAWN_FIGURES →
@@ -2350,7 +2376,8 @@ namespace t7 {
             void upload_pawn_figures(wgpu::Queue& queue) {
                 GPUPawnFigure figs[PAWN_FIGURE_COUNT];
                 pack_pawn_figures(figs);
-                queue.WriteBuffer(figureProfilesBuffer_, 0, figs, sizeof(figs));
+                queue.WriteBuffer(sceneConstantsBuffer_,
+                    offsetof(GPUSceneConstants, figure_profiles), figs, sizeof(figs));
             }
 
             void upload_config(wgpu::Queue& queue) {
@@ -2469,22 +2496,28 @@ namespace t7 {
             // and it is why no CPU stage copy is needed here. RIBBON_WINDOW
             // is the one place the second address is computed.
             static constexpr uint64_t RIBBON_WINDOW = offsetof(GPUFieldBus, ribbon);
+            // CHORD_4 gave the same fact a third window: the render room's
+            // (scene + shadow bind it at g2:200). Same rule, one more address.
+            static constexpr uint64_t RIBBON_SCENE_WINDOW = offsetof(GPUSceneConstants, ribbon);
 
             void upload_ribbon_time(wgpu::Queue& queue, float time) {
                 // Only update the time field (offset 12 = after anchor[3])
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, time), &time, sizeof(float));
                 queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, time), &time, sizeof(float));
+                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, time), &time, sizeof(float));
             }
 
             void upload_ribbon_color(wgpu::Queue& queue, const float (&color)[3]) {
                 // Only update the color[3] field (offset 32 — see GPURibbonState layout)
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, color), color, sizeof(color));
                 queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, color), color, sizeof(color));
+                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, color), color, sizeof(color));
             }
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 writeStruct(queue, ribbonBuffer_, ribbon);
                 queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW, &ribbon, sizeof(GPURibbonState));
+                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW, &ribbon, sizeof(GPURibbonState));
             }
 
             void upload_ribbon_wave_amps(wgpu::Queue& queue, float lateral_amp, float vertical_amp) {
@@ -2492,6 +2525,8 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
                 queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
                 queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
+                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
+                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
             }
 
             // Same pairing for the ring poses: headPosesBuffer_ is the
@@ -3704,14 +3739,11 @@ namespace t7 {
                 // CHORD_1: one 6928 B uniform block where five buffers stood.
                 agentRoomBuffer_ = makeBuffer("Agents' Room Constants",
                     sizeof(GPUAgentRoomConstants), UU);
-                agentTierGainsBuffer_ = makeBuffer("Agent Tier Gains Table",
-                    GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                // Pawn figure table — UNIFORM (not storage): the render VS storage cap
-                // is full (see Render Entity Layout entry[17/18]). 14 × 288 B = 4032 B.
-                figureProfilesBuffer_ = makeBuffer("Figure Profiles Table",
-                    PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                // CHORD_4: one 4336 B uniform block where three buffers stood.
+                // UNIFORM (not storage) for the reason the figure table carried
+                // alone before the merge: the render VS storage cap is full.
+                sceneConstantsBuffer_ = makeBuffer("Scene Constants",
+                    sizeof(GPUSceneConstants), UU);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
                     SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host) AND the CHORD_3 block copy
                     // CHORD_3: Uniform dropped. DOMESDAY_0 B2's g1:4 window
@@ -3873,7 +3905,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    agentRoomBuffer_ &&
+                    agentRoomBuffer_ && sceneConstantsBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 

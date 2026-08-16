@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (89 declarations over 74 slots;
+// The WGSL @binding literals in world.wgsl (87 declarations over 72 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -54,7 +54,6 @@ namespace t7 {
                 inline constexpr uint32_t agent_state                 = 0;
                 inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_cmg + occupier_amg, one uniform block at world/mood cadence (6928 B)
                 inline constexpr uint32_t floating_entities           = 2;
-                inline constexpr uint32_t agent_tier_gains            = 4;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
                 inline constexpr uint32_t field_bus                   = 9;  // FieldBus — CHORD_2: head_poses + ribbon + authored, one uniform block at frame cadence (6656 B; the fastest member governs)
@@ -122,8 +121,7 @@ namespace t7 {
                 inline constexpr uint32_t cmg_config                  = 183;  // DesignConfig view for the cmg kernel (the ceiling gate)
 
                 // SCENE (200–219)
-                inline constexpr uint32_t agent_figure_profiles       = 200;  // uniform: PawnFigure[14] (render VS only)
-                inline constexpr uint32_t render_ribbon               = 201;
+                inline constexpr uint32_t scene_constants             = 200;  // SceneConstants — CHORD_4: tier_gains + figure_profiles + ribbon, one uniform block at world/mood cadence (4336 B, render VS only; bound by the scene AND shadow layouts)
 
                 // FRAME_K (240–259)
                 inline constexpr uint32_t vp_data                     = 240;  // aka fc_vp (frustum-cull alias) — aka fc_vp

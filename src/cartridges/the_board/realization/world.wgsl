@@ -918,13 +918,13 @@ struct AgentTierParams {
 
 const AGENT_TIER_COUNT_WGSL: u32 = 4u;
 
-@group(2) @binding(4) var<uniform> agent_tier_gains: array<AgentTierParams, 4>;
 
 // --- Pawn figure table (CLOSURE_PAWN) ----------------------------------
-// UNIFORM, render VS only — same address space and same reason as
-// agent_tier_gains above: the render entity group's VERTEX stage is at the
-// per-stage STORAGE cap. Uniform has its own budget. Do not "upgrade" this to
-// var<storage>; it fails CreateBindGroupLayout at launch.
+// UNIFORM, render VS only — the render entity group's VERTEX stage is at
+// the per-stage STORAGE cap and uniform has its own budget. That reason
+// is now the whole SceneConstants block's (CHORD_4), which is where this
+// table rides. Do not "upgrade" the block to var<storage>; it fails
+// CreateBindGroupLayout at launch.
 //
 // vec4 PACKING IS MANDATORY, not cosmetic: the uniform address space forces a
 // 16-byte array stride, so array<f32,32> would pad each float to 16 B and
@@ -952,7 +952,17 @@ struct PawnFigure {
 
 const PAWN_FIGURE_COUNT_WGSL: u32 = 14u;
 
-@group(2) @binding(200) var<uniform> agent_figure_profiles: array<PawnFigure, 14>;
+// SCENE CONSTANTS (CHORD_4) — the render room's mood-cadence block:
+// the tier-gains window, the figure profiles, the ribbon window.
+// Bound by the scene AND shadow layouts, VERTEX only. Mirrors
+// GPUSceneConstants in state.hpp BYTE-FOR-BYTE (4336 B). Offsets:
+// tier_gains 0, figure_profiles 192, ribbon 4224.
+struct SceneConstants {
+    tier_gains: array<AgentTierParams, 4>,
+    figure_profiles: array<PawnFigure, 14>,
+    ribbon: RibbonState,
+}
+@group(2) @binding(200) var<uniform> scene_constants: SceneConstants;
 
 const FAM_HERALDIC_W: u32 = 2u;
 
@@ -1713,7 +1723,7 @@ struct DesignConfig {
     mosaic_facet: f32,
     // TUNE_1 A3 — possessed figure's eye height in world units, authored
     // CPU-side (FPV_EYE_RATIO x the figure's own height) and read by
-    // update_camera. This room cannot derive it: agent_figure_profiles
+    // update_camera. This room cannot derive it: scene_constants.figure_profiles
     // (binding 112) is a render-VS uniform and no compute layout binds it.
     // Reuses the first tail pad in place; sizeof 592 unmoved. Was _pad592_0.
     fpv_eye_height: f32,
@@ -5227,7 +5237,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     // -- Figure selection (0 = regular pawn: hardcoded profile + legacy color) --
     // Uniform arrays are fixed-size: use the count const, NOT arrayLength().
     let sid = select(agent.skin_id, 0u, agent.skin_id >= PAWN_FIGURE_COUNT_WGSL);
-    let fig = agent_figure_profiles[sid];
+    let fig = scene_constants.figure_profiles[sid];
     let is_regular = sid == 0u;
     let scale_r = select(fig.radius, PAWN_RADIUS, is_regular);
     let scale_h = select(fig.height, PAWN_HEIGHT, is_regular);
@@ -5318,7 +5328,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     //   per-tier color is the fallback when a slot carries no per-agent color.
     // Figures 1..13: per-vertex palette gradient + seeded HSV drift.
     let tier = min(agent.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let tg = agent_tier_gains[tier];
+    let tg = scene_constants.tier_gains[tier];
     let agent_color = vec3(agent.color_r, agent.color_g, agent.color_b);
     let legacy_color = select(vec3(tg.color_r, tg.color_g, tg.color_b),
                               agent_color, any(agent_color > vec3(0.0)));
@@ -5448,7 +5458,7 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
 
     // Figure lookup — shadow silhouette must track the figure or shadows detach.
     let sid = select(agent.skin_id, 0u, agent.skin_id >= PAWN_FIGURE_COUNT_WGSL);
-    let fig = agent_figure_profiles[sid];
+    let fig = scene_constants.figure_profiles[sid];
     let is_regular = sid == 0u;
     let scale_r = select(fig.radius, PAWN_RADIUS, is_regular);
     let scale_h = select(fig.height, PAWN_HEIGHT, is_regular);
@@ -5889,7 +5899,7 @@ fn hue_rotate(c: vec3<f32>, a: f32) -> vec3<f32> {
 // --- Ribbon Vertex Shader: Square Tube
 @vertex
 fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
-    let ribbon = render_ribbon;
+    let ribbon = scene_constants.ribbon;
     let ring_count = ribbon.cube_count;   // number of cross-section rings
     let half = ribbon.cube_size * 0.5;    // half cross-section size
 
@@ -6040,7 +6050,7 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
 
 @vertex
 fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
-    let ribbon = render_ribbon;
+    let ribbon = scene_constants.ribbon;
     let ring_count = ribbon.cube_count;
     let half = ribbon.cube_size * 0.5;
 
@@ -6244,7 +6254,6 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 }
 
 // --- Ribbon (Group 0: render, binding 360)
-@group(2) @binding(201) var<uniform> render_ribbon: RibbonState;
 @group(2) @binding(143) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
 // Entity ground atlas — VS reads ground_y via textureLoad (r32float, 256×1)
 @group(3) @binding(81) var entity_ground_atlas: texture_2d<f32>;

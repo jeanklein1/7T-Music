@@ -977,7 +977,7 @@ namespace t7 {
                     // at the wall, and the sample never lands on bmax, the
                     // EXCLUSIVE edge of the patch set. Derived here for the
                     // same reason the eye height below is: the compute stage
-                    // cannot see agent_figure_profiles.
+                    // cannot see scene_constants.figure_profiles.
                     // The out-of-range arm reads figure 0's radius rather than a
                     // literal: pawn_figures.hpp's static_assert proves every ROW
                     // of the table positive, and a bare 0.0f would sit outside
@@ -989,9 +989,10 @@ namespace t7 {
 
                     // FPV eye height follows the possessed figure (TUNE_1 A3).
                     // Derived here and not in the shader because
-                    // agent_figure_profiles (binding 112) is a render-VS
-                    // uniform — update_camera's compute layout does not carry
-                    // it, and giving it one would be a new binding. Same
+                    // scene_constants.figure_profiles rides a render-VS-only
+                    // uniform block (g2:200) — update_camera's compute layout
+                    // does not carry it, and giving it one would be a new
+                    // binding. Same
                     // out-of-range fallback as the tilt above, so an unknown
                     // skin lands on the conventional figure rather than at
                     // ground level. Guarded like set_pawn_tilt_tau: the config

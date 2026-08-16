@@ -678,50 +678,40 @@
 
                 // Scene State Layout — stratum 2 (Scene family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
-                    // Agent tier registry — same buffer as compute binding 111.
-                    // Read by pawn_vs for entity color (tg.color_r/g/b).
-                    // Uniform (not storage) to stay under the per-stage
-                    // storage buffer cap; same buffer is bound as uniform
-                    // on the compute side too.
-                    entries[0].binding = bind::g2::agent_tier_gains;
-                    entries[0].visibility = wgpu::ShaderStage::Vertex;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[0].binding = bind::g2::render_agents;
+                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[1].binding = bind::g2::render_agents;
+                    entries[1].binding = bind::g2::render_floating;
                     entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[2].binding = bind::g2::render_floating;
-                    entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[3].binding = bind::g2::patch_instances;
-                    entries[3].visibility = wgpu::ShaderStage::Vertex;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[2].binding = bind::g2::patch_instances;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     // GoL zone config (fragment reads zone origins for lookup)
-                    entries[4].binding = bind::g2::zone_params;
-                    entries[4].visibility = wgpu::ShaderStage::Fragment;
+                    entries[3].binding = bind::g2::zone_params;
+                    entries[3].visibility = wgpu::ShaderStage::Fragment;
+                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[4].binding = bind::g2::render_ring_xforms;
+                    entries[4].visibility = wgpu::ShaderStage::Vertex;
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[5].binding = bind::g2::render_ring_xforms;
+                    // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
+                    // block: the tier-gains window, the figure profiles, the ribbon
+                    // window. UNIFORM, not storage, for the reason the tier registry
+                    // and the figure table each carried alone before the merge: the
+                    // render VERTEX stage sits at the per-stage STORAGE cap and
+                    // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
+                    // mood-cadence. The scene and shadow layouts seat the SAME block
+                    // — one window each, one home.
+                    entries[5].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[5].visibility = wgpu::ShaderStage::Vertex;
-                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
-                    // profile + palette. Uniform (not storage) for the same reason as
-                    // the tier registry above: it keeps the vertex stage off the
-                    // storage cap, which TETRIS ORB_V left standing at 6 of 8
-                    // (BINDING_LEDGER Table B). 4032 B, session-constant.
-                    entries[6].binding = bind::g2::agent_figure_profiles;
-                    entries[6].visibility = wgpu::ShaderStage::Vertex;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[7].binding = bind::g2::render_ribbon;
-                    entries[7].visibility = wgpu::ShaderStage::Vertex;
-                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Scene State Layout";
@@ -794,7 +784,7 @@
 
                 // Shadow State Layout — stratum 2 (Shadow family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].visibility = wgpu::ShaderStage::Vertex;
@@ -816,18 +806,17 @@
                     entries[4].visibility = wgpu::ShaderStage::Vertex;
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
-                    // profile + palette. Uniform (not storage) for the same reason as
-                    // the tier registry above: it keeps the vertex stage off the
-                    // storage cap, which TETRIS ORB_V left standing at 6 of 8
-                    // (BINDING_LEDGER Table B). 4032 B, session-constant.
-                    entries[5].binding = bind::g2::agent_figure_profiles;
+                    // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
+                    // block: the tier-gains window, the figure profiles, the ribbon
+                    // window. UNIFORM, not storage, for the reason the tier registry
+                    // and the figure table each carried alone before the merge: the
+                    // render VERTEX stage sits at the per-stage STORAGE cap and
+                    // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
+                    // mood-cadence. The scene and shadow layouts seat the SAME block
+                    // — one window each, one home.
+                    entries[5].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[5].visibility = wgpu::ShaderStage::Vertex;
                     entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[6].binding = bind::g2::render_ribbon;
-                    entries[6].visibility = wgpu::ShaderStage::Vertex;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Shadow State Layout";
@@ -1660,39 +1649,31 @@
 
                 // Projected from: renderEntityBindGroup_, renderTextureBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
-                    entries[0].binding = bind::g2::agent_tier_gains;
-                    entries[0].buffer = agentTierGainsBuffer_;
-                    entries[0].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[0].binding = bind::g2::render_agents;
+                    entries[0].buffer = agentStateBuffer_;
+                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
-                    entries[1].binding = bind::g2::render_agents;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[1].binding = bind::g2::render_floating;
+                    entries[1].buffer = floatingEntityBuffer_;
+                    entries[1].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
-                    entries[2].binding = bind::g2::render_floating;
-                    entries[2].buffer = floatingEntityBuffer_;
-                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+                    entries[2].binding = bind::g2::patch_instances;
+                    entries[2].buffer = patchInstancesBuffer_;
+                    entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[3].binding = bind::g2::patch_instances;
-                    entries[3].buffer = patchInstancesBuffer_;
-                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[3].binding = bind::g2::zone_params;
+                    entries[3].buffer = zoneConfigBuffer_;
+                    entries[3].size = sizeof(GPUGoLZoneArray);
 
-                    entries[4].binding = bind::g2::zone_params;
-                    entries[4].buffer = zoneConfigBuffer_;
-                    entries[4].size = sizeof(GPUGoLZoneArray);
+                    entries[4].binding = bind::g2::render_ring_xforms;
+                    entries[4].buffer = ringTransformsBuffer_;
+                    entries[4].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[5].binding = bind::g2::render_ring_xforms;
-                    entries[5].buffer = ringTransformsBuffer_;
-                    entries[5].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[6].binding = bind::g2::agent_figure_profiles;
-                    entries[6].buffer = figureProfilesBuffer_;
-                    entries[6].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    entries[7].binding = bind::g2::render_ribbon;
-                    entries[7].buffer = ribbonBuffer_;
-                    entries[7].size = sizeof(GPURibbonState);
+                    entries[5].binding = bind::g2::scene_constants;
+                    entries[5].buffer = sceneConstantsBuffer_;
+                    entries[5].size = sizeof(GPUSceneConstants);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Scene State BindGroup";
@@ -1745,7 +1726,7 @@
 
                 // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].buffer = agentStateBuffer_;
@@ -1767,13 +1748,9 @@
                     entries[4].buffer = ringTransformsBuffer_;
                     entries[4].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[5].binding = bind::g2::agent_figure_profiles;
-                    entries[5].buffer = figureProfilesBuffer_;
-                    entries[5].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
-
-                    entries[6].binding = bind::g2::render_ribbon;
-                    entries[6].buffer = ribbonBuffer_;
-                    entries[6].size = sizeof(GPURibbonState);
+                    entries[5].binding = bind::g2::scene_constants;
+                    entries[5].buffer = sceneConstantsBuffer_;
+                    entries[5].size = sizeof(GPUSceneConstants);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Shadow State BindGroup";
