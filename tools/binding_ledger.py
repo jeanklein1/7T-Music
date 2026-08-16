@@ -983,18 +983,33 @@ def parse_wgsl_decls(w, src, structs, consts):
     #     binding_registry.hpp by the people who sized the buffers. If the
     #     calculator cannot reproduce all three, no A2 row it produces is
     #     worth reading.
+    #     THE CONTROL SET MOVED ONCE (CHORD). Its first three symbols were
+    #     agent_figure_profiles 4032, field_head_poses 6400 and
+    #     field_authored 144 — two of which CHORD_2 merged into a block and
+    #     the third of which CHORD_4 does, so the control named subjects
+    #     that a redistricting campaign was always going to retire. This is
+    #     0b-1's defect one witness over: a literal here, keyed to a
+    #     declaration, forces every subject campaign that moves that
+    #     declaration to edit an INSTRUMENT to stay green — which standing
+    #     order 3 forbids from riding the same commit.
+    #
+    #     The replacements are chosen to OUTLIVE the campaign and to test
+    #     the calculator harder. A merged block exercises member alignment,
+    #     array stride and struct round-up all at once, where a flat
+    #     array<vec4> exercised none of them; and both numbers are stated
+    #     twice in the program, in the WGSL banner and in a C++
+    #     static_assert, so the control has two independent sources.
     by_symbol = {d.symbol: d for d in decls}
-    stated = [("agent_figure_profiles", 4032, "state.hpp Scene State Layout entries[7]: \"4032 B, session-constant\""),
-              ("field_head_poses", 6400, "state.hpp Agents State Layout entries[7]: \"6,400 B\""),
-              ("field_authored", 144, "binding_registry.hpp g2:12: \"uniform, 144 B\"")]
+    stated = [("agent_room", 6928, "world.wgsl AgentRoomConstants banner + state.hpp static_assert(sizeof(GPUAgentRoomConstants) == 6928)"),
+              ("field_bus", 6656, "world.wgsl FieldBus banner + state.hpp static_assert(sizeof(GPUFieldBus) == 6656)")]
     off = []
     for sym, want, where in stated:
         got = by_symbol[sym].layout.size if sym in by_symbol else None
         if got != want:
             off.append("%s: source says %s, calculator says %s (%s)" % (sym, want, got, where))
     w.record("0b-4", not off,
-             "WGSL layout calculator reproduces all three byte counts the program states in "
-             "prose: agent_figure_profiles 4032 B, field_head_poses 6400 B, field_authored 144 B"
+             "WGSL layout calculator reproduces both byte counts the program states in "
+             "prose twice over: agent_room 6928 B, field_bus 6656 B"
              if not off else "; ".join(off))
 
     # ─── The uniform-legality predicate, checked against the program.
