@@ -623,6 +623,97 @@ DEFENDED_SITES = [
              'defences with them.'},
 ]
 
+# ═══ DEMAND RULINGS (PROBATE_D) ═════════════════════════════════════
+# The judgment cells of the ledger's Table D, as data — one home, the
+# ledger joins by the queued-item key string it prints. A ruling here is
+# Jean-gated; editing one is a schema edit like any other.
+DEMAND_RULINGS = {
+    'A2 demotion — `fc_vp` @group(2) @binding(240) in Cull State Layout (128 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `painting_slots` @group(2) @binding(85) in Gallery State Layout (36864 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `cmg_column_ground` @group(2) @binding(84) in Meshgen State Layout (1024 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `amg_params` @group(2) @binding(180) in Meshgen State Layout (1280 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `head_poses` @group(2) @binding(142) in Ribbon State Layout (6400 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `render_agents` @group(2) @binding(5) in Scene State Layout (3072 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `render_floating` @group(2) @binding(6) in Scene State Layout (54912 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `zone_params` @group(2) @binding(104) in Scene State Layout (656 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `render_ring_xforms` @group(2) @binding(143) in Scene State Layout (19200 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `render_agents` @group(2) @binding(5) in Shadow State Layout (3072 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `render_floating` @group(2) @binding(6) in Shadow State Layout (54912 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `painting_slots` @group(2) @binding(85) in Shadow State Layout (36864 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'A2 demotion — `render_ring_xforms` @group(2) @binding(143) in Shadow State Layout (19200 B)': {
+        'demand': 'none standing',
+        'buys': 'one storage slot in the row(s) binding this layout',
+        'costs': 'one uniform slot in the same rows + BufferUsage::Uniform on the backing buffer + a var<uniform> alias where another layout binds the slot with a different access',
+        'ruling': 'PRICED, NOT SPENT — spend only when a named feature lands on this (pipeline, stage) and needs the slot; authorization is per-row and Jean\'s',
+    },
+    'The room family\'s storage stage stands at 0 of 8. Any new storage binding reachable from update_player_agent / update_other_agents / update_sphere / update_cube needs a demotion to pay for it.': {
+        'demand': 'standing — the wall itself',
+        'buys': 'n/a',
+        'costs': 'n/a',
+        'ruling': 'THE ROOM GROWS BY TEXTURE OR UNIFORM (see LAWS.md, PROBATE statutes). If a storage seat ever becomes non-negotiable, the one named payment is the agent_state + field_forces merge — two seats become one; both are already RAW-coupled everywhere (Table E) — authorized only then, by name, at Jean\'s gate.',
+    },
+}
+
 NEEDS = {
     'maxTextureDimension2D': {'floor': 2048, 'source': 'Dim::SHADOW_MAP_SIZE', 'note': 'the shadow atlas edge — the largest texture the program creates'},
     'maxTextureArrayLayers': {'floor': 225, 'source': 'Dim::MAX_ACTIVE_PATCHES', 'note': 'the patch heightfield array depth; 225 of the 256 default is the tightest ceiling the program owns'},

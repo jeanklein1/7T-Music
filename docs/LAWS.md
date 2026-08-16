@@ -618,6 +618,51 @@ Paid for twice: A7's gallery working set in the render passes, then
 A8's FRAME ro windows and collapsed orb faces at the compute
 dispatches — the same law, learned one scope at a time.
 
+## L24 — THE ROOM GROWS BY TEXTURE OR UNIFORM
+
+The agents' room grows by texture or uniform, never by a new storage
+seat; the one named payment, if ever unavoidable, is the `agent_state` +
+`field_forces` merge.
+
+The room family — `update_player_agent`, `update_other_agents`,
+`update_sphere`, `update_cube` — is the program's tightest storage row.
+Every ordered pair among those four already carries a RAW hazard
+(Table E), so the seats it holds are coupled as well as counted, and a
+new one is paid for by a demotion somewhere in the same rows. The merge
+is named here so that it is a DECISION when it happens rather than a
+discovery: two RAW-coupled seats become one, authorized by name at
+Jean's gate and never as a side effect of a feature.
+
+Priced, not spent: the demotion candidates and what each costs are
+Table D's thirteen A2 rows, ruled from `DEMAND_RULINGS` in the schema
+(PROBATE_D).
+
+## L25 — ARRAYS BEFORE SEATS
+
+A new compute-written surface prefers a layer in an existing
+storage-texture array over a new seat; the lane stands at 2 of 4.
+
+A storage-texture seat is charged per stage like any other, and the
+program already owns arrays with spare layers. A layer costs memory,
+which the budget prints; a seat costs a slot in a lane with two left.
+Reach for the layer first, and name the reason if you do not.
+
+## L26 — MARKED-DEAD DIES ON NEXT OPENING
+
+A field the tree marks dead — "retained until the next relayout" and
+kin — dies in the same sitting that next opens its struct; twin rooms,
+one commit.
+
+A field kept alive by a note is a fact with two homes: the layout and
+the note that says the layout is wrong. The note is cheap to write and
+free to ignore, so it accumulates. Binding the removal to the next
+opening of that struct makes the cost fall on the campaign that is
+already paying the mirror cost (L3: both rooms, same commit) — which is
+the only campaign that can remove it for free.
+
+Standing subjects today: `RibbonState.is_roaming`,
+`RibbonRingTransform._pad0`, and `OrbConfig`'s driverless gen-1 block.
+
 ## SUNSET_0 (2026-08-16) — the web twin is the program
 Native is archived at tag `native-sunset`. Resurrection is
 archaeology from the tag, not maintenance. The witness chain is:

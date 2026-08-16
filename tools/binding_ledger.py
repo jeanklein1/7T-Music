@@ -3751,12 +3751,18 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
     # ─── 5. TABLE D ───────────────────────────────────────────────────
     A("## Table D — DEMAND")
     A("")
-    A("**Jean's. Emitted as a stub: row labels only, every cell empty.**")
-    A("Nothing in Tier A needs a demand to justify it — a declaration that claims")
-    A("a stage it cannot reach was never true. These are the items that DO.")
+    A("**Jean's, and their home is the schema.** The four judgment cells —")
+    A("demand, what it buys, what it costs, ruling — are joined in from")
+    A("`DEMAND_RULINGS` in `tools/binding_schema.py` (PROBATE_D) by the exact")
+    A("queued-item key string this table prints. Nothing in Tier A needs a")
+    A("demand to justify it — a declaration that claims a stage it cannot reach")
+    A("was never true. These are the items that DO.")
     A("")
-    A("Three columns are new, and they are CENSUS FACTS, not judgments — 0f is")
-    A("what makes them computable. The judgment cells stay empty.")
+    A("Three columns are CENSUS FACTS, not judgments — 0f is what makes them")
+    A("computable. A ruling is a schema edit and Jean-gated like any other; a")
+    A("key this emitter prints and the schema does not carry leaves its cells")
+    A("empty and prints a warning at the console, so a rename can orphan a")
+    A("ruling loudly but never silently.")
     A("")
     A("| queued item | fusion barred? | can leave the storage wallet? | site defended? | demand | what it buys | what it costs | ruling |")
     A("|---|---|---|---|---|---|---|---|")
@@ -3786,16 +3792,35 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4):
                    % (room_storage, CORE["storage"]), "update_player_agent"))
     defended_syms = {f.symbol for f in e4["sites"]}
     elig_syms = {x["decl"].symbol for x in e2["eligibility"] if x["eligible"]}
+    # PROBATE_D — THE JUDGMENT CELLS COME FROM THE SCHEMA. The join key is
+    # the queued-item string exactly as printed. An unmatched key emits
+    # empty cells and warns: a future rename must not silently orphan a
+    # ruling, and an empty cell that looks deliberate is worse than a
+    # missing one that says so.
+    rulings = getattr(schema, "DEMAND_RULINGS", {})
+    matched = set()
     for q, sym in queued:
         barred = "n/a"
         if sym in {r["a"] for r in e1["raw"]} | {r["b"] for r in e1["raw"]}:
             hz = sorted({h for r in e1["raw"] if sym in (r["a"], r["b"])
                          for h in r["hazard"]})
             barred = ("**yes** — " + ", ".join("`%s`" % h for h in hz)) if hz else "no"
-        A("| %s | %s | %s | %s |  |  |  |  |"
+        r = rulings.get(q)
+        if r is None:
+            print("  [WARN] Table D: no DEMAND_RULINGS row for key %r — four "
+                  "judgment cells emitted empty (PROBATE_D join)" % q)
+            judgment = ("", "", "", "")
+        else:
+            matched.add(q)
+            judgment = (r["demand"], r["buys"], r["costs"], r["ruling"])
+        A("| %s | %s | %s | %s | %s | %s | %s | %s |"
           % (md_escape(q), barred,
              ("**yes**, vertex buffer" if sym in elig_syms else "no"),
-             ("**yes** — see Table H" if sym in defended_syms else "no")))
+             ("**yes** — see Table H" if sym in defended_syms else "no"),
+             *(md_escape(c) for c in judgment)))
+    for orphan in sorted(set(rulings) - matched):
+        print("  [WARN] Table D: DEMAND_RULINGS carries a ruling for key %r "
+              "that this table no longer prints (PROBATE_D join)" % orphan)
     A("")
 
     # ─── 6. TABLE E — the RAW hazard table (BUDGET_0f-1) ──────────────
