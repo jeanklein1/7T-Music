@@ -1466,14 +1466,22 @@ namespace t7 {
                     // an API the payload may not carry. A digest is
                     // 8 ASCII hex characters; a 16-byte buffer and a
                     // hand-written copy need nothing but the heap view.
+                    // DOUBLE QUOTES, AND THEY ARE NOT A STYLE CHOICE.
+                    // The preprocessor lexes an EM_ASM body as pp-tokens
+                    // before any JS engine ever sees it, and `''` is an
+                    // EMPTY CHARACTER CONSTANT — invalid, warned by
+                    // -Winvalid-pp-token, and it warned twice here from
+                    // the day SEAL wrote it. JS reads "" identically.
+                    // ('string' and '__' stay: multi-character constants
+                    // are valid pp-tokens, and the minimal diff is law.)
                     char buf[16] = {};
                     EM_ASM({
-                        var s = (typeof SHADER_SHA === 'string') ? SHADER_SHA : '';
+                        var s = (typeof SHADER_SHA === 'string') ? SHADER_SHA : "";
                         // An unsubstituted placeholder is NOT a digest —
                         // it means someone opened web/index.html directly
                         // instead of the dist/ copy web_dist generates.
                         // Report absent rather than mismatched.
-                        if (s.indexOf('__') === 0) s = '';
+                        if (s.indexOf('__') === 0) s = "";
                         var n = Math.min(s.length, $1 - 1);
                         for (var i = 0; i < n; i++)
                             HEAPU8[$0 + i] = s.charCodeAt(i) & 0x7f;
@@ -1486,9 +1494,28 @@ namespace t7 {
                 shaderBytes_ = shaderSource_.size();
                 shaderSha_ = got;
                 if (expected.empty()) {
+                    // A SKIP THAT SAYS ITS NAME. Serving web/ directly —
+                    // the dev path — means no web_dist run has baked a
+                    // digest, so the placeholder is still sitting in the
+                    // page and there is nothing to compare against. That
+                    // is not a match and it is not a mismatch: it is a
+                    // question that was never asked, and the line says
+                    // so. Never a silent pass (which would let a real
+                    // corruption through on the day someone forgot to
+                    // run web_dist), and never a false MISMATCH (which
+                    // would stop every dev serve and get the witness
+                    // switched off within a week). The floor does NOT
+                    // stop here — the dev path never crossed the
+                    // corridor this witness watches.
+#ifdef __EMSCRIPTEN__
                     std::cout << "[Dist] world.wgsl sha=" << got
-                        << " expected=(none) UNWITNESSED — no baked digest"
-                           " (native, or a page web_dist did not generate)\n";
+                        << " expected=none (dev serve — placeholder unsubstituted)"
+                           " SKIPPED\n";
+#else
+                    std::cout << "[Dist] world.wgsl sha=" << got
+                        << " expected=none (native — read off disk, no serve to"
+                           " witness) SKIPPED\n";
+#endif
                     serveWitnessed_ = true;
                 }
                 else if (expected == got) {
