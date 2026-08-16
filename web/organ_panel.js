@@ -10,6 +10,13 @@
 // stylesheet, no timer, no ccall. The audience path is byte-identical, and
 // that is why the file may ship unconditionally.
 //
+// CONTEST MARKERS (O1a). Every row carries the C++ instrument's reading of
+// whether the panel's last word on that dial still stands — free / event /
+// frame, with the number of frames it stood. The panel does not compute
+// this and cannot: only the program can see its own homes between frames.
+// A row shows a dot until this session has written it, because an unasked
+// question has no answer.
+//
 // AESTHETIC BOUND. This is an instrument, not the art. Monospace, one dark
 // column, no animation, no branding. The art stays on the canvas.
 // ═══════════════════════════════════════════════════════════════════════
@@ -35,6 +42,11 @@
     'font:inherit;padding:1px 3px}' +
     '#organ input[type=color]{flex:0 0 34px;height:18px;background:#14181d;border:1px solid #262b33;padding:0}' +
     '#organ .lane{flex:0 0 108px}' +
+    '#organ .mk{flex:0 0 58px;text-align:right;font-size:10px;color:#4f5761}' +
+    '#organ .mk.free{color:#5f8f6a}' +
+    '#organ .mk.event{color:#b0954e}' +
+    '#organ .mk.frame{color:#b0644e}' +
+    '#organ .legend{color:#4f5761;margin-top:3px}' +
     '#organ .sub{margin-left:118px}' +
     '#organ button{background:#14181d;color:#c8ccd2;border:1px solid #303742;font:inherit;' +
     'padding:3px 9px;cursor:pointer}' +
@@ -45,6 +57,8 @@
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
   var importNote = '';
+  var touched = {};             // manifest index -> this session has written it
+  var CLASS = ['free', 'event', 'frame'];   // organ_contest's three readings
 
   function clamp(v, p) { return v < p.min ? p.min : v > p.max ? p.max : v; }
   function hex(v) {
@@ -60,6 +74,10 @@
             parseInt(s.substr(5, 2), 16) / 255];
   }
   function push(p, v) {
+    // The write is also the question the contest instrument answers: until
+    // the panel has said something, there is nothing for another author to
+    // contradict.
+    touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0);
   }
 
@@ -69,13 +87,17 @@
     var lbl = document.createElement('span'); lbl.className = 'lbl';
     lbl.textContent = p.label; lbl.title = p.id;
     row.appendChild(lbl);
+    var mk = document.createElement('span'); mk.className = 'mk';
+    mk.textContent = '\u00b7';
+    mk.title = 'contest: does the panel\u2019s last word on this dial still stand?';
 
     if (p.type === BOOL) {
       var cb = document.createElement('input'); cb.type = 'checkbox';
       cb.checked = v[0] > 0.5;
       cb.addEventListener('input', function () { v[0] = cb.checked ? 1 : 0; push(p, v); });
-      row.appendChild(cb); host.appendChild(row);
-      return { p: p, apply: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; push(p, v); },
+      row.appendChild(cb); row.appendChild(mk); host.appendChild(row);
+      return { p: p, mk: mk,
+               apply: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; push(p, v); },
                read: function () { return v; } };
     }
 
@@ -93,6 +115,7 @@
         });
         row.appendChild(col);
       }
+      row.appendChild(mk);
       host.appendChild(row);
       var sliders = [];
       for (var i = 0; i < n; i++) (function (li) {
@@ -116,7 +139,8 @@
         for (var k = 0; k < n; k++) { sliders[k].s.value = v[k]; sliders[k].num.value = v[k]; }
         if (isCol) col.value = hex(v);
       };
-      return { p: p, apply: function (nv) { v = nv.slice(); push(p, v); sync(); },
+      return { p: p, mk: mk,
+               apply: function (nv) { v = nv.slice(); push(p, v); sync(); },
                read: function () { return v; } };
     }
 
@@ -132,8 +156,9 @@
     };
     sl.addEventListener('input', set(sl));
     nm.addEventListener('input', set(nm));
-    row.appendChild(sl); row.appendChild(nm); host.appendChild(row);
-    return { p: p, apply: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; push(p, v); },
+    row.appendChild(sl); row.appendChild(nm); row.appendChild(mk); host.appendChild(row);
+    return { p: p, mk: mk,
+             apply: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; push(p, v); },
              read: function () { return v; } };
   }
 
@@ -151,7 +176,8 @@
     bar.appendChild(bx); bar.appendChild(bi); root.appendChild(bar);
 
     var group = null;
-    manifest.forEach(function (p) {
+    manifest.forEach(function (p, i) {
+      p.i = i;   // the manifest is emitted in registry order: index IS the key
       if (p.group !== group) {
         group = p.group;
         var h2 = document.createElement('h2'); h2.textContent = group;
@@ -161,6 +187,12 @@
     });
 
     var foot = document.createElement('div'); foot.className = 'foot';
+    var status = document.createElement('div');
+    var legend = document.createElement('div'); legend.className = 'legend';
+    legend.textContent = 'contest: free = the panel\u2019s word stands  \u00b7  ' +
+                         'event = lost on an occasion  \u00b7  frame = lost at once  ' +
+                         '(n = frames it stood)';
+    foot.appendChild(status); foot.appendChild(legend);
     root.appendChild(foot);
     document.body.appendChild(root);
 
@@ -199,9 +231,22 @@
 
     // ── the panel carries its own witnesses ──────────────────────────
     setInterval(function () {
-      foot.textContent = rows.length + ' dials  ·  flushed ' + C.flushes() +
-                         '  ·  rejected ' + C.rejects() +
-                         (importNote ? '  ·  ' + importNote : '');
+      var contested = 0;
+      rows.forEach(function (r) {
+        var k = C.contest(r.p.i);
+        if (k > 0) contested++;
+        // An untouched dial reads as free because nothing has contradicted
+        // it, which is not the same as knowing it holds. Say so with a dot
+        // rather than claiming a reading the program was never asked for.
+        r.mk.className = 'mk' + (touched[r.p.i] ? ' ' + CLASS[k] : '');
+        r.mk.textContent = touched[r.p.i]
+          ? CLASS[k] + ' ' + C.contestFrames(r.p.i)
+          : '\u00b7';
+      });
+      status.textContent = rows.length + ' dials  ·  flushed ' + C.flushes() +
+                           '  ·  rejected ' + C.rejects() +
+                           '  ·  contested ' + contested + '/' + rows.length +
+                           (importNote ? '  ·  ' + importNote : '');
     }, 250);
 
     // ── backtick, and the canvas keeps its keys ──────────────────────
@@ -229,7 +274,9 @@
         set:      M.cwrap('organ_set', null, ['number','number','number','number','number','number','number']),
         rejects:  M.cwrap('organ_rejected_count', 'number', []),
         flushes:  M.cwrap('organ_flush_count', 'number', []),
-        count:    M.cwrap('organ_param_count', 'number', [])
+        count:    M.cwrap('organ_param_count', 'number', []),
+        contest:       M.cwrap('organ_contest', 'number', ['number']),
+        contestFrames: M.cwrap('organ_contest_frames', 'number', ['number'])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());

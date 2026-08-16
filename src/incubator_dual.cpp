@@ -190,6 +190,11 @@ static void frame() {
     // writer for this frame has spoken; the panel's edits since the last
     // frame are bits, and this turns them into at most one WriteBuffer per
     // block. A slider drag is many events and one upload (docs/ORGAN.md).
+    // O1a — ask, before flushing, whether the panel's last word still
+    // stands. The observer belongs HERE and not inside the flush: the flush
+    // runs on dirty blocks only, and a dial that has been overwritten by
+    // another author is precisely a dial nobody marked dirty.
+    app->render.organ_observe();
     app->render.organ_flush(app->queue);
     if constexpr (t7::INSTRUMENTS.frame_meter)
         s_begin = std::chrono::duration<float, std::milli>(

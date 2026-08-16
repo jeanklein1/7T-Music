@@ -38,6 +38,19 @@ existing upload — the same reconciliation philosophy as ACQ_0 and
 CAP_2: intent asserted per frame, not per event. A slider drag is
 many events and one WriteBuffer.
 
+## The contested-dial instrument (O1a)
+A dial the panel CAN write is not yet a dial the panel OWNS. Some
+homes have a second author — a mood apply, a per-frame updater — and
+there the panel's word is not wrong, only temporary. Which dials
+those are is DISCOVERED, never hand-censused: organ_set shadows the
+bytes that land in the home, and once a frame, at the flush boundary,
+the program re-reads the home and asks whether it still says them.
+Never disagreed is FREE; stood a while and then lost it is EVENT;
+lost it at once is PER-FRAME. The evidence behind a reading is the
+survival count — the frames the panel's word stood. The instrument
+reports and does not act: what a reading MEANS for the panel is a
+separate ruling, and that ruling wants a census as its evidence.
+
 ## Access
 The panel exists only under `?organ=1`; backtick toggles visibility.
 Without the flag, no DOM is built, no export is called, the audience

@@ -1332,6 +1332,11 @@ namespace t7 {
             // panel never reaches past this into the homes.
             void organ_flush(wgpu::Queue& queue) { gpuState_.organ_flush(queue); }
 
+            // O1a — the contested-dial observation, forwarded the same way.
+            // It reads the homes and writes nothing but its own counters, so
+            // it needs no queue and cannot disturb the frame it measures.
+            void organ_observe() { t7::organ::observe_frame(); }
+
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {

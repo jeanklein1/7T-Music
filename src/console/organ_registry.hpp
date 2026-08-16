@@ -157,6 +157,100 @@ inline float read_lane(const OrganParam& e, int lane) {
     return v;
 }
 
+// ─── THE CONTESTED-DIAL INSTRUMENT (O1a) ──────────────────────────────
+// A dial the panel CAN write is not yet a dial the panel OWNS. Some homes
+// have a second author — a mood apply, a per-frame updater — and where one
+// exists the panel's word is not wrong, it is merely temporary. Before
+// ORGAN can rule on that, it has to know WHICH dials are contested, and by
+// the authors' own behaviour rather than by a hand census: do not
+// hand-census what an instrument can discover.
+//
+// THE MEASUREMENT is one question, asked once a frame. organ_set records
+// exactly the bytes that landed in the home — a shadow of the panel's last
+// word — and the observer re-reads the home at the frame boundary and asks
+// whether it still says that. Nothing is inferred beyond the answer: a
+// disagreement means SOMEBODY ELSE WROTE THIS, and the only open question
+// is when.
+//
+// THE THREE READINGS follow from when the disagreement first appears:
+//   FREE      — never disagreed. No other author has spoken since the write.
+//   EVENT     — stood for a while, then lost it. An author that runs on an
+//               occasion (a mood change, a transition), not on the clock.
+//   PER-FRAME — lost it at once. An author on the clock.
+// The evidence behind the reading is the SURVIVAL COUNT: how many frames
+// the panel's last word stood before the home first disagreed.
+//
+// WHY THE PER-FRAME THRESHOLD IS ONE AND NOT ZERO. The observer sits at
+// the head of the frame, beside the flush, so a write that arrives between
+// frames is seen intact once before the frame's own authors have run
+// again. A per-frame author therefore leaves survival == 1, never 0, and
+// reading 0 as the only per-frame signature would classify every one of
+// them as an EVENT. The threshold is a consequence of where the observer
+// stands, so it is stated here beside it.
+//
+// THIS UNIT REPORTS AND DOES NOT ACT. No write path changes, no dial is
+// withdrawn, no author is edited. What the readings mean for the panel is
+// O1b's ruling, and it wants this census as evidence, not as a fait
+// accompli.
+enum : uint8_t {
+    ORGAN_CONTEST_FREE      = 0,
+    ORGAN_CONTEST_EVENT     = 1,
+    ORGAN_CONTEST_PER_FRAME = 2,
+};
+
+struct OrganContest {
+    float    written[4];   // re-read from the home, so it is what LANDED
+    uint32_t survived;     // frames the write stood before the first disagreement
+    uint32_t disagreed;    // frames observed in disagreement since that write
+    uint8_t  seen;         // the panel has written this dial at least once
+};
+
+inline OrganContest g_contest[kOrganParamCount] = {};
+
+// THE SHADOW IS READ BACK, NOT COPIED FORWARD. organ_set clamps, and a u32
+// dial narrows; taking the shadow from the home rather than from the
+// argument means the instrument compares against the bytes that are
+// actually there, so a clamp can never masquerade as a rival author.
+inline void note_write(const OrganParam& e) {
+    const size_t i = static_cast<size_t>(&e - kOrganParams);
+    OrganContest& c = g_contest[i];
+    const int n = lanes_of(e.type);
+    for (int l = 0; l < 4; ++l) c.written[l] = (l < n) ? read_lane(e, l) : 0.0f;
+    c.survived  = 0;
+    c.disagreed = 0;
+    c.seen      = 1;
+}
+
+// Exact comparison, deliberately. The shadow holds the very bytes the write
+// left behind, so any difference at all is another hand; a tolerance here
+// would hide precisely the small corrections worth seeing.
+inline bool home_agrees(const OrganParam& e, const OrganContest& c) {
+    const int n = lanes_of(e.type);
+    for (int l = 0; l < n; ++l)
+        if (read_lane(e, l) != c.written[l]) return false;
+    return true;
+}
+
+// Once a frame, at the boundary, beside the flush. Untouched dials cost a
+// branch: a dial the panel has never written has nothing to be contested.
+inline void observe_frame() {
+    for (size_t i = 0; i < kOrganParamCount; ++i) {
+        OrganContest& c = g_contest[i];
+        if (!c.seen) continue;
+        if (home_agrees(kOrganParams[i], c)) {
+            if (c.disagreed == 0) ++c.survived;   // still standing
+        } else {
+            ++c.disagreed;
+        }
+    }
+}
+
+inline int contest_class(size_t i) {
+    const OrganContest& c = g_contest[i];
+    if (!c.seen || c.disagreed == 0) return ORGAN_CONTEST_FREE;
+    return c.survived <= 1 ? ORGAN_CONTEST_PER_FRAME : ORGAN_CONTEST_EVENT;
+}
+
 } // namespace organ
 } // namespace t7
 
@@ -225,6 +319,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
         }
     }
     g_home->organ_mark_dirty((uint32_t)block);
+    note_write(*e);   // O1a — the shadow, read back from the home
 }
 
 EMSCRIPTEN_KEEPALIVE inline float organ_get(int block, int offset, int lane) {
@@ -246,6 +341,26 @@ EMSCRIPTEN_KEEPALIVE inline int organ_flush_count(void) {
 }
 EMSCRIPTEN_KEEPALIVE inline int organ_param_count(void) {
     return (int)t7::organ::kOrganParamCount;
+}
+
+// O1a — the contest reading for one manifest entry, by its index in the
+// manifest (which IS its index in kOrganParams: the manifest is emitted in
+// table order, so the panel never has to carry a second key).
+// 0 free, 1 event, 2 per-frame.
+EMSCRIPTEN_KEEPALIVE inline int organ_contest(int index) {
+    using namespace t7::organ;
+    if (index < 0 || (size_t)index >= kOrganParamCount)
+        return ORGAN_CONTEST_FREE;
+    return contest_class((size_t)index);
+}
+
+// The evidence behind that reading: frames the panel's last write STOOD
+// before the home first disagreed. For a dial still standing this keeps
+// climbing, and a large number is how a FREE reading earns confidence.
+EMSCRIPTEN_KEEPALIVE inline int organ_contest_frames(int index) {
+    using namespace t7::organ;
+    if (index < 0 || (size_t)index >= kOrganParamCount) return 0;
+    return (int)g_contest[index].survived;
 }
 
 } // extern "C"
