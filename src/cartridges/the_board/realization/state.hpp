@@ -4893,7 +4893,7 @@ namespace t7 {
                 // THE MOSAIC IS ON (MOSAIC_2). The probe's reason for a
                 // runtime gate is discharged — the walk compiles on the
                 // supported floor. (The compiler that first proved it was
-                // FXC, retired at PIVOT_0; audit/FXC_LAWS_RECORD.md
+                // FXC, retired at PIVOT_0; docs/FXC_LAWS_RECORD.md
                 // §PROBATE.) The dial stays as the panel's switch and
                 // METER_1's A/B, and it rests open. No key binds it: a key
                 // is diagnostics, this is the design.

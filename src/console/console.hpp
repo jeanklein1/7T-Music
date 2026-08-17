@@ -113,7 +113,7 @@ namespace t7 {
     // D3D12_Fxc exists for ARCHAEOLOGY ONLY. It reproduces the retired
     // gate so a historical result can be re-run; it is not a supported
     // floor and nothing should be shaped to satisfy it. The laws it
-    // used to impose are in audit/FXC_LAWS_RECORD.md.
+    // used to impose are in docs/FXC_LAWS_RECORD.md.
     //
     // Plan B is one line: if DXC fails on a given driver, set this to
     // Vulkan, rebuild, boot. That IS the fallback, not a failure.

@@ -1014,7 +1014,7 @@ A proposal that touches a row here is a proposal that must read the prose
 at that site before it argues with it.
 
 68 sites at this run. The index's history — every rebase, with causes
-— lives in audit/FXC_LAWS_RECORD.md §index-history; a regenerated
+— lives in docs/FXC_LAWS_RECORD.md §index-history; a regenerated
 artifact carries no hand-carried number (P5, one home).
 
 **The predicate, verbatim (W4-1).** A site is DEFENDED if its attached

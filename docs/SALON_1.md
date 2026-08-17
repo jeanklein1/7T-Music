@@ -378,7 +378,7 @@ Every `FXC` hit in `src/` (excluding `src/docs/old docs/`):
 (`audit/past reports/probe_results*.json:14-15`, restated `LEDGER_1_REPORT.md:821-822`).
 
 **A boot-time baseline exists for the Stage B witness.**
-`src/docs/HANDOFFS/PROCESS_LAWS.md:270-283`: pipeline compile is **55 s** total
+`src/docs/PROCESS_LAWS.md:270-283`: pipeline compile is **55 s** total
 post-`NDEBUG`, of which the FXC-heavy pipelines are `patch_terrain` 4.9 s,
 `patch_terrain_indirect` 4.8 s, `monolith` 3.7 s, `pawn` 3.5 s. Stage B's
 comparison is against the three gallery pipelines' rows in that leaderboard, not

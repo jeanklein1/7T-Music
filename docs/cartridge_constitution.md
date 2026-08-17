@@ -21,7 +21,7 @@ entity-shaped lives in it except assembly.
 > byte-identical `world.wgsl` between cartridges. `the_chord` is gone, no
 > `.inl` file exists anywhere in the tree, and there is one cartridge. The
 > law had no subject left. (The desktop↔web mirror that replaced it in
-> spirit is also retired — `audit/WEB_PORT_LEDGER.md`.)
+> spirit is also retired — `docs/WEB_PORT_LEDGER.md`.)
 
 ## §1 — THE COMPOSITION LAW (amended 2026-07-11; supersedes the
 ## single-organism law)

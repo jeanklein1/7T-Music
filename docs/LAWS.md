@@ -3,9 +3,11 @@
 Repo home: `docs/`. Sibling of `7t_program_theory_v3.md` — that file is
 THE LENS (how to think about the program); this one is the LAWS OF PRACTICE
 (what breaks if you don't). Created by PRUNING_1 P4 because there was no
-live one: `docs/past docs/cartridge_constitution.md` and
-`docs/past docs/terrain_program_charter.md` are archived by their folder,
-and the theory explicitly holds itself apart from law.
+live one: `docs/cartridge_constitution.md` and
+`docs/terrain_program_charter.md` are superseded charters kept for the
+record (WINNOW-2 W4 moved them onto the law shelf when the archive folder
+was dissolved; their standing did not change), and the theory explicitly
+holds itself apart from law.
 
 **What belongs here.** A rule that survives every line of code it currently
 governs. If deleting the subject deletes the rule, the rule is a comment and
@@ -25,14 +27,14 @@ Enforced mechanically by `.gitattributes` (`*.wgsl text eol=lf`), which is the
 authority; this rule exists so the reason survives the enforcement. A CRLF
 checkout churns every line of a 12,000-line shader diff and buries the real
 change. (The original reason — a sha256 sidecar on the deleted web mirror —
-is gone; see `audit/past reports/WEB_PORT_LEDGER.md`. The pin stands on its own merit.)
+is gone; see `docs/WEB_PORT_LEDGER.md`. The pin stands on its own merit.)
 
 ## ~~L2 — THE FXC LAW~~ — **STRUCK 2026-08-12 (PIVOT_0)**
 
 **Struck, not renumbered:** the number is permanent so citations keep
 resolving. The full text, its three retired constraints, and what each one
 still explains about the shape of `world.wgsl` are preserved verbatim in
-**`audit/FXC_LAWS_RECORD.md`**.
+**`docs/FXC_LAWS_RECORD.md`**.
 
 **What replaced it.** The audience floor is WebGPU core through modern
 compilers — Tint→DXC (SM6.0+), Tint→MSL, Tint→SPIR-V, naga. FXC is
@@ -184,7 +186,7 @@ boot.
 
 Proven the expensive way by the deleted web port, which would have shipped a
 module its layout could not satisfy while both entry points existed the whole
-time — `audit/past reports/WEB_PORT_LEDGER.md`. `audit/past reports/cc4_wgsl_static_usage.py` computes
+time — `docs/WEB_PORT_LEDGER.md`. `audit/past reports/cc4_wgsl_static_usage.py` computes
 the closure. Any future port wants **generated** layouts, not transcribed ones.
 
 ## L8 — THE TOMBSTONE LAW (PRUNING_1)
@@ -443,7 +445,7 @@ permanent, so this does not take one until it is adopted.*
 Web per-pipeline times are **wire-enqueue latency**, not compile cost. The
 backend compile executes in-order in the browser's GPU process and lands on
 the first phase that waits. Witness, from one capture pair on the same
-tree (`audit/THE BOARD FULL RELEASE CONSOLE.md`):
+tree (`docs/RELEASE_CONSOLE.md`):
 
 | phase | web twin | native twin |
 |---|---|---|
@@ -705,7 +707,7 @@ at the living law, and where a specific drift is KNOWN it names that
 drift on the stamp — so the reader meets the correction before the
 error, and the minutes stay minutes.
 
-*Paid for by:* `docs/audit/SALON_1.md`, which cites `L2.4`'s ceiling as
+*Paid for by:* `docs/SALON_1.md`, which cites `L2.4`'s ceiling as
 a live constraint at a value wrong twice over — the clause survived L2's
 striking into **L14**, and the core default is **8**, not the 10 the
 report carries. PROBATE_E's EF6 flagged it rather than editing it, and

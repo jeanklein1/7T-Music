@@ -4,7 +4,7 @@
 * text=auto
 
 # WGSL stays LF on every platform. (The original reason was the web mirror's
-# sha256 sidecar; that mirror is deleted — PRUNING_1 P1 / audit/WEB_PORT_LEDGER.md.
+# sha256 sidecar; that mirror is deleted — PRUNING_1 P1 / docs/WEB_PORT_LEDGER.md.
 # The pin stays on its own merit: a CRLF checkout would churn every shader diff.)
 *.wgsl text eol=lf
 

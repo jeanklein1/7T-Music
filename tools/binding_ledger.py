@@ -4185,7 +4185,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     # has a home that does not regenerate.
     A("%d sites at this run. The index's history — every rebase, with causes"
       % len(e4["sites"]))
-    A("— lives in audit/FXC_LAWS_RECORD.md §index-history; a regenerated")
+    A("— lives in docs/FXC_LAWS_RECORD.md §index-history; a regenerated")
     A("artifact carries no hand-carried number (P5, one home).")
     A("")
     A("**The predicate, verbatim (W4-1).** A site is DEFENDED if its attached")

@@ -24,7 +24,7 @@
 // boot paths, doubled witnesses. HELD until naga ships the
 // extension or an exhibition demands the spend; the card is the
 // boundary meanwhile (Jean's gate). FXC is unsupported;
-// its retired laws live in audit/FXC_LAWS_RECORD.md. naga gates
+// its retired laws live in docs/FXC_LAWS_RECORD.md. naga gates
 // the module THROUGH THE IMMEDIATE SHIM (tools/wgsl_gate.py; the
 // transform is the gate's pinned half). The immediate address
 // space itself is witnessed by boots alone — one generation wider
@@ -2537,7 +2537,7 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
 // STRUCTURE, not values: each row returns the exact struct its site inlined
 // (T1c gate: the kernels' backend SPIR-V is unchanged). A fn returning a
 // constructed struct is not a runtime-indexed const array -- the shape the
-// retired FXC laws forbade (audit/FXC_LAWS_RECORD.md). The banner forbids
+// retired FXC laws forbade (docs/FXC_LAWS_RECORD.md). The banner forbids
 // nothing here now; the structure is kept because it is good structure.
 fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProfile {
     return InfluenceProfile((g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
@@ -3157,7 +3157,7 @@ fn contrib_pawn_aura_at_self() -> f32 {
 // specialization carries only its own policy's contributor set and every
 // backend drops the rest — ordinary dead-code elimination of a uniform
 // branch, not one compiler's kindness. (The pricing this once carried
-// was FXC's; audit/FXC_LAWS_RECORD.md §PROBATE.) Runtime policy dispatch
+// was FXC's; docs/FXC_LAWS_RECORD.md §PROBATE.) Runtime policy dispatch
 // is deliberately avoided — see contracts/ground_architecture.hpp (POLICIES[]).
 //
 // Contributor sets mirror POLICIES[] in contracts/ground_architecture.hpp.
@@ -3252,7 +3252,7 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // but avoids a second full pass over the GoL zone loop — one traversal
 // of the zone set instead of two, which is a saving on every backend and
 // at every unroll factor. (Shaped under FXC — retired, PIVOT_0;
-// audit/FXC_LAWS_RECORD.md §PROBATE.) See contrib_gol_suppression_at for
+// docs/FXC_LAWS_RECORD.md §PROBATE.) See contrib_gol_suppression_at for
 // the standalone subtractive form.
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     return query_ground_walker_pair(xz, qi).x;
@@ -6956,7 +6956,7 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 // `|` and not `||`: the non-short-circuiting form. Both operands are
 // always evaluated, which keeps this function's branch count exactly
 // what the height test had. No living law governs branching in this
-// chain — L2 was struck (PIVOT_0; audit/FXC_LAWS_RECORD.md). The shape
+// chain — L2 was struck (PIVOT_0; docs/FXC_LAWS_RECORD.md). The shape
 // stands until a measurement asks; a reshape's witness is the
 // per-browser boot. max(dxz, 1e-4) makes the divide
 // total; dxz is 0 only when the candidate did not move on that axis,
@@ -7013,7 +7013,7 @@ fn pawn_ground_resolve(
 // rest: drag, speed cap, position integration, ground snap, heading
 // from velocity. Factored out of each behavior body — good structure on
 // its own. (Shaped under the FXC compile-cost law — retired, PIVOT_0;
-// audit/FXC_LAWS_RECORD.md §PROBATE.) No living law bars branching in
+// docs/FXC_LAWS_RECORD.md §PROBATE.) No living law bars branching in
 // this chain; reshape only with a measured reason.
 
 // ─── Shared step trigger ─────────────────────────────────────────
@@ -7073,7 +7073,7 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
     // ── CONTACT_2 C2b — potential-field steering (the whisper) ─────
     // Read the ground's own slope ahead and deflect ALONG the level-
     // set — velocity-shaping only, nothing inside the ground-resolve
-    // chain (the old FXC sanctum — audit/FXC_LAWS_RECORD.md; the chain
+    // chain (the old FXC sanctum — docs/FXC_LAWS_RECORD.md; the chain
     // is still kept branchless, now by taste rather than by law).
     // Branchless: smoothstep is 0 below LO and
     // min(1,sp2) quiets it at standstill; the max(glen,eps) hardens the
@@ -7248,7 +7248,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // persists, so their path already consumes the rows.
     // A VALUE change on the existing candidate, adding no branch. That
     // is a description of the wire, not a constraint on it: L2 was
-    // struck (PIVOT_0; audit/FXC_LAWS_RECORD.md), and no living law
+    // struck (PIVOT_0; docs/FXC_LAWS_RECORD.md), and no living law
     // governs branching here.
     {
         // SHELL_0: 1.0 for the law's dt — occupier_contact answers in wu/s
@@ -7816,7 +7816,7 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 // full contributor chain) and behavior_random_walk (light: single
 // agent-policy ground snap) in a single switch statement. That shape was
 // first bought at a compile-cost bench — the price is history now and it
-// is on the record (audit/FXC_LAWS_RECORD.md §PROBATE).
+// is on the record (docs/FXC_LAWS_RECORD.md §PROBATE).
 //
 // WHAT BARS RE-UNIFICATION TODAY IS TABLE E. Every ordered pair among
 // update_player_agent / update_other_agents / update_sphere / update_cube
@@ -7996,7 +7996,7 @@ fn update_player_agent() {
 // below it, and an edit to any of them meets these rulings on the way
 // past. audit/FIELD_BRIDGE.md indexes it. The siting precedent was
 // first set by the L2 banner, struck since — PIVOT_0,
-// audit/FXC_LAWS_RECORD.md; the practice outlived the law that
+// docs/FXC_LAWS_RECORD.md; the practice outlived the law that
 // demonstrated it, which is the whole reason it is restated here in
 // its own words.)
 //  R1  Presence migrates; APPROACH stays behavioral — the

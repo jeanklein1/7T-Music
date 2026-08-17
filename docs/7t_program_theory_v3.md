@@ -71,7 +71,7 @@ rule + ornament, kept where it pleases the eye, replaceable where it
 does not. The FXC realization laws (proxied rect solids, bounded
 loops, no new branches) were CAST-SCOPED, and they are RETIRED —
 struck as L2 by PIVOT_0, 2026-08-12; the record is
-`audit/FXC_LAWS_RECORD.md`. The shapes they produced are still in the
+`docs/FXC_LAWS_RECORD.md`. The shapes they produced are still in the
 tree and are not thereby wrong; they are simply no longer required,
 and undoing one needs its own measurement. What the cast-scoping
 claim asserted survives the retirement intact: those laws never
@@ -206,7 +206,7 @@ sovereignty split intent from realization; the arrow law pushed
 realization to the leaves; strata, roles, drivers, sampler, witness,
 contracts are engine-agnostic sentences. Leaving Dawn would be a
 recast of L5 alone — the cast-scoped FXC laws are already retired
-(PIVOT_0; `audit/FXC_LAWS_RECORD.md`), so that half of the price is
+(PIVOT_0; `docs/FXC_LAWS_RECORD.md`), so that half of the price is
 paid — and everything above that line travels whole. The
 systematicity is the asset; the
 engine is its current instrument.
