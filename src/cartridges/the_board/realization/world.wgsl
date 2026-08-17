@@ -3361,7 +3361,7 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // (Stage 3) implements this signature UNCHANGED: query_pos projects to
 // the sphere direction, position = center + dir*radius, normal = the
 // tangent-perturbed direction — the caller never learns which cast
-// answered. See audit/TERRAIN2_STAGE1_INTERFACE.md.
+// answered. See docs/TERRAIN2_STAGE1_INTERFACE.md.
 //
 // INPUT: query_pos is a WORLD-SPACE position; the cast projects it into
 // its own parameter space (the heightfield reads .xz). No coordinate
