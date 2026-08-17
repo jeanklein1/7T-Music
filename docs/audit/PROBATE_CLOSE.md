@@ -130,3 +130,58 @@ as dated addenda below, under L28, when Jean gives them:
 *After this the subject changes. The effects campaign inherits an estate
 that is censused, priced, gated, witnessed on three screens, closed with
 a minute — and carrying one more free slot than the plan promised.*
+
+---
+
+## Addendum — 2026-08-17, under §C5.2: there was never an orphan line
+
+**Verdict: the `b491115` history was never at risk, and nothing was ever
+discarded. The word §C5.2 asked for is not owed, because the premise
+that asked for it was false.**
+
+Jean directed that the line be preserved before being judged — tag it,
+push it, then test whether it was ever unique. The preservation failed
+and the test made it unnecessary, in that order.
+
+**The preservation could not be done from here.** `git push origin
+orphan/pre-realign` returns **HTTP 403** — four retries at 2/4/8/16 s,
+identical each time. It is a policy denial, not a network fault: a probe
+tag on an ALREADY-PUSHED commit, carrying zero new objects, is refused
+the same way. **Tag pushes are denied outright in this environment**,
+whatever they contain.
+
+**The test then showed there was nothing to preserve.** Run against the
+full history, `git merge-base b491115 master` returns **`b491115`
+itself**: the commit is a direct ancestor of master, 142 commits back.
+Every commit of the supposed orphan line is on master —
+`git rev-list b491115 --not master` counts **0**. The tree test Jean
+specified confirms it from the other side: `b491115^{tree}` =
+`4c693eba` is found in master's history, in `b491115`, which master
+contains.
+
+**The cause of the error, named.** The session's clone was **SHALLOW** —
+`.git/shallow` present, 82 commits of master locally, and `b491115`
+below the graft boundary. Git could not see past it, so `merge-base`
+correctly reported nothing, and `fetch` reported `(forced update)` for
+the same reason. **PROBATE_SEAL's flag F15 read that truncated view as
+fact** and recorded "unrelated histories, no merge base, force-discarded,
+59 orphan commits". The file counts in F15 were real; **its ancestry
+claim was not**, and this addendum supersedes it. `git fetch --unshallow`
+raises master from 82 commits to **1684**, and the whole picture
+reverses.
+
+**It is P11, collected one final time, from the round that wrote P11's
+own enforcement.** *A search that verifies something is absent is never
+truncated.* F15 concluded absence — no common ancestor — from a
+deliberately truncated history, and did so in the same campaign that
+made truncated-absence a named law. The near-repeat here was closer
+still: the first pass of this very verification reported "20 files never
+present in master's history", measured against the same shallow view,
+and was two minutes from being written down as a verdict.
+
+**Consequences.** The tag was deleted rather than kept: a ref named
+`orphan/pre-realign` pointing at a commit plainly on master is a false
+statement in the tree, and this campaign spent five rounds removing
+those. Nothing needs preserving, nothing needs pushing, and the matter
+is closed — not by a ruling, but by the finding that there was nothing
+to rule on.
