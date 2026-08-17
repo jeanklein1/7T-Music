@@ -780,3 +780,107 @@ Resurrection remains archaeology from tag `native-sunset`.
 
 SUNSET_2: the presets carry the web flow only; the guard fires first and
 names the preset.
+
+## L30 — THE TREE HOLDS LIVING MATTER ONLY
+
+The working tree carries what the program needs today. **Git history is the
+attic**, and it is a complete one: nothing committed is ever lost by deletion.
+
+Resurrection is one line:
+
+```
+git checkout <sha>^ -- <path>
+```
+
+`<sha>` is the commit that deleted it — `git log --all --diff-filter=D -- '*<name>'`
+finds it, and every WINNOW-2 tombstone commit lists its own paths in the body
+precisely so that search lands.
+
+The failure this prevents is not clutter, it is **false authority**. A document
+that describes a subsystem as it stood three campaigns ago reads exactly like a
+document that describes it now — same confident tone, same file extension, same
+grep hit — and the reader who cannot tell has been actively misled by the tree
+itself. Deleting it is not destroying the record; the record is in the attic.
+
+*This is L29 pointed the other way.* L29 says history is not the working tree,
+so do not read the tree as history. L30 says the working tree is not history,
+so do not keep history in the tree.
+
+## L31 — HANDOFFS DIE AT CLOSE
+
+An executed handoff and its round report are **spent**. They die when the
+campaign closes.
+
+`docs/HANDOFFS/` holds **open work orders only** — if it is in there, it isn't
+done. The directory being empty is a true and healthy statement, not a gap to
+fill.
+
+Campaign scaffolds are **self-consuming**: a census, a plan, a kill list is
+authored to be spent, and the last unit of the campaign that created it deletes
+it. A scaffold that outlives its campaign becomes a document describing a tree
+that no longer exists — L30's exact failure, arrived at by a different road.
+
+## L32 — OPEN STATE HAS ONE HOME
+
+`docs/OPEN.md`, and nowhere else.
+
+One line per item: what · origin (sha or doc) · what unblocks it. When an item
+closes, its line dies — the register is never a changelog.
+
+The rule exists because open state left in situ is open state nobody finds. Before
+WINNOW-2 it was scattered across a PARKED LEDGER inside a 3,000-line archived
+report, two decision briefs marked PARKED in a handoffs folder, a UTF-16LE note at
+the repo root, and §11 of a campaign report — each of which was, locally, a
+perfectly sensible place to put it.
+
+## L33 — audit/ IS THE MACHINE'S ROOM
+
+`audit/` holds **generated files and the tools that generate them**. Nothing else.
+
+Humans write in `docs/`. If a file in `audit/` has no generator, it is in the
+wrong room. The four that live there — `MANIFEST.md`, `BINDING_LEDGER.md`,
+`MIRROR_LEDGER.md`, `COMMAND_LEDGER.md` — each name their producer in their own
+header, and each is byte-reproducible from the tree.
+
+They are **law and stay searchable**: a binding search genuinely wants the wallet
+lane, so no ignore file hides them.
+
+## L34 — CODE CITES LAW, NEVER TRANSIENTS
+
+A comment may cite a law, a charter, or a durable reference. It may not cite a
+campaign report, a recon, a census, or a handoff — those are transients, and the
+citation outlives them.
+
+**No `// History:` path breadcrumbs.** `git log --follow <path>` is the history,
+it is always correct, and it costs nothing to keep. WINNOW-2 deleted 32 such
+breadcrumbs; 31 of them named a file that had moved two weeks earlier, so the
+tree carried 31 confident pointers to a path that did not exist.
+
+If a document's rationale is worth keeping next to the code, **fold the sentences
+in** and let the document die. The why belongs at the fact's home, not behind a
+link.
+
+## L35 — TRACKED PATHS: LF, NO BOM, NO SPACES
+
+Every tracked path: **LF line endings, no BOM, no spaces in the name.**
+
+L1 pins `world.wgsl` specifically and explains why; this generalises it to the
+tree. A space in a path breaks every unquoted shell loop, every `git grep -F`
+pipeline, and every tool that splits on whitespace — quietly, and usually in the
+one script written in a hurry.
+
+Enforced by `.gitattributes` for encoding. The no-spaces half is enforced by
+review: WINNOW-2 retired the last three offenders (`audit/THE BOARD FULL RELEASE
+CONSOLE.md`, `docs/WebGPU Shading Language.pdf`, and the `CLAUDE CODE/` tree) and
+the last UTF-16LE file (`note.md`).
+
+## L36 — SOAK: ECOLOGICAL TRUTH OVER LAB TRUTH
+
+Averaged readings across many seeds outrank pinned-seed comparisons, and relative
+numbers within a session outrank absolutes across sessions.
+
+A pinned seed measures one world, and the one world it measures is the one you
+happened to pin. A number carried between sessions crosses a driver version, a
+thermal state, and a browser build, none of which are in the notebook.
+
+Measure the ecology, and compare inside the session that produced both halves.
