@@ -169,6 +169,32 @@ def main():
             print("  [gate] tint arm DORMANT — set T7_TINT to a tint executable "
                   "to light it")
 
+        # ═══ ARM 4 — THE NAGA TRIPWIRE (PROBATE_CLOSE4) ═══════════════
+        #
+        # The Firefox question, watched by the tree instead of by
+        # somebody's memory. naga is run once more against the RAW
+        # module. Today it fails, and that failure is EXPECTED and
+        # non-fatal — it is the directive being unknown, which is the
+        # entire reason the shim exists and the banner says PENDING.
+        #
+        # The day it PASSES, naga has shipped the extension, and the
+        # gate says so unprompted. A PENDING line nobody is watching
+        # decays into a permanent; this is the watch, and it costs one
+        # naga invocation per run.
+        raw_path = os.path.join(tmp, "world_raw_naga.wgsl")
+        io.open(raw_path, "w", encoding="utf-8", newline="\n").write(src)
+        rn = subprocess.run([naga, raw_path], capture_output=True, text=True)
+        rblob = (rn.stdout or "") + (rn.stderr or "")
+        raw_rejected = rn.returncode != 0 or "error" in rblob.lower() \
+            or "could not parse" in rblob.lower()
+        if raw_rejected:
+            print("  [gate] naga-raw REJECTS the module, as expected — "
+                  "immediate_address_space is still unknown to it; "
+                  "Firefox stays PENDING (world.wgsl banner)")
+        else:
+            print("  [gate] NOTE: naga now accepts immediate_address_space — "
+                  "the Firefox PENDING line is ready for its boot witness "
+                  "(world.wgsl banner).")
         return 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
