@@ -688,8 +688,15 @@
                     // uniform binding was a wall on entity growth, not a saving. The
                     // storage rows afford the seat now. Demotion: BINDING_LEDGER
                     // Table C. Reversal: docs/CHORD.md.
+                    // VERTEX ONLY (CLOSE_A1). BEQ_A moved the terrain fragment stage’s
+                    // one frame-uniform read to frame_r.sphere_pos — and it was the
+                    // program’s LAST fragment reader of this binding. sphere_vs,
+                    // monolith_vs and the two shadow VSes are all that remain. The F
+                    // claim was a false statement that happened to cost a slot; it is
+                    // gone and the slot is home. Do not restore it without a fragment
+                    // reader to justify it.
                     entries[1].binding = bind::g2::render_floating;
-                    entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[1].visibility = wgpu::ShaderStage::Vertex;
                     entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     entries[2].binding = bind::g2::patch_instances;

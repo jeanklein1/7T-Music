@@ -49,31 +49,31 @@ sites and cross-checked against the WGSL by witness M-2.
 | Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Sphere Entity (Rasterized) | `spherePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Monolith Entity (Rasterized) | `monolithPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Catenary Arch (Rasterized) | `archPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Catenary Arch (Rasterized) | `archPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Generative Column (Rasterized) | `columnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Generative Column (Rasterized) | `columnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Palm Tree (Rasterized) | `palmPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Palm Tree (Rasterized) | `palmPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Cactus (Rasterized) | `cactusPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Cactus (Rasterized) | `cactusPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Blade Cluster (Rasterized) | `bladePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Sky Ribbon Entity | `ribbonPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Orb Sky Layer | `orbRenderPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 3 / 5 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
+| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Gallery Frame | `galleryFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
