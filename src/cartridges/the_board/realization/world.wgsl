@@ -7864,7 +7864,7 @@ const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RAD
 // rooms, so the relation cannot be asserted in either. Raising the render
 // radius silently breaks this again. Queued: derive it CPU-side and upload
 // through config, which puts both values in one room and makes the
-// relation assertable (COLLISION_CHARTER, the feasibility corollary).
+// relation assertable — the feasibility corollary.
 const FLOATER_EVICTION_RADIUS:    f32 = 800.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
@@ -7994,7 +7994,7 @@ fn update_player_agent() {
 // (DURABLE HOME: a law lives where its consumers read, which for the
 // presence law is this block — every body-class presence pair is
 // below it, and an edit to any of them meets these rulings on the way
-// past. audit/FIELD_BRIDGE.md indexes it. The siting precedent was
+// past. The siting precedent was
 // first set by the L2 banner, struck since — PIVOT_0,
 // docs/FXC_LAWS_RECORD.md; the practice outlived the law that
 // demonstrated it, which is the whole reason it is restated here in

@@ -5,7 +5,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── entity_pipeline.hpp (S3 · MERGED: the pipeline law + impl) ─────
-// History: audit/LADDER.md
 //
 // Generic entity lifecycle for the cookie-cutter families: the
 // three-phase verbs (select → place → commit) driven per family by

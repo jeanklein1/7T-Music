@@ -5,7 +5,6 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"  // EntityInstance — cap_to_ceiling scales its params
 
 // ─── indoor_module.hpp ───────────────────────────────────────────
-// History: audit/LADDER.md
 //
 // ═══ THE INDOOR MODULE — mood's insert on the spawn chain ═══════
 // One table + three dials govern the whole indoor treatment.

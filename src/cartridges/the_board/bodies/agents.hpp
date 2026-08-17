@@ -7,7 +7,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
-// History: audit/LADDER.md
 //
 // Unified entity registry: the control panel for the agent system.
 //

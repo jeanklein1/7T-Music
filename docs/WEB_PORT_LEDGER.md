@@ -22,11 +22,11 @@
 | `web/js/uniforms.js` | the hand-indexed 592-byte config packer |
 | `web/js/state.js`, `web/js/passes/terrain.js` | host state + the terrain pass |
 | `web/index.html`, `web/harness.html` | the page and the self-contained reference harness |
-| `web/PORT_MAP.md` | the Phase-0 recon map |
+| `PORT_MAP.md` | the Phase-0 recon map |
 | `web/dev/reflect.mjs` | a dev reflection helper |
 
 Also removed: the **Mirror doctrine** and **Resync ritual** sections of
-`CLAUDE CODE/AUDITS AND RECENT CAMPAIGNS/CLAUDE.md`, and the mirror clause
+`CLAUDE.md`, and the mirror clause
 in `.gitattributes` (the LF pin itself stays — it is correct for its own
 reasons).
 

@@ -8,7 +8,6 @@
 #include "cartridges/the_board/contracts/control_panel.hpp"    // FIELD_SLACK/K/FMAX + the two emitter mutes — the one home
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
-// History: audit/LADDER.md
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one module).
 //

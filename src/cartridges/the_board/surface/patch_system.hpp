@@ -9,7 +9,6 @@
 #include <iostream>       // DIAG blocks (lifecycle audit + evict trace)   // (impl, merged)
 
 // ─── patch_system.hpp (S2 · MERGED: the active-patch machine) ──────
-// History: audit/LADDER.md
 // The decl tier lives in contracts/surface_services.hpp; this file is the
 // machine's bodies whole — the registry lifecycle (allocate → spawn →
 // generate → evict), the frame budgets, world teardown, the layer

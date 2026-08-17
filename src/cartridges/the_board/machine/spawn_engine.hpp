@@ -7,7 +7,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── spawn_engine.hpp (S3 · MERGED: vocabulary + state + impl) ─────
-// History: audit/LADDER.md
 //
 // How and when things appear: shared spawn helpers, footprint
 // registry, proximity affinity, mesh-param rebuilds, distance

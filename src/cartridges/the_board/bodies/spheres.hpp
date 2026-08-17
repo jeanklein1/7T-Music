@@ -6,7 +6,6 @@
 #include <iostream>   // [DIAG:EVICT] logging (flag-gated)   // (impl)
 
 // ─── spheres.hpp (MERGED single file) ─────────────────────────────
-// History: audit/LADDER.md
 // hpp+inl collapsed: SphereState + SphereDeps + inline impl.
 //
 // The Sphere family's runtime STATE — the active-slot mirror for the

@@ -4,7 +4,6 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET
 
 // ─── matrix.hpp (THE DEMO MATRIX: pieces × demos, cells booleans) ──
-// History: audit/LADDER.md
 // Jean's ratified grid.
 //
 // ONE constexpr grid replaces the hand-written per-demo headers. ROWS

@@ -6,7 +6,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── pawn.hpp (MERGED single file) ────────────────────────────────
-// History: audit/LADDER.md
 // hpp+inl collapsed: struct + deps + inline impl, one pre-class file.
 // The wgpu handle fwds the signatures name ride contracts/wgpu_fwd.hpp.
 //

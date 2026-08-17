@@ -3,7 +3,6 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs + PortalDestination (the request door)
 
 // ─── spine_state.hpp (CONTRACT: the spine's organ types) ─────────
-// History: audit/LADDER.md
 //
 // The in-class trio graduates to file scope so module deps structs
 // can name the types without the complete Cartridge. The

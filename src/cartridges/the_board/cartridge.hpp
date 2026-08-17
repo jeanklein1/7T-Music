@@ -1,7 +1,6 @@
 #pragma once
 
 // ─── cartridge.hpp ───────────────────────────────────────────────
-// History: audit/LADDER.md
 // glaw1 — the compile gate: the C++ compiler as witness-runner. Every
 // static_assert in the tree is a glaw1 check; "glaw1 catches X" means
 // the build fails loud. WGSL sits outside its reach — the two-rooms
@@ -2635,7 +2634,7 @@ namespace t7 {
 // ═══ THE POST-CLASS ZONE — EMPTY OF MODULES ═══════════════════════════
 //
 // Every module rides ONE pre-class header, its decl tier at the
-// contracts (history: audit/LADDER.md). What remains below is the
+// contracts. What remains below is the
 // spine's own table — FAMILY_DISPATCH — which was never a module.
 // ═══ THE TABLE — FAMILY_DISPATCH ═══════════════════════════════════
 // The definition

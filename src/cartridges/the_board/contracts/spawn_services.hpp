@@ -6,7 +6,6 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"    // MachineCtx + EntityInstance + traits/adapter + TierProfile
 
 // ─── spawn_services.hpp (CONTRACT: the machine's decl tier) ───────
-// History: audit/LADDER.md
 // The machine natives (spawn_engine, entity_pipeline) each held a
 // two-tier shape — a DECL tier consumed BEFORE entities (the preamble
 // + generic + rescale templates, the service decls, the arch

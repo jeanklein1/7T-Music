@@ -2,7 +2,6 @@
 #include <cstdint>
 
 // ─── control_panel.hpp (CONTRACT: the master control panel) ──────
-// History: audit/FIELD_BRIDGE.md
 //
 // THE PANEL IS THE ONE HOME. A dial authored here is read by every
 // room that wears it — the CPU dialects directly, the GPU through

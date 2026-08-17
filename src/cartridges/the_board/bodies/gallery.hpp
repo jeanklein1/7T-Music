@@ -11,7 +11,6 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GallerySelection/GalleryPlacement (the boundary DTOs) + queue types
 
 // ─── gallery.hpp (HEADER: vocabulary + configs + state + decls) ──
-// History: audit/LADDER.md
 //
 // The art system.
 //
@@ -214,8 +213,7 @@ struct GalleryConfig {
     // SPAWN_BUDGET_PER_FRAME. This is a GEOMETRIC BOUND, not an expected
     // occupancy — sixteen galleries all rolling n=3 against a mean of 5, on a
     // near-perfect grid at exactly the exclusion distance, under a spawner
-    // that places randomly with rejection. Realistic peak is 25-35. Derivation
-    // in docs/audit/SALON_1_B4_REPORT.md.
+    // that places randomly with rejection. Realistic peak is 25-35.
     static constexpr uint32_t OUTDOOR_SLOT_RESERVE = 48;
 
     // ─── Content×Form Mixing ─────────────────────────────────

@@ -10,7 +10,6 @@
 #include <GLFW/glfw3.h>    // the key codes (unpapered — c6)   // (impl, merged)
 
 // ─── input.hpp (MERGED: state + deps + decls + impl) ──────────────
-// History: audit/LADDER.md
 // COHORT: after ribbon.hpp (possess stages the release on RibbonState.sky) +
 // the door owners (pawn/orbs/agents/cube 66-71); InputState graduated
 // to contracts/spine_state.hpp (it precedes ribbon in the cohort).
@@ -184,7 +183,7 @@ void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multipl
 
 // ═══ MODULE IMPLEMENTATION ═══════════════════════════════════════
 //
-// WRAPPING FORM history in audit/LADDER.md; the impl now
+// WRAPPING FORM: the impl now
 // rides its own header. GLFW is named here —
 // the dependency is the module's, not inherited from the host TU.
 // The fallback #defines below are preprocessor — namespace-blind.

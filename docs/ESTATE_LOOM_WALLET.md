@@ -61,7 +61,7 @@ by design, not spendable). Dynamic offsets: 1/8 uniform
   whole channel: no URL parameter and no other runtime control exists
   anywhere in the tree, so this ceiling cannot be spent or probed on a
   live device until a campaign builds the channel
-  (`audit/LANTERN_CENSUS.md` §B1).
+  (`LANTERN_CENSUS.md` §B1).
 
 ## The laws this campaign added
 

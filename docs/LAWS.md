@@ -105,8 +105,10 @@ this rule and a witness keeps them equal:
 **Edit both rooms in the same commit.** The C++ room is held by `offsetof` /
 `sizeof` static_asserts and `ASSERT_POLICY_DAG_CLOSED`; the WGSL room is held
 by nothing the compiler can see, which is why the rule is written down.
-`audit/tools/glaw2/run.py` checks the policy and contributor mirrors; the
-struct mirror is checked by `tools/pruning_census.py` §3.
+`audit/tools/glaw2/run.py` checks the policy and contributor mirrors. **The
+struct mirror currently has no automated check.** It was `pruning_census.py`
+§3, retired at WINNOW-2 T-j; the check was not re-homed, so until it is, this
+law rests on the `sizeof`/`offsetof` asserts in `state.hpp` and on the reader.
 
 ## L4 — THE ALIGNMENT LAW
 
@@ -186,7 +188,7 @@ boot.
 
 Proven the expensive way by the deleted web port, which would have shipped a
 module its layout could not satisfy while both entry points existed the whole
-time — `docs/WEB_PORT_LEDGER.md`. `audit/past reports/cc4_wgsl_static_usage.py` computes
+time — `docs/WEB_PORT_LEDGER.md`. `cc4_wgsl_static_usage.py` computes
 the closure. Any future port wants **generated** layouts, not transcribed ones.
 
 ## L8 — THE TOMBSTONE LAW (PRUNING_1)
@@ -221,7 +223,8 @@ Two riders, both learned the hard way:
 
 1. **A tag is not a reprieve.** `STATUS: LATENT` and `STATUS: INTENT` are
    DELETE-AND-RECORD by default — the tag buys one reading, not permanent
-   residence. `tools/pruning_census.py` §4 is the standing census of them.
+   residence. The standing census of them was `pruning_census.py` §4, retired
+   at WINNOW-2 T-j and not re-homed.
 2. **A tag dies with its subject.** When the declaration goes, the tag goes;
    a status describing something already deleted is a tombstone (L8), and the
    status word makes it read as live.

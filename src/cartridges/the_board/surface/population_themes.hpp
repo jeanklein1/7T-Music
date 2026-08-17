@@ -9,7 +9,6 @@
 // contracts/entity_types.hpp earlier in the cohort.
 
 // ─── population_themes.hpp (S2 · HEADER: vocabulary + state + decls) ─
-// History: audit/LADDER.md
 //
 // Compositional intent per region: what spawns, how densely, in which
 // tier mix — THEMES rows selected per patch by the envelope machine.

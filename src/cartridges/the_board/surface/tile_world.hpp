@@ -10,7 +10,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── tile_world.hpp (S2 · MERGED single file) ─────────────────────────
-// History: audit/LADDER.md
 // hpp+inl collapsed: vocabulary + state + deps + inline impl.
 //
 // What the terrain remembers: per-tile archetype character (amp/bias/

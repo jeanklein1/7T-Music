@@ -4,7 +4,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── surface_services.hpp (CONTRACT: the surface's decl tier) ─────
-// History: audit/LADDER.md
 //
 // WorldState (the root organ every stratum reads), the patch registry
 // vocabulary (ActivePatch + the S2/S3 boundary face), PatchSystemState,

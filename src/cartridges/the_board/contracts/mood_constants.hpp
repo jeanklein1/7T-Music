@@ -2,7 +2,6 @@
 #include <cstdint>
 
 // ─── mood_constants.hpp ──────────────────────────────────────────
-// History: audit/LADDER.md
 //
 // The mood-count constant, the Mood IDs, PortalDestination and the
 // portal palette at file scope: the config-bearing module headers size

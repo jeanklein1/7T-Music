@@ -2,7 +2,6 @@
 #include <cstdint>
 
 // ─── floaters.hpp ────────────────────────────────────────────────
-// History: audit/LADDER.md
 //
 // Vocabulary for the two generic-pipeline floater families: Sphere
 // (orbital, PGA motor-driven) and Cube (hover-bob monoliths).

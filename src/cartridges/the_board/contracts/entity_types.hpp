@@ -1,6 +1,5 @@
 #pragma once
 // ─── entity_types.hpp ────────────────────────────────────────────
-// History: audit/LADDER.md
 //
 // Type definitions for the generic entity pipeline: pure declarations,
 // no functions, no coupling beyond the MachineCtx face the adapter

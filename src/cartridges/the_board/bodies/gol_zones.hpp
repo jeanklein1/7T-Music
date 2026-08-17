@@ -6,7 +6,6 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
 // ─── gol_zones.hpp (HEADER: vocabulary + state + decls) ──────────
-// History: audit/LADDER.md
 //
 // Zone-local Game of Life + Pulse automata.
 //

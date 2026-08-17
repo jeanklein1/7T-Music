@@ -3,7 +3,6 @@
 #include "cartridges/the_board/contracts/roster.hpp"   // struct Roster (the piece-enable manifest)
 
 // ─── demo_config.hpp (CONTRACT: what a demo sentence declares) ─────
-// History: audit/LADDER.md
 //
 // A DEMO is a sentence in the roster's grammar: one piece-enable
 // manifest + one world seed + one boot mood. v0 carries NOTHING else

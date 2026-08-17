@@ -8,7 +8,6 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
-// History: audit/LADDER.md
 //
 // Cube behavior system.
 //

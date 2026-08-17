@@ -92,7 +92,7 @@ which returns us to 0.1.
 Buffer *size* growth appears nowhere.
 
 **The phrase the handoff uses has a real precedent, and it means something
-else.** `audit/past reports/BATCH_F_REPORT.md:88-94`, verbatim:
+else.** `BATCH_F_REPORT.md:88-94`, verbatim:
 
 > **Cost: storage 5 → 7 of 10** — and the blast radius is the whole shared
 > layout … FXC exposure: this is bind-group buffer growth on the agent
@@ -255,7 +255,7 @@ introduces no implicit gap — the layout is valid in both languages without
 adjustment. `alignas(16)` and the trailing `_pad2[4]` are what make that true;
 neither is decorative.
 
-**Other mirrors:** none live. `audit/past reports/CC_AUDIT_REPORT.md:205,1440`
+**Other mirrors:** none live. `CC_AUDIT_REPORT.md:205,1440`
 records the pair at older line numbers; `src/docs/old docs/mop.patch` carries
 historical diff text. No `.jsx` mirror. No codegen step.
 
@@ -369,7 +369,7 @@ Every `FXC` hit in `src/` (excluding `src/docs/old docs/`):
   markers. The lever this tree uses against FXC is *not compiling the
   pipeline at all*.
 - `seed_utils.hpp:12` — the bit-identical randomness mirror.
-- `audit/past reports/BATCH_F_REPORT.md:88-94, 211-224` — the one precedent
+- `BATCH_F_REPORT.md:88-94, 211-224` — the one precedent
   that pairs "FXC exposure" with the words "bind-group buffer growth"; it is a
   **buffer count** change (5 → 7 of 10). Quoted in §0.3.
 
@@ -1296,7 +1296,7 @@ Complete hit list, whole repo:
 | `renderer.hpp:1900` | comment — `// Shadow Gallery Frame pipeline CUT — caller-free` |
 | `renderer.hpp:1979` | comment — `// Shadow Wall Painting pipeline CUT — caller-free` |
 | `src/docs/old docs/mop.patch:1436-1438` | historical diff text |
-| `audit/past reports/LADDER.md:3292,3391,3399`, `RENDER_UPDATE_API_RECON.md:69`, `CC_AUDIT_REPORT.md:130`, `TERRAIN_DOSSIER.md:509` | prior reports |
+| `LADDER.md:3292,3391,3399`, `RENDER_UPDATE_API_RECON.md:69`, `CC_AUDIT_REPORT.md:130`, `TERRAIN_DOSSIER.md:509` | prior reports |
 
 **Zero hits in `world.wgsl`.** The entry point `shadow_wall_painting_vs` does
 not exist in the shader. `renderer.hpp:69-71` declares only the three live

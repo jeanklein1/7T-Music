@@ -6,7 +6,6 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
 // ─── grounded.hpp (HEADER: the grounded-seven registry) ──────────
-// History: audit/LADDER.md
 //
 // Vocabulary for the grounded entity families that share the generic dispatch pipeline.
 //

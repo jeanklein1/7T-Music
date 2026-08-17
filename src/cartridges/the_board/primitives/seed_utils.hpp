@@ -1,6 +1,5 @@
 #pragma once
 // ─── seed_utils.hpp ──────────────────────────────────────────────
-// History: audit/LADDER.md
 //
 // Pure math.
 //

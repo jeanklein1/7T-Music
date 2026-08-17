@@ -176,14 +176,14 @@ cartridge unless stated.
   return` draw self-gate, then skip). Created-but-pristine under the
   roster's Rider A while disabled; each dies when its retirement is paid.
   Only indoor_shell (SEPARABLE) skips creation today. Full cost table:
-  audit/ROSTER_GATE_A.md.
+  ROSTER_GATE_A.md.
 - HEADER LADDER (§1 amended 2026-07-11; COMPLETED 2026-07-12,
   LADDER-6): the single-organism law is superseded by the composition
   law. The two-regime transitional clause is STRUCK per its own
   completion sentence — the last class-body module (entity_pipeline)
   converted at LADDER-6 3b; every module is a file-scope pair and the
   cartridge is the composition root alone. Ladder record:
-  audit/LADDER.md. ACCESS RULING (LADDER-2 fix): the organs went
+  LADDER.md. ACCESS RULING (LADDER-2 fix): the organs went
   language-public — the header/impl split's post-class definitions stand
   outside the class, and access control never enforced the seam law (§3's
   access note). Entity Contract §1's MODULE definition amended to the
@@ -200,7 +200,7 @@ cartridge unless stated.
   MOD-era alike); present-behavior content they carried survives in
   present phrasing at the same sites. SEAM[] tags stay. Per-file
   provenance is one banner pointer line ("Converted <arc>: history in
-  audit/LADDER.md"); the narrative lives in audit/LADDER.md.
+  LADDER.md"); the narrative lives in LADDER.md.
 Anything deviant and untagged is a bug in this document first.
 
 ## §6 — BOOT, HOT-RELOAD, TEARDOWN

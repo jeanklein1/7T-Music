@@ -4,7 +4,6 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
-// History: audit/LADDER.md
 //
 // Sky orb layer — luminous points on a dome above the world.
 //

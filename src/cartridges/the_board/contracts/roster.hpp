@@ -34,7 +34,7 @@
 //
 // ─── GATE-(a) STATUS (the cost column) ──────────────────────────
 //   The creation-side classification (full cost table with buffers/
-//   groups/pipelines and retirement per piece: history, audit/LADDER.md).
+//   groups/pipelines and retirement per piece).
 //   SEP     = separable now: creation skipped atomically, boot+draws safe.
 //   SH·mb   = shared, an EXCLUSIVE buffer/texture is bound into a megabind
 //             (created-pristine; retirement = re-section the group).

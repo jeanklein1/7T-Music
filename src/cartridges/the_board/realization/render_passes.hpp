@@ -6,7 +6,6 @@
 #include <cstdint>   // (impl, merged)
 
 // ─── render_passes.hpp (MERGED: decls + impl) ──────────────────────
-// History: audit/LADDER.md
 //
 // GPU dispatch and draw calls.
 //
@@ -294,7 +293,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         // left-hand tile had already stored — and both tiles stored the
         // whole 2048² attachment. At four lights that was 96 MiB/frame of
         // depth traffic, of which 32 MiB was preservation Loads and 32 MiB
-        // duplicate Stores (PASS_LEDGER Q3.1).
+        // duplicate Stores.
         //
         // Now each texture is cleared once, drawn for every light it owns
         // under per-light viewports, and stored once: 96 -> 32 MiB at four

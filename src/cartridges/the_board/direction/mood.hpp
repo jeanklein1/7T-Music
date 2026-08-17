@@ -10,7 +10,6 @@
 #include <vector>      // shell mesh staging   // (impl, merged)
 
 // ─── mood.hpp (MERGED: deps + portal/palette vocabulary + impl) ────
-// History: audit/LADDER.md
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
 //

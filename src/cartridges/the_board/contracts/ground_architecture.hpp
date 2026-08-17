@@ -1,6 +1,5 @@
 #pragma once
 // ─── ground_architecture.hpp ─────────────────────────────────────
-// History: audit/LADDER.md
 //
 // Canonical registry for the ground query architecture: contributors,
 // explicit dependency DAG, and policies.
