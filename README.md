@@ -1,16 +1,18 @@
-# React + Vite
+# The Ever Expanding Board (7T)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A web-first WebGPU generative artwork. Live at https://everexpandingboard.com.
+C++20 + WGSL on Dawn, compiled with Emscripten (emdawnwebgpu, vendored),
+deployed as static files via Cloudflare Pages.
 
-Currently, two official plugins are available:
+## Build (Windows)
+emsdk_env.bat
+cmake --preset the-board-web
+cmake --build --preset the-board-web
+python tools\web_dist.py
+npx wrangler pages deploy dist --project-name=7t
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Orientation
+- docs/LAWS.md — project law. docs/OPEN.md — open items.
+- docs/reference/ — Dawn/WebGPU reference material.
+- audit/ — generated ledgers (do not hand-edit).
+- CLAUDE.md — session constitution for agent collaborators.
