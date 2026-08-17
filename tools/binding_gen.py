@@ -1572,6 +1572,7 @@ def check(args):
 
     print("")
     print("WITNESSES")
+    BL.shallow_note()   # L29 — the helper lives in the ledger, one home
     card = ledger_cardinalities()
     slots = len({(d["group"], d["binding"]) for d in schema.DECLS.values()})
     got = (len(schema.DECLS), slots, len(schema.SEATS), len(schema.LAYOUTS),

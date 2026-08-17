@@ -185,3 +185,55 @@ statement in the tree, and this campaign spent five rounds removing
 those. Nothing needs preserving, nothing needs pushing, and the matter
 is closed — not by a ruling, but by the finding that there was nothing
 to rule on.
+
+---
+
+## Addendum — 2026-08-17, closing: the card's words, and L29
+
+**The card (§C2): candidate A, applied byte-exact.** One replacement of
+the shipped default string in the `floor()` card, nothing else touched —
+a one-line diff, verified as a single occurrence of the exact 160
+characters:
+
+> `THE EVER EXPANDING BOARD — This work runs on WebGPU immediates, which
+> this browser does not yet speak. Open it in Chrome, Edge, or any
+> current Chromium browser.`
+
+**The tag: deletion endorsed, not restored.** A ref named
+`orphan/pre-realign` pointing at a commit plainly on master would be a
+false statement in the tree, and the addendum above is the record the
+tag was meant to be.
+
+**L29 — HISTORY IS NOT THE WORKING TREE**, appended to `docs/LAWS.md`:
+*a shallow clone answers "absent" for everything below its graft, so any
+claim about what the repository has ever contained must first verify
+depth.* P11's corollary, earned at F15. The law names its own tell:
+**any sentence containing "was never", "has always", or "no common
+ancestor" about a repository is a depth claim first and a history claim
+second.**
+
+**The environment now announces itself.** All five gates —
+`wgsl_gate.py`, the TU gate, the sha256 gate, `binding_ledger.py` and
+`binding_gen.py` — print, when `.git/shallow` exists:
+
+> `[gate] NOTE: shallow clone — history-derived claims are unsafe until
+> git fetch --unshallow`
+
+The ledger and the generator share one helper, since the generator
+already imports the ledger; the three standalone gates carry their own,
+each keyed to the root constant its file already defines. **Negative-
+controlled**: with `.git/shallow` planted, all five fire; without it,
+all five are silent. That control earned its keep immediately — the
+first form re-derived the repository root by counting `dirname`s and was
+one short for the two gates nested at `tools/gates/<name>/`, so they
+were silently doing nothing. Two of five did not fire, the control said
+so, and they now read the root constant their own file defines rather
+than recomputing a depth.
+
+Which is the same lesson one layer out, and a fitting last one for this
+campaign: **the check that would have caught F15 was itself broken on
+first writing, and only a negative control could tell.** A witness is
+not what you intended to install. It is what fires when you break the
+thing on purpose.
+
+**PROBATE is closed.**

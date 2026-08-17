@@ -158,7 +158,23 @@ def lint_em_asm():
     return hits
 
 
+def shallow_note():
+    """L29 — the environment announces its own depth.
+
+    A shallow clone answers "absent" for everything below its graft, and
+    that answer is indistinguishable from the truth from inside. Every
+    gate that touches git history prints this before it speaks, so
+    nobody has to remember to ask. One line, no cost, no judgement.
+    """
+    # the file's own root constant, not a re-derived depth: the
+    # first form here was one dirname short and the note never fired.
+    if os.path.exists(os.path.join(ROOT, ".git", "shallow")):
+        print("  [gate] NOTE: shallow clone — history-derived claims are "
+              "unsafe until git fetch --unshallow")
+
+
 def main() -> int:
+    shallow_note()   # L29
     for path, what in ((SRC, "src/"),
                        (STUBS, "the stub dir"),
                        (WEBGPU_CPP_INC, "the vendored emdawnwebgpu C++ headers"),

@@ -88,7 +88,22 @@ def transform(src):
     return out, seen
 
 
+def shallow_note():
+    """L29 — the environment announces its own depth.
+
+    A shallow clone answers "absent" for everything below its graft, and
+    that answer is indistinguishable from the truth from inside. Every
+    gate that touches git history prints this before it speaks, so
+    nobody has to remember to ask. One line, no cost, no judgement.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.exists(os.path.join(root, ".git", "shallow")):
+        print("  [gate] NOTE: shallow clone — history-derived claims are "
+              "unsafe until git fetch --unshallow")
+
+
 def main():
+    shallow_note()   # L29
     if not os.path.exists(WORLD_WGSL):
         print("wgsl-gate: FAIL — %s not found" % WORLD_WGSL)
         return 1

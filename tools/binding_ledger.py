@@ -3197,6 +3197,23 @@ def provenance():
     return sha, subj, [(r, sha256(p)) for r, p in zip(rel, INPUTS)]
 
 
+
+def shallow_note():
+    """L29 — the environment announces its own depth.
+
+    S-6 asks a question about history (HEAD vs the pushed tip), and the
+    provenance header names a source commit; both read the objects
+    present, not the objects that exist. In a shallow clone that is a
+    different question wearing the same words. Printed, never judged —
+    binding_gen imports this module and calls it too, so the pair speaks
+    with one voice.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.exists(os.path.join(root, ".git", "shallow")):
+        print("  [gate] NOTE: shallow clone — history-derived claims are "
+              "unsafe until git fetch --unshallow")
+
+
 def md_escape(s):
     return str(s).replace("|", "\\|")
 
@@ -4528,6 +4545,7 @@ def main():
 
     print("")
     print("WITNESSES")
+    shallow_note()   # L29
     w.report()
 
     if w.failures():

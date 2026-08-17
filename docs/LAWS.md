@@ -715,6 +715,49 @@ this law is the ruling that flag asked for. The same stamp settles
 The sibling rule is P4's: being in an `audit/` or `past docs/` folder is
 shelving, not filing. Filing is visible inside the file.
 
+## L29 — HISTORY IS NOT THE WORKING TREE
+
+A shallow clone answers "absent" for everything below its graft, so any
+claim about what the repository has ever contained must first verify
+depth.
+
+`git log`, `git merge-base`, `git rev-list` and every tool built on them
+answer from the objects present, not from the objects that exist. In a
+shallow clone the graft boundary is indistinguishable, from inside, from
+the beginning of history — a commit below it has no parents, an ancestor
+below it is not an ancestor, and a blob below it was never in the
+repository. Every one of those answers is *correct about the clone* and
+*false about the project*.
+
+The check is one line — `git rev-parse --is-shallow-repository`, or the
+presence of `.git/shallow` — and the cure is `git fetch --unshallow`.
+Neither is expensive. What is expensive is the report written without
+them.
+
+*Paid for by:* PROBATE_SEAL's F15, and collected at the campaign's last
+hour. The session's clone carried 82 commits of `master`; `b491115` sat
+below the graft. `git merge-base` therefore reported **no common
+ancestor**, and `git fetch` reported **`(forced update)`** — so F15
+recorded two histories "89 files and ~45k lines apart", an orphan line
+of 59 commits, and a force-discard that never happened. Unshallowing
+raised `master` from 82 commits to **1684**, and `merge-base b491115
+master` returned **`b491115` itself**: a direct ancestor, 142 commits
+back, with not one commit missing. The file counts in F15 were real; its
+ancestry claim was an artifact of depth.
+
+It is **P11 one layer down**. There the truncation was `head` on a
+search's output; here it is the clone's own floor, and it is worse in
+one specific way: `head` is visible in the command that used it, while a
+graft boundary is invisible from every command that hits it. The tell is
+therefore not in the output but in the question — **any sentence
+containing "was never", "has always", or "no common ancestor" about a
+repository is a depth claim first and a history claim second.**
+
+Corollary, earned in the same hour: the first pass of the verification
+that *found* this error had itself reported "20 files never present in
+master's history", measured against the same shallow view. A law is not
+proof against its own subject; the check is.
+
 ## SUNSET_0 (2026-08-16) — the web twin is the program
 Native is archived at tag `native-sunset`. Resurrection is
 archaeology from the tag, not maintenance. The witness chain is:
