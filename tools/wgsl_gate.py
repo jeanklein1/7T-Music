@@ -135,10 +135,58 @@ def main():
                            for i, n in enumerate(immediates)) or "(none)"))
         print("  NOT gated here: the immediate address space itself — the web "
               "boot is its only witness (world.wgsl COMPILER FLOOR block).")
+
+        # ═══ ARM 3 — TINT, THE SHIPPING COMPILER (PROBATE_CLOSE3) ═════
+        #
+        # The shim arm above gates everything EXCEPT the address space it
+        # rewrites away, and that hole is the whole reason the banner
+        # names the boot as witness of record. Tint closes it: Tint
+        # speaks `immediate_address_space`, so it reads the REAL module —
+        # `requires`, `var<immediate>` and all — and it is the same
+        # compiler family every supported browser runs.
+        #
+        # SHIPPED DORMANT. There is no Tint in this container and none in
+        # the pinned emdawnwebgpu payload (SEAL EF4 — the package is
+        # headers and JS, with no build system). The archived Dawn
+        # checkout can build one; until someone spends that hour the arm
+        # waits, NAMED. A skip that says its name, never a silent pass —
+        # the same law §G1's dev-serve skip answers to.
+        tint = os.environ.get("T7_TINT", "")
+        if tint and os.path.isfile(tint):
+            raw_path = os.path.join(tmp, "world_raw.wgsl")
+            io.open(raw_path, "w", encoding="utf-8", newline="\n").write(src)
+            t = subprocess.run([tint, raw_path], capture_output=True, text=True)
+            tblob = (t.stdout or "") + (t.stderr or "")
+            tbad = t.returncode != 0 or "error" in tblob.lower()
+            if tbad:
+                print("wgsl-gate: FAIL — tint rejected the RAW module "
+                      "(no shim; the real address space)")
+                sys.stdout.write(tblob)
+                return 1
+            print("  [gate] tint arm PASS — the RAW module, immediates and all, "
+                  "accepted by the shipping compiler family (%s)" % tint)
+        else:
+            print("  [gate] tint arm DORMANT — set T7_TINT to a tint executable "
+                  "to light it")
+
         return 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except BrokenPipeError:
+        # `wgsl_gate.py | head` closes stdout mid-print, and Python's
+        # default response is a traceback — which, printed by a GATE,
+        # reads exactly like the gate falling over. The arms added at
+        # PROBATE_CLOSE put more lines after the PASS block and made
+        # this easy to hit. Exit quietly instead: the verdict is the
+        # exit status, and a reader who piped us to `head` asked for
+        # the first lines, not for a stack trace.
+        try:
+            sys.stdout.close()
+        except Exception:
+            pass
+        sys.exit(0)
