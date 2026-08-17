@@ -188,8 +188,10 @@ boot.
 
 Proven the expensive way by the deleted web port, which would have shipped a
 module its layout could not satisfy while both entry points existed the whole
-time — `docs/WEB_PORT_LEDGER.md`. `cc4_wgsl_static_usage.py` computes
-the closure. Any future port wants **generated** layouts, not transcribed ones.
+time — `docs/WEB_PORT_LEDGER.md`. The closure was computed by
+`cc4_wgsl_static_usage.py`, a one-shot campaign probe retired at WINNOW-2 T-e;
+a future port that needs it again regenerates it. Any future port wants
+**generated** layouts, not transcribed ones.
 
 ## L8 — THE TOMBSTONE LAW (PRUNING_1)
 
