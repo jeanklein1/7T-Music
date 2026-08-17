@@ -870,9 +870,11 @@ pipeline, and every tool that splits on whitespace — quietly, and usually in t
 one script written in a hurry.
 
 Enforced by `.gitattributes` for encoding. The no-spaces half is enforced by
-review: WINNOW-2 retired the last three offenders (`audit/THE BOARD FULL RELEASE
-CONSOLE.md`, `docs/WebGPU Shading Language.pdf`, and the `CLAUDE CODE/` tree) and
-the last UTF-16LE file (`note.md`).
+review: WINNOW-2 retired the last three space-bearing paths — a release-console
+report, a WGSL spec PDF, and a whole top-level directory — along with the tree's
+last UTF-16LE file. They are named in the T-d, T-e and T-i tombstone commits;
+this law does not repeat the paths, because a law that quotes dead paths becomes
+the very thing L30 deletes.
 
 ## L36 — SOAK: ECOLOGICAL TRUTH OVER LAB TRUTH
 
