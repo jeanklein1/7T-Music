@@ -1,0 +1,7 @@
+{
+  "search.exclude": {
+    "third_party/**": true,
+    "src/external/**": true,
+    "tools/gates/console_gate/stubs/**": true
+  }
+}
