@@ -50,14 +50,16 @@
                     // FRAME R (CHORD_3) — the render frame in one uniform block:
                     // lighting (CPU-authored, WALLET_1revA’s 848 B trio) plus vp and
                     // camera, which are GPU-SOVEREIGN and arrive by encoder copy from
-                    // vp_data / camera_state each frame. The CPU never reads them, so
+                    // vp_data / camera_state each frame — and sphere_pos (BEQ_A), the
+                    // third passenger, copied from Floating Entity Array offset 0.
+                    // The CPU never reads them, so
                     // the readback law is untouched and three uniform seats became
                     // one. Two bind groups ride this layout — main and photographer
                     // — over two instances of the block.
                     // WALLET_1revA: the light trio became one uniform block.
                     // Three F-stage storage seats freed across the whole
                     // entity family. TWIN: Lighting / GPULighting, 848 B.
-                    entries[0].binding = bind::g1::frame_r;  // frame_r (uniform, 1024 B — CHORD_3)
+                    entries[0].binding = bind::g1::frame_r;  // frame_r (uniform, 1040 B — CHORD_3; + BEQ_A sphere_pos)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 

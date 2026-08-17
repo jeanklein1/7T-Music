@@ -4907,7 +4907,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                             }
 
                             // Sphere force field: tint zone cells near sphere (render context)
-                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
+                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, frame_r.sphere_pos);
                             if (sphere_ff > 0.01) {
                                 base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
                             }
@@ -6305,11 +6305,21 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // from vp_data / camera_state each frame — the CPU never reads
 // them). Two instances back two bind groups over this layout: main
 // and photographer. Mirrors GPUFrameR in state.hpp BYTE-FOR-BYTE
-// (1024 B). Offsets: lighting 0, vp 848, camera 976.
+// (1040 B). Offsets: lighting 0, vp 848, camera 976, sphere_pos 1024.
+//
+// THIRD PASSENGER (BEQ_A). sphere slot 0's position — the terrain
+// fragment stage's one frame-uniform read of render_floating,
+// promoted here under the CHORD_5 law (uniform-read must never sit
+// in storage; frame_r is the program's now). GPU-sovereign like vp
+// and camera: update_sphere writes it, the frame encoder copies 12
+// bytes from Floating Entity Array offset 0 into each instance, and
+// the CPU never reads it.
 struct FrameR {
     lighting: Lighting,
     vp: VPMatrix,
     camera: CameraState,
+    sphere_pos: vec3<f32>,
+    _pad_sphere: f32,
 }
 @group(1) @binding(1) var<uniform> frame_r: FrameR;
 

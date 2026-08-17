@@ -1808,19 +1808,26 @@ namespace t7 {
         // update_camera write them, and they reach this block by
         // CopyBufferToBuffer on the frame's own encoder. The CPU never
         // reads them back; the readback law is why the copy exists at all.
+        // sphere_pos (BEQ_A) rides the same law: sphere slot 0's
+        // position, written by update_sphere, copied 12 bytes from
+        // Floating Entity Array offset 0 — the terrain fragment
+        // stage's former per-pixel storage read, now one uniform.
         //
         // TWO INSTANCES back the two bind groups over frameRLayout_: main
         // (vp_data / camera_state) and photographer (photographer_vp /
         // photographer_camera_out). Same layout, same block, two frames
         // of reference.
         struct alignas(16) GPUFrameR {
-            GPULighting    lighting;  //   0
-            GPUVPMatrix    vp;        // 848
-            GPUCameraState camera;    // 976
+            GPULighting    lighting;         //    0
+            GPUVPMatrix    vp;               //  848
+            GPUCameraState camera;           //  976
+            float          sphere_pos[3];    // 1024 — BEQ_A third passenger
+            float          _pad_sphere;      // 1036
         };
-        static_assert(sizeof(GPUFrameR) == 1024);
-        static_assert(offsetof(GPUFrameR, vp)     == 848);
-        static_assert(offsetof(GPUFrameR, camera) == 976);
+        static_assert(sizeof(GPUFrameR) == 1040);
+        static_assert(offsetof(GPUFrameR, vp)         == 848);
+        static_assert(offsetof(GPUFrameR, camera)     == 976);
+        static_assert(offsetof(GPUFrameR, sphere_pos) == 1024);
 
         // ── SCENE CONSTANTS (CHORD_4) ─────────────────────────────────
         // The render room's mood-cadence block: the tier-gains window,
@@ -2459,6 +2466,10 @@ namespace t7 {
                     offsetof(GPUFrameR, vp), sizeof(GPUVPMatrix));
                 encoder.CopyBufferToBuffer(cameraBuffer_, 0, frameRMainBuffer_,
                     offsetof(GPUFrameR, camera), sizeof(GPUCameraState));
+                // BEQ_A third passenger — same encoder, same frame,
+                // same sovereignty as vp and camera above.
+                encoder.CopyBufferToBuffer(floatingEntityBuffer_, 0, frameRMainBuffer_,
+                    offsetof(GPUFrameR, sphere_pos), 3 * sizeof(float));
             }
 
             // The photographer's instance, same law, its own sources.
@@ -2467,6 +2478,8 @@ namespace t7 {
                     offsetof(GPUFrameR, vp), sizeof(GPUVPMatrix));
                 encoder.CopyBufferToBuffer(photographerCameraBuffer_, 0, frameRPhotoBuffer_,
                     offsetof(GPUFrameR, camera), sizeof(GPUCameraState));
+                encoder.CopyBufferToBuffer(floatingEntityBuffer_, 0, frameRPhotoBuffer_,
+                    offsetof(GPUFrameR, sphere_pos), 3 * sizeof(float));
             }
 
             // ATLAS_1revB U3" — stage_spot_vps and spot_vp_staging() are
