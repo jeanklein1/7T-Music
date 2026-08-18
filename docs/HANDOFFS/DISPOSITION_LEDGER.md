@@ -714,3 +714,65 @@ sentence.
 | `coupling/visual_canvas.hpp`'s ~15 envelope dials (swell, tint, checker cadence, `FOG_SPAN`, tide/rain spans) | **A layering question, not a range one.** The enrollment macro spells `offsetof(the_board::STRUCT, FIELD)` and `block_base` returns `&the_board::…`; `visual_canvas.hpp` lives in `t7`, one tier *below* the cartridge. Making canvas dials nameable needs either a namespace parameter on the four macros or a `t7`-scoped case in `block_base` — a registry change, and inverting the layering to land dials would be the wrong trade. Priced: one extra macro parameter, four call sites, no new block. |
 | `FIELD_BEACON_S` | the static_assert hazard (its own section above) |
 | `POSSESSION_RADIUS` | its `_SQ` twin is a derived constant; enrolling the radius without recomputing the square at the read would let the two disagree silently. Small, real, and wants the read site changed first. |
+
+---
+
+# WAVE 3 — THE DEFINITIONS, AS BUILT
+
+211 entries. One new kind, one new block, and **the temperament law is
+now code, not prose.**
+
+| what | kind | machinery it cost | dials |
+| --- | --- | --- | --- |
+| the tier bank's remaining six columns × 4 tiers | `TIER` (existing) | **none** — it rides the boundary ORGAN_2b already built | 24 |
+| `AGENT_BEHAVIORS` → `BEHAVIOR_LIVE` | `BEHAVIOR` (new) | one enum value + one `definition_base` case. **No new flag and no new boundary**: it shares TIER's, because it shares TIER's author | 70 |
+| `INDOOR_LIVE` (block 8) | — (a plain bank) | one block id. **No boundary at all, by law** | 2 |
+
+## A kind is not a flag
+
+`upload_agent_registries_to_gpu` reads *both* the tier table and the
+behaviour table in one function, and the frame boundary already
+re-speaks it. So `ORGAN_DEF_BEHAVIOR` raises `g_tier_def_dirty` — one
+flag, one boundary, two banks. The flag names the **occasion**, and the
+occasion is one author speaking; a second flag would have been a second
+name for one event. Harness: *two banks, two edits, ONE boundary
+re-speak.*
+
+## The temperament law, in code
+
+`INDOOR_LIVE` is the exemplar. `INDOOR_HEIGHT_CAP_FRACTION` has ten
+readers — one idempotent (`apply_mood_lighting`) and nine destructive
+(`cap_to_ceiling` at every entity spawn: entity_pipeline ×3, grounded
+×3, spheres, cube_behaviors, ribbon). **The stricter temperament
+governs**, so the bank has no boundary wiring whatever: the mood half
+picks the edit up at the next mood change, the spawn half at the next
+spawn, and neither needs a flag. The group is named *"Terrain · Indoor
+(edits the next spawn)"* because a dial that edits the future must say
+so — otherwise the operator reads a working panel as a broken one.
+
+Harness: *destructive bank: value lands (0.42), NO re-speak flag raised.*
+
+## THE CATCHABILITY LAW now holds at runtime
+
+`flee_gain_player` enrolls with max `0.99` from CONTACT_4's own words.
+The harness pushes it to 1.5 and watches `organ_set`'s clamp bring it to
+0.99. Before this campaign the law was enforced by a comment asking
+authors to "keep every row < 1.0"; it is now enforced by the panel that
+could otherwise have broken it.
+
+## A bug the harness caught
+
+The shell keyed exports by `p.def === DEF_TIER ? 'world' : mood`. Kind
+`BEHAVIOR` is 3, so its 70 definitions exported as `0/AGENT_ROOM.…` —
+claiming a mood ownership they do not have. The C++ ignores the target
+for world kinds, so it would have *round-tripped* correctly and lied in
+the file. Fixed by asking the question once — `isWorldDef(p)` — so a
+fourth family answers it by being added in one place rather than being
+forgotten at three.
+
+## Wave 3's DEFERRALS
+
+| what | why |
+| --- | --- |
+| `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (kind `ORB_MOOD`, ~22 definition-only lines) | The bank and kind are straightforward; the **boundary is not**. `configure_orbs` is called from inside `apply_mood`, so the re-speak must re-enter the mood applier's orb fan alone — not `apply_mood` whole, which would re-run the lighting, the shell and the spawn policy. That is a surgical edit to `direction/mood.hpp` that wants the module read whole first, and D4 is explicit: *never wire a boundary re-speak on a guess.* Anatomy recorded above; the next sitting starts from it. |
+| the remaining destructive banks — `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE`, `SCHEME_WEIGHTS`, `PORTAL_COLORS`, ribbon's spawn rolls and colour vocabulary, the floater tier weights | Each is a small bank with a banner and no wiring — mechanical, and the pattern is now proven by `INDOOR_LIVE`. Deferred as bulk, not as difficulty. |

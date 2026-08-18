@@ -138,7 +138,7 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // ═══ INDOOR ENTITY PLACEMENT → THE INDOOR MODULE ═════════════════
 //
 // The whole indoor treatment — the size/bounds policy table and
-// the three dials (INDOOR_HEIGHT_CAP_FRACTION, RIBBON_INDOOR_SCALE,
+// the three dials (INDOOR_LIVE.height_cap_fraction, INDOOR_LIVE.ribbon_scale,
 // INDOOR_ENTITY_WALL_MARGIN) — lives in contracts/indoor_module.hpp:
 // mood's insert on the spawn chain, graduated to the contracts tier
 // because its consumers (grounded/spheres/cube_behaviors/ribbon)
@@ -579,7 +579,7 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     // every mood transition, so every live zone was derived inside the mood
     // it lives in and the capping is complete, not approximate.
     c->gpuState_.set_indoor_height_cap(
-        m.indoor ? INDOOR_HEIGHT_CAP_FRACTION * m.wall_height : 0.0f);
+        m.indoor ? INDOOR_LIVE.height_cap_fraction * m.wall_height : 0.0f);
     c->mood_state_.lights_dirty = true;
 }
 

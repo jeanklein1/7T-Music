@@ -199,6 +199,23 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_passage_scale, F32, 0.0f, 48.0f, 0.2
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_blend,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "boundary blend")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "facet lean")
 
+// ─── Terrain · Indoor — EDITS THE NEXT SPAWN ────────────────────
+// ORGAN_3 w3 (C3, DESTRUCTIVE). INDOOR_LIVE (contracts/indoor_module.hpp).
+//
+// THE TEMPERAMENT LAW MADE VISIBLE. These two have TEN readers between
+// them and nine of those are spawn-time: cap_to_ceiling runs as each
+// entity is placed, and the ribbon's indoor selection scales at spawn.
+// Re-speaking a destructive author would tear the world down to apply a
+// slider, so nothing here is wired to the frame boundary. The edit waits
+// for the author's next natural event — the next spawn, the next mood
+// change — exactly as a non-live mood's definition already waits.
+//
+// TURNING ONE AND SEEING NOTHING IS THE DIAL WORKING. That is why the
+// group says so in its name: a dial that edits the future must say it
+// edits the future, or the operator reads a working panel as a broken one.
+ORGAN_PARAM(INDOOR, IndoorSurface, height_cap_fraction, F32, 0.0f, 1.0f, 0.005f, "Terrain · Indoor (edits the next spawn)", "height cap fraction")
+ORGAN_PARAM(INDOOR, IndoorSurface, ribbon_scale,        F32, 0.0f, 0.6f, 0.005f, "Terrain · Indoor (edits the next spawn)", "ribbon scale")
+
 // ─── AURA (the drivers' room + its witnesses) ────────────────────────
 // The intent is the presence ramp's rest target — moved home from
 // PawnState.aura_enabled (U5); key 3 and the mood policy door write it
@@ -280,6 +297,126 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].color_r,    VEC
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 2", "speed gain", TIER, AgentTierBank, t[2].speed_gain)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Agents · Tier 3", "colour",     TIER, AgentTierBank, t[3].color_r)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 3", "speed gain", TIER, AgentTierBank, t[3].speed_gain)
+
+// ─── Agents · Tier N — the bank's remaining columns ──────────────
+// ORGAN_3 w3 (C3, kind TIER). These ride the EXISTING world re-speak:
+// upload_agent_registries_to_gpu already reads TIER_LIVE and the frame
+// boundary already calls it when the bank changes (ORGAN_2b U4). Six
+// columns × four tiers, and not one line of new machinery — which is
+// what "the cheapest class first" was supposed to buy.
+//
+// flee_gain's max is 0.99 and that is THE TREE'S OWN WORD, not a
+// heuristic. THE CATCHABILITY LAW (CONTACT_4, quoted in
+// contracts/agent_tiers.hpp): "a gain >= 1.0 means the agent matches or
+// beats the player's radial speed and can NEVER be approached (nor
+// possessed) ... keep every row < 1.0." A panel that let this reach 1.0
+// would make the world silently uncatchable.
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].step_gain,       F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 0", "step gain", TIER, AgentTierBank, t[0].step_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].persist_gain,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 0", "persist gain", TIER, AgentTierBank, t[0].persist_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].contact_radius,  F32, 0.0f,   8.0f,    0.04f,  "Agents · Tier 0", "contact radius", TIER, AgentTierBank, t[0].contact_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].contact_mass,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 0", "contact mass", TIER, AgentTierBank, t[0].contact_mass)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].personal_radius, F32, 0.0f,   120.0f,  0.5f,   "Agents · Tier 0", "personal radius", TIER, AgentTierBank, t[0].personal_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].flee_gain_player, F32, 0.0f,   0.99f,   0.005f, "Agents · Tier 0", "flee gain", TIER, AgentTierBank, t[0].flee_gain_player)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].step_gain,       F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 1", "step gain", TIER, AgentTierBank, t[1].step_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].persist_gain,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 1", "persist gain", TIER, AgentTierBank, t[1].persist_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].contact_radius,  F32, 0.0f,   8.0f,    0.04f,  "Agents · Tier 1", "contact radius", TIER, AgentTierBank, t[1].contact_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].contact_mass,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 1", "contact mass", TIER, AgentTierBank, t[1].contact_mass)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].personal_radius, F32, 0.0f,   120.0f,  0.5f,   "Agents · Tier 1", "personal radius", TIER, AgentTierBank, t[1].personal_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].flee_gain_player, F32, 0.0f,   0.99f,   0.005f, "Agents · Tier 1", "flee gain", TIER, AgentTierBank, t[1].flee_gain_player)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].step_gain,       F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 2", "step gain", TIER, AgentTierBank, t[2].step_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].persist_gain,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 2", "persist gain", TIER, AgentTierBank, t[2].persist_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].contact_radius,  F32, 0.0f,   8.0f,    0.04f,  "Agents · Tier 2", "contact radius", TIER, AgentTierBank, t[2].contact_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].contact_mass,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 2", "contact mass", TIER, AgentTierBank, t[2].contact_mass)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].personal_radius, F32, 0.0f,   120.0f,  0.5f,   "Agents · Tier 2", "personal radius", TIER, AgentTierBank, t[2].personal_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].flee_gain_player, F32, 0.0f,   0.99f,   0.005f, "Agents · Tier 2", "flee gain", TIER, AgentTierBank, t[2].flee_gain_player)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].step_gain,       F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 3", "step gain", TIER, AgentTierBank, t[3].step_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].persist_gain,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 3", "persist gain", TIER, AgentTierBank, t[3].persist_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].contact_radius,  F32, 0.0f,   8.0f,    0.04f,  "Agents · Tier 3", "contact radius", TIER, AgentTierBank, t[3].contact_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].contact_mass,    F32, 0.0f,   4.0f,    0.02f,  "Agents · Tier 3", "contact mass", TIER, AgentTierBank, t[3].contact_mass)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].personal_radius, F32, 0.0f,   120.0f,  0.5f,   "Agents · Tier 3", "personal radius", TIER, AgentTierBank, t[3].personal_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].flee_gain_player, F32, 0.0f,   0.99f,   0.005f, "Agents · Tier 3", "flee gain", TIER, AgentTierBank, t[3].flee_gain_player)
+
+// ─── Agents · <behaviour> ────────────────────────────────────────
+// ORGAN_3 w3 (C3, kind BEHAVIOR). BEHAVIOR_LIVE (contracts/agent_tiers.hpp)
+// rides the tier bank's author and the tier bank's boundary — so ten rows
+// of seven columns cost one enum value and no new occasion.
+//
+// Ranges are the authored table's own spans with D1's +25% headroom, so
+// every dial opens standing where the design put it with room on both
+// sides. The player row is all zeros by construction (the possessed body
+// takes its motion from input, not from a behaviour) — its dials move
+// nothing until a behaviour is assigned to a live agent, which is worth
+// knowing before wondering why row 0 is inert.
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · player_controlled", "step rate", BEHAVIOR, AgentBehaviorBank, b[0].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · player_controlled", "step size", BEHAVIOR, AgentBehaviorBank, b[0].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · player_controlled", "persistence", BEHAVIOR, AgentBehaviorBank, b[0].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · player_controlled", "drag", BEHAVIOR, AgentBehaviorBank, b[0].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · player_controlled", "home pull", BEHAVIOR, AgentBehaviorBank, b[0].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · player_controlled", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[0].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[0].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · player_controlled", "speed cap", BEHAVIOR, AgentBehaviorBank, b[0].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · random_walk", "step rate", BEHAVIOR, AgentBehaviorBank, b[1].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · random_walk", "step size", BEHAVIOR, AgentBehaviorBank, b[1].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · random_walk", "persistence", BEHAVIOR, AgentBehaviorBank, b[1].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · random_walk", "drag", BEHAVIOR, AgentBehaviorBank, b[1].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · random_walk", "home pull", BEHAVIOR, AgentBehaviorBank, b[1].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · random_walk", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[1].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[1].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · random_walk", "speed cap", BEHAVIOR, AgentBehaviorBank, b[1].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · biased_walk", "step rate", BEHAVIOR, AgentBehaviorBank, b[2].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · biased_walk", "step size", BEHAVIOR, AgentBehaviorBank, b[2].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · biased_walk", "persistence", BEHAVIOR, AgentBehaviorBank, b[2].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · biased_walk", "drag", BEHAVIOR, AgentBehaviorBank, b[2].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · biased_walk", "home pull", BEHAVIOR, AgentBehaviorBank, b[2].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · biased_walk", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[2].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[2].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · biased_walk", "speed cap", BEHAVIOR, AgentBehaviorBank, b[2].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · wanderer", "step rate", BEHAVIOR, AgentBehaviorBank, b[3].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · wanderer", "step size", BEHAVIOR, AgentBehaviorBank, b[3].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · wanderer", "persistence", BEHAVIOR, AgentBehaviorBank, b[3].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · wanderer", "drag", BEHAVIOR, AgentBehaviorBank, b[3].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · wanderer", "home pull", BEHAVIOR, AgentBehaviorBank, b[3].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · wanderer", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[3].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[3].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · wanderer", "speed cap", BEHAVIOR, AgentBehaviorBank, b[3].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · home_seeker", "step rate", BEHAVIOR, AgentBehaviorBank, b[4].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · home_seeker", "step size", BEHAVIOR, AgentBehaviorBank, b[4].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · home_seeker", "persistence", BEHAVIOR, AgentBehaviorBank, b[4].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · home_seeker", "drag", BEHAVIOR, AgentBehaviorBank, b[4].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · home_seeker", "home pull", BEHAVIOR, AgentBehaviorBank, b[4].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · home_seeker", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[4].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[4].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · home_seeker", "speed cap", BEHAVIOR, AgentBehaviorBank, b[4].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · slow_patrol", "step rate", BEHAVIOR, AgentBehaviorBank, b[5].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · slow_patrol", "step size", BEHAVIOR, AgentBehaviorBank, b[5].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · slow_patrol", "persistence", BEHAVIOR, AgentBehaviorBank, b[5].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · slow_patrol", "drag", BEHAVIOR, AgentBehaviorBank, b[5].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · slow_patrol", "home pull", BEHAVIOR, AgentBehaviorBank, b[5].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · slow_patrol", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[5].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[5].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · slow_patrol", "speed cap", BEHAVIOR, AgentBehaviorBank, b[5].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · pursuit", "step rate", BEHAVIOR, AgentBehaviorBank, b[6].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · pursuit", "step size", BEHAVIOR, AgentBehaviorBank, b[6].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · pursuit", "persistence", BEHAVIOR, AgentBehaviorBank, b[6].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · pursuit", "drag", BEHAVIOR, AgentBehaviorBank, b[6].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · pursuit", "home pull", BEHAVIOR, AgentBehaviorBank, b[6].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · pursuit", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[6].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[6].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · pursuit", "speed cap", BEHAVIOR, AgentBehaviorBank, b[6].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · flee", "step rate", BEHAVIOR, AgentBehaviorBank, b[7].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · flee", "step size", BEHAVIOR, AgentBehaviorBank, b[7].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · flee", "persistence", BEHAVIOR, AgentBehaviorBank, b[7].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · flee", "drag", BEHAVIOR, AgentBehaviorBank, b[7].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · flee", "home pull", BEHAVIOR, AgentBehaviorBank, b[7].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · flee", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[7].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[7].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · flee", "speed cap", BEHAVIOR, AgentBehaviorBank, b[7].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · flock2d", "step rate", BEHAVIOR, AgentBehaviorBank, b[8].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · flock2d", "step size", BEHAVIOR, AgentBehaviorBank, b[8].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · flock2d", "persistence", BEHAVIOR, AgentBehaviorBank, b[8].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · flock2d", "drag", BEHAVIOR, AgentBehaviorBank, b[8].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · flock2d", "home pull", BEHAVIOR, AgentBehaviorBank, b[8].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · flock2d", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[8].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[8].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · flock2d", "speed cap", BEHAVIOR, AgentBehaviorBank, b[8].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].step_rate,       F32, 0.0f,  1.0f,   0.005f,  "Agents · levy_flight", "step rate", BEHAVIOR, AgentBehaviorBank, b[9].step_rate)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].step_size,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "step size", BEHAVIOR, AgentBehaviorBank, b[9].step_size)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].persistence,     F32, 0.0f,  1.0f,   0.005f,  "Agents · levy_flight", "persistence", BEHAVIOR, AgentBehaviorBank, b[9].persistence)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].drag,            F32, 0.0f,  3.75f,  0.02f,   "Agents · levy_flight", "drag", BEHAVIOR, AgentBehaviorBank, b[9].drag)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "home pull", BEHAVIOR, AgentBehaviorBank, b[9].home_pull)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · levy_flight", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[9].neighbor_radius)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "speed cap", BEHAVIOR, AgentBehaviorBank, b[9].speed_cap)
 
 // ─── Interaction · Field ───────────────────────────────────────
 // ORGAN_3 w1 (C1). THE PANEL (contracts/control_panel.hpp) authors these;

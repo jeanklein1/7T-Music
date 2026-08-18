@@ -582,7 +582,7 @@ inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
 }
 
 inline void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
         /*current_h*/ inst.params[ColIdx::HEIGHT],
         COLUMN_INDOOR_RESCALE_PARAMS);
 }
@@ -788,7 +788,7 @@ inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
 };
 
 inline void pyramid_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
         /*current_h*/ inst.params[PyrIdx::HEIGHT],
         PYRAMID_INDOOR_RESCALE_PARAMS);
 }
@@ -942,7 +942,7 @@ inline constexpr uint32_t ARCH_INDOOR_RESCALE_PARAMS[] = {
 // Arch total height = pier_height + rise (catenary apex). CAP at
 // the module's fraction, scale every length param.
 inline void arch_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
         /*current_h*/ inst.params[ArchIdx::PIER_HEIGHT] + inst.params[ArchIdx::RISE],
         ARCH_INDOOR_RESCALE_PARAMS);
 }

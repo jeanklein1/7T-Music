@@ -32,10 +32,18 @@
   if (new URLSearchParams(location.search).get('organ') !== '1') return;
 
   var F32 = 0, U32 = 1, BOOL = 2, VEC3 = 3, VEC4 = 4;
-  // The manifest's "def" column names the definition FAMILY (ORGAN_2b):
-  // 0 none, 1 a mood's meaning, 2 the world's. DEFONLY is the sentinel
-  // block of an entry that has a definition and no instance at all.
-  var DEF_MOOD = 1, DEF_TIER = 2, DEFONLY = 255;
+  // The manifest's "def" column names the definition FAMILY: 0 none,
+  // 1 a mood's meaning, 2 the world's tiers (ORGAN_2b), 3 the world's
+  // behaviours (ORGAN_3). DEFONLY is the sentinel block of an entry that
+  // has a definition and no instance at all.
+  //
+  // WHAT THE SHELL ACTUALLY NEEDS TO KNOW is not the family but its
+  // SCOPE: a per-mood definition keys its export by mood, a world
+  // definition keys it "world/" and appears once. isWorldDef is that
+  // question, asked in one place so a fourth family answers it by being
+  // added here rather than by being forgotten at three call sites.
+  var DEF_MOOD = 1, DEF_TIER = 2, DEF_BEHAVIOR = 3, DEFONLY = 255;
+  function isWorldDef(p) { return p.def === DEF_TIER || p.def === DEF_BEHAVIOR; }
   var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
@@ -344,7 +352,7 @@
         if (r.p.def) {
           var n = lanes(r.p.type), d = [];
           for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
-          out[(r.p.def === DEF_TIER ? 'world' : m) + '/' + r.p.id] = d;
+          out[(isWorldDef(r.p) ? 'world' : m) + '/' + r.p.id] = d;
         } else {
           out[r.p.id] = r.read();
         }

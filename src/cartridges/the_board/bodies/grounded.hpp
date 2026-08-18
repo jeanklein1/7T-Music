@@ -1067,7 +1067,7 @@ inline constexpr uint32_t BLADE_INDOOR_RESCALE_PARAMS[] = {
 // siblings, but it is inert until a shorter ceiling or a taller tier
 // arrives. It is not a behavior change today.
 inline void blade_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
         /*current_h*/ inst.params[BladeIdx::BLADE_H],
         BLADE_INDOOR_RESCALE_PARAMS);
 }
@@ -1247,7 +1247,7 @@ inline constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
 // taller than the cap. The old tighter rolled band ([0.80, 0.95],
 // canopy-anchor rationale) is held by git.
 inline void palm_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
         /*current_h*/ inst.params[PalmIdx::HEIGHT],
         PALM_INDOOR_RESCALE_PARAMS);
 }
@@ -1525,7 +1525,7 @@ inline constexpr uint32_t CACTUS_INDOOR_RESCALE_PARAMS[] = {
 // is the palm-mirror choice the ruling asked for, and it under-caps that
 // corner rather than over-capping the common case.
 inline void cactus_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
         /*current_h*/ inst.params[CactusIdx::HEIGHT],
         CACTUS_INDOOR_RESCALE_PARAMS);
 }

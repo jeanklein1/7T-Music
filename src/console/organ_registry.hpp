@@ -42,6 +42,7 @@
 #include "cartridges/the_board/contracts/orb_surface.hpp"     // ORGAN_3 w2 — ORB_CONSOLE_LIVE (block 5)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_3 w2 — PANEL_LIVE (block 6)
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // ORGAN_3 w2 — RIBBON_LIVE (block 7)
+#include "cartridges/the_board/contracts/indoor_module.hpp"   // ORGAN_3 w3 — INDOOR_LIVE (block 8, destructive)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // ORGAN_2a — the drivers' room (block 3)
 
 #include <cstddef>
@@ -109,7 +110,11 @@ enum : uint8_t {
     ORGAN_BLOCK_ORBS       = 5,   // OrbConsole            — ORB_CONSOLE_LIVE
     ORGAN_BLOCK_PANEL      = 6,   // PanelSurface          — PANEL_LIVE
     ORGAN_BLOCK_RIBBON     = 7,   // RibbonSurface         — RIBBON_LIVE
-    ORGAN_BLOCK_COUNT      = 8,
+    ORGAN_BLOCK_INDOOR     = 8,   // IndoorSurface         — INDOOR_LIVE
+                                  //   DESTRUCTIVE temperament: no boundary
+                                  //   re-speak, the edit lands at the next
+                                  //   spawn (ORGAN_3 w3)
+    ORGAN_BLOCK_COUNT      = 9,
 };
 
 // A definition-only entry has no instance anywhere: its block is the
@@ -137,14 +142,24 @@ enum : uint8_t { ORGAN_BLOCK_NONE = 255 };
 // MOOD answers "what does this mood mean" — there is one profile per mood
 // and the write's target selects which. TIER answers "what does this
 // WORLD mean by its tiers" — there is one bank, so the target is ignored
-// by design rather than by oversight. definition_base is the one place
-// that mapping lives.
+// by design rather than by oversight. BEHAVIOR answers the world question
+// too, for the other half of the same author's material. definition_base
+// is the one place that mapping lives.
+//
+// A KIND IS NOT A FLAG. Two kinds share a flag when they share an AUTHOR,
+// because the flag names the occasion and the occasion is the author
+// speaking — which is why BEHAVIOR raises TIER's (ORGAN_3 w3).
 enum : uint8_t {
     ORGAN_DEF_NONE = 0,   // no definition: the home IS the only truth there is
     ORGAN_DEF_MOOD = 1,   // the_board::MoodProfile, at def_offset, same lanes
                           //   — per-mood: target selects WHICH mood it means
     ORGAN_DEF_TIER = 2,   // the_board::AgentTierBank (TIER_LIVE), at def_offset
                           //   — the WORLD'S definition: one bank, target ignored
+    ORGAN_DEF_BEHAVIOR = 3,  // the_board::AgentBehaviorBank (BEHAVIOR_LIVE)
+                          //   — the world's definition too, and the SAME
+                          //   author's: it raises the TIER flag rather than
+                          //   keeping a second name for one occasion
+                          //   (ORGAN_3 w3)
 };
 
 // ─── The entry ────────────────────────────────────────────────────────
@@ -262,6 +277,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_ORBS:       return &the_board::ORB_CONSOLE_LIVE;
     case ORGAN_BLOCK_PANEL:      return &the_board::PANEL_LIVE;
     case ORGAN_BLOCK_RIBBON:     return &the_board::RIBBON_LIVE;
+    case ORGAN_BLOCK_INDOOR:     return &the_board::INDOOR_LIVE;
     default:                     return nullptr;
     }
 }
@@ -420,6 +436,7 @@ inline char* definition_base(const OrganParam& e, uint32_t mood) {
     switch (e.def_kind) {
     case ORGAN_DEF_MOOD: return reinterpret_cast<char*>(&the_board::mood_def(mood));
     case ORGAN_DEF_TIER: return reinterpret_cast<char*>(&the_board::TIER_LIVE);
+    case ORGAN_DEF_BEHAVIOR: return reinterpret_cast<char*>(&the_board::BEHAVIOR_LIVE);
     default:             return nullptr;
     }
 }
@@ -441,8 +458,14 @@ inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in
         if (v > e.maxv) v = e.maxv;
         std::memcpy(p + l * sizeof(float), &v, sizeof(float));
     }
-    if (e.def_kind == ORGAN_DEF_TIER) { g_tier_def_dirty = true; }
-    else                              { g_def_dirty = true; g_def_dirty_mood = mood; }
+    // TIER and BEHAVIOR share one author — upload_agent_registries_to_gpu
+    // reads both banks — so they share one flag and one boundary re-speak.
+    // A second flag would be a second name for one occasion.
+    if (e.def_kind == ORGAN_DEF_TIER || e.def_kind == ORGAN_DEF_BEHAVIOR) {
+        g_tier_def_dirty = true;
+    } else {
+        g_def_dirty = true; g_def_dirty_mood = mood;
+    }
     return true;
 }
 

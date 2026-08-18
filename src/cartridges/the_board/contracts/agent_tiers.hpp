@@ -88,5 +88,76 @@ static_assert(AGENT_TIER_COUNT == 4,
     "TIER_LIVE is seeded row by row (constexpr copy, one per tier): "
     "a new tier needs its row here as well as in AGENT_TIER_GAINS");
 
+
+// ═══ THE BEHAVIOUR VOCABULARY, GRADUATED (ORGAN_3 w3) ═════════════
+// It rides HERE, beside the tier bank, because it rides the SAME
+// AUTHOR: upload_agent_registries_to_gpu reads both tables in one
+// function and the frame boundary already re-speaks it whenever the
+// tier bank changes (ORGAN_2b U4). A second contracts file would have
+// been a second home for one author's material; a second dirty flag
+// would have been a second name for one occasion. Kind BEHAVIOR
+// therefore raises the TIER flag — one flag, one boundary, two banks.
+//
+// AGENT_BEHAVIORS is the DESIGN; BEHAVIOR_LIVE is what the translator
+// reads. Ten rows of seven float columns — over D5's ≤8 cut, and
+// enrolled per-row anyway: D5's line is about COMPOSITE rows (names,
+// modes, nested tables), and these are seven uniform float columns
+// with a stable row identity. The exception is deliberate and this
+// sentence is its reason.
+
+enum AgentBehaviorId : uint32_t {
+    AGENT_BEHAVIOR_PLAYER_CONTROLLED = 0,
+    AGENT_BEHAVIOR_RANDOM_WALK       = 1,
+    AGENT_BEHAVIOR_BIASED_WALK       = 2,   // persistent direction + soft cohesion
+    AGENT_BEHAVIOR_WANDERER          = 3,   // random walk + soft home tether
+    AGENT_BEHAVIOR_HOME_SEEKER       = 4,   // strong spring to home
+    AGENT_BEHAVIOR_SLOW_PATROL       = 5,   // waypoints around home, slow
+    AGENT_BEHAVIOR_PURSUIT           = 6,   // steers toward player when in range
+    AGENT_BEHAVIOR_FLEE              = 7,   // flees player when in range, idles otherwise
+    AGENT_BEHAVIOR_FLOCK2D           = 8,   // Vicsek alignment + cohesion
+    AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // power-law step magnitudes
+    AGENT_BEHAVIOR_COUNT             = 10,
+};
+
+struct AgentBehaviorDef {
+    AgentBehaviorId id;
+    const char*     name;
+    float           step_rate;
+    float           step_size;
+    float           persistence;
+    float           drag;
+    float           home_pull;
+    float           neighbor_radius;
+    float           speed_cap;
+};
+
+inline constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
+    //  id                                  name               step_rate  step_size  persistence  drag  home_pull  neighbor_radius  speed_cap
+    { AGENT_BEHAVIOR_PLAYER_CONTROLLED, "player_controlled",   0.0f,      0.0f,      0.0f,        0.0f, 0.0f,      0.0f,            0.0f    },
+    { AGENT_BEHAVIOR_RANDOM_WALK,       "random_walk",         0.8f,      1.5f,      0.0f,        3.0f, 0.0f,      0.0f,            3.0f    },
+    { AGENT_BEHAVIOR_BIASED_WALK,       "biased_walk",         0.5f,      2.5f,      0.85f,       0.6f, 0.0f,      25.0f,           5.0f    },
+    { AGENT_BEHAVIOR_WANDERER,          "wanderer",            0.7f,      1.8f,      0.0f,        1.0f, 0.4f,      0.0f,            4.0f    },
+    { AGENT_BEHAVIOR_HOME_SEEKER,       "home_seeker",         0.4f,      1.0f,      0.0f,        1.5f, 3.0f,      0.0f,            3.0f    },
+    { AGENT_BEHAVIOR_SLOW_PATROL,       "slow_patrol",         0.25f,     8.0f,      0.0f,        2.0f, 4.0f,      0.0f,            2.0f    },
+    { AGENT_BEHAVIOR_PURSUIT,           "pursuit",             0.5f,      1.5f,      0.0f,        1.0f, 5.0f,      40.0f,           5.0f    },
+    { AGENT_BEHAVIOR_FLEE,              "flee",                0.4f,      1.0f,      0.0f,        1.5f, 8.0f,      30.0f,           8.0f    },
+    { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.6f,      1.5f,      0.7f,        0.6f, 0.0f,      30.0f,           4.5f    },
+    { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.4f,      0.8f,      0.0f,        1.5f, 0.0f,      0.0f,            8.0f    },
+};
+
+struct AgentBehaviorBank {
+    AgentBehaviorDef b[AGENT_BEHAVIOR_COUNT];
+};
+
+inline AgentBehaviorBank BEHAVIOR_LIVE = {
+    { AGENT_BEHAVIORS[0], AGENT_BEHAVIORS[1], AGENT_BEHAVIORS[2],
+      AGENT_BEHAVIORS[3], AGENT_BEHAVIORS[4], AGENT_BEHAVIORS[5],
+      AGENT_BEHAVIORS[6], AGENT_BEHAVIORS[7], AGENT_BEHAVIORS[8],
+      AGENT_BEHAVIORS[9] }
+};
+static_assert(AGENT_BEHAVIOR_COUNT == 10,
+    "BEHAVIOR_LIVE is seeded row by row (constexpr copy, one per behavior): "
+    "a new behavior needs its row here as well as in AGENT_BEHAVIORS");
+
 } // namespace the_board
 } // namespace t7

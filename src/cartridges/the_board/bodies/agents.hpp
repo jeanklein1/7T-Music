@@ -45,19 +45,8 @@ struct AgentsDeps {
 // switch dispatches on these values. Names below are also exported as
 // AGENT_BEHAVIOR_NAMES[] for diagnostics — keep the two in lockstep.
 
-enum AgentBehaviorId : uint32_t {
-    AGENT_BEHAVIOR_PLAYER_CONTROLLED = 0,
-    AGENT_BEHAVIOR_RANDOM_WALK       = 1,
-    AGENT_BEHAVIOR_BIASED_WALK       = 2,   // persistent direction + soft cohesion
-    AGENT_BEHAVIOR_WANDERER          = 3,   // random walk + soft home tether
-    AGENT_BEHAVIOR_HOME_SEEKER       = 4,   // strong spring to home
-    AGENT_BEHAVIOR_SLOW_PATROL       = 5,   // waypoints around home, slow
-    AGENT_BEHAVIOR_PURSUIT           = 6,   // steers toward player when in range
-    AGENT_BEHAVIOR_FLEE              = 7,   // flees player when in range, idles otherwise
-    AGENT_BEHAVIOR_FLOCK2D           = 8,   // Vicsek alignment + cohesion
-    AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // power-law step magnitudes
-    AGENT_BEHAVIOR_COUNT             = 10,
-};
+// AgentBehaviorId graduated to contracts/agent_tiers.hpp with the
+// table its rows name (ORGAN_3 w3).
 
 // ═══ TIER IDS ════════════════════════════════════════════════════
 // AgentTierId (AGENT_TIER_COUNT included) graduated to
@@ -124,34 +113,11 @@ inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
 
-struct AgentBehaviorDef {
-    AgentBehaviorId id;
-    const char*     name;
-    float           step_rate;
-    float           step_size;
-    float           persistence;
-    float           drag;
-    float           home_pull;
-    float           neighbor_radius;
-    float           speed_cap;
-};
-
-inline constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
-    //  id                                  name               step_rate  step_size  persistence  drag  home_pull  neighbor_radius  speed_cap
-    { AGENT_BEHAVIOR_PLAYER_CONTROLLED, "player_controlled",   0.0f,      0.0f,      0.0f,        0.0f, 0.0f,      0.0f,            0.0f    },
-    { AGENT_BEHAVIOR_RANDOM_WALK,       "random_walk",         0.8f,      1.5f,      0.0f,        3.0f, 0.0f,      0.0f,            3.0f    },
-    { AGENT_BEHAVIOR_BIASED_WALK,       "biased_walk",         0.5f,      2.5f,      0.85f,       0.6f, 0.0f,      25.0f,           5.0f    },
-    { AGENT_BEHAVIOR_WANDERER,          "wanderer",            0.7f,      1.8f,      0.0f,        1.0f, 0.4f,      0.0f,            4.0f    },
-    { AGENT_BEHAVIOR_HOME_SEEKER,       "home_seeker",         0.4f,      1.0f,      0.0f,        1.5f, 3.0f,      0.0f,            3.0f    },
-    { AGENT_BEHAVIOR_SLOW_PATROL,       "slow_patrol",         0.25f,     8.0f,      0.0f,        2.0f, 4.0f,      0.0f,            2.0f    },
-    { AGENT_BEHAVIOR_PURSUIT,           "pursuit",             0.5f,      1.5f,      0.0f,        1.0f, 5.0f,      40.0f,           5.0f    },
-    { AGENT_BEHAVIOR_FLEE,              "flee",                0.4f,      1.0f,      0.0f,        1.5f, 8.0f,      30.0f,           8.0f    },
-    { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.6f,      1.5f,      0.7f,        0.6f, 0.0f,      30.0f,           4.5f    },
-    { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.4f,      0.8f,      0.0f,        1.5f, 0.0f,      0.0f,            8.0f    },
-};
-
-static_assert(sizeof(AGENT_BEHAVIORS) / sizeof(AGENT_BEHAVIORS[0]) == AGENT_BEHAVIOR_COUNT,
-              "AGENT_BEHAVIORS must declare one row per AgentBehaviorId");
+// AgentBehaviorDef, AGENT_BEHAVIORS and its row-count assert
+// graduated to contracts/agent_tiers.hpp (ORGAN_3 w3), where
+// BEHAVIOR_LIVE stands beside them as the live surface. They ride
+// with the tier bank because they ride the same author: the
+// translator below reads both, and one boundary re-speaks both.
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 // AgentTierDef, AGENT_TIER_GAINS and its row-count assert graduated
@@ -284,8 +250,8 @@ void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* tr
 
 // ═══ REGISTRY UPLOAD (CPU table → GPU buffer, once at world-init) ═
 //
-// AGENT_BEHAVIORS is the single source of truth for behavior
-// parameters. The tiers' truth is now TIER_LIVE, the world's
+// Both registries' truth is now a LIVE BANK — BEHAVIOR_LIVE and
+// TIER_LIVE, the world's
 // definition bank (contracts/agent_tiers.hpp), seeded at load from
 // the authored AGENT_TIER_GAINS — so a panel edit to the bank
 // outlives this author, because this author reads it every time it
@@ -298,7 +264,7 @@ void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* tr
 inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
     GPUAgentBehaviorDef gpu_behaviors[AGENT_BEHAVIOR_COUNT] = {};
     for (uint32_t i = 0; i < AGENT_BEHAVIOR_COUNT; i++) {
-        const auto& src = AGENT_BEHAVIORS[i];
+        const auto& src = BEHAVIOR_LIVE.b[i];   // ORGAN_3 w3 — the world's definition, not the design table
         gpu_behaviors[i].step_rate       = src.step_rate;
         gpu_behaviors[i].step_size       = src.step_size;
         gpu_behaviors[i].persistence     = src.persistence;

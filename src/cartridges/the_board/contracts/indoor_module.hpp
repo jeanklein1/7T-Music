@@ -104,5 +104,43 @@ inline void cap_to_ceiling(EntityInstance& inst, float ceiling_h,
     for (size_t i = 0; i < N; i++) inst.params[params_to_scale[i]] *= scale;
 }
 
+
+// ═══ THE LIVE SURFACE (ORGAN_3 w3, C3 — DESTRUCTIVE) ═════════════
+//
+// THE TEMPERAMENT LAW, and this bank is its exemplar. An IDEMPOTENT
+// author re-speaks at the frame boundary when its bank changes (the
+// mood apply, the registry upload — ORGAN_2b's pattern). A DESTRUCTIVE
+// author does NOT: re-speaking it would tear down live state, so its
+// definitions take effect at the author's next natural event, exactly
+// as a non-live mood's definition already waits.
+//
+// INDOOR_HEIGHT_CAP_FRACTION has BOTH temperaments — apply_mood_lighting
+// reads it (idempotent) and every entity spawn's cap_to_ceiling reads it
+// (destructive: entity_pipeline ×3, grounded ×3, spheres, cube_behaviors,
+// ribbon). The STRICTER temperament governs, so there is no boundary
+// wiring here at all: the mood half picks the edit up at the next mood
+// change, the spawn half at the next spawn. Neither needs a flag.
+//
+// A DIAL THAT EDITS THE FUTURE MUST SAY IT EDITS THE FUTURE — so the
+// enrollment group is labelled "edits the next spawn", and that label is
+// the whole interface contract. Turning it and watching nothing happen
+// is the dial working.
+
+struct IndoorSurface {
+    float height_cap_fraction;   // × wall_height — the indoor lift ceiling
+    float ribbon_scale;          // the ribbon's indoor diminishment
+};
+
+inline constexpr IndoorSurface INDOOR_TABLE = {
+    INDOOR_HEIGHT_CAP_FRACTION,
+    RIBBON_INDOOR_SCALE,
+};
+
+inline IndoorSurface INDOOR_LIVE = INDOOR_TABLE;
+static_assert(INDOOR_TABLE.height_cap_fraction == INDOOR_HEIGHT_CAP_FRACTION
+           && INDOOR_TABLE.ribbon_scale == RIBBON_INDOOR_SCALE,
+    "INDOOR_TABLE is seeded FROM the authored dials above — one fact, one "
+    "home; if they can disagree the seeding is wrong");
+
 } // namespace the_board
 } // namespace t7
