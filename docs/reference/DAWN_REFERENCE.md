@@ -40,9 +40,10 @@ cmake --version    → 4.4.1, with NO -msvc1 suffix
 ```
 
 The `-msvc1` suffix marks Microsoft's patched build. Its absence is the
-witness that the standalone copy is in use. A Developer Command Prompt
-prepends the IDE's copy at launch regardless of persistent PATH — use a
-plain `cmd`.
+witness that the standalone copy is in use. The hazard is Visual
+Studio's CMake DRIVER, not its shell: a Developer Command Prompt
+APPENDS the IDE's toolchain directories — standalone cmake still
+resolves first, verified 2026-08. The live statute is docs/LAWS.md L39.
 
 Stock CMake gained the `Visual Studio 18 2026` generator in 4.2. Do not
 pin below that.
