@@ -779,9 +779,12 @@ minBindingSize (the classes naga cannot see — ATLAS_1revB). The
 audience floor (WebGPU core defaults) and the compiler floor
 (PIVOT_0) are unchanged by this sunset.
 
-SUNSET_1 (2026-08-16): the native arms are deleted from shared files;
-__EMSCRIPTEN__ guards collapsed; the tree compiles one program.
-Resurrection remains archaeology from tag `native-sunset`.
+SUNSET_1 (2026-08-16): the native arms are deleted from shared files and
+the __EMSCRIPTEN__ guards collapsed — everywhere but
+`realization/renderer.hpp`, which still carries four (census 2026-08-18).
+The gates compile their dead arms and skip the shipping ones; registered
+in `docs/OPEN.md`. The tree BUILDS one program; it does not yet COMPILE
+only one. Resurrection remains archaeology from tag `native-sunset`.
 
 SUNSET_2: the presets carry the web flow only; the guard fires first and
 names the preset.
