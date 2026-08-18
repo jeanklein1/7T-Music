@@ -5,7 +5,7 @@ C++20 + WGSL on Dawn, compiled with Emscripten (emdawnwebgpu, vendored),
 deployed as static files via Cloudflare Pages.
 
 ## Build (Windows)
-emsdk_env.bat
+Requires the persistent EMSDK environment variable (set once; docs/LAWS.md L40).
 cmake --preset the-board-web
 cmake --build --preset the-board-web
 python tools\web_dist.py

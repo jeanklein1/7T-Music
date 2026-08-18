@@ -17,9 +17,11 @@ the unit, flag-and-continue, one commit per logical unit, report findings withou
 improvising on authority-bearing decisions. Cite symbols, not line numbers.
 
 ## Build & deploy (Jean runs these; listed for orientation)
-emsdk_env.bat → cmake --preset the-board-web → cmake --build --preset the-board-web
+cmake --preset the-board-web → cmake --build --preset the-board-web
 → python tools\web_dist.py → npx wrangler pages deploy dist --project-name=7t
-dist/ is the deploy target. web/ holds sources only.
+(the persistent EMSDK user variable carries the presets — L40)
+dist/ is the deploy target. web/ holds the shell sources and receives the
+build artifacts; only dist/ ships.
 
 ## Where truth lives
 - docs/LAWS.md — the rule book. Read before proposing.
