@@ -68,6 +68,9 @@ namespace t7 {
     // this is the number to move when a device cannot keep up, and
     // moving it changes nothing else. 1.0 = CSS-pixel rendering;
     // a very large value = uncapped, the pre-PORT_3c behavior.
+    // COMPILE-TIME: this constant is the default, and the ONLY override is
+    // the boot parameter read once at startup (effective_pixel_cap, below) —
+    // there is no mid-run channel, so nothing can retune it while it runs.
     inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
 
     // ═══ THE FLOORS' ONE HOME (DOMESDAY_2 A12) ═══════════════════════
