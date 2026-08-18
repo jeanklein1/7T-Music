@@ -35,6 +35,7 @@
 
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/contracts/spine_state.hpp"   // O1b — MoodProfile + mood_def: the definition side
+#include "cartridges/the_board/contracts/agent_tiers.hpp"    // ORGAN_2b — TIER_LIVE, the world's definition bank
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // ORGAN_2a — the drivers' room (block 3)
 
 #include <cstddef>
@@ -94,6 +95,13 @@ enum : uint8_t {
     ORGAN_BLOCK_COUNT      = 4,
 };
 
+// A definition-only entry has no instance anywhere: its block is the
+// sentinel, block_base answers null, and organ_set routes it straight to
+// the definition path — preview on it is refused, because there is
+// nothing a preview could show. Its `offset` carries def_offset so the
+// (block, offset, type) triple stays unique and the manifest round-trips.
+enum : uint8_t { ORGAN_BLOCK_NONE = 255 };
+
 // ─── Definition targets (O1b) ─────────────────────────────────────────
 // Where a dial's DEFINITION lives, if it has one. An entry's home is its
 // INSTANCE — what the program is showing right now — and for a dial with
@@ -102,14 +110,24 @@ enum : uint8_t {
 // panel edit outlives the author (docs/ORGAN.md, "Instance and
 // definition").
 //
-// FLOAT LANES ONLY. Every definition target is a run of floats in
-// MoodProfile with the same lane count as the entry's type, because that
-// is the only shape the atmospheric group takes. A U32 or BOOL entry with
-// a target would need a second conversion and gets refused at the write
+// FLOAT LANES ONLY. Every definition target is a run of floats in its
+// family's struct with the same lane count as the entry's type, because
+// that is the only shape these groups take. A U32 or BOOL entry with a
+// target would need a second conversion and gets refused at the write
 // rather than silently reinterpreted.
+//
+// A KIND NAMES THE FAMILY, AND THE FAMILY ANSWERS ONE QUESTION (ORGAN_2b).
+// MOOD answers "what does this mood mean" — there is one profile per mood
+// and the write's target selects which. TIER answers "what does this
+// WORLD mean by its tiers" — there is one bank, so the target is ignored
+// by design rather than by oversight. definition_base is the one place
+// that mapping lives.
 enum : uint8_t {
     ORGAN_DEF_NONE = 0,   // no definition: the home IS the only truth there is
     ORGAN_DEF_MOOD = 1,   // the_board::MoodProfile, at def_offset, same lanes
+                          //   — per-mood: target selects WHICH mood it means
+    ORGAN_DEF_TIER = 2,   // the_board::AgentTierBank (TIER_LIVE), at def_offset
+                          //   — the WORLD'S definition: one bank, target ignored
 };
 
 // ─── The entry ────────────────────────────────────────────────────────
@@ -127,8 +145,9 @@ struct OrganParam {
     uint8_t     type;
     float       minv, maxv, step, def;
     uint8_t     couple;
-    uint8_t     def_kind;     // O1b — ORGAN_DEF_NONE | ORGAN_DEF_MOOD
-    uint16_t    def_offset;   // byte offset into MoodProfile, when def_kind is MOOD
+    uint8_t     def_kind;     // O1b — ORGAN_DEF_NONE | ORGAN_DEF_MOOD | _TIER
+    uint16_t    def_offset;   // byte offset into the kind's own struct
+                              // (MoodProfile or AgentTierBank), when there is one
     uint8_t     ro;           // ORGAN_2a — a WITNESS, not a dial: the panel
                               // meters it and organ_set refuses to write it
 };
@@ -216,7 +235,19 @@ inline const OrganParam* find_entry(int block, int offset, int type) {
     return nullptr;
 }
 
+// Declared here because read_lane reaches for it: a definition-only entry
+// has no instance, so reading its value IS reading its definition. The
+// body stays beside the rest of the definition path, below.
+inline float read_definition(const OrganParam& e, uint32_t mood, int lane);
+
 inline float read_lane(const OrganParam& e, int lane) {
+    // ORGAN_2b — a definition-only entry has no instance to read, so its
+    // "value" is the LIVE mood's definition. The manifest and any meter
+    // therefore show what the current mood means; a mood change is
+    // reflected on the next panel open, the same freshness the mood-def
+    // dials already have.
+    if (e.block == ORGAN_BLOCK_NONE)
+        return read_definition(e, current_mood(), lane);
     void* base = block_base(e.block);
     if (!base || lane < 0 || lane >= lanes_of(e.type)) return 0.0f;
     const char* p = static_cast<const char*>(base) + e.offset;
@@ -339,15 +370,28 @@ inline int contest_class(size_t i) {
 // neither and should not learn them.
 inline bool     g_def_dirty = false;
 inline uint32_t g_def_dirty_mood = 0;
+inline bool     g_tier_def_dirty = false;   // ORGAN_2b — the world bank changed
+
+// One base per definition family. MOOD selects by target; TIER is the
+// world's single bank and ignores it.
+inline char* definition_base(const OrganParam& e, uint32_t mood) {
+    switch (e.def_kind) {
+    case ORGAN_DEF_MOOD: return reinterpret_cast<char*>(&the_board::mood_def(mood));
+    case ORGAN_DEF_TIER: return reinterpret_cast<char*>(&the_board::TIER_LIVE);
+    default:             return nullptr;
+    }
+}
 
 inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in) {
-    if (e.def_kind != ORGAN_DEF_MOOD) return false;
+    if (e.def_kind == ORGAN_DEF_NONE) return false;
     // Float lanes only, by the rule at the enum: refuse rather than
     // reinterpret. A refusal here falls back to the instance write, which
     // is the honest behaviour — the edit still shows, it just will not last.
     if (e.type == ORGAN_U32 || e.type == ORGAN_BOOL) return false;
 
-    char* p = reinterpret_cast<char*>(&the_board::mood_def(mood)) + e.def_offset;
+    char* p = definition_base(e, mood);
+    if (!p) return false;
+    p += e.def_offset;
     const int n = lanes_of(e.type);
     for (int l = 0; l < n; ++l) {
         float v = in[l];
@@ -355,16 +399,17 @@ inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in
         if (v > e.maxv) v = e.maxv;
         std::memcpy(p + l * sizeof(float), &v, sizeof(float));
     }
-    g_def_dirty      = true;
-    g_def_dirty_mood = mood;
+    if (e.def_kind == ORGAN_DEF_TIER) { g_tier_def_dirty = true; }
+    else                              { g_def_dirty = true; g_def_dirty_mood = mood; }
     return true;
 }
 
 inline float read_definition(const OrganParam& e, uint32_t mood, int lane) {
-    if (e.def_kind != ORGAN_DEF_MOOD || lane < 0 || lane >= lanes_of(e.type))
+    if (e.def_kind == ORGAN_DEF_NONE || lane < 0 || lane >= lanes_of(e.type))
         return 0.0f;
-    const char* p = reinterpret_cast<const char*>(&the_board::mood_def(mood))
-                  + e.def_offset;
+    const char* p = definition_base(e, mood);
+    if (!p) return 0.0f;
+    p += e.def_offset;
     float v = 0.0f;
     std::memcpy(&v, p + lane * sizeof(float), sizeof(float));
     return v;
@@ -376,6 +421,15 @@ inline bool take_definition_dirty(uint32_t& mood) {
     if (!g_def_dirty) return false;
     g_def_dirty = false;
     mood = g_def_dirty_mood;
+    return true;
+}
+
+// The tier bank's re-apply, taken once by the frame boundary (the
+// cartridge, which owns the agents' deps and the queue — this file
+// knows neither).
+inline bool take_tier_definition_dirty() {
+    if (!g_tier_def_dirty) return false;
+    g_tier_def_dirty = false;
     return true;
 }
 
@@ -410,7 +464,7 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
             "\"couple\":%u,\"def\":%u,\"ro\":%u,\"v\":[",
             e.id, e.label, e.group, (unsigned)e.block, (unsigned)e.offset,
             (unsigned)e.type, e.minv, e.maxv, e.step, (unsigned)e.couple,
-            (unsigned)(e.def_kind != ORGAN_DEF_MOOD ? 0u : 1u),
+            (unsigned)e.def_kind,
             (unsigned)(e.ro ? 1u : 0u));
         json += buf;
         const int n = lanes_of(e.type);
@@ -441,9 +495,16 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
                                            int target) {
     using namespace t7::organ;
     const OrganParam* e = find_entry(block, offset, type);
-    void* base = e ? block_base((uint8_t)block) : nullptr;
-    if (!e || !base) { ++g_rejected; return; }   // not in the manifest: refused
-    if (e->ro)       { ++g_rejected; return; }   // a witness, not a dial (ORGAN_2a)
+    if (!e)    { ++g_rejected; return; }   // not in the manifest: refused
+    if (e->ro) { ++g_rejected; return; }   // a witness, not a dial (ORGAN_2a)
+    if (e->block == ORGAN_BLOCK_NONE) {    // definition-only (ORGAN_2b):
+        const float lanes_only[4] = { x, y, z, w };
+        if (target < 0 || !write_definition(*e, (uint32_t)target, lanes_only))
+            ++g_rejected;                  // no instance exists to fall back to
+        return;
+    }
+    void* base = block_base((uint8_t)block);
+    if (!base) { ++g_rejected; return; }
 
     const float lanes_in[4] = { x, y, z, w };
     if (target >= 0 && write_definition(*e, (uint32_t)target, lanes_in)) {
