@@ -219,9 +219,10 @@ def main() -> int:
                 # clang's defaults and so does this. -w is what hid two
                 # -Winvalid-pp-token diagnostics through a whole round.
                 #
-                # SUNSET_1 deleted every __EMSCRIPTEN__ guard, so this
-                # define no longer selects an arm — no source reads it. It
-                # stays for FIDELITY: emcc always defines it, the
+                # Four __EMSCRIPTEN__ guards survive SUNSET_1 in
+                # renderer.hpp (docs/OPEN.md: GUARD DEBT), so this define
+                # SELECTS their shipping arms — and it stays, above all,
+                # for FIDELITY: emcc always defines it, the
                 # Emscripten headers may branch on it themselves, and a
                 # gate that compiles under different macros than the build
                 # is answering a different question. GLFW_INCLUDE_NONE

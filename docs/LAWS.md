@@ -779,7 +779,8 @@ audience floor (WebGPU core defaults) and the compiler floor
 SUNSET_1 (2026-08-16): the native arms are deleted from shared files and
 the __EMSCRIPTEN__ guards collapsed — everywhere but
 `realization/renderer.hpp`, which still carries four (census 2026-08-18).
-The gates compile their dead arms and skip the shipping ones; registered
+Gate coverage of those guards is split — console_gate (defining
+__EMSCRIPTEN__) checks the shipping arms, glaw1 the dead ones; registered
 in `docs/OPEN.md`. The tree BUILDS one program; it does not yet COMPILE
 only one. Resurrection remains archaeology from tag `native-sunset`.
 
