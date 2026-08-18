@@ -6,9 +6,6 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   fragment chain; fix designed (move entities[0].pos into frame_r as frame-cadence
   uniform); unblocked by a DPR staircase session. Origin: CHORD campaign; law home
   docs/CHORD.md.
-- WIT_2b: dropped_submits witness never printed — snprintf truncation in
-  cartridge.hpp near the dropped_submits format site; fix the format, re-arm the
-  witness. Origin: CLOSE campaign diagnosis.
 - 8-fit note: PARKED, awaiting Jean's design. The room-family compute pipelines carry
   9 storage-buffer layout entries visible to the compute stage, one over the WebGPU
   core default maxStorageBuffersPerShaderStage = 8. Origin: note.md +
@@ -58,7 +55,33 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   priced and shelved with its bill attached, not refused and not scheduled. The texture
   constraint belongs beside docs/FXC_LAWS_RECORD.md.
   (from docs/audit/TEX_C0_PRICE.md, de1d5db)
-- HARVEST: WIT_2b CONTRADICTION — the WIT_2b line above says the dropped_submits witness
-  never prints, but docs/audit/PROBATE_CLOSE.md:67 (606924f, the newest close) records
-  "WIT_2b's number — speaks on every device, and says zero." One of the two is stale;
-  Jean strikes whichever. (from docs/audit/PROBATE_CLOSE.md, 606924f)
+
+## Added at CANON C2
+
+- VOICE bus (terrain live-modulation): alias-table design — VOICE_LAYOUT[] shaped
+  like PARAM_LAYOUT[], one set_voice(channel, span) door, [VOICE] boot witness
+  enumerating every channel with rest + address; sketch in terrain_program_charter
+  §C5 (attic since CANON, last at a8f4580); unblocked by the music-coupling campaign.
+- Immediates witness: push-constant/immediate budgets have no census and no witness —
+  do not spend what nothing measures; the first campaign wanting them builds the
+  witness first. Origin: ESTATE_LOOM_WALLET (attic, 3b931ba).
+- SALON Stage B (slot count): STILL OPEN, land-gated. PAINTING_MAX_SLOTS is still 288
+  (state.hpp:271) and was last touched by LOOM_1 U3, not by a SALON re-spec; the
+  re-spec §0.1/§0.2/§0.3 is unpaid. The witness the stage relies on DOES exist —
+  tPipe (renderer.hpp:170). Origin: SALON_1 (attic, 3b931ba).
+- SALON Stage D (weld): STILL OPEN, and sharper than the ledger recorded. The named
+  slot-filter defect IS fixed — clear_wall_paintings now filters on the sentinel
+  patch pair as well as form type (gallery.hpp:2481-2484). What remains: that
+  function resets `gs.wall_frame_count = 0` unconditionally (gallery.hpp:2493),
+  OUTSIDE the patch-filtered loop, while evict_paintings_for_patch decrements the
+  same uint32_t unguarded (gallery.hpp:1423). An outdoor WALL_FRAME slot that
+  survives a clear leaves the counter at 0, and the next evict on that patch
+  underflows it; the value is consumed as a draw count (render_passes.hpp:490,614).
+  Origin: SALON_1 (attic, 3b931ba).
+- SALON Stage E (salon hang): STILL OPEN — visual gate, Jean's eye. Prerequisite
+  findings §0.5 (vault-crown coupling) and §0.9 (live floor breach) stand.
+  Origin: SALON_1 (attic, 3b931ba).
+- SALON HELD (packing): STILL OPEN — never built: floor_margin and target_coverage
+  both have 0 hits in src/. Note the ledger's cost figure assumed EXHIBITION_LAYERS
+  32; the tree now reads 40 (state.hpp:294), so "32 -> 256 = +896 MiB" wants
+  recomputing before it is spent. Origin: SALON_1 (attic, 3b931ba).
