@@ -49,6 +49,12 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   PROBATE_E3. Unblocked by naga shipping the extension — watched
   automatically by tools/wgsl_gate.py ARM 4, which prints when it happens —
   or by an exhibition that pays for the spend.
+- wgsl_gate.py TypeError in the directive-removed branch: the two-line note at
+  "DIRECTIVE not in src" splits a %s from its operand, so the branch raises
+  instead of printing. Unreachable while world.wgsl carries requires
+  immediate_address_space; fires the day it does not — i.e. exactly when the
+  gate should announce its own retirement. Reproduced 2026-08-18. Origin:
+  RECENSION rider FLAG-R1. Cure is one line; unblocked by the gates sitting.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
