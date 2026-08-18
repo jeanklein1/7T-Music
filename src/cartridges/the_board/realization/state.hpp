@@ -1982,7 +1982,11 @@ namespace t7 {
             // per-frame upload consumes — and a fact's home has one dirty
             // bit. So organ_mark_dirty raises THAT one for config_ and keeps
             // no second flag beside it; the bit here is left to the witness,
-            // and organ_flush's config arm writes nothing.
+            // and organ_flush's config arm writes nothing. The drivers' room
+            // (ORGAN_2a, block 3) is a third case: it has no GPU block and so
+            // no dirty bit anywhere — its bit is the witness's record and
+            // nothing else, because the seams that read it each tick are its
+            // flush.
             uint32_t organTouched_ = 0;
             uint32_t organLastFlush_ = 0;
             bool configDirty_ = true;      // true at boot → first frame always uploads
@@ -3792,6 +3796,13 @@ namespace t7 {
                         offsetof(GPUSceneConstants, tier_gains),
                         agentRoomStage_.tier_gains,
                         sizeof(agentRoomStage_.tier_gains));
+                    ++organLastFlush_;
+                }
+                if (organTouched_ & (1u << 3)) {        // the drivers' room
+                    // DRIVERS (block 3) — no upload and no flag: the home is
+                    // CPU-read, and the seams that read it each tick ARE its
+                    // flush. The count still rises: the panel's edit was
+                    // reconciled the moment it landed.
                     ++organLastFlush_;
                 }
                 organTouched_ = 0;

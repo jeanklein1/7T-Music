@@ -20,7 +20,10 @@
 // state.hpp, which exposes exactly three homes to the panel and no others
 // (organ_config_home / organ_lighting_home / organ_agent_room_home). There
 // is no block id for GPU truth because there is no accessor to build one
-// from. A panel that cannot name a thing cannot write it.
+// from. A panel that cannot name a thing cannot write it. Block 3 is the
+// exception that proves it: the drivers' room is a contracts-tier CPU
+// surface built FOR the panel, so its base is the instance itself and no
+// GPUState accessor exists or is needed.
 //
 // THE MANIFEST IS THE WHITELIST. organ_set refuses any (block, offset,
 // type) triple that is not an entry in kOrganParams — not merely one that
@@ -32,6 +35,7 @@
 
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/contracts/spine_state.hpp"   // O1b — MoodProfile + mood_def: the definition side
+#include "cartridges/the_board/contracts/driver_surface.hpp"  // ORGAN_2a — the drivers' room (block 3)
 
 #include <cstddef>
 #include <cstdint>
@@ -84,7 +88,10 @@ enum : uint8_t {
     ORGAN_BLOCK_CONFIG     = 0,   // GPUDesignConfig      — config_
     ORGAN_BLOCK_LIGHTING   = 1,   // GPULighting          — lightingStage_
     ORGAN_BLOCK_AGENT_ROOM = 2,   // GPUAgentRoomConstants — agentRoomStage_
-    ORGAN_BLOCK_COUNT      = 3,
+    ORGAN_BLOCK_DRIVERS    = 3,   // DriverSurface         — DRIVER_LIVE
+                                  //   (contracts/driver_surface.hpp; CPU-read
+                                  //   home — the seams are its flush)
+    ORGAN_BLOCK_COUNT      = 4,
 };
 
 // ─── Definition targets (O1b) ─────────────────────────────────────────
@@ -122,6 +129,8 @@ struct OrganParam {
     uint8_t     couple;
     uint8_t     def_kind;     // O1b — ORGAN_DEF_NONE | ORGAN_DEF_MOOD
     uint16_t    def_offset;   // byte offset into MoodProfile, when def_kind is MOOD
+    uint8_t     ro;           // ORGAN_2a — a WITNESS, not a dial: the panel
+                              // meters it and organ_set refuses to write it
 };
 
 // ─── The enrollment macro ─────────────────────────────────────────────
@@ -133,7 +142,7 @@ struct OrganParam {
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
-                ORGAN_DEF_NONE, 0 },
+                ORGAN_DEF_NONE, 0, 0 },
 
 // The same line plus the field in MoodProfile the dial DEFINES. The
 // compiler takes this offset too, so a rename on the definition side fails
@@ -145,13 +154,26 @@ struct OrganParam {
                 (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_MOOD,                                               \
-                (uint16_t)offsetof(the_board::MoodProfile, DEFFIELD) },
+                (uint16_t)offsetof(the_board::MoodProfile, DEFFIELD), 0 },
+
+// ORGAN_2a — A WITNESS, NOT A DIAL. The same offsetof plumbing pointed at a
+// DRIVEN value: the panel reads it every 250 ms and shows it moving, and
+// organ_set refuses to write it. No min/max/step, because a meter has no
+// range to clamp against — the driver's own dials carry the ranges, and
+// they are enrolled with ORGAN_PARAM above.
+#define ORGAN_PARAM_RO(BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)              \
+    OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
+                ORGAN_BLOCK_##BLOCK,                                          \
+                (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
+                ORGAN_##TYPE, 0.0f, 0.0f, 0.0f, 0.0f, 0,                      \
+                ORGAN_DEF_NONE, 0, 1 },
 
 inline const OrganParam kOrganParams[] = {
 #include "console/organ_params.inc"
 };
 #undef ORGAN_PARAM
 #undef ORGAN_PARAM_DEF
+#undef ORGAN_PARAM_RO
 
 inline constexpr size_t kOrganParamCount =
     sizeof(kOrganParams) / sizeof(kOrganParams[0]);
@@ -178,6 +200,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_CONFIG:     return g_home->organ_config_home();
     case ORGAN_BLOCK_LIGHTING:   return g_home->organ_lighting_home();
     case ORGAN_BLOCK_AGENT_ROOM: return g_home->organ_agent_room_home();
+    case ORGAN_BLOCK_DRIVERS:    return &the_board::DRIVER_LIVE;
     default:                     return nullptr;
     }
 }
@@ -384,10 +407,11 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
         std::snprintf(buf, sizeof buf,
             "{\"id\":\"%s\",\"label\":\"%s\",\"group\":\"%s\",\"block\":%u,"
             "\"offset\":%u,\"type\":%u,\"min\":%g,\"max\":%g,\"step\":%g,"
-            "\"couple\":%u,\"def\":%u,\"v\":[",
+            "\"couple\":%u,\"def\":%u,\"ro\":%u,\"v\":[",
             e.id, e.label, e.group, (unsigned)e.block, (unsigned)e.offset,
             (unsigned)e.type, e.minv, e.maxv, e.step, (unsigned)e.couple,
-            (unsigned)(e.def_kind != ORGAN_DEF_MOOD ? 0u : 1u));
+            (unsigned)(e.def_kind != ORGAN_DEF_MOOD ? 0u : 1u),
+            (unsigned)(e.ro ? 1u : 0u));
         json += buf;
         const int n = lanes_of(e.type);
         for (int l = 0; l < n; ++l) {
@@ -419,6 +443,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     const OrganParam* e = find_entry(block, offset, type);
     void* base = e ? block_base((uint8_t)block) : nullptr;
     if (!e || !base) { ++g_rejected; return; }   // not in the manifest: refused
+    if (e->ro)       { ++g_rejected; return; }   // a witness, not a dial (ORGAN_2a)
 
     const float lanes_in[4] = { x, y, z, w };
     if (target >= 0 && write_definition(*e, (uint32_t)target, lanes_in)) {
