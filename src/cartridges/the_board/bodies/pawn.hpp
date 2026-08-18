@@ -4,6 +4,7 @@
 #include <algorithm>  // std::min (aura config assembly)
 #include <iostream>   // command-door logs
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
+#include "cartridges/the_board/contracts/driver_surface.hpp"   // ORGAN_2a — THE DRIVERS' ROOM: the presence ramp's intent/attack/release + height gain
 
 // ─── pawn.hpp (MERGED single file) ────────────────────────────────
 // hpp+inl collapsed: struct + deps + inline impl, one pre-class file.
@@ -22,8 +23,10 @@ namespace the_board {
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Aura presence ramp ───────────────────────────────────────────
-inline constexpr float AURA_PRESENCE_ATTACK  = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
-inline constexpr float AURA_PRESENCE_RELEASE = 1.5f;   // 1/s — ~2s to zero
+// Ramp rates moved home to the drivers' room (contracts/driver_surface.hpp,
+// ORGAN_2a). The authored values they carried — 1.0 attack (~3s to full,
+// the spring converges in ~0.5s) and 1.5 release (~2s to zero) — are
+// DRIVER_TABLE's, and the tick reads DRIVER_LIVE.aura.
 
 struct PawnAuraDeltaMode {
     static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
@@ -72,8 +75,9 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 // Field roles:
 //   active_aura_profile — Currently active profile (PAWN_AURA_DEFAULT;
 //     swappable by landmarks/commands).
-//   aura_enabled — On/off intent (numpad 3, direction/input.hpp); the presence ramp
-//     smooths the transition. Temporary binding; the function persists.
+//   (aura intent — lives at DRIVER_LIVE.aura.intent, contracts/driver_surface.hpp;
+//    written by key 3's door, the mood policy door, and the panel. The presence
+//    ramp smooths the transition toward it, at the room's own attack/release.)
 //   aura_height_enabled — Height-effect gate (key 2, direction/input.hpp);
 //     flattens the extrusion. It USED to leave the color tint visible; since
 //     TUNE_1 A4 muted tint_strength there is no tint left to leave, so the
@@ -86,7 +90,6 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 
 struct PawnState {
     PawnAuraProfile active_aura_profile = PAWN_AURA_DEFAULT;
-    bool            aura_enabled        = false;
     bool            aura_height_enabled = true;
     bool            aura_needs_clear    = false;
     bool            aura_cfg_dirty      = true;
@@ -119,9 +122,10 @@ inline void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue) 
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
     // (aura_presence lives on player_ — SEAM[spine:P8]; see PlayerState, contracts/spine_state.hpp)
     {
-        const float target = ps.aura_enabled ? 1.0f : 0.0f;
+        const auto& drv    = DRIVER_LIVE.aura;   // ORGAN_2a — the ramp's dials
+        const float target = drv.intent ? 1.0f : 0.0f;
         const float prev   = c->player_.aura_presence;
-        const float rate   = (target > prev) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
+        const float rate   = (target > prev) ? drv.attack : drv.release;
         c->player_.aura_presence = prev + (target - prev) * (1.0f - std::exp(-rate * c->time_state_.dt));
 
         // Snap to endpoints to avoid perpetual drift
@@ -133,7 +137,8 @@ inline void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue) 
     // Pawn aura height: presence × base height. Same value is consumed
     // by terrain VS for extrusion, so pawn and terrain always agree.
     const float effective_aura_height = ps.aura_height_enabled
-        ? ps.active_aura_profile.height_scale * c->player_.aura_presence
+        ? ps.active_aura_profile.height_scale * DRIVER_LIVE.aura.height_gain
+              * c->player_.aura_presence
         : 0.0f;
     c->gpuState_.set_pawn_aura_height(effective_aura_height);
     // Keep compute running while ramping down (so the trail decays cleanly).
@@ -219,9 +224,9 @@ inline void toggle_aura_height(PawnState& ps, PawnDeps* c) {
 
 inline void toggle_aura(PawnState& ps, PawnDeps* c) {
     (void)c;
-    ps.aura_enabled = !ps.aura_enabled;
+    DRIVER_LIVE.aura.intent = DRIVER_LIVE.aura.intent ? 0u : 1u;   // ORGAN_2a — the intent's home
     ps.aura_cfg_dirty = true;
-    std::cout << "[Aura] Field: " << (ps.aura_enabled ? "ON" : "OFF") << "\n";
+    std::cout << "[Aura] Field: " << (DRIVER_LIVE.aura.intent ? "ON" : "OFF") << "\n";
 }
 
 // ─── Mood policy door: respect player preference when
@@ -229,7 +234,8 @@ inline void toggle_aura(PawnState& ps, PawnDeps* c) {
 // the pawn's own door instead of writing the organ. Semantics
 // byte-identical to the direct write it replaces (disclosure rule).
 inline void apply_aura_mood_policy(PawnState& ps, bool allow) {
-    if (!allow) ps.aura_enabled = false;
+    (void)ps;
+    if (!allow) DRIVER_LIVE.aura.intent = 0u;
 }
 
 } // namespace the_board
