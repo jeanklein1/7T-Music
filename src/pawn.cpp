@@ -60,8 +60,6 @@
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.watcher_ticks gates the hot-reload progress dot
 #include "core/boot_params.hpp"   // DOMESDAY_1 B9 — parse_boot_params at the top of main
 #include <iostream>
-#include <filesystem>
-#include <system_error>   // std::error_code — the watcher's non-throwing stat
 #include <chrono>
 #include <emscripten.h>   // emscripten_set_main_loop / cancel — the rAF driver
 
