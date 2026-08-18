@@ -124,8 +124,7 @@ message(STATUS "")
 # The render cartridge (the_board) driven by the BeatClock.
 # Uses PAWN_RENDER_CARTRIDGE.
 #
-# Build:  cmake --build . --target pawn
-# Run:    ./pawn.exe
+# Build:  cmake --build --preset the-board-web  (full chain: CLAUDE.md)
 #
 
 # Only the active cartridge's headers → scoped IntelliSense
@@ -202,8 +201,7 @@ if(EMSCRIPTEN)
         set(T7_WEB_DIAG)
     endif()
 
-    # Identical defines to the native target (MSVC block above does not
-    # apply under the emscripten toolchain).
+    # Program defines.
     target_compile_definitions(pawn PRIVATE
         INCUBATE_RENDER=${PAWN_RENDER_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
