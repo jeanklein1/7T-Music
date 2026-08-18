@@ -309,6 +309,20 @@ naming the wrong one misdirects rather than merely underdelivers.
 
 ## SCHEDULING RECORD
 
+> DRIFT NOTE (RECENSION_3, 2026-08-18; L28): the DAWN RELEASE BUILD entry
+> below measures the RETIRED NATIVE toolchain (SUNSET_0) against a compiler
+> the program no longer targets (PIVOT_0). Its numbers are minutes and stand
+> as such. Three of its clauses do not describe the tree: the multi-config
+> Dawn build, the parameterized `Debug` path segments in `CMakeLists.txt`,
+> and the `world.wgsl` banner's FXC hang cliff, which PROBATE retired. Its
+> standing consequence is subsumed — every native CPU number is retired by
+> the sunset, not merely the pre-2026-07-29 ones. Its live consequence still
+> holds, by a mechanism no line in this tree carries: `NDEBUG` appears in
+> neither `CMakePresets.json` nor `CMakeLists.txt`; it arrives with CMake's
+> own default Release flags, because the `the-board-web` preset pins
+> `CMAKE_BUILD_TYPE: Release`. `the-board-web-debug` pins `Debug` and drops
+> it (PORT_2c, the diagnostic twin); `signal_layout.hpp` is its one reader.
+
 **DAWN RELEASE BUILD — DONE (2026-07-29).** Dawn/Tint built `--config Release`
 in the existing multi-config tree at the pinned revision `f0bf8ab5…`; the
 eighty hardcoded `Debug` path segments in `CMakeLists.txt` were parameterized
