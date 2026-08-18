@@ -33,7 +33,7 @@ enum ContributorId : uint32_t {
 // These ids are mirrored byte-for-byte as the WGSL POLICY_* consts
 // (world.wgsl, above the POLICY_*_MASK block) — manifold_resolve
 // switches on them. Keep the two in lock-step (same order/values), as
-// with CONTRIB_*. audit/tools/glaw2/run.py checks both mirrors.
+// with CONTRIB_*. tools/gates/glaw2/run.py checks both mirrors.
 enum PolicyId : uint32_t {
     POLICY_BAKED_HEIGHTFIELD    = 0,
     POLICY_FLYER                = 1,

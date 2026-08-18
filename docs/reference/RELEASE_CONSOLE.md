@@ -1,4 +1,9 @@
+> Captured console transcripts, 2026-08 (P4 stamp). The web shell's status
+> triggers were designed against these lines (web/index.html). Specimens,
+> not current output.
+
 (index):27 
+
 (index):27 ========================================
 (index):27   INCUBATOR DUAL (web twin — no hot reload)
 (index):27   Clock:    BeatClock

@@ -36,8 +36,8 @@
 # set is deliberately not a full builtin list, only the names that have
 # actually tripped it.
 #
-#   python3 audit/tools/glaw2/run.py --record   # freeze the baseline
-#   python3 audit/tools/glaw2/run.py            # check against it
+#   python3 tools/gates/glaw2/run.py --record   # freeze the baseline
+#   python3 tools/gates/glaw2/run.py            # check against it
 # ═══════════════════════════════════════════════════════════════════════
 """G-LAW 2 stand-in: no dangling name, no structural break in world.wgsl."""
 
@@ -48,7 +48,7 @@ import re
 import sys
 
 WGSL = "src/cartridges/the_board/realization/world.wgsl"
-BASE = "audit/tools/glaw2/baseline.json"
+BASE = "tools/gates/glaw2/baseline.json"
 
 # WGSL predeclared names the baseline could not have captured, because the
 # shader did not call them at record time. See SELF-CALIBRATION above.

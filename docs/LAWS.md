@@ -103,7 +103,7 @@ this rule and a witness keeps them equal:
 **Edit both rooms in the same commit.** The C++ room is held by `offsetof` /
 `sizeof` static_asserts and `ASSERT_POLICY_DAG_CLOSED`; the WGSL room is held
 by nothing the compiler can see, which is why the rule is written down.
-`audit/tools/glaw2/run.py` checks the policy and contributor mirrors. **The
+`tools/gates/glaw2/run.py` checks the policy and contributor mirrors. **The
 struct mirror currently has no automated check.** It was `pruning_census.py`
 §3, retired at WINNOW-2 T-j; the check was not re-homed, so until it is, this
 law rests on the `sizeof`/`offsetof` asserts in `state.hpp` and on the reader.
@@ -833,10 +833,13 @@ perfectly sensible place to put it.
 
 ## L33 — audit/ IS THE MACHINE'S ROOM
 
-`audit/` holds **generated files and the tools that generate them**. Nothing else.
+`audit/` holds **generated files ONLY**. Every tool lives in `tools/` (gates under
+`tools/gates/`).
 
 Humans write in `docs/`. If a file in `audit/` has no generator, it is in the
-wrong room. The four that live there — `MANIFEST.md`, `BINDING_LEDGER.md`,
+wrong room — and **everything in `audit/` is deletable and rebuildable by its
+generator**, which is the room's standing witness: delete the four, run the
+four tools, and the tree is byte-identical again. The four that live there — `MANIFEST.md`, `BINDING_LEDGER.md`,
 `MIRROR_LEDGER.md`, `COMMAND_LEDGER.md` — each name their producer in their own
 header, and each is byte-reproducible from the tree.
 

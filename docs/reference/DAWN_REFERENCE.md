@@ -1,5 +1,10 @@
 # Dawn — build reference
 
+> ARCHIVAL WITH NAMED DRIFT (CANON, 2026-08): FXC is struck (L2, PIVOT_0)
+> and the native arms are sunset (SUNSET_0-2) — sections describing FXC as
+> the live compiler and native build trees describe a retired world.
+> Rewrite pending Jean's reference round.
+
 Documents the ARCHIVED native build (native-sunset, PIVOT_0). Kept as record; nothing here binds the web twin.
 
 Dawn is a prebuilt external dependency, not a submodule. This document

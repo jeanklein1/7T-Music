@@ -2165,7 +2165,7 @@ namespace t7 {
             // THE SPINE TABLES — the AUTHORED order (row order == frame order).
             // Row = {phase id, name, member fn, driver(§9), roster gate, face}.
             // A gate is a constexpr-folded bool (ROSTER bit or `true` for
-            // foundational spine work). The census (audit/tools/score) audits
+            // foundational spine work). The census (tools/gates/score) audits
             // THESE ROWS: manifest = the table, attribution = row membership.
             // ═══════════════════════════════════════════════════════════════
             static constexpr URow UPDATE_SPINE[] = {
