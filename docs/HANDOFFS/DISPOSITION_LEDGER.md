@@ -289,3 +289,204 @@ Veil` respectively.
 | `SCHEME`/`WALL_PAIR`/`ANCHOR_PICK`/`SLOT_BASE` + field ids | U32 | 1100-1110 | C5 | — | — | BOOT — **RNG salts are addresses, not dials** (§0) |
 | `SCHEME_NAMES` / `ANCHOR_NAMES` | strings | — | C5 | — | — | BOOT — identity |
 | `VAULT_RISE_FRACTION` (0.30), `MIN_RISE_FLOOR` (5.0), `JOINT_OVERLAP` (3.0), `WALL_FLOOR` (−50), `VAULT_N` (32), `MAX_OUTER_HALF` (1.3) | F32/U32 | — | C5 | — | — | BOOT — indoor shell geometry, read while the world is built |
+
+---
+
+# 4 · `bodies/`
+
+The entity-module pattern is the spine — the ribbon's own banner names
+it: *tuning console → registry → tiers → runtime state*. Four modules
+were **read whole** and are surveyed at parameter granularity below
+(`pawn`, `agents`, `orbs`, `ribbon`). Five were surveyed **by sweep**
+and are flagged, not enrolled — see §4.6.
+
+## 4.1 bodies/pawn.hpp
+
+Fully dispositioned by ORGAN_2a. `PawnAuraProfile`'s remaining fields
+are the module's own facts, deliberately out of the drivers' room:
+
+| param | shape | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `influence_radius` | F32 | 20.0 | C2 | Pawn · Aura profile | 0 … 80 `[heuristic]` | ENROLL w2 |
+| `attack_stiffness` | F32 | 12.0 | C2 | Pawn · Aura profile | 0 … 48 `[heuristic]` | ENROLL w2 |
+| `attack_damping` | F32 | 0.7 | C2 | Pawn · Aura profile | 0 … 2.8 `[heuristic]` | ENROLL w2 |
+| `release_rate` | F32 | 1.5 | C2 | Pawn · Aura profile | 0.05 … 8 `[tree]` (matches the ramp's own range, 2a) | ENROLL w2 |
+| `tint_strength` | F32 | 0.0 (MUTED, TUNE_1 A4) | C2 | Pawn · Aura profile | 0 … 1 `[identity]` | ENROLL w2 |
+| `tint_r/g/b` | VEC3 | 0.4/0.2/0.5 | C2 | Pawn · Aura profile | 0 … 1 `[identity]` | ENROLL w2 |
+| `delta_magnitude` | F32 | 0.3 | C2 | Pawn · Aura profile | 0 … 1.2 `[heuristic]` | ENROLL w2 |
+| `height_scale` | F32 | 3.0 | C2 | Pawn · Aura profile | 0 … 12 `[heuristic]` | ENROLL w2 |
+| `delta_mode` | U32 | CONVERGENT(0) | C2 | Pawn · Aura profile | 0 … 1 `[tree]` (0 convergent, 1 random) | ENROLL w2 |
+| `effect_mask` | U32 | 0x3 | C5 | — | — | BOOT — **STATUS: INTENT**, uploaded and never read (TUNE_1 A4 census). A dial on an unread field would lie. |
+
+`tint_strength` is the sharpest instance of the panel's value: the tree
+says *"MUTED … 0 silences the terrain tint outright"*. Enrolling it hands
+Jean back a whole effect that is currently switched off in source.
+
+## 4.2 bodies/agents.hpp — AGENT_BEHAVIORS
+
+`AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT]` is 10 rows × 7 floats, read by
+`upload_agent_registries_to_gpu` — **the same author as the tier bank**.
+So it rides the *existing* TIER re-speak: a `BEHAVIOR_LIVE` bank beside
+`TIER_LIVE`, one flag, one boundary. **C3 idempotent.**
+
+10 rows exceeds D5's ≤8, but D5's cut is about *composite* editing; these
+are 7 uniform float columns with a stable row identity, so the honest
+shape is per-row enrollment under `Agents · <behavior name>`. Recorded
+as an explicit D5 exception with its reason.
+
+| column (×10 rows) | authored span | class | range [ev] | verdict |
+| --- | --- | --- | --- | --- |
+| `step_rate` | 0 … 0.8 | C3 idem | 0 … 1 `[tree]` (span +25%) | ENROLL w3 |
+| `step_size` | 0 … 8.0 | C3 idem | 0 … 10 `[tree]` | ENROLL w3 |
+| `persistence` | 0 … 0.85 | C3 idem | 0 … 1 `[identity]` | ENROLL w3 |
+| `drag` | 0 … 3.0 | C3 idem | 0 … 3.75 `[tree]` | ENROLL w3 |
+| `home_pull` | 0 … 8.0 | C3 idem | 0 … 10 `[tree]` | ENROLL w3 |
+| `neighbor_radius` | 0 … 40.0 | C3 idem | 0 … 50 `[tree]` | ENROLL w3 |
+| `speed_cap` | 0 … 8.0 | C3 idem | 0 … 10 `[tree]` | ENROLL w3 |
+
+Other agents.hpp constants: `AGENT_EVICTION_RADIUS` (350, **C5** — it
+stands under `static_assert(… == Dim::EXIST_RADIUS)`, the VEIL CHAIN
+ruling), `AGENT_CENSUS_INTERVAL` (30 s, **C5** — a diagnostic cadence),
+`POSSESSION_RADIUS` (20, **C2**, `Interaction · Possession`,
+`0 … 80 [heuristic]`, ENROLL w2 — note its `_SQ` twin is derived and must
+be recomputed at the read, or the pair drifts; flagged for w2's edit),
+`PLAYER_SLOT` (0, **C5** — identity), `AGENT_TIER_NAMES` (**C5**).
+
+## 4.3 bodies/orbs.hpp — the expected first Wave-3 instance
+
+`ORB_MOOD_TABLE[MOOD_COUNT]` is read at `mood.hpp:694` —
+`configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_TABLE[mood], queue)` —
+inside `apply_mood`. That is the **idempotent** applier the handoff
+predicted: re-running it rebuilds the orb population from the config, so
+a bank change gets a frame-boundary re-speak, the 2b pattern verbatim.
+
+Bank: `ORB_MOOD_LIVE[MOOD_COUNT]`, kind `ORB_MOOD`, definition-only
+entries (there is no instance the panel may address — `configure_orbs`
+consumes the config into GPU state). One line per **field**, the target
+selecting the mood, exactly as `MoodProfile` works today.
+
+| field | shape | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `count` | U32 | per mood | C3 idem | Sky & Light · Orbs | 0 … `Dim::MAX_ORBS` `[tree]` (the config's own clamp) | ENROLL w3 |
+| `base_hue` | F32 | 0.08 | C3 idem | Sky & Light · Orbs | 0 … 1 `[identity]` | ENROLL w3 |
+| `hue_variance` | F32 | 0.05 | C3 idem | Sky & Light · Orbs | 0 … 1 `[identity]` | ENROLL w3 |
+| `brightness` | F32 | 0.8 | C3 idem | Sky & Light · Orbs | 0 … 1 `[identity]` | ENROLL w3 |
+| `hue_converge_target` | F32 | 0.12 | C3 idem | Sky & Light · Orbs | 0 … 1 `[identity]` | ENROLL w3 |
+| `drag` | F32 | 0.5 | C3 idem | Sky & Light · Orbs | 0 … 2 `[heuristic]` | ENROLL w3 |
+| `rotation_speed` | F32 | 0.0 rad/s | C3 idem | Sky & Light · Orbs | −2 … 2 `[heuristic]` | ENROLL w3 |
+| `rotation_axis[3]` | VEC3 | (0,1,0) | C3 idem | Sky & Light · Orbs | −1 … 1 `[identity]` (normalised in `configure_orbs`) | ENROLL w3 |
+| `orbital_base_speed` | F32 | 0.0 rad/s | C3 idem | Sky & Light · Orbs | 0 … 1 `[heuristic]` | ENROLL w3 |
+| `flock_sep_radius` | F32 | 50 | C3 idem | Sky & Light · Orb flock | 0 … 200 `[heuristic]` | ENROLL w3 |
+| `flock_align_radius` | F32 | 120 | C3 idem | Sky & Light · Orb flock | 0 … 480 `[heuristic]` | ENROLL w3 |
+| `flock_coh_radius` | F32 | 200 | C3 idem | Sky & Light · Orb flock | 0 … 800 `[heuristic]` | ENROLL w3 |
+| `flock_sep_weight` | F32 | 30 | C3 idem | Sky & Light · Orb flock | 0 … 120 `[heuristic]` | ENROLL w3 |
+| `flock_align_weight` | F32 | 8 | C3 idem | Sky & Light · Orb flock | 0 … 32 `[heuristic]` | ENROLL w3 |
+| `flock_coh_weight` | F32 | 15 | C3 idem | Sky & Light · Orb flock | 0 … 60 `[heuristic]` | ENROLL w3 |
+| `flock_max_speed` | F32 | 60 | C3 idem | Sky & Light · Orb flock | 0 … 240 `[heuristic]` | ENROLL w3 |
+| `rule_drag_brownian/orbital/frozen/flocking` | F32 ×4 | 0.0 (pass-through) | C3 idem | Sky & Light · Orb flock | 0 … 4 `[tree]` (0 = pass-through 1.0×) | ENROLL w3 |
+| `motion_rule` | U32 | 0..3 | C3 idem | Sky & Light · Orbs | 0 … 3 `[tree]` (Brownian/Orbital/Frozen/Flocking) | ENROLL w3 |
+| `palette_id` | U32 | 0..3 | C3 idem | Sky & Light · Orbs | 0 … 3 `[tree]` (`ORB_PAL_COUNT`) | ENROLL w3 |
+| `tierset_id` | U32 | `ORB_TIERSET_NONE` | C3 idem | Sky & Light · Orbs | — | **DEFER** — its "none" value is `0xFFFFFFFF`; a 0…1 slider cannot express a sentinel without lying (D1(d)) |
+| `flock_gesture_default` | U32 | 0 | C3 idem | Sky & Light · Orbs | 0 … 7 `[tree]` (`ORB_FLOCK_GESTURE_COUNT`) | ENROLL w3 |
+| `enabled` | **C++ `bool`** | per mood | C3 idem | Sky & Light · Orbs | 0 … 1 | ENROLL w3 **via D2** — CPU-only struct being graduated, so the bank's field is `uint32_t` from birth (the aura-intent precedent) |
+
+Module console: `ORB_DOME_RADIUS` (500, **C2**, and its comment says
+*"Jean's dial"* — `Sky & Light · Dome`, `0 … 2000 [heuristic]`, ENROLL
+w2), `ORB_BASE_SIZE` (3.0, **C2**, `0 … 12 [heuristic]`, ENROLL w2),
+`ORB_NOISE_FLOOR` (0.3, **C2**, `0 … 1 [identity]`, ENROLL w2). The nine
+`ORB_DEFAULT_*` are *fallbacks the mood config already overrides* —
+**C5**, one reason: a dial on a default that every live path replaces
+would never be seen to move.
+
+Registries: `ORB_PALETTES` (4 palettes × 4 entries, mixed shapes),
+`ORB_TIERSETS`, and the three gesture registries (8 flock / 6 brownian /
+4 orbital) — **C5** by D5, with the composite-editor price named: a
+palette editor needs 4 hue/value/weight triples per palette, and the
+gesture registries need a per-gesture parameter block. Pricing, not
+promising.
+
+## 4.4 bodies/ribbon.hpp
+
+**The four pipes are already wired C4 seams** — `ribbon.hpp:833-846`
+reads them per frame with hard-coded fallbacks that *are* the rests:
+
+```cpp
+const float ml  = c->ribbon_amp_lat_dst_.valid  ? vp.get(...)  : 1.0f;
+const float mv  = c->ribbon_amp_vert_dst_.valid ? vp.get(...)  : 1.0f;
+const float mix = c->ribbon_tint_mix_dst_.valid ? vp.get(...)  : 0.0f;
+const float* st = c->ribbon_tint_stim_dst_.valid ? vp.run(...) : nullptr;
+```
+
+Wave 4's recipe applies verbatim: those four literals become
+`DriverSurface::Ribbon` rests, each gains a gain, and the driven values
+witness. Ranges from `PARAM_LAYOUT`'s own rest column (`amp_*` rest 1.0
+= identity, `color_stim` 0, `color_mix` 0).
+
+**Head control law** — the file's own words: *"All control-panel
+material."* Read per frame in `ribbon_advance_head` from constexpr, so
+**C2** with a `RIBBON_LIVE` bank:
+
+| param | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- |
+| `RIBBON_YAW_RATE` | 1.0 rad/s | C2 | Ribbon · Head | 0 … 4 `[heuristic]` | ENROLL w2 |
+| `RIBBON_MAX_SPEED` | 40.0 | C2 | Ribbon · Head | 0 … 160 `[heuristic]` | ENROLL w2 |
+| `RIBBON_R_MIN` | 40.0 | C2 | Ribbon · Head | 1 … 160 `[heuristic]` | ENROLL w2 |
+| `RIBBON_CLIMB_RATE` | 15.0 | C2 | Ribbon · Head | 0 … 60 `[heuristic]` | ENROLL w2 |
+| `RIBBON_FLOOR_MARGIN` | 25.0 | C2 | Ribbon · Head | 0 … 100 `[heuristic]` | ENROLL w2 |
+| `RIBBON_ALT_SMOOTH_DIST` | 180.0 | C2 | Ribbon · Head | 0 … 720 `[heuristic]` | ENROLL w2 |
+| `RIBBON_ALT_STIFF` | 0.36 | C2 | Ribbon · Head | 0 … 1.44 `[heuristic]` | ENROLL w2 |
+| `RIBBON_MOUNT_SETBACK` | 1.5 | C2 | Ribbon · Head | 0 … 6 `[heuristic]` | ENROLL w2 |
+| `RIBBON_SKY_YAW_TAU` | 0.6 s | C2 | Ribbon · Head | 0 … 2.4 `[heuristic]` | ENROLL w2 |
+| `RIBBON_REFERENCE_BPM` | 100.0 | C2 | Ribbon · Head | 40 … 240 `[heuristic]` | ENROLL w2 |
+| `WANDER_STEER_SOFT` | 0.5 rad | C2 | Ribbon · Wander | 0 … 2 `[heuristic]` | ENROLL w2 |
+| `WANDER_YAW_MAX` | 0.15 | C2 | Ribbon · Wander | 0 … 0.6 `[heuristic]` | ENROLL w2 |
+| `WANDER_YAW_TAU` | 2.0 s | C2 | Ribbon · Wander | 0 … 8 `[heuristic]` | ENROLL w2 |
+| `WANDER_ARRIVE_RADIUS` | 120.0 | C2 | Ribbon · Wander | 0 … 480 `[heuristic]` | ENROLL w2 |
+
+`RIBBON_YAW_RATE` and `RIBBON_R_MIN` are coupled by the file's own steering
+law — *"available yaw rate is min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN)"*
+— which is a `min`, not an assert, so both dials stay honest at every value.
+`RIBBON_R_MIN`'s min is **1, not 0**: zero would divide the turn radius to
+nothing. That floor is the range column earning its keep a second time.
+
+**Spawn-authored — C3 destructive**, banner *edits the next spawn*:
+`RibbonConfig::SPAWN_CHANCE` (0.900, `0 … 1 [identity]`),
+`RibbonConfig::POSITION_JITTER` (0.3), `WANDER_CHANCE` (0.30),
+`WANDER_CRUISE_BASE/SIGMA/MIN/MAX`, `WANDER_LEG_MIN/MAX`,
+`WANDER_SPREAD`, `WANDER_RETARGET_MIN/VAR`, `WANDER_HATCH_LEG`,
+`RibbonColorMode::WEIGHTS[3]`, `RIBBON_SMOOTH_PALETTE[4][3]`,
+`SMOOTH_VAR_RANGE/BIAS/G_SCALE/B_SCALE`, `TINTED_RANGE[3]`,
+`TINTED_BASE[3]` — all ENROLL w3 against a `RIBBON_SPAWN_LIVE` bank.
+
+**C5**: `MOUNT_TANGENT_ALIGN` / `MOUNT_BANK_GAIN` / `MOUNT_BANK_MAX` are
+**LOCKSTEP MIRRORS of world.wgsl** — the L3 hazard the panel exists to
+avoid; never a dial while the mirror is hand-kept.
+`MIN_CUBE_COUNT/SIZE`, `MIN_ADDED_HEIGHT`, `FOOTPRINT_RADIUS`,
+`ORIENTATION_SPREAD`, the `CheckerPair` tables and
+`RIBBON_SMOOTH_PALETTE_COUNT` — spawn geometry and counts, BOOT.
+
+## 4.5 bodies/pawn_figures.hpp
+
+`PAWN_FIGURES` — the figure table, read per frame for `tilt_tau`,
+`height` (→ `fpv_eye_height`) and body radius. Those three config fields
+are **C4 witnesses** (§6). The table itself is mixed-shape per-figure
+geometry: **C5**, D5, with the composite price named — a figure editor
+needs height/radius/tilt/share per row.
+
+## 4.6 FLAGGED — surveyed by sweep, not read whole
+
+Per FLAG-AND-FINISH, these five were swept (constant census, author
+grep) but **not read whole**, so nothing from them is enrolled and their
+rows are not claimed. What the sweep found, and what a successor needs:
+
+| module | constants | what the sweep says | why deferred |
+| --- | --- | --- | --- |
+| `bodies/grounded.hpp` | 240 | dominated by per-family placement geometry, column/antenna/arch build laws, `COLUMN_PALETTE` | the largest single console in the tree; a full read is its own sitting. Expect mostly C3-destructive (spawn) + C5 (build geometry) |
+| `bodies/gallery.hpp` | 92 | painting slots, exhibition layers, snapshot cadence, wall-frame budgets | intertwined with `Dim::EXHIBITION_LAYERS` and the SALON open items in `docs/OPEN.md`; enrolling before that register clears would cross a live deferral |
+| `bodies/cube_behaviors.hpp` | 65 | floater behaviour laws; `stage_floater_coordination` is its one live write | `floater_coordination` itself is surveyed in §6 as C4; the behaviour constants need the module read whole first |
+| `bodies/gol_zones.hpp` | 47 | zone birth/derive params; the GoL keeps its own panel by `terrain_looks` ROW 9 | jurisdiction: ROW 9 points at it as a separate panel, so it wants its own sitting |
+| `bodies/spheres.hpp` | 14 | sphere spawn + cap | small; deferred only because its family (`floaters.hpp` weights) is already w3 and should land together |
+
+This is the campaign's honest edge: **four modules read whole and
+enrolled, five surveyed and flagged.** The flag is the deliverable for
+those five — the next sitting starts here, not from zero.
