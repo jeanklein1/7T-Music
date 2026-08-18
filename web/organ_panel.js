@@ -49,6 +49,7 @@
     'font:inherit;padding:1px 3px}' +
     '#organ input[type=color]{flex:0 0 34px;height:18px;background:#14181d;border:1px solid #262b33;padding:0}' +
     '#organ .lane{flex:0 0 108px}' +
+    '#organ .ro{flex:1 1 auto;text-align:right;color:#8fa3b8}' +
     '#organ .mk{flex:0 0 58px;text-align:right;font-size:10px;color:#4f5761}' +
     '#organ .mk.free{color:#5f8f6a}' +
     '#organ .mk.event{color:#b0954e}' +
@@ -71,6 +72,24 @@
   var definitionMode = true;    // O1b — the durable write is the default one
 
   function clamp(v, p) { return v < p.min ? p.min : v > p.max ? p.max : v; }
+  // %.4g, so a meter reads like the manifest's own numbers. JS has no printf:
+  // C picks the exponential form at exponent < -4 or >= the precision, then
+  // strips the trailing zeros from whichever form it chose. Spelled out.
+  function g4(x) {
+    if (!isFinite(x)) return String(x);
+    if (x === 0) return '0';
+    var e = Math.floor(Math.log10(Math.abs(x)));
+    var s = (e < -4 || e >= 4) ? x.toExponential(3) : x.toPrecision(4);
+    var cut = s.indexOf('e');
+    var man = cut < 0 ? s : s.slice(0, cut);
+    if (man.indexOf('.') >= 0) man = man.replace(/0+$/, '').replace(/\.$/, '');
+    if (cut < 0) return man;
+    var ex = s.slice(cut + 1);                       // "+5" / "-07"
+    var sg = ex.charAt(0);
+    var dg = ex.slice(1);
+    while (dg.length < 2) dg = '0' + dg;             // C pads the exponent
+    return man + 'e' + sg + dg;
+  }
   function hex(v) {
     var b = function (f) {
       var n = Math.round(Math.max(0, Math.min(1, f)) * 255).toString(16);
@@ -93,7 +112,9 @@
     // contradict. A definition write is NOT that question — it never
     // touches the instance — so only the preview path marks the dial.
     var target = definitionMode ? C.mood() : -1;
-    if (!(definitionMode && p.def)) touched[p.i] = 1;
+    // A witness is never marked: organ_set refuses it, so the panel never got
+    // to ask the contest question and must not claim a reading (ORGAN_2a).
+    if (!(definitionMode && p.def) && !p.ro) touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           target);
   }
@@ -119,7 +140,7 @@
     var row = document.createElement('div'); row.className = 'row';
     var lbl = document.createElement('span'); lbl.className = 'lbl';
     lbl.textContent = p.label; lbl.title = p.id;
-    if (p.def) {
+    if (p.def && !p.ro) {
       var star = document.createElement('span'); star.className = 'star';
       star.textContent = ' *';
       star.title = 'has a mood definition';
@@ -129,6 +150,20 @@
     var mk = document.createElement('span'); mk.className = 'mk';
     mk.textContent = '\u00b7';
     mk.title = 'contest: does the panel\u2019s last word on this dial still stand?';
+
+    // ORGAN_2a — A WITNESS IS A METER, NOT A DIAL. A driven value carries no
+    // input of any kind: the dials that move it are its driver's, enrolled
+    // above it in the same group. The 250 ms loop below fills this span, so
+    // the operator watches the driven value breathe beside the rests and
+    // gains that shape it. No star either — a witness has no definition to
+    // write, and organ_set would refuse the write anyway.
+    if (p.ro) {
+      var meter = document.createElement('span'); meter.className = 'ro';
+      row.appendChild(meter); row.appendChild(mk); host.appendChild(row);
+      return finish({ p: p, mk: mk, ro: meter,
+               show: function (nv) { v = nv.slice(); },
+               read: function () { return v; } });
+    }
 
     if (p.type === BOOL) {
       var cb = document.createElement('input'); cb.type = 'checkbox';
@@ -261,6 +296,7 @@
       var m = C.mood();
       var out = {};
       rows.forEach(function (r) {
+        if (r.p.ro) return;   // witnesses export nothing: a meter is not a setting (ORGAN_2a)
         if (r.p.def) {
           var n = lanes(r.p.type), d = [];
           for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
@@ -311,6 +347,12 @@
     setInterval(function () {
       var contested = 0;
       rows.forEach(function (r) {
+        // A witness reads the home itself, every tick — that IS the row.
+        if (r.ro) {
+          var n = lanes(r.p.type), out = [];
+          for (var l = 0; l < n; l++) out.push(g4(C.get(r.p.block, r.p.offset, l)));
+          r.ro.textContent = out.join(' ');
+        }
         var k = C.contest(r.p.i);
         if (k > 0) contested++;
         // An untouched dial reads as free because nothing has contradicted
@@ -358,7 +400,8 @@
         contest:       M.cwrap('organ_contest', 'number', ['number']),
         contestFrames: M.cwrap('organ_contest_frames', 'number', ['number']),
         mood:          M.cwrap('organ_mood', 'number', []),
-        defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number'])
+        defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number']),
+        get:           M.cwrap('organ_get', 'number', ['number','number','number'])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());
