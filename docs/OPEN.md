@@ -18,6 +18,11 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   collapse the guard so the web arm is unconditional (SUNSET_1's stated
   intent; may cost stub declarations), or define __EMSCRIPTEN__ in both gates
   (may cost more). Origin: RECENSION_1 FLAG-7. Unblocked by a gates sitting.
+- L26 docket — fields marked dead, awaiting the sitting that next opens their
+  struct: `RibbonState.is_roaming`, `RibbonRingTransform._pad0`,
+  `OrbConfig`'s driverless gen-1 block. Each dies in the commit that reopens
+  its struct (L26, L3: twin rooms, one commit). Origin: L26, moved here by
+  RECENSION_2. Unblocked by any campaign that relayouts one of the three.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 

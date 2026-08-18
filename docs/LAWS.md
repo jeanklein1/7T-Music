@@ -671,9 +671,6 @@ opening of that struct makes the cost fall on the campaign that is
 already paying the mirror cost (L3: both rooms, same commit) — which is
 the only campaign that can remove it for free.
 
-Standing subjects today: `RibbonState.is_roaming`,
-`RibbonRingTransform._pad0`, and `OrbConfig`'s driverless gen-1 block.
-
 ## L27 — THE JOIN-COHERENCE LAW
 
 A schema datum and the emitter that joins on it move in one commit;
