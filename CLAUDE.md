@@ -24,7 +24,8 @@ dist/ is the deploy target. web/ holds sources only.
 ## Where truth lives
 - docs/LAWS.md — the rule book. Read before proposing.
 - docs/OPEN.md — the only home of open/parked state.
-- docs/HANDOFFS/ — open work orders only; if it's in here, it isn't done.
+- docs/HANDOFFS/ — open work orders only; if it's in here, it isn't
+  done. (The directory exists only while work is open — absence is health.)
 - audit/ — the machine's room: generated ledgers only (their tools live in
   tools/). MANIFEST.md and BINDING_LEDGER.md are law and stay searchable.
 - The tree holds living matter only; git history is the attic.
