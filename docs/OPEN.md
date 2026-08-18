@@ -6,7 +6,6 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   docs/HANDOFFS/WEB/PIPE_0_DECISION.md (path retired to git; content at its last sha).
 - STREAM_0: PARKED per Jean's 2026-08-07 directive. Origin sha of
   docs/HANDOFFS/WEB/STREAM_0_DECISION.md (path retired to git; content at its last sha).
-- Panel (JSX/Vite): resumes as sibling repo with its own git; sources and package.json recoverable at 850f896^ (CUT_1g retired them); node_modules on disk stays untouched until founding.
 - DAWN_REFERENCE web-era rewrite: docs/reference/DAWN_REFERENCE.md is
   archival-with-named-drift (its own CANON stamp); the rewrite awaits Jean's
   reference round. Origin: the stamp itself.
