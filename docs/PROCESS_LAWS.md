@@ -202,6 +202,17 @@ Scope note: this binds the *verification*, not exploration. Piping a survey to
 gone is not — and the tell is the word "no" or "zero" in the sentence the search
 is about to justify.
 
+**Corollary, paid for by RECENSION_0 (2026-08-18):** a document read
+through retrieval is a truncated search wearing a different interface.
+Chunk retrieval surfaces the middle of a file and misses its
+**extremities** — where stamps sit at the head, and scheduling records,
+candidates and dockets sit at the tail. RECENSION_0 reported a missing
+archival stamp on a file that carried one at its head, and the stalest
+region the whole arc found — this file's own SCHEDULING RECORD — sat below
+the last law retrieval had surfaced. An audit therefore **declares which
+files it read whole**; the ones it did not are findings pending, not files
+cleared.
+
 It is P9 one more layer out. There the cached label was a git ref; here it was
 the shell's own output. Both times the reasoning was sound and the input to it
 was a summary that had quietly dropped the disconfirming case.
