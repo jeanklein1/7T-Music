@@ -61,6 +61,7 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
+#include "cartridges/the_board/contracts/driver_surface.hpp"       // ORGAN_2a — THE DRIVERS' ROOM: rests and gains at the seams; phase_motion_drivers reads DRIVER_LIVE.fog
 #include "cartridges/the_board/contracts/floaters.hpp"   // floater TYPES (ActiveSphere/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "console/organ_registry.hpp"   // ORGAN_0b — the compiled dial registry + its C ABI (needs the home types above)
@@ -1046,12 +1047,28 @@ namespace t7 {
             void phase_motion_drivers(UpdateCtx& c) {
                 auto& signal = c.signal;
                 visual_canvas_.tick(signal);
-                if (fog_density_dst_.valid && fog_color_dst_.valid) {
-                    const VisualParams& fp = visual_canvas_.params();
-                    gpuState_.set_fog(fp.get(fog_density_dst_.base),
-                        fp.get(fog_color_dst_.base + 0),
-                        fp.get(fog_color_dst_.base + 1),
-                        fp.get(fog_color_dst_.base + 2));
+                // ORGAN_2a — the drivers' room sits at this seam:
+                // out = rest + gain·(driven − rest). Gain 1 is the
+                // coupling verbatim (the pre-2a behavior, byte-for-byte);
+                // gain 0 is the curator's rest. With no bindings the rest
+                // alone speaks, so the dial works headless too.
+                //
+                // D2: set_fog GUARDS — it compares all four lanes and
+                // dirties only on a change — so both arms call it
+                // unconditionally and the silent case costs no dirty.
+                {
+                    const auto& drv = DRIVER_LIVE.fog;
+                    if (fog_density_dst_.valid && fog_color_dst_.valid) {
+                        const VisualParams& fp = visual_canvas_.params();
+                        gpuState_.set_fog(
+                            drv.rest_density + drv.gain * (fp.get(fog_density_dst_.base) - drv.rest_density),
+                            drv.rest_color[0] + drv.gain * (fp.get(fog_color_dst_.base + 0) - drv.rest_color[0]),
+                            drv.rest_color[1] + drv.gain * (fp.get(fog_color_dst_.base + 1) - drv.rest_color[1]),
+                            drv.rest_color[2] + drv.gain * (fp.get(fog_color_dst_.base + 2) - drv.rest_color[2]));
+                    } else {
+                        gpuState_.set_fog(drv.rest_density, drv.rest_color[0],
+                                          drv.rest_color[1], drv.rest_color[2]);
+                    }
                 }
                 // CHECKER-REBUILD: the pc-color field's flush — one setter,
                 // the fan (resultant rgb + music amount + music variance).
