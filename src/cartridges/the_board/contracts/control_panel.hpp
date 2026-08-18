@@ -31,9 +31,13 @@
 // ribbon.hpp:156-158). Single-homed today, so no L3 hazard — they
 // join when the panel proper is designed.
 //
-// RUNTIME TUNABILITY IS NOT HERE YET. These are authored rests,
-// compiled in; the dials become live when FIELD_5 / the panel
-// proper give them a transport. Changing one is still a rebuild.
+// RUNTIME TUNABILITY ARRIVED (ORGAN_3). The field's eight dials reach
+// the panel through the config uniform they were already boot-pinned
+// into — one ORGAN_PARAM line each, no bank needed. The two families
+// that had NO transport get one below: PANEL_LIVE, the live surface
+// for the beacon's rests and the camera's controls. The banner above
+// predicted this sitting — "they join when the panel proper is
+// designed" — and ORGAN_3 is the panel proper.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -87,6 +91,52 @@ inline constexpr float FIELD_BEACON_LIFT = 20.0f;
 static_assert(FIELD_BEACON_S < FIELD_K,
     "the beacon's pull must lose to field repulsion at the ring — "
     "otherwise the gather clots instead of spacing (FIELD_4's ruling)");
+
+// ═══ THE LIVE SURFACE (ORGAN_3 w2, C2) ═══════════════════════════
+// The rests above are the DESIGN; PANEL_LIVE is what the writers
+// read. Two families, one bank, because they share one home: this
+// file is "THE PANEL — one home, every room", and a second contracts
+// header per family would be two homes for one idea.
+//
+// THE BEACON'S S IS NOT HERE. The static_assert above proves
+// FIELD_BEACON_S < FIELD_K at compile time, and a compile-time proof
+// cannot guard a runtime dial: a panel that pushed S past field_k
+// would clot the gather with the assert still reading true and no
+// witness anywhere. S stays authored until the writer carries a
+// clamp or the ruling is restated as a paired range. The other three
+// beacon rests have no such partner and go live.
+//
+// THE CAMERA'S CONTROLS ARE CONTROLS, NOT POSE. Camera pose is GPU
+// truth and has no section by ORGAN_3's rule; what lives here is the
+// input grammar — how far a wheel notch zooms, how a keypress steps
+// the look sensitivity and where that step is clamped.
+struct PanelSurface {
+    struct Beacon {
+        float r0;      // inner radius — sits outside the point's bubble
+        float r;       // outer radius
+        float lift;    // height above the point
+    } beacon;
+    struct Camera {
+        float look_sens_init;    // the clamp's anchor
+        float look_sens_step;    // multiplicative, per keypress
+        float look_sens_range;   // clamp half-width: init/R … init*R
+        float scroll_zoom_scale; // orbit distance per wheel notch
+    } camera;
+};
+
+inline constexpr PanelSurface PANEL_TABLE = {
+    { FIELD_BEACON_R0, FIELD_BEACON_R, FIELD_BEACON_LIFT },
+    { 0.005f, 1.25f, 8.0f, 2.0f },   // carried verbatim from
+                                     // CameraControls (direction/input.hpp),
+                                     // retired there by ORGAN_3 w2
+};
+
+inline PanelSurface PANEL_LIVE = PANEL_TABLE;
+static_assert(PANEL_TABLE.beacon.r0 == FIELD_BEACON_R0
+           && PANEL_TABLE.beacon.r  == FIELD_BEACON_R
+           && PANEL_TABLE.beacon.lift == FIELD_BEACON_LIFT,
+    "PANEL_TABLE's beacon row is seeded FROM the authored rests above — "
+    "one fact, one home; if they can disagree the seeding is wrong");
 
 } // namespace the_board
 } // namespace t7

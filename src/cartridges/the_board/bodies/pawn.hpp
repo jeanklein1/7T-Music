@@ -5,6 +5,7 @@
 #include <iostream>   // command-door logs
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/driver_surface.hpp"   // ORGAN_2a — THE DRIVERS' ROOM: the presence ramp's intent/attack/release + height gain
+#include "cartridges/the_board/contracts/pawn_surface.hpp"     // ORGAN_3 w2 — PAWN_AURA_LIVE: the aura profile's live surface
 
 // ─── pawn.hpp (MERGED single file) ────────────────────────────────
 // hpp+inl collapsed: struct + deps + inline impl, one pre-class file.
@@ -28,53 +29,19 @@ namespace the_board {
 // the spring converges in ~0.5s) and 1.5 release (~2s to zero) — are
 // DRIVER_TABLE's, and the tick reads DRIVER_LIVE.aura.
 
-struct PawnAuraDeltaMode {
-    static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
-    static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
-};
-
-struct PawnAuraProfile {
-    float influence_radius;
-    float attack_stiffness;
-    float attack_damping;
-    float release_rate;
-    float tint_strength;
-    float tint_r, tint_g, tint_b;
-    uint32_t delta_mode;
-    float delta_magnitude;     // random mode: max offset per channel
-    uint32_t effect_mask;      // STATUS: INTENT — uploaded, never read.
-                               // Bit 0=color / bit 1=height was the intent;
-                               // no shader tests it (TUNE_1 A4 census). The
-                               // live gates are tint_strength (color) and
-                               // height_scale (height).
-    float height_scale;        // height extrusion in world units
-};
-
-inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
-    20.0f,             // influence_radius
-    12.0f,             // attack_stiffness
-    0.7f,              // attack_damping
-    1.5f,              // release_rate
-    0.0f,              // tint_strength — MUTED (TUNE_1 A4). The tint's
-                       // only consumer is color_blend in the aura compute
-                       // kernel (world.wgsl), so 0 silences the terrain
-                       // tint outright. effect_mask bit 0 does NOT gate
-                       // that write — the field is uploaded and never
-                       // read — so the mask was not the dial. The height
-                       // effect rides height_scale and is untouched.
-    0.4f, 0.2f, 0.5f, // tint RGB (purple) — authored, kept
-    PawnAuraDeltaMode::CONVERGENT,
-    0.3f,              // delta_magnitude (used in random mode)
-    0x3u,              // effect_mask: authored; unread (see the field at
-                       // the struct, above — no shader tests this)
-    3.0f,              // height_scale
-};
+// The aura vocabulary — PawnAuraDeltaMode, PawnAuraProfile,
+// PAWN_AURA_DEFAULT — graduated to contracts/pawn_surface.hpp
+// (ORGAN_3 w2), where PAWN_AURA_LIVE stands beside the design table as
+// the live surface. The readers below read the bank.
 
 // ═══ PAWN MODULE STATE ═══════════════════════════════════════════
 //
 // Field roles:
-//   active_aura_profile — Currently active profile (PAWN_AURA_DEFAULT;
-//     swappable by landmarks/commands).
+//   (the aura profile — lives at PAWN_AURA_LIVE,
+//    contracts/pawn_surface.hpp. PawnState's own copy retired at
+//    ORGAN_3 w2: the census found no writer for it anywhere, so it was
+//    a copy of a constant nothing changed. A landmark that swaps
+//    profiles assigns the bank.)
 //   (aura intent — lives at DRIVER_LIVE.aura.intent, contracts/driver_surface.hpp;
 //    written by key 3's door, the mood policy door, and the panel. The presence
 //    ramp smooths the transition toward it, at the room's own attack/release.)
@@ -89,7 +56,6 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 //    read as c->player_.aura_presence; written in tick_pawn_couplings.)
 
 struct PawnState {
-    PawnAuraProfile active_aura_profile = PAWN_AURA_DEFAULT;
     bool            aura_height_enabled = true;
     bool            aura_needs_clear    = false;
     bool            aura_cfg_dirty      = true;
@@ -137,7 +103,7 @@ inline void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue) 
     // Pawn aura height: presence × base height. Same value is consumed
     // by terrain VS for extrusion, so pawn and terrain always agree.
     const float effective_aura_height = ps.aura_height_enabled
-        ? ps.active_aura_profile.height_scale * DRIVER_LIVE.aura.height_gain
+        ? PAWN_AURA_LIVE.height_scale * DRIVER_LIVE.aura.height_gain
               * c->player_.aura_presence
         : 0.0f;
     c->gpuState_.set_pawn_aura_height(effective_aura_height);
@@ -165,7 +131,7 @@ inline void dispatch_pawn_aura(PawnState& ps, PawnDeps* c,
         if (ps.aura_cfg_dirty) {
             // Full config upload — profile changed or first frame
             ps.aura_cfg_dirty = false;
-            const auto& ap = ps.active_aura_profile;
+            const auto& ap = PAWN_AURA_LIVE;
 
             // Presence scales all aura params for smooth raise/lower
             float p = c->player_.aura_presence;

@@ -670,3 +670,47 @@ veil's could, because two of its three bounds are fixed constants
 (`EXIST_RADIUS`) and the third is a dial whose box can be cut clear.
 Same hazard, different disposition, and the difference is stated rather
 than papered over.
+
+---
+
+# WAVE 2 — THE GRADUATIONS, AS BUILT
+
+Four banks, four block ids. **Block budget: 8 of the 12 the handoff set
+as the STOP threshold** (0 config, 1 lighting, 2 agent room, 3 drivers,
+4 pawn, 5 orbs, 6 panel, 7 ribbon). Wave 3's C3 banks cost **no** block
+ids — a definition-only entry lives in the sentinel block, which is the
+lesson ORGAN_2b already paid for.
+
+| block | bank | file | dials | design table |
+| --- | --- | --- | --- | --- |
+| 4 | `PAWN_AURA_LIVE` | `contracts/pawn_surface.hpp` | 9 | `PAWN_AURA_DEFAULT` |
+| 5 | `ORB_CONSOLE_LIVE` | `contracts/orb_surface.hpp` | 3 | `ORB_CONSOLE` |
+| 6 | `PANEL_LIVE` | `contracts/control_panel.hpp` | 7 | `PANEL_TABLE` |
+| 7 | `RIBBON_LIVE` | `contracts/ribbon_surface.hpp` | 14 | `RIBBON_TABLE` |
+
+Each bank seeds byte-for-byte from its design table (harness `memcmp`),
+each is reachable through `block_base`, and each rides the CPU-bank flush
+idiom — no upload, no dirty flag, the module's own per-tick read is the
+flush. `organ_flush` counts them in one arm because they share one
+reason; a bank that ever needs an upload earns its own arm and its own
+sentence.
+
+## Two dead facts found and retired
+
+- **`PawnState::active_aura_profile`** was described as *"swappable by
+  landmarks/commands"* and had **no writer anywhere in the tree** — a
+  copy of a constant nothing changed. A panel edit to the profile could
+  never have reached it. The two readers now read `PAWN_AURA_LIVE` and
+  the field is gone, the same disposition `PawnState::aura_enabled` took
+  at ORGAN_2a.
+- **`CameraControls`' four control constants** had no transport at all;
+  `control_panel.hpp`'s own banner predicted this sitting — *"they join
+  when the panel proper is designed"* — and ORGAN_3 is the panel proper.
+
+## DEFERRED from Wave 2, with the reason
+
+| what | why |
+| --- | --- |
+| `coupling/visual_canvas.hpp`'s ~15 envelope dials (swell, tint, checker cadence, `FOG_SPAN`, tide/rain spans) | **A layering question, not a range one.** The enrollment macro spells `offsetof(the_board::STRUCT, FIELD)` and `block_base` returns `&the_board::…`; `visual_canvas.hpp` lives in `t7`, one tier *below* the cartridge. Making canvas dials nameable needs either a namespace parameter on the four macros or a `t7`-scoped case in `block_base` — a registry change, and inverting the layering to land dials would be the wrong trade. Priced: one extra macro parameter, four call sites, no new block. |
+| `FIELD_BEACON_S` | the static_assert hazard (its own section above) |
+| `POSSESSION_RADIUS` | its `_SQ` twin is a derived constant; enrolling the radius without recomputing the square at the read would let the two disagree silently. Small, real, and wants the read site changed first. |

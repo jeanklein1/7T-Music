@@ -20,10 +20,12 @@
 // state.hpp, which exposes exactly three homes to the panel and no others
 // (organ_config_home / organ_lighting_home / organ_agent_room_home). There
 // is no block id for GPU truth because there is no accessor to build one
-// from. A panel that cannot name a thing cannot write it. Block 3 is the
-// exception that proves it: the drivers' room is a contracts-tier CPU
-// surface built FOR the panel, so its base is the instance itself and no
-// GPUState accessor exists or is needed.
+// from. A panel that cannot name a thing cannot write it. Blocks 3 and
+// above are the exception that proves it: they are contracts-tier CPU
+// surfaces built FOR the panel, so each base is the instance itself and
+// no GPUState accessor exists or is needed. The boundary still holds
+// where it was drawn — GPU truth has no block id, because there is no
+// accessor to build one from.
 //
 // THE MANIFEST IS THE WHITELIST. organ_set refuses any (block, offset,
 // type) triple that is not an entry in kOrganParams — not merely one that
@@ -36,6 +38,10 @@
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/contracts/spine_state.hpp"   // O1b — MoodProfile + mood_def: the definition side
 #include "cartridges/the_board/contracts/agent_tiers.hpp"    // ORGAN_2b — TIER_LIVE, the world's definition bank
+#include "cartridges/the_board/contracts/pawn_surface.hpp"    // ORGAN_3 w2 — PAWN_AURA_LIVE (block 4)
+#include "cartridges/the_board/contracts/orb_surface.hpp"     // ORGAN_3 w2 — ORB_CONSOLE_LIVE (block 5)
+#include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_3 w2 — PANEL_LIVE (block 6)
+#include "cartridges/the_board/contracts/ribbon_surface.hpp"  // ORGAN_3 w2 — RIBBON_LIVE (block 7)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // ORGAN_2a — the drivers' room (block 3)
 
 #include <cstddef>
@@ -92,7 +98,18 @@ enum : uint8_t {
     ORGAN_BLOCK_DRIVERS    = 3,   // DriverSurface         — DRIVER_LIVE
                                   //   (contracts/driver_surface.hpp; CPU-read
                                   //   home — the seams are its flush)
-    ORGAN_BLOCK_COUNT      = 4,
+    // ORGAN_3 w2 — THE GRADUATED MODULE BANKS. Each is a contracts-tier
+    // CPU surface: a module's authored console, given a live shadow so the
+    // panel can name it. Same shape as block 3 — no GPUState accessor, no
+    // upload, and the readers that consume the bank each tick ARE its
+    // flush. The bit space is organTouched_ (32 bits); the running count
+    // is recorded in the disposition ledger so a future wave can see it
+    // approaching rather than discover it.
+    ORGAN_BLOCK_PAWN       = 4,   // PawnAuraProfile       — PAWN_AURA_LIVE
+    ORGAN_BLOCK_ORBS       = 5,   // OrbConsole            — ORB_CONSOLE_LIVE
+    ORGAN_BLOCK_PANEL      = 6,   // PanelSurface          — PANEL_LIVE
+    ORGAN_BLOCK_RIBBON     = 7,   // RibbonSurface         — RIBBON_LIVE
+    ORGAN_BLOCK_COUNT      = 8,
 };
 
 // A definition-only entry has no instance anywhere: its block is the
@@ -241,6 +258,10 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_LIGHTING:   return g_home->organ_lighting_home();
     case ORGAN_BLOCK_AGENT_ROOM: return g_home->organ_agent_room_home();
     case ORGAN_BLOCK_DRIVERS:    return &the_board::DRIVER_LIVE;
+    case ORGAN_BLOCK_PAWN:       return &the_board::PAWN_AURA_LIVE;
+    case ORGAN_BLOCK_ORBS:       return &the_board::ORB_CONSOLE_LIVE;
+    case ORGAN_BLOCK_PANEL:      return &the_board::PANEL_LIVE;
+    case ORGAN_BLOCK_RIBBON:     return &the_board::RIBBON_LIVE;
     default:                     return nullptr;
     }
 }

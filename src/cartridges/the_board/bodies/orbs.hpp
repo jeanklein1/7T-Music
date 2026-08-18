@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes ORB_MOOD_TABLE)
+#include "cartridges/the_board/contracts/orb_surface.hpp"      // ORGAN_3 w2 — ORB_CONSOLE_LIVE: dome / base size / noise floor
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
@@ -34,13 +35,13 @@ struct OrbsDeps {
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Dome geometry ────────────────────────────────────────────────
-inline constexpr float ORB_DOME_RADIUS = 500.0f;   // skybox radius — 700 fell into the fog; 500 is the visible dial (Jean's dial)
-inline constexpr float ORB_BASE_SIZE = 3.0f;
+// ORB_DOME_RADIUS / ORB_BASE_SIZE / ORB_NOISE_FLOOR graduated to
+// contracts/orb_surface.hpp (ORGAN_3 w2) — ORB_CONSOLE is the design
+// row, ORB_CONSOLE_LIVE the live surface configure_orbs reads.
 
 // ── Noise floor ──────────────────────────────────────────────────
 // Barely perceptible drift in silence — the kernel's noise input
 // rests here; a gen-2 coupling may lerp it again.
-inline constexpr float ORB_NOISE_FLOOR    = 0.3f;
 
 // ── Rule-critical parameter floors ───────────────────────────────
 inline constexpr float ORB_DEFAULT_DRAG = 0.5f;
@@ -532,7 +533,7 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
     std::cout << "[Orbs] Configured: count=" << os.count
         << " palette=" << ORB_PAL_NAMES[palette_id]
         << " drag=" << eff_drag
-        << " noise=" << ORB_NOISE_FLOOR
+        << " noise=" << ORB_CONSOLE_LIVE.noise_floor
         << " rule=" << RULE_NAMES[std::min(os.current_motion_rule, 3u)]
         << " rot=" << cfg.rotation_speed
         << " orbital=" << eff_orbital_speed
@@ -590,9 +591,9 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     gpuCfg.hue_variance = cfg.hue_variance;
     gpuCfg.brightness = cfg.brightness;
     gpuCfg.drag = eff_drag;
-    gpuCfg.noise_amp = ORB_NOISE_FLOOR;   // rests at the floor (driverless since the gen-1 retirement)
-    gpuCfg.dome_radius = ORB_DOME_RADIUS;
-    gpuCfg.base_size = ORB_BASE_SIZE;
+    gpuCfg.noise_amp = ORB_CONSOLE_LIVE.noise_floor;   // rests at the floor (driverless since the gen-1 retirement)
+    gpuCfg.dome_radius = ORB_CONSOLE_LIVE.dome_radius;
+    gpuCfg.base_size = ORB_CONSOLE_LIVE.base_size;
     gpuCfg.dt = 0.0f;
     gpuCfg.t_seconds = 0.0f;
     gpuCfg.force_radial = 0.0f;

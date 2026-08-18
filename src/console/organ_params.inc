@@ -103,6 +103,14 @@ ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f,
 // preview could show.
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "clear colour", MOOD, MoodProfile, clear_color)
 
+// ─── Sky & Light · Dome ─────────────────────────────────────────────
+// ORGAN_3 w2 (C2). ORB_CONSOLE_LIVE (contracts/orb_surface.hpp). The dome
+// radius's own comment named it "Jean's dial" while it was a constexpr;
+// this line is that sentence made true.
+ORGAN_PARAM(ORBS, OrbConsole, dome_radius, F32, 0.0f, 2000.0f, 5.0f,   "Sky & Light · Dome", "dome radius")
+ORGAN_PARAM(ORBS, OrbConsole, base_size,   F32, 0.0f, 12.0f,   0.05f,  "Sky & Light · Dome", "base size")
+ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 1.0f,    0.005f, "Sky & Light · Dome", "noise floor")
+
 // ─── FOG (the drivers' room + its witnesses) ─────────────────────────
 // ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
 // coupling through set_fog every frame — so the dials sit on the
@@ -204,6 +212,52 @@ ORGAN_PARAM(DRIVERS, DriverSurface, aura.height_gain, F32,  0.0f, 2.0f,  0.01f, 
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, aura_enabled,     F32, "Pawn · Aura", "enabled (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_aura_height, F32, "Pawn · Aura", "height (driven)")
 
+// ─── Pawn · Aura profile ────────────────────────────────────────────
+// ORGAN_3 w2 (C2). PAWN_AURA_LIVE (contracts/pawn_surface.hpp) — the
+// module's OWN facts, which is the line ORGAN_2a's banner drew: the seam's
+// dials (intent, attack, release, height gain) went to the drivers' room;
+// the profile stayed with the pawn. PawnState's dead copy retired here.
+//
+// tint_strength rests at 0 — TUNE_1 A4 MUTED it, and the tree says "0
+// silences the terrain tint outright". Enrolling it hands back a whole
+// effect that is currently switched off in source.
+//
+// effect_mask is NOT enrolled: STATUS INTENT, uploaded and never read
+// (the TUNE_1 A4 census). A dial on an unread field would lie.
+ORGAN_PARAM(PAWN, PawnAuraProfile, influence_radius, F32, 0.0f, 80.0f, 0.4f,   "Pawn · Aura profile", "influence radius")
+ORGAN_PARAM(PAWN, PawnAuraProfile, attack_stiffness, F32, 0.0f, 48.0f, 0.25f,  "Pawn · Aura profile", "attack stiffness")
+ORGAN_PARAM(PAWN, PawnAuraProfile, attack_damping,   F32, 0.0f, 2.8f,  0.01f,  "Pawn · Aura profile", "attack damping")
+ORGAN_PARAM(PAWN, PawnAuraProfile, release_rate,     F32, 0.05f, 8.0f, 0.05f,  "Pawn · Aura profile", "release rate")
+ORGAN_PARAM(PAWN, PawnAuraProfile, tint_strength,    F32, 0.0f, 1.0f,  0.005f, "Pawn · Aura profile", "tint strength")
+ORGAN_PARAM(PAWN, PawnAuraProfile, tint_r,           VEC3, 0.0f, 1.0f, 0.01f,  "Pawn · Aura profile", "tint colour")
+ORGAN_PARAM(PAWN, PawnAuraProfile, delta_magnitude,  F32, 0.0f, 1.2f,  0.005f, "Pawn · Aura profile", "delta magnitude")
+ORGAN_PARAM(PAWN, PawnAuraProfile, height_scale,     F32, 0.0f, 12.0f, 0.05f,  "Pawn · Aura profile", "height scale")
+ORGAN_PARAM(PAWN, PawnAuraProfile, delta_mode,       U32, 0.0f, 1.0f,  1.0f,   "Pawn · Aura profile", "delta mode (0 conv, 1 rand)")
+
+// ─── Ribbon · Head / Wander ─────────────────────────────────────────
+// ORGAN_3 w2 (C2). RIBBON_LIVE (contracts/ribbon_surface.hpp). The module
+// called these "All control-panel material" while they were constexpr;
+// they are now a control panel.
+//
+// BOTH TERMS OF THE STEERING LAW GO LIVE, because the law is a min() and
+// not an assert: available yaw = min(yaw_rate, speed / r_min) stays honest
+// at every value either dial can reach. r_min's floor is 1, not 0 — it is
+// the divisor, and zero would hand the head an unbounded yaw rate.
+ORGAN_PARAM(RIBBON, RibbonSurface, yaw_rate,        F32, 0.0f, 4.0f,   0.02f, "Ribbon · Head", "yaw rate (rad/s)")
+ORGAN_PARAM(RIBBON, RibbonSurface, max_speed,       F32, 0.0f, 160.0f, 0.5f,  "Ribbon · Head", "max speed")
+ORGAN_PARAM(RIBBON, RibbonSurface, r_min,           F32, 1.0f, 160.0f, 0.5f,  "Ribbon · Head", "min turn radius")
+ORGAN_PARAM(RIBBON, RibbonSurface, climb_rate,      F32, 0.0f, 60.0f,  0.25f, "Ribbon · Head", "climb rate")
+ORGAN_PARAM(RIBBON, RibbonSurface, floor_margin,    F32, 0.0f, 100.0f, 0.5f,  "Ribbon · Head", "floor margin")
+ORGAN_PARAM(RIBBON, RibbonSurface, alt_smooth_dist, F32, 0.0f, 720.0f, 2.5f,  "Ribbon · Head", "altitude smoothing")
+ORGAN_PARAM(RIBBON, RibbonSurface, alt_stiff,       F32, 0.0f, 1.44f,  0.005f,"Ribbon · Head", "altitude stiffness")
+ORGAN_PARAM(RIBBON, RibbonSurface, mount_setback,   F32, 0.0f, 6.0f,   0.02f, "Ribbon · Head", "mount setback")
+ORGAN_PARAM(RIBBON, RibbonSurface, sky_yaw_tau,     F32, 0.0f, 2.4f,   0.01f, "Ribbon · Head", "sky yaw tau (s)")
+ORGAN_PARAM(RIBBON, RibbonSurface, reference_bpm,   F32, 40.0f, 240.0f, 1.0f, "Ribbon · Head", "reference BPM")
+ORGAN_PARAM(RIBBON, RibbonSurface, wander_steer_soft,    F32, 0.0f, 2.0f,   0.01f, "Ribbon · Wander", "steer softness")
+ORGAN_PARAM(RIBBON, RibbonSurface, wander_yaw_max,       F32, 0.0f, 0.6f,   0.005f,"Ribbon · Wander", "yaw cap")
+ORGAN_PARAM(RIBBON, RibbonSurface, wander_yaw_tau,       F32, 0.0f, 8.0f,   0.04f, "Ribbon · Wander", "yaw tau (s)")
+ORGAN_PARAM(RIBBON, RibbonSurface, wander_arrive_radius, F32, 0.0f, 480.0f, 2.0f,  "Ribbon · Wander", "arrive radius")
+
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // AgentTierParams::color_r/g/b are three contiguous floats, so one VEC3
 // addresses the triple; speed_gain is the tier's motion scale. The home is
@@ -256,6 +310,26 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, point_bubble_radius, F32, 0.0f, 80.0f,  0.5
 ORGAN_PARAM(CONFIG, GPUDesignConfig, pawn_speed,          F32, 0.0f, 60.0f,  0.5f,   "Interaction · Pawn",   "walk speed")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, point_fly_speed,     F32, 0.0f, 120.0f, 0.5f,   "Interaction · Camera", "fly speed")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, cube_plasticity,     F32, 0.0f, 1.0f,   0.005f, "Interaction · Cubes",  "plasticity λ")
+
+// ─── Interaction · Beacon / Camera ──────────────────────────────────
+// ORGAN_3 w2 (C2). PANEL_LIVE (contracts/control_panel.hpp) — the two
+// families whose rests had no transport before this campaign.
+//
+// FIELD_BEACON_S IS ABSENT AND STAYS ABSENT until its assert has a
+// runtime answer: control_panel.hpp proves FIELD_BEACON_S < FIELD_K at
+// compile time, and a dial on S could cross field_k with the assert still
+// reading true and no witness. The ledger prices the two ways out.
+//
+// The camera's four are CONTROLS, not pose. Pose is GPU truth and has no
+// section by ORGAN_3's rule; what is dialled here is the input grammar.
+// look sensitivity's range is the tree's own clamp: init/R … init*R.
+ORGAN_PARAM(PANEL, PanelSurface, beacon.r0,   F32, 0.0f, 100.0f, 0.5f,  "Interaction · Beacon", "inner radius")
+ORGAN_PARAM(PANEL, PanelSurface, beacon.r,    F32, 0.0f, 480.0f, 2.0f,  "Interaction · Beacon", "outer radius")
+ORGAN_PARAM(PANEL, PanelSurface, beacon.lift, F32, 0.0f, 80.0f,  0.4f,  "Interaction · Beacon", "lift")
+ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_init,    F32, 0.000625f, 0.04f, 0.0002f, "Interaction · Camera", "look sens (anchor)")
+ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_step,    F32, 1.01f, 2.0f,  0.005f, "Interaction · Camera", "look sens step")
+ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_range,   F32, 1.0f,  32.0f, 0.25f,  "Interaction · Camera", "look sens range")
+ORGAN_PARAM(PANEL, PanelSurface, camera.scroll_zoom_scale, F32, 0.0f,  8.0f,  0.05f,  "Interaction · Camera", "scroll zoom")
 
 // ─── Debug ──────────────────────────────────────────────────────────
 // ORGAN_3 w1 (C1, D2). Config's uint32_t toggle words enroll as BOOL

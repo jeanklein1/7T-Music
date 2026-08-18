@@ -6,6 +6,7 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 #include "cartridges/the_board/contracts/control_panel.hpp"    // FIELD_SLACK/K/FMAX + the two emitter mutes — the one home
+#include "cartridges/the_board/contracts/ribbon_surface.hpp"   // ORGAN_3 w2 — RIBBON_LIVE: the head law + wander steering
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
 //
@@ -96,20 +97,12 @@ inline constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around aw
 // ── Head control law ─────────────────────────────────────────────
 // The steering integrator and altitude pen constants — one law, many
 // authors. Yaw is STEERING, not free aim: available yaw rate is
-// min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN), so the heading can only
+// min(RIBBON_LIVE.yaw_rate, speed / RIBBON_LIVE.r_min), so the heading can only
 // change while moving and the flown path can never be tighter than
 // the minimum turn radius. Consumed in ribbon_advance_head. All
-// control-panel material.
-inline constexpr float RIBBON_YAW_RATE       = 1.0f;    // rad/s cap at full deflection
-inline constexpr float RIBBON_MAX_SPEED      = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
-inline constexpr float RIBBON_R_MIN          = 40.0f;   // minimum turn radius (units)
-inline constexpr float RIBBON_CLIMB_RATE     = 15.0f;   // u/s cap on the pen's vertical velocity
-inline constexpr float RIBBON_FLOOR_MARGIN   = 25.0f;   // guaranteed gap over tall ground
-inline constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f; // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
-inline constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen's stiffness; damping = 2*sqrt(stiffness), critically damped
-inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
-inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
-inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
+// control-panel material — and since ORGAN_3 w2 it IS a control
+// panel: the values graduated to contracts/ribbon_surface.hpp, where
+// RIBBON_TABLE is the design and RIBBON_LIVE is what this module reads.
 
 // ── Frame-law mirrors ── LOCKSTEP MIRRORS of world.wgsl's
 inline constexpr float MOUNT_TANGENT_ALIGN = 1.0f;
@@ -118,9 +111,12 @@ inline constexpr float MOUNT_BANK_MAX      = 0.6f;
 
 // ── Wander policy ─────────────────────────────────────────────────
 // The steering channel's IDLE SCRIPT — the shape of autonomous drift.
-// Constants: control-panel material.
+// Constants: control-panel material. The four PER-FRAME steering dials
+// (steer_soft, yaw_max, yaw_tau, arrive_radius) graduated to
+// contracts/ribbon_surface.hpp at ORGAN_3 w2; the per-SPAWN rolls below
+// stay authored until w3 gives them a destructive-temperament bank.
 inline constexpr float WANDER_CHANCE      = 0.30f;   // per-spawn roll
-inline constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction of RIBBON_MAX_SPEED)
+inline constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction of RIBBON_LIVE.max_speed)
 inline constexpr float WANDER_CRUISE_SIGMA = 0.15f;   // gaussian sigma
 inline constexpr float WANDER_CRUISE_MIN  = 0.15f;
 inline constexpr float WANDER_CRUISE_MAX  = 0.80f;
@@ -130,10 +126,6 @@ inline constexpr float WANDER_SPREAD      = 1.0f;    // rad of bearing spread ar
 inline constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoints
 inline constexpr float WANDER_RETARGET_VAR = 15.0f;
 inline constexpr float WANDER_HATCH_LEG   = 300.0f;  // hatchling's first-waypoint leg (units) — the newborn's opening stride, sized between LEG_MIN/MAX's band; consumed in commit_ribbon's hatchling rule
-inline constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
-inline constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= RIBBON_R_MIN/0.15 (~270 u) — body-scale arcs
-inline constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
-inline constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget — inside this the bearing chase degenerates (control-panel)
 
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════
 
@@ -253,7 +245,7 @@ struct RibbonProp {
     static constexpr uint32_t MEDIAN_VALUE_ROLL   = 474u;
     static constexpr uint32_t MEDIAN_HUE_ROLL     = 475u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
-    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
+    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_LIVE.max_speed
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
 };
 
@@ -366,7 +358,7 @@ struct ActiveRibbon {
     // same yaw/throttle inputs the player does, through the same steering
     // integrator.
     bool     wander = false;
-    float    wander_cruise = 0.0f;      // throttle fraction of RIBBON_MAX_SPEED
+    float    wander_cruise = 0.0f;      // throttle fraction of RIBBON_LIVE.max_speed
     float    wander_tx = 0.0f;          // current waypoint (world XZ)
     float    wander_tz = 0.0f;
     float    wander_retarget = 0.0f;    // seconds until a new waypoint
@@ -492,13 +484,13 @@ inline void ribbon_wander_inputs(ActiveRibbon& ar,
     // Free roam: waypoints are picked AHEAD of the current motion — a bearing
     // spread around where the ribbon is already going, a leg of 200-500 units.
     // No leash: a rendered wanderer is pinned against eviction instead, and
-    // the yaw cap below keeps every turn at body scale (radius >= RIBBON_R_MIN /
-    // WANDER_YAW_MAX). Gorgeous, contemplative arcs by construction.
+    // the yaw cap below keeps every turn at body scale (radius >= RIBBON_LIVE.r_min /
+    // RIBBON_LIVE.wander_yaw_max). Gorgeous, contemplative arcs by construction.
     ar.wander_retarget -= dt;
     const float wdx = ar.wander_tx - head_x;
     const float wdz = ar.wander_tz - head_z;
     if (ar.wander_retarget <= 0.0f
-        || wdx * wdx + wdz * wdz < WANDER_ARRIVE_RADIUS * WANDER_ARRIVE_RADIUS) {
+        || wdx * wdx + wdz * wdz < RIBBON_LIVE.wander_arrive_radius * RIBBON_LIVE.wander_arrive_radius) {
         const float move_dir = heading + 3.14159265f;           // movement = -heading
         const float spread = (wander_rand01(ar.wander_rng) * 2.0f - 1.0f) * WANDER_SPREAD;
         const float leg = WANDER_LEG_MIN
@@ -513,13 +505,13 @@ inline void ribbon_wander_inputs(ActiveRibbon& ar,
     const float bearing = std::atan2(ar.wander_tz - head_z, ar.wander_tx - head_x);
     const float desired = bearing + 3.14159265f;                // movement = -heading
     const float err = std::remainder(desired - heading, 6.2831853f);
-    float cmd = err / WANDER_STEER_SOFT;
-    cmd = (cmd >  WANDER_YAW_MAX) ?  WANDER_YAW_MAX :
-          (cmd < -WANDER_YAW_MAX) ? -WANDER_YAW_MAX : cmd;
+    float cmd = err / RIBBON_LIVE.wander_steer_soft;
+    cmd = (cmd >  RIBBON_LIVE.wander_yaw_max) ?  RIBBON_LIVE.wander_yaw_max :
+          (cmd < -RIBBON_LIVE.wander_yaw_max) ? -RIBBON_LIVE.wander_yaw_max : cmd;
     // Ease the steering: the body replays the heading history, and bang-bang
     // commands print elbows. First-order toward the command keeps curvature
     // continuous — turns enter and exit as curves, never as joints.
-    const float ease = 1.0f - std::exp(-dt / WANDER_YAW_TAU);
+    const float ease = 1.0f - std::exp(-dt / RIBBON_LIVE.wander_yaw_tau);
     ar.wander_yaw_state += (cmd - ar.wander_yaw_state) * ease;
     yaw_in = ar.wander_yaw_state;
     thr_in = ar.wander_cruise;
@@ -656,7 +648,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // construction); altitude is managed by the pen below. Constants
         // live in the tuning console (head control law).
         // Steering model: yaw is STEERING, not free aim. The available
-        // yaw rate is min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN): the
+        // yaw rate is min(RIBBON_LIVE.yaw_rate, speed / RIBBON_LIVE.r_min): the
         // heading can only change while moving, and the flown path can
         // never be tighter than the minimum turn radius. So the velocity
         // is always the face's outward normal (trajectory orthogonal to
@@ -664,8 +656,8 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // against the body, and heading-vs-path divergence stays at a
         // few degrees. Reverse is forbidden (a snake does not burrow
         // into its own body): S (reverse intent) is no thrust — the ribbon's forward grammar.
-        const float speed = std::max(throttle_in, 0.0f) * RIBBON_MAX_SPEED;
-        const float yaw_avail = std::min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN);
+        const float speed = std::max(throttle_in, 0.0f) * RIBBON_LIVE.max_speed;
+        const float yaw_avail = std::min(RIBBON_LIVE.yaw_rate, speed / RIBBON_LIVE.r_min);
         hd.heading += yaw_in * yaw_avail * dt;
         const float ch = std::cos(hd.heading);
         const float sh = std::sin(hd.heading);
@@ -682,11 +674,11 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // turns every correction into a smooth S-curve — never a
         // constant-rate ramp, never a corner.
         {
-            const float floor_y = ground_y + RIBBON_FLOOR_MARGIN;
+            const float floor_y = ground_y + RIBBON_LIVE.floor_margin;
             const float raw_target = (hd.origin[1] > floor_y)
                                    ? hd.origin[1] : floor_y;
             const float travel = std::fabs(step);   // this frame's distance
-            const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
+            const float alpha = 1.0f - std::exp(-travel / RIBBON_LIVE.alt_smooth_dist);
             hd.alt_target += (raw_target - hd.alt_target) * alpha;
             // FIELD_B0: the floor's guarantee, re-imposed AFTER
             // every field contribution — the lure is lateral by law,
@@ -696,11 +688,11 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
             // says "guaranteed gap"; this line makes it true.
             if (hd.alt_target < floor_y) { hd.alt_target = floor_y; }
 
-            const float damp = 2.0f * std::sqrt(RIBBON_ALT_STIFF);
-            hd.y_vel += ((hd.alt_target - hd.pos[1]) * RIBBON_ALT_STIFF
+            const float damp = 2.0f * std::sqrt(RIBBON_LIVE.alt_stiff);
+            hd.y_vel += ((hd.alt_target - hd.pos[1]) * RIBBON_LIVE.alt_stiff
                          - damp * hd.y_vel) * dt;
-            hd.y_vel = (hd.y_vel >  RIBBON_CLIMB_RATE) ?  RIBBON_CLIMB_RATE :
-                       (hd.y_vel < -RIBBON_CLIMB_RATE) ? -RIBBON_CLIMB_RATE : hd.y_vel;
+            hd.y_vel = (hd.y_vel >  RIBBON_LIVE.climb_rate) ?  RIBBON_LIVE.climb_rate :
+                       (hd.y_vel < -RIBBON_LIVE.climb_rate) ? -RIBBON_LIVE.climb_rate : hd.y_vel;
             hd.pos[1] += hd.y_vel * dt;
         }
 
@@ -728,7 +720,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
     // exactly.
     {
         const float p_spd = std::max(ribbon.propagation_speed, 1e-3f);
-        const float s_age = ribbon.time - RIBBON_MOUNT_SETBACK / p_spd;
+        const float s_age = ribbon.time - RIBBON_LIVE.mount_setback / p_spd;
         const float lat = std::sin(ribbon.lateral_freq  * s_age) * ribbon.lateral_amp;
         const float ver = std::sin(ribbon.vertical_freq * s_age) * ribbon.vertical_amp;
         const float ch  = std::cos(hd.heading);
@@ -764,9 +756,9 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         const float uz = -uxl * sy + uzl * cy;
         const float half_t = ribbon.cube_size * 0.5f;
 
-        hd.mount[0] = head_x + lat * (-sh) + RIBBON_MOUNT_SETBACK * ch + half_t * ux;
+        hd.mount[0] = head_x + lat * (-sh) + RIBBON_LIVE.mount_setback * ch + half_t * ux;
         hd.mount[1] = head_y + ver                                    + half_t * uyl;
-        hd.mount[2] = head_z + lat * ( ch) + RIBBON_MOUNT_SETBACK * sh + half_t * uz;
+        hd.mount[2] = head_z + lat * ( ch) + RIBBON_LIVE.mount_setback * sh + half_t * uz;
     }
 
     // Record the head's state into the propagation history (catch-up
@@ -822,7 +814,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
     // calibration anchor). Held-last: transport stops, the
     // world keeps the pulse.
     const float phase_rate = c->time_state_.beat_rate
-                           * (60.0f / RIBBON_REFERENCE_BPM);
+                           * (60.0f / RIBBON_LIVE.reference_bpm);
     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
         auto& par = rs.active[i];
         if (!par.active) continue;
@@ -869,11 +861,11 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
     bool  ribbon_flown  = (c->point_.host == PointHost::RIBBON);
     float ribbon_yaw_in = ribbon_flown ?  c->inputState_.move_x : 0.0f;
     float ribbon_thr_in = ribbon_flown ? -c->inputState_.move_z : 0.0f;
-    // The player's pen, eased like the wanderer's (RIBBON_SKY_YAW_TAU
+    // The player's pen, eased like the wanderer's (RIBBON_LIVE.sky_yaw_tau
     // in the tuning console).
     {
         if (ribbon_flown) {
-            const float a = 1.0f - std::exp(-c->time_state_.dt / RIBBON_SKY_YAW_TAU);
+            const float a = 1.0f - std::exp(-c->time_state_.dt / RIBBON_LIVE.sky_yaw_tau);
             rs.sky.yaw_eased += (ribbon_yaw_in - rs.sky.yaw_eased) * a;
             ribbon_yaw_in = rs.sky.yaw_eased;
         } else {
