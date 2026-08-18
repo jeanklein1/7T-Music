@@ -947,7 +947,7 @@ only the word was retired.
 Extracted at CANON from the superseded constitution; provenance in the
 attic.
 
-## Name resolution — PATH owns the toolchain
+## L39 — PATH OWNS THE TOOLCHAIN
 
 CMake's program search on Windows considers `.com`, `.exe`, and the BARE
 NAME — not `.bat` — and searches NAMES_PER_DIR: it exhausts one directory
@@ -990,7 +990,7 @@ Verify (cmd; in PowerShell `where` is the `Where-Object` alias — call
     where ninja & where cmake & where python & where git & where node
     findstr /S /I /C:"CMAKE_ROOT:INTERNAL" /C:"CMAKE_MAKE_PROGRAM:FILEPATH" CMakeCache.txt
 
-## Arming — what emsdk_env.bat does and does not do
+## L40 — ARMING DIES WITH THE CHILD (emsdk_env.bat)
 
 A `.bat` invoked from PowerShell runs in a cmd child; its environment
 dies with the child — the PowerShell parent is never armed. The web
