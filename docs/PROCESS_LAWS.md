@@ -265,13 +265,9 @@ finish the round. It is P11's concern one step earlier: there a search had
 to look everywhere before claiming absence; here the sentence that
 commissions the search has to name what absence would mean.
 
----
+## P14 — THE GATE ROW NAMES THE ARTIFACT
 
-## CANDIDATE (unnumbered) — THE GATE ROW NAMES THE ARTIFACT
-
-*Filed by CURTAIN_1 K4, 2026-08-01. Unnumbered pending Jean's ruling — numbers here
-are permanent, so this does not take one until it is adopted. It extends **P10**
-and belongs beside it.*
+*Filed by CURTAIN_1 K4, 2026-08-01. It extends **P10** and belongs beside it.*
 
 P10 requires that every gate row carry a "could BREAK" column. This candidate
 requires that the column **name the artifact the reader would actually see** — the
