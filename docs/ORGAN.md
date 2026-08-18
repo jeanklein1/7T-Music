@@ -38,6 +38,20 @@ WHAT IT DOES NOT SETTLE. A driven parameter still needs somewhere
 durable to put a rest value and a gain, and that surface does not
 exist yet. Naming the ruling is not the same as building it.
 
+## The drivers' room (ORGAN_2a)
+The surface the ruling named. contracts/driver_surface.hpp holds
+DRIVER_TABLE (the authored code panel) and DRIVER_LIVE (block 3, the
+panel's fourth home — the exception that proves the sovereignty
+boundary: a contracts-tier CPU surface built FOR the panel, no
+GPUState accessor needed). The room owns rests and gains at the
+seams, never a module's facts: out = rest + gain·(driven − rest) at
+the fog flush; intent/attack/release/height_gain at the aura tick,
+where the intent is the presence ramp's rest target, moved home from
+PawnState. Driven values enroll as read-only witnesses (ro column):
+the panel meters them beside their drivers' dials, organ_set refuses
+them, export skips them. No upload and no dirty flag: the seams that
+read the room each tick are its flush.
+
 ## The compiled-registry law
 The registry is COMPILED, not parsed. Enrollment is one macro line
 beside the field it enrolls; the compiler produces the manifest from
@@ -120,8 +134,10 @@ instance value by id alone, so one file can carry several moods and
 an import puts each back where it came from.
 
 ### Open for ORGAN_2
-Twelve of the sixteen enrolled dials have no definition target, and
-they divide into two different problems.
+Twelve of the sixteen enrolled dials had no definition target, and
+they divided into two different problems. (Counted before ORGAN_2a:
+the enrollment now stands at twenty-three — nineteen dials and four
+read-only witnesses — and the first bullet below is closed.)
 
 - THE FOUR ATMOSPHERE DIALS are DRIVEN, and the ruling above is their
   answer: they must not carry a dial on the value at all. What they
@@ -129,7 +145,10 @@ they divide into two different problems.
   `phase_motion_drivers`' canvas pipe and on `tick_pawn_couplings`'
   presence ramp. Inventing a `MoodProfile` field for them would give
   a tier-3 parameter a tier-1 definition and lose the same argument
-  one layer up.
+  one layer up. RESOLVED (ORGAN_2a): built as the drivers' room —
+  contracts/driver_surface.hpp, block 3, rests and gains at the
+  seams; the four driven values converted to read-only witnesses.
+  The remaining three bullets are ORGAN_2b's.
 - THE EIGHT AGENT-TIER DIALS have an author that is not a mood
   (`upload_agent_registries`, once at world init), so `MoodProfile`
   is the wrong place to reach for. They need a non-mood definition
@@ -196,7 +215,9 @@ to the upload. `fog_density` / `fog_color` are rewritten every frame by
 `pawn_aura_height` every frame by `tick_pawn_couplings`. Nothing in the
 write path can fix that, and nothing should try: by the ORGAN_2 ruling
 these are tier-3 parameters wearing tier-1 dials, and the repair is a
-driver surface, not a definition for the value.
+driver surface, not a definition for the value. ORGAN_2a built it —
+see "The drivers' room" above; all four now enroll as witnesses, and
+the dials moved to the seams that drive them.
 
 ## Access
 The panel exists only under `?organ=1`; backtick toggles visibility.
