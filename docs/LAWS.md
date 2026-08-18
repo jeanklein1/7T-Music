@@ -1010,8 +1010,13 @@ breaks every web preset at configure.
 
 ## L41 — ATTIC LAW
 
-ATTIC LAW — Branches list work in flight only; everything else is master or a tag under attic/. A branch retires by tagging its tip attic/<name>, pushing the tag, then deleting the branch on both sides. Recovery: git branch <name> attic/<name>.
+Branches list work in flight only; everything else is master or a tag
+under attic/. A branch retires by tagging its tip attic/<name>,
+pushing the tag, then deleting the branch on both sides. Recovery: git
+branch <name> attic/<name>.
 
 ## L42 — FLAG-AND-FINISH
 
-FLAG-AND-FINISH — Within a phase, a failed item is logged and skipped and the phase completes. Halting is reserved for gates where continuing risks reachability or edits from stale authority.
+Within a phase, a failed item is logged and skipped and the phase
+completes. Halting is reserved for gates where continuing risks
+reachability or edits from stale authority.
