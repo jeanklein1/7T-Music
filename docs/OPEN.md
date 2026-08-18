@@ -2,29 +2,17 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
-- CHORD_5 terrain-fragment suspect: possible per-pixel storage read in the terrain
-  fragment chain; fix designed (move entities[0].pos into frame_r as frame-cadence
-  uniform); unblocked by a DPR staircase session. Origin: CHORD campaign; law home
-  docs/CHORD.md.
-- 8-fit note: PARKED, awaiting Jean's design. The room-family compute pipelines carry
-  9 storage-buffer layout entries visible to the compute stage, one over the WebGPU
-  core default maxStorageBuffersPerShaderStage = 8. Origin: note.md +
-  audit/past reports/CUT_1_LIMITS_FIT_NOTE.md (paths die this campaign; content in
-  their last shas). NO HELD BRANCH EXISTS: `git ls-remote --heads origin` matched no
-  branch for CUT_1 / 8-fit / C6 / LIMITS, so despite the note's "held branch" wording
-  there is no branch to keep and none was deleted.
 - PIPE_0: PARKED per Jean's 2026-08-07 directive. Origin sha of
-  docs/HANDOFFS/WEB/PIPE_0_DECISION.md (dies this campaign).
+  docs/HANDOFFS/WEB/PIPE_0_DECISION.md (path retired to git; content at its last sha).
 - STREAM_0: PARKED per Jean's 2026-08-07 directive. Origin sha of
-  docs/HANDOFFS/WEB/STREAM_0_DECISION.md (dies this campaign).
+  docs/HANDOFFS/WEB/STREAM_0_DECISION.md (path retired to git; content at its last sha).
 - Panel (JSX/Vite): resumes as sibling repo with its own git; sources and package.json recoverable at 850f896^ (CUT_1g retired them); node_modules on disk stays untouched until founding.
+- DAWN_REFERENCE web-era rewrite: docs/reference/DAWN_REFERENCE.md is
+  archival-with-named-drift (its own CANON stamp); the rewrite awaits Jean's
+  reference round. Origin: the stamp itself.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
-- HARVEST: OPTION-B WGSL PIN — world.wgsl @binding literals stay hand-mirrored
-  (Option A, tools/wgsl_gate.py as the net); Option B, ONE authored source generating
-  both sides, is still unbuilt. Verified still Option A at c43d44d.
-  (from audit/past reports/LADDER.md P-4, eafd9ec)
 - HARVEST: PREGEN-8 CONTINGENCY — rig-triggered storage weld (225→289 layers,
   TILE_GRID 17→19, MAX_ACTIVE_PATCHES) sleeps until the rig shows rim-pops under fast
   flight. (from audit/past reports/LADDER.md P-3, eafd9ec)
@@ -32,10 +20,6 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   pregen / lower finite_radius_max / keep origin-pin degenerate) is undecided until b3
   lands; finite_radius_max is still live in gallery.hpp.
   (from audit/past reports/LADDER.md P-6, eafd9ec)
-- HARVEST: the twins ruling — KEEP-THROUGH-ORGAN (the report's recommendation: the web
-  is the product, the native twin is the bench, and the bench retires when the web gains
-  WGSL hot reload AND the port is vendored) vs RETIRE-NOW. Awaiting Jean's word.
-  (from audit/DOMESDAY_2_REPORT.md §11 Slot 1, 5ff5696)
 - HARVEST: the terrain word on the pinned seed — three rounds outstanding, and the last
   open item of PROBATE_I. Wrong looks like "the whole terrain is the same hill repeated"
   or "everything outside the first patch went flat". (from GATEHOUSE_REPORT.md, a5e84bf)
@@ -59,9 +43,6 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   like PARAM_LAYOUT[], one set_voice(channel, span) door, [VOICE] boot witness
   enumerating every channel with rest + address; sketch in terrain_program_charter
   §C5 (attic since CANON, last at a8f4580); unblocked by the music-coupling campaign.
-- Immediates witness: push-constant/immediate budgets have no census and no witness —
-  do not spend what nothing measures; the first campaign wanting them builds the
-  witness first. Origin: ESTATE_LOOM_WALLET (attic, 3b931ba).
 - SALON Stage B (slot count): STILL OPEN, land-gated. PAINTING_MAX_SLOTS is still 288
   (state.hpp:271) and was last touched by LOOM_1 U3, not by a SALON re-spec; the
   re-spec §0.1/§0.2/§0.3 is unpaid. The witness the stage relies on DOES exist —
