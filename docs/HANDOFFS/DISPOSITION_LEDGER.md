@@ -826,3 +826,110 @@ applied without being asked twice.
 | the ribbon's four pipes (`ribbon.amp_lateral_mult`, `amp_vertical_mult`, `color_stim`, `color_mix`) | The rests are already at the seam as hard-coded fallbacks (`: 1.0f`, `: 0.0f`, `nullptr`) inside `ribbon.hpp:833-846` — but the **`color_stim` fallback is a null pointer**, not a value, and the code branches on it downstream. Moving it into the room means giving the null branch a rest *shape* first, which is a read of the tint path this sitting did not make. The other three are mechanical; they were held back with the fourth so the ribbon's seam lands as one coherent unit rather than three-quarters of one. Anatomy: `DriverSurface::Ribbon { rest_amp_lat, rest_amp_vert, rest_tint_stim[3], rest_tint_mix, gain }`. |
 | `floater_coordination` | driven by `cube_behaviors.hpp:400`, which is one of the five modules flagged unread in §4.6. Witness-only would be honest, but its *dial* lives in that module and the pair should land together. |
 | `veil_strength`, `terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap` | driven per-world/per-mood from MoodProfile's **structural** group, which is C5 by the standing eligibility rule. A witness on each is defensible and cheap; deferred only because the four belong to one reading of the mood applier that Wave 3's ORB deferral already named. |
+
+---
+
+# THE GAP AT CLOSE
+
+`tools/organ_gap.py`, run against the tree ORGAN_3 leaves. Every
+absent member below has a reason in the sections above — the tool
+finds the gap, the ledger explains it, and neither pretends to do the
+other's job.
+
+```
+ORGAN GAP — members of the enrolled homes that the panel does not name
+========================================================================
+A map, not a gate. Reasons live in docs/HANDOFFS/DISPOSITION_LEDGER.md.
+
+THE FILE TABLE this run trusted (blind spot 2 — stale rows are
+invisible bugs, so they are printed):
+    AgentBehaviorBank        src/cartridges/the_board/contracts/agent_tiers.hpp
+    AgentTierBank            src/cartridges/the_board/contracts/agent_tiers.hpp
+    DriverSurface            src/cartridges/the_board/contracts/driver_surface.hpp
+    GPUAgentRoomConstants    src/cartridges/the_board/realization/state.hpp
+    GPUDesignConfig          src/cartridges/the_board/realization/state.hpp
+    GPULighting              src/cartridges/the_board/realization/state.hpp
+    IndoorSurface            src/cartridges/the_board/contracts/indoor_module.hpp
+    MoodProfile              src/cartridges/the_board/contracts/spine_state.hpp
+    OrbConsole               src/cartridges/the_board/contracts/orb_surface.hpp
+    PanelSurface             src/cartridges/the_board/contracts/control_panel.hpp
+    PawnAuraProfile          src/cartridges/the_board/contracts/pawn_surface.hpp
+    RibbonSurface            src/cartridges/the_board/contracts/ribbon_surface.hpp
+
+AgentBehaviorBank          1/ 1 named   0 absent
+AgentTierBank              1/ 1 named   0 absent
+DriverSurface              3/ 3 named   0 absent
+GPUAgentRoomConstants      2/ 5 named   3 absent
+        portals
+        occupier_cmg
+        occupier_amg
+GPUDesignConfig           60/77 named   17 absent
+        mute_couplings
+        world_seed
+        sun_direction
+        world_bound_min
+        world_bound_max
+        placement_patch_count
+        terrain_amp_ceiling
+        ceiling_height
+        floater_coordination
+        pulse_count
+        possessed_slot
+        indoor_height_cap
+        pulse_data
+        lod_point_x
+        lod_point_z
+        point_host
+        veil_strength
+GPULighting                1/ 3 named   2 absent
+        points
+        spots
+IndoorSurface              2/ 2 named   0 absent
+MoodProfile                5/15 named   10 absent
+        finite
+        finite_radius_min
+        finite_radius_max
+        indoor
+        ceiling_type
+        wall_height
+        terrain_amp_ceiling
+        allow_gol_zones
+        allow_pawn_aura
+        allow_frustum_cull
+OrbConsole                 3/ 3 named   0 absent
+PanelSurface               2/ 2 named   0 absent
+PawnAuraProfile            8/ 9 named   1 absent
+        effect_mask
+RibbonSurface             14/14 named   0 absent
+
+TOTAL ABSENT FROM THE PANEL, ACROSS THE ENROLLED HOMES: 33
+
+Blind spot 1: homeless constants — an authored constexpr with no
+live home — cannot appear above. This tool measures the gap between
+the HOMES and the panel; the ledger measures the gap between the
+PROGRAM and the panel, which is larger.
+Blind spot 3: a partly-enrolled nested aggregate reads as named —
+`fog.gain` names `fog`. The ledger carries the per-field truth.
+```
+
+## Reading the gap
+
+Not one of the 33 is an oversight. Grouped by the reason already given:
+
+| absent | count | reason |
+| --- | --- | --- |
+| `MoodProfile`'s structural group | 10 | C5 by the standing eligibility rule beside `MOOD_LIVE` — world generation reads it |
+| `GPUDesignConfig` structural (`world_seed`, bounds, `placement_patch_count`, `lod_point_*`, `possessed_slot`, `pulse_*`, `point_host`) | 10 | C5 — seeds, GPU yardsticks, host pointers, a ring buffer |
+| `GPUDesignConfig` driven, witness deferred (`terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap`, `veil_strength`, `floater_coordination`) | 5 | Wave 4's named deferrals |
+| `GPUAgentRoomConstants` windows (`portals`, `occupier_cmg`, `occupier_amg`) | 3 | C5 — windows onto other homes (CHORD's windows-not-homes ruling) |
+| `GPULighting` (`points`, `spots`) | 2 | C5 — light arrays, D5 composite |
+| `config.sun_direction` | 1 | ORGAN_2c ruled it a window, not a home |
+| `config.mute_couplings` | 1 | DEFER-RANGE (D1d) — a bitmask wants checkboxes, not a slider |
+| `PawnAuraProfile::effect_mask` | 1 | C5 — STATUS INTENT, uploaded and never read |
+
+The number to carry forward is not 33. It is **blind spot 1**: the
+constants with no home at all, which this tool cannot see and the ledger
+counts in its C2 and C3-destructive rows — the ribbon's spawn vocabulary,
+the orb registries, `PC_COLOR`, the canvas envelopes, and the five
+modules of §4.6 that were surveyed and not read. That is the next
+campaign's opening census, and it is larger than this one's close.
