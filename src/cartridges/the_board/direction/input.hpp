@@ -114,7 +114,7 @@ struct MouseState {
 //
 // The console writes this already dead-zoned and unit-clamped, in the
 // same axis convention the keys use (x right, z forward-negative).
-// Native never writes it — there are no touch callbacks there — so the
+// Native never wrote it — there were no touch callbacks there — so the
 // fold below is native-identical by construction, not by care.
 struct TouchMoveState {
     float x = 0.0f;
@@ -390,10 +390,10 @@ inline void update_movement_intent(InputDeps* c) {
     // (a thumb walking while a key strafes) and the clamp below keeps
     // the total honest — two hands cannot buy more than full speed.
     //
-    // NATIVE: touch_ is never written there, so this adds 0, `total`
-    // equals `len` which the branch above already brought to <= 1, and
-    // the clamp cannot fire. WASD is equivalent before and after, by
-    // construction rather than by inspection.
+    // NATIVE: touch_ was never written there, so this added 0, `total`
+    // equalled `len` which the branch above already brought to <= 1,
+    // and the clamp could not fire. WASD was equivalent before and
+    // after, by construction rather than by inspection.
     c->inputState_.move_x += c->touch_.x;
     c->inputState_.move_z += c->touch_.z;
     float total = std::sqrt(c->inputState_.move_x * c->inputState_.move_x +

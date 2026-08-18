@@ -103,8 +103,8 @@ namespace t7 {
     // ═══ THE COMPILER PLAN (PIVOT_0, 2026-08-12) ═════════════════════
     //
     // PIVOT_0 — the native shader-compiler plan. The web twin's
-    // compiler is the browser's own; this constant governs native
-    // only. world.wgsl is single-source across all values.
+    // compiler is the browser's own; this constant governed
+    // native only. world.wgsl is single-source across all values.
     //
     // Why it exists: WALLET_0's occupier cbuffer arrays stalled
     // update_player_agent at 20,227 ms under FXC and then
@@ -294,9 +294,9 @@ namespace t7 {
         Console& operator=(const Console&) = delete;
 
         // ── PORT_1b: the boot grammar ────────────────────────────
-        // Boot is a state machine. Native traverses it synchronously
+        // Boot is a state machine. Native traversed it synchronously
         // inside init() (RequestingAdapter..Configuring never observed;
-        // init() ends at Ready). Web starts an async request chain in
+        // init() ended at Ready). Web starts an async request chain in
         // init() and the frame gate pumps Configuring → Ready once the
         // device callback lands. Failed is terminal — the cause has
         // already printed.
@@ -316,9 +316,9 @@ namespace t7 {
 
         // Advance Configuring → Ready: runs the existing surface +
         // depth-buffer path once the device exists, then seeds the
-        // frame clock. Native never needs it (init() reaches Ready
-        // synchronously) but it is callable there harmlessly: every
-        // other state is a no-op.
+        // frame clock. Native never needed it (init() reached Ready
+        // synchronously) but it was callable there harmlessly:
+        // every other state is a no-op.
         void pump_boot() {
             if (bootState_ != BootState::Configuring) return;
             if (!initSurface()) { bootState_ = BootState::Failed; return; }
@@ -509,7 +509,7 @@ namespace t7 {
         // ═══ PORT_5d — THE DEVICE REQUEST, TWICE IF NEEDED ═══════════
         //
         // The web twin asked for the adapter's MAXIMUM limits, the same
-        // full passthrough native uses. On a desktop that is harmless;
+        // full passthrough native used. On a desktop that is harmless;
         // on a constrained device it is backwards — it tells the browser
         // to provision every ceiling at once when the program needs one.
         //
@@ -970,7 +970,7 @@ namespace t7 {
                     }
                     adapter_ = std::move(adapter);
                     // SHIP_0 U2 — WITNESS IDENTITY, web half. Native
-                    // enumerates every adapter and logs its pick
+                    // enumerated every adapter and logged its pick
                     // (PROBE_1 C1); the web twin could not name its own
                     // silicon, so "the browser runs the HD 5500" was a
                     // presumption and every web METER number was

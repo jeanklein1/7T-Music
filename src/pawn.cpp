@@ -87,8 +87,8 @@ constexpr const char* RENDER_NAME = STRINGIFY(INCUBATE_RENDER);
 // =========================================================================
 //
 // The six locals that persisted across frame-loop iterations, homed in
-// one struct so the loop body can live in frame() and be driven either
-// by main()'s while (native) or by the browser's rAF (PORT_1c).
+// one struct so the loop body could live in frame() and be driven
+// either by main()'s while (native) or by the browser's rAF (PORT_1c).
 // Member order IS the old construction order; init calls stay in
 // main(), verbatim and in sequence.
 
@@ -107,7 +107,7 @@ static App* app = nullptr;
 // =========================================================================
 //
 // One home for the post-console init sequence, verbatim from main().
-// Native calls it from main() exactly where those lines were — same
+// Native called it from main() exactly where those lines were — same
 // calls, same order, same failure handling. Web cannot: the device
 // arrives asynchronously, so frame() calls this ONCE when boot reaches
 // Ready. (The forced consequence of async boot: render.initialize
@@ -146,8 +146,8 @@ static bool init_world() {
 static void frame() {
     // --- Boot gate (PORT_1b/1c) ------------------------------------------
     // Web: rAF turns pump the boot until the device lands, then the world
-    // initializes once. Native: boot_state() is Ready before the loop ever
-    // runs — falls through immediately.
+    // initializes once. Native: boot_state() was Ready before the loop
+    // ever ran — fell through immediately.
     if (app->console.boot_state() != t7::Console::BootState::Ready) {
         app->console.pump_boot();
         return;

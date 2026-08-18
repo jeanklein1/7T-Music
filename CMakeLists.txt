@@ -230,7 +230,7 @@ if(EMSCRIPTEN)
     # runtime (gallery.hpp, the __EMSCRIPTEN__ forms). Nothing else read
     # /assets: the gallery scan was its only consumer on this twin.
     # PORT_2a — THE STACK. Emscripten's default STACK_SIZE dropped from
-    # 5MB to 64KB in 3.1.27; Windows gives the native twin 1MB. At -O2
+    # 5MB to 64KB in 3.1.27; Windows gave the native twin 1MB. At -O2
     # stack-overflow checking is OFF, so an overflow does not abort — it
     # writes past the stack into the heap and dlmalloc's metadata is the
     # first casualty, which is why the fault surfaces inside $malloc from
@@ -240,8 +240,8 @@ if(EMSCRIPTEN)
     # EXHIBIT_0 U2 — THE NETWORK IS A BYTE SOURCE. -sFETCH arms
     # emscripten_fetch, which is how the web twin reads exhibition.json
     # and each painting: the bundle carries the program, the network
-    # carries the exhibition. Native is unaffected — this whole block is
-    # behind if(EMSCRIPTEN).
+    # carries the exhibition. Native was unaffected — this whole block
+    # is behind if(EMSCRIPTEN).
     # The shader's path, once. It is a link INPUT (--preload-file) and a
     # link DEPENDENCY (LINK_DEPENDS) — two different facts about one file,
     # and the second was missing. The MEMFS target on the right of the @
@@ -270,9 +270,10 @@ if(EMSCRIPTEN)
     # rebuild, and the web twin shipped a shader fifteen hours older than
     # its own source while native was correct. LINK_DEPENDS is what makes
     # a shader edit dirty the link. Ninja and Makefile generators only.
-    # The native twin needs nothing: it reads world.wgsl off disk at
-    # runtime and has no bundle that can go stale — which is exactly why
-    # the twins disagreed about collisions and only one of them was wrong.
+    # The native twin needed nothing: it read world.wgsl off disk at
+    # runtime and had no bundle that could go stale — which is exactly
+    # why the twins disagreed about collisions and only one of them was
+    # wrong.
     set_target_properties(pawn PROPERTIES
         OUTPUT_NAME "the_board"
         SUFFIX ".js"

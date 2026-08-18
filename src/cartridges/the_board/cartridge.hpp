@@ -1751,7 +1751,7 @@ namespace t7 {
                         // The residue — the previously unattributable gap,
                         // now named: what frame_total carries that no U, R,
                         // or S bracket does (input drain, encoder create,
-                        // glue). Native backpressure surfaces in acquire/
+                        // glue). Native backpressure surfaced in acquire/
                         // present above; on the web twin the fps line's
                         // remainder beyond frame_total is the rAF interval.
                         std::snprintf(line, sizeof line,

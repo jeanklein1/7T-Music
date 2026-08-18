@@ -621,9 +621,9 @@ struct GalleryState {
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
     // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
-    // The native twin has no state here because its loads are calls
-    // that return with the picture. The web twin's do not, so the two
-    // facts that only exist BETWEEN a request and its answer live
+    // The native twin had no state here because its loads were calls
+    // that returned with the picture. The web twin's do not, so the
+    // two facts that only exist BETWEEN a request and its answer live
     // here: how many are out, and which ones are still waiting for a
     // free lane.
     struct AuthoredFetchRequest {
@@ -1575,7 +1575,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
 //
 // LAW: the bundle carries the program; the network carries the
 // exhibition. The two twins differ in exactly one thing — WHERE THE
-// BYTES COME FROM. Native walks a directory and reads files; the web
+// BYTES COME FROM. Native walked a directory and read files; the web
 // twin fetches a manifest and then each painting by URL. Everything
 // downstream of the decode is one body, shared, because everything
 // downstream is the same act.
@@ -1700,17 +1700,18 @@ inline void recount_authored_staged(GalleryState& gs) {
         if (gs.authored_staging[i].valid) gs.authored_staged_count++;
 }
 
-// A SLOT THAT FAILED MUST STAY REACHABLE. Native's failure is final and
-// harmless — the file is on disk or it is not, and a second read would
-// fail the same way. A network failure is a different animal: a 502, a
-// dropped connection on a phone, a name that lost its file between two
-// dist runs. Left as {valid=false, pending=false, consumed=false} the
-// slot would be unreachable forever: load_authored_textures has latched,
-// and rotate only revisits CONSUMED slots. So a failure marks the slot
-// consumed — still invalid, so nothing can pick it, but now exactly the
-// shape the rotation is looking for, and the next world change re-asks.
-// The disk claim is dropped with it so the cursor is free to hand that
-// painting to whichever slot comes up.
+// A SLOT THAT FAILED MUST STAY REACHABLE. Native's failure was final and
+// harmless — the file was on disk or it was not, and a second read would
+// have failed the same way. A network failure is a different animal: a
+// 502, a dropped connection on a phone, a name that lost its file
+// between two dist runs. Left as {valid=false, pending=false,
+// consumed=false} the slot would be unreachable forever:
+// load_authored_textures has latched, and rotate only revisits CONSUMED
+// slots. So a failure marks the slot consumed — still invalid, so
+// nothing can pick it, but now exactly the shape the rotation is looking
+// for, and the next world change re-asks. The disk claim is dropped with
+// it so the cursor is free to hand that painting to whichever slot comes
+// up.
 inline void authored_fetch_release_slot(GalleryState& gs, uint32_t staging_layer) {
     auto& rec = gs.authored_staging[staging_layer];
     rec.valid = false;
@@ -1977,18 +1978,18 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     }
     if (gs.authored_disk_manifest.empty()) {
         // WEB: THE FLAG DOES NOT LATCH ON AN EMPTY MANIFEST. Native's
-        // "empty" is a verdict — the folder was walked and there is
-        // nothing there — so latching is right: a second walk would
-        // find the same nothing. This twin's "empty" is "the fetch has
-        // not landed yet", and boot ALWAYS reads it before it can
-        // (init_world runs the whole boot inside one rAF turn, so no
-        // fetch callback can fire in the middle of it). Latching here
-        // would lock the exhibition out for the session. Left false,
-        // the next caller re-enters and finds the manifest.
+        // "empty" was a verdict — the folder was walked and there was
+        // nothing there — so latching was right: a second walk would
+        // have found the same nothing. This twin's "empty" is "the
+        // fetch has not landed yet", and boot ALWAYS reads it before
+        // it can (init_world runs the whole boot inside one rAF turn,
+        // so no fetch callback can fire in the middle of it). Latching
+        // here would lock the exhibition out for the session. Left
+        // false, the next caller re-enters and finds the manifest.
         //
         // Leaving it false also wakes commit_gallery's demotion at the
         // top of this file (site_type != SNAPSHOT_ONLY && !loaded ->
-        // SNAPSHOT_ONLY), which is dead code on native and correct
+        // SNAPSHOT_ONLY), which was dead code on native and is correct
         // here: with no manifest there is no authored content, and
         // snapshot-only is exactly what such a gallery should be.
         return;
@@ -2009,7 +2010,7 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         load_authored_image_to_staging(gs, gpu, queue, i, i, gs.authored_disk_manifest[i].c_str());
         // WEB: adds nothing here — the record cannot be valid yet, and
         // the tally is recomputed at each arrival instead. The line
-        // stays because on native it IS the tally.
+        // stays because on native it WAS the tally.
         if (gs.authored_staging[i].valid) gs.authored_staged_count++;
     }
     gs.authored_write_cursor = to_load % Dim::STAGING_LAYERS;
