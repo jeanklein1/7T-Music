@@ -490,3 +490,145 @@ rows are not claimed. What the sweep found, and what a successor needs:
 This is the campaign's honest edge: **four modules read whole and
 enrolled, five surveyed and flagged.** The flag is the deliverable for
 those five — the next sitting starts here, not from zero.
+
+---
+
+# 5 · `coupling/visual_canvas.hpp`
+
+The canvas is where couplings already live, so this file is mostly **C4
+seam material** and the tables its couplings read.
+
+## PARAM_LAYOUT — the pipes
+
+Slot numbers and widths are **C5 always** (§0: "`PARAM_LAYOUT` slot
+numbers are C5"). The **rest** column is C4 seam material — three of the
+eight pipes are already dispositioned:
+
+| pipe | rest | status |
+| --- | --- | --- |
+| `fog.density` / `fog.color` | `FOG_DENSITY_NONE` / placeholder | **DONE** — the drivers' room, ORGAN_2a |
+| `ribbon.amp_lateral_mult` | 1.0 | C4 — Wave 4, `DriverSurface::Ribbon` |
+| `ribbon.amp_vertical_mult` | 1.0 | C4 — Wave 4 |
+| `ribbon.color_stim` (3) | 0.0 | C4 — Wave 4 |
+| `ribbon.color_mix` | 0.0 | C4 — Wave 4 |
+| `terrain.checker_mean` (3) | 0.0 | C4 — Wave 4, the U4 flush |
+| `terrain.checker_var` (2) | 0.0 | C4 — Wave 4, the U4 flush |
+
+## The coupling tables and envelopes
+
+| param | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- |
+| `FOG_BY_FIELD[7]` / `FOG_COLOR_BY_FIELD[7][3]` | per-field density/tint | C5 | — | — | BOOT — the coupling's authored compile-time panel, ruled out of scope at ORGAN_2a and unchanged |
+| `FOG_SPAN` | 2.0 beats | C2 | Atmosphere · Fog | 0 … 8 `[heuristic]` | ENROLL w2 |
+| `RIBBON_SWELL_CEILING` | 2.00 × idle (**ruled**) | C2 | Ribbon · Swell | 1 … 4 `[heuristic]` | ENROLL w2 |
+| `RIBBON_SWELL_RAMP` | 8.0 beats (**ruled**) | C2 | Ribbon · Swell | 0 … 32 `[heuristic]` | ENROLL w2 |
+| `RIBBON_SWELL_ATTACK` / `_RELEASE` | 0.35 / 2.0 beats | C2 | Ribbon · Swell | 0.01 … 8 `[heuristic]` | ENROLL w2 |
+| `TINT_LUMA` / `TINT_CHROMA` / `TINT_MIX_MAX` | 0.55 / 0.35 / 0.85 | C2 | Ribbon · Tint | 0 … 1 `[identity]` | ENROLL w2 |
+| `TINT_MIX_ATTACK` / `_RELEASE` / `_HUE_SPAN` | 0.5 / 3.0 / 2.0 beats | C2 | Ribbon · Tint | 0.01 … 12 `[heuristic]` | ENROLL w2 |
+| `PITCH_VEC_ORIGIN` | 0.0 rad — "rotates the hue seating" | C2 | Ribbon · Tint | 0 … 6.2832 `[identity]` (a full turn) | ENROLL w2 |
+| `CHECKER_READ_SPAN` / `_ATTACK` / `_RELEASE` | 4 / 2 / 8 beats | C2 | Atmosphere · Checker | 0.25 … 32 `[heuristic]` | ENROLL w2 |
+| `TIDE_SHIFT_MIN/MAX`, `RAIN_SCATTER_MIN/MAX` | −0.65…0.75, −0.80…0.25 | C2 | Terrain · Modes | −1 … 1 `[tree]` (the file names both ends) | ENROLL w2 |
+| `TINT_D1[3]` / `TINT_D2[3]` | orthonormal chroma basis | C5 | — | — | BOOT — a basis, not a dial; editing one lane un-orthogonalises the pair |
+| `PC_COLOR[12][3]` | Jean's twelve hues | C5 | — | — | BOOT by D5 (12 rows > 8) — **but see the note below** |
+| `ZOETROPE_EARS`, `ZOETROPE_ROW_OF_PC[12]`, `RIBBON_VOICE`, `CHECKER_VOICE` | bitmask / index map / voice names | C5 | — | — | BOOT — addresses and identity, never dials |
+
+**`PC_COLOR` is the largest near-miss in the campaign.** Twelve rows of
+three lanes, explicitly *"PC_COLOR IS JEAN'S — twelve hues, one per pitch
+class. Tune it here."* — an invitation to a panel if ever the tree wrote
+one. D5 puts it over the line at 12 > 8, and it is the honest place to
+hold: 36 lanes is a colour *editor*, not a dial strip. What a composite
+editor would need: twelve swatches keyed by pitch-class name, with the
+dressed-pc offset (`0 = D`) shown, since the row order is not chromatic
+from C. Pricing, not promising.
+
+---
+
+# 6 · `realization/state.hpp` — GPUDesignConfig, field by field
+
+The single richest vein, and now fully censused: every field, every
+setter, every setter's call sites and cadence. The verdicts below rest on
+that census, not on the field comments.
+
+## C1 — no runtime author (boot pins only)
+
+Already covered above: the eight `field_*`, `point_bubble_radius`, the
+palette mirror (12 entries), the ROW 2 motion/mode pins (14 entries),
+`point_fly_speed`. Additional C1 found only here:
+
+| field | shape | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `pawn_speed` | F32 | `Idle::PAWN_SPEED` | C1 — no writer at all | Interaction · Pawn | 0 … 4× rest `[heuristic]` | ENROLL w1 |
+| `freeze_sphere` | U32 | 0 | C1 | Debug | 0 … 1 `[tree]` BOOL | ENROLL w1 |
+| `cube_plasticity` | F32 | 0.6 | C1 | Interaction · Cubes | 0 … 1 `[identity]` (a λ master) | ENROLL w1 |
+| `veil_ring` | F32 | `Dim::VEIL_RING_DEFAULT` (325) | C1 — "Live-tunable" says the tree | Atmosphere · Veil | 0 … 1300 `[heuristic]` | ENROLL w1 |
+| `veil_icing` | F32 | `Dim::VEIL_ICING_DEFAULT` (40) | C1 | Atmosphere · Veil | 0 … 160 `[heuristic]` | ENROLL w1 |
+| `lod0_radius` | F32 | `Dim::LOD0_RADIUS_DEFAULT` (175) | C1 | Atmosphere · Veil | 0 … 700 `[heuristic]` | ENROLL w1 |
+| `veil_dither` | F32 | 0.0 | C1 key-shared | Atmosphere · Veil | 0 … 1 `[tree]` (">0.5 = dither") | ENROLL w1 |
+| `mosaic_enable` | F32 | 1.0 | C1 | Terrain · Mosaic | 0 … 1 `[tree]` (a gate) | ENROLL w1 |
+| `mosaic_shard_size` | F32 | `Dim::MOSAIC_SHARD_SIZE_DEFAULT` | C1 | Terrain · Mosaic | 0 … 4× rest `[heuristic]` | ENROLL w1 |
+| `mosaic_passage_scale` | F32 | `Dim::MOSAIC_PASSAGE_DEFAULT` | C1 | Terrain · Mosaic | 0 … 4× rest `[heuristic]` | ENROLL w1 |
+| `mosaic_blend` | F32 | `Dim::MOSAIC_BLEND_DEFAULT` | C1 | Terrain · Mosaic | 0 … 1 `[identity]` | ENROLL w1 |
+| `mosaic_facet` | F32 | `Dim::MOSAIC_FACET_DEFAULT` | C1 | Terrain · Mosaic | 0 … 4× rest `[heuristic]` | ENROLL w1 |
+| `mute_dynamics_0d` | U32 | 0 | C1 (D2 — a config toggle word enrolls BOOL directly) | Debug | 0 … 1 | ENROLL w1 |
+| `mute_signal` | U32 | 0 | C1 | Debug | 0 … 1 | ENROLL w1 |
+| `mute_couplings` | U32 | `Coupling::NONE` | C1 — a bitmask, not a bool | Debug | 0 … 255 `[tree]` (`Coupling::ALL`) | ENROLL w1 as U32 |
+| `fpv_mode` | U32 | 0 | C1 key-shared | Debug | 0 … 1 | ENROLL w1 |
+
+`mute_signal` and `mute_couplings` have one *program* writer pair —
+`enter_design_mode` / `enter_performance_mode` — with **zero external
+callers**. They are mode presets nothing invokes today, so the fields are
+C1 in practice. Recorded so a future sitting that wires those presets
+knows it is creating a second author.
+
+## C4 — a per-frame author writes it (witnesses, Wave 4)
+
+| field | author | cadence | verdict |
+| --- | --- | --- | --- |
+| `fog_density`, `fog_color` | `phase_motion_drivers` → `set_fog` | per frame | **DONE** — ORGAN_2a witnesses |
+| `aura_enabled`, `pawn_aura_height` | `tick_pawn_couplings` | per frame | **DONE** — ORGAN_2a witnesses |
+| `checker_resultant`, `checker_music_amount`, `checker_music_variance` | `phase_motion_drivers` → `set_checker_color_field` (cartridge.hpp:1080) | per frame | ENROLL w4 — rests+gains in the drivers' room, three witnesses |
+| `pawn_tilt_tau` | cartridge.hpp:982, from the possessed figure | per frame | ENROLL w4 — witness only (the *dial* is `PAWN_FIGURES.tilt_tau`, D5-table) |
+| `pawn_body_radius` | cartridge.hpp:997 | per frame | ENROLL w4 — witness only |
+| `fpv_eye_height` | cartridge.hpp:1015, `FPV_EYE_RATIO × figure height` | per frame | ENROLL w4 — witness only |
+| `fade_alpha`, `fade_color` | cartridge.hpp:1332, the transition | per frame | ENROLL w4 — witnesses. **Never dials**: ORGAN_0's own enrollment banner already ruled a dial here "would fight an author and lose confusingly" |
+| `floater_coordination` | `cube_behaviors.hpp:400` | per frame | ENROLL w4 — witness; the *dial* is in the flagged `cube_behaviors` module |
+| `terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap` | `apply_mood_lighting` | per mood | ENROLL w4 — witnesses (their definitions are MoodProfile-structural, C5) |
+| `veil_strength` | cartridge.hpp:1165, world init | per world | ENROLL w4 — witness |
+
+## C5 — structural
+
+`world_seed` (world generation reads it everywhere), `world_bound_min/max`
+(set at world init from the mood's radii), `placement_patch_count`,
+`lod_point_x/z` (the CPU's banding point — one yardstick with the GPU
+gate by construction; a dial would split it), `possessed_slot` (a host
+pointer), `pulse_count` + `pulse_data[32]` (a ring buffer), `sun_direction`
+(ORGAN_2c: a window, ruled), and every `_pad*`.
+
+---
+
+# 7 · `world.wgsl` — the TUNING SURFACE DIRECTORY
+
+**C5 BOOT wholesale**, by the standing law the file states itself:
+
+> *Purely visual constants prefer WGSL-side residence for the
+> edit-save-look loop: a number that only changes what the eye sees wants
+> the shortest path from edit to sight, and that path is here.*
+
+and by `terrain_looks.hpp`'s two-rooms rule — *every VALUE lives in
+exactly ONE room* — which is what makes the L3 mirror hazard impossible
+for these. One ledger section, no per-const rows, per §2's instruction.
+
+The directory's own chapters: Spatial Field Lattices (10 consts), Palette
+Composition, Composite Cuts & Edges, the Movement Third (`TERRAIN_BANDS`,
+`WAVE_THRESHOLD`), the checker dials (`CHECKER_WANDER`,
+`CHECKER_VAR_PER_NOTE`, `CHECKER_VAR_MAX`, `DEBUG_VIEW`), GoL internals,
+and the entity behaviour consts.
+
+**One flag, per §2's "unless a const is plainly a live candidate wrongly
+stranded":** the ROW 5 checker dials (`CHECKER_WANDER`,
+`CHECKER_VAR_PER_NOTE`, `CHECKER_VAR_MAX`) sit *downstream of a live
+config wire* — `terrain_looks` ROW 2 routes the checker field through
+`config.checker_*` while these three stay WGSL-resident. That is not
+wrong (they are the GPU's own consumption shape, not the coupling's
+output), but it is the one place a future sitting might reasonably ask
+for a config word. Recorded, not proposed.
