@@ -946,3 +946,57 @@ only the word was retired.
 
 Extracted at CANON from the superseded constitution; provenance in the
 attic.
+
+## Name resolution — PATH owns the toolchain
+
+CMake's program search on Windows considers `.com`, `.exe`, and the BARE
+NAME — not `.bat` — and searches NAMES_PER_DIR: it exhausts one directory
+before trying the next. An extension-less POSIX script named `ninja`
+earlier on PATH beats a real `ninja.exe` later, and `project()` dies with
+"inappropriate file type or format". The same rule resolves `python`,
+`git`, and `node` — every bare name in the build and deploy chain.
+
+**depot_tools is not installed on this machine** (removed 2026-08-18,
+and the Dawn source checkout with it — native is archived at
+`native-sunset`; the web twin builds from the in-tree emdawnwebgpu pin).
+If a Dawn source build is ever needed again: clone depot_tools fresh,
+prepend it to PATH in that shell only, delete it after. It never enters
+the persistent PATH.
+
+**Toolchains live at paths we own**, not inside the IDE:
+`C:\Program Files\CMake\bin\cmake.exe` and `C:\dev\bin\ninja.exe`.
+`CMAKE_MAKE_PROGRAM` is an absolute path baked into `CMakeCache.txt`
+exactly as `CMAKE_ROOT` is; a versioned IDE path dangles at the next
+major update and takes the tree's build step with it.
+
+A CACHE HIDES A BAD ANSWER. `find_program` writes its result before the
+generator probes `--version`, so a failed configure leaves the bad path
+behind and the next configure reads it instead of searching. Repair is
+`--fresh`, not reconfigure.
+
+Visual Studio's presets driver bypasses PATH and configures with its
+bundled cmake, injecting `CMAKE_MAKE_PROGRAM` on the command line — no
+preset or PATH edit defends against it; only removing its authority
+does. Its automatic configure is disabled (Options → CMake → "Never run
+configure step automatically"); the manual "Delete Cache and
+Reconfigure" button still writes. VS edits text; the command line
+configures. Fingerprint: the emscripten shared-libraries warning prints
+from cmake 4.2–4.3.3 only — on this machine, only the IDE bundles one.
+If it prints, the IDE held the pen.
+
+Verify (cmd; in PowerShell `where` is the `Where-Object` alias — call
+`where.exe`):
+
+    where ninja & where cmake & where python & where git & where node
+    findstr /S /I /C:"CMAKE_ROOT:INTERNAL" /C:"CMAKE_MAKE_PROGRAM:FILEPATH" CMakeCache.txt
+
+## Arming — what emsdk_env.bat does and does not do
+
+A `.bat` invoked from PowerShell runs in a cmd child; its environment
+dies with the child — the PowerShell parent is never armed. The web
+presets do not depend on the arming: the persistent `EMSDK` user
+variable resolves the toolchain file, and emscripten's tools self-locate
+from their own config (witness: the-board-web-meter configured, built,
+and linked from an unarmed PowerShell parent, 2026-08-18). The
+persistent `EMSDK` user variable is therefore load-bearing: deleting it
+breaks every web preset at configure.
