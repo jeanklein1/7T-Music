@@ -8,7 +8,7 @@
 //
 // THE_BOARD — Generative world engine.
 //
-// ONE REGIME (constitution §1): every module is a file-scope pair around the class;
+// ONE REGIME (L38, the composition law): every module is a file-scope pair around the class;
 // the cartridge is the composition root alone.
 //
 // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
@@ -1530,7 +1530,7 @@ namespace t7 {
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
             // proof (G3, constexpr-gated intra-movement) + entity census.
-            // Autonomous stdout (constitution §5).
+            // Autonomous stdout (P6: every switch has a witness).
             void phase_census_dumps(RenderCtx&) {
                 // ROSTER-RESIDUE gol (2e) — residue recipe. When gol is
                 // disabled it is never selected (b), so zone_count stays 0 and
@@ -2554,7 +2554,7 @@ namespace t7 {
             // pre-class in the cohort). MOOD OWNS NO STATE —
             // nothing at the COMPOSITION ROOT; mood_state_ and the
             // transition machine are spine-resident
-            // (SEAM[spine:transitions], constitution §2). The force-spawn
+            // (SEAM[spine:transitions], L38 — assembly only; this is declared orchestration). The force-spawn
             // mutation belongs to the arch's owner: entities'
             // force_spawn_portal_arch (the ROSTER portal door lives
             // there). The lighting-scheme tables stay impl-side. See §1.

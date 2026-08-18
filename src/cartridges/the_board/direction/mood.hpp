@@ -27,7 +27,7 @@
 // mood_state and the transition machine
 // (transitionPhase / pendingDestination and kin) are SPINE-OWNED
 // orchestration (SEAM[spine:transitions] at the machine's banner;
-// constitution §2, K4 as amended). The force-spawn
+// L38 — assembly only, K4 as amended). The force-spawn
 // mutation of the arch belongs to the arch's owner — mood's
 // force_spawn_* internals COMPUTE VALUES and call entities'
 // force_spawn_portal_arch.

@@ -69,6 +69,9 @@
 //
 // All constants that shape terrain, color, and cell behavior.
 // Change a number, recompile, see the result. No logic edits needed.
+// Purely visual constants prefer WGSL-side residence for the
+// edit-save-look loop: a number that only changes what the eye sees
+// wants the shortest path from edit to sight, and that path is here.
 // Section references (§N.M) are stable; search by section number.
 //
 // The surface voice's color + movement rows are consolidated at THE
