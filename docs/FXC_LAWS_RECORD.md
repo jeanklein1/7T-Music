@@ -14,6 +14,12 @@
 > laws were paid for by measurement, not argument, and their successors
 > must be too. The `[Pipeline]` per-kernel timer is the instrument.
 
+> DRIFT NOTE (RECENSION_1, 2026-08-18): the archive directories named in the
+> appendices below — `docs/past docs/`, `docs/HANDOFFS/past campaigns/`,
+> `audit/past reports/`, `docs/audit/` — were themselves retired to git after
+> these rulings (L30). Their mentions live in history only; the rulings stand
+> as minutes (L28).
+
 ## The decision
 
 The audience floor is raised: **WebGPU core through modern compilers** —
@@ -120,10 +126,11 @@ way is **unmeasured**. Re-witness before merging those kernels back.
 ## The witness protocol, superseded
 
 The retired protocol named the FXC gate first. The live protocol is in the
-`world.wgsl` COMPILER FLOOR block: naga is the per-commit gate (CC), and
-glaw1 + boot is the witness of record. Its shape is unchanged — a
-shader-shape change is proven by witnesses, never by argument, and no
-witness substitutes for another.
+`world.wgsl` COMPILER FLOOR block: `tools/wgsl_gate.py` gates the module
+per commit (naga as its pinned half, behind the immediate shim; it
+witnesses the MODULE only), and the web build + boot is the witness of
+record. Its shape is unchanged — a shader-shape change is proven by
+witnesses, never by argument, and no witness substitutes for another.
 
 ## PROBATE appendix — the probate of 2026-08-16
 Rulings of record for every site the FXC trigger matched at PROBATE_B.
