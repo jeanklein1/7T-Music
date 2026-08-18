@@ -4,6 +4,7 @@
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
 #include "cartridges/the_board/bodies/pawn_figures.hpp"        // PAWN_FIGURES, FIGURE_SHARES, family spans (H1) — this TU names them directly
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
+#include "cartridges/the_board/contracts/agent_tiers.hpp"      // Tier vocabulary graduated to contracts/agent_tiers.hpp (ORGAN_2b) — the bank TIER_LIVE is the world's definition; the translator below reads it.
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
@@ -59,14 +60,10 @@ enum AgentBehaviorId : uint32_t {
 };
 
 // ═══ TIER IDS ════════════════════════════════════════════════════
-
-enum AgentTierId : uint32_t {
-    AGENT_TIER_WORKER   = 0,
-    AGENT_TIER_SCOUT    = 1,
-    AGENT_TIER_SENTINEL = 2,
-    AGENT_TIER_LEADER   = 3,
-    AGENT_TIER_COUNT    = 4,
-};
+// AgentTierId (AGENT_TIER_COUNT included) graduated to
+// contracts/agent_tiers.hpp with the table whose rows name it
+// (ORGAN_2b). The cross-check below stays: it stands on a
+// realization constant, and a contract may not include one.
 
 // Cross-check: GPU-side count constants in state.hpp must match the
 // authoritative enums above. If you add a behavior or a tier, bump
@@ -157,38 +154,11 @@ static_assert(sizeof(AGENT_BEHAVIORS) / sizeof(AGENT_BEHAVIORS[0]) == AGENT_BEHA
               "AGENT_BEHAVIORS must declare one row per AgentBehaviorId");
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
-
-struct AgentTierDef {
-    AgentTierId id;
-    const char* name;
-    float       step_gain;       // multiplies step_size
-    float       persist_gain;    // multiplies persistence
-    float       speed_gain;      // multiplies speed_cap
-    float       color_r;
-    float       color_g;
-    float       color_b;
-    float       contact_radius;  // TRUEBAND_CONTACT_1: body radius (wu) — Jean-tunable
-    float       contact_mass;    // relative yield authority — Jean-tunable
-    float       personal_radius; // CONTACT_2: social shell (flock sense + flee trigger) — Jean-tunable
-    float       flee_gain_player;// CONTACT_2: flee response gain vs the point-source — Jean-tunable
-};
-
-inline constexpr AgentTierDef AGENT_TIER_GAINS[AGENT_TIER_COUNT] = {
-    //  id                     name        step  persist  speed  color                 c_radius c_mass  p_radius flee_g (CONTACT_2 p_radius 30; CONTACT_4 S2a flee_g < 1 — the CATCHABILITY LAW)
-    // CATCHABILITY LAW (CONTACT_4): the escape is a velocity FLOOR, so a gain
-    // >= 1.0 means the agent matches or beats the player's radial speed and can
-    // NEVER be approached (nor possessed). Gains < 1 close the gap at
-    // (1 - gain*radial_share) of player speed. The tangential split
-    // (esc = normalize(dir + tang*0.6), radial share ~= 0.86) makes the dodge
-    // read as evasive at gains well under 1. Jean-tunable; keep every row < 1.0.
-    { AGENT_TIER_WORKER,   "worker",   1.0f, 1.0f, 1.0f, 0.60f, 0.62f, 0.65f, 1.6f, 1.0f, 30.0f, 0.70f },  // slate gray
-    { AGENT_TIER_SCOUT,    "scout",    1.8f, 0.4f, 1.4f, 0.85f, 0.65f, 0.40f, 1.4f, 0.8f, 30.0f, 0.85f },  // bronze
-    { AGENT_TIER_SENTINEL, "sentinel", 0.6f, 1.2f, 0.5f, 0.30f, 0.40f, 0.70f, 2.0f, 1.5f, 30.0f, 0.50f },  // deep blue
-    { AGENT_TIER_LEADER,   "leader",   1.2f, 0.9f, 1.1f, 0.95f, 0.85f, 0.55f, 1.8f, 1.2f, 30.0f, 0.60f },  // pale gold
-};
-
-static_assert(sizeof(AGENT_TIER_GAINS) / sizeof(AGENT_TIER_GAINS[0]) == AGENT_TIER_COUNT,
-              "AGENT_TIER_GAINS must declare one row per AgentTierId");
+// AgentTierDef, AGENT_TIER_GAINS and its row-count assert graduated
+// to contracts/agent_tiers.hpp (ORGAN_2b), where TIER_LIVE stands
+// beside them as the world's definition. The table keeps its two
+// jobs — seeding the bank and standing under the asserts — and the
+// translator below reads the bank, not the table.
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 
