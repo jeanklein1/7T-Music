@@ -5,10 +5,16 @@
 //
 //   ORGAN_PARAM(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL)
 //   ORGAN_PARAM_DEF(... , DEFFIELD)     — the same, plus a DEFINITION
+//   ORGAN_PARAM_RO(BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
+//                                       — a WITNESS: the panel meters it
+//                                         and organ_set refuses to write
+//                                         it, so it carries no range
 //
-// BLOCK  — one of ORGAN_BLOCK_* (organ_registry.hpp). Only the three CPU
-//          homes GPUState exposes to the panel exist; there is no way to
-//          name anything else, which is the sovereignty boundary.
+// BLOCK  — one of ORGAN_BLOCK_* (organ_registry.hpp). The three CPU homes
+//          GPUState exposes to the panel, plus DRIVERS — the drivers' room
+//          (ORGAN_2a), a contracts-tier CPU surface built FOR the panel and
+//          read by the seams, which is why it needs no accessor. There is
+//          no way to name anything else, which is the sovereignty boundary.
 // STRUCT — the C++ home type the offset is taken in.
 // FIELD  — the member, spelled as offsetof takes it. Array elements and
 //          nested members are legal: `tier_gains[2].color_r`.
@@ -54,20 +60,31 @@ ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, 
 ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sun", "intensity", sun_intensity)
 ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sun", "ambient",  sun_ambient)
 
-// ─── ATMOSPHERE ──────────────────────────────────────────────────────
-// DesignConfig's own "Lighting & atmosphere" panel, minus the transition
-// overlay (fade_alpha / fade_color are driven by the transition system;
-// a dial there would fight an author and lose confusingly).
-//
-// No definitions here: MoodProfile has no fog and no aura, so these four
-// have no second author to outlive and their homes ARE the truth. If
-// O1a's census shows one of them contested anyway, the finding is that a
-// fact is authored somewhere the moods cannot see — an ORGAN_2 question,
-// not something to paper over with a target invented here.
-ORGAN_PARAM(CONFIG, GPUDesignConfig, fog_density,      F32,  0.0f, 0.05f, 0.0002f, "Atmosphere", "fog density")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, fog_color,        VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere", "fog colour")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, aura_enabled,     F32,  0.0f, 1.0f,  1.0f,    "Atmosphere", "aura enabled")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, pawn_aura_height, F32,  0.0f, 8.0f,  0.05f,   "Atmosphere", "aura height (wu)")
+// ─── FOG (the drivers' room + its witnesses) ─────────────────────────
+// ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
+// coupling through set_fog every frame — so the dials sit on the
+// driver's seam (contracts/driver_surface.hpp) and the driven values
+// convert to read-only witnesses below them. out = rest + gain·(driven
+// − rest): gain 1 is the coupling verbatim, gain 0 is the curator's
+// hand.
+ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_density, F32,  0.0f, 0.05f, 0.0002f, "Fog", "rest density")
+ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_color,   VEC3, 0.0f, 1.0f,  0.01f,   "Fog", "rest colour")
+ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f,   "Fog", "drive gain")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Fog", "density (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Fog", "colour (driven)")
+
+// ─── AURA (the drivers' room + its witnesses) ────────────────────────
+// The intent is the presence ramp's rest target — moved home from
+// PawnState.aura_enabled (U5); key 3 and the mood policy door write it
+// here now. attack/release carry the authored AURA_PRESENCE_* values;
+// height_gain multiplies profile.height_scale at the tick. The two
+// driven outputs witness below.
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.intent,      BOOL, 0.0f, 1.0f,  1.0f,    "Aura", "intent")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.attack,      F32,  0.05f, 8.0f, 0.05f,   "Aura", "attack (1/s)")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.release,     F32,  0.05f, 8.0f, 0.05f,   "Aura", "release (1/s)")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.height_gain, F32,  0.0f, 2.0f,  0.01f,   "Aura", "height gain")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, aura_enabled,     F32, "Aura", "enabled (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_aura_height, F32, "Aura", "height (driven)")
 
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // AgentTierParams::color_r/g/b are three contiguous floats, so one VEC3
