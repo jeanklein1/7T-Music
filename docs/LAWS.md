@@ -144,11 +144,11 @@ for per-frame voices. And see L4 before choosing the position.
 
 ## L6 — THE BINDING-NUMBER LAW
 
-`realization/binding_registry.hpp` is the **single source of truth** for GPU
-binding numbers, and it is the only record of them that is maintained.
-Since LOOM, the registry is itself emitted by `binding_gen.py --write` from
-`tools/binding_schema.py` — the authored home is the schema (L22); this law
-governs the numbers' shape and their mirrors.
+`tools/binding_schema.py` **authors** the GPU binding numbers (L22);
+`binding_gen.py --write` emits `realization/binding_registry.hpp` from it.
+The registry is the numbers' **one home in C++** and every consumer reads
+it — but it is a generated mirror, and a hand edit does not survive
+`--check`. This law governs the numbers' shape and their mirrors.
 
 1. Every bind-group layout entry and its matching group entry reference the
    **same named constant**. The "binding integer typed twice" hazard becomes an
