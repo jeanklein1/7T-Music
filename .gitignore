@@ -411,3 +411,5 @@ web/the_board.data
 # copies of assets/, which IS tracked). The whole folder stays ignored;
 # one rule already covers both halves.
 dist/
+.wrangler/
+out/
