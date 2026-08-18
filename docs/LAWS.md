@@ -60,16 +60,19 @@ witness. Nothing about it changed.
 
 **The witness protocol survives too**, minus the compiler it named: a
 shader-shape change is proven by witnesses, never by argument, and no
-witness substitutes for another. naga is the per-commit gate; the web build
-+ boot is the witness of record; each browser gates at its own.
+witness substitutes for another. `tools/wgsl_gate.py` is the per-commit
+module gate (naga as its pinned half, behind the immediate shim); the web
+build + boot is the witness of record; each browser gates at its own.
 
-**THE PER-COMMIT GATES, NAMED (GATE_1, 2026-08-16).** Two, and they answer
-different questions:
+**THE PER-COMMIT GATES, NAMED (GATE_1, 2026-08-16; refreshed RECENSION_4).**
+They answer different questions, and their scripts are the authority on
+their own invocations and subjects:
 
-| gate | invocation | subject |
+| gate | home | subject |
 |---|---|---|
-| naga | `naga src/cartridges/the_board/realization/world.wgsl` | the WGSL module |
-| console | `python3 tools/gates/console_gate/run.py` | `console.hpp` against the vendored WebGPU/GLFW surface |
+| module gate | `tools/wgsl_gate.py` | the WGSL module (naga behind the immediate shim) |
+| TU gate | `tools/gates/console_gate/run.py` | `cartridge.hpp` and `console.hpp` as TUs, warnings read, `-D__EMSCRIPTEN__` (GATEHOUSE_0) |
+| standalone compile | `tools/gates/glaw1/run.sh` | the cartridge TU's names, scope and syntax |
 
 The console gate is here because glaw1's translation unit is
 `cartridge.hpp`, which does not include `console.hpp` — so for the life of
