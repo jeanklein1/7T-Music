@@ -17,6 +17,7 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   docs/HANDOFFS/WEB/PIPE_0_DECISION.md (dies this campaign).
 - STREAM_0: PARKED per Jean's 2026-08-07 directive. Origin sha of
   docs/HANDOFFS/WEB/STREAM_0_DECISION.md (dies this campaign).
+- Panel (JSX/Vite): resumes as sibling repo with its own git; sources and package.json recoverable at 850f896^ (CUT_1g retired them); node_modules on disk stays untouched until founding.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
