@@ -57,10 +57,34 @@
 // points at a member and lets the compiler resolve it. Both offsets work
 // this way, so the definition side cannot drift from the instance side.
 //
+// GROUP IS A PATH (ORGAN_3): "Section · Group". The shell splits on the
+// FIRST separator and renders each section as a collapsible block — two
+// levels, never three. Sections are the program's VOICES, the operator's
+// taxonomy rather than the homes': a dial sits under its SUBJECT, never
+// under its implementation home, which is why the fog's rests are under
+// Atmosphere beside their witnesses and not under a "Drivers" heading.
+// There is deliberately no Camera section: camera pose is GPU truth, and
+// its absence here is the sovereignty boundary made visible.
+//
+// KEEP THIS FILE ORDERED BY SECTION PATH. A section must be CONTIGUOUS in
+// registry order, because the shell opens a new block whenever the first
+// token changes — a section that appears twice renders twice. The harness
+// asserts it. This file's order IS the panel's table of contents.
+//
+// THE CLASS LETTERS (docs/ORGAN.md, "The disposition") tag a banner where
+// they aid the reader: C1 a live home with no runtime author, C2 a
+// graduated console, C3 an event-authored definition, C4 a driven seam.
+// C5 is the class that never appears here — it is recorded in
+// docs/HANDOFFS/DISPOSITION_LEDGER.md with its one line of reason.
+//
 // The proving set below was census-derived from the structs themselves;
 // anything whose meaning was not obvious from its name and its comment was
 // left out on purpose. A wrong range on a dial is worse than a missing
-// dial: the missing one is silent, the wrong one lies.
+// dial: the missing one is silent, the wrong one lies. Every range here
+// follows the evidence order in docs/ORGAN.md and carries its evidence
+// class in the ledger: [tree] the tree's own word, [identity] a physical
+// identity, [heuristic] the authored value's envelope — the tag Jean's eye
+// visits first.
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── THE SUN ─────────────────────────────────────────────────────────

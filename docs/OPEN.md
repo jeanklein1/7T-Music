@@ -113,6 +113,16 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   both have 0 hits in src/. Note the ledger's cost figure assumed EXHIBITION_LAYERS
   32; the tree now reads 40 (state.hpp:294), so "32 -> 256 = +896 MiB" wants
   recomputing before it is spent. Origin: SALON_1 (attic, 3b931ba).
+- ORGAN_3 / the beacon's assert: contracts/control_panel.hpp proves
+  FIELD_BEACON_S < FIELD_K at compile time, and a compile-time proof cannot
+  guard a runtime dial. FIELD_K enrolled (its range only raises the winning
+  side); FIELD_BEACON_S did NOT, because a panel could push it past field_k
+  and clot the gather with the assert still reading true and no witness. Two
+  ways out, both priced: a clamp at the beacon writer, or the ruling restated
+  as a paired range. Origin: ORGAN_3 P1. Unblocked by Jean's pick between them.
+  (ORGAN_3's other deferrals are unfinished survey, not open state, and live
+  in docs/HANDOFFS/DISPOSITION_LEDGER.md — a line here would outlive its
+  reason.)
 - ML-1 / mirror_census: the span model does not recognise strataLayoutFor()
   returning wgpu::PipelineLayout (27 sites, 57 STOPs; pre-existing at ba0e26d).
   MIRROR_LEDGER.md is frozen at its last successful regen. Unblocked by: teach

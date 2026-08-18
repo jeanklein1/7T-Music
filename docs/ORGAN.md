@@ -280,6 +280,104 @@ The panel exists only under `?organ=1`; backtick toggles visibility.
 Without the flag, no DOM is built, no export is called, the audience
 path is byte-identical. The panel is an instrument, not the art.
 
+## The disposition (ORGAN_3)
+An organ's DISPOSITION is the document naming every stop the instrument
+has. `docs/HANDOFFS/DISPOSITION_LEDGER.md` is ours. A coupling is a
+parameter set into trajectory over time, so every enrolled dial — with
+its authored (min, max) — is a trajectory domain the music campaign will
+play. The panel is that campaign's target map, not decoration.
+
+### The five classes
+Every design parameter falls in exactly one.
+
+| class | signature | recipe |
+| --- | --- | --- |
+| **C1 LIVE** | reachable home, no runtime author after boot (boot pins allowed) | one `ORGAN_PARAM` line |
+| **C2 GRADUATE** | authored constexpr in a module, no live home | design table stays; LIVE bank in contracts; readers move; enroll against the bank |
+| **C3 EVENT** | a named author re-speaks it at an event | LIVE bank + a definition kind, then the temperament law below |
+| **C4 DRIVEN** | a per-frame author writes it | rests and gains at the seam, `_RO` witnesses on the driven values |
+| **C5 BOOT** | structural — world generation reads it, or it is a compile-time law | never enrolled live; recorded in the ledger with one line of reason |
+
+Shapes: floats and float runs are F32/VEC3/VEC4; a C++ `bool` cannot
+enroll (one byte against the ABI's four) — a CPU-only struct being
+graduated takes `uint32_t` from birth, a GPU-mirrored struct is never
+relaid out for a dial; enums and index choices are U32 with their
+meanings named in the line's comment; tables of ≤8 rows enroll per-row,
+larger ones stay C5 with the composite editor's price named; RNG salts
+are addresses, not dials, always C5.
+
+### The temperament law
+An **idempotent** author — re-speaking it reproduces the same world
+state from its definitions (the mood apply, the registry upload) —
+re-speaks at the frame boundary when its bank changes. A **destructive**
+author — respawn, world generation; re-speaking tears down live state —
+does **not** get a boundary re-speak: its definitions take effect at the
+author's next natural event, exactly as a non-live mood's definition
+already waits. Such a bank's group banner says so — *"edits the next
+spawn"* — because a dial that edits the future must say it edits the
+future, or the operator reads a working panel as a broken one.
+
+Where one fact has both temperaments, the **stricter governs**.
+`INDOOR_HEIGHT_CAP_FRACTION` is the exemplar: one idempotent reader
+(`apply_mood_lighting`) and nine destructive ones (`cap_to_ceiling` at
+every spawn), so its bank has no boundary wiring at all.
+
+A KIND IS NOT A FLAG. Two kinds share a flag when they share an AUTHOR,
+because the flag names the occasion and the occasion is the author
+speaking. `BEHAVIOR` raises `TIER`'s flag for exactly that reason.
+
+### The sections
+The group string is a path: `"Section · Group"`. The shell splits on the
+FIRST separator — two levels, never three — and renders each section as a
+collapsible block. Sections are the program's VOICES, the operator's
+taxonomy rather than the homes': `Sky & Light`, `Atmosphere`, `Terrain`,
+`Pawn`, `Ribbon`, `Agents`, `Interaction`, `Debug`.
+
+A dial sits under its SUBJECT, never under its implementation home: the
+fog's rests live under `Atmosphere` beside their witnesses, not under a
+"Drivers" section, because implementation homes are not menus.
+
+**There is deliberately no Camera section.** Camera pose is GPU truth,
+and its absence is the sovereignty boundary made visible in the one place
+an operator would look for it. The camera's *controls* — sensitivity,
+step, zoom — are input grammar and live under `Interaction · Camera`.
+
+A section must be CONTIGUOUS in registry order, since the shell opens a
+new block whenever the first token changes; the harness asserts it,
+because the `.inc`'s order is the panel's table of contents.
+
+### The gap tool
+`tools/organ_gap.py` — check-family, stdout only, **exit 0 always**. It
+parses the enrollment list, brace-parses the enrolled home structs, and
+prints every declared member the panel does not name. A map, not a gate:
+a member absent from the panel is usually absent on purpose, and the
+reason lives in the ledger. Three blind spots, printed on every run:
+it cannot see homeless constants (the ledger's job, and the larger gap);
+it trusts its own file table (so it prints it); and it reports at the
+granularity the enrollment addresses, so a partly-enrolled nested
+aggregate reads as named.
+
+### The tally at close
+223 enrolled entries — 210 dials and 13 read-only witnesses — across
+eight sections and nine blocks.
+
+| section | entries |
+| --- | --- |
+| Agents | 102 |
+| Terrain | 39 |
+| Interaction | 19 |
+| Atmosphere | 18 |
+| Pawn | 18 |
+| Ribbon | 14 |
+| Sky & Light | 9 |
+| Debug | 4 |
+
+Definition kinds: 116 none, 5 MOOD, 32 TIER, 70 BEHAVIOR; two of them
+definition-only. Blocks 0-8: config, lighting, agent room, drivers, pawn
+aura, orb console, the panel, the ribbon, indoor — nine of the twelve the
+campaign set as its consolidation threshold.
+
+
 ## ORGAN_2 — the close (the campaign minute)
 SETTLED. Four findings, four fates: the atmosphere dials got the
 drivers' room (2a — rests and gains at the seams; driven values became

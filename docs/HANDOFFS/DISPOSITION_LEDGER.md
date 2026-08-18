@@ -11,6 +11,14 @@ file; Jean and Claude rule its final form at the close. Until then it is
 the campaign's resumption point (Law 5): ledger + phase pushes are the
 complete handoff to a successor.
 
+**Why the deferrals are here and not in `docs/OPEN.md`.** OPEN is the
+register of open STATE, one line per item, and its law is that a line
+dies when its item closes. A DEFER that any future sitting can lift by
+reading a module is not open state — it is unfinished survey, and it
+belongs with the survey. Only an **externally blocked** deferral earns an
+OPEN line. ORGAN_3 produced exactly one such: the beacon's static_assert,
+which needs a ruling before any sitting can lift it.
+
 ## The five classes
 
 | class | signature | recipe |
