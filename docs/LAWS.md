@@ -838,8 +838,10 @@ perfectly sensible place to put it.
 
 Humans write in `docs/`. If a file in `audit/` has no generator, it is in the
 wrong room — and **everything in `audit/` is deletable and rebuildable by its
-generator**, which is the room's standing witness: delete the four, run the
-four tools, and the tree is byte-identical again. The four that live there — `MANIFEST.md`, `BINDING_LEDGER.md`,
+generator**, which is the room's standing witness (one standing exception
+while ML-1 is open: `MIRROR_LEDGER.md` — see `docs/OPEN.md`): delete the
+four, run the four tools, and the tree is byte-identical again.
+The four that live there — `MANIFEST.md`, `BINDING_LEDGER.md`,
 `MIRROR_LEDGER.md`, `COMMAND_LEDGER.md` — each name their producer in their own
 header, and each is byte-reproducible from the tree.
 
