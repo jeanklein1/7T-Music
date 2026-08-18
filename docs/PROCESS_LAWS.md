@@ -231,6 +231,29 @@ Corollary, and the reason the rule is worth a number: the branch is a
 meaningless, and the campaign that genuinely needs a visual gate is the
 one that pays for the noise.
 
+## P13 — A PRECONDITION NAMES THE STATE, NOT ITS PROXY
+
+A census, refuter, or skip clause states the **tree condition it must
+find**. A count the instrument cannot reach, or the bare presence of an
+artifact that may not do the job, is a proxy — and when a proxy disagrees
+with its state, the executor rules **by the state**, executes, and flags.
+It does not halt.
+
+*Paid for by:* RECENSION_1, twice in one campaign. FLAG-2: a skip clause
+tested whether an archival stamp EXISTED. It existed and did a different
+job — it retired the FXC laws and said nothing about the archive
+directories the drift note names — so presence alone would have skipped a
+unit that was needed. FLAG-T1: a census demanded zero `argv` hits in a
+file whose only `argv` hit was the clause the unit deletes; the number was
+unreachable before the edit and trivial after it. Both were resolved by
+function, correctly, at the cost of a ruling mid-round.
+
+The author's half is the burden: write the state, not the number. The
+executor's half is the licence — when the two disagree, rule by state and
+finish the round. It is P11's concern one step earlier: there a search had
+to look everywhere before claiming absence; here the sentence that
+commissions the search has to name what absence would mean.
+
 ---
 
 ## CANDIDATE (unnumbered) — THE GATE ROW NAMES THE ARTIFACT
