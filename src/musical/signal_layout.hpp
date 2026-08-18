@@ -62,10 +62,10 @@ public:
         }
         ++misses_;
 #ifndef NDEBUG
-        // Debug twin only (the-board-web-debug / native Debug): the full
-        // list, one line per source, unchanged. NDEBUG is the gate
-        // because CMake defines it for Release and not for Debug, which
-        // is exactly the two-preset split PORT_2c installed.
+        // Debug twin only (the-board-web-debug): the full list, one line
+        // per source, unchanged. NDEBUG is the gate because CMake
+        // defines it for Release and not for Debug, which is exactly the
+        // two-preset split PORT_2c installed.
         std::fprintf(stderr,
             "[SignalLayout] source '%.*s' not in layout (coupling disabled)\n",
             (int)name.size(), name.data());

@@ -18,11 +18,11 @@
 //          effective_pixel_cap) — the soak walk's key and the frame's
 //          largest lever
 //
-// Channels: web `?seed=&mood=&cap=` — ONE URLSearchParams read of
-// location.search, in one EM_ASM block; native `--seed= --mood=
-// --cap=` argv. Absent or malformed values are silently ignored;
-// anything accepted prints one [Params] line at parse time (P6 — a
-// switch that fired is visible). No UI, no mid-run reread.
+// Channel: `?seed=&mood=&cap=` — ONE URLSearchParams read of
+// location.search, in one EM_ASM block. Absent or malformed values
+// are silently ignored; anything accepted prints one [Params] line
+// at parse time (P6 — a switch that fired is visible). No UI, no
+// mid-run reread.
 
 #include <cmath>
 #include <cstdint>

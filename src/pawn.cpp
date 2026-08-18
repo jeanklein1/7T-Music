@@ -66,12 +66,6 @@
 #include <emscripten.h>   // emscripten_set_main_loop / cancel — the rAF driver
 
 // =========================================================================
-// FILE WATCHER -- Detects shader file changes for hot reload
-// (R6: a native instrument — the browser has no mtime to watch)
-// =========================================================================
-
-
-// =========================================================================
 // ACTIVE CARTRIDGE TYPES -- Derived from defines
 // =========================================================================
 
