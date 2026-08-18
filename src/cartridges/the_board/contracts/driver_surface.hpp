@@ -41,6 +41,17 @@ struct DriverSurface {
         float    release;         // 1/s — presence fall rate
         float    height_gain;     // × profile.height_scale at the tick
     } aura;
+    // ORGAN_3 w4 — THE CHECKER FIELD'S SEAM. phase_motion_drivers flushes
+    // the pitch-class colour field through set_checker_color_field every
+    // frame; same shape as fog, same recipe. The rests are what the
+    // TERRAIN_LOOKS panel calls law: "amount 0 (the GPU maps that to each
+    // cell's seed color) and variance 0 — a return to seed, not gray."
+    struct Checker {
+        float rest_resultant[3];  // the music colour at gain 0
+        float rest_amount;        // enveloped presence at gain 0
+        float rest_variance;      // enveloped distinct-pc count at gain 0
+        float gain;               // 0 manual … 1 coupling verbatim
+    } checker;
 };
 
 // The authored design — the code panel. Values with a /* D1 */ marker
@@ -61,6 +72,9 @@ inline constexpr DriverSurface DRIVER_TABLE = {
     { 0u, 1.0f, 1.5f, 1.0f },   // attack/release: the authored values
                                 // AURA_PRESENCE_ATTACK/RELEASE carried
                                 // (bodies/pawn.hpp, retired by U5)
+    { { 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f, 1.0f },   // checker: the rests are
+                                // terrain_looks REST_CHECKER_* verbatim —
+                                // a return to seed, not gray (ORGAN_3 w4)
 };
 
 // The live surface — the panel's fourth block and the seams' read.

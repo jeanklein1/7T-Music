@@ -143,6 +143,39 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "A
 ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_dither, F32, 0.0f,   1.0f,   1.0f,  "Atmosphere · Veil", "rim dither (>0.5)")
 
+// ─── Atmosphere · Checker (the drivers' room + its witnesses) ────
+// ORGAN_3 w4 (C4). The pitch-class colour field is DRIVEN —
+// phase_motion_drivers flushes the visual canvas through
+// set_checker_color_field every frame — so the dials sit on the driver's
+// seam and the driven values convert to read-only witnesses below them.
+// The 2a recipe verbatim: out = rest + gain·(driven − rest).
+//
+// THE RESTS ARE LAW, not taste. terrain_looks ROW 2: "RESTS are law:
+// amount 0 (the GPU maps that to each cell's seed color) and variance 0 —
+// a return to seed, not gray." Dial the gain to 0 and the terrain returns
+// to its seed colours; that is the authored silence, not an absence.
+ORGAN_PARAM(DRIVERS, DriverSurface, checker.rest_resultant, VEC3, 0.0f, 1.0f, 0.01f,  "Atmosphere · Checker", "rest colour")
+ORGAN_PARAM(DRIVERS, DriverSurface, checker.rest_amount,    F32,  0.0f, 1.0f, 0.005f, "Atmosphere · Checker", "rest amount")
+ORGAN_PARAM(DRIVERS, DriverSurface, checker.rest_variance,  F32,  0.0f, 8.0f, 0.04f,  "Atmosphere · Checker", "rest variance")
+ORGAN_PARAM(DRIVERS, DriverSurface, checker.gain,           F32,  0.0f, 1.0f, 0.01f,  "Atmosphere · Checker", "drive gain")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_resultant,      VEC3, "Atmosphere · Checker", "colour (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_amount,   F32,  "Atmosphere · Checker", "amount (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_variance, F32,  "Atmosphere · Checker", "variance (driven)")
+
+// ─── Atmosphere · Transition / Figure (witnesses only) ──────────
+// ORGAN_3 w4 (C4). These four are DRIVEN and have no dial here on
+// purpose. The transition fade is authored per frame by the transition
+// system, and ORGAN_0's own enrollment banner already ruled that "a dial
+// there would fight an author and lose confusingly". The three figure
+// values are re-derived every frame from the POSSESSED FIGURE's row in
+// PAWN_FIGURES — their dial is that table (a D5 composite, priced in the
+// ledger), not a slider on the output. Metering them is the honest move:
+// the panel shows what the author produced, and the contest column stays
+// truthful about who is writing.
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_alpha,       F32,  "Atmosphere · Transition", "fade alpha (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_color,       VEC3, "Atmosphere · Transition", "fade colour (driven)")
+
+
 // ─── Terrain · Palette N ────────────────────────────────────────
 // ORGAN_3 w1 (C1). THE TERRAIN_LOOKS PANEL ROW 1 (surface/
 // terrain_looks.hpp) authors these; GPUState::initializeState is the only
@@ -250,6 +283,14 @@ ORGAN_PARAM(PAWN, PawnAuraProfile, tint_r,           VEC3, 0.0f, 1.0f, 0.01f,  "
 ORGAN_PARAM(PAWN, PawnAuraProfile, delta_magnitude,  F32, 0.0f, 1.2f,  0.005f, "Pawn · Aura profile", "delta magnitude")
 ORGAN_PARAM(PAWN, PawnAuraProfile, height_scale,     F32, 0.0f, 12.0f, 0.05f,  "Pawn · Aura profile", "height scale")
 ORGAN_PARAM(PAWN, PawnAuraProfile, delta_mode,       U32, 0.0f, 1.0f,  1.0f,   "Pawn · Aura profile", "delta mode (0 conv, 1 rand)")
+
+// ─── Pawn · Figure (driven) — witnesses only ─────────────
+// ORGAN_3 w4 (C4). Re-derived every frame from the POSSESSED FIGURE's
+// row in PAWN_FIGURES; the dial is that table (a D5 composite, priced in
+// the ledger), not a slider on the output.
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_tilt_tau,    F32,  "Pawn · Figure (driven)", "tilt tau")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_body_radius, F32,  "Pawn · Figure (driven)", "body radius")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fpv_eye_height,   F32,  "Pawn · Figure (driven)", "eye height")
 
 // ─── Ribbon · Head / Wander ─────────────────────────────────────────
 // ORGAN_3 w2 (C2). RIBBON_LIVE (contracts/ribbon_surface.hpp). The module

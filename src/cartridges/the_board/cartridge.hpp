@@ -1075,11 +1075,27 @@ namespace t7 {
                 }
                 // CHECKER-REBUILD: the pc-color field's flush — one setter,
                 // the fan (resultant rgb + music amount + music variance).
+                // ORGAN_3 w4 — the drivers' room sits at this seam too:
+                // out = rest + gain·(driven − rest), the fog recipe verbatim.
+                // Gain 1 is the coupling byte-for-byte; gain 0 is the rest,
+                // which terrain_looks calls law — amount 0 returns each cell
+                // to its SEED colour, not to gray. With no bindings the rest
+                // alone speaks, so the dial works headless.
+                //
+                // The resultant is a run of three, so it blends per lane
+                // against rest_resultant[] rather than against one scalar.
                 if (checker_mean_dst_.valid && checker_var_dst_.valid) {
                     const VisualParams& cp = visual_canvas_.params();
-                    gpuState_.set_checker_color_field(cp.run(checker_mean_dst_.base),
-                        cp.get(checker_var_dst_.base),        // [0] = music_amount
-                        cp.get(checker_var_dst_.base + 1));   // [1] = music_variance
+                    const auto& ck = DRIVER_LIVE.checker;
+                    const float* mean = cp.run(checker_mean_dst_.base);
+                    const float blended[3] = {
+                        ck.rest_resultant[0] + ck.gain * (mean[0] - ck.rest_resultant[0]),
+                        ck.rest_resultant[1] + ck.gain * (mean[1] - ck.rest_resultant[1]),
+                        ck.rest_resultant[2] + ck.gain * (mean[2] - ck.rest_resultant[2]),
+                    };
+                    gpuState_.set_checker_color_field(blended,
+                        ck.rest_amount   + ck.gain * (cp.get(checker_var_dst_.base)     - ck.rest_amount),
+                        ck.rest_variance + ck.gain * (cp.get(checker_var_dst_.base + 1) - ck.rest_variance));
                     // [FLUSH] one-shot: fires the first time a live resultant
                     // crosses the CPU->GPU seam. If [CHECKER] is singing in the
                     // console and this line never prints, the bindings above are
@@ -1096,6 +1112,14 @@ namespace t7 {
                             cp.get(checker_var_dst_.base + 1));
                         checker_flush_seen = true;
                     }
+                } else {
+                    // No bindings: the rest alone speaks, so the dials still
+                    // reach the picture with the music silent — the same
+                    // headless arm the fog seam grew at ORGAN_2a.
+                    // set_checker_color_field guards, so this costs no dirty.
+                    const auto& ck = DRIVER_LIVE.checker;
+                    gpuState_.set_checker_color_field(ck.rest_resultant,
+                                                      ck.rest_amount, ck.rest_variance);
                 }
 
                 // ZOETROPE (C4/C5): the lattice hears the canvas's row

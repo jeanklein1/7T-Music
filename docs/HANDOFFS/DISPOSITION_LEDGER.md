@@ -776,3 +776,53 @@ forgotten at three.
 | --- | --- |
 | `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (kind `ORB_MOOD`, ~22 definition-only lines) | The bank and kind are straightforward; the **boundary is not**. `configure_orbs` is called from inside `apply_mood`, so the re-speak must re-enter the mood applier's orb fan alone — not `apply_mood` whole, which would re-run the lighting, the shell and the spawn policy. That is a surgical edit to `direction/mood.hpp` that wants the module read whole first, and D4 is explicit: *never wire a boundary re-speak on a guess.* Anatomy recorded above; the next sitting starts from it. |
 | the remaining destructive banks — `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE`, `SCHEME_WEIGHTS`, `PORTAL_COLORS`, ribbon's spawn rolls and colour vocabulary, the floater tier weights | Each is a small bank with a banner and no wiring — mechanical, and the pattern is now proven by `INDOOR_LIVE`. Deferred as bulk, not as difficulty. |
+
+---
+
+# WAVE 4 — THE SEAMS, AS BUILT
+
+**223 entries, 13 witnesses.** The drivers' room grew by one seam and by
+five meters that will never be dials.
+
+## The checker field's seam — the 2a recipe verbatim
+
+`DriverSurface` gains `Checker { rest_resultant[3], rest_amount,
+rest_variance, gain }`; `phase_motion_drivers` blends
+`rest + gain·(driven − rest)` per lane and the three driven values enroll
+as witnesses. The room is 36 → 60 bytes.
+
+The rests are **not taste**. `terrain_looks` ROW 2 calls them law:
+*"RESTS are law: amount 0 (the GPU maps that to each cell's seed color)
+and variance 0 — a return to seed, not gray."* Dial the gain to 0 and the
+terrain returns to its seed colours, which is the authored silence, not
+an absence.
+
+The seam grew a **headless arm**, as fog's did: with no bindings the rest
+alone speaks, so the dials reach the picture with the music silent.
+`set_checker_color_field` guards, so that arm costs no dirty (D2).
+
+**Equivalence proved, and more cheaply than fog's.** With every rest at
+0, `0 + 1·(d − 0) == d` is exact for *every* float — no Sterbenz argument
+is needed, unlike the fog seam, whose rests are non-zero. The harness
+checks 8 M samples at the authored rests (0 differences), confirms gain 0
+returns the rest exactly, and re-checks the Sterbenz window for a
+curator-moved rest of 0.5 (0 differences).
+
+## Five meters that are witnesses on purpose
+
+| witness | why there is no dial | 
+| --- | --- |
+| `fade_alpha`, `fade_color` | ORGAN_0's own enrollment banner already ruled it: *"a dial there would fight an author and lose confusingly."* The transition system authors them per frame. |
+| `pawn_tilt_tau`, `pawn_body_radius`, `fpv_eye_height` | re-derived every frame from the **possessed figure's** row in `PAWN_FIGURES`. The dial is that table — a D5 composite, priced in §4.5 — not a slider on the output. Metering them keeps the contest column truthful about who is writing. |
+
+Enrolling a witness where a dial would lie is the panel telling the truth
+about its own limits, which was ORGAN_2a's whole argument and is now
+applied without being asked twice.
+
+## Wave 4's DEFERRALS
+
+| seam | why |
+| --- | --- |
+| the ribbon's four pipes (`ribbon.amp_lateral_mult`, `amp_vertical_mult`, `color_stim`, `color_mix`) | The rests are already at the seam as hard-coded fallbacks (`: 1.0f`, `: 0.0f`, `nullptr`) inside `ribbon.hpp:833-846` — but the **`color_stim` fallback is a null pointer**, not a value, and the code branches on it downstream. Moving it into the room means giving the null branch a rest *shape* first, which is a read of the tint path this sitting did not make. The other three are mechanical; they were held back with the fourth so the ribbon's seam lands as one coherent unit rather than three-quarters of one. Anatomy: `DriverSurface::Ribbon { rest_amp_lat, rest_amp_vert, rest_tint_stim[3], rest_tint_mix, gain }`. |
+| `floater_coordination` | driven by `cube_behaviors.hpp:400`, which is one of the five modules flagged unread in §4.6. Witness-only would be honest, but its *dial* lives in that module and the pair should land together. |
+| `veil_strength`, `terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap` | driven per-world/per-mood from MoodProfile's **structural** group, which is C5 by the standing eligibility rule. A witness on each is defensible and cheap; deferred only because the four belong to one reading of the mood applier that Wave 3's ORB deferral already named. |
