@@ -64,9 +64,11 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── THE SUN ─────────────────────────────────────────────────────────
-// GPULighting::sun is what the shader actually reads (world.wgsl reads
+// GPULighting::sun is what the FRAGMENT shader reads (world.wgsl reads
 // frame_r.lighting.sun for direction, colour, intensity and ambient), so
-// these four move the picture immediately and unambiguously.
+// colour, intensity and ambient move the picture immediately and
+// unambiguously — that home is their only window. Direction is the
+// exception ORGAN_2c ruled on; see the paragraph above its line below.
 //
 // AND THEY ARE THE FOUR WITH A DEFINITION. The mood apply authors this
 // home on every mood change — apply_mood_lighting reads MoodProfile's
@@ -75,7 +77,18 @@
 // next mood change takes back, and the durable edit is the definition
 // beside it. The panel writes the definition by default and lets the same
 // apply produce the instance; nothing is duplicated to make that work.
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.direction, VEC3, -1.0f, 1.0f, 0.01f, "Sun", "direction", MOOD, MoodProfile, sun_direction)
+// ORGAN_2c — sun DIRECTION is a MULTI-WINDOW fact: the author's fan fills
+// config (the compute face's shadow VP — frame_r is unreachable there by
+// the A8a split), frame_r.lighting (fragment shading) and the
+// photographer's uniform. A preview write could move only one of them —
+// light without shadow, the half-knob this campaign abolishes — so the
+// dial is DEFINITION-ONLY: every write goes through apply_mood_lighting
+// and moves every window. The witness beside it meters the instance the
+// author produces; definition and witness disagreeing is the fan caught
+// mid-stride or broken, which is exactly what a meter is for. (colour /
+// intensity / ambient keep their single window and their preview.)
+ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sun", "direction", MOOD, MoodProfile, sun_direction)
+ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sun", "direction (instance)")
 ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sun", "colour",    MOOD, MoodProfile, sun_color)
 ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sun", "intensity", MOOD, MoodProfile, sun_intensity)
 ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sun", "ambient",  MOOD, MoodProfile, sun_ambient)
