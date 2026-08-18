@@ -9,6 +9,15 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
 - DAWN_REFERENCE web-era rewrite: docs/reference/DAWN_REFERENCE.md is
   archival-with-named-drift (its own CANON stamp); the rewrite awaits Jean's
   reference round. Origin: the stamp itself.
+- GATE BLIND SPOT at surviving __EMSCRIPTEN__ guards: glaw1 and console_gate
+  compile with clang++ and __EMSCRIPTEN__ undefined, so at every remaining
+  guard they type-check the #else arm and skip the shipping arm. One site
+  known (realization/renderer.hpp, the serve-integrity sha witness and its
+  "native — read off disk" #else); the census is
+  `git grep -n "__EMSCRIPTEN__" -- src`. Two candidate cures, both unpriced:
+  collapse the guard so the web arm is unconditional (SUNSET_1's stated
+  intent; may cost stub declarations), or define __EMSCRIPTEN__ in both gates
+  (may cost more). Origin: RECENSION_1 FLAG-7. Unblocked by a gates sitting.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
