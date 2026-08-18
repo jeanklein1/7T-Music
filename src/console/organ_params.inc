@@ -116,6 +116,81 @@ ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f, 
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog", "density (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")
 
+// ─── Atmosphere · Veil ───────────────────────────────────────────────
+// ORGAN_3 w1 (C1). Boot-pinned from Dim::*_DEFAULT and authored by
+// nothing else — the tree's own word beside them is "LIVE values ride
+// config (veil_ring/veil_icing/lod0_radius, tunable — config-tune live)".
+//
+// THE VEIL CHAIN BOUNDS THESE THREE, AND THE RANGES CARRY IT. state.hpp
+// proves the chain at compile time:
+//     EXIST_RADIUS(350) > VEIL_RING > LOD0_RADIUS
+//     VEIL_RING - VEIL_ICING > LOD0_RADIUS
+// A static_assert cannot guard a runtime dial, so the boxes below are cut
+// so that EVERY combination inside them still satisfies the chain:
+// worst case ring 265 - icing 60 = 205 > 175 = max lod0, and max ring 349
+// < 350 = EXIST. Widen one of these three and the chain needs re-proving
+// against the other two — that is the whole reason the numbers are odd.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Veil", "ring (draw authority)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "icing band")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_dither, F32, 0.0f,   1.0f,   1.0f,  "Atmosphere · Veil", "rim dither (>0.5)")
+
+// ─── Terrain · Palette N ────────────────────────────────────────
+// ORGAN_3 w1 (C1). THE TERRAIN_LOOKS PANEL ROW 1 (surface/
+// terrain_looks.hpp) authors these; GPUState::initializeState is the only
+// writer, at boot. Ranges are the panel's own word: "center/light = rgb
+// 0-1; weight = selection probability". The weights' "sums 1.0" is a
+// convention the WGSL normalises, NOT a clamp — four independent lanes.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_center[0][0], VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 0 sand",   "centre")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_light[0][0],  VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 0 sand",   "light")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_center[1][0], VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 1 salmon", "centre")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_light[1][0],  VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 1 salmon", "light")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_center[2][0], VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 2 green",  "centre")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_light[2][0],  VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 2 green",  "light")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_center[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 3 warm",   "centre")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_light[3][0],  VEC3, 0.0f, 1.0f, 0.01f, "Terrain · Palette 3 warm",   "light")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_weight[0], F32, 0.0f, 1.0f, 0.005f, "Terrain · Palette mix", "sand")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_weight[1], F32, 0.0f, 1.0f, 0.005f, "Terrain · Palette mix", "salmon")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_weight[2], F32, 0.0f, 1.0f, 0.005f, "Terrain · Palette mix", "green")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, palette_weight[3], F32, 0.0f, 1.0f, 0.005f, "Terrain · Palette mix", "warm")
+
+// ─── Terrain · Motion / Bands / Modes / GoL ─────────────────────
+// ORGAN_3 w1 (C1). THE TERRAIN_LOOKS PANEL ROW 2 — the surface voice's
+// SILENCE. The cartridge boot-pin block writes exactly these through the
+// setters and, per the panel's own note, "the mode trio is DRIVERLESS
+// since gen-1 retirement — driver-ready, held at rest by this row".
+// Enrolling them is what driver-ready was waiting for. Ranges are ROW 2's
+// own units, quoted at each line.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, terrain_time, F32, 0.0f, 64.0f, 0.25f, "Terrain · Motion", "clock (beats)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_blend_0, F32, -1.0f, 1.0f, 0.01f, "Terrain · Bands", "0 continental")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_blend_1, F32, -1.0f, 1.0f, 0.01f, "Terrain · Bands", "1 regional")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_blend_2, F32, -1.0f, 1.0f, 0.01f, "Terrain · Bands", "2 local")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_blend_3, F32, -1.0f, 1.0f, 0.01f, "Terrain · Bands", "3 detail")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_blend_4, F32, -1.0f, 1.0f, 0.01f, "Terrain · Bands", "4 fine")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_blend_5, F32, -1.0f, 1.0f, 0.01f, "Terrain · Bands", "5 tectonic")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_phase_origin_0, F32, 0.0f, 64.0f, 0.25f, "Terrain · Band phase", "0 continental")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_phase_origin_1, F32, 0.0f, 64.0f, 0.25f, "Terrain · Band phase", "1 regional")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_phase_origin_2, F32, 0.0f, 64.0f, 0.25f, "Terrain · Band phase", "2 local")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_phase_origin_3, F32, 0.0f, 64.0f, 0.25f, "Terrain · Band phase", "3 detail")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_phase_origin_4, F32, 0.0f, 64.0f, 0.25f, "Terrain · Band phase", "4 fine")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, band_phase_origin_5, F32, 0.0f, 64.0f, 0.25f, "Terrain · Band phase", "5 tectonic")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_color_shift,       F32, -1.0f, 1.0f, 0.01f, "Terrain · Modes", "colour shift")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_checker_scatter,   F32, -1.0f, 1.0f, 0.01f, "Terrain · Modes", "checker scatter")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_palette_target,    F32, 0.0f, 3.0f, 1.0f,   "Terrain · Modes", "palette target (idx)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_palette_intensity, F32, 0.0f, 1.0f, 0.005f, "Terrain · Modes", "palette intensity")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_discrete_tier,     F32, 0.0f, 4.0f, 1.0f,   "Terrain · Modes", "discrete tier (idx)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_gol_tick_scale,   F32, 0.1f, 4.0f, 0.02f, "Terrain · GoL", "tick scale")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_gol_height_scale, F32, 0.0f, 4.0f, 0.02f, "Terrain · GoL", "height scale")
+
+// ─── Terrain · Mosaic ──────────────────────────────────────────
+// ORGAN_3 w1 (C1). Rests are Dim::MOSAIC_*; state.hpp's own note says
+// "All live-tunable via config; these are the rests."
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_enable,        F32, 0.0f, 1.0f,  1.0f,   "Terrain · Mosaic", "enable")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_shard_size,    F32, 0.0f, 1.2f,  0.005f, "Terrain · Mosaic", "shard size")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_passage_scale, F32, 0.0f, 48.0f, 0.25f,  "Terrain · Mosaic", "passage scale")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_blend,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "boundary blend")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "facet lean")
+
 // ─── AURA (the drivers' room + its witnesses) ────────────────────────
 // The intent is the presence ramp's rest target — moved home from
 // PawnState.aura_enabled (U5); key 3 and the mood policy door write it
@@ -151,3 +226,49 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].color_r,    VEC
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 2", "speed gain", TIER, AgentTierBank, t[2].speed_gain)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Agents · Tier 3", "colour",     TIER, AgentTierBank, t[3].color_r)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 3", "speed gain", TIER, AgentTierBank, t[3].speed_gain)
+
+// ─── Interaction · Field ───────────────────────────────────────
+// ORGAN_3 w1 (C1). THE PANEL (contracts/control_panel.hpp) authors these;
+// GPUState::initializeState boot-pins them into config and nothing else
+// writes them. Both dialects read them — the GPU field and the ribbon
+// head's CPU sum — so one dial moves both rooms, which is the panel's
+// whole argument.
+//
+// FIELD_K IS HALF OF A COMPILE-TIME PROOF. control_panel.hpp asserts
+// FIELD_BEACON_S < FIELD_K so the beacon's pull loses to field repulsion
+// at the ring. This dial only ever RAISES the winning side, so the ruling
+// survives every value it can reach; the beacon's own four stay unenrolled
+// for exactly that reason (the ledger names it).
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_slack,         F32, 0.0f, 12.0f,   0.05f, "Interaction · Field", "slack")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_k,             F32, 0.0f, 1200.0f, 5.0f,  "Interaction · Field", "k (accel)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_fmax,          F32, 0.0f, 2400.0f, 10.0f, "Interaction · Field", "f max")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_occupier_gain, F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "occupier gain")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_authored_gain, F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "authored gain")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_gain_cube,     F32, 0.0f, 16.0f,   0.08f, "Interaction · Field", "cube gain")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_gain_sphere,   F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "sphere gain")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_gain_agent,    F32, 0.0f, 16.0f,   0.08f, "Interaction · Field", "agent gain")
+
+// ─── Interaction · the bodies' own dials ───────────────────────
+// ORGAN_3 w1 (C1). Each is boot-pinned from its own code panel and has no
+// second author: point.hpp's bubble, Idle::PAWN_SPEED, CameraControls::
+// MOVE_SPEED, Idle::CUBE_PLASTICITY_DEFAULT.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, point_bubble_radius, F32, 0.0f, 80.0f,  0.5f,   "Interaction · Point",  "bubble radius")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, pawn_speed,          F32, 0.0f, 60.0f,  0.5f,   "Interaction · Pawn",   "walk speed")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, point_fly_speed,     F32, 0.0f, 120.0f, 0.5f,   "Interaction · Camera", "fly speed")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, cube_plasticity,     F32, 0.0f, 1.0f,   0.005f, "Interaction · Cubes",  "plasticity λ")
+
+// ─── Debug ──────────────────────────────────────────────────────────
+// ORGAN_3 w1 (C1, D2). Config's uint32_t toggle words enroll as BOOL
+// directly — four ABI bytes, no relayout, the rule D2 states.
+// fpv_mode is KEY-SHARED: the keyboard writes it too, so its contest
+// column will read EVENT the moment a key is used. That is the instrument
+// seeing the operator, not a defect (the aura-intent precedent, 2a).
+//
+// mute_couplings is NOT here. It is a BITMASK over Coupling::* (ALL =
+// 0x1FFFFF), and a slider from 0 to 2097151 is not a dial — D1(d), no
+// defensible range, verdict DEFER-RANGE. What it wants is a checkbox per
+// bit, which is a shell feature, not an enrollment line.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_dynamics_0d, BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute dynamics (0D)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_signal,      BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute signal")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, freeze_sphere,    BOOL, 0.0f, 1.0f, 1.0f, "Debug", "freeze sphere")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, fpv_mode,         BOOL, 0.0f, 1.0f, 1.0f, "Debug", "FPV mode (key-shared)")

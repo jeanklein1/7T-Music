@@ -559,10 +559,10 @@ palette mirror (12 entries), the ROW 2 motion/mode pins (14 entries),
 | --- | --- | --- | --- | --- | --- | --- |
 | `pawn_speed` | F32 | `Idle::PAWN_SPEED` | C1 — no writer at all | Interaction · Pawn | 0 … 4× rest `[heuristic]` | ENROLL w1 |
 | `freeze_sphere` | U32 | 0 | C1 | Debug | 0 … 1 `[tree]` BOOL | ENROLL w1 |
-| `cube_plasticity` | F32 | 0.6 | C1 | Interaction · Cubes | 0 … 1 `[identity]` (a λ master) | ENROLL w1 |
-| `veil_ring` | F32 | `Dim::VEIL_RING_DEFAULT` (325) | C1 — "Live-tunable" says the tree | Atmosphere · Veil | 0 … 1300 `[heuristic]` | ENROLL w1 |
-| `veil_icing` | F32 | `Dim::VEIL_ICING_DEFAULT` (40) | C1 | Atmosphere · Veil | 0 … 160 `[heuristic]` | ENROLL w1 |
-| `lod0_radius` | F32 | `Dim::LOD0_RADIUS_DEFAULT` (175) | C1 | Atmosphere · Veil | 0 … 700 `[heuristic]` | ENROLL w1 |
+| `cube_plasticity` | F32 | **1.0** (`Idle::CUBE_PLASTICITY_DEFAULT`, raised 0.6→1.0 at CONTACT_5 P2b) | C1 | Interaction · Cubes | 0 … 1 `[identity]` (a λ master) | ENROLL w1 |
+| `veil_ring` | F32 | `Dim::VEIL_RING_DEFAULT` (325) | C1 — "Live-tunable" says the tree | Atmosphere · Veil | **265 … 349** `[tree]` — see THE VEIL CHAIN below | ENROLL w1 |
+| `veil_icing` | F32 | `Dim::VEIL_ICING_DEFAULT` (40) | C1 | Atmosphere · Veil | **0 … 60** `[tree]` | ENROLL w1 |
+| `lod0_radius` | F32 | `Dim::LOD0_RADIUS_DEFAULT` (175) | C1 | Atmosphere · Veil | **0 … 175** `[tree]` | ENROLL w1 |
 | `veil_dither` | F32 | 0.0 | C1 key-shared | Atmosphere · Veil | 0 … 1 `[tree]` (">0.5 = dither") | ENROLL w1 |
 | `mosaic_enable` | F32 | 1.0 | C1 | Terrain · Mosaic | 0 … 1 `[tree]` (a gate) | ENROLL w1 |
 | `mosaic_shard_size` | F32 | `Dim::MOSAIC_SHARD_SIZE_DEFAULT` | C1 | Terrain · Mosaic | 0 … 4× rest `[heuristic]` | ENROLL w1 |
@@ -571,7 +571,7 @@ palette mirror (12 entries), the ROW 2 motion/mode pins (14 entries),
 | `mosaic_facet` | F32 | `Dim::MOSAIC_FACET_DEFAULT` | C1 | Terrain · Mosaic | 0 … 4× rest `[heuristic]` | ENROLL w1 |
 | `mute_dynamics_0d` | U32 | 0 | C1 (D2 — a config toggle word enrolls BOOL directly) | Debug | 0 … 1 | ENROLL w1 |
 | `mute_signal` | U32 | 0 | C1 | Debug | 0 … 1 | ENROLL w1 |
-| `mute_couplings` | U32 | `Coupling::NONE` | C1 — a bitmask, not a bool | Debug | 0 … 255 `[tree]` (`Coupling::ALL`) | ENROLL w1 as U32 |
+| `mute_couplings` | U32 | `Coupling::NONE` | C1 — a **bitmask** | Debug | — | **DEFER-RANGE (D1d)** — `Coupling::ALL` is `0x1FFFFF`; a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit, which is a shell feature, not an enrollment line. |
 | `fpv_mode` | U32 | 0 | C1 key-shared | Debug | 0 … 1 | ENROLL w1 |
 
 `mute_signal` and `mute_couplings` have one *program* writer pair —
@@ -632,3 +632,41 @@ config wire* — `terrain_looks` ROW 2 routes the checker field through
 wrong (they are the GPU's own consumption shape, not the coupling's
 output), but it is the one place a future sitting might reasonably ask
 for a config word. Recorded, not proposed.
+
+
+---
+
+# THE VEIL CHAIN — a runtime hazard the ranges carry
+
+`state.hpp` proves the veil's ordering at compile time:
+
+```cpp
+static_assert(EXIST_RADIUS > VEIL_RING_DEFAULT,          "EXIST > RING");
+static_assert(VEIL_RING_DEFAULT > LOD0_RADIUS_DEFAULT,   "RING > LOD0");
+static_assert(VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT,
+              "the icing band sits wholly outside the LOD0 core");
+```
+
+Three of Wave 1's dials are exactly those constants' live homes, and a
+static_assert cannot guard a runtime dial — the same hazard the beacon's
+assert has, met a second time. Independent clamps cannot enforce a joint
+invariant, so the boxes are cut **so that every combination inside them
+satisfies the chain**:
+
+| dial | box | worst case |
+| --- | --- | --- |
+| `veil_ring` | 265 … 349 | max 349 < 350 = `EXIST_RADIUS` ✓ |
+| `veil_icing` | 0 … 60 | min ring − max icing = 265 − 60 = 205 |
+| `lod0_radius` | 0 … 175 | 205 > 175 = max lod0 ✓ ; and 265 > 175 ✓ |
+
+Widening any one of the three requires re-proving the chain against the
+other two. That sentence is in the `.inc` beside the lines, because the
+next person to widen a range will read the `.inc`, not this file.
+
+**Two asserts, two answers.** The beacon's (`FIELD_BEACON_S < FIELD_K`)
+could not be carried by ranges — `S` has no live home and giving it one
+would put both sides of the proof on sliders — so it is DEFERRED. The
+veil's could, because two of its three bounds are fixed constants
+(`EXIST_RADIUS`) and the third is a dial whose box can be cut clear.
+Same hazard, different disposition, and the difference is stated rather
+than papered over.
