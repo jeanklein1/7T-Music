@@ -32,6 +32,10 @@
   if (new URLSearchParams(location.search).get('organ') !== '1') return;
 
   var F32 = 0, U32 = 1, BOOL = 2, VEC3 = 3, VEC4 = 4;
+  // The manifest's "def" column names the definition FAMILY (ORGAN_2b):
+  // 0 none, 1 a mood's meaning, 2 the world's. DEFONLY is the sentinel
+  // block of an entry that has a definition and no instance at all.
+  var DEF_MOOD = 1, DEF_TIER = 2, DEFONLY = 255;
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
   var CSS =
@@ -111,7 +115,11 @@
     // the panel has said something, there is nothing for another author to
     // contradict. A definition write is NOT that question — it never
     // touches the instance — so only the preview path marks the dial.
-    var target = definitionMode ? C.mood() : -1;
+    //
+    // A DEFINITION-ONLY DIAL HAS NO PREVIEW (ORGAN_2b, block NONE): there
+    // is no instance for one to show, and −1 would only ring the reject
+    // counter. It targets the live mood whatever the toggle says.
+    var target = (p.block === DEFONLY || definitionMode) ? C.mood() : -1;
     // A witness is never marked: organ_set refuses it, so the panel never got
     // to ask the contest question and must not claim a reading (ORGAN_2a).
     if (!(definitionMode && p.def) && !p.ro) touched[p.i] = 1;
@@ -292,6 +300,11 @@
     // therefore carry several moods' definitions, and importing it puts
     // each back where it came from rather than into whichever mood happens
     // to be live at the time.
+    //
+    // A WORLD DEFINITION BELONGS TO NO MOOD (ORGAN_2b), so it keys
+    // "world/<id>" and appears once. Reading it still goes through defGet:
+    // the C++ switch sends a TIER entry to the one bank and lets the mood
+    // argument fall on the floor, so the panel needs no second reader.
     bx.addEventListener('click', function () {
       var m = C.mood();
       var out = {};
@@ -300,7 +313,7 @@
         if (r.p.def) {
           var n = lanes(r.p.type), d = [];
           for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
-          out[m + '/' + r.p.id] = d;
+          out[(r.p.def === DEF_TIER ? 'world' : m) + '/' + r.p.id] = d;
         } else {
           out[r.p.id] = r.read();
         }
@@ -318,25 +331,31 @@
         if (!f.files || !f.files[0]) return;
         var rd = new FileReader();
         rd.onload = function () {
-          var obj, applied = 0, skipped = 0;
+          var obj, applied = 0, skipped = 0, witnesses = 0;
           try { obj = JSON.parse(rd.result); }
           catch (e) { importNote = 'import: not JSON'; return; }
           var byId = {};
           rows.forEach(function (r) { byId[r.p.id] = r; });
+          // IMPORT KNOWS WHAT EXPORT KNOWS (ORGAN_2b): a witness is not a
+          // setting. A file cut before ORGAN_2a still carries the four
+          // driven values by id; sending them would only be refused in the
+          // C++, so they are counted and named instead of rung up as
+          // rejections.
           Object.keys(obj).forEach(function (k) {
             var cut = k.indexOf('/');
-            if (cut > 0) {                       // "<mood>/<id>" — a definition
-              var mood = parseInt(k.slice(0, cut), 10);
-              var r = byId[k.slice(cut + 1)];
-              if (r && r.p.def && mood >= 0) { r.setDef(mood, [].concat(obj[k])); applied++; }
-              else skipped++;                    // no such dial, or it has no definition
-            } else if (byId[k]) {
-              byId[k].apply([].concat(obj[k])); applied++;
-            } else {
-              skipped++;                         // an id this build does not enroll
-            }
+            var scope = cut > 0 ? k.slice(0, cut) : null;
+            var r = byId[cut > 0 ? k.slice(cut + 1) : k];
+            if (!r)     { skipped++;   return; }   // an id this build does not enroll
+            if (r.p.ro) { witnesses++; return; }   // a meter is not a setting
+            if (scope === null) { r.apply([].concat(obj[k])); applied++; return; }
+            // "world/<id>" is the world's bank, which belongs to no mood:
+            // the live mood is sent and the C++ kind lets it fall away.
+            var mood = (scope === 'world') ? C.mood() : parseInt(scope, 10);
+            if (r.p.def && mood >= 0) { r.setDef(mood, [].concat(obj[k])); applied++; }
+            else skipped++;                       // no definition behind that dial
           });
-          importNote = 'import: ' + applied + ' applied, ' + skipped + ' unknown';
+          importNote = 'import: ' + applied + ' applied, ' + skipped + ' unknown'
+                     + (witnesses ? ', skipped ' + witnesses + ' witnesses' : '');
         };
         rd.readAsText(f.files[0]);
       });
