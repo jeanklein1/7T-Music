@@ -3364,7 +3364,21 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // (Stage 3) implements this signature UNCHANGED: query_pos projects to
 // the sphere direction, position = center + dir*radius, normal = the
 // tangent-perturbed direction — the caller never learns which cast
-// answered. See docs/TERRAIN2_STAGE1_INTERFACE.md.
+// answered; the interface and cast boundary are this banner's
+// (TERRAIN2 Stage 1, in the attic).
+//
+// THE PARTITION — what Stage 3 inherits vs replaces. INTERFACE =
+// this signature + the fold declaration (POLICIES[] in
+// contracts/ground_architecture.hpp) + the consumers. CAST = the
+// projection, the base-shape bodies, and the four welds (the
+// rgba16float texel format, the mesh VS, the normal basis, the
+// Y-up/XZ movement + spatial index). Stage 3 inherits the
+// interface whole and replaces exactly the cast.
+// THE SPHERE, PROVED: dir = normalize(query_pos - center);
+// r = base_radius + overlay_fold(dir, policy, qi); position =
+// center + dir*r; normal = tangent_perturbed(dir, overlay_grad);
+// valid = 1u — a closed manifold has no edge, so every direction
+// is inside. Same signature, same consumers, different cast.
 //
 // INPUT: query_pos is a WORLD-SPACE position; the cast projects it into
 // its own parameter space (the heightfield reads .xz). No coordinate
