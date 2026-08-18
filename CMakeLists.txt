@@ -53,7 +53,7 @@ endif()
 # ACTIVE CARTRIDGE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Controls which render cartridge the incubator target includes.
+# Controls which render cartridge the pawn target includes.
 # IntelliSense will only index it — no noise from other cartridges.
 #
 # Change here to switch focus. No need to edit .cpp files.
@@ -72,7 +72,7 @@ endif()
 # never fires and the paste names an enumerator that does not exist. An
 # unset value here is a compile error in every TU, never a fallback.
 
-set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
+set(PAWN_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'pawn' target")
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
 set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
 
@@ -96,7 +96,7 @@ endif()
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
-message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
+message(STATUS "  pawn -> render: ${PAWN_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
 message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
 if(T7_WORLD_SEED STREQUAL "")
     message(STATUS "  World seed:     drawn at boot (wall clock)")
@@ -118,28 +118,28 @@ message(STATUS "")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# INCUBATOR DUAL — Render cartridge development
+# PAWN — Render cartridge development
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # The render cartridge (the_board) driven by the BeatClock.
-# Uses INCUBATOR_DUAL_RENDER_CARTRIDGE.
+# Uses PAWN_RENDER_CARTRIDGE.
 #
-# Build:  cmake --build . --target incubator_dual
-# Run:    ./incubator_dual.exe
+# Build:  cmake --build . --target pawn
+# Run:    ./pawn.exe
 #
 
 # Only the active cartridge's headers → scoped IntelliSense
 file(GLOB_RECURSE DUAL_RENDER_HEADERS
-    "src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}/*.hpp"
+    "src/cartridges/${PAWN_RENDER_CARTRIDGE}/*.hpp"
 )
 
-add_executable(incubator_dual
-    src/incubator_dual.cpp
+add_executable(pawn
+    src/pawn.cpp
     src/external/stb_image.cpp
     ${DUAL_RENDER_HEADERS}
 )
 
-target_include_directories(incubator_dual PRIVATE
+target_include_directories(pawn PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 
@@ -204,13 +204,13 @@ if(EMSCRIPTEN)
 
     # Identical defines to the native target (MSVC block above does not
     # apply under the emscripten toolchain).
-    target_compile_definitions(incubator_dual PRIVATE
-        INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
+    target_compile_definitions(pawn PRIVATE
+        INCUBATE_RENDER=${PAWN_RENDER_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
         ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
     )
-    target_compile_options(incubator_dual PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
+    target_compile_options(pawn PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
     # ONE PRELOAD, AND IT IS PROGRAM (EXHIBIT_0 U3). The MEMFS mapping
     # left is the shader: the loader's 2nd search entry is
     # "src/cartridges/the_board/realization/world.wgsl" and it hits this
@@ -250,7 +250,7 @@ if(EMSCRIPTEN)
     # stays literal: it must match the loader's search string verbatim, so
     # it is a different fact and does not share this home.
     set(T7_WEB_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl")
-    target_link_options(incubator_dual PRIVATE
+    target_link_options(pawn PRIVATE
         ${T7_WEB_PORTS}
         # ORGAN_0b — the panel's ABI. EMSCRIPTEN_KEEPALIVE keeps the
         # functions from being garbage-collected, but ccall/cwrap are
@@ -275,7 +275,7 @@ if(EMSCRIPTEN)
     # The native twin needs nothing: it reads world.wgsl off disk at
     # runtime and has no bundle that can go stale — which is exactly why
     # the twins disagreed about collisions and only one of them was wrong.
-    set_target_properties(incubator_dual PROPERTIES
+    set_target_properties(pawn PROPERTIES
         OUTPUT_NAME "the_board"
         SUFFIX ".js"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"
@@ -283,7 +283,7 @@ if(EMSCRIPTEN)
     )
 endif()
 
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}"
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${PAWN_RENDER_CARTRIDGE}"
     PREFIX "Render Cartridge"
     FILES ${DUAL_RENDER_HEADERS}
 )

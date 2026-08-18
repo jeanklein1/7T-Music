@@ -20,7 +20,7 @@
 # the tree places pass encoders more widely — renderer.hpp holds
 # pipeline creation and NO Begin*Pass site, while the cartridge, four
 # bodies files and the patch surface each encode passes of their own,
-# the frame submit lives in incubator_dual.cpp, and the reconfigure
+# the frame submit lives in pawn.cpp, and the reconfigure
 # trigger in console.hpp. The census scans where the facts are and
 # says so; witness C-4 pins renderer.hpp's zero so the widening stays
 # an observation, not an assumption.
@@ -57,7 +57,7 @@ INPUTS = [
     os.path.join(BOARD, "bodies", "pawn.hpp"),
     os.path.join(BOARD, "bodies", "gallery.hpp"),
     os.path.join(BOARD, "bodies", "orbs.hpp"),
-    os.path.join(REPO, "src", "incubator_dual.cpp"),
+    os.path.join(REPO, "src", "pawn.cpp"),
     os.path.join(REPO, "src", "console", "console.hpp"),
 ]
 
@@ -435,7 +435,7 @@ def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
     A.append("files above. `renderer.hpp` carries pipeline creation and ZERO")
     A.append("`Begin*Pass` sites (witness C-4 pins that zero); the cartridge,")
     A.append("bodies, and patch surface encode passes of their own; the frame")
-    A.append("submit lives in `incubator_dual.cpp`; the reconfigure trigger")
+    A.append("submit lives in `pawn.cpp`; the reconfigure trigger")
     A.append("in `console.hpp`.")
     A.append("")
     A.append("## §1 — the passes, one row each")
@@ -477,7 +477,7 @@ def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
         A.append("| %d | `%s.Submit` | `%s` | `%s:%d` |"
                  % (i + 1, s["recv"], s["fn"], s["file"], s["line"]))
     A.append("")
-    A.append("%d submit sites. The frame's one submit rides the incubator's"
+    A.append("%d submit sites. The frame's one submit rides the pawn's"
              % len(subs))
     A.append("render tick; the GoL derive flush issues its own (the cartridge")
     A.append("phase table marks it `F_SUBMIT`, cartridge.hpp).")

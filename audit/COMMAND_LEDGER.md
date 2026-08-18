@@ -16,9 +16,9 @@ Last commit touching any scanned file: `7a132d2a2016d8c1947b4d7ec33afca24e8d7b3b
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:08d71a39977a275a0650d656942afad05e0fbebe12dc4383727ba28bec8667eb` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:d1108a1595ac30cec4cd97712c8cf8093e2988c622d554fd2bbea871de31cb7c` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:24e2acdc121904efaa52a6ddee1c0762656703f894c0ad3f223fdc39567639cf` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:90c0e216790358926fb64c24531f4873eccf8ffffb5d6b2877daec1d7c8c4b6b` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:910a31d0aa5e81cdcbc8cc9f121469d9e607eb5c16d82d579032f385079fa00b` |
-| `src/incubator_dual.cpp` | `sha256:a4bb416276ec9423bc51a39f5c8be6ffe8af008c2ec05bf6f23e167d49a9aa5b` |
+| `src/pawn.cpp` | `sha256:6374f5d94d61f43b8cfee0685803665d059af95567330b8e892d3b6a9d49e6c2` |
 | `src/console/console.hpp` | `sha256:43e4b7b9df0c627e9ef8b3e8647272abf7dffff096ecd5fc95682070414e24b6` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
@@ -26,7 +26,7 @@ tree places pass encoders more widely, so the census scans the
 files above. `renderer.hpp` carries pipeline creation and ZERO
 `Begin*Pass` sites (witness C-4 pins that zero); the cartridge,
 bodies, and patch surface encode passes of their own; the frame
-submit lives in `incubator_dual.cpp`; the reconfigure trigger
+submit lives in `pawn.cpp`; the reconfigure trigger
 in `console.hpp`.
 
 ## §1 — the passes, one row each
@@ -61,9 +61,9 @@ in `console.hpp`.
 | # | receiver | enclosing function | site |
 |---|---|---|---|
 | 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:692` |
-| 2 | `app->queue.Submit` | `frame` | `src/incubator_dual.cpp:234` |
+| 2 | `app->queue.Submit` | `frame` | `src/pawn.cpp:234` |
 
-2 submit sites. The frame's one submit rides the incubator's
+2 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
 phase table marks it `F_SUBMIT`, cartridge.hpp).
 
@@ -76,7 +76,7 @@ every landing.
 | # | label | enclosing function | site |
 |---|---|---|---|
 | 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:668` |
-| 2 | `"frame"` | `frame` | `src/incubator_dual.cpp:225` |
+| 2 | `"frame"` | `frame` | `src/pawn.cpp:225` |
 
 ## §3 — the swapchain reconfigure trigger
 

@@ -7,7 +7,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
-        "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
+        "PAWN_RENDER_CARTRIDGE": "the_board",
         "THE_BOARD_DEMO": "full"
       }
     },
@@ -52,17 +52,17 @@
     {
       "name": "the-board-web",
       "configurePreset": "the-board-web",
-      "targets": [ "incubator_dual" ]
+      "targets": [ "pawn" ]
     },
     {
       "name": "the-board-web-meter",
       "configurePreset": "the-board-web-meter",
-      "targets": [ "incubator_dual" ]
+      "targets": [ "pawn" ]
     },
     {
       "name": "the-board-web-debug",
       "configurePreset": "the-board-web-debug",
-      "targets": [ "incubator_dual" ]
+      "targets": [ "pawn" ]
     }
   ]
 }

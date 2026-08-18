@@ -1755,7 +1755,7 @@ inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
     // ── THE DEVICE-LOST EXEMPTION, NAMED ─────────────────────────
     // The call below ends in a queue WriteTexture, and this is the one
     // GPU write in the program that does NOT sit under the frame gate
-    // (incubator_dual.cpp: `if (app->console.device_lost()) return;`).
+    // (pawn.cpp: `if (app->console.device_lost()) return;`).
     // A fetch completion is a browser event, not a frame, so a painting
     // that lands after the device is lost writes through a dead queue.
     //
