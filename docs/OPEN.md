@@ -20,9 +20,11 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   (may cost more). Origin: RECENSION_1 FLAG-7. Unblocked by a gates sitting.
 - L26 docket — fields marked dead, awaiting the sitting that next opens their
   struct: `RibbonState.is_roaming`, `RibbonRingTransform._pad0`,
-  `OrbConfig`'s driverless gen-1 block. Each dies in the commit that reopens
-  its struct (L26, L3: twin rooms, one commit). Origin: L26, moved here by
-  RECENSION_2. Unblocked by any campaign that relayouts one of the three.
+  `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
+  went with the FileWatcher at SUNSET_1; `pawn.cpp:60` still names the dial).
+  Each dies in the commit that reopens its struct (L26, L3: twin rooms, one
+  commit). Origin: L26, moved here by RECENSION_2. Unblocked by any campaign
+  that relayouts one of the four.
 - CENSUS_1b, the exhaustive walk of the four realization giants (state.hpp,
   world.wgsl, renderer.hpp, cartridge.hpp) and the ten bodies/** files, line
   by line. CENSUS_1 covered them by sweep and declared that edge; the refuter
@@ -30,6 +32,15 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   5-slot stride). Origin: PROCESS_LAWS SCHEDULING RECORD, moved by
   RECENSION_3 when its dated owner (the control-panel campaign) ran without
   collecting it. Unblocked by any campaign that enumerates those files.
+- pawn.cpp IS UNGATED: no gate compiles the TU that owns main(), the rAF
+  driver and the boot sequence — glaw1 compiles tu.cpp, console_gate compiles
+  cartridge.hpp and console.hpp. One missing declaration is the whole reason:
+  tools/gates/console_gate/stubs/emscripten.h stubs
+  emscripten_set_main_loop_arg but not emscripten_set_main_loop, the form
+  pawn.cpp calls. CC verified everything else in the TU compiles clean under
+  the existing gate flags. Cure is one stub line; adding to the pinned stub
+  set is a gates decision. Origin: RECENSION_2 FLAG-U5c. Unblocked by the
+  gates sitting.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
