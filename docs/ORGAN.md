@@ -118,26 +118,41 @@ world generation reads it, and rewriting it without regenerating the
 world means nothing at best and disagrees at worst. The rule is
 stated in code beside `MOOD_LIVE`.
 
+THE WORLD ANALOG (ORGAN_2b). A tier field may take a TIER definition
+only if `upload_agent_registries_to_gpu` is `TIER_LIVE`'s only
+runtime reader; compile-time budget readers stay on the design table
+`AGENT_TIER_GAINS`, the same exception the gallery's wall allowances
+take against `MOOD_TABLE`. That rule is stated in code beside
+`TIER_LIVE` (contracts/agent_tiers.hpp).
+
 ### The two modes
 `definition` (default) writes the live mood's definition and lets the
 mood apply re-run at the frame boundary; the edit survives a mood
 change, and only for the LIVE mood — an edit to another mood's
 definition waits until the program enters it. `preview` writes the
 instance: immediate, and the next author may take it back. A dial
-with no definition falls back to the instance under either mode.
+with no definition falls back to the instance under either mode. A
+definition-only dial has no preview at all: its write is always a
+definition, and the shell targets the live mood for it regardless of
+the toggle.
 O1a's contest readings come from PREVIEW writes only, because a
 definition write never touches the instance and so asks the
 instrument nothing.
 
 Export keys a definition by mood AND id (`"<mood>/<id>"`) and an
 instance value by id alone, so one file can carry several moods and
-an import puts each back where it came from.
+an import puts each back where it came from. A world definition
+belongs to no mood, so it exports once, keyed `world/<id>`; import
+skips witnesses and says how many.
 
 ### Open for ORGAN_2
 Twelve of the sixteen enrolled dials had no definition target, and
-they divided into two different problems. (Counted before ORGAN_2a:
-the enrollment now stands at twenty-three — nineteen dials and four
-read-only witnesses — and the first bullet below is closed.)
+they divided into two different problems. (Counted before ORGAN_2a.
+The enrollment now stands at twenty-four — nineteen dials, one
+definition-only dial and four read-only witnesses — and only the last
+bullet below is still open: it is ORGAN_2c's, and crosses the L3
+byte-for-byte mirror, the generated ledgers and world.wgsl, so it is
+cut from evidence rather than from memory.)
 
 - THE FOUR ATMOSPHERE DIALS are DRIVEN, and the ruling above is their
   answer: they must not carry a dial on the value at all. What they
@@ -148,16 +163,42 @@ read-only witnesses — and the first bullet below is closed.)
   one layer up. RESOLVED (ORGAN_2a): built as the drivers' room —
   contracts/driver_surface.hpp, block 3, rests and gains at the
   seams; the four driven values converted to read-only witnesses.
-  The remaining three bullets are ORGAN_2b's.
+  The remaining three bullets were ORGAN_2b's.
 - THE EIGHT AGENT-TIER DIALS have an author that is not a mood
   (`upload_agent_registries`, once at world init), so `MoodProfile`
   is the wrong place to reach for. They need a non-mood definition
   surface — a definition that belongs to the world rather than to the
-  mood.
+  mood. RESOLVED (ORGAN_2b): the vocabulary graduated to
+  contracts/agent_tiers.hpp; TIER_LIVE is the world's definition;
+  ORGAN_DEF_TIER routes it; the frame boundary re-speaks
+  upload_agent_registries_to_gpu.
 - `clear_color` is the mirror case: a definition with no home on the
   panel's side, because `clearColor_` is not one of the three homes.
+  RESOLVED (ORGAN_2b): a definition-only dial (block NONE) — the
+  existing MOOD path writes it, apply_mood_lighting re-runs it, no
+  instance exists and preview is refused.
 - `config.sun_direction` beside `lighting.sun.direction` — two
-  apparent homes for one fact, carried in from CHORD.
+  apparent homes for one fact, carried in from CHORD. OPEN
+  (ORGAN_2c): its evidence was gathered read-only by ORGAN_2b U7.
+
+## Definition kinds (ORGAN_2b)
+A definition answers a question, and which question is the KIND.
+`MOOD` answers "what does this mood mean" — one `MoodProfile` per
+mood, and the write's target selects which. `TIER` answers "what does
+this WORLD mean by its tiers" — one `AgentTierBank` (`TIER_LIVE`), so
+the target is ignored by design rather than by oversight.
+`definition_base` is the one place that mapping lives; a third family
+costs an enum value and nothing else. The manifest's `def` column
+carries the kind, so the shell can key an export by it without
+learning any parameter's name.
+
+A DEFINITION-ONLY ENTRY is the case where a fact has a definition the
+panel may write and no instance the panel may address. Its block is
+the sentinel `ORGAN_BLOCK_NONE`, `block_base` answers null, and
+`organ_set` routes it straight to the definition path — preview is
+refused, because there is nothing a preview could show. Reading it
+reads the LIVE mood's definition, which is what the manifest's opening
+values show. `clear_color` is the case that asked for it.
 
 ## The write path
 A panel edit in preview mode writes the home struct member and marks
