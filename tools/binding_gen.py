@@ -3582,7 +3582,7 @@ def main():
     g.add_argument("--write-wgsl", metavar="PATH",
                    help="renumber the declaration sites of the file at PATH")
     g.add_argument("--plan", action="store_true",
-                   help="derive the LOOM_2 recut plan into docs/RECUT_PLAN.md")
+                   help="derive the LOOM_2 recut plan (RECUT_PLAN, attic since CANON)")
     g.add_argument("--bootstrap-recut", action="store_true",
                    help="derive the post-recut schema from the ratified plan, "
                         "print to stdout (U2; never writes the authority file)")

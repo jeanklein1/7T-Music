@@ -35,10 +35,6 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   is the product, the native twin is the bench, and the bench retires when the web gains
   WGSL hot reload AND the port is vendored) vs RETIRE-NOW. Awaiting Jean's word.
   (from audit/DOMESDAY_2_REPORT.md §11 Slot 1, 5ff5696)
-- HARVEST: the one-generation law — text written and already enforced at F5-a/F5-d, but
-  it has NO LAWS.md entry, and the numeral it proposed (L24) is already taken by "THE
-  ROOM GROWS BY TEXTURE OR UNIFORM" at docs/LAWS.md:621. Needs a free numeral and the
-  entry. (from audit/DOMESDAY_2_REPORT.md §11 Slot 2, 5ff5696)
 - HARVEST: the terrain word on the pinned seed — three rounds outstanding, and the last
   open item of PROBATE_I. Wrong looks like "the whole terrain is the same hill repeated"
   or "everything outside the first patch went flat". (from GATEHOUSE_REPORT.md, a5e84bf)

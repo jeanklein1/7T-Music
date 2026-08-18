@@ -3,11 +3,9 @@
 Repo home: `docs/`. Sibling of `7t_program_theory_v3.md` — that file is
 THE LENS (how to think about the program); this one is the LAWS OF PRACTICE
 (what breaks if you don't). Created by PRUNING_1 P4 because there was no
-live one: `docs/cartridge_constitution.md` and
-`docs/terrain_program_charter.md` are superseded charters kept for the
-record (WINNOW-2 W4 moved them onto the law shelf when the archive folder
-was dissolved; their standing did not change), and the theory explicitly
-holds itself apart from law.
+live one: the `cartridge_constitution` and the `terrain_program_charter`
+are superseded charters, in the attic since CANON (resurrect by sha; L30),
+and the theory explicitly holds itself apart from law.
 
 **What belongs here.** A rule that survives every line of code it currently
 governs. If deleting the subject deletes the rule, the rule is a comment and
@@ -27,7 +25,7 @@ Enforced mechanically by `.gitattributes` (`*.wgsl text eol=lf`), which is the
 authority; this rule exists so the reason survives the enforcement. A CRLF
 checkout churns every line of a 12,000-line shader diff and buries the real
 change. (The original reason — a sha256 sidecar on the deleted web mirror —
-is gone; see `docs/WEB_PORT_LEDGER.md`. The pin stands on its own merit.)
+is gone (WEB_PORT_LEDGER, attic). The pin stands on its own merit.)
 
 ## ~~L2 — THE FXC LAW~~ — **STRUCK 2026-08-12 (PIVOT_0)**
 
@@ -188,7 +186,7 @@ boot.
 
 Proven the expensive way by the deleted web port, which would have shipped a
 module its layout could not satisfy while both entry points existed the whole
-time — `docs/WEB_PORT_LEDGER.md`. The closure was computed by
+time — the WEB_PORT_LEDGER (attic). The closure was computed by
 `cc4_wgsl_static_usage.py`, a one-shot campaign probe retired at WINNOW-2 T-e;
 a future port that needs it again regenerates it. Any future port wants
 **generated** layouts, not transcribed ones.
@@ -450,7 +448,7 @@ permanent, so this does not take one until it is adopted.*
 Web per-pipeline times are **wire-enqueue latency**, not compile cost. The
 backend compile executes in-order in the browser's GPU process and lands on
 the first phase that waits. Witness, from one capture pair on the same
-tree (`docs/RELEASE_CONSOLE.md`):
+tree (`docs/reference/RELEASE_CONSOLE.md`):
 
 | phase | web twin | native twin |
 |---|---|---|
@@ -712,7 +710,7 @@ at the living law, and where a specific drift is KNOWN it names that
 drift on the stamp — so the reader meets the correction before the
 error, and the minutes stay minutes.
 
-*Paid for by:* `docs/SALON_1.md`, which cites `L2.4`'s ceiling as
+*Paid for by:* `SALON_1` (attic), which cites `L2.4`'s ceiling as
 a live constraint at a value wrong twice over — the clause survived L2's
 striking into **L14**, and the core default is **8**, not the 10 the
 report carries. PROBATE_E's EF6 flagged it rather than editing it, and
@@ -886,3 +884,60 @@ happened to pin. A number carried between sessions crosses a driver version, a
 thermal state, and a browser build, none of which are in the notebook.
 
 Measure the ecology, and compare inside the session that produced both halves.
+
+## L37 — THE ONE-GENERATION LAW
+
+The web twin's WebGPU generation is **this pin**; the native checkout
+**tracks** it; a reference document without a stated revision is
+**RECALLED, not CITED**. The pin, the native revision, and the fact
+that they match are recorded in-tree and updated as one act.
+
+**Witnesses:** `third_party/emdawnwebgpu/PINNED.md`; the boot's
+`[Console] Dawn revision:` line; the dialect testimony, which names
+the instance it measured.
+
+**Paid for by** three arbitration rounds and one retraction. F1 cost
+a compile on a spelling read from a document whose revision was not
+the compiler's. F2 cost a boot on an enum that does not exist at any
+revision. F3 corrected it from a probe of the right header — and was
+still reading the *bench's* generation, eight months behind the
+audience's. F4 was withdrawn before it ran. The one fact that would
+have shortened all four was a pinned generation, written down.
+
+*Numeral note.* DOMESDAY_2 §10 drafted this text and proposed **L24**,
+correct when written (the book then ran to L23′). L24 was taken by THE
+ROOM GROWS BY TEXTURE OR UNIFORM before the ratification arrived, so
+the law lands at the next free numeral. The text is otherwise verbatim
+from the draft, resurrected at CANON from `5ff5696`.
+
+## L38 — THE COMPOSITION LAW (from the cartridge constitution)
+
+Modules are real headers that own their state structs and laws; the
+cartridge is the COMPOSITION ROOT — member instances, file-scope
+includes, conductor calls, assembly, nothing else. Sight is granted by
+explicit parameters (state references, the machine-context pointer,
+declared services), never by ambient membership. The cartridge remains
+ONE translation unit: boundary honesty, not compilation strategy.
+
+**Verified at CANON**, against the tree rather than the charter:
+- ONE TU — `tools/gates/glaw1/tu.cpp` is the witness and reaches the
+  whole cohort through a single `#include ".../cartridge.hpp"`. Its
+  banner states the boundary: *"this harness certifies OUR names,
+  scope, and syntax; the SDK surface is vacuous-stubbed, so SDK-call
+  correctness remains the rig's jurisdiction."*
+- COMPOSITION ROOT — 33 file-scope module includes in `cartridge.hpp`,
+  and **zero** class-body includes: the transitional form the charter
+  called struck is genuinely struck.
+- EXPLICIT SIGHT — service entry points take the context by parameter
+  (`compose_spawn_chance(MachineCtx* c, …)`,
+  `evaluate_spawn_gate(MachineCtx* c, …)` in
+  `contracts/spawn_services.hpp`).
+
+*Vocabulary note.* The charter called that parameter **the keyhole
+pointer**. That word has 0 occurrences in `src/` — it survived only in
+the two charters, both now in the attic — so this law states the
+mechanism in the tree's own name, `MachineCtx*`. The claim verified;
+only the word was retired.
+
+Extracted at CANON from the superseded constitution; provenance in the
+attic.
