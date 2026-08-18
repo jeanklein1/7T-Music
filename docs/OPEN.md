@@ -23,6 +23,13 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   `OrbConfig`'s driverless gen-1 block. Each dies in the commit that reopens
   its struct (L26, L3: twin rooms, one commit). Origin: L26, moved here by
   RECENSION_2. Unblocked by any campaign that relayouts one of the three.
+- CENSUS_1b, the exhaustive walk of the four realization giants (state.hpp,
+  world.wgsl, renderer.hpp, cartridge.hpp) and the ten bodies/** files, line
+  by line. CENSUS_1 covered them by sweep and declared that edge; the refuter
+  breached it immediately (gol_zones.hpp's "Upload all 7 slots" against a
+  5-slot stride). Origin: PROCESS_LAWS SCHEDULING RECORD, moved by
+  RECENSION_3 when its dated owner (the control-panel campaign) ran without
+  collecting it. Unblocked by any campaign that enumerates those files.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 

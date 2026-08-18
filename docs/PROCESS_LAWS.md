@@ -309,19 +309,6 @@ naming the wrong one misdirects rather than merely underdelivers.
 
 ## SCHEDULING RECORD
 
-**CENSUS_1b — the exhaustive walk** of the four realization giants
-(`state.hpp`, `world.wgsl`, `renderer.hpp`, `cartridge.hpp`) and the ten
-`bodies/**` files, line by line. CENSUS_1 covered them by detector sweep and
-**declared that edge**; the refuter breached it immediately (`gol_zones.hpp`'s
-"Upload all 7 slots" against a 5-slot stride — an in-class miss inside a swept
-directory).
-
-**Deferred with a dated owner:** the control-panel campaign's recon, which must
-enumerate those same files regardless. The walk rides that enumeration rather
-than paying for it twice. This is a dated intent with an owner, which is what
-P3's sibling rule in `LAWS.md` requires of anything kept — the deferral is
-itself filed, not merely postponed.
-
 **DAWN RELEASE BUILD — DONE (2026-07-29).** Dawn/Tint built `--config Release`
 in the existing multi-config tree at the pinned revision `f0bf8ab5…`; the
 eighty hardcoded `Debug` path segments in `CMakeLists.txt` were parameterized
