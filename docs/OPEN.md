@@ -41,6 +41,14 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   the existing gate flags. Cure is one stub line; adding to the pinned stub
   set is a gates decision. Origin: RECENSION_2 FLAG-U5c. Unblocked by the
   gates sitting.
+- FIREFOX REGAIN, HELD: naga 30 lacks immediate_address_space, so the module
+  does not compile there; the audience card is the boundary. Priced: a
+  generated no-immediates module (the wgsl_gate transform as generator) plus,
+  on that path only, the per-patch staging machinery PROBATE_I retired — two
+  boot paths, doubled witnesses. Origin: world.wgsl COMPILER FLOOR block,
+  PROBATE_E3. Unblocked by naga shipping the extension — watched
+  automatically by tools/wgsl_gate.py ARM 4, which prints when it happens —
+  or by an exhibition that pays for the spend.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
