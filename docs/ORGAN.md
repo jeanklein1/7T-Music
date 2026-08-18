@@ -108,6 +108,15 @@ compile-time budgets, and a wall's allowance is not a live dial.)
 A write to 3 is undone the next time 1 is read. A write to 1 flows
 through 2 and 3 by the program's own path, with nothing added.
 
+And the fan, made explicit by 2c's evidence: from the instance of
+record the author fills every window the fact has — `config.sun_direction`
+(the compute face's shadow VP; frame_r is unreachable there by A8a),
+`lightingStage_.sun` (fragment shading), and `PhotographerConfig.sun_direction`
+(filled at the photographer's own site, on its own cadence). Windows,
+not homes: each is written from the record by the author's fan, and the
+panel's durable subject for direction is therefore the DEFINITION alone
+(2c) — the instance enrolls as a witness beside it.
+
 ### The eligibility rule
 A field may carry a definition target only if the mood apply is its
 ONLY runtime reader. The atmospheric group — `sun_direction`,
@@ -148,11 +157,8 @@ skips witnesses and says how many.
 ### Open for ORGAN_2
 Twelve of the sixteen enrolled dials had no definition target, and
 they divided into two different problems. (Counted before ORGAN_2a.
-The enrollment now stands at twenty-four — nineteen dials, one
-definition-only dial and four read-only witnesses — and only the last
-bullet below is still open: it is ORGAN_2c's, and crosses the L3
-byte-for-byte mirror, the generated ledgers and world.wgsl, so it is
-cut from evidence rather than from memory.)
+All four bullets are closed; the enrollment stands at twenty-five —
+eighteen dials, two definition-only, five witnesses.)
 
 - THE FOUR ATMOSPHERE DIALS are DRIVEN, and the ruling above is their
   answer: they must not carry a dial on the value at all. What they
@@ -178,11 +184,17 @@ cut from evidence rather than from memory.)
   existing MOOD path writes it, apply_mood_lighting re-runs it, no
   instance exists and preview is refused.
 - `config.sun_direction` beside `lighting.sun.direction` — two
-  apparent homes for one fact, carried in from CHORD. OPEN
-  (ORGAN_2c): the evidence was gathered read-only by ORGAN_2b U7 and
-  sits at docs/HANDOFFS/ORGAN_2c_RECON.md until 2c consumes it. It
-  finds four homes, not two, and one of them unreachable from the
-  other's room.
+  apparent homes for one fact, carried in from CHORD. It finds four
+  homes, not two, and one of them unreachable from the other's room.
+  RESOLVED BY RULING (ORGAN_2c): the pair dissolves under
+  windows-not-homes — one definition, one instance of record
+  (`sunDirection_`), one author, four windows; the A8a split is WHY the
+  config window exists, and removal was priced (asymmetric mirror
+  shrink, three witnesses) and refused. The one real defect was preview
+  partiality on `sun.direction`, repaired by converting the dial to
+  definition-only with a read-only witness on the instance. Evidence:
+  docs/HANDOFFS/ORGAN_2c_RECON.md, consumed at c80b74d (the file's last
+  commit — U0 records it).
 
 ## Definition kinds (ORGAN_2b)
 A definition answers a question, and which question is the KIND.
@@ -267,3 +279,31 @@ the dials moved to the seams that drive them.
 The panel exists only under `?organ=1`; backtick toggles visibility.
 Without the flag, no DOM is built, no export is called, the audience
 path is byte-identical. The panel is an instrument, not the art.
+
+## ORGAN_2 — the close (the campaign minute)
+SETTLED. Four findings, four fates: the atmosphere dials got the
+drivers' room (2a — rests and gains at the seams; driven values became
+witnesses); the tier dials got the world's definition (2b — the
+vocabulary graduated, TIER_LIVE, the boundary re-speaks the author);
+clear_color got the definition-only entry (2b); the sun mirror
+DISSOLVED by ruling (2c — windows, not homes; the config window is the
+compute face's only eye on the sun and stays). The enrollment stands
+at twenty-five; adding a dial is one line in one file, which was the
+point.
+
+RESIDUES, recorded not repaired: the dead aura boot seed
+(state.hpp's `config_.aura_enabled = 1.0f`, overwritten within a
+frame by the tick — OPEN's docket); gain-1 exactness at the fog seam
+is Sterbenz-bounded (bit-exact across the authored range, numerically
+indistinguishable beyond it; known, unguarded); exports cut before 2c
+carry `<mood>/LIGHTING.sun.direction` keys that now import as a
+WITNESS SKIP — the id is still enrolled, only no longer writable, so
+the note reads "skipped 5 witnesses" and the reject counter never
+moves; the photographer window refreshes
+at its own fill site, so a definition edit while the photographer is
+live lands there on its next fill, not this frame.
+
+PRICED AND UNSPENT: removing `config.sun_direction` (refused — the
+bytes work); Firefox regain (held at OPEN); tiers 2 and 3 — the
+tremulant and the keys — stay reserved columns in this registry until
+the music-coupling campaign claims them beside the VOICE bus.
