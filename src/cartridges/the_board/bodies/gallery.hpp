@@ -545,14 +545,14 @@ struct AuthoredStagingRecord {
     float uv_scale_y = 1.0f;
     bool valid = false;
     bool consumed = false;
-    // EXHIBIT_0 — A REQUEST IS NOT A PICTURE. On the native twin a load
-    // either fills this record or fails, inside one call; over the
-    // network the two are separated by a round trip. `pending` names
-    // that gap: the slot is spoken for (disk_index is already set, so
-    // the rotation cursor will not hand the same painting to a second
-    // slot) and it is NOT valid, so no gallery can pick it. Cleared on
-    // arrival AND on failure — a slot that never clears is a slot the
-    // rotation can never reuse.
+    // EXHIBIT_0 — A REQUEST IS NOT A PICTURE. On the retired native twin
+    // a load either fills this record or fails, inside one call; over the
+    // network the two are separated by a round trip. `pending` names that
+    // gap: the slot is spoken for (disk_index is already set, so the
+    // rotation cursor will not hand the same painting to a second slot)
+    // and it is NOT valid, so no gallery can pick it. Cleared on arrival
+    // AND on failure — a slot that never clears is a slot the rotation
+    // can never reuse.
     bool pending = false;
 };
 
