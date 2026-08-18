@@ -108,6 +108,12 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   both have 0 hits in src/. Note the ledger's cost figure assumed EXHIBITION_LAYERS
   32; the tree now reads 40 (state.hpp:294), so "32 -> 256 = +896 MiB" wants
   recomputing before it is spent. Origin: SALON_1 (attic, 3b931ba).
+- ORGAN_2c / the sun mirror: `config.sun_direction` beside
+  `lighting.sun.direction` — the last of ORGAN_2's four findings still open.
+  Evidence gathered read-only at docs/HANDOFFS/ORGAN_2c_RECON.md (ORGAN_2b U7):
+  four homes, not two, and frame_r is unreachable from the compute stratum that
+  reads the config copy. Unblocked by: Jean's ruling on whether the pair is a
+  duplicate at all. Origin: ORGAN_1 (O1b's census).
 - ML-1 / mirror_census: the span model does not recognise strataLayoutFor()
   returning wgpu::PipelineLayout (27 sites, 57 STOPs; pre-existing at ba0e26d).
   MIRROR_LEDGER.md is frozen at its last successful regen. Unblocked by: teach

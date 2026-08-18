@@ -179,7 +179,10 @@ cut from evidence rather than from memory.)
   instance exists and preview is refused.
 - `config.sun_direction` beside `lighting.sun.direction` — two
   apparent homes for one fact, carried in from CHORD. OPEN
-  (ORGAN_2c): its evidence was gathered read-only by ORGAN_2b U7.
+  (ORGAN_2c): the evidence was gathered read-only by ORGAN_2b U7 and
+  sits at docs/HANDOFFS/ORGAN_2c_RECON.md until 2c consumes it. It
+  finds four homes, not two, and one of them unreachable from the
+  other's room.
 
 ## Definition kinds (ORGAN_2b)
 A definition answers a question, and which question is the KIND.
