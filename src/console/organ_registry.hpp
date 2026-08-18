@@ -163,17 +163,37 @@ struct OrganParam {
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_NONE, 0, 0 },
 
-// The same line plus the field in MoodProfile the dial DEFINES. The
-// compiler takes this offset too, so a rename on the definition side fails
-// at the enrollment exactly as a rename on the instance side does.
+// The same line plus the field the dial DEFINES, and the family that field
+// belongs to. The compiler takes this offset too, so a rename on the
+// definition side fails at the enrollment exactly as a rename on the
+// instance side does. DEFKIND is MOOD or TIER (ORGAN_2b) and DEFSTRUCT is
+// that family's struct — named by the caller so the macro never has to
+// guess, and so a third family costs one more enum value and nothing here.
 #define ORGAN_PARAM_DEF(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP,    \
-                        LABEL, DEFFIELD)                                      \
+                        LABEL, DEFKIND, DEFSTRUCT, DEFFIELD)                  \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
-                ORGAN_DEF_MOOD,                                               \
-                (uint16_t)offsetof(the_board::MoodProfile, DEFFIELD), 0 },
+                ORGAN_DEF_##DEFKIND,                                          \
+                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0 },
+
+// ORGAN_2b — A DEFINITION WITH NO INSTANCE. Some facts have a definition
+// the panel may write and no home the panel may address: MoodProfile's
+// clear_color is read by apply_mood_lighting into clearColor_, a cartridge
+// member and not one of the three exposed homes. Enrolling it as a dial on
+// nothing would be a lie; enrolling it here says the truth — the write is
+// always a definition, preview is refused, and the value shown is the live
+// mood's meaning. The offset column carries def_offset, which keeps the
+// (block, offset, type) triple unique inside the sentinel block.
+#define ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL,               \
+                            DEFKIND, DEFSTRUCT, DEFFIELD)                     \
+    OrganParam{ #DEFSTRUCT "." #DEFFIELD, LABEL, GROUP,                       \
+                ORGAN_BLOCK_NONE,                                             \
+                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), \
+                ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
+                ORGAN_DEF_##DEFKIND,                                          \
+                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0 },
 
 // ORGAN_2a — A WITNESS, NOT A DIAL. The same offsetof plumbing pointed at a
 // DRIVEN value: the panel reads it every 250 ms and shows it moving, and
@@ -192,6 +212,7 @@ inline const OrganParam kOrganParams[] = {
 };
 #undef ORGAN_PARAM
 #undef ORGAN_PARAM_DEF
+#undef ORGAN_PARAM_DEFONLY
 #undef ORGAN_PARAM_RO
 
 inline constexpr size_t kOrganParamCount =

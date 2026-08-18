@@ -4,7 +4,11 @@
 // ADDING A DIAL IS ONE LINE IN THIS FILE. Nothing else, anywhere.
 //
 //   ORGAN_PARAM(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL)
-//   ORGAN_PARAM_DEF(... , DEFFIELD)     — the same, plus a DEFINITION
+//   ORGAN_PARAM_DEF(... , DEFKIND, DEFSTRUCT, DEFFIELD)
+//                                       — the same, plus a DEFINITION
+//   ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL,
+//                       DEFKIND, DEFSTRUCT, DEFFIELD)
+//                                       — a DEFINITION WITH NO INSTANCE
 //   ORGAN_PARAM_RO(BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
 //                                       — a WITNESS: the panel meters it
 //                                         and organ_set refuses to write
@@ -22,14 +26,30 @@
 //          contiguous floats; a colour is a VEC3 over 0..1 and the panel
 //          renders it as a colour input.
 //
-// DEFFIELD (O1b) — the member of the_board::MoodProfile this dial DEFINES,
-//          when it has a definition. ORGAN_PARAM enrolls a dial whose home
-//          is the only truth there is; ORGAN_PARAM_DEF enrolls one whose
-//          home is an INSTANCE the mood apply re-authors, and names the
-//          fact the apply reads. A definition must be a run of floats with
-//          the same lane count as TYPE, and the field must have the mood
-//          apply as its only runtime reader — the eligibility rule lives
-//          beside MOOD_LIVE in contracts/spine_state.hpp.
+// DEFKIND / DEFSTRUCT / DEFFIELD (O1b, generalized by ORGAN_2b) — the
+//          member this dial DEFINES, the struct it lives in, and the FAMILY
+//          that struct belongs to. ORGAN_PARAM enrolls a dial whose home is
+//          the only truth there is; ORGAN_PARAM_DEF enrolls one whose home
+//          is an INSTANCE some author re-authors, and names the fact that
+//          author reads. A definition must be a run of floats with the same
+//          lane count as TYPE.
+//
+//          MOOD  — the_board::MoodProfile. Answers "what does this mood
+//                  mean"; the write's target selects WHICH mood. Eligible
+//                  only if the mood apply is the field's one runtime reader
+//                  — the rule lives beside MOOD_LIVE in
+//                  contracts/spine_state.hpp.
+//          TIER  — the_board::AgentTierBank (TIER_LIVE). Answers "what does
+//                  this WORLD mean by its tiers"; there is one bank, so the
+//                  target is ignored by design. Eligible only if
+//                  upload_agent_registries_to_gpu is the bank's one runtime
+//                  reader — the rule lives beside TIER_LIVE in
+//                  contracts/agent_tiers.hpp.
+//
+//          ORGAN_PARAM_DEFONLY enrolls a definition with NO INSTANCE at
+//          all: the fact has a definition the panel may write and no home
+//          the panel may address. Its block is the sentinel ORGAN_BLOCK_NONE,
+//          it takes no BLOCK/STRUCT/FIELD, and preview on it is refused.
 //
 // The compiler takes the offset. Rename a field and the build fails here,
 // which is the whole point of a COMPILED registry: it cannot drift into
@@ -55,10 +75,20 @@
 // next mood change takes back, and the durable edit is the definition
 // beside it. The panel writes the definition by default and lets the same
 // apply produce the instance; nothing is duplicated to make that work.
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.direction, VEC3, -1.0f, 1.0f, 0.01f, "Sun", "direction", sun_direction)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sun", "colour",    sun_color)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sun", "intensity", sun_intensity)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sun", "ambient",  sun_ambient)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.direction, VEC3, -1.0f, 1.0f, 0.01f, "Sun", "direction", MOOD, MoodProfile, sun_direction)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sun", "colour",    MOOD, MoodProfile, sun_color)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sun", "intensity", MOOD, MoodProfile, sun_intensity)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sun", "ambient",  MOOD, MoodProfile, sun_ambient)
+
+// ORGAN_2b — CLEAR COLOUR, THE DEFINITION-ONLY DIAL. It passes the
+// eligibility rule (apply_mood_lighting is clear_color's only runtime
+// reader) but its instance, the cartridge's clearColor_, is not one of the
+// exposed homes — so there is nothing to enroll a value dial on. Enrolled
+// as a definition with no instance: the write is always the mood's
+// meaning, the re-apply is the same apply_mood_lighting the sun dials
+// already trigger, and preview is refused because there is nothing a
+// preview could show.
+ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sun", "clear colour", MOOD, MoodProfile, clear_color)
 
 // ─── FOG (the drivers' room + its witnesses) ─────────────────────────
 // ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
@@ -92,16 +122,19 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_aura_height, F32, "Aura", "height (
 // agentRoomStage_.tier_gains — ONE home, and organ_flush writes BOTH of the
 // windows CHORD opened onto it (agent_room's and scene_constants').
 //
-// No definitions here either, and for a different reason than atmosphere:
-// the tiers have an author (the agents' room is staged at init from the
-// tier table) but that author is not a MOOD, so MoodProfile is the wrong
-// place to reach for. Whether they need a definition of their own is what
-// O1a's readings are for.
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 0", "colour")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 0", "speed gain")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 1", "colour")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 1", "speed gain")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 2", "colour")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 2", "speed gain")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 3", "colour")
-ORGAN_PARAM(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 3", "speed gain")
+// THE DEFINITIONS HERE BELONG TO THE WORLD (ORGAN_2b). TIER_LIVE
+// (contracts/agent_tiers.hpp) is the bank the author reads — what this
+// world means by its tiers — seeded at load from the authored
+// AGENT_TIER_GAINS. A write to the bank raises the tier flag, and the
+// frame boundary re-speaks upload_agent_registries_to_gpu, so the edit
+// lands within a frame and survives the next world init. That answers
+// O1a's question for these eight: they were contested because their
+// author took the instance back, and the durable word is the bank.
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 0", "colour",     TIER, AgentTierBank, t[0].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 0", "speed gain", TIER, AgentTierBank, t[0].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 1", "colour",     TIER, AgentTierBank, t[1].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 1", "speed gain", TIER, AgentTierBank, t[1].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 2", "colour",     TIER, AgentTierBank, t[2].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 2", "speed gain", TIER, AgentTierBank, t[2].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 3", "colour",     TIER, AgentTierBank, t[3].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 3", "speed gain", TIER, AgentTierBank, t[3].speed_gain)
