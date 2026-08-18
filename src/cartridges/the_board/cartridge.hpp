@@ -683,11 +683,14 @@ namespace t7 {
                         pawn_state_);
                 }
 
-                // Agent registries — single source of truth in bodies/agents.hpp
-                // (AGENT_BEHAVIORS / AGENT_TIER_GAINS), uploaded once to GPU
-                // storage buffers at bindings 110 + 111. Values are
-                // constexpr-equivalent and never change during a session,
-                // so this is a one-shot write at boot.
+                // Agent registries — behaviors from AGENT_BEHAVIORS
+                // (bodies/agents.hpp), tiers from the world's definition
+                // bank TIER_LIVE (contracts/agent_tiers.hpp), uploaded to
+                // GPU storage buffers at bindings 110 + 111. Behaviors are
+                // constexpr-equivalent, so for them this stays a one-shot
+                // write at boot; the bank is a live surface, and ORGAN_2b's
+                // frame boundary re-speaks this same author whenever the
+                // panel edits it.
                 {
                     wgpu::Queue q = device_.GetQueue();
                     upload_agent_registries_to_gpu(&agents_deps_, q);
@@ -1367,6 +1370,14 @@ namespace t7 {
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {
                     apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
+                }
+                // ORGAN_2b — the tier bank changed: the author re-speaks,
+                // whole registry, its own voice (behaviors and figures ride
+                // along unchanged — idempotent by construction). Once per
+                // frame however many edits arrived, like the mood re-apply
+                // above.
+                if (t7::organ::take_tier_definition_dirty()) {
+                    upload_agent_registries_to_gpu(&agents_deps_, queue);
                 }
                 gpuState_.organ_flush(queue);
             }

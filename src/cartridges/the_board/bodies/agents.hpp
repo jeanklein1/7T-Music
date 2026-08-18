@@ -284,12 +284,14 @@ void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* tr
 
 // ═══ REGISTRY UPLOAD (CPU table → GPU buffer, once at world-init) ═
 //
-// AGENT_BEHAVIORS and AGENT_TIER_GAINS are the single source of
-// truth for behavior/tier parameters. The compute kernels read them
-// from GPU uniform buffers (bindings 110 / 111), uploaded once at
-// world-init by this helper. Values are constexpr-equivalent —
-// they never change during a session, so a one-shot upload at boot
-// is sufficient.
+// AGENT_BEHAVIORS is the single source of truth for behavior
+// parameters. The tiers' truth is now TIER_LIVE, the world's
+// definition bank (contracts/agent_tiers.hpp), seeded at load from
+// the authored AGENT_TIER_GAINS — so a panel edit to the bank
+// outlives this author, because this author reads it every time it
+// speaks. The compute kernels read both from GPU uniform buffers
+// (bindings 110 / 111), uploaded at world-init by this helper and
+// again at the frame boundary whenever the bank changes (ORGAN_2b).
 
 // upload_agent_registries_to_gpu: takes Cartridge* for gpuState_
 // access. No agent state needed — uploads constexpr registries only.
@@ -309,7 +311,7 @@ inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
 
     GPUAgentTierDef gpu_tiers[AGENT_TIER_COUNT] = {};
     for (uint32_t i = 0; i < AGENT_TIER_COUNT; i++) {
-        const auto& src = AGENT_TIER_GAINS[i];
+        const auto& src = TIER_LIVE.t[i];   // ORGAN_2b — the world's definition, not the design table
         gpu_tiers[i].step_gain     = src.step_gain;
         gpu_tiers[i].persist_gain  = src.persist_gain;
         gpu_tiers[i].speed_gain    = src.speed_gain;

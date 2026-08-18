@@ -2376,10 +2376,12 @@ namespace t7 {
             }
 
             // Upload the agent behavior + tier registries to the GPU.
-            // Called once at world-init from the cartridge — values are
-            // constexpr-equivalent (sourced from AGENT_BEHAVIORS /
-            // AGENT_TIER_GAINS in bodies/agents.hpp) and never change
-            // during a session. Source data is passed as raw pointers
+            // Called at world-init from the cartridge, and again at the
+            // frame boundary when the panel edits the tier bank (ORGAN_2b).
+            // Behaviors are constexpr-equivalent (AGENT_BEHAVIORS,
+            // bodies/agents.hpp) and never change during a session; the
+            // tiers come from TIER_LIVE (contracts/agent_tiers.hpp), the
+            // world's definition. Source data is passed as raw pointers
             // because the C++ tables are defined inside the cartridge
             // class scope and aren't visible from state.hpp; the cartridge
             // has both a translation step (CPU table → GPU struct) and
