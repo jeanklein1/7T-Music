@@ -87,11 +87,11 @@
 // author produces; definition and witness disagreeing is the fan caught
 // mid-stride or broken, which is exactly what a meter is for. (colour /
 // intensity / ambient keep their single window and their preview.)
-ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sun", "direction", MOOD, MoodProfile, sun_direction)
-ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sun", "direction (instance)")
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sun", "colour",    MOOD, MoodProfile, sun_color)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sun", "intensity", MOOD, MoodProfile, sun_intensity)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sun", "ambient",  MOOD, MoodProfile, sun_ambient)
+ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction", MOOD, MoodProfile, sun_direction)
+ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sky & Light · Sun", "direction (instance)")
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "colour",    MOOD, MoodProfile, sun_color)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sky & Light · Sun", "intensity", MOOD, MoodProfile, sun_intensity)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sky & Light · Sun", "ambient",  MOOD, MoodProfile, sun_ambient)
 
 // ORGAN_2b — CLEAR COLOUR, THE DEFINITION-ONLY DIAL. It passes the
 // eligibility rule (apply_mood_lighting is clear_color's only runtime
@@ -101,7 +101,7 @@ ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f,
 // meaning, the re-apply is the same apply_mood_lighting the sun dials
 // already trigger, and preview is refused because there is nothing a
 // preview could show.
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sun", "clear colour", MOOD, MoodProfile, clear_color)
+ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "clear colour", MOOD, MoodProfile, clear_color)
 
 // ─── FOG (the drivers' room + its witnesses) ─────────────────────────
 // ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
@@ -110,11 +110,11 @@ ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sun", "clear colour", MOOD, MoodPr
 // convert to read-only witnesses below them. out = rest + gain·(driven
 // − rest): gain 1 is the coupling verbatim, gain 0 is the curator's
 // hand.
-ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_density, F32,  0.0f, 0.05f, 0.0002f, "Fog", "rest density")
-ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_color,   VEC3, 0.0f, 1.0f,  0.01f,   "Fog", "rest colour")
-ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f,   "Fog", "drive gain")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Fog", "density (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Fog", "colour (driven)")
+ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_density, F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Fog", "rest density")
+ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_color,   VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Fog", "rest colour")
+ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Fog", "drive gain")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog", "density (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")
 
 // ─── AURA (the drivers' room + its witnesses) ────────────────────────
 // The intent is the presence ramp's rest target — moved home from
@@ -122,12 +122,12 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Fog", "colour (driv
 // here now. attack/release carry the authored AURA_PRESENCE_* values;
 // height_gain multiplies profile.height_scale at the tick. The two
 // driven outputs witness below.
-ORGAN_PARAM(DRIVERS, DriverSurface, aura.intent,      BOOL, 0.0f, 1.0f,  1.0f,    "Aura", "intent")
-ORGAN_PARAM(DRIVERS, DriverSurface, aura.attack,      F32,  0.05f, 8.0f, 0.05f,   "Aura", "attack (1/s)")
-ORGAN_PARAM(DRIVERS, DriverSurface, aura.release,     F32,  0.05f, 8.0f, 0.05f,   "Aura", "release (1/s)")
-ORGAN_PARAM(DRIVERS, DriverSurface, aura.height_gain, F32,  0.0f, 2.0f,  0.01f,   "Aura", "height gain")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, aura_enabled,     F32, "Aura", "enabled (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_aura_height, F32, "Aura", "height (driven)")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.intent,      BOOL, 0.0f, 1.0f,  1.0f,    "Pawn · Aura", "intent")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.attack,      F32,  0.05f, 8.0f, 0.05f,   "Pawn · Aura", "attack (1/s)")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.release,     F32,  0.05f, 8.0f, 0.05f,   "Pawn · Aura", "release (1/s)")
+ORGAN_PARAM(DRIVERS, DriverSurface, aura.height_gain, F32,  0.0f, 2.0f,  0.01f,   "Pawn · Aura", "height gain")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, aura_enabled,     F32, "Pawn · Aura", "enabled (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_aura_height, F32, "Pawn · Aura", "height (driven)")
 
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // AgentTierParams::color_r/g/b are three contiguous floats, so one VEC3
@@ -143,11 +143,11 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, pawn_aura_height, F32, "Aura", "height (
 // lands within a frame and survives the next world init. That answers
 // O1a's question for these eight: they were contested because their
 // author took the instance back, and the durable word is the bank.
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 0", "colour",     TIER, AgentTierBank, t[0].color_r)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 0", "speed gain", TIER, AgentTierBank, t[0].speed_gain)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 1", "colour",     TIER, AgentTierBank, t[1].color_r)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 1", "speed gain", TIER, AgentTierBank, t[1].speed_gain)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 2", "colour",     TIER, AgentTierBank, t[2].color_r)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 2", "speed gain", TIER, AgentTierBank, t[2].speed_gain)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Tier 3", "colour",     TIER, AgentTierBank, t[3].color_r)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Tier 3", "speed gain", TIER, AgentTierBank, t[3].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Agents · Tier 0", "colour",     TIER, AgentTierBank, t[0].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[0].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 0", "speed gain", TIER, AgentTierBank, t[0].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Agents · Tier 1", "colour",     TIER, AgentTierBank, t[1].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[1].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 1", "speed gain", TIER, AgentTierBank, t[1].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Agents · Tier 2", "colour",     TIER, AgentTierBank, t[2].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[2].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 2", "speed gain", TIER, AgentTierBank, t[2].speed_gain)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].color_r,    VEC3, 0.0f, 1.0f, 0.01f, "Agents · Tier 3", "colour",     TIER, AgentTierBank, t[3].color_r)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, tier_gains[3].speed_gain, F32,  0.0f, 4.0f, 0.01f, "Agents · Tier 3", "speed gain", TIER, AgentTierBank, t[3].speed_gain)

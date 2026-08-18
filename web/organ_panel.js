@@ -36,6 +36,7 @@
   // 0 none, 1 a mood's meaning, 2 the world's. DEFONLY is the sentinel
   // block of an entry that has a definition and no instance at all.
   var DEF_MOOD = 1, DEF_TIER = 2, DEFONLY = 255;
+  var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
   var CSS =
@@ -46,6 +47,16 @@
     '#organ h1{font-size:11px;letter-spacing:.14em;color:#7d8894;margin:2px 0 10px;font-weight:400}' +
     '#organ h2{font-size:10px;letter-spacing:.1em;color:#5c93c4;margin:12px 0 4px;font-weight:400;' +
     'border-bottom:1px solid #1d222a;padding-bottom:2px}' +
+    // ORGAN_3 — SECTIONS. Native <details>, so the open/closed state is the
+    // browser's and this file keeps none: no JS, no animation, no third level.
+    '#organ details.sec{margin:10px 0 0;border-top:1px solid #262b33;padding-top:4px}' +
+    '#organ details.sec>summary{font-size:11px;letter-spacing:.16em;color:#8fa3b8;' +
+    'cursor:pointer;padding:2px 0;text-transform:uppercase;outline:none}' +
+    '#organ details.sec>summary::-webkit-details-marker{color:#4f5761}' +
+    '#organ details.sec[open]>summary{color:#cfe0ef}' +
+    '#organ details.sec>summary .n{color:#4f5761;letter-spacing:0;font-size:10px}' +
+    '#organ details.sec .body{padding-left:2px}' +
+    '#organ details.sec .body h2:first-child{margin-top:6px}' +
     '#organ .row{display:flex;align-items:center;gap:6px;margin:2px 0}' +
     '#organ .lbl{flex:0 0 118px;color:#96a0ab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '#organ input[type=range]{flex:1 1 auto;min-width:0;accent-color:#5c93c4;height:14px}' +
@@ -270,15 +281,35 @@
     bar.appendChild(bd); bar.appendChild(bp);
     bar.appendChild(bx); bar.appendChild(bi); root.appendChild(bar);
 
-    var group = null;
+    // ── ORGAN_3: the group string is a PATH ──────────────────────────
+    // "Section · Group". The first token is the operator's VOICE and becomes
+    // a collapsible block; the remainder is the group header inside it, as
+    // before. A group with no separator is a section of its own — the shell
+    // stays name-blind either way, and Jean renames by editing group strings.
+    // Two levels, never three: only the FIRST separator splits.
+    var group = null, section = null, host = root, count = 0, tally = null;
     manifest.forEach(function (p, i) {
       p.i = i;   // the manifest is emitted in registry order: index IS the key
-      if (p.group !== group) {
-        group = p.group;
-        var h2 = document.createElement('h2'); h2.textContent = group;
-        root.appendChild(h2);
+      var cut = p.group.indexOf(SEP);
+      var sec = cut < 0 ? p.group : p.group.slice(0, cut);
+      var grp = cut < 0 ? null    : p.group.slice(cut + SEP.length);
+      if (sec !== section) {
+        section = sec; group = null;
+        var det = document.createElement('details'); det.className = 'sec';
+        var sum = document.createElement('summary'); sum.textContent = sec;
+        tally = document.createElement('span'); tally.className = 'n';
+        count = 0; sum.appendChild(tally);
+        det.appendChild(sum);
+        host = document.createElement('div'); host.className = 'body';
+        det.appendChild(host); root.appendChild(det);
       }
-      rows.push(buildRow(p, root));
+      count++; tally.textContent = '  ' + count;
+      if (grp !== null && grp !== group) {
+        group = grp;
+        var h2 = document.createElement('h2'); h2.textContent = grp;
+        host.appendChild(h2);
+      }
+      rows.push(buildRow(p, host));
     });
 
     var foot = document.createElement('div'); foot.className = 'foot';
