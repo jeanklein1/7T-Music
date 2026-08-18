@@ -180,3 +180,112 @@ the patch registry and its budgets. Every constant here is read during
 world generation or stands under a `static_assert`; none has a runtime
 home, and giving one a live dial would mean nothing at best (the world is
 already built) and disagree at worst.
+
+---
+
+# 2 · `surface/`
+
+## surface/terrain_looks.hpp — THE TERRAIN_LOOKS PANEL
+
+The single richest **C1** vein in the tree. Every ROW 1 and ROW 2 value
+is written into `GPUDesignConfig` by boot pins (ROW 1 in
+`GPUState::initializeState`, ROW 2 through the setters in
+`Cartridge::initialize`, cartridge.hpp:585-620) and — verified by
+writer census — **nothing else authors them**. The panel's own comments
+carry the ranges, so almost every tag below is `[tree]`, not
+`[heuristic]`: the file was written to be read this way.
+
+The mode trio's status is the panel's own word: *"the mode trio is
+DRIVERLESS since gen-1 retirement — driver-ready, held at rest by this
+row."* Enrolling them is exactly what "driver-ready" was waiting for.
+
+### ROW 1 — the palette quartet
+
+| param | home | shape | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `PALETTE_CENTER_REST[0..3]` | `config.palette_center[i]` | VEC3 ×4 | sand/salmon/green/warm | C1 | Terrain · Palette N | 0 … 1 `[tree]` "rgb 0-1" | ENROLL w1 |
+| `PALETTE_LIGHT_REST[0..3]` | `config.palette_light[i]` | VEC3 ×4 | ditto | C1 | Terrain · Palette N | 0 … 1 `[tree]` | ENROLL w1 |
+| `PALETTE_WEIGHT_REST[0..3]` | `config.palette_weight[i]` | F32 ×4 | .42/.28/.04/.26 | C1 | Terrain · Palette mix | 0 … 1 `[tree]` "selection probability" | ENROLL w1 |
+
+`palette_weight` "sums 1.0" is a *convention*, not a clamp — the panel
+cannot enforce it and should not pretend to. Four independent lanes;
+the WGSL normalises. Noted so no future sitting mistakes the sum for a
+law.
+
+### ROW 2 — motion & mode rest pins
+
+| param | home | shape | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `REST_TERRAIN_TIME` | `config.terrain_time` | F32 | 0.0 (frozen) | C1 | Terrain · Motion | 0 … 64 `[heuristic]` (beats; ≤0 freezes) | ENROLL w1 |
+| `REST_BAND_BLEND[0..5]` | `config.band_blend_N` | F32 ×6 | −1 (inactive) | C1 | Terrain · Bands | −1 … 1 `[tree]` "[0,1] per band, −1 = inactive sentinel" | ENROLL w1 |
+| `REST_BAND_PHASE_ORIGIN[0..5]` | `config.band_phase_origin_N` | F32 ×6 | 0 | C1 | Terrain · Bands | 0 … 64 `[heuristic]` (beats) | ENROLL w1 |
+| `REST_MODE_COLOR_SHIFT` | `config.mode_color_shift` | F32 | 0 | C1 | Terrain · Modes | −1 … 1 `[tree]` "mode-field bias [−1,1]" | ENROLL w1 |
+| `REST_MODE_CHECKER_SCATTER` | `config.mode_checker_scatter` | F32 | 0 | C1 | Terrain · Modes | −1 … 1 `[tree]` | ENROLL w1 |
+| `REST_MODE_PALETTE_DRIFT_TARGET` | `config.mode_palette_target` | F32 | 0 | C1 | Terrain · Modes | 0 … 3 `[tree]` "[0,3] target palette idx" | ENROLL w1 |
+| `…_INTENSITY` | `config.mode_palette_intensity` | F32 | 0 | C1 | Terrain · Modes | 0 … 1 `[tree]` | ENROLL w1 |
+| `…_TIER` | `config.mode_discrete_tier` | F32 | 0 | C1 | Terrain · Modes | 0 … 4 `[tree]` "[0,4] discrete tier" | ENROLL w1 |
+| (GoL scales) | `config.mode_gol_tick_scale` | F32 | 1.0 | C1 | Terrain · GoL | 0.1 … 4 `[heuristic]` | ENROLL w1 |
+| (GoL scales) | `config.mode_gol_height_scale` | F32 | 1.0 | C1 | Terrain · GoL | 0 … 4 `[heuristic]` | ENROLL w1 |
+| `REST_CHECKER_RESULTANT/_AMOUNT/_VARIANCE` | `config.checker_*` | VEC3+2×F32 | 0 | **C4** | Atmosphere · Checker | — | witnesses, w4 (the U4 flush) |
+| `REST_PULSE_COUNT` + `pulse_data[32]` | `config.pulse_*` | U32 + 32×F32 | 0 | C5 | — | — | BOOT — a ring buffer is not a dial (D5: 8 rows × 4 mixed fields) |
+
+ROWS 3-8 live in the WGSL room by the file's own two-rooms rule: **C5**,
+counted in §7 below.
+
+## surface/population_themes.hpp
+
+| param | shape | authored | class | verdict |
+| --- | --- | --- | --- | --- |
+| `THEME_LATTICE_SPACING` | F32 | 500.0 | C5 | BOOT — world generation lattices on it |
+| `THEME_SEED_BAND` | U32 | 170 | C5 | BOOT — an RNG address, never a dial |
+| `THEME_COUNT` | U32 | 5 | C5 | BOOT — a count |
+| `THEME_BASE_WEIGHT` | F32 | 10.0 | C3 destructive | ENROLL w3 candidate → **DEFER**: it is one scalar over a 5×N weight construction; the honest dial is the whole `MOOD_SPAWN_MULT` matrix, D5-large |
+| `MOOD_SPAWN_MULT[4][PopFamily::COUNT]` | table | per-mood family multipliers | C5 | BOOT (D5 — larger than 8 rows once flattened). A composite editor would need a mood × family grid; pricing, not promising |
+| `THEMES[THEME_COUNT]` | table | mixed (names + weights + family sets) | C5 | BOOT — mixed shapes (D5) |
+
+---
+
+# 3 · `direction/`
+
+## direction/input.hpp — CameraControls
+
+| param | shape | authored | authors / readers | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `MOVE_SPEED` | F32 | 30.0 | boot pin → `config.point_fly_speed` (cartridge.hpp:605) | C1 | Interaction · Camera | 0 … 120 `[heuristic]` | ENROLL w1 |
+| `LOOK_SENS_INIT` | F32 | 0.005 | the look-sensitivity clamp's anchor; keys step it | C2 | Interaction · Camera | 0.000625 … 0.04 `[tree]` (init ÷8 … init ×8) | ENROLL w2 |
+| `LOOK_SENS_STEP` | F32 | 1.25 | per keypress, multiplicative | C2 | Interaction · Camera | 1.01 … 2 `[heuristic]` | ENROLL w2 |
+| `LOOK_SENS_RANGE` | F32 | 8.0 | the clamp's half-width | C2 | Interaction · Camera | 1 … 32 `[heuristic]` | ENROLL w2 |
+| `SCROLL_ZOOM_SCALE` | F32 | 2.0 | orbit distance per wheel notch | C2 | Interaction · Camera | 0 … 8 `[heuristic]` | ENROLL w2 |
+
+`LOOK_SENS_RANGE`'s `[tree]` range on `LOOK_SENS_INIT` is the file's own
+clamp — *"init ÷R … init ×R"* — read off the code, not guessed.
+
+**Note on the missing Camera section.** §0 rules there is deliberately no
+`Camera` section: camera pose is GPU truth, the sovereignty boundary made
+visible. These four are *controls*, not pose — they live under
+`Interaction · Camera`, which is the operator's word for the input
+grammar, not a home. Runner-up section (D3): `Debug`. Noted, not
+deliberated.
+
+## direction/input.hpp — the key doors
+
+`set_fpv_mode` (key) and `set_veil_dither` (key) write config fields that
+no *program* author touches. They are **C1 key-shared**: the panel and
+the keyboard are two operators on one dial, and the contest column will
+read EVENT when the key is used — the instrument working as designed
+(the aura-intent precedent, ORGAN_2a). `config.fpv_mode` and
+`config.veil_dither` ENROLL w1 as BOOL under `Debug` and `Atmosphere ·
+Veil` respectively.
+
+## direction/mood.hpp
+
+| param | shape | authored | class | section·group | range [ev] | verdict |
+| --- | --- | --- | --- | --- | --- | --- | 
+| `PORTAL_DENSITY` | F32 | 1.00 ("fraction of Doorway arches that become portals") | C3 destructive | Agents · Portals | 0 … 1 `[tree]` "fraction" | ENROLL w3 |
+| `FINITE_OUTDOOR_CHANCE` | F32 | 0.10 | C3 destructive (world draw) | Agents · Portals | 0 … 1 `[identity]` | ENROLL w3 |
+| `SCHEME_WEIGHTS[4]` | F32 ×4 | .42/.43/.10/.05 | C3 destructive (indoor light scheme roll) | Sky & Light · Schemes | 0 … 1 `[identity]` | ENROLL w3 |
+| `INDOOR_PALETTES[]` | table | wall/ceiling colour sets | C3 destructive | Sky & Light · Indoor | — | DEFER — mixed-shape rows, count read from `INDOOR_PALETTE_COUNT` (D5) |
+| `LIGHT_SCHEMES[SCHEME_COUNT]` | table | per-scheme slot arrays | C5 | — | — | BOOT — nested slot tables (D5); the per-slot field ids (`LATERAL`…`AIM_YAW`) are RNG addresses |
+| `SCHEME`/`WALL_PAIR`/`ANCHOR_PICK`/`SLOT_BASE` + field ids | U32 | 1100-1110 | C5 | — | — | BOOT — **RNG salts are addresses, not dials** (§0) |
+| `SCHEME_NAMES` / `ANCHOR_NAMES` | strings | — | C5 | — | — | BOOT — identity |
+| `VAULT_RISE_FRACTION` (0.30), `MIN_RISE_FLOOR` (5.0), `JOINT_OVERLAP` (3.0), `WALL_FLOOR` (−50), `VAULT_N` (32), `MAX_OUTER_HALF` (1.3) | F32/U32 | — | C5 | — | — | BOOT — indoor shell geometry, read while the world is built |
