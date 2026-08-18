@@ -445,41 +445,6 @@ rename is the only collection mechanism there is.
 read its current value. Carry line numbers as hints, marked as hints, and
 verify every one by symbol before editing.
 
----
-
-### CANDIDATE (unnumbered) — WHERE A TIMER POINTS
-
-*Filed by SHIP_0 U1. Unnumbered pending Jean's ruling — numbers here are
-permanent, so this does not take one until it is adopted.*
-
-**A timer names where the wait surfaced, not where the cost lives.**
-
-Web per-pipeline times are **wire-enqueue latency**, not compile cost. The
-backend compile executes in-order in the browser's GPU process and lands on
-the first phase that waits. Witness, from one capture pair on the same
-tree (`docs/reference/RELEASE_CONSOLE.md`):
-
-| phase | web twin | native twin |
-|---|---|---|
-| `Total pipelines` | **14 ms** | 205,527 ms (Renderer init) |
-| `Patch system` | **56,887 ms** | 1,413 ms |
-| `Total init` | 56,945 ms | 206,941 ms |
-
-Neither twin is lying and neither is measuring what its label says. One
-cost, two attributions: the web's near-zero pipeline times are enqueues
-that returned immediately, and its 56.9 s "patch" phase is where the
-deferred compile storm came due. The native twin shows the reverse, and its
-patch phase — 1.4 s — is the honest cost of patch generation.
-
-**Corollary.** Chromium disk-caches compiled pipelines per origin, so a
-fast revisit (5.5 s observed) is expected and is not evidence that the
-first visit was mismeasured.
-
-The rule: before attributing a cost to the phase whose timer moved, ask
-what that phase is the first thing to WAIT on.
-
----
-
 ## L16 — THE MECHANISM AUDIT
 
 Every ruled mechanism in a handoff carries its own recon step verifying
@@ -1024,3 +989,33 @@ branch <name> attic/<name>.
 Within a phase, a failed item is logged and skipped and the phase
 completes. Halting is reserved for gates where continuing risks
 reachability or edits from stale authority.
+
+## L43 — WHERE A TIMER POINTS
+
+*Filed by SHIP_0 U1.*
+
+**A timer names where the wait surfaced, not where the cost lives.**
+
+Web per-pipeline times are **wire-enqueue latency**, not compile cost. The
+backend compile executes in-order in the browser's GPU process and lands on
+the first phase that waits. Witness, from one capture pair on the same
+tree (`docs/reference/RELEASE_CONSOLE.md`):
+
+| phase | web twin | native twin |
+|---|---|---|
+| `Total pipelines` | **14 ms** | 205,527 ms (Renderer init) |
+| `Patch system` | **56,887 ms** | 1,413 ms |
+| `Total init` | 56,945 ms | 206,941 ms |
+
+Neither twin is lying and neither is measuring what its label says. One
+cost, two attributions: the web's near-zero pipeline times are enqueues
+that returned immediately, and its 56.9 s "patch" phase is where the
+deferred compile storm came due. The native twin shows the reverse, and its
+patch phase — 1.4 s — is the honest cost of patch generation.
+
+**Corollary.** Chromium disk-caches compiled pipelines per origin, so a
+fast revisit (5.5 s observed) is expected and is not evidence that the
+first visit was mismeasured.
+
+The rule: before attributing a cost to the phase whose timer moved, ask
+what that phase is the first thing to WAIT on.
