@@ -146,6 +146,9 @@ for per-frame voices. And see L4 before choosing the position.
 
 `realization/binding_registry.hpp` is the **single source of truth** for GPU
 binding numbers, and it is the only record of them that is maintained.
+Since LOOM, the registry is itself emitted by `binding_gen.py --write` from
+`tools/binding_schema.py` — the authored home is the schema (L22); this law
+governs the numbers' shape and their mirrors.
 
 1. Every bind-group layout entry and its matching group entry reference the
    **same named constant**. The "binding integer typed twice" hazard becomes an
@@ -164,12 +167,15 @@ binding numbers, and it is the only record of them that is maintained.
    Precedent: 149 was retired and its neighbors 190/191 were reborn as the cmg
    pair. Reuse is normal.
 6. The WGSL `@binding` literals stay a **mirror** — the shader cannot read a
-   C++ constant. Lockstep is held by the crash-aware launch gate (bind-group
-   and pipeline validation at boot), not by the compiler. The registry names
-   deliberately equal the WGSL variable names so the mirror is greppable in
-   both files. Closing that third copy (a generated block, or a
-   token-substituted shader — feasible, since `world.wgsl` is loaded as runtime
-   text) is a named follow-on, not a rule.
+   C++ constant. Lockstep is held by `binding_gen.py --check` (witness S-3:
+   the `--write-wgsl` round-trip with unchanged numbers is the identity on
+   `world.wgsl`) and by the crash-aware launch gate (bind-group and pipeline
+   validation at boot), not by the compiler. The registry names deliberately
+   equal the WGSL variable names so the mirror is greppable in both files.
+   The token-substituted half of the once-named follow-on is built:
+   `binding_gen.py --write-wgsl` renumbers the declarations from the schema
+   on demand. The schema authors the numbers (L22); `--write` emits this
+   registry; the WGSL text stays the mirror.
 
 ## L7 — THE BINDING-CLOSURE LAW
 
@@ -766,11 +772,12 @@ proof against its own subject; the check is.
 ## SUNSET_0 (2026-08-16) — the web twin is the program
 Native is archived at tag `native-sunset`. Resurrection is
 archaeology from the tag, not maintenance. The witness chain is:
-naga gates the WGSL module per commit (CC-runnable); the web build
-+ boot witnesses pipeline-layout conformance and minBindingSize
-(the classes naga cannot see — ATLAS_1revB). The audience floor
-(WebGPU core defaults) and the compiler floor (PIVOT_0) are
-unchanged by this sunset.
+`tools/wgsl_gate.py` gates the WGSL module per commit (naga as its
+pinned half, behind the immediate shim; CC-runnable); the web
+build + boot witnesses pipeline-layout conformance and
+minBindingSize (the classes naga cannot see — ATLAS_1revB). The
+audience floor (WebGPU core defaults) and the compiler floor
+(PIVOT_0) are unchanged by this sunset.
 
 SUNSET_1 (2026-08-16): the native arms are deleted from shared files;
 __EMSCRIPTEN__ guards collapsed; the tree compiles one program.
