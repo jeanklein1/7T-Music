@@ -17,7 +17,8 @@ document is the taxonomy's record until ORGAN gives it an instrument.
   + occupier_cmg + occupier_amg. 6928 B. Cadence: world/mood.
 - field_bus   (g2:9, uniform, C)  = head_poses + ribbon + authored.
   6656 B. Cadence: frame (fastest member governs).
-- frame_r     (g1:1, uniform, VF) = lighting + vp + camera. 1024 B.
+- frame_r     (g1:1, uniform, VF) = lighting + vp + camera + sphere_pos
+  (BEQ_A). 1040 B.
   Two instances: main and photographer. vp/camera arrive by
   copyBufferToBuffer from the GPU-sovereign state each frame — the
   CPU never reads them (readback law).
