@@ -191,12 +191,10 @@ namespace t7 {
     // Console is non-copyable AND non-movable (a user-declared deleted
     // copy suppresses the implicit move), ~Console() is unreachable on
     // the web path because App is heap-allocated and never deleted, and
-    // initWebGPU() has exactly one reachable call. The one raw-handle
-    // construction in this file is native-only and refcount-neutral
-    // (Dawn's ObjectBase(CType) AddRefs on construction; only Acquire()
-    // adopts). So this anchor should be redundant — and if the
-    // "[Device] LOST" line survives it, that is PROOF the loss comes
-    // from outside this program and the search moves to the browser.
+    // initWebGPU() has exactly one reachable call. So this anchor
+    // should be redundant — and if the "[Device] LOST" line survives
+    // it, that is PROOF the loss comes from outside this program and
+    // the search moves to the browser.
     //
     // Shape borrowed from Dawn's own cross-platform sample, which holds
     // `static wgpu::Instance instance;` for exactly this reason.
