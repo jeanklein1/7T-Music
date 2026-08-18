@@ -61,8 +61,9 @@ witness. Nothing about it changed.
 **The witness protocol survives too**, minus the compiler it named: a
 shader-shape change is proven by witnesses, never by argument, and no
 witness substitutes for another. `tools/wgsl_gate.py` is the per-commit
-module gate (naga as its pinned half, behind the immediate shim); the web
-build + boot is the witness of record; each browser gates at its own.
+module gate (the in-tree transform as its pinned half, behind the
+immediate shim); the web build + boot is the witness of record; each
+browser gates at its own.
 
 **THE PER-COMMIT GATES, NAMED (GATE_1, 2026-08-16; refreshed RECENSION_4).**
 They answer different questions, and their scripts are the authority on
@@ -70,7 +71,7 @@ their own invocations and subjects:
 
 | gate | home | subject |
 |---|---|---|
-| module gate | `tools/wgsl_gate.py` | the WGSL module (naga behind the immediate shim) |
+| module gate | `tools/wgsl_gate.py` | the WGSL module (naga behind the pinned in-tree immediate shim) |
 | TU gate | `tools/gates/console_gate/run.py` | `cartridge.hpp` and `console.hpp` as TUs, warnings read, `-D__EMSCRIPTEN__` (GATEHOUSE_0) |
 | standalone compile | `tools/gates/glaw1/run.sh` | the cartridge TU's names, scope and syntax |
 
@@ -737,12 +738,12 @@ proof against its own subject; the check is.
 ## SUNSET_0 (2026-08-16) — the web twin is the program
 Native is archived at tag `native-sunset`. Resurrection is
 archaeology from the tag, not maintenance. The witness chain is:
-`tools/wgsl_gate.py` gates the WGSL module per commit (naga as its
-pinned half, behind the immediate shim; CC-runnable); the web
-build + boot witnesses pipeline-layout conformance and
-minBindingSize (the classes naga cannot see — ATLAS_1revB). The
-audience floor (WebGPU core defaults) and the compiler floor
-(PIVOT_0) are unchanged by this sunset.
+`tools/wgsl_gate.py` gates the WGSL module per commit (the in-tree
+transform as its pinned half, behind the immediate shim;
+CC-runnable); the web build + boot witnesses pipeline-layout
+conformance and minBindingSize (the classes naga cannot see —
+ATLAS_1revB). The audience floor (WebGPU core defaults) and the
+compiler floor (PIVOT_0) are unchanged by this sunset.
 
 SUNSET_1 (2026-08-16): the native arms are deleted from shared files and
 the __EMSCRIPTEN__ guards collapsed — everywhere but
