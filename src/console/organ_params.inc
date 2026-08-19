@@ -658,10 +658,27 @@ ORGAN_PARAM(PANEL, PanelSurface, camera.scroll_zoom_scale, F32, 0.0f,  8.0f,  0.
 // column will read EVENT the moment a key is used. That is the instrument
 // seeing the operator, not a defect (the aura-intent precedent, 2a).
 //
-// mute_couplings is NOT here. It is a BITMASK over Coupling::* (ALL =
-// 0x1FFFFF), and a slider from 0 to 2097151 is not a dial — D1(d), no
-// defensible range, verdict DEFER-RANGE. What it wants is a checkbox per
-// bit, which is a shell feature, not an enrollment line.
+// mute_couplings is NOT here, and ORGAN_3c found the second reason.
+// It is a BITMASK over Coupling::* (ALL = 0x1FFFFF), and a slider from 0
+// to 2097151 is not a dial — D1(d), no defensible range, verdict
+// DEFER-RANGE. What it wants is a checkbox per bit.
+//
+// ORGAN_3c censused the enum to build those checkboxes and STOPPED at
+// D1's third branch. Two findings, either of which is enough:
+//
+//   1. `Coupling::` (realization/state.hpp) opens with its own banner —
+//      "Mirrors world.wgsl's COUPLING_* bit-flag block. MUST match those
+//      bit values 1:1" — so the names are an entangled WGSL mirror, not a
+//      bare enum. Minting a name list beside one half of a hand-kept
+//      mirror is how the two halves start to drift.
+//   2. ALL is 21 bits wide and only EIGHT are named, sparsely: bits
+//      1..6, 14, 16. A checkbox per bit of ALL would be thirteen toggles
+//      over bits nothing reads — the dead-dial defect ORGAN_3b P0 spent a
+//      commit repairing, rebuilt on purpose.
+//
+// The honest shape, priced and not built: a roster over the eight NAMED
+// bits, asserted one-to-one against their constants. That is a ruling
+// about the mirror, and rulings are not CC's to make.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_dynamics_0d, BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute dynamics (0D)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_signal,      BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute signal")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, freeze_sphere,    BOOL, 0.0f, 1.0f, 1.0f, "Debug", "freeze sphere")

@@ -354,6 +354,21 @@ A KIND IS NOT A FLAG. Two kinds share a flag when they share an AUTHOR,
 because the flag names the occasion and the occasion is the author
 speaking. `BEHAVIOR` raises `TIER`'s flag for exactly that reason.
 
+### Graduation completeness (ORGAN_3c)
+**A graduation is complete when the design table's only remaining readers
+are its seed and its asserts.** A bank that is built, enrolled and left
+unread is worse than no bank: the panel offers a dial, the dial writes, the
+write lands, and the world does not move — which reads as a broken
+instrument rather than as an unfinished one. ORGAN_3 w2 shipped exactly
+that, seven times over, when it built `PANEL_LIVE` and left the beacon and
+camera readers on the constexprs; it took a campaign and a human sweep to
+find. `organ_gap.py --gate` is the standing witness that it stays fixed —
+it classifies every mention of each design symbol and fails on any that is
+not a definition, a seed, a `static_assert`, prose, or a **compile-time
+derivation** (D7's case: a `constexpr` initialiser cannot read a mutable
+bank at all, so its source rightly stays on the design table). The map
+around it is still toothless; only the gate can fail, and only on this.
+
 ### The sections
 The group string is a path: `"Section · Group"`. The shell splits on the
 FIRST separator — two levels, never three — and renders each section as a
@@ -375,7 +390,9 @@ new block whenever the first token changes; the harness asserts it,
 because the `.inc`'s order is the panel's table of contents.
 
 ### The gap tool
-`tools/organ_gap.py` — check-family, stdout only, **exit 0 always**. It
+`tools/organ_gap.py` — check-family, stdout only, **exit 0 always** unless
+`--gate` is passed (ORGAN_3c: the reader witness above is the one thing
+here that can fail). It
 parses the enrollment list, brace-parses the enrolled home structs, and
 prints every declared member the panel does not name. A map, not a gate:
 a member absent from the panel is usually absent on purpose, and the
@@ -448,6 +465,34 @@ Each section header carries its own export — the same walk narrowed by a
 predicate, so witnesses stay skipped and the `world/` and `<mood>/` keying
 is identical. Import needed nothing: a partial file has always applied
 exactly what it carries. **A voice is a file.**
+
+### The row grid, and the width (ORGAN_3c)
+A row is two lines, both grids, every cell placed by explicit
+`grid-column` rather than auto-placement — so a row with no colour swatch
+and no cadence chip still lines its markers up with the row above it, and
+263 rows read as a column rather than as a list.
+
+```
+line 1  [ label ……………………………  sw   mk   chip ]
+line 2  [ slider ————————————————— | value ]
+```
+
+The label is the only cell that gives; what its ellipsis hides it hands to
+the `title`, label and id both. VEC lanes stack full-width. Witnesses keep
+their meter in the value column, so a meter reads down the same edge as a
+dial. The chip moved up to the label line and never competes with a
+control again.
+
+**Every fixed width is a CSS custom property on `#organ`, and the resize
+minimum is computed from the same numbers** — 292px, line 1 governing;
+`MAX = min(640px, 50vw)`. A hardcoded minimum is a guess, and a guess is
+how overlap comes back. The grip rides the panel's inner edge; double-click
+is home.
+
+A hand-set width is a **choice**, so it lives beside `openMap` and obeys
+the same law: session only, never storage. The filter may open a section it
+found and the grid may squeeze a slider toward its floor, but neither
+rewrites what the hand set.
 
 ## The tally at close
 263 enrolled entries — 250 dials and 13 read-only witnesses — across

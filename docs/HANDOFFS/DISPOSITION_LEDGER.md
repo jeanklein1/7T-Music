@@ -11,7 +11,9 @@ file; Jean and Claude rule its final form at the close. Until then it is
 the campaign's resumption point (Law 5): ledger + phase pushes are the
 complete handoff to a successor.
 
-**DEFER rows that died this campaign,** each in the commit that landed it:
+**DEFER rows that died this campaign,** each in the commit that landed it
+(ORGAN_3c added none — its one target, `mute_couplings`, came back with
+evidence for keeping it):
 the canvas tier (P2), `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (P3), and
 `FIELD_BEACON_S` (P5 — the only one that needed a ruling rather than a
 reading). **Nine survive**, and each names its own owner in place:
@@ -608,7 +610,7 @@ palette mirror (12 entries), the ROW 2 motion/mode pins (14 entries),
 | `mosaic_facet` | F32 | `Dim::MOSAIC_FACET_DEFAULT` | C1 | Terrain · Mosaic | 0 … 4× rest `[heuristic]` | ENROLL w1 |
 | `mute_dynamics_0d` | U32 | 0 | C1 (D2 — a config toggle word enrolls BOOL directly) | Debug | 0 … 1 | ENROLL w1 |
 | `mute_signal` | U32 | 0 | C1 | Debug | 0 … 1 | ENROLL w1 |
-| `mute_couplings` | U32 | `Coupling::NONE` | C1 — a **bitmask** | Debug | — | **DEFER-RANGE (D1d)** — `Coupling::ALL` is `0x1FFFFF`; a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit, which is a shell feature, not an enrollment line. |
+| `mute_couplings` | U32 | `Coupling::NONE` | C1 — a **bitmask** | Debug | — | **DEFER-RANGE (D1d)**, and **ORGAN_3c re-affirmed it on new evidence** — see below. `Coupling::ALL` is `0x1FFFFF`; a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit; the census found that the bits are not there to check. |
 | `fpv_mode` | U32 | 0 | C1 key-shared | Debug | 0 … 1 | ENROLL w1 |
 
 `mute_signal` and `mute_couplings` have one *program* writer pair —
@@ -1487,3 +1489,59 @@ The two integer cells are ORGAN_3b's amendment under oath: the write is
 never refused, and `7.0f` into a `U32` lane reads back as `7`, not as the
 1.08e9 a bit-reinterpretation would produce. The float cells prove nothing
 regressed while the path learned to convert.
+
+## P2 — FLAGGED, not built: the mute strip has no bits to check
+
+ORGAN_3c set out to build the cure this ledger named for `mute_couplings`
+— *"a checkbox per bit, which is a shell feature"*. The census stopped it
+at D1's third branch, and produced a second reason the ledger did not have.
+
+**Finding 1 — the enum is an entangled WGSL mirror, by its own word.**
+`Coupling::` opens at `realization/state.hpp` with:
+
+> *"Mirrors world.wgsl's COUPLING_\* bit-flag block. MUST match those bit
+> values 1:1 — semantic drift here would corrupt every GPU-side coupling
+> read silently."*
+
+D1's third branch is written for exactly this: *generated or entangled
+with WGSL mirrors → FLAG, skip the phase*. Minting a name list beside one
+half of a hand-kept mirror is how the two halves begin to drift, and the
+banner says what drift costs.
+
+**Finding 2 — `ALL` is a blanket, not a roll-call.** This is the one the
+ledger did not know, and it is the stronger of the two:
+
+| | |
+| --- | --- |
+| `Coupling::ALL` | `0x1FFFFF` — **21 bits** |
+| named bits | **8** — bits 1, 2, 3, 4, 5, 6, 14, 16 |
+| unnamed | bit 0 and twelve others, sparsely |
+
+The specified `static_assert(count == bit-width of ALL)` cannot hold: 8 is
+not 21, and the gap is not an oversight to be filled but a mask that was
+always wider than its vocabulary. Twenty-one checkboxes would be **thirteen
+toggles over bits nothing reads** — the dead-dial defect ORGAN_3b P0 spent
+a commit repairing, rebuilt deliberately.
+
+**One more thing the witness script should know.** §6 asks Jean to *"solo
+the fog coupling"*. There is no fog bit. The eight named couplings are
+terrain→pawn (y, tilt), pawn→camera, the three input couplings,
+terrain→sphere-height and pawn→sun-VP. `Coupling::` masks the **program's**
+couplings; the music campaign's couplings are a different vocabulary that
+does not exist yet. That is worth settling before the strip is built,
+because it changes what the strip is for.
+
+### The shape, priced and unbuilt
+
+A roster over the **eight named bits** — `{ id, bits, labels }` emitted by
+an `organ_masks()` ABI beside `organ_doors()`, `mute_couplings` enrolled as
+a plain `U32` that never renders a slider, and a checkbox grid the shell
+draws name-blind from the roster. `COUPLING_NAMES[]` would sit beside the
+existing constants with a `static_assert` tying each entry to its own
+constant and asserting every named bit lies inside `ALL` — not a count
+assert against `ALL`'s width, which is the assert that cannot exist here.
+
+That is a defensible design and it is **not CC's to choose**: it changes
+what a hand-kept WGSL mirror is allowed to grow, and D1 reserves that. The
+deferral survives with both findings attached; the next sitting starts from
+them rather than from the enum.
