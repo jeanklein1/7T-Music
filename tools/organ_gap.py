@@ -70,15 +70,24 @@ HOMES = {
     "PanelSurface":          "src/cartridges/the_board/contracts/control_panel.hpp",
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
     "IndoorSurface":         "src/cartridges/the_board/contracts/indoor_module.hpp",
+    "CanvasSurface":         "src/coupling/canvas_surface.hpp",
 }
 
 # ─── THE ENROLLMENT LIST ──────────────────────────────────────────────
-# The four macro forms, and where the STRUCT and FIELD sit in each:
+# The macro forms, and where the STRUCT and FIELD sit in each:
 #   ORGAN_PARAM        (BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL)
+#   ORGAN_PARAM_GEN    (the same, declared generational — ORGAN_3b)
 #   ORGAN_PARAM_DEF    (BLOCK, STRUCT, FIELD, ... , DEFKIND, DEFSTRUCT, DEFFIELD)
 #   ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL, DEFKIND, DEFSTRUCT, DEFFIELD)
 #   ORGAN_PARAM_RO     (BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
-MACRO = re.compile(r"^(ORGAN_PARAM(?:_DEF|_DEFONLY|_RO)?)\s*\((.*)\)\s*$")
+#
+# ORGAN_3b P2 gave every form an `_NS` twin whose FIRST argument is the
+# enrolled struct's namespace. The two shapes are otherwise identical, so
+# this parser reads the suffix and shifts its indices by one rather than
+# carrying a second table — a namespace parameter that is invisible to the
+# enrollment lines should be nearly invisible here too.
+MACRO = re.compile(
+    r"^(ORGAN_PARAM(?:_GEN|_DEF|_DEFONLY|_RO)?)(_NS)?\s*\((.*)\)\s*$")
 
 
 def split_args(s):
@@ -117,15 +126,17 @@ def enrolled_pairs():
             m = MACRO.match(raw.strip())
             if not m:
                 continue
-            form, args = m.group(1), split_args(m.group(2))
+            form, ns, args = m.group(1), m.group(2), split_args(m.group(3))
+            k = 1 if ns else 0          # the _NS forms shift everything by one
             pairs = []
-            if form in ("ORGAN_PARAM", "ORGAN_PARAM_RO") and len(args) >= 3:
-                pairs.append((args[1], args[2]))
-            elif form == "ORGAN_PARAM_DEF" and len(args) >= 12:
-                pairs.append((args[1], args[2]))            # the instance
-                pairs.append((args[10], args[11]))          # the definition
-            elif form == "ORGAN_PARAM_DEFONLY" and len(args) >= 9:
-                pairs.append((args[7], args[8]))
+            if form in ("ORGAN_PARAM", "ORGAN_PARAM_GEN", "ORGAN_PARAM_RO") \
+                    and len(args) >= 3 + k:
+                pairs.append((args[1 + k], args[2 + k]))
+            elif form == "ORGAN_PARAM_DEF" and len(args) >= 12 + k:
+                pairs.append((args[1 + k], args[2 + k]))    # the instance
+                pairs.append((args[10 + k], args[11 + k]))  # the definition
+            elif form == "ORGAN_PARAM_DEFONLY" and len(args) >= 9 + k:
+                pairs.append((args[7 + k], args[8 + k]))
             for st, fl in pairs:
                 seen.setdefault(st, set()).add(base_member(fl))
     return seen

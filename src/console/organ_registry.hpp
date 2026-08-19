@@ -43,6 +43,7 @@
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_3 w2 — PANEL_LIVE (block 6)
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // ORGAN_3 w2 — RIBBON_LIVE (block 7)
 #include "cartridges/the_board/contracts/indoor_module.hpp"   // ORGAN_3 w3 — INDOOR_LIVE (block 8, destructive)
+#include "coupling/canvas_surface.hpp"                        // ORGAN_3b P2 — CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // ORGAN_2a — the drivers' room (block 3)
 
 #include <cstddef>
@@ -114,7 +115,11 @@ enum : uint8_t {
                                   //   DESTRUCTIVE temperament: no boundary
                                   //   re-speak, the edit lands at the next
                                   //   spawn (ORGAN_3 w3)
-    ORGAN_BLOCK_COUNT      = 9,
+    ORGAN_BLOCK_CANVAS     = 9,   // canvas::CanvasSurface — CANVAS_LIVE
+                                  //   the first block BELOW the cartridge
+                                  //   tier (coupling/canvas_surface.hpp);
+                                  //   the _NS macros exist for it (P2)
+    ORGAN_BLOCK_COUNT      = 10,
 };
 
 // A definition-only entry has no instance anywhere: its block is the
@@ -222,10 +227,10 @@ struct OrganParam {
 // The id is "block.field" so it is stable across relabelling: export/import
 // keys on it, and a label is prose that may be improved without breaking a
 // saved file.
-#define ORGAN_PARAM(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL) \
+#define ORGAN_PARAM_NS(NS, BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL) \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
-                (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
+                (uint16_t)offsetof(NS::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_NONE, 0, 0, ORGAN_CAD_LIVE },
 
@@ -234,10 +239,10 @@ struct OrganParam {
 // not now and not at the boundary. A dial that edits the future must say
 // so WHERE THE HAND IS — at the row, not only in the group's name — which
 // is what the chip this feeds is for.
-#define ORGAN_PARAM_GEN(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL) \
+#define ORGAN_PARAM_GEN_NS(NS, BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL) \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
-                (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
+                (uint16_t)offsetof(NS::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_NONE, 0, 0, ORGAN_CAD_GEN },
 
@@ -247,14 +252,14 @@ struct OrganParam {
 // instance side does. DEFKIND is MOOD or TIER (ORGAN_2b) and DEFSTRUCT is
 // that family's struct — named by the caller so the macro never has to
 // guess, and so a third family costs one more enum value and nothing here.
-#define ORGAN_PARAM_DEF(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP,    \
+#define ORGAN_PARAM_DEF_NS(NS, BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP,    \
                         LABEL, DEFKIND, DEFSTRUCT, DEFFIELD)                  \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
-                (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
+                (uint16_t)offsetof(NS::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_##DEFKIND,                                          \
-                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0,        \
+                (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
                 ORGAN_CAD_LIVE },
 
 // ORGAN_2b — A DEFINITION WITH NO INSTANCE. Some facts have a definition
@@ -265,14 +270,14 @@ struct OrganParam {
 // always a definition, preview is refused, and the value shown is the live
 // mood's meaning. The offset column carries def_offset, which keeps the
 // (block, offset, type) triple unique inside the sentinel block.
-#define ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL,               \
+#define ORGAN_PARAM_DEFONLY_NS(NS, TYPE, MIN, MAX, STEP, GROUP, LABEL,               \
                             DEFKIND, DEFSTRUCT, DEFFIELD)                     \
     OrganParam{ #DEFSTRUCT "." #DEFFIELD, LABEL, GROUP,                       \
                 ORGAN_BLOCK_NONE,                                             \
-                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), \
+                (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_##DEFKIND,                                          \
-                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0,        \
+                (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
                 ORGAN_CAD_LIVE },
 
 // ORGAN_2a — A WITNESS, NOT A DIAL. The same offsetof plumbing pointed at a
@@ -280,12 +285,31 @@ struct OrganParam {
 // organ_set refuses to write it. No min/max/step, because a meter has no
 // range to clamp against — the driver's own dials carry the ranges, and
 // they are enrolled with ORGAN_PARAM above.
-#define ORGAN_PARAM_RO(BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)              \
+#define ORGAN_PARAM_RO_NS(NS, BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)              \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
-                (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
+                (uint16_t)offsetof(NS::STRUCT, FIELD),       \
                 ORGAN_##TYPE, 0.0f, 0.0f, 0.0f, 0.0f, 0,                      \
                 ORGAN_DEF_NONE, 0, 1, ORGAN_CAD_LIVE },
+
+// ─── ORGAN_3b P2 — THE NAMESPACE PARAMETER, MADE INVISIBLE ────────────
+// Every form above now takes the enrolled struct's NAMESPACE as its first
+// argument, because the canvas's banks live in `t7::canvas` — one tier
+// BELOW the cartridge — and a registry that could only spell `the_board::`
+// could not name them. The ledger priced exactly this: "one extra macro
+// parameter, four call sites."
+//
+// THE FIVE FORWARDS BELOW ARE THAT PRICE, PAID ONCE. An enrollment line
+// that does not care about the namespace does not mention it, so all 223
+// lines written before this commit are untouched — and a line that DOES
+// care writes _NS and says which. A parameter nobody has to see is the
+// only kind worth adding to a file whose whole argument is that adding a
+// dial is one line.
+#define ORGAN_PARAM(...)         ORGAN_PARAM_NS(the_board, __VA_ARGS__)
+#define ORGAN_PARAM_GEN(...)     ORGAN_PARAM_GEN_NS(the_board, __VA_ARGS__)
+#define ORGAN_PARAM_DEF(...)     ORGAN_PARAM_DEF_NS(the_board, __VA_ARGS__)
+#define ORGAN_PARAM_DEFONLY(...) ORGAN_PARAM_DEFONLY_NS(the_board, __VA_ARGS__)
+#define ORGAN_PARAM_RO(...)      ORGAN_PARAM_RO_NS(the_board, __VA_ARGS__)
 
 inline const OrganParam kOrganParams[] = {
 #include "console/organ_params.inc"
@@ -295,6 +319,11 @@ inline const OrganParam kOrganParams[] = {
 #undef ORGAN_PARAM_DEF
 #undef ORGAN_PARAM_DEFONLY
 #undef ORGAN_PARAM_RO
+#undef ORGAN_PARAM_NS
+#undef ORGAN_PARAM_GEN_NS
+#undef ORGAN_PARAM_DEF_NS
+#undef ORGAN_PARAM_DEFONLY_NS
+#undef ORGAN_PARAM_RO_NS
 
 inline constexpr size_t kOrganParamCount =
     sizeof(kOrganParams) / sizeof(kOrganParams[0]);
@@ -327,6 +356,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_PANEL:      return &the_board::PANEL_LIVE;
     case ORGAN_BLOCK_RIBBON:     return &the_board::RIBBON_LIVE;
     case ORGAN_BLOCK_INDOOR:     return &the_board::INDOOR_LIVE;
+    case ORGAN_BLOCK_CANVAS:     return &canvas::CANVAS_LIVE;
     default:                     return nullptr;
     }
 }

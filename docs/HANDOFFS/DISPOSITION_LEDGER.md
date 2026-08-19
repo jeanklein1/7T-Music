@@ -719,7 +719,6 @@ sentence.
 
 | what | why |
 | --- | --- |
-| `coupling/visual_canvas.hpp`'s ~15 envelope dials (swell, tint, checker cadence, `FOG_SPAN`, tide/rain spans) | **A layering question, not a range one.** The enrollment macro spells `offsetof(the_board::STRUCT, FIELD)` and `block_base` returns `&the_board::…`; `visual_canvas.hpp` lives in `t7`, one tier *below* the cartridge. Making canvas dials nameable needs either a namespace parameter on the four macros or a `t7`-scoped case in `block_base` — a registry change, and inverting the layering to land dials would be the wrong trade. Priced: one extra macro parameter, four call sites, no new block. |
 | `FIELD_BEACON_S` | the static_assert hazard (its own section above) |
 | `POSSESSION_RADIUS` | its `_SQ` twin is a derived constant; enrolling the radius without recomputing the square at the read would let the two disagree silently. Small, real, and wants the read site changed first. |
 
@@ -1063,3 +1062,53 @@ worse than no door. If a future sitting wants it, the honest label is
 What lifts the price: an authored *molt* verb owned by the surface —
 `reset_surface`'s sibling, scoped to a radius, respecting the home patch
 and the layer stack — at which point door 1 is one call.
+
+## P2 — the canvas tier, price paid
+
+**The canvas DEFER row is dead.** Its price was quoted as *"one extra
+macro parameter, four call sites, no new block"*; the actual bill was one
+parameter, **five** call sites (`_GEN` was minted in between), and one
+block. The parameter is invisible: every form gained an `_NS` twin taking
+the namespace first, and the old name became a one-line forward supplying
+`the_board`. All 238 lines written before this commit are untouched, and a
+line that cares writes `_NS` and says which namespace.
+
+`coupling/canvas_surface.hpp` — `t7::canvas`, beside its subject. A nested
+namespace on purpose: it gives the macro a clean `NS::STRUCT` token
+without the organ having to spell `t7::` from inside `t7::organ`.
+
+**Block 9 of twelve.** Three remain before the consolidation threshold.
+
+### The Batch Law changed the answer
+
+The ledger's §5 listed **19** canvas constants as ENROLL w2. Reading every
+reader — which is what the Batch Law is for — cut it to **15**:
+
+| constant | verdict |
+| --- | --- |
+| `TIDE_SHIFT_MIN` / `_MAX`, `RAIN_SCATTER_MIN` / `_MAX` | **NOT ENROLLED — no readers anywhere in the tree.** The file calls them *"DOOR AXES (Movement 1 harvest) … the Movement-2 coupling maps goals into these. Dials — nudge by taste"* — a future coupling's held spans. §5's verdict was taken from that "Dials" comment without a reader census. Enrolling them would have built four more dials that write a home nothing reads, which is the exact defect P0 spent a commit repairing. They enroll the day Movement 2 reads them. |
+
+### What the bank is, and what it is not
+
+These are **envelope authorities** — spans, cadences, ceilings and rates
+the couplings read while shaping a signal into a parameter. They are *not*
+rests: a pipe's rest lives in `PARAM_LAYOUT` (the register map) and a
+pipe's rest at the seam lives in the drivers' room. Three homes, three
+different facts, stated in the bank's banner so the next sitting does not
+merge them.
+
+`swell_ceiling` and `swell_ramp` carry `(ruled)` in the module. The ranges
+keep the ruling reachable so Jean can re-rule it with his hand instead of
+a rebuild — which is this campaign's whole argument, applied to a value
+that had already been argued once.
+
+### The gap tool caught its own staleness
+
+`organ_gap.py` reported `CanvasSurface 0/15 named` and flagged it `*`.
+That is **blind spot 2 working as designed** — the tool prints its file
+table so staleness is visible rather than silent — and blind spot 2 turned
+out to have a sibling: the parser knew four macro forms and the tree now
+has ten (`_GEN`, and an `_NS` twin for each). Taught it both by reading
+the suffix and shifting indices by one, rather than carrying a second
+table. Back to 33 absent, with `CanvasSurface` and `IndoorSurface` fully
+named.

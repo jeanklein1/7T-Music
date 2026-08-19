@@ -200,6 +200,22 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_alpha,       F32,  "Atmosphere · T
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_color,       VEC3, "Atmosphere · Transition", "fade colour (driven)")
 
 
+// ─── Atmosphere · Fog envelope ──────────────────────────────────
+// ORGAN_3b P2 (C2). CANVAS_LIVE (coupling/canvas_surface.hpp), block 9 —
+// the first block BELOW the cartridge tier, reached through the _NS macro
+// forms this phase minted. An ENVELOPE AUTHORITY, not a rest: the fog's
+// rests are in the drivers' room (the seam) and in PARAM_LAYOUT (the
+// register map); this is how long the coupling takes to get there.
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, fog_span, F32, 0.0f, 8.0f, 0.04f, "Atmosphere · Fog envelope", "field glide (beats)")
+
+// ─── Atmosphere · Checker cadence ───────────────────────────────
+// ORGAN_3b P2 (C2). The pc-colour field's READ cadence and envelope —
+// how often the voice is read and how fast the resultant chases it. The
+// values it chases are the drivers' room's (w4); these are the clock.
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, checker_read_span, F32, 0.25f, 32.0f, 0.25f, "Atmosphere · Checker cadence", "read span (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, checker_attack,    F32, 0.25f, 32.0f, 0.25f, "Atmosphere · Checker cadence", "attack (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, checker_release,   F32, 0.25f, 32.0f, 0.25f, "Atmosphere · Checker cadence", "release (beats)")
+
 // ─── Terrain · Palette N ────────────────────────────────────────
 // ORGAN_3 w1 (C1). THE TERRAIN_LOOKS PANEL ROW 1 (surface/
 // terrain_looks.hpp) authors these; GPUState::initializeState is the only
@@ -344,6 +360,24 @@ ORGAN_PARAM(RIBBON, RibbonSurface, wander_steer_soft,    F32, 0.0f, 2.0f,   0.01
 ORGAN_PARAM(RIBBON, RibbonSurface, wander_yaw_max,       F32, 0.0f, 0.6f,   0.005f,"Ribbon · Wander", "yaw cap")
 ORGAN_PARAM(RIBBON, RibbonSurface, wander_yaw_tau,       F32, 0.0f, 8.0f,   0.04f, "Ribbon · Wander", "yaw tau (s)")
 ORGAN_PARAM(RIBBON, RibbonSurface, wander_arrive_radius, F32, 0.0f, 480.0f, 2.0f,  "Ribbon · Wander", "arrive radius")
+
+// ─── Ribbon · Swell / Tint envelope ─────────────────────────────
+// ORGAN_3b P2 (C2). CANVAS_LIVE again — under RIBBON because a dial sits
+// under its SUBJECT and never under its implementation home. The swell
+// ceiling and ramp are marked "(ruled)" in the module; the ranges keep
+// the ruling reachable and let Jean re-rule it with his hand instead of
+// a rebuild, which is the whole argument of this campaign.
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, swell_ceiling,    F32, 1.0f,  4.0f,  0.01f, "Ribbon · Swell", "ceiling (× idle)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, swell_ramp,       F32, 0.0f,  32.0f, 0.25f, "Ribbon · Swell", "ramp (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, swell_attack,     F32, 0.01f, 8.0f,  0.04f, "Ribbon · Swell", "attack (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, swell_release,    F32, 0.01f, 8.0f,  0.04f, "Ribbon · Swell", "release (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, pitch_vec_origin, F32, 0.0f,  6.2832f, 0.01f, "Ribbon · Tint", "hue seating (rad)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_luma,        F32, 0.0f,  1.0f,  0.005f, "Ribbon · Tint", "luma")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_chroma,      F32, 0.0f,  1.0f,  0.005f, "Ribbon · Tint", "chroma")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_mix_max,     F32, 0.0f,  1.0f,  0.005f, "Ribbon · Tint", "mix ceiling")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_mix_attack,  F32, 0.01f, 12.0f, 0.05f,  "Ribbon · Tint", "mix attack (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_mix_release, F32, 0.01f, 12.0f, 0.05f,  "Ribbon · Tint", "mix release (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_hue_span,    F32, 0.01f, 12.0f, 0.05f,  "Ribbon · Tint", "hue span (beats)")
 
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // AgentTierParams::color_r/g/b are three contiguous floats, so one VEC3

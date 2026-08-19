@@ -3807,14 +3807,15 @@ namespace t7 {
                     // reconciled the moment it landed.
                     ++organLastFlush_;
                 }
-                // ORGAN_3 w2 — THE GRADUATED MODULE BANKS (blocks 4..7:
-                // pawn aura, orb console, the panel's beacon+camera, the
-                // ribbon's head law). Every one is CPU-read by its own
-                // module each tick, so block 3's rule covers them all: no
-                // upload, no flag, and the count rises once per block whose
-                // edit was reconciled. Counted in one branch because they
-                // share one reason — if a bank ever needs an upload it
-                // earns its own arm and its own sentence.
+                // ORGAN_3 w2 / ORGAN_3b P2 — THE GRADUATED BANKS (blocks
+                // 4..9: pawn aura, orb console, the panel's beacon+camera,
+                // the ribbon's head law, the indoor pair, the canvas's
+                // envelopes). Every one is CPU-read by its own module each
+                // tick, so block 3's rule covers them all: no upload, no
+                // flag, and the count rises once per block whose edit was
+                // reconciled. Counted in one branch because they share one
+                // reason — if a bank ever needs an upload it earns its own
+                // arm and its own sentence.
                 {
                     uint32_t banks = organTouched_ >> 4;
                     while (banks) { banks &= banks - 1u; ++organLastFlush_; }

@@ -33,7 +33,7 @@
 // CHECKER-REBUILD — THE PITCH-CLASS COLOR FIELD (the terrain's checker
 // voice). The voice's WINDOW pc-LENGTH vector — pc_length(playhead,
 // wagon(0)): the Playhead + Wagon compound, duration-weighted, dressed
-// to D — is read every CHECKER_READ_SPAN beats. NO DFT, no interval
+// to D — is read every canvas::CANVAS_LIVE.checker_read_span beats. NO DFT, no interval
 // math: each ABSOLUTE pitch class (index 0 = D) has an authored RGB
 // (PC_COLOR), and the decode is the length-weighted average color,
 // resultant = (Σ length_i · PC_COLOR[i]) / Σ length_i. Two enveloped
@@ -71,6 +71,7 @@
 #include <cmath>     // std::floor / cos / sin / sqrt / atan2 — decode math
 #include <algorithm> // std::min/std::max — decode clamps
 #include <cstdio>    // std::fprintf — the [CHECKER] witness line
+#include "coupling/canvas_surface.hpp"   // ORGAN_3b P2 — CANVAS_LIVE: the envelope authorities' live surface
 
 namespace t7 {
 
@@ -121,7 +122,6 @@ namespace t7 {
 
     // One span carries both fog pipes across a field change; split into a second
     // constant if color should lead or lag density.
-    inline constexpr float FOG_SPAN = 2.0f;   // beats — glide into the new field
 
     // ── Casting (the avatar principle) ── one voice per entity; the set
     // of these is the CASTING SHEET. The ribbon is the chordal piano.
@@ -144,19 +144,14 @@ namespace t7 {
     // t ramps over the hold; silence gives 1 from the formula itself —
     // no branch, identity by construction. Music only ever gives;
     // idleness is inviolate. RULED: ceiling 2× idle at 8 beats.
-    inline constexpr float RIBBON_SWELL_CEILING = 2.00f;  // × idle (ruled)
-    inline constexpr float RIBBON_SWELL_RAMP = 8.0f;   // beats (ruled)
     // Envelope: the swell's goal is continuous during the ramp, so ATTACK
     // engages only at discontinuities (rare); RELEASE governs the breath
     // on re-articulation and the let-go after silence. Fast catch, slow
     // let-go. (A separate BREATH span for re-articulation is one line if
     // the dip wants independence from the final release — say the word.)
-    inline constexpr float RIBBON_SWELL_ATTACK = 0.35f;  // beats
-    inline constexpr float RIBBON_SWELL_RELEASE = 2.0f;   // beats
 
-    // PITCH_VEC_ORIGIN survives the compass redesign: the tint's angle
+    // canvas::CANVAS_LIVE.pitch_vec_origin survives the compass redesign: the tint's angle
     // law and the swappable seating live on it.
-    inline constexpr float PITCH_VEC_ORIGIN = 0.0f;    // radians — rotates the hue seating
 
     // ── Line tint (color gen-2) ── the melody paints the ribbon: the
     // line's degree sets a hue by the SAME 30°-per-semitone law as the
@@ -164,14 +159,8 @@ namespace t7 {
     // is a TINTING VOICE at authored luma/chroma, mixed over the spawn
     // color; mix rises while the line sounds, releases to 0 in silence —
     // rest = the seed-drawn ribbon exactly. Compositional dials.
-    inline constexpr float TINT_LUMA = 0.55f;
-    inline constexpr float TINT_CHROMA = 0.35f;
-    inline constexpr float TINT_MIX_MAX = 0.85f;
     // Envelope: the mix catches the room quickly and fades long on its
     // last hue; the hue itself re-aims between actives on one span.
-    inline constexpr float TINT_MIX_ATTACK = 0.5f;   // beats
-    inline constexpr float TINT_MIX_RELEASE = 3.0f;   // beats
-    inline constexpr float TINT_HUE_SPAN = 2.0f;   // beats
     // Rodrigues basis about the gray axis (canvas-side twin of the skin's):
     inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
     inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
@@ -191,7 +180,7 @@ namespace t7 {
     // CLASS (ABSOLUTE, index 0 = D after the dress) has an authored RGB, and
     // the decode is the length-weighted average color —
     //     resultant = ( Σ_i length_i · PC_COLOR[i] ) / max(Σ length_i, eps)
-    // Read every CHECKER_READ_SPAN beats. ENVELOPE (per Jean): LINEAR 2-beat
+    // Read every canvas::CANVAS_LIVE.checker_read_span beats. ENVELOPE (per Jean): LINEAR 2-beat
     // attack to the new target; LINEAR 8-beat release to rest (music_amount →
     // 0, which the GPU maps to each cell's OWN seed color — a return to seed,
     // not to gray). Two enveloped scalars ride alongside the resultant:
@@ -201,9 +190,6 @@ namespace t7 {
     // this side ships the resultant + the two scalars through terrain.checker_*.
     // PC_COLOR is JEAN'S — twelve hues, one per pitch class. Tune it here.
     inline constexpr const char* CHECKER_VOICE = "ch1";   // the chordal piano; chN = wire = Ableton − 1
-    inline constexpr float CHECKER_READ_SPAN = 4.0f;      // beats — read cadence
-    inline constexpr float CHECKER_ATTACK    = 2.0f;      // beats — LINEAR rise to the new target
-    inline constexpr float CHECKER_RELEASE   = 8.0f;      // beats — LINEAR fall to rest (→ seed color)
     //                          pc (dressed, 0 = D)      R      G      B    — Jean's twelve hues
     inline constexpr float PC_COLOR[12][3] = {
         /*  0  D  */ { 0.85f, 0.20f, 0.20f },   // red
@@ -381,13 +367,13 @@ namespace t7 {
 
                 if (fog_density_.valid) {
                     params_.set(fog_density_.base,
-                        trajectory_release(fog_seg_, FOG_BY_FIELD[idx], beat, FOG_SPAN));
+                        trajectory_release(fog_seg_, FOG_BY_FIELD[idx], beat, canvas::CANVAS_LIVE.fog_span));
                 }
                 if (fog_color_.valid) {
                     for (int c = 0; c < 3; ++c) {
                         params_.set(fog_color_.base + c,
                             trajectory_release(fog_color_seg_[c],
-                                FOG_COLOR_BY_FIELD[idx][c], beat, FOG_SPAN));
+                                FOG_COLOR_BY_FIELD[idx][c], beat, canvas::CANVAS_LIVE.fog_span));
                     }
                 }
             }
@@ -410,15 +396,15 @@ namespace t7 {
 
                 // One expression: hold==0 (silence or fresh chord) gives
                 // goal 1 by itself. Re-articulation breathes to BASELINE.
-                const float t = (hold_beats_ < RIBBON_SWELL_RAMP)
-                    ? hold_beats_ / RIBBON_SWELL_RAMP : 1.0f;
-                const float goal = 1.0f + (RIBBON_SWELL_CEILING - 1.0f) * t;
+                const float t = (hold_beats_ < canvas::CANVAS_LIVE.swell_ramp)
+                    ? hold_beats_ / canvas::CANVAS_LIVE.swell_ramp : 1.0f;
+                const float goal = 1.0f + (canvas::CANVAS_LIVE.swell_ceiling - 1.0f) * t;
                 params_.set(amp_lat_.base,
                     trajectory_release(amp_lat_seg_, goal, beat,
-                        (goal == 1.0f ? RIBBON_SWELL_RELEASE : RIBBON_SWELL_ATTACK)));
+                        (goal == 1.0f ? canvas::CANVAS_LIVE.swell_release : canvas::CANVAS_LIVE.swell_attack)));
                 params_.set(amp_vert_.base,
                     trajectory_release(amp_vert_seg_, goal, beat,
-                        (goal == 1.0f ? RIBBON_SWELL_RELEASE : RIBBON_SWELL_ATTACK)));
+                        (goal == 1.0f ? canvas::CANVAS_LIVE.swell_release : canvas::CANVAS_LIVE.swell_attack)));
             }
 
             // ── room tint (color = the room) ────────────────────────────
@@ -440,7 +426,7 @@ namespace t7 {
                 static const std::array<std::array<float, 2>, 12> PITCH_VECS = [] {
                     std::array<std::array<float, 2>, 12> t{};
                     for (int j = 0; j < 12; ++j) {
-                        const float th = PITCH_VEC_ORIGIN + (float)j * 0.523598776f;
+                        const float th = canvas::CANVAS_LIVE.pitch_vec_origin + (float)j * 0.523598776f;
                         t[(size_t)j] = { std::cos(th), std::sin(th) };
                     }
                     return t;
@@ -456,10 +442,10 @@ namespace t7 {
                 if (len > 1e-4f) {
                     const float ca = vx / len, sa = vy / len;   // hue direction, no atan needed
                     for (int c2 = 0; c2 < 3; ++c2) {
-                        const float v = TINT_LUMA
-                            + (TINT_D1[c2] * ca + TINT_D2[c2] * sa) * TINT_CHROMA;
+                        const float v = canvas::CANVAS_LIVE.tint_luma
+                            + (TINT_D1[c2] * ca + TINT_D2[c2] * sa) * canvas::CANVAS_LIVE.tint_chroma;
                         params_.set(tint_stim_.base + c2,
-                            trajectory_release(tint_stim_seg_[c2], v, beat, TINT_HUE_SPAN));
+                            trajectory_release(tint_stim_seg_[c2], v, beat, canvas::CANVAS_LIVE.tint_hue_span));
                     }
                 }
                 else {
@@ -468,7 +454,7 @@ namespace t7 {
                     for (int c2 = 0; c2 < 3; ++c2)
                         params_.set(tint_stim_.base + c2,
                             trajectory_release(tint_stim_seg_[c2],
-                                tint_stim_seg_[c2].to, beat, TINT_HUE_SPAN));
+                                tint_stim_seg_[c2].to, beat, canvas::CANVAS_LIVE.tint_hue_span));
                 }
 
                 float room_sounding = 0.0f;
@@ -476,10 +462,10 @@ namespace t7 {
                     for (int i = 0; i < 12; ++i)
                         room_sounding += signal.stat(room_playhead_.channel,
                             room_playhead_.base + i);
-                const float mix_goal = (room_sounding > 0.0f) ? TINT_MIX_MAX : 0.0f;
+                const float mix_goal = (room_sounding > 0.0f) ? canvas::CANVAS_LIVE.tint_mix_max : 0.0f;
                 params_.set(tint_mix_.base,
                     trajectory_release(tint_mix_seg_, mix_goal, beat,
-                        (mix_goal == 0.0f ? TINT_MIX_RELEASE : TINT_MIX_ATTACK)));
+                        (mix_goal == 0.0f ? canvas::CANVAS_LIVE.tint_mix_release : canvas::CANVAS_LIVE.tint_mix_attack)));
             }
 
             // ── CHECKER-REBUILD (the window pc-lengths → a resultant color) ──
@@ -495,8 +481,8 @@ namespace t7 {
             if (checker_win_.valid && checker_mean_.valid && checker_var_.valid) {
                 // CADENCE: re-anchor on a BACKWARD beat jump (a transport loop
                 // back below next_read would otherwise freeze the reader).
-                if (beat < checker_next_read_ - CHECKER_READ_SPAN)
-                    checker_next_read_ = std::floor(beat / CHECKER_READ_SPAN) * CHECKER_READ_SPAN;
+                if (beat < checker_next_read_ - canvas::CANVAS_LIVE.checker_read_span)
+                    checker_next_read_ = std::floor(beat / canvas::CANVAS_LIVE.checker_read_span) * canvas::CANVAS_LIVE.checker_read_span;
                 if (beat >= checker_next_read_) {
                     float acc[3] = { 0.0f, 0.0f, 0.0f };
                     float total = 0.0f;
@@ -526,7 +512,7 @@ namespace t7 {
                     checker_var_goal_ = present ? (float)std::max(0, n - 1) : 0.0f;
                     // THE WITNESS: one line per read, upstream of the GPU.
                     // On the instruments dial (core/instruments.hpp): a read
-                    // lands every CHECKER_READ_SPAN beats — at 120 BPM that
+                    // lands every canvas::CANVAS_LIVE.checker_read_span beats — at 120 BPM that
                     // is an UNBUFFERED stderr write every two seconds, on the
                     // beat, which is exactly where a hitch is most visible.
                     if constexpr (INSTRUMENTS.checker_witness) {
@@ -537,7 +523,7 @@ namespace t7 {
                             checker_var_goal_);
                     }
                     checker_next_read_ =
-                        (std::floor(beat / CHECKER_READ_SPAN) + 1.0f) * CHECKER_READ_SPAN;
+                        (std::floor(beat / canvas::CANVAS_LIVE.checker_read_span) + 1.0f) * canvas::CANVAS_LIVE.checker_read_span;
                 }
                 // ENVELOPE. Resultant glides on the 2-beat attack span (its goal
                 // holds through silence, so no re-aim there). Amount + variance
@@ -545,13 +531,13 @@ namespace t7 {
                 for (int c2 = 0; c2 < 3; ++c2)
                     params_.set(checker_mean_.base + c2,
                         trajectory_release(checker_res_seg_[c2],
-                            checker_res_goal_[c2], beat, CHECKER_ATTACK));
+                            checker_res_goal_[c2], beat, canvas::CANVAS_LIVE.checker_attack));
                 params_.set(checker_var_.base,
                     trajectory_release(checker_amount_seg_, checker_amount_goal_, beat,
-                        (checker_amount_goal_ > 0.0f ? CHECKER_ATTACK : CHECKER_RELEASE)));
+                        (checker_amount_goal_ > 0.0f ? canvas::CANVAS_LIVE.checker_attack : canvas::CANVAS_LIVE.checker_release)));
                 params_.set(checker_var_.base + 1,
                     trajectory_release(checker_var_seg_, checker_var_goal_, beat,
-                        (checker_var_goal_ > 0.0f ? CHECKER_ATTACK : CHECKER_RELEASE)));
+                        (checker_var_goal_ > 0.0f ? canvas::CANVAS_LIVE.checker_attack : canvas::CANVAS_LIVE.checker_release)));
             }
 
             // ── the zoetrope's ears (row impulses) ──────────────────────
