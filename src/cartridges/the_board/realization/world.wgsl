@@ -1702,7 +1702,7 @@ struct DesignConfig {
     checker_music_amount: f32,
     checker_music_variance: f32,
     point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 20 = contracts/point.hpp)
-    cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 0.6 = Idle::CUBE_PLASTICITY_DEFAULT)
+    cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 1.0 = Idle::CUBE_PLASTICITY_DEFAULT, raised at CONTACT_5 P2b)
     // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds (0 =
     // instant). Sits at offset 556 in BOTH rooms. (It WAS the struct's last
     // 4 bytes at 588 when written; MOSAIC_0a appended the mosaic tail behind

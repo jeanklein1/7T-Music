@@ -637,7 +637,7 @@ namespace t7 {
             float checker_music_amount;    // enveloped presence [0,1] — S1 pull + S2 wander scale
             float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
             float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 20; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
-            float cube_plasticity;         // CONTACT_3 K2c: global λ master (rest 0.6; boot-pinned from Idle::CUBE_PLASTICITY_DEFAULT). Also fills the checker tail pad — sizeof unchanged.
+            float cube_plasticity;         // CONTACT_3 K2c: global λ master (rest 1.0 — raised from 0.6 at CONTACT_5 P2b; boot-pinned from Idle::CUBE_PLASTICITY_DEFAULT). Also fills the checker tail pad — sizeof unchanged.
             // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds.
             // 0 = instant (the pawn's response, byte-identical to the pre-[6]
             // hard assignment). The CPU picks it from the possessed figure's
@@ -4872,7 +4872,7 @@ namespace t7 {
                 config_.point_host = 0;             // the pawn hosts (the kite)
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
                 config_.point_bubble_radius = POINT_BUBBLE_RADIUS;  // CONTACT_2: boot-pin the bubble from contracts/point.hpp (source of truth); rest 20.0
-                config_.cube_plasticity = Idle::CUBE_PLASTICITY_DEFAULT;  // CONTACT_3 K2c: boot-pin the live λ master; rest 0.6
+                config_.cube_plasticity = Idle::CUBE_PLASTICITY_DEFAULT;  // CONTACT_3 K2c: boot-pin the live λ master; rest 1.0 (CONTACT_5 P2b)
                 // FIELD_2b — the field's dials, boot-pinned from THE PANEL
                 // (contracts/control_panel.hpp). One home authors; this is
                 // the transport. The ribbon dialect reads the same names

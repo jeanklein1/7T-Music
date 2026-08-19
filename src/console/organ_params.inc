@@ -4,6 +4,13 @@
 // ADDING A DIAL IS ONE LINE IN THIS FILE. Nothing else, anywhere.
 //
 //   ORGAN_PARAM(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL)
+//   ORGAN_PARAM_GEN(... the same columns ...)
+//                                       — a GENERATIONAL dial: the edit
+//                                         lands at the author's next
+//                                         natural event, not now. The row
+//                                         wears an `on respawn` chip, so
+//                                         the panel says WHEN a stop
+//                                         sounds where the hand is.
 //   ORGAN_PARAM_DEF(... , DEFKIND, DEFSTRUCT, DEFFIELD)
 //                                       — the same, plus a DEFINITION
 //   ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL,
@@ -13,6 +20,15 @@
 //                                       — a WITNESS: the panel meters it
 //                                         and organ_set refuses to write
 //                                         it, so it carries no range
+//
+// EVERY FORM HAS AN _NS TWIN (ORGAN_3b) taking the NAMESPACE first:
+//
+//   ORGAN_PARAM_NS(NS, BLOCK, STRUCT, FIELD, ...)   — and _GEN_NS, _DEF_NS,
+//                                                     _DEFONLY_NS, _RO_NS
+//
+// The plain names are one-line forwards supplying `the_board`, so a line
+// that does not care never sees the parameter and a line that does writes
+// its own namespace: `ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, ...)`.
 //
 // BLOCK  — one of ORGAN_BLOCK_* (organ_registry.hpp). The three CPU homes
 //          GPUState exposes to the panel, plus DRIVERS — the drivers' room
@@ -46,10 +62,22 @@
 //                  reader — the rule lives beside TIER_LIVE in
 //                  contracts/agent_tiers.hpp.
 //
+//          BEHAVIOR — the_board::AgentBehaviorBank (BEHAVIOR_LIVE). One
+//                  bank, target ignored. It raises TIER's flag, because a
+//                  kind shares a flag when it shares an AUTHOR and both
+//                  are re-spoken by upload_agent_registries_to_gpu.
+//          ORB_MOOD — the_board::OrbMoodConfig (ORB_MOOD_LIVE). One row per
+//                  mood, so like MOOD and unlike TIER/BEHAVIOR the write's
+//                  target SELECTS the row. Its author is configure_orbs, so
+//                  it carries its own flag.
+//
 //          ORGAN_PARAM_DEFONLY enrolls a definition with NO INSTANCE at
 //          all: the fact has a definition the panel may write and no home
-//          the panel may address. Its block is the sentinel ORGAN_BLOCK_NONE,
-//          it takes no BLOCK/STRUCT/FIELD, and preview on it is refused.
+//          the panel may address. It takes no BLOCK/STRUCT/FIELD, preview
+//          on it is refused, and its block is a SENTINEL DERIVED FROM ITS
+//          KIND (ORGAN_DEFONLY_BLOCK_##DEFKIND) — 255 MoodProfile, 254
+//          OrbMoodConfig, descending. Two families on one sentinel would
+//          collide the moment their offsets met, and once did.
 //
 // The compiler takes the offset. Rename a field and the build fails here,
 // which is the whole point of a COMPILED registry: it cannot drift into
@@ -575,11 +603,13 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,      
 // head's CPU sum — so one dial moves both rooms, which is the panel's
 // whole argument.
 //
-// FIELD_K IS HALF OF A COMPILE-TIME PROOF. control_panel.hpp asserts
+// FIELD_K IS HALF OF A RULING. control_panel.hpp asserts
 // FIELD_BEACON_S < FIELD_K so the beacon's pull loses to field repulsion
-// at the ring. This dial only ever RAISES the winning side, so the ruling
-// survives every value it can reach; the beacon's own four stay unenrolled
-// for exactly that reason (the ledger names it).
+// at the ring. ORGAN_3 wrote here that this dial "only ever RAISES the
+// winning side" — it does not: its min is 0, and lowering k under S breaks
+// the ruling from the other end. ORGAN_3b P5's clamp is what makes both
+// ends safe, because it reads THIS dial's live value rather than the
+// constexpr, so the beacon's S loses to whatever k is actually in force.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_slack,         F32, 0.0f, 12.0f,   0.05f, "Interaction · Field", "slack")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_k,             F32, 0.0f, 1200.0f, 5.0f,  "Interaction · Field", "k (accel)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_fmax,          F32, 0.0f, 2400.0f, 10.0f, "Interaction · Field", "f max")
@@ -602,16 +632,19 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, cube_plasticity,     F32, 0.0f, 1.0f,   0.0
 // ORGAN_3 w2 (C2). PANEL_LIVE (contracts/control_panel.hpp) — the two
 // families whose rests had no transport before this campaign.
 //
-// FIELD_BEACON_S IS ABSENT AND STAYS ABSENT until its assert has a
-// runtime answer: control_panel.hpp proves FIELD_BEACON_S < FIELD_K at
-// compile time, and a dial on S could cross field_k with the assert still
-// reading true and no witness. The ledger prices the two ways out.
+// FIELD_BEACON_S IS PRESENT (ORGAN_3b P5). ORGAN_3 held it out because a
+// compile-time proof cannot guard a runtime dial; Jean stamped the clamp
+// at the writer, which guards every author rather than only this one. Its
+// max is the tree's own word — FIELD_BEACON_S_MAX = FIELD_K − 1 — so the
+// range and the clamp agree by construction at the authored k, and the
+// writer's clamp against the LIVE k covers the rest.
 //
 // The camera's four are CONTROLS, not pose. Pose is GPU truth and has no
 // section by ORGAN_3's rule; what is dialled here is the input grammar.
 // look sensitivity's range is the tree's own clamp: init/R … init*R.
 ORGAN_PARAM(PANEL, PanelSurface, beacon.r0,   F32, 0.0f, 100.0f, 0.5f,  "Interaction · Beacon", "inner radius")
 ORGAN_PARAM(PANEL, PanelSurface, beacon.r,    F32, 0.0f, 480.0f, 2.0f,  "Interaction · Beacon", "outer radius")
+ORGAN_PARAM(PANEL, PanelSurface, beacon.s,    F32, 0.0f, the_board::FIELD_BEACON_S_MAX, 1.0f, "Interaction · Beacon", "pull strength")
 ORGAN_PARAM(PANEL, PanelSurface, beacon.lift, F32, 0.0f, 80.0f,  0.4f,  "Interaction · Beacon", "lift")
 ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_init,    F32, 0.000625f, 0.04f, 0.0002f, "Interaction · Camera", "look sens (anchor)")
 ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_step,    F32, 1.01f, 2.0f,  0.005f, "Interaction · Camera", "look sens step")

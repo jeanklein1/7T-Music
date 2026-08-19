@@ -1154,11 +1154,23 @@ namespace t7 {
                     // then left these four reading the constexprs, so seven
                     // dials wrote a bank nothing read. Repaired here.
                     const auto& bcn = PANEL_LIVE.beacon;
+                    // ORGAN_3b P5 — THE RING SELF-SPACES, AT RUNTIME TOO.
+                    // control_panel.hpp's static_assert proves the AUTHORED
+                    // pair; this clamp guards the DIALED one. It reads
+                    // config's LIVE field_k rather than the constexpr,
+                    // because field_k is a dial as well and lowering it is
+                    // the second way to break the same ruling — and it sits
+                    // at the writer, not at the panel, so every future
+                    // author (a coupling included) is guarded by it.
+                    const float ceiling = gpuState_.config().field_k - 1.0f;
+                    float s = bcn.s;
+                    if (s > ceiling) s = ceiling;
+                    if (s < 0.0f)    s = 0.0f;
                     fa.count = 1u;
                     fa.rows[0][0] = point_.x;
                     fa.rows[0][1] = py + bcn.lift;
                     fa.rows[0][2] = point_.z;
-                    fa.rows[0][3] = FIELD_BEACON_S * coord;
+                    fa.rows[0][3] = s * coord;
                     fa.rows[1][0] = bcn.r0;
                     fa.rows[1][1] = bcn.r;
                     fa.rows[1][2] = (coord > 0.0f) ? 1.0f : 0.0f;

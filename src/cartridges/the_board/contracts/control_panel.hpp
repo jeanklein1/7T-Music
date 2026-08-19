@@ -92,19 +92,33 @@ static_assert(FIELD_BEACON_S < FIELD_K,
     "the beacon's pull must lose to field repulsion at the ring — "
     "otherwise the gather clots instead of spacing (FIELD_4's ruling)");
 
+// ORGAN_3b P5 — THE RULING, GIVEN A RUNTIME ANSWER. The assert above
+// proves the AUTHORED pair and keeps proving it; a compile-time proof
+// simply cannot speak for a dialed value. This ceiling is the panel's
+// half: S enrolls with it as its max, so the dial cannot reach a value
+// the ruling forbids at the authored k. The writer carries the other
+// half — it clamps against config's LIVE field_k, because field_k is a
+// dial too and lowering it is the second way to break the same ruling.
+// One fact, stated where each half can act on it.
+inline constexpr float FIELD_BEACON_S_MAX = FIELD_K - 1.0f;
+static_assert(FIELD_BEACON_S <= FIELD_BEACON_S_MAX,
+    "the authored S must be reachable by its own dial — if this fails "
+    "the enrolled range would silently clamp the design's own value");
+
 // ═══ THE LIVE SURFACE (ORGAN_3 w2, C2) ═══════════════════════════
 // The rests above are the DESIGN; PANEL_LIVE is what the writers
 // read. Two families, one bank, because they share one home: this
 // file is "THE PANEL — one home, every room", and a second contracts
 // header per family would be two homes for one idea.
 //
-// THE BEACON'S S IS NOT HERE. The static_assert above proves
-// FIELD_BEACON_S < FIELD_K at compile time, and a compile-time proof
-// cannot guard a runtime dial: a panel that pushed S past field_k
-// would clot the gather with the assert still reading true and no
-// witness anywhere. S stays authored until the writer carries a
-// clamp or the ruling is restated as a paired range. The other three
-// beacon rests have no such partner and go live.
+// THE BEACON'S S IS HERE NOW (ORGAN_3b P5). ORGAN_3 left it out
+// because a compile-time proof cannot guard a runtime dial, and named
+// the two ways out: a clamp at the writer, or the ruling restated as
+// a paired range. Jean stamped the clamp — it guards every future
+// author, couplings included, and not merely the panel. So all four
+// beacon rests are live, and the ruling is now proved twice: once for
+// the authored pair (the assert), once for the dialed one (the
+// ceiling above and the writer's clamp against the live k).
 //
 // THE CAMERA'S CONTROLS ARE CONTROLS, NOT POSE. Camera pose is GPU
 // truth and has no section by ORGAN_3's rule; what lives here is the
@@ -114,6 +128,7 @@ struct PanelSurface {
     struct Beacon {
         float r0;      // inner radius — sits outside the point's bubble
         float r;       // outer radius
+        float s;       // pull strength — ceiling'd below the live field k
         float lift;    // height above the point
     } beacon;
     struct Camera {
@@ -125,7 +140,7 @@ struct PanelSurface {
 };
 
 inline constexpr PanelSurface PANEL_TABLE = {
-    { FIELD_BEACON_R0, FIELD_BEACON_R, FIELD_BEACON_LIFT },
+    { FIELD_BEACON_R0, FIELD_BEACON_R, FIELD_BEACON_S, FIELD_BEACON_LIFT },
     { 0.005f, 1.25f, 8.0f, 2.0f },   // carried verbatim from
                                      // CameraControls (direction/input.hpp);
                                      // retired there and its readers moved
@@ -137,6 +152,7 @@ inline constexpr PanelSurface PANEL_TABLE = {
 inline PanelSurface PANEL_LIVE = PANEL_TABLE;
 static_assert(PANEL_TABLE.beacon.r0 == FIELD_BEACON_R0
            && PANEL_TABLE.beacon.r  == FIELD_BEACON_R
+           && PANEL_TABLE.beacon.s  == FIELD_BEACON_S
            && PANEL_TABLE.beacon.lift == FIELD_BEACON_LIFT,
     "PANEL_TABLE's beacon row is seeded FROM the authored rests above — "
     "one fact, one home; if they can disagree the seeding is wrong");

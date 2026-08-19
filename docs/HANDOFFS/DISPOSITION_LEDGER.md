@@ -11,6 +11,21 @@ file; Jean and Claude rule its final form at the close. Until then it is
 the campaign's resumption point (Law 5): ledger + phase pushes are the
 complete handoff to a successor.
 
+**DEFER rows that died this campaign,** each in the commit that landed it:
+the canvas tier (P2), `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (P3), and
+`FIELD_BEACON_S` (P5 — the only one that needed a ruling rather than a
+reading). **Nine survive**, and each names its own owner in place:
+`THEME_BASE_WEIGHT`, `INDOOR_PALETTES[]` and `tierset_id` want a
+composite editor (D5); `mute_couplings` wants a checkbox per bit, which
+is a shell feature, not an enrollment line; `POSSESSION_RADIUS` wants its
+derived `_SQ` twin read first; Wave 3's remaining destructive banks and
+Wave 4's three seams (the ribbon's four pipes, `floater_coordination`,
+the four mood-structural witnesses) are bulk and pattern, not difficulty
+— the `INDOOR_LIVE` and checker-seam precedents are already in the tree.
+None is externally blocked, which is why none of them is in
+`docs/OPEN.md`. The one that was — the beacon's assert — is the line P5
+killed there.
+
 **Why the deferrals are here and not in `docs/OPEN.md`.** OPEN is the
 register of open STATE, one line per item, and its law is that a line
 dies when its item closes. A DEFER that any future sitting can lift by
@@ -79,7 +94,7 @@ already gained live — `fa.rows[0][3] = FIELD_BEACON_S * coord`, where
 | `FIELD_BEACON_R0` | F32 | 25.0 | C2 | Interaction · Beacon | 0 … 100 `[heuristic]` | ENROLL w2 |
 | `FIELD_BEACON_R` | F32 | 120.0 | C2 | Interaction · Beacon | 0 … 480 `[heuristic]` | ENROLL w2 |
 | `FIELD_BEACON_LIFT` | F32 | 20.0 | C2 | Interaction · Beacon | 0 … 80 `[heuristic]` | ENROLL w2 |
-| `FIELD_BEACON_S` | F32 | 200.0 | C2 | Interaction · Beacon | — | **DEFER — the assert hazard below** |
+| `FIELD_BEACON_S` | F32 | 200.0 | C2 | Interaction · Beacon | 0 … `FIELD_K − 1` `[tree]` | ENROLL P5 — **the DEFER died**; see the adjudication below |
 
 **THE BEACON'S ASSERT — a standing hazard this campaign must not break.**
 `control_panel.hpp` closes with
@@ -90,13 +105,27 @@ static_assert(FIELD_BEACON_S < FIELD_K,
     "otherwise the gather clots instead of spacing (FIELD_4's ruling)");
 ```
 
-A compile-time proof cannot guard a runtime dial. `FIELD_K` enrolls above
-and its range only ever *raises* the winning side, so the ruling survives
-every value that dial can reach. `FIELD_BEACON_S` is DEFERRED: enrolling
-it live would let the panel push the beacon's pull past `field_k` and
-clot the gather, with the static_assert still reading true and no runtime
-witness. What lifts it: a clamp at the writer (`S = min(S, field_k)`), or
-the ruling restated as a paired range. Priced, not promised.
+A compile-time proof cannot guard a runtime dial. `FIELD_BEACON_S` was
+DEFERRED for exactly that: enrolling it live would let the panel push the
+beacon's pull past `field_k` and clot the gather, with the static_assert
+still reading true and no runtime witness. Two ways out were priced — a
+clamp at the writer, or the ruling restated as a paired range.
+
+**ADJUDICATED AT ORGAN_3b P5: Jean stamped the clamp,** because it guards
+every future author — a coupling included — and not merely the panel.
+`FIELD_BEACON_S` enrolls with `FIELD_BEACON_S_MAX = FIELD_K − 1` as its
+max, so the range and the clamp agree by construction at the authored k;
+and the writer clamps against config's **live** `field_k`, not the
+constexpr.
+
+That second half is not decoration. This ledger said above that `FIELD_K`
+*"only ever raises the winning side, so the ruling survives every value
+that dial can reach"* — **that was wrong, and the `.inc` carried the same
+sentence.** `field_k`'s enrolled min is 0; lowering it under S breaks the
+same ruling from the other end, and nothing guarded that. Reading the live
+`field_k` at the writer closes both ends at once. Both stale sentences are
+corrected in place; the harness now walks every k the dial can reach and
+proves `S < k` at each.
 
 ## contracts/driver_surface.hpp — the drivers' room (ORGAN_2a)
 
@@ -567,7 +596,7 @@ palette mirror (12 entries), the ROW 2 motion/mode pins (14 entries),
 | --- | --- | --- | --- | --- | --- | --- |
 | `pawn_speed` | F32 | `Idle::PAWN_SPEED` | C1 — no writer at all | Interaction · Pawn | 0 … 4× rest `[heuristic]` | ENROLL w1 |
 | `freeze_sphere` | U32 | 0 | C1 | Debug | 0 … 1 `[tree]` BOOL | ENROLL w1 |
-| `cube_plasticity` | F32 | **1.0** (`Idle::CUBE_PLASTICITY_DEFAULT`, raised 0.6→1.0 at CONTACT_5 P2b) | C1 | Interaction · Cubes | 0 … 1 `[identity]` (a λ master) | ENROLL w1 |
+| `cube_plasticity` | F32 | **1.0** (`Idle::CUBE_PLASTICITY_DEFAULT`, raised 0.6→1.0 at CONTACT_5 P2b) | C1 | Interaction · Cubes | 0 … 1 `[identity]` (a λ master) | ENROLL w1 — **adjudicated at P5: the comment was stale**, and in three places, not one |
 | `veil_ring` | F32 | `Dim::VEIL_RING_DEFAULT` (325) | C1 — "Live-tunable" says the tree | Atmosphere · Veil | **265 … 349** `[tree]` — see THE VEIL CHAIN below | ENROLL w1 |
 | `veil_icing` | F32 | `Dim::VEIL_ICING_DEFAULT` (40) | C1 | Atmosphere · Veil | **0 … 60** `[tree]` | ENROLL w1 |
 | `lod0_radius` | F32 | `Dim::LOD0_RADIUS_DEFAULT` (175) | C1 | Atmosphere · Veil | **0 … 175** `[tree]` | ENROLL w1 |
@@ -672,8 +701,9 @@ other two. That sentence is in the `.inc` beside the lines, because the
 next person to widen a range will read the `.inc`, not this file.
 
 **Two asserts, two answers.** The beacon's (`FIELD_BEACON_S < FIELD_K`)
-could not be carried by ranges — `S` has no live home and giving it one
-would put both sides of the proof on sliders — so it is DEFERRED. The
+could not be carried by ranges — `S` had no live home and giving it one
+would put both sides of the proof on sliders — so it was DEFERRED, and
+ORGAN_3b P5 lifted it with a clamp at the writer instead. The
 veil's could, because two of its three bounds are fixed constants
 (`EXIST_RADIUS`) and the third is a dial whose box can be cut clear.
 Same hazard, different disposition, and the difference is stated rather
@@ -717,9 +747,11 @@ sentence.
 
 ## DEFERRED from Wave 2, with the reason
 
+**`FIELD_BEACON_S`'s row died at ORGAN_3b P5** — the clamp at the writer,
+adjudicated by Jean. What remains:
+
 | what | why |
 | --- | --- |
-| `FIELD_BEACON_S` | the static_assert hazard (its own section above) |
 | `POSSESSION_RADIUS` | its `_SQ` twin is a derived constant; enrolling the radius without recomputing the square at the read would let the two disagree silently. Small, real, and wants the read site changed first. |
 
 ---
@@ -841,7 +873,7 @@ applied without being asked twice.
 
 # THE GAP AT CLOSE
 
-`tools/organ_gap.py`, run against the tree ORGAN_3 leaves. Every
+`tools/organ_gap.py`, run against the tree ORGAN_3b leaves. Every
 absent member below has a reason in the sections above — the tool
 finds the gap, the ledger explains it, and neither pretends to do the
 other's job.
@@ -855,6 +887,7 @@ THE FILE TABLE this run trusted (blind spot 2 — stale rows are
 invisible bugs, so they are printed):
     AgentBehaviorBank        src/cartridges/the_board/contracts/agent_tiers.hpp
     AgentTierBank            src/cartridges/the_board/contracts/agent_tiers.hpp
+    CanvasSurface            src/coupling/canvas_surface.hpp
     DriverSurface            src/cartridges/the_board/contracts/driver_surface.hpp
     GPUAgentRoomConstants    src/cartridges/the_board/realization/state.hpp
     GPUDesignConfig          src/cartridges/the_board/realization/state.hpp
@@ -862,12 +895,14 @@ invisible bugs, so they are printed):
     IndoorSurface            src/cartridges/the_board/contracts/indoor_module.hpp
     MoodProfile              src/cartridges/the_board/contracts/spine_state.hpp
     OrbConsole               src/cartridges/the_board/contracts/orb_surface.hpp
+    OrbMoodConfig            src/cartridges/the_board/contracts/orb_surface.hpp
     PanelSurface             src/cartridges/the_board/contracts/control_panel.hpp
     PawnAuraProfile          src/cartridges/the_board/contracts/pawn_surface.hpp
     RibbonSurface            src/cartridges/the_board/contracts/ribbon_surface.hpp
 
 AgentBehaviorBank          1/ 1 named   0 absent
 AgentTierBank              1/ 1 named   0 absent
+CanvasSurface             15/15 named   0 absent
 DriverSurface              3/ 3 named   0 absent
 GPUAgentRoomConstants      2/ 5 named   3 absent
         portals
@@ -907,12 +942,14 @@ MoodProfile                5/15 named   10 absent
         allow_pawn_aura
         allow_frustum_cull
 OrbConsole                 3/ 3 named   0 absent
+OrbMoodConfig             23/24 named   1 absent
+        tierset_id
 PanelSurface               2/ 2 named   0 absent
 PawnAuraProfile            8/ 9 named   1 absent
         effect_mask
 RibbonSurface             14/14 named   0 absent
 
-TOTAL ABSENT FROM THE PANEL, ACROSS THE ENROLLED HOMES: 33
+TOTAL ABSENT FROM THE PANEL, ACROSS THE ENROLLED HOMES: 34
 
 Blind spot 1: homeless constants — an authored constexpr with no
 live home — cannot appear above. This tool measures the gap between
@@ -1234,3 +1271,60 @@ Atmosphere opens and reads `6/22` · clearing restores 262 and gives back
 the one section the hand had opened · `Sky & Light` exports 32 keys —
 its non-witness rows, keyed exactly as the whole-panel export keys them —
 to `organ-sky-light.json`, without toggling its own section.
+
+## P5 — the adjudications, and a claim this ledger got wrong
+
+### The beacon: the clamp, and the end nobody was watching
+
+Jean stamped the clamp at the writer over the paired-range restatement,
+and for the reason that made it the better of two working cures: a clamp
+at the writer guards **every** author — the couplings this campaign is a
+target map for, included — while a range guards only the panel. That is
+the `flee_gain_player` precedent (THE CATCHABILITY LAW), applied a second
+time without argument.
+
+Building it turned up the part the ruling had not been asked about. This
+ledger and the `.inc` both said `FIELD_K` *"only ever raises the winning
+side, so the ruling survives every value that dial can reach."* It does
+not. `field_k`'s enrolled min is **0**; lowering it under S breaks
+`S < FIELD_K` from the other end, and nothing guarded that — the deferral
+had been watching one door of a room with two.
+
+So the clamp reads config's **live** `field_k` rather than the constexpr:
+
+```cpp
+const float ceiling = gpuState_.config().field_k - 1.0f;
+float s = bcn.s;
+if (s > ceiling) s = ceiling;
+if (s < 0.0f)    s = 0.0f;
+```
+
+`FIELD_BEACON_S_MAX = FIELD_K − 1` is the panel's half — S enrolls with it
+as its max, so the range and the clamp agree by construction at the
+authored k — and the writer's live read is the other half. The
+`static_assert` stays, unchanged: it still proves the authored pair, and a
+second `static_assert` now proves the authored S is reachable by its own
+dial, so the enrolled range can never silently clamp the design's own
+value. Three proofs of one ruling, each speaking about what it can see.
+
+The harness walks every k the `field_k` dial can reach — 0 to 1200 in
+half-steps — and asserts `S < k` at each. Both stale sentences are
+corrected in place.
+
+### The plasticity comment: stale in three places, not one
+
+`Idle::CUBE_PLASTICITY_DEFAULT` was raised 0.6 → 1.0 at CONTACT_5 P2b and
+the constant's own comment says so. Three downstream comments did not:
+`state.hpp`'s struct member, `state.hpp`'s boot-pin line, and
+`world.wgsl`'s field declaration — the C++ and WGSL twins of one fact,
+both stale in the same way. All three amended. The dial itself enrolled in
+Wave 1 and needed nothing; Jean's eye holds the final word between 0.6 and
+1.0 now that both are one drag apart, which is the instrument finishing an
+argument two comments started.
+
+### What P5 did not touch
+
+The nine surviving DEFER rows keep their reasons and their owners, listed
+in this file's header. None is externally blocked; `docs/OPEN.md` carries
+no ORGAN line at all now that the beacon's is dead, which is the register's
+own law working — a line dies when its item closes.

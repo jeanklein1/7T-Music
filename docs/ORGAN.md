@@ -202,18 +202,43 @@ A definition answers a question, and which question is the KIND.
 mood, and the write's target selects which. `TIER` answers "what does
 this WORLD mean by its tiers" — one `AgentTierBank` (`TIER_LIVE`), so
 the target is ignored by design rather than by oversight.
-`definition_base` is the one place that mapping lives; a third family
+`BEHAVIOR` (ORGAN_3) answers "what does a behaviour DO" — one
+`AgentBehaviorBank`, target ignored, same as `TIER`. `ORB_MOOD`
+(ORGAN_3b) answers "what is this mood's sky" — one `OrbMoodConfig` per
+mood, so like `MOOD` and unlike the other two it is **mood-selected**
+and the write's target picks the row.
+`definition_base` is the one place that mapping lives; a further family
 costs an enum value and nothing else. The manifest's `def` column
 carries the kind, so the shell can key an export by it without
-learning any parameter's name.
+learning any parameter's name — and it must ask that question ONCE:
+`isWorldDef()` in the shell exists because a fourth kind is added in
+one place or forgotten in three.
 
 A DEFINITION-ONLY ENTRY is the case where a fact has a definition the
 panel may write and no instance the panel may address. Its block is
-the sentinel `ORGAN_BLOCK_NONE`, `block_base` answers null, and
+a sentinel, `block_base` answers null, and
 `organ_set` routes it straight to the definition path — preview is
 refused, because there is nothing a preview could show. Reading it
 reads the LIVE mood's definition, which is what the manifest's opening
 values show. `clear_color` is the case that asked for it.
+
+**ONE SENTINEL PER FAMILY, DERIVED FROM THE KIND.** The block/offset/type
+triple identifies an entry, so two def-only families sharing a sentinel
+collide the moment their offsets meet — which is exactly what happened at
+ORGAN_3b when `MoodProfile.clear_color` and `OrbMoodConfig.rotation_axis`
+both claimed `(255, 32, VEC3)`. `ORGAN_PARAM_DEFONLY` now pastes
+`ORGAN_DEFONLY_BLOCK_##DEFKIND`, so the sentinel follows from the kind and
+a new family cannot land on a used one without adding its own line.
+The convention descends: **255** MoodProfile, **254** OrbMoodConfig, a
+third family takes 253. `is_defonly()` answers for all of them.
+
+**THE DEFINITION PATH CONVERTS; IT NEVER REINTERPRETS.** ORGAN_1 refused
+`U32` and `BOOL` on the definition path, stating the reason as
+reinterpretation — writing a float's bits into an integer field. But
+`organ_set`'s instance path has *converted* since ORGAN_0, and conversion
+is not reinterpretation. ORGAN_3b taught both definition paths the same
+conversion; the rule that survives is **never reinterpret**, which is what
+was actually being defended.
 
 ## The write path
 A panel edit in preview mode writes the home struct member and marks
@@ -317,7 +342,10 @@ already waits. Such a bank's group banner says so — *"edits the next
 spawn"* — because a dial that edits the future must say it edits the
 future, or the operator reads a working panel as a broken one.
 
-Where one fact has both temperaments, the **stricter governs**.
+Where one fact has both temperaments, the **stricter governs** — a bank
+with one idempotent reader and one destructive reader gets no boundary
+wiring at all, because a re-speak that is safe for one and ruinous for
+the other is not safe.
 `INDOOR_HEIGHT_CAP_FRACTION` is the exemplar: one idempotent reader
 (`apply_mood_lighting`) and nine destructive ones (`cap_to_ceiling` at
 every spawn), so its bank has no boundary wiring at all.
@@ -357,25 +385,92 @@ it trusts its own file table (so it prints it); and it reports at the
 granularity the enrollment addresses, so a partly-enrolled nested
 aggregate reads as named.
 
-### The tally at close
-223 enrolled entries — 210 dials and 13 read-only witnesses — across
-eight sections and nine blocks.
+## Cadence (ORGAN_3b)
+> *A dial that edits the future must say so where the hand is.*
+> — Jean's first sweep, which found the one defect the disposition
+> inherited rather than created: a generational dial read as a dead dial,
+> because the panel did not yet say WHEN a stop sounds.
+
+Four cadences, answering *when does my edit land*:
+
+| cadence | chip | meaning |
+| --- | --- | --- |
+| `LIVE` | *(silent)* | the write is the change |
+| `GEN` | `on respawn` | the author's next natural event applies it — a spawn, a world init |
+| `BOUNDARY` | `boundary` | a re-speak at the frame boundary applies it; it lands within a frame |
+| `DRIVEN` | `driven` | a per-frame author writes this; the row is a meter, not a dial |
+
+**Only `GEN` is stored.** `derived_cadence()` answers the other three from
+facts the entry already carries — a witness is `DRIVEN`, a definition or a
+block with a boundary re-speak is `BOUNDARY`, everything else is `LIVE` or
+the stored `GEN`. A cadence column that could disagree with the ro flag or
+the def kind would be a fourth place to forget something; there are three
+already.
+
+The chip rides beside the contest marker, because the two answer the
+operator's two questions about one row: WHEN does my edit land, and DOES
+it still stand. `LIVE` is silent by design — the common case earns no ink.
+
+## Doors
+A door is the panel pressing **the program's own machinery**: it raises a
+flag the frame boundary already consumes, and adds no author the program
+did not have. That is the whole sovereignty argument applied to verbs
+rather than to values — the panel may ask the program to do a thing it
+already does, and may not do that thing itself.
+
+Door 0, **Re-speak definitions**, raises every definition flag at once, so
+an edit made while its bank was quiet lands on the click rather than on
+the next mood change. It writes no home and no dial; the harness proves
+both. Presses coalesce in a `uint32_t` bitmask, so a double-click is one
+raise, and the roster is read from the program (`organ_doors()`) rather
+than named in the shell — the shell stays name-blind about doors exactly
+as it is about dials.
+
+**Molt (door 1) is priced, not built.** `NEEDS_REGEN` re-runs the
+heightfield only; `request_recenter` re-evaluates the window only;
+`evict_patch` is a loop. The bill is the risk, not the lines: evicting the
+point's own patch, a budgeted respawn, and the free-layer stack. D3's
+threshold — one existing authored function plus ≤ ~20 lines of glue using
+deps the cartridge already holds — is not met, so it is recorded as a
+price.
+
+## Navigation (ORGAN_3b P4)
+263 rows are a library, not a page. The panel opens **collapsed**, as a
+table of contents. One filter field matches `id + label + group`
+lowercased — the three names a stop already answers to — hiding rows,
+then group headers with no visible row, then sections with none either;
+a filtered section's tally reads `hits/total`. The filter opens what it
+finds, but an auto-open is not a choice: only what the hand opened is
+remembered, and clearing the filter returns the desk to that. Session
+only, no storage.
+
+Each section header carries its own export — the same walk narrowed by a
+predicate, so witnesses stay skipped and the `world/` and `<mood>/` keying
+is identical. Import needed nothing: a partial file has always applied
+exactly what it carries. **A voice is a file.**
+
+## The tally at close
+263 enrolled entries — 250 dials and 13 read-only witnesses — across
+eight sections and ten blocks.
 
 | section | entries |
 | --- | --- |
 | Agents | 102 |
 | Terrain | 39 |
-| Interaction | 19 |
-| Atmosphere | 18 |
+| Sky & Light | 33 |
+| Ribbon | 25 |
+| Atmosphere | 22 |
+| Interaction | 20 |
 | Pawn | 18 |
-| Ribbon | 14 |
-| Sky & Light | 9 |
 | Debug | 4 |
 
-Definition kinds: 116 none, 5 MOOD, 32 TIER, 70 BEHAVIOR; two of them
-definition-only. Blocks 0-8: config, lighting, agent room, drivers, pawn
-aura, orb console, the panel, the ribbon, indoor — nine of the twelve the
-campaign set as its consolidation threshold.
+By cadence: 114 live, 2 gen, 134 boundary, 13 driven.
+
+Definition kinds: 132 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 24 ORB_MOOD;
+26 of them definition-only — 2 under sentinel 255 (MoodProfile) and 24
+under 254 (OrbMoodConfig). Blocks 0-9: config, lighting, agent room,
+drivers, pawn aura, orb console, the panel, the ribbon, indoor, canvas —
+ten of the twelve the campaign set as its consolidation threshold.
 
 
 ## ORGAN_2 — the close (the campaign minute)
