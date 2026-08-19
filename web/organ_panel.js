@@ -99,7 +99,10 @@
     '#organ button.on{background:#1d2a36;border-color:#5c93c4;color:#cfe0ef}' +
     '#organ .star{color:#5c93c4}' +
     '#organ .foot{margin-top:12px;padding-top:6px;border-top:1px solid #1d222a;color:#6b7480}' +
-    '#organ .bar{display:flex;gap:6px;margin-bottom:6px}';
+    '#organ .bar{display:flex;gap:6px;margin-bottom:6px}' +
+    '#organ .bar.doors{margin:-2px 0 8px;flex-wrap:wrap}' +
+    '#organ .bar.doors button{color:#9fb3c8;border-color:#2c3a46}' +
+    '#organ .bar.doors button:hover{border-color:#5c93c4;color:#cfe0ef}';
 
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
@@ -320,10 +323,33 @@
     bd.addEventListener('click', function () { setMode(true); });
     bp.addEventListener('click', function () { setMode(false); });
     setMode(true);
+    // ── ORGAN_3b — THE DOOR STRIP ────────────────────────────────────
+    // One button per door the build carries, read from the program rather
+    // than named here: the shell stays name-blind about doors exactly as
+    // it is about dials. No confirmation dialogs — the labels carry the
+    // warning, and this is an instrument for an operator, not a consumer
+    // UI. Presses coalesce in the C++ bitmask, so a double-click is one
+    // raise.
+    var doorRoster = [];
+    try { doorRoster = JSON.parse(C.doors()); } catch (e) { doorRoster = []; }
+
     var bx = document.createElement('button'); bx.textContent = 'export';
     var bi = document.createElement('button'); bi.textContent = 'import';
     bar.appendChild(bd); bar.appendChild(bp);
     bar.appendChild(bx); bar.appendChild(bi); root.appendChild(bar);
+
+    if (doorRoster.length) {
+      var doorBar = document.createElement('div'); doorBar.className = 'bar doors';
+      doorRoster.forEach(function (d) {
+        var b = document.createElement('button');
+        b.textContent = d.l;
+        b.title = 'a door presses the program\u2019s own frame boundary \u2014 ' +
+                  'it adds no author';
+        b.addEventListener('click', function () { C.door(d.i); });
+        doorBar.appendChild(b);
+      });
+      root.appendChild(doorBar);
+    }
 
     // ── ORGAN_3: the group string is a PATH ──────────────────────────
     // "Section · Group". The first token is the operator's VOICE and becomes
@@ -495,7 +521,9 @@
         contestFrames: M.cwrap('organ_contest_frames', 'number', ['number']),
         mood:          M.cwrap('organ_mood', 'number', []),
         defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number']),
-        get:           M.cwrap('organ_get', 'number', ['number','number','number'])
+        get:           M.cwrap('organ_get', 'number', ['number','number','number']),
+        doors:         M.cwrap('organ_doors', 'string', []),
+        door:          M.cwrap('organ_door', null, ['number'])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());

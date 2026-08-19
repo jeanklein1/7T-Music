@@ -570,6 +570,44 @@ inline bool take_definition_dirty(uint32_t& mood) {
     return true;
 }
 
+// ─── DOORS (ORGAN_3b) ─────────────────────────────────────────────────
+// A DOOR IS THE PANEL PRESSING THE PROGRAM'S OWN MACHINERY. It adds no
+// author, invents no behavior, and opens no write path the panel did not
+// already have: it raises flags the frame boundary already consumes, and
+// the boundary then does exactly what it does every frame. That is the
+// whole mechanism, and it is why doors do not violate the sovereignty
+// boundary — a door that DID something of its own would be a second
+// author wearing a button.
+//
+// The table below carries ids and labels ONLY. Behavior lives in the
+// cartridge, where the deps are; this file knows neither the mood state
+// nor the queue and must not learn them (the take_definition_dirty
+// precedent, ORGAN_1).
+enum : uint32_t {
+    ORGAN_DOOR_RESPEAK = 0,   // raise every definition flag at once
+    ORGAN_DOOR_COUNT   = 1,
+};
+
+struct OrganDoor { uint32_t id; const char* label; };
+
+inline constexpr OrganDoor kOrganDoors[] = {
+    { ORGAN_DOOR_RESPEAK, "Re-speak definitions" },
+};
+static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
+    "one row per door id — the manifest emits this table and the shell "
+    "renders one button per row, so a missing row is a missing button");
+
+// A BITMASK, so presses coalesce by construction: three clicks between
+// two frame boundaries are one raise, exactly as a slider drag is one
+// WriteBuffer. Same reconciliation philosophy as the flush itself.
+inline uint32_t g_doors_pending = 0;
+
+inline uint32_t take_doors_pending() {
+    const uint32_t m = g_doors_pending;
+    g_doors_pending = 0;
+    return m;
+}
+
 // The tier bank's re-apply, taken once by the frame boundary (the
 // cartridge, which owns the agents' deps and the queue — this file
 // knows neither).
@@ -620,6 +658,24 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
             json += buf;
         }
         json += "]}";
+    }
+    json.push_back(']');
+    return json.c_str();
+}
+
+// ORGAN_3b — the door roster, emitted separately so the dial manifest's
+// shape is untouched and a shell that predates doors keeps working.
+EMSCRIPTEN_KEEPALIVE inline const char* organ_doors(void) {
+    using namespace t7::organ;
+    static std::string json;
+    json.clear();
+    json.push_back('[');
+    char buf[256];
+    for (size_t i = 0; i < ORGAN_DOOR_COUNT; ++i) {
+        if (i) json.push_back(',');
+        std::snprintf(buf, sizeof buf, "{\"i\":%u,\"l\":\"%s\"}",
+                      kOrganDoors[i].id, kOrganDoors[i].label);
+        json += buf;
     }
     json.push_back(']');
     return json.c_str();
@@ -727,6 +783,15 @@ EMSCRIPTEN_KEEPALIVE inline int organ_contest_frames(int index) {
 // definition and to key an export, and it must not keep its own copy.
 EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
     return (int)t7::organ::current_mood();
+}
+
+// ORGAN_3b — press a door. Out-of-range ids are ignored rather than
+// counted as rejections: a rejection means the panel asked for something
+// the manifest forbids, and a door id the build does not carry is a stale
+// shell, not a refused write.
+EMSCRIPTEN_KEEPALIVE inline void organ_door(uint32_t id) {
+    using namespace t7::organ;
+    if (id < ORGAN_DOOR_COUNT) g_doors_pending |= (1u << id);
 }
 
 // O1b — one lane of one dial's DEFINITION for one mood. Zero for a dial

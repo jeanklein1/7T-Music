@@ -1395,6 +1395,29 @@ namespace t7 {
             // it — re-applying it now would paint this world with another
             // world's sun.
             void organ_flush(wgpu::Queue& queue) {
+                // ORGAN_3b — DOOR 0, Re-speak definitions. A door is the
+                // panel pressing the program's OWN boundary: it raises the
+                // definition flags the lines below already consume, and
+                // then those lines do exactly what they do every frame.
+                // Four boolean writes, no fan-calling code, no new author —
+                // which is the entire reason a door is lawful.
+                //
+                // WHY IT EARNS A BUTTON. A definition write is durable but
+                // NOT immediate: the mood's own apply produces the instance
+                // the next time it runs. Most of the time that is right —
+                // the panel is a view, not a second author. But an operator
+                // who has just edited a definition and wants to SEE it has,
+                // until now, had to leave the mood and come back. The door
+                // is that round trip, without the trip.
+                const uint32_t doors = t7::organ::take_doors_pending();
+                if (doors & (1u << t7::organ::ORGAN_DOOR_RESPEAK)) {
+                    t7::organ::g_def_dirty      = true;
+                    t7::organ::g_def_dirty_mood = mood_state_.active;
+                    t7::organ::g_tier_def_dirty = true;
+                    // ORGAN_3b P3 adds the orb definition flag here; the
+                    // commit that mints it closes this line.
+                }
+
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {

@@ -1012,3 +1012,54 @@ and flag exist, block 5's writes share the orb author's flag and
 `block_has_boundary` gains the block, making these three genuinely
 BOUNDARY. `block_has_boundary()` is already in place, returning false,
 so P3 is a one-line addition.
+
+## P1 — doors
+
+**Door 0, `Re-speak definitions` — BUILT.** The registry gains
+`g_doors_pending` (a bitmask, so presses coalesce by construction — three
+clicks between two boundaries are one raise, the same reconciliation
+philosophy as the flush itself), `organ_door(id)`, `take_doors_pending()`,
+a `kOrganDoors[]` roster of ids and labels only, and an `organ_doors()`
+ABI so the shell stays name-blind about doors exactly as it is about
+dials. The cartridge's `organ_flush` consumes the mask **before** the
+existing flag consumption and raises `g_def_dirty` (at the live mood) and
+`g_tier_def_dirty`. Nothing else. The lines below it then do what they
+already do every frame.
+
+Harness: unknown ids ignored without touching the reject counter (a
+rejection means the manifest forbade something; a stale shell is not
+that); three presses → one mask, taken once; **a door writes no home and
+no dial**; and the raise/consume pair transcribed, each flag taken exactly
+once.
+
+**Door 1, `Molt` — PRICED, NOT BUILT (D3).**
+
+| what exists | what it does | why it is not molt |
+| --- | --- | --- |
+| `request_recenter(WorldState&)` | sets `last_center_*` to `INT32_MAX`, so the next `stream_patches` takes the `fullRegen` path | re-evaluates the patch *window* and re-bootstraps the tile cache. Already-`GENERATED` patches stay generated; **no entity respawns** |
+| `mark_patches_for_regen(MachineCtx*, box, home)` | marks patches in a world box `NEEDS_REGEN` | `NEEDS_REGEN` feeds `generate_selected_patches` — the **heightfield** path. `spawn_selected_patches` is a different collector, so terrain regenerates and population does not |
+| `evict_patch(MachineCtx*, pi, queue)` + `evict_patch_entities` | drops one patch and its entities; streaming re-spawns later | the only real candidate, and it is a **loop**, not a call |
+
+So no single authored function applies a GEN dial. The build would be
+~15 lines — inside D3's line budget — and it is the **risk**, not the
+length, that makes this a price:
+
+- it would evict patches the point stands on or beside, while the pawn's
+  ground resolve reads that heightfield the same frame;
+- re-spawn is budgeted (`SPAWN_BUDGET_PER_FRAME`,
+  `patches_budget_this_frame`), so the world would visibly dissolve and
+  refill over many frames rather than molt;
+- a burst of `evict_patch` calls exercises the free-layer stack in a way
+  `reset_surface` — *"THE ONE SURFACE RESET"* — exists to do correctly,
+  and duplicating a fraction of it at the boundary is how a second author
+  gets born.
+
+**A near-miss worth naming:** a door calling `request_recenter` alone
+would be one line and honest about *something* — but labelling it "Molt
+(respawns nearby)" would be a lie, and a door whose label overstates it is
+worse than no door. If a future sitting wants it, the honest label is
+"Recenter (rebuild the patch window)" and it is a different door.
+
+What lifts the price: an authored *molt* verb owned by the surface —
+`reset_surface`'s sibling, scoped to a radius, respecting the home patch
+and the layer stack — at which point door 1 is one call.
