@@ -1414,8 +1414,7 @@ namespace t7 {
                     t7::organ::g_def_dirty      = true;
                     t7::organ::g_def_dirty_mood = mood_state_.active;
                     t7::organ::g_tier_def_dirty = true;
-                    // ORGAN_3b P3 adds the orb definition flag here; the
-                    // commit that mints it closes this line.
+                    t7::organ::g_orb_def_dirty  = true;
                 }
 
                 uint32_t def_mood = 0;
@@ -1430,6 +1429,18 @@ namespace t7 {
                 // above.
                 if (t7::organ::take_tier_definition_dirty()) {
                     upload_agent_registries_to_gpu(&agents_deps_, queue);
+                }
+                // ORGAN_3b P3 — the orb mood bank changed: its applier
+                // re-speaks, for the LIVE mood only. Same shape as the
+                // mood re-apply above and for the same reason — applying
+                // another mood's orb definition now would populate this
+                // sky from a world we are not in. The call mirrors the
+                // mood fan's own site (direction/mood.hpp) exactly; only
+                // the table it reads moved, from ORB_MOOD_TABLE to the
+                // bank. Once per frame however many edits arrived.
+                if (t7::organ::take_orb_definition_dirty()) {
+                    configure_orbs(orbs_state_, &orbs_deps_,
+                        ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue);
                 }
                 gpuState_.organ_flush(queue);
             }

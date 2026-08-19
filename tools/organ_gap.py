@@ -67,6 +67,7 @@ HOMES = {
     "MoodProfile":           "src/cartridges/the_board/contracts/spine_state.hpp",
     "PawnAuraProfile":       "src/cartridges/the_board/contracts/pawn_surface.hpp",
     "OrbConsole":            "src/cartridges/the_board/contracts/orb_surface.hpp",
+    "OrbMoodConfig":         "src/cartridges/the_board/contracts/orb_surface.hpp",
     "PanelSurface":          "src/cartridges/the_board/contracts/control_panel.hpp",
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
     "IndoorSurface":         "src/cartridges/the_board/contracts/indoor_module.hpp",

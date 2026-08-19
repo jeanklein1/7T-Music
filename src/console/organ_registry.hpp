@@ -127,7 +127,23 @@ enum : uint8_t {
 // the definition path — preview on it is refused, because there is
 // nothing a preview could show. Its `offset` carries def_offset so the
 // (block, offset, type) triple stays unique and the manifest round-trips.
-enum : uint8_t { ORGAN_BLOCK_NONE = 255 };
+// ORGAN_3b P3 — A SECOND DEFINITION-ONLY FAMILY, AND WHY IT NEEDS A
+// SECOND SENTINEL. An entry's identity is its (block, offset, type)
+// triple, and a definition-only entry's `offset` is its def_offset — an
+// offset into ITS OWN struct. Two families sharing block 255 would let
+// `offsetof(MoodProfile, clear_color)` and
+// `offsetof(OrbMoodConfig, something)` collide at the same number and
+// resolve to each other. One sentinel per family makes that impossible
+// by construction rather than by luck.
+//
+// The convention DESCENDS from 255: a third family takes 253. Descending
+// keeps the real block ids growing upward from 0 with the whole space
+// between them, and keeps `is_defonly` a small explicit list rather than
+// a range test that would silently swallow a future block 253.
+enum : uint8_t {
+    ORGAN_BLOCK_NONE     = 255,   // the_board::MoodProfile family (ORGAN_2b)
+    ORGAN_BLOCK_NONE_ORB = 254,   // the_board::OrbMoodConfig family (ORGAN_3b)
+};
 
 // ─── Definition targets (O1b) ─────────────────────────────────────────
 // Where a dial's DEFINITION lives, if it has one. An entry's home is its
@@ -137,11 +153,14 @@ enum : uint8_t { ORGAN_BLOCK_NONE = 255 };
 // panel edit outlives the author (docs/ORGAN.md, "Instance and
 // definition").
 //
-// FLOAT LANES ONLY. Every definition target is a run of floats in its
-// family's struct with the same lane count as the entry's type, because
-// that is the only shape these groups take. A U32 or BOOL entry with a
-// target would need a second conversion and gets refused at the write
-// rather than silently reinterpreted.
+// NEVER REINTERPRET (ORGAN_1, amended by ORGAN_3b). A float definition
+// target is a run of floats with the same lane count as the entry's type.
+// An integer target — U32 or BOOL — is CONVERTED, by the same rule
+// organ_set's instance path has used since ORGAN_0, and never has a
+// float's bit pattern written into it. ORGAN_1 refused integers here
+// because no definition target was one; ORGAN_3b's orb bank made that
+// false, and the rule that survived the change is the one about
+// reinterpreting, not the one about refusing.
 //
 // A KIND NAMES THE FAMILY, AND THE FAMILY ANSWERS ONE QUESTION (ORGAN_2b).
 // MOOD answers "what does this mood mean" — there is one profile per mood
@@ -165,6 +184,12 @@ enum : uint8_t {
                           //   author's: it raises the TIER flag rather than
                           //   keeping a second name for one occasion
                           //   (ORGAN_3 w3)
+    ORGAN_DEF_ORB_MOOD = 4,  // the_board::ORB_MOOD_LIVE[mood] — MOOD-SELECTED,
+                          //   like MOOD and unlike TIER/BEHAVIOR: there is a
+                          //   row per mood and the write's target picks it.
+                          //   Its applier is configure_orbs (bodies/orbs.hpp),
+                          //   reached from the mood fan; its own flag is
+                          //   g_orb_def_dirty (ORGAN_3b P3)
 };
 
 // ─── Cadence (ORGAN_3b) ───────────────────────────────────────────────
@@ -270,10 +295,20 @@ struct OrganParam {
 // always a definition, preview is refused, and the value shown is the live
 // mood's meaning. The offset column carries def_offset, which keeps the
 // (block, offset, type) triple unique inside the sentinel block.
+// THE SENTINEL IS DERIVED FROM THE KIND, not written at the call site.
+// A definition-only entry's `offset` is an offset into ITS OWN struct, so
+// two families in one sentinel block can collide at the same number — and
+// did, the moment ORGAN_3b P3 added the second: MoodProfile.clear_color
+// and OrbMoodConfig.rotation_axis both sat at (255, 32, VEC3) and
+// resolved to each other. One mapping line per family, here, makes that
+// impossible; a third family adds one #define and no call site changes.
+#define ORGAN_DEFONLY_BLOCK_MOOD     ORGAN_BLOCK_NONE
+#define ORGAN_DEFONLY_BLOCK_ORB_MOOD ORGAN_BLOCK_NONE_ORB
+
 #define ORGAN_PARAM_DEFONLY_NS(NS, TYPE, MIN, MAX, STEP, GROUP, LABEL,               \
                             DEFKIND, DEFSTRUCT, DEFFIELD)                     \
     OrganParam{ #DEFSTRUCT "." #DEFFIELD, LABEL, GROUP,                       \
-                ORGAN_BLOCK_NONE,                                             \
+                ORGAN_DEFONLY_BLOCK_##DEFKIND,                                \
                 (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_##DEFKIND,                                          \
@@ -323,6 +358,8 @@ inline const OrganParam kOrganParams[] = {
 #undef ORGAN_PARAM_GEN_NS
 #undef ORGAN_PARAM_DEF_NS
 #undef ORGAN_PARAM_DEFONLY_NS
+#undef ORGAN_DEFONLY_BLOCK_MOOD
+#undef ORGAN_DEFONLY_BLOCK_ORB_MOOD
 #undef ORGAN_PARAM_RO_NS
 
 inline constexpr size_t kOrganParamCount =
@@ -366,7 +403,7 @@ inline void* block_base(uint8_t block) {
 // second sentinel and a third family will take a third (the convention
 // descends from 255; see the block enum).
 inline bool is_defonly(uint8_t block) {
-    return block == ORGAN_BLOCK_NONE;
+    return block == ORGAN_BLOCK_NONE || block == ORGAN_BLOCK_NONE_ORB;
 }
 
 // ORGAN_3b — DOES A WRITE TO THIS BLOCK RAISE A RE-SPEAK FLAG? A bank
@@ -377,8 +414,12 @@ inline bool is_defonly(uint8_t block) {
 // are needed. ORGAN_3b P3 adds the orb console, whose author is
 // configure_orbs and whose re-speak the orb flag carries.
 inline bool block_has_boundary(uint8_t block) {
-    (void)block;
-    return false;
+    // The orb console's only reader is configure_orbs — the same author
+    // the orb MOOD bank has — so a write to block 5 raises that author's
+    // flag (see organ_set) and the boundary re-speaks it. Which makes the
+    // three console dials BOUNDARY cadence, not LIVE: before ORGAN_3b P3
+    // they read LIVE and the wait was real but unstated.
+    return block == ORGAN_BLOCK_ORBS;
 }
 
 // ORGAN_3b — THE ONE PLACE THE CADENCE RULE LIVES. The manifest emitter
@@ -540,6 +581,7 @@ inline int contest_class(size_t i) {
 inline bool     g_def_dirty = false;
 inline uint32_t g_def_dirty_mood = 0;
 inline bool     g_tier_def_dirty = false;   // ORGAN_2b — the world bank changed
+inline bool     g_orb_def_dirty  = false;   // ORGAN_3b — the orb mood bank changed
 
 // One base per definition family. MOOD selects by target; TIER is the
 // world's single bank and ignores it.
@@ -548,32 +590,54 @@ inline char* definition_base(const OrganParam& e, uint32_t mood) {
     case ORGAN_DEF_MOOD: return reinterpret_cast<char*>(&the_board::mood_def(mood));
     case ORGAN_DEF_TIER: return reinterpret_cast<char*>(&the_board::TIER_LIVE);
     case ORGAN_DEF_BEHAVIOR: return reinterpret_cast<char*>(&the_board::BEHAVIOR_LIVE);
+    case ORGAN_DEF_ORB_MOOD:
+        return reinterpret_cast<char*>(
+            &the_board::ORB_MOOD_LIVE[mood % the_board::MOOD_COUNT]);
     default:             return nullptr;
     }
 }
 
 inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in) {
     if (e.def_kind == ORGAN_DEF_NONE) return false;
-    // Float lanes only, by the rule at the enum: refuse rather than
-    // reinterpret. A refusal here falls back to the instance write, which
-    // is the honest behaviour — the edit still shows, it just will not last.
-    if (e.type == ORGAN_U32 || e.type == ORGAN_BOOL) return false;
 
     char* p = definition_base(e, mood);
     if (!p) return false;
     p += e.def_offset;
-    const int n = lanes_of(e.type);
-    for (int l = 0; l < n; ++l) {
-        float v = in[l];
-        if (v < e.minv) v = e.minv;
-        if (v > e.maxv) v = e.maxv;
-        std::memcpy(p + l * sizeof(float), &v, sizeof(float));
+
+    // ORGAN_3b P3 — A U32 OR BOOL DEFINITION CONVERTS; IT DOES NOT
+    // REINTERPRET. ORGAN_1 refused these outright, and the reason it gave
+    // was reinterpretation — writing a float's bit pattern into an integer
+    // field. That reason is sound and this is not that: it is the SAME
+    // conversion organ_set's instance path has done since ORGAN_0, applied
+    // on the definition side. The rule that survives is "never reinterpret";
+    // the rule that had to go was "therefore refuse", which was only ever
+    // true because no definition target had been an integer.
+    //
+    // The MOOD family is unaffected — every MoodProfile target is a float
+    // run. ORGAN_3b's orb bank is what needed it: `count`, `enabled` and
+    // the three id choices are the sky's most useful dials, and a panel
+    // that could not turn them would have been a panel with a hole in it.
+    if (e.type == ORGAN_U32 || e.type == ORGAN_BOOL) {
+        uint32_t v = (uint32_t)(in[0] < 0.0f ? 0.0f : in[0]);
+        std::memcpy(p, &v, sizeof(v));
+    } else {
+        const int n = lanes_of(e.type);
+        for (int l = 0; l < n; ++l) {
+            float f = in[l];
+            if (f < e.minv) f = e.minv;
+            if (f > e.maxv) f = e.maxv;
+            std::memcpy(p + l * sizeof(float), &f, sizeof(float));
+        }
     }
     // TIER and BEHAVIOR share one author — upload_agent_registries_to_gpu
     // reads both banks — so they share one flag and one boundary re-speak.
     // A second flag would be a second name for one occasion.
     if (e.def_kind == ORGAN_DEF_TIER || e.def_kind == ORGAN_DEF_BEHAVIOR) {
         g_tier_def_dirty = true;
+    } else if (e.def_kind == ORGAN_DEF_ORB_MOOD) {
+        // Its own author, so its own flag — the converse of BEHAVIOR's
+        // case, and the same rule: the flag names the occasion.
+        g_orb_def_dirty = true;
     } else {
         g_def_dirty = true; g_def_dirty_mood = mood;
     }
@@ -586,6 +650,13 @@ inline float read_definition(const OrganParam& e, uint32_t mood, int lane) {
     const char* p = definition_base(e, mood);
     if (!p) return 0.0f;
     p += e.def_offset;
+    // The read mirrors the write, and read_lane's instance branch, exactly:
+    // an integer definition is CONVERTED back, never reinterpreted.
+    if (e.type == ORGAN_U32 || e.type == ORGAN_BOOL) {
+        uint32_t u = 0;
+        std::memcpy(&u, p, sizeof(u));
+        return static_cast<float>(u);
+    }
     float v = 0.0f;
     std::memcpy(&v, p + lane * sizeof(float), sizeof(float));
     return v;
@@ -644,6 +715,15 @@ inline uint32_t take_doors_pending() {
 inline bool take_tier_definition_dirty() {
     if (!g_tier_def_dirty) return false;
     g_tier_def_dirty = false;
+    return true;
+}
+
+// ORGAN_3b — the orb mood bank's re-apply, taken once by the frame
+// boundary. Its applier is configure_orbs, which the cartridge can reach
+// and this file cannot.
+inline bool take_orb_definition_dirty() {
+    if (!g_orb_def_dirty) return false;
+    g_orb_def_dirty = false;
     return true;
 }
 
@@ -762,6 +842,12 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
         }
     }
     g_home->organ_mark_dirty((uint32_t)block);
+    // ORGAN_3b P3 — A BLOCK WITH A BOUNDARY RAISES ITS AUTHOR'S FLAG.
+    // The orb console's only reader is configure_orbs, which is also the
+    // orb mood bank's applier — one author, so one flag, the same rule
+    // BEHAVIOR follows against TIER. Without this the three console dials
+    // would wait for a mood change with nothing on the panel saying so.
+    if (block_has_boundary((uint8_t)block)) g_orb_def_dirty = true;
     note_write(*e);   // O1a — the shadow, read back from the home
 }
 

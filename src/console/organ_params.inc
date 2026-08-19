@@ -135,6 +135,52 @@ ORGAN_PARAM(ORBS, OrbConsole, dome_radius, F32, 0.0f, 2000.0f, 5.0f,   "Sky & Li
 ORGAN_PARAM(ORBS, OrbConsole, base_size,   F32, 0.0f, 12.0f,   0.05f,  "Sky & Light · Dome", "base size")
 ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 1.0f,    0.005f, "Sky & Light · Dome", "noise floor")
 
+// ─── Sky & Light · Orb mood / Orb flock ─────────────────────────
+// ORGAN_3b P3 (C3, kind ORB_MOOD). ORB_MOOD_LIVE
+// (contracts/orb_surface.hpp), block sentinel 254 — DEFINITION-ONLY,
+// because configure_orbs consumes the config into GPU state and there is
+// no instance the panel may address.
+//
+// MOOD-SELECTED, like MoodProfile and unlike TIER/BEHAVIOR: there is a
+// row per mood, the write's target picks it, and the panel shows the LIVE
+// mood's. The boundary re-speaks configure_orbs for the live mood only —
+// applying another mood's sky now would populate this world from one we
+// are not in, the same rule apply_mood_lighting already follows.
+//
+// A SECOND SENTINEL, NOT A SHARED ONE. This family's `offset` is an
+// offset into OrbMoodConfig; MoodProfile's family uses 255 and offsets
+// into MoodProfile. Sharing one sentinel would let two different structs'
+// offsets collide at the same number and resolve to each other.
+//
+// `count`'s max is 256 — Dim::MAX_ORBS, which the config's own comment
+// names as its clamp. `tierset_id` is NOT here: its "none" value is
+// 0xFFFFFFFF and a 0…1 slider cannot express a sentinel without lying
+// (D1(d)), which the ledger recorded at ORGAN_3 and P3 does not overturn.
+ORGAN_PARAM_DEFONLY(BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orb mood", "enabled", ORB_MOOD, OrbMoodConfig, enabled)
+ORGAN_PARAM_DEFONLY(U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orb mood", "count", ORB_MOOD, OrbMoodConfig, count)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orb mood", "base hue", ORB_MOOD, OrbMoodConfig, base_hue)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orb mood", "hue variance", ORB_MOOD, OrbMoodConfig, hue_variance)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orb mood", "brightness", ORB_MOOD, OrbMoodConfig, brightness)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orb mood", "hue converge target", ORB_MOOD, OrbMoodConfig, hue_converge_target)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   2.0f,     0.01f,   "Sky & Light · Orb mood", "drag", ORB_MOOD, OrbMoodConfig, drag)
+ORGAN_PARAM_DEFONLY(U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orb mood", "rule (0B 1O 2F 3K)", ORB_MOOD, OrbMoodConfig, motion_rule)
+ORGAN_PARAM_DEFONLY(F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Orb mood", "rotation speed (rad/s)", ORB_MOOD, OrbMoodConfig, rotation_speed)
+ORGAN_PARAM_DEFONLY(VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Orb mood", "rotation axis", ORB_MOOD, OrbMoodConfig, rotation_axis)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orb mood", "orbital speed (rad/s)", ORB_MOOD, OrbMoodConfig, orbital_base_speed)
+ORGAN_PARAM_DEFONLY(U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orb mood", "palette id", ORB_MOOD, OrbMoodConfig, palette_id)
+ORGAN_PARAM_DEFONLY(U32,  0.0f,   7.0f,     1.0f,    "Sky & Light · Orb mood", "flock gesture seed", ORB_MOOD, OrbMoodConfig, flock_gesture_default)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   200.0f,   1.0f,    "Sky & Light · Orb flock", "separation radius", ORB_MOOD, OrbMoodConfig, flock_sep_radius)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   480.0f,   2.0f,    "Sky & Light · Orb flock", "alignment radius", ORB_MOOD, OrbMoodConfig, flock_align_radius)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   800.0f,   4.0f,    "Sky & Light · Orb flock", "cohesion radius", ORB_MOOD, OrbMoodConfig, flock_coh_radius)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   120.0f,   0.5f,    "Sky & Light · Orb flock", "separation weight", ORB_MOOD, OrbMoodConfig, flock_sep_weight)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   32.0f,    0.2f,    "Sky & Light · Orb flock", "alignment weight", ORB_MOOD, OrbMoodConfig, flock_align_weight)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   60.0f,    0.25f,   "Sky & Light · Orb flock", "cohesion weight", ORB_MOOD, OrbMoodConfig, flock_coh_weight)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   240.0f,   1.0f,    "Sky & Light · Orb flock", "max speed", ORB_MOOD, OrbMoodConfig, flock_max_speed)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × brownian", ORB_MOOD, OrbMoodConfig, rule_drag_brownian)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × orbital", ORB_MOOD, OrbMoodConfig, rule_drag_orbital)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × frozen", ORB_MOOD, OrbMoodConfig, rule_drag_frozen)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × flocking", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
+
 // ─── FOG (the drivers' room + its witnesses) ─────────────────────────
 // ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
 // coupling through set_fog every frame — so the dials sit on the

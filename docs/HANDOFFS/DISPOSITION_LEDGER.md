@@ -779,9 +779,12 @@ forgotten at three.
 
 ## Wave 3's DEFERRALS
 
+**One row died here.** `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` was deferred
+because the boundary was a guess; ORGAN_3b P3 read the module and landed
+it. What remains:
+
 | what | why |
 | --- | --- |
-| `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (kind `ORB_MOOD`, ~22 definition-only lines) | The bank and kind are straightforward; the **boundary is not**. `configure_orbs` is called from inside `apply_mood`, so the re-speak must re-enter the mood applier's orb fan alone — not `apply_mood` whole, which would re-run the lighting, the shell and the spawn policy. That is a surgical edit to `direction/mood.hpp` that wants the module read whole first, and D4 is explicit: *never wire a boundary re-speak on a guess.* Anatomy recorded above; the next sitting starts from it. |
 | the remaining destructive banks — `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE`, `SCHEME_WEIGHTS`, `PORTAL_COLORS`, ribbon's spawn rolls and colour vocabulary, the floater tier weights | Each is a small bank with a banner and no wiring — mechanical, and the pattern is now proven by `INDOOR_LIVE`. Deferred as bulk, not as difficulty. |
 
 ---
@@ -1112,3 +1115,90 @@ has ten (`_GEN`, and an `_NS` twin for each). Taught it both by reading
 the suffix and shifting indices by one, rather than carrying a second
 table. Back to 33 absent, with `CanvasSurface` and `IndoorSurface` fully
 named.
+
+## P3 — the orb mood bank, and a second sentinel
+
+**262 entries.** The Wave-3 deferral said the bank and the kind were
+straightforward and the boundary was not. That reading held: the bank and
+the kind cost the pattern already proven twice, and the boundary cost a
+whole read of `direction/mood.hpp` before a single line moved.
+
+`OrbMoodConfig`, `ORB_MOOD_TABLE` and the id constants its default
+initialisers name move to `contracts/orb_surface.hpp` — the agent_tiers
+precedent, for the same reason: the organ must name the definition and
+**the organ may not include a body**. `bodies/orbs.hpp` keeps its
+registries, its gestures and its impl, and already included the contract.
+
+### The boundary, read rather than guessed
+
+`configure_orbs` is called from inside `apply_mood` at one site. The
+re-speak re-enters **that call alone** — not `apply_mood` whole, which
+would re-run the lighting, the shell and the spawn policy on every orb
+edit. The applier site now reads `ORB_MOOD_LIVE[mood]` instead of
+`ORB_MOOD_TABLE[mood]`, so a mood change and a dial edit reach the orbs
+through the same door; the boundary in `organ_flush` passes
+`ORB_MOOD_LIVE[active]`, the **live** mood only, for the reason the mood
+re-apply already states — populating this sky from a world we are not in
+is not a preview, it is a wrong answer.
+
+`configure_orbs` is idempotent (it rebuilds the population from the
+config), so the temperament law grants it the frame-boundary re-speak.
+Door 0 now raises three families.
+
+### A kind that is mood-selected, and the collision D4 predicted
+
+`ORGAN_DEF_ORB_MOOD = 4` is the **second** mood-selected kind: like
+`MOOD` and unlike `TIER`/`BEHAVIOR`, its bank has a row per mood and the
+write's target picks it. It carries its own flag, because its author is
+`configure_orbs` and not `upload_agent_registries_to_gpu` — a kind shares
+a flag when it shares an author, and these do not.
+
+Its 24 lines are definition-only: `configure_orbs` consumes the config
+into GPU buffers, so there is no instance the panel may address.
+`ORGAN_PARAM_DEFONLY` hard-coded `ORGAN_BLOCK_NONE`, so both def-only
+families landed at 255 and `MoodProfile.clear_color` collided with
+`OrbMoodConfig.rotation_axis` at `(255, 32, VEC3)` — **the same triple**,
+which `find_entry` resolves by first match. D4 anticipated exactly this;
+the macro realised it. Fixed at the macro rather than at the call sites:
+
+    #define ORGAN_DEFONLY_BLOCK_MOOD     ORGAN_BLOCK_NONE
+    #define ORGAN_DEFONLY_BLOCK_ORB_MOOD ORGAN_BLOCK_NONE_ORB
+
+pasted as `ORGAN_DEFONLY_BLOCK_##DEFKIND`, so **the sentinel is derived
+from the kind** and a third def-only family cannot land on a used one
+without adding its own line. `is_defonly()` answers for both, and
+`def_test` now proves the mapping across all 262 entries as well as the
+no-duplicate-triple law that first caught it.
+
+### An ORGAN_1 rule amended, not broken
+
+`write_definition` and `read_definition` refused `U32` and `BOOL`, so the
+orb `count`, `motion_rule`, `palette_id`, `flock_gesture_default` and
+`enabled` writes were silently rejected. ORGAN_1's stated reason was
+**reinterpretation** — writing a float's bits into an integer field. But
+`organ_set`'s instance path has *converted* since ORGAN_0, and conversion
+is not reinterpretation. Both definition paths were taught the same
+conversion the instance path already uses, and the enum banner's
+"FLOAT LANES ONLY" became **"NEVER REINTERPRET"** — the rule that
+survives is the one that was actually being defended.
+
+`enabled` widens from C++ `bool` to `uint32_t` by D2: the ABI's BOOL
+write is four bytes, a `bool` is one, and this struct has no GPU mirror,
+so the widen is lawful and the table's `true`/`false` rows initialise a
+`u32` unchanged. The aura-intent precedent, applied without argument.
+
+`tierset_id` stays deferred, and for the reason §4.3 already gave: its
+"none" value is `0xFFFFFFFF`, and a 0…1 slider cannot express a sentinel
+without lying (D1(d)). The gap tool reports it, by name, as the one
+absent member of `OrbMoodConfig`.
+
+### The tally at P3
+
+| | |
+| --- | --- |
+| entries | **262** |
+| by section | Sky & Light 33 · Atmosphere 22 · Terrain 39 · Pawn 18 · Ribbon 25 · Agents 102 · Interaction 19 · Debug 4 |
+| by cadence | live 113 · gen 2 · boundary 134 · driven 13 |
+| definition kinds | NONE 131 · MOOD 5 · TIER 32 · BEHAVIOR 70 · ORB_MOOD 24 |
+| definition-only | 255 → 2 (MoodProfile) · 254 → 24 (OrbMoodConfig) |
+| blocks used | 0…9 of twelve |

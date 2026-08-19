@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT — sizes ORB_MOOD_TABLE / ORB_MOOD_LIVE
 
 // ─── contracts/orb_surface.hpp ─────────────────────────────────────
 //
@@ -47,6 +48,108 @@ inline OrbConsole ORB_CONSOLE_LIVE = ORB_CONSOLE;
 static_assert(sizeof(OrbConsole) == 3 * sizeof(float),
     "ORB_CONSOLE_LIVE is a whole-struct copy of the design row: a field "
     "added to one is added to the other by construction");
+
+
+// ═══ THE ORB MOOD VOCABULARY, GRADUATED (ORGAN_3b P3) ═════════════
+// The agent_tiers precedent, for the same reason stated the same way:
+// the organ needs to name the definition, and THE ORGAN MAY NOT INCLUDE
+// A BODY. So OrbMoodConfig, its table, and the id constants its default
+// initialisers name move here; bodies/orbs.hpp keeps its registries, its
+// gestures and its impl, and includes this header as it already did.
+//
+// ORB_MOOD_TABLE is the DESIGN — the authored rows, two jobs only:
+// seeding ORB_MOOD_LIVE and standing under its assert. ORB_MOOD_LIVE is
+// the world's per-mood definition, and it is MOOD-SELECTED: unlike TIER
+// and BEHAVIOR, which are one bank the target ignores, this one has a row
+// per mood exactly as MoodProfile does, and the write's target picks it.
+//
+// The rows are POSITIONAL in mood-id order and carry no id field, so they
+// move with the ids or not at all — the MOOD_TABLE pattern, kept.
+
+// ── Rule-critical parameter floors ───────────────────────────────
+inline constexpr float ORB_DEFAULT_DRAG = 0.5f;
+inline constexpr float ORB_DEFAULT_ORBITAL_SPEED = 0.15f;
+inline constexpr float ORB_DEFAULT_FLOCK_SEP_R = 50.0f;
+inline constexpr float ORB_DEFAULT_FLOCK_ALIGN_R = 120.0f;
+inline constexpr float ORB_DEFAULT_FLOCK_COH_R = 200.0f;
+inline constexpr float ORB_DEFAULT_FLOCK_SEP_W = 30.0f;
+inline constexpr float ORB_DEFAULT_FLOCK_ALIGN_W = 8.0f;
+inline constexpr float ORB_DEFAULT_FLOCK_COH_W = 15.0f;
+inline constexpr float ORB_DEFAULT_FLOCK_MAX_SPEED = 60.0f;
+
+inline constexpr uint32_t ORB_PAL_JWST_DEEP = 0;
+inline constexpr uint32_t ORB_PAL_PILLARS = 1;
+inline constexpr uint32_t ORB_PAL_CARINA = 2;
+inline constexpr uint32_t ORB_PAL_WARM_MONO = 3;
+inline constexpr uint32_t ORB_PAL_COUNT = 4;
+
+inline constexpr uint32_t ORB_TIERSET_JWST = 0;
+inline constexpr uint32_t ORB_TIERSET_RES = 1;
+inline constexpr uint32_t ORB_TIERSET_COUNT = 2;
+inline constexpr uint32_t ORB_TIERSET_NONE = 0xFFFFFFFFu;  // → uniform population
+
+struct OrbMoodConfig {
+    // Population
+    uint32_t enabled = 0u;     // ORGAN_3b P3 (D2): widened from C++ bool.
+                               // A bool is one byte and the ABI's BOOL write
+                               // is four; this struct has NO GPU mirror, so
+                               // the widen is lawful and the table's `true`
+                               // / `false` rows initialise a u32 unchanged.
+    uint32_t count = 0;        // clamped to Dim::MAX_ORBS
+    // Color (legacy — superseded by palette_id when a palette is set)
+    float    base_hue = 0.08f;
+    float    hue_variance = 0.05f;
+    float    brightness = 0.8f;     // value center; palette spreads around it
+    // Motion
+    float    drag = ORB_DEFAULT_DRAG;
+    uint32_t motion_rule = 0;                       // 0=Brownian 1=Orbital 2=Frozen 3=Flocking
+    float    rotation_speed = 0.0f;                   // rad/s
+    float    rotation_axis[3] = { 0.0f, 1.0f, 0.0f };   // normalized in configure_orbs
+    float    orbital_base_speed = 0.0f;               // rad/s, rule 1 only
+    // Color palette
+    uint32_t palette_id = ORB_PAL_JWST_DEEP;
+    float    hue_converge_target = 0.12f;
+    // Population variety (ORB_TIERSET_NONE = uniform population)
+    uint32_t tierset_id = ORB_TIERSET_NONE;
+    // Flocking (used when motion_rule == 3)
+    float    flock_sep_radius = 50.0f;
+    float    flock_align_radius = 120.0f;
+    float    flock_coh_radius = 200.0f;
+    float    flock_sep_weight = 30.0f;
+    float    flock_align_weight = 8.0f;
+    float    flock_coh_weight = 15.0f;
+    float    flock_max_speed = 60.0f;
+    // Flock gesture seed (player cycle persists across transitions)
+    uint32_t flock_gesture_default = 0u;
+    // Per-rule drag multipliers (0 = pass-through, 1.0×)
+    float    rule_drag_brownian = 0.0f;
+    float    rule_drag_orbital = 0.0f;
+    float    rule_drag_frozen = 0.0f;
+    float    rule_drag_flocking = 0.0f;
+};
+
+// ─── Orb Mood Table ─────────────────────────────────────────────
+//
+// Rows are POSITIONAL in mood-id order (the MOOD_TABLE pattern) and
+//   carry no id field, so they move with the ids or not at all.
+//
+//                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
+inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
+    /* 0 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 1 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 2 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 3 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+};
+
+// The live surface — the panel's definition bank. Seeded row by row, so
+// behavior is byte-stable at boot and every row below is the one the
+// module carried before this commit.
+inline OrbMoodConfig ORB_MOOD_LIVE[MOOD_COUNT] = {
+    ORB_MOOD_TABLE[0], ORB_MOOD_TABLE[1], ORB_MOOD_TABLE[2], ORB_MOOD_TABLE[3],
+};
+static_assert(MOOD_COUNT == 4,
+    "ORB_MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
+    "a new mood needs its row here as well as in ORB_MOOD_TABLE");
 
 } // namespace the_board
 } // namespace t7

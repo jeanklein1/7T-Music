@@ -691,7 +691,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
         apply_mood_indoor_shell(c, m, queue, gallery_state, gallery_deps);  // shell + camera ceiling clamp
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
-        configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_TABLE[mood], queue);
+        configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_LIVE[mood], queue);   // ORGAN_3b P3 — the world's definition, not the design table
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
