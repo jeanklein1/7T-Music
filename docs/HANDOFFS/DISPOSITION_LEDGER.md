@@ -1202,3 +1202,35 @@ absent member of `OrbMoodConfig`.
 | definition kinds | NONE 131 · MOOD 5 · TIER 32 · BEHAVIOR 70 · ORB_MOOD 24 |
 | definition-only | 255 → 2 (MoodProfile) · 254 → 24 (OrbMoodConfig) |
 | blocks used | 0…9 of twelve |
+
+## P4 — shell navigation
+
+262 rows are a library, not a page. Three additions, no fourth.
+
+**The filter** matches `id + label + group` lowercased — the three names a
+stop already answers to, so the operator reaches it by whichever one they
+remember. A row hides by hiding the elements it built (a VEC3 is a header
+plus one line per lane, which is why `finish()` now carries the row's
+nodes rather than the shell guessing at the DOM's shape); a group header
+hides when it has no visible row; a section hides when it has none either.
+While filtering, a section's tally reads `hits/total`, so a word's reach
+across a voice is legible without opening it.
+
+**Collapsed by default, with the hand's choice kept.** The panel opens as
+a table of contents. The filter opens what it finds — but an auto-open is
+not a choice, so it is not recorded: `openMap` holds only what the
+operator opened by hand, and clearing the filter returns the desk to that.
+Session-only, no storage; the artifact rule and the instrument's
+ephemerality agree here.
+
+**Per-section export** — one affordance on each section header, the same
+export walk narrowed by a predicate. Witnesses stay skipped, `world/` and
+`<mood>/` keying is unchanged, and import needed nothing at all: a partial
+file has always applied exactly what it carries. *A voice is a file.*
+
+Harness: 8 sections all closed at boot · `fog` narrows 262 → 6 and the
+count agrees with the manifest's own substring test · 7 sections hide,
+Atmosphere opens and reads `6/22` · clearing restores 262 and gives back
+the one section the hand had opened · `Sky & Light` exports 32 keys —
+its non-witness rows, keyed exactly as the whole-panel export keys them —
+to `organ-sky-light.json`, without toggling its own section.

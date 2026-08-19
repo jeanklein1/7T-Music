@@ -102,7 +102,16 @@
     '#organ .bar{display:flex;gap:6px;margin-bottom:6px}' +
     '#organ .bar.doors{margin:-2px 0 8px;flex-wrap:wrap}' +
     '#organ .bar.doors button{color:#9fb3c8;border-color:#2c3a46}' +
-    '#organ .bar.doors button:hover{border-color:#5c93c4;color:#cfe0ef}';
+    '#organ .bar.doors button:hover{border-color:#5c93c4;color:#cfe0ef}' +
+    // ORGAN_3b P4 — NAVIGATION. A filter field and a per-section export
+    // affordance; nothing else, because a dev instrument that grows a
+    // chrome grows a maintenance bill the artwork never asked for.
+    '#organ .find{display:block;width:100%;box-sizing:border-box;margin:0 0 6px;' +
+    'background:#14181d;color:#c8ccd2;border:1px solid #262b33;font:inherit;padding:3px 5px}' +
+    '#organ .find:focus{outline:none;border-color:#5c93c4}' +
+    '#organ details.sec>summary .sx{float:right;background:none;border:0;color:#4f5761;' +
+    'font:inherit;padding:0 2px;cursor:pointer;letter-spacing:0}' +
+    '#organ details.sec>summary .sx:hover{color:#5c93c4}';
 
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
@@ -170,7 +179,11 @@
   // Every row is built the same way at the end: show() moves the widgets,
   // apply() moves them and writes wherever the mode points, setDef() writes
   // one named mood's definition and only shows it when that mood is live.
-  function finish(r) {
+  // ORGAN_3b P4 — `nodes` is every element this row put in the section body
+  // (a VEC3 is a header plus one line per lane), so the filter hides a row
+  // by hiding what it built rather than by guessing at the DOM's shape.
+  function finish(r, nodes) {
+    r.nodes = nodes || [];
     r.apply = function (nv) { r.show(nv); push(r.p, nv); };
     r.setDef = function (mood, nv) {
       pushDef(r.p, nv, mood);
@@ -181,6 +194,8 @@
 
   function buildRow(p, host) {
     var n = lanes(p.type), v = p.v.slice();
+    var nodes = [];
+    var add = function (el) { nodes.push(el); host.appendChild(el); return el; };
     var row = document.createElement('div'); row.className = 'row';
     var lbl = document.createElement('span'); lbl.className = 'lbl';
     lbl.textContent = p.label; lbl.title = p.id;
@@ -220,10 +235,10 @@
       var meter = document.createElement('span'); meter.className = 'ro';
       row.appendChild(meter); row.appendChild(mk);
       if (cad) row.appendChild(cad);
-      host.appendChild(row);
+      add(row);
       return finish({ p: p, mk: mk, ro: meter,
                show: function (nv) { v = nv.slice(); },
-               read: function () { return v; } });
+               read: function () { return v; } }, nodes);
     }
 
     if (p.type === BOOL) {
@@ -232,10 +247,10 @@
       cb.addEventListener('input', function () { v[0] = cb.checked ? 1 : 0; push(p, v); });
       row.appendChild(cb); row.appendChild(mk);
       if (cad) row.appendChild(cad);
-      host.appendChild(row);
+      add(row);
       return finish({ p: p, mk: mk,
                show: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; },
-               read: function () { return v; } });
+               read: function () { return v; } }, nodes);
     }
 
     if (n > 1) {
@@ -254,7 +269,7 @@
       }
       row.appendChild(mk);
       if (cad) row.appendChild(cad);
-      host.appendChild(row);
+      add(row);
       var sliders = [];
       for (var i = 0; i < n; i++) (function (li) {
         var r2 = document.createElement('div'); r2.className = 'row sub';
@@ -270,7 +285,7 @@
         };
         s.addEventListener('input', on(s));
         num.addEventListener('input', on(num));
-        r2.appendChild(s); r2.appendChild(num); host.appendChild(r2);
+        r2.appendChild(s); r2.appendChild(num); add(r2);
         sliders.push({ s: s, num: num });
       })(i);
       var sync = function () {
@@ -279,7 +294,7 @@
       };
       return finish({ p: p, mk: mk,
                show: function (nv) { v = nv.slice(); sync(); },
-               read: function () { return v; } });
+               read: function () { return v; } }, nodes);
     }
 
     var sl = document.createElement('input'); sl.type = 'range';
@@ -296,10 +311,10 @@
     nm.addEventListener('input', set(nm));
     row.appendChild(sl); row.appendChild(nm); row.appendChild(mk);
     if (cad) row.appendChild(cad);
-    host.appendChild(row);
+    add(row);
     return finish({ p: p, mk: mk,
              show: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; },
-             read: function () { return v; } });
+             read: function () { return v; } }, nodes);
   }
 
   function build(manifest) {
@@ -351,6 +366,16 @@
       root.appendChild(doorBar);
     }
 
+    // ── ORGAN_3b P4a — THE FILTER ────────────────────────────────────
+    // 262 rows are a library, not a page. One field, matched against
+    // id + label + group lowercased, so the operator can reach a stop by
+    // any of the three names it already has. No debounce: this is a dev
+    // instrument and a keystroke's worth of work is 262 substring tests.
+    var find = document.createElement('input');
+    find.type = 'text'; find.className = 'find';
+    find.placeholder = 'filter \u2014 id, label or section';
+    root.appendChild(find);
+
     // ── ORGAN_3: the group string is a PATH ──────────────────────────
     // "Section · Group". The first token is the operator's VOICE and becomes
     // a collapsible block; the remainder is the group header inside it, as
@@ -358,29 +383,97 @@
     // stays name-blind either way, and Jean renames by editing group strings.
     // Two levels, never three: only the FIRST separator splits.
     var group = null, section = null, host = root, count = 0, tally = null;
+    var secs = [], cur = null, curGroup = null;
+    var filtering = false;    // true while a needle is in the field
+    var openMap = {};         // section name -> the operator's own choice
     manifest.forEach(function (p, i) {
       p.i = i;   // the manifest is emitted in registry order: index IS the key
       var cut = p.group.indexOf(SEP);
       var sec = cut < 0 ? p.group : p.group.slice(0, cut);
       var grp = cut < 0 ? null    : p.group.slice(cut + SEP.length);
       if (sec !== section) {
-        section = sec; group = null;
+        section = sec; group = null; curGroup = null;
         var det = document.createElement('details'); det.className = 'sec';
+        det.open = false;      // ORGAN_3b P4b — the panel opens as a table of
+                               // contents; the filter and the hand open it
         var sum = document.createElement('summary'); sum.textContent = sec;
         tally = document.createElement('span'); tally.className = 'n';
         count = 0; sum.appendChild(tally);
+        // ORGAN_3b P4c — a voice is a file. The section's own export writes
+        // only its rows; import needs nothing new, because a partial file
+        // has always applied exactly what it carries.
+        var sx = document.createElement('button'); sx.className = 'sx';
+        sx.textContent = '\u2913';
+        sx.title = 'export this section alone \u2014 imports back as what it carries';
+        (function (name) {
+          sx.addEventListener('click', function (e) {
+            if (e && e.preventDefault) e.preventDefault();
+            if (e && e.stopPropagation) e.stopPropagation();
+            download(collect(function (r) { return r.sec.name === name; }),
+                     'organ-' + slug(name) + '.json');
+          });
+        })(sec);
+        sum.appendChild(sx);
         det.appendChild(sum);
         host = document.createElement('div'); host.className = 'body';
         det.appendChild(host); root.appendChild(det);
+        cur = { name: sec, det: det, tally: tally, rows: [], groups: [] };
+        secs.push(cur);
+        // ORGAN_3b P4b — the operator's own choice, remembered for the
+        // session only. The filter opens what it finds; when the filter
+        // clears, this map is what the panel goes back to, so a search
+        // never silently rearranges the desk.
+        (function (s2, d2) {
+          d2.addEventListener('toggle', function () {
+            if (!filtering) openMap[s2] = !!d2.open;
+          });
+        })(sec, det);
       }
       count++; tally.textContent = '  ' + count;
       if (grp !== null && grp !== group) {
         group = grp;
         var h2 = document.createElement('h2'); h2.textContent = grp;
         host.appendChild(h2);
+        curGroup = { h2: h2, rows: [] };
+        cur.groups.push(curGroup);
       }
-      rows.push(buildRow(p, host));
+      var r = buildRow(p, host);
+      // The haystack is the three names a stop already answers to.
+      r.hay = (p.id + ' ' + p.label + ' ' + p.group).toLowerCase();
+      r.sec = cur; r.on = true;
+      cur.rows.push(r);
+      if (curGroup) curGroup.rows.push(r);
+      rows.push(r);
     });
+
+    // ── ORGAN_3b P4a/P4b — the filter, applied ───────────────────────
+    // A row hides when its haystack lacks the needle; a group header hides
+    // when it has no visible row; a section hides when it has none either.
+    // The section tally reads `hits/total` while filtering, so the operator
+    // can see how much of a voice a word touches without opening it.
+    function vis(node, on) { node.style.display = on ? '' : 'none'; }
+    function applyFilter() {
+      var q = (find.value || '').toLowerCase().trim();
+      filtering = q.length > 0;
+      secs.forEach(function (s2) {
+        var live = 0;
+        s2.rows.forEach(function (r) {
+          r.on = !filtering || r.hay.indexOf(q) >= 0;
+          r.nodes.forEach(function (n) { vis(n, r.on); });
+          if (r.on) live++;
+        });
+        s2.groups.forEach(function (g) {
+          var any = false;
+          g.rows.forEach(function (r) { if (r.on) any = true; });
+          vis(g.h2, any);
+        });
+        vis(s2.det, live > 0);
+        s2.det.open = filtering ? live > 0 : !!openMap[s2.name];
+        s2.tally.textContent = '  ' +
+          (filtering ? live + '/' + s2.rows.length : String(s2.rows.length));
+      });
+    }
+    find.addEventListener('input', applyFilter);
 
     var foot = document.createElement('div'); foot.className = 'foot';
     var status = document.createElement('div');
@@ -406,11 +499,16 @@
     // "world/<id>" and appears once. Reading it still goes through defGet:
     // the C++ switch sends a TIER entry to the one bank and lets the mood
     // argument fall on the floor, so the panel needs no second reader.
-    bx.addEventListener('click', function () {
+    //
+    // ORGAN_3b P4c — one walk, an optional predicate. A section export is
+    // the same walk narrowed, so witnesses stay skipped and the world/mood
+    // keying stays identical: a partial file is a real file, not a dialect.
+    function collect(pred) {
       var m = C.mood();
       var out = {};
       rows.forEach(function (r) {
         if (r.p.ro) return;   // witnesses export nothing: a meter is not a setting (ORGAN_2a)
+        if (pred && !pred(r)) return;
         if (r.p.def) {
           var n = lanes(r.p.type), d = [];
           for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
@@ -419,13 +517,20 @@
           out[r.p.id] = r.read();
         }
       });
+      return out;
+    }
+    function slug(name) {
+      return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+    function download(out, name) {
       var blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'organ.json';
+      a.download = name;
       a.click();
       URL.revokeObjectURL(a.href);
-    });
+    }
+    bx.addEventListener('click', function () { download(collect(null), 'organ.json'); });
     bi.addEventListener('click', function () {
       var f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json';
       f.addEventListener('change', function () {
