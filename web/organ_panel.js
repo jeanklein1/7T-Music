@@ -62,6 +62,8 @@
   // — a hardcoded minimum is a guess, and a guess is how overlap returns.
   var G = {
     pad:    10,   // #organ horizontal padding, per side
+    grip:    6,   // ORGAN_3d — the resize gutter, ADDED to the left padding
+    border:  1,   // #organ border-left — inside the width, see box-sizing
     body:    2,   // details.sec .body padding-left
     hdgap:   4,   // line 1 column gap
     gap:     6,   // line 2 column gap
@@ -73,8 +75,17 @@
     val:     56   // the value box: ~7ch, right-aligned, plus border+padding
   };
   // Line 1 governs the minimum; line 2 is narrower by construction.
-  var W_MIN = 2 * G.pad + G.body + G.lblmin + 3 * G.hdgap
-                        + G.sw + G.mk + G.chip;
+  //
+  // ORGAN_3d — THE MODEL IS NOW EXACT, NOT MERELY CONSERVATIVE. #organ is
+  // box-sizing:border-box, so `width` is the whole panel: border, both
+  // paddings and the content column. Before this the panel was content-box
+  // and `width` named only the column, which is why the grip — positioned
+  // off `width` — landed 21px inside the content it was meant to sit
+  // beside, and why `min(640, 50vw)` was quietly a 661px panel. The grip
+  // gutter is ADDED to the left padding rather than replacing it, so the
+  // rows keep the breathing room the right side has.
+  var W_MIN = G.border + (G.pad + G.grip) + G.pad + G.body
+                       + G.lblmin + 3 * G.hdgap + G.sw + G.mk + G.chip;
   var W_DEF = 330;
   function wMax() {
     var half = Math.floor((window.innerWidth || 1280) / 2);
@@ -87,9 +98,15 @@
     '--hdgap:' + px(G.hdgap) + ';--gap:' + px(G.gap) + ';' +
     '--lblmin:' + px(G.lblmin) + ';--sw:' + px(G.sw) + ';--mk:' + px(G.mk) + ';' +
     '--chip:' + px(G.chip) + ';--slmin:' + px(G.slmin) + ';--val:' + px(G.val) + ';' +
-    'position:fixed;top:0;right:0;width:' + px(W_DEF) + ';max-height:100vh;overflow-y:auto;' +
+    '--pad:' + px(G.pad) + ';--grip-w:' + px(G.grip) + ';' +
+    'box-sizing:border-box;position:fixed;top:0;right:0;width:' + px(W_DEF) + ';' +
+    'max-height:100vh;overflow-y:auto;' +
     'background:#0d0f12;color:#c8ccd2;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;' +
-    'border-left:1px solid #262b33;z-index:9999;padding:8px ' + px(G.pad) + ' 14px}' +
+    'border-left:' + px(G.border) + ' solid #262b33;z-index:9999;' +
+    // ORGAN_3d — the gutter is the grip's alone. The left padding carries
+    // it in ADDITION to the panel's own inset, so the content column is
+    // never under the strip and the rows keep the right side's margin.
+    'padding:8px var(--pad) 14px calc(var(--pad) + var(--grip-w))}' +
     '#organ.hidden{display:none}' +
     '#organ h1{font-size:11px;letter-spacing:.14em;color:#7d8894;margin:2px 0 10px;font-weight:400}' +
     '#organ h2{font-size:10px;letter-spacing:.1em;color:#5c93c4;margin:12px 0 4px;font-weight:400;' +
@@ -144,10 +161,29 @@
     '#organ .mk.event{color:#b0954e}' +
     '#organ .mk.frame{color:#b0644e}' +
     '#organ .legend{color:#4f5761;margin-top:3px}' +
-    // ORGAN_3c P0b — the resize grip, on the panel's INNER edge.
-    '#organ .grip{position:fixed;top:0;bottom:0;width:6px;cursor:col-resize;z-index:10000;' +
-    'background:transparent;border-left:1px solid transparent}' +
-    '#organ .grip:hover,#organ .grip.drag{border-left-color:#5c93c4}' +
+    // ── ORGAN_3d — THE GRIP TAKES ITS OWN GUTTER ─────────────────────
+    // THE VISIBLE LINE IS THE PANEL'S OWN BORDER. The grip draws nothing:
+    // it is an invisible hit strip flush inside that border, in a gutter
+    // the padding reserves for it, so it shares no pixel with any control.
+    // ORGAN_3c positioned it off `width` while the panel was content-box,
+    // which put it 21px into the content column — it ate the sliders'
+    // leftmost pixels and clipped every label's first glyph. Nothing is
+    // computed here any more; CSS puts it where it belongs.
+    //
+    // IT STAYS FIXED, and that is deliberate. #organ scrolls (263 rows of
+    // two lines), and an absolutely-positioned child of a scroll container
+    // rides the scrolled content — the gutter would be grabbable only near
+    // the top. Fixed keeps it whole at every scroll position, which is the
+    // one thing ORGAN_3c's grip did get right. Under box-sizing:border-box
+    // its horizontal placement is no longer a guess: the panel spans
+    // viewport-right 0..width, the border owns the last pixel of that, and
+    // the gutter is the --grip-w beneath it. #organ is already
+    // position:fixed, so it needs no position:relative to hold a child.
+    '#organ .grip{position:fixed;top:0;bottom:0;width:var(--grip-w);' +
+    'cursor:ew-resize;z-index:10000;background:transparent}' +
+    // The affordance is the border brightening, plus the cursor. One line,
+    // the existing accent, no new colour and no second drawn edge.
+    '#organ:has(>.grip:hover),#organ:has(>.grip.drag){border-left-color:#5c93c4}' +
     '#organ button{background:#14181d;color:#c8ccd2;border:1px solid #303742;font:inherit;' +
     'padding:3px 9px;cursor:pointer}' +
     '#organ button:hover{border-color:#5c93c4}' +
@@ -564,7 +600,7 @@
     document.body.appendChild(root);
 
     // ── ORGAN_3c P0b — THE RESIZE ────────────────────────────────────
-    // A grip on the panel's INNER edge, pointer events, vanilla. Width
+    // A grip in the panel's own gutter, pointer events, vanilla. Width
     // clamps to [W_MIN, wMax()] — W_MIN computed from the grid's own
     // fixed parts (D2), so every width inside the clamp is a width the
     // grid can lay out without hiding anything. Narrow squeezes the
@@ -578,7 +614,10 @@
       var max = wMax();
       width = w < W_MIN ? W_MIN : (w > max ? max : w);
       root.style.width = width + 'px';
-      grip.style.right = (width - 3) + 'px';   // straddles the edge
+      // Flush INSIDE the border, in the gutter the left padding reserves:
+      // right edge under the border, left edge --grip-w further in. Both
+      // terms come from the same table the stylesheet renders from.
+      grip.style.right = (width - G.border - G.grip) + 'px';
     }
     setWidth(width);
     var drag = null;
