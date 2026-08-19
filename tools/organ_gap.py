@@ -43,9 +43,40 @@
 #      per-field truth for those five banks, and this line is here so the
 #      count is never read as more than it is.
 #
+# THE READER WITNESS (ORGAN_3c P1) — the one thing here that CAN fail.
+#
+# A GRADUATION IS COMPLETE when the design table's only remaining readers
+# are its own seed and its own asserts. ORGAN_3 w2 built PANEL_LIVE,
+# enrolled it, and left the readers on the constexprs — seven dials that
+# wrote a bank nothing read, found by hand a campaign later. That class of
+# defect is mechanical to detect, so from ORGAN_3c it is detected
+# mechanically: for every pair in PAIRS below, every word-boundary mention
+# of the DESIGN symbol anywhere in src/ is classified, and anything that is
+# not one of the lawful classes is a surviving runtime reader.
+#
+#   definition   the declaring statement itself
+#   seed         a statement that also names the LIVE bank (the seeding)
+#   static_assert  a proof about the authored table — its second job
+#   comment      prose, including a mention inside a message string
+#   constexpr    a COMPILE-TIME derivation (array sizing, a bound). Not in
+#                the handoff's D3 list, and added here on the evidence:
+#                gallery.hpp derives INDOOR_RADIUS_MAX from MOOD_TABLE's
+#                structural rows. A constexpr context CANNOT read a mutable
+#                inline bank — it is ill-formed, not merely awkward — and a
+#                value fixed at compile time is one the panel could never
+#                move, so calling it an incomplete graduation would be
+#                false. D7 already rules this case for the canvas: the
+#                constant stays on the design table. Printed always, never
+#                silent, and never a gate failure.
+#
+# --gate turns the witness into a check the harness family runs. The MAP
+# stays toothless (exit 0 always); only --gate can fail, and only on a
+# surviving reader — a judgement the tree makes, not one this tool makes.
+#
 # USAGE
 #   python3 tools/organ_gap.py            # the map
 #   python3 tools/organ_gap.py --brief    # counts only
+#   python3 tools/organ_gap.py --gate     # nonzero on a surviving reader
 # ═══════════════════════════════════════════════════════════════════════
 
 import os
@@ -73,6 +104,125 @@ HOMES = {
     "IndoorSurface":         "src/cartridges/the_board/contracts/indoor_module.hpp",
     "CanvasSurface":         "src/coupling/canvas_surface.hpp",
 }
+
+# ─── THE GRADUATED PAIRS (ORGAN_3c — the reader witness) ──────────────
+# home struct -> (DESIGN symbol, LIVE bank symbol). A home with no pair
+# (the three GPU rooms) was never a graduation and has nothing to witness.
+PAIRS = {
+    "MoodProfile":       ("MOOD_TABLE",        "MOOD_LIVE"),
+    "DriverSurface":     ("DRIVER_TABLE",      "DRIVER_LIVE"),
+    "AgentTierBank":     ("AGENT_TIER_GAINS",  "TIER_LIVE"),
+    "AgentBehaviorBank": ("AGENT_BEHAVIORS",   "BEHAVIOR_LIVE"),
+    "PawnAuraProfile":   ("PAWN_AURA_DEFAULT", "PAWN_AURA_LIVE"),
+    "OrbConsole":        ("ORB_CONSOLE",       "ORB_CONSOLE_LIVE"),
+    "OrbMoodConfig":     ("ORB_MOOD_TABLE",    "ORB_MOOD_LIVE"),
+    "PanelSurface":      ("PANEL_TABLE",       "PANEL_LIVE"),
+    "RibbonSurface":     ("RIBBON_TABLE",      "RIBBON_LIVE"),
+    "IndoorSurface":     ("INDOOR_TABLE",      "INDOOR_LIVE"),
+    "CanvasSurface":     ("CANVAS_TABLE",      "CANVAS_LIVE"),
+}
+SRC_EXT = (".hpp", ".cpp", ".inc", ".h")
+
+
+def mask(text):
+    """Blank comments and string bodies, and say what each byte is.
+
+    Returns (code, kind): `code` is the text with comment and string-literal
+    bytes replaced by spaces so a regex sees only real code; kind[i] is one
+    of 'code' / 'comment' / 'string', so a hit inside prose can be named as
+    prose rather than merely ignored.
+    """
+    out, kind = [], []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        two = text[i:i + 2]
+        if two == "//":
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i)); kind.extend("comment" for _ in range(j - i))
+            i = j
+        elif two == "/*":
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append(" " * (j - i)); kind.extend("comment" for _ in range(j - i))
+            i = j
+        elif c in "\"'":
+            q, j = c, i + 1
+            while j < n and text[j] != q:
+                j += 2 if text[j] == "\\" else 1
+            j = min(j + 1, n)
+            out.append(c + " " * (j - i - 2) + (q if j - i >= 2 else ""))
+            kind.append("code"); kind.extend("string" for _ in range(j - i - 2))
+            if j - i >= 2:
+                kind.append("code")
+            i = j
+        else:
+            out.append(c); kind.append("code")
+            i += 1
+    code = "".join(out)
+    # a defensive equalisation: the classifier indexes both by the same i
+    if len(code) != n:
+        code = (code + " " * n)[:n]
+    if len(kind) != n:
+        kind = (kind + ["code"] * n)[:n]
+    return code, kind
+
+
+def statement_of(code, at):
+    """The declaration a hit sits inside: back to the previous CODE `;`,
+    forward to the next one. Deliberately not a parser — an initializer's
+    braces and commas carry no semicolons in this tree, so this reaches the
+    whole `inline ... = { ... };` a seeding line lives in, which is the one
+    thing a cheaper rule would get wrong."""
+    a = code.rfind(";", 0, at) + 1
+    b = code.find(";", at)
+    return code[a:(len(code) if b < 0 else b + 1)]
+
+
+def classify(code, kind, at, design, live):
+    if kind[at] == "comment":
+        return "comment"
+    if kind[at] == "string":
+        return "comment"          # a message is prose that happens to compile
+    stmt = statement_of(code, at)
+    if "static_assert" in stmt:
+        return "static_assert"
+    if re.search(r"\b" + re.escape(live) + r"\b", stmt):
+        return "seed"
+    if re.search(r"constexpr\b[^;=]*\b" + re.escape(design) + r"\s*(\[[^\]]*\])?\s*=", stmt):
+        return "definition"
+    if re.search(r"\bconstexpr\b", stmt):
+        return "constexpr"        # D7: a compile-time consumer keeps its source
+    return "violation"
+
+
+def reader_census():
+    """{home: {class: [(path, line, text)]}} for every graduated pair."""
+    found = {h: {} for h in PAIRS}
+    for base, _dirs, files in os.walk(os.path.join(ROOT, "src")):
+        for f in files:
+            if not f.endswith(SRC_EXT):
+                continue
+            path = os.path.join(base, f)
+            try:
+                text = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            code, kind = None, None
+            for home, (design, live) in PAIRS.items():
+                if design not in text:
+                    continue
+                if code is None:
+                    code, kind = mask(text)
+                for m in re.finditer(r"\b" + re.escape(design) + r"\b", text):
+                    cls = classify(code, kind, m.start(), design, live)
+                    ln = text.count("\n", 0, m.start()) + 1
+                    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                    line = text.split("\n")[ln - 1].strip()
+                    found[home].setdefault(cls, []).append((rel, ln, line))
+    return found
+
 
 # ─── THE ENROLLMENT LIST ──────────────────────────────────────────────
 # The macro forms, and where the STRUCT and FIELD sit in each:
@@ -216,6 +366,7 @@ def members_of(body):
 
 def main():
     brief = "--brief" in sys.argv
+    gate  = "--gate" in sys.argv
     enrolled = enrolled_pairs()
 
     print("ORGAN GAP — members of the enrolled homes that the panel does not name")
@@ -226,7 +377,9 @@ def main():
     print("invisible bugs, so they are printed):")
     for st in sorted(HOMES):
         mark = " " if st in enrolled else "*"   # * = enrolled by nothing
-        print("  %s %-24s %s" % (mark, st, HOMES[st]))
+        pair = PAIRS.get(st)
+        print("  %s %-24s %-52s %s" % (mark, st, HOMES[st],
+                                       ("%s -> %s" % pair) if pair else "(not a graduation)"))
     unlisted = sorted(set(enrolled) - set(HOMES))
     if unlisted:
         print()
@@ -257,9 +410,40 @@ def main():
     print("live home — cannot appear above. This tool measures the gap between")
     print("the HOMES and the panel; the ledger measures the gap between the")
     print("PROGRAM and the panel, which is larger.")
+    # ─── THE READER WITNESS (ORGAN_3c) ───────────────────────────────
+    census = reader_census()
+    print()
+    print("THE READER WITNESS — every mention of a DESIGN symbol, classified.")
+    print("A graduation is complete when the design table's only readers are")
+    print("its seed and its asserts. Anything else is a surviving runtime")
+    print("reader, and the reason ORGAN_3 shipped seven dead dials.")
+    print()
+    ORDER = ["definition", "seed", "static_assert", "constexpr", "comment", "violation"]
+    violations = []
+    for home in sorted(PAIRS):
+        design, live = PAIRS[home]
+        hits = census[home]
+        counts = " ".join("%s=%d" % (c, len(hits[c])) for c in ORDER if hits.get(c))
+        flag = "  <-- SURVIVING READER" if hits.get("violation") else ""
+        print("  %-20s %-42s %s%s" % (design, counts or "(no mention anywhere)",
+                                      "", flag))
+        for path, ln, line in hits.get("constexpr", []):
+            print("        constexpr derivation (D7)  %s:%d  %s" % (path, ln, line[:60]))
+        for path, ln, line in hits.get("violation", []):
+            print("        VIOLATION  %s:%d  %s" % (path, ln, line[:64]))
+            violations.append((design, path, ln, line))
+    print()
+    print("SURVIVING RUNTIME READERS ACROSS %d GRADUATED PAIRS: %d"
+          % (len(PAIRS), len(violations)))
+    if gate:
+        print("--gate: %s" % ("FAIL" if violations else "PASS"))
+    print()
     print("Blind spot 3: a partly-enrolled nested aggregate reads as named —")
     print("`fog.gain` names `fog`. The ledger carries the per-field truth.")
-    return 0
+    # THE MAP IS STILL TOOTHLESS. Only --gate can fail, and only on a
+    # surviving reader — never on an unenrolled member, which is a
+    # judgement the ledger makes and this tool may not.
+    return 1 if (gate and violations) else 0
 
 
 if __name__ == "__main__":

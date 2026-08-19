@@ -873,7 +873,7 @@ applied without being asked twice.
 
 # THE GAP AT CLOSE
 
-`tools/organ_gap.py`, run against the tree ORGAN_3b leaves. Every
+`tools/organ_gap.py --gate`, run against the tree ORGAN_3c leaves. Every
 absent member below has a reason in the sections above — the tool
 finds the gap, the ledger explains it, and neither pretends to do the
 other's job.
@@ -885,20 +885,20 @@ A map, not a gate. Reasons live in docs/HANDOFFS/DISPOSITION_LEDGER.md.
 
 THE FILE TABLE this run trusted (blind spot 2 — stale rows are
 invisible bugs, so they are printed):
-    AgentBehaviorBank        src/cartridges/the_board/contracts/agent_tiers.hpp
-    AgentTierBank            src/cartridges/the_board/contracts/agent_tiers.hpp
-    CanvasSurface            src/coupling/canvas_surface.hpp
-    DriverSurface            src/cartridges/the_board/contracts/driver_surface.hpp
-    GPUAgentRoomConstants    src/cartridges/the_board/realization/state.hpp
-    GPUDesignConfig          src/cartridges/the_board/realization/state.hpp
-    GPULighting              src/cartridges/the_board/realization/state.hpp
-    IndoorSurface            src/cartridges/the_board/contracts/indoor_module.hpp
-    MoodProfile              src/cartridges/the_board/contracts/spine_state.hpp
-    OrbConsole               src/cartridges/the_board/contracts/orb_surface.hpp
-    OrbMoodConfig            src/cartridges/the_board/contracts/orb_surface.hpp
-    PanelSurface             src/cartridges/the_board/contracts/control_panel.hpp
-    PawnAuraProfile          src/cartridges/the_board/contracts/pawn_surface.hpp
-    RibbonSurface            src/cartridges/the_board/contracts/ribbon_surface.hpp
+    AgentBehaviorBank        src/cartridges/the_board/contracts/agent_tiers.hpp   AGENT_BEHAVIORS -> BEHAVIOR_LIVE
+    AgentTierBank            src/cartridges/the_board/contracts/agent_tiers.hpp   AGENT_TIER_GAINS -> TIER_LIVE
+    CanvasSurface            src/coupling/canvas_surface.hpp                      CANVAS_TABLE -> CANVAS_LIVE
+    DriverSurface            src/cartridges/the_board/contracts/driver_surface.hpp DRIVER_TABLE -> DRIVER_LIVE
+    GPUAgentRoomConstants    src/cartridges/the_board/realization/state.hpp       (not a graduation)
+    GPUDesignConfig          src/cartridges/the_board/realization/state.hpp       (not a graduation)
+    GPULighting              src/cartridges/the_board/realization/state.hpp       (not a graduation)
+    IndoorSurface            src/cartridges/the_board/contracts/indoor_module.hpp INDOOR_TABLE -> INDOOR_LIVE
+    MoodProfile              src/cartridges/the_board/contracts/spine_state.hpp   MOOD_TABLE -> MOOD_LIVE
+    OrbConsole               src/cartridges/the_board/contracts/orb_surface.hpp   ORB_CONSOLE -> ORB_CONSOLE_LIVE
+    OrbMoodConfig            src/cartridges/the_board/contracts/orb_surface.hpp   ORB_MOOD_TABLE -> ORB_MOOD_LIVE
+    PanelSurface             src/cartridges/the_board/contracts/control_panel.hpp PANEL_TABLE -> PANEL_LIVE
+    PawnAuraProfile          src/cartridges/the_board/contracts/pawn_surface.hpp  PAWN_AURA_DEFAULT -> PAWN_AURA_LIVE
+    RibbonSurface            src/cartridges/the_board/contracts/ribbon_surface.hpp RIBBON_TABLE -> RIBBON_LIVE
 
 AgentBehaviorBank          1/ 1 named   0 absent
 AgentTierBank              1/ 1 named   0 absent
@@ -955,6 +955,31 @@ Blind spot 1: homeless constants — an authored constexpr with no
 live home — cannot appear above. This tool measures the gap between
 the HOMES and the panel; the ledger measures the gap between the
 PROGRAM and the panel, which is larger.
+
+THE READER WITNESS — every mention of a DESIGN symbol, classified.
+A graduation is complete when the design table's only readers are
+its seed and its asserts. Anything else is a surviving runtime
+reader, and the reason ORGAN_3 shipped seven dead dials.
+
+  AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
+  AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=7 
+  CANVAS_TABLE         definition=1 seed=1 comment=1              
+  DRIVER_TABLE         definition=1 seed=1 comment=1              
+  INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
+  MOOD_TABLE           definition=1 seed=4 static_assert=9 constexpr=4 comment=34 
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:349  : MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max;
+  ORB_CONSOLE          definition=1 seed=1 comment=2              
+  ORB_MOOD_TABLE       definition=1 seed=4 comment=7              
+  PANEL_TABLE          definition=1 seed=1 static_assert=4 comment=2 
+  PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
+  RIBBON_TABLE         definition=1 seed=1 static_assert=1 comment=2 
+
+SURVIVING RUNTIME READERS ACROSS 11 GRADUATED PAIRS: 0
+--gate: PASS
+
 Blind spot 3: a partly-enrolled nested aggregate reads as named —
 `fog.gain` names `fog`. The ledger carries the per-field truth.
 ```
@@ -1392,3 +1417,73 @@ MAX     W=640: label=458px  slider=556px   no overlap ✓
 
 What that proves is a property of the CSS that ships, not of a table
 maintained beside it.
+
+## P1 — the proofs: the program's side of the contract
+
+### The reader witness, and a fifth class the evidence asked for
+
+ORGAN_3 w2 built `PANEL_LIVE`, enrolled it, and left the readers on the
+constexprs. Seven dials wrote a bank nothing read, and it took a campaign
+and a human sweep to find. That class of defect is mechanical, so it is
+now caught mechanically: for each of the **eleven** graduated pairs, every
+word-boundary mention of the DESIGN symbol anywhere in `src/` is
+classified, and anything outside the lawful classes is a surviving runtime
+reader.
+
+D3's four classes held for ten pairs. `MOOD_TABLE` produced a fifth that
+the decision table does not name, so it is reported rather than assumed:
+
+| class | count across the tree | verdict |
+| --- | --- | --- |
+| definition | 11 | lawful — the declaring statement |
+| seed | 29 | lawful — the statement also names the LIVE bank |
+| static_assert | 19 | lawful — the design table's second job |
+| comment | 67 | lawful — prose, including message strings |
+| **constexpr** | **4** | **lawful, and printed always** |
+| violation | **0** | — |
+
+The four are `gallery.hpp:346-349`, deriving `INDOOR_RADIUS_MAX` from
+`MOOD_TABLE`'s `finite_radius_max` rows. This is **D7's already-ruled
+case**, and it is lawful for a reason stronger than convenience: a
+`constexpr` initialiser *cannot* read a mutable `inline` bank — it is
+ill-formed, not merely awkward — and a value fixed at compile time is one
+the panel could never move. Calling it an incomplete graduation would be
+false; enrolling its source would build the dead dial, not remove one. The
+fields it reads are MoodProfile **structural**, already C5 by the standing
+eligibility rule. The class is printed on every run rather than folded
+into silence, so the day one of these stops being compile-time it is
+visible.
+
+**The gate was proved to bite before it was believed.** A probe file
+declaring `return DRIVER_TABLE.fog.gain;` produced
+`violation=1 <-- SURVIVING READER` and `rc=1`; removing it returned `rc=0`.
+A gate that cannot fail is decoration.
+
+`organ_gap.py --gate` is a standing member of the harness family from this
+commit. The map itself stays toothless — exit 0 always — because an
+unenrolled member is a judgement the ledger makes and the tool may not.
+
+### The kind × type round-trip
+
+Systematic, from the table rather than by example: `def_test` groups every
+writable definition entry by (kind × type), writes one representative per
+non-empty cell through `organ_set` with a definition target, and reads it
+back through `organ_def_get`. A kind or a type that enrolls tomorrow is
+covered the day it does, and an empty cell prints `empty` rather than
+failing (D4).
+
+```
+  kind x type          F32           U32           BOOL          VEC3          VEC4
+  NONE                empty         empty         empty         empty         empty
+  MOOD                ok            empty         empty         ok            empty
+  TIER                ok            empty         empty         ok            empty
+  BEHAVIOR            ok            empty         empty         empty         empty
+  ORB_MOOD            ok            ok            ok            ok            empty
+  9 non-empty cells, 9 proved, 16 empty
+  integer lanes on the definition path: 2 cells, all converted ✓
+```
+
+The two integer cells are ORGAN_3b's amendment under oath: the write is
+never refused, and `7.0f` into a `U32` lane reads back as `7`, not as the
+1.08e9 a bit-reinterpretation would produce. The float cells prove nothing
+regressed while the path learned to convert.
