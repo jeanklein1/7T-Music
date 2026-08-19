@@ -1328,3 +1328,67 @@ The nine surviving DEFER rows keep their reasons and their owners, listed
 in this file's header. None is externally blocked; `docs/OPEN.md` carries
 no ORGAN line at all now that the beacon's is dead, which is the register's
 own law working — a line dies when its item closes.
+
+---
+
+# ORGAN_3c — THE POLISH AND THE PROOFS
+
+## P0 — the row grid, and a minimum that is computed
+
+The flex row had one line and five claimants on it: label, control, value,
+contest marker, chip. Flex resolves that by shrinking whatever will shrink,
+and at 330px what shrank was the slider — behind the number, which is the
+defect Jean named.
+
+**Two lines, both grids, columns placed explicitly.**
+
+```
+line 1  [ label ……………………………  sw   mk   chip ]
+line 2  [ slider ————————————————— | value ]
+```
+
+Explicit `grid-column` on every cell, not auto-placement: a row with no
+swatch and no chip still lines its markers up with the row above it, which
+is what makes 263 rows read as a column rather than as a list. The label
+is the only cell that gives, and what its ellipsis hides it hands to the
+`title` — the label and the id, so the hover answers both "what is this"
+and "where does it live".
+
+VEC3/VEC4 lanes are now **stacked**: one full-width line each, the colour
+swatch up on the label line beside the markers. Witnesses keep their meter
+in the value column, so a meter reads down the same edge as a dial.
+
+### The minimum is computed, because a guessed minimum is how overlap returns
+
+Every fixed width the grid uses is a CSS custom property on `#organ`, and
+`W_MIN` is computed from the same numbers (D2):
+
+```js
+var W_MIN = 2*G.pad + G.body + G.lblmin + 3*G.hdgap + G.sw + G.mk + G.chip;
+```
+
+**292px.** Line 1 governs; line 2 needs only 174. `W_MAX = min(640, 50vw)`.
+The grip rides the panel's inner edge on pointer events; double-click is
+home; the width lives beside `openMap` and dies with the session, by the
+same law — a dev instrument that remembers is a dev instrument that
+surprises.
+
+### The harness parses the stylesheet rather than a copy of it
+
+The shim has no layout engine, so it reads the grid's fixed parts **out of
+the shipped CSS** — the custom properties the rules themselves use — lays
+the columns out at MIN, default and MAX, and asserts three things per line:
+the flexible column never sinks below its floor, no two boxes overlap in
+order, and nothing runs past the content box. Then it drives the grip and
+checks the shell's own clamp equals the independently computed `W_MIN`, and
+that one pixel under MIN the label sinks below its floor — so MIN is proved
+*binding*, not merely present.
+
+```
+MIN     W=292: label=110px  slider=208px   no overlap ✓
+default W=330: label=148px  slider=246px   no overlap ✓
+MAX     W=640: label=458px  slider=556px   no overlap ✓
+```
+
+What that proves is a property of the CSS that ships, not of a table
+maintained beside it.

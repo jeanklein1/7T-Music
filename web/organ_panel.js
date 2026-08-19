@@ -54,10 +54,42 @@
   var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
+  // ── ORGAN_3c P0 — THE GRID'S FIXED PARTS, IN ONE HOME ─────────────
+  // Every fixed width the row grid uses is a CSS custom property on
+  // #organ, and W_MIN below is COMPUTED from the same numbers. The
+  // stylesheet and the resize clamp therefore cannot disagree, which is
+  // the only way "nothing overlaps at any lawful width" stays true (D2)
+  // — a hardcoded minimum is a guess, and a guess is how overlap returns.
+  var G = {
+    pad:    10,   // #organ horizontal padding, per side
+    body:    2,   // details.sec .body padding-left
+    hdgap:   4,   // line 1 column gap
+    gap:     6,   // line 2 column gap
+    lblmin: 110,  // the label column's floor — below this an ellipsis lies
+    sw:      28,  // the colour swatch, when a row has one
+    mk:      58,  // the contest column ("event 1200" at 10px monospace)
+    chip:    62,  // the cadence chip ("on respawn" at 9px, plus its pill)
+    slmin:   90,  // the slider's floor — THIS is the acceptance test
+    val:     56   // the value box: ~7ch, right-aligned, plus border+padding
+  };
+  // Line 1 governs the minimum; line 2 is narrower by construction.
+  var W_MIN = 2 * G.pad + G.body + G.lblmin + 3 * G.hdgap
+                        + G.sw + G.mk + G.chip;
+  var W_DEF = 330;
+  function wMax() {
+    var half = Math.floor((window.innerWidth || 1280) / 2);
+    return Math.max(W_MIN, Math.min(640, half));   // D2
+  }
+  var px = function (n) { return n + 'px'; };
+
   var CSS =
-    '#organ{position:fixed;top:0;right:0;width:330px;max-height:100vh;overflow-y:auto;' +
+    '#organ{' +
+    '--hdgap:' + px(G.hdgap) + ';--gap:' + px(G.gap) + ';' +
+    '--lblmin:' + px(G.lblmin) + ';--sw:' + px(G.sw) + ';--mk:' + px(G.mk) + ';' +
+    '--chip:' + px(G.chip) + ';--slmin:' + px(G.slmin) + ';--val:' + px(G.val) + ';' +
+    'position:fixed;top:0;right:0;width:' + px(W_DEF) + ';max-height:100vh;overflow-y:auto;' +
     'background:#0d0f12;color:#c8ccd2;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;' +
-    'border-left:1px solid #262b33;z-index:9999;padding:8px 10px 14px}' +
+    'border-left:1px solid #262b33;z-index:9999;padding:8px ' + px(G.pad) + ' 14px}' +
     '#organ.hidden{display:none}' +
     '#organ h1{font-size:11px;letter-spacing:.14em;color:#7d8894;margin:2px 0 10px;font-weight:400}' +
     '#organ h2{font-size:10px;letter-spacing:.1em;color:#5c93c4;margin:12px 0 4px;font-weight:400;' +
@@ -72,27 +104,50 @@
     '#organ details.sec>summary .n{color:#4f5761;letter-spacing:0;font-size:10px}' +
     '#organ details.sec .body{padding-left:2px}' +
     '#organ details.sec .body h2:first-child{margin-top:6px}' +
-    '#organ .row{display:flex;align-items:center;gap:6px;margin:2px 0}' +
-    '#organ .lbl{flex:0 0 118px;color:#96a0ab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    '#organ input[type=range]{flex:1 1 auto;min-width:0;accent-color:#5c93c4;height:14px}' +
-    '#organ input[type=number]{flex:0 0 62px;background:#14181d;color:#c8ccd2;border:1px solid #262b33;' +
+    // ── ORGAN_3c P0 — THE ROW GRID ───────────────────────────────────
+    // Two lines, both grids, columns placed EXPLICITLY so a row with no
+    // swatch and no chip still lines its markers up with the row above.
+    //   line 1  [ label ……………………………  sw  mk  chip ]
+    //   line 2  [ slider ——————————————————— | value ]
+    // The label ellipsis is the only thing that gives, and it hands what
+    // it hid to the title. Nothing else may shrink past its floor, so a
+    // slider can never end up behind the number — Jean's acceptance test.
+    '#organ .hd{display:grid;align-items:center;column-gap:var(--hdgap);margin:5px 0 0;' +
+    'grid-template-columns:minmax(var(--lblmin),1fr) var(--sw) var(--mk) var(--chip)}' +
+    '#organ .ln{display:grid;align-items:center;column-gap:var(--gap);margin:1px 0 2px;' +
+    'grid-template-columns:minmax(var(--slmin),1fr) var(--val)}' +
+    '#organ .lbl{grid-column:1;min-width:0;color:#96a0ab;' +
+    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#organ .ln input[type=range]{grid-column:1;width:100%;min-width:var(--slmin);' +
+    'accent-color:#5c93c4;height:14px;margin:0}' +
+    '#organ .ln input[type=number]{grid-column:2;width:var(--val);box-sizing:border-box;' +
+    'text-align:right;background:#14181d;color:#c8ccd2;border:1px solid #262b33;' +
     'font:inherit;padding:1px 3px}' +
-    '#organ input[type=color]{flex:0 0 34px;height:18px;background:#14181d;border:1px solid #262b33;padding:0}' +
-    '#organ .lane{flex:0 0 108px}' +
-    '#organ .ro{flex:1 1 auto;text-align:right;color:#8fa3b8}' +
+    '#organ .ln input[type=checkbox]{grid-column:1;justify-self:start;margin:0}' +
+    '#organ input[type=color]{grid-column:2;width:var(--sw);height:15px;box-sizing:border-box;' +
+    'background:#14181d;border:1px solid #262b33;padding:0}' +
+    '#organ .ro{grid-column:2;text-align:right;color:#8fa3b8;' +
+    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     // ORGAN_3b — the cadence chip. One rule, three modifiers, no colour
     // louder than the existing accent; the panel is an instrument.
-    '#organ .cad{flex:0 0 auto;font-size:9px;letter-spacing:.06em;color:#4f5761;' +
-    'border:1px solid #262b33;border-radius:2px;padding:0 3px;margin-left:2px}' +
+    // ORGAN_3c moved it to the label line: it never again competes with
+    // a control for width, so it costs the slider nothing.
+    '#organ .cad{grid-column:4;box-sizing:border-box;width:var(--chip);text-align:center;' +
+    'font-size:9px;letter-spacing:.06em;color:#4f5761;overflow:hidden;white-space:nowrap;' +
+    'border:1px solid #262b33;border-radius:2px;padding:0 2px}' +
     '#organ .cad.gen{color:#b0954e;border-color:#3a3226}' +
     '#organ .cad.boundary{color:#5c93c4;border-color:#24313d}' +
     '#organ .cad.driven{color:#8fa3b8;border-color:#262b33}' +
-    '#organ .mk{flex:0 0 58px;text-align:right;font-size:10px;color:#4f5761}' +
+    '#organ .mk{grid-column:3;width:var(--mk);text-align:right;font-size:10px;color:#4f5761;' +
+    'overflow:hidden;white-space:nowrap}' +
     '#organ .mk.free{color:#5f8f6a}' +
     '#organ .mk.event{color:#b0954e}' +
     '#organ .mk.frame{color:#b0644e}' +
     '#organ .legend{color:#4f5761;margin-top:3px}' +
-    '#organ .sub{margin-left:118px}' +
+    // ORGAN_3c P0b — the resize grip, on the panel's INNER edge.
+    '#organ .grip{position:fixed;top:0;bottom:0;width:6px;cursor:col-resize;z-index:10000;' +
+    'background:transparent;border-left:1px solid transparent}' +
+    '#organ .grip:hover,#organ .grip.drag{border-left-color:#5c93c4}' +
     '#organ button{background:#14181d;color:#c8ccd2;border:1px solid #303742;font:inherit;' +
     'padding:3px 9px;cursor:pointer}' +
     '#organ button:hover{border-color:#5c93c4}' +
@@ -196,16 +251,23 @@
     var n = lanes(p.type), v = p.v.slice();
     var nodes = [];
     var add = function (el) { nodes.push(el); host.appendChild(el); return el; };
-    var row = document.createElement('div'); row.className = 'row';
+
+    // ── ORGAN_3c P0a — LINE 1: the label, and the markers pinned right ──
+    var hd = document.createElement('div'); hd.className = 'hd';
     var lbl = document.createElement('span'); lbl.className = 'lbl';
-    lbl.textContent = p.label; lbl.title = p.id;
+    lbl.textContent = p.label;
+    // THE HOVER ANSWERS WHAT THE ELLIPSIS HID. A truncated label without a
+    // title is a name the panel took away; with one it is a name the panel
+    // is holding for you. The id rides along because the label alone does
+    // not say which home a stop lives in.
+    lbl.title = p.label + '\n' + p.id;
     if (p.def && !p.ro) {
       var star = document.createElement('span'); star.className = 'star';
       star.textContent = ' *';
       star.title = 'has a mood definition';
       lbl.appendChild(star);
     }
-    row.appendChild(lbl);
+    hd.appendChild(lbl);
     var mk = document.createElement('span'); mk.className = 'mk';
     mk.textContent = '\u00b7';
     mk.title = 'contest: does the panel\u2019s last word on this dial still stand?';
@@ -224,38 +286,50 @@
         'a re-speak at the frame boundary applies this \u2014 it lands within a frame.',
         'a per-frame author writes this; the row is a meter, not a dial.'][p.cad];
     }
+    // Called once per row, after any arm-specific header content (the
+    // colour swatch) so the markers stay in their own columns.
+    var closeHead = function () {
+      hd.appendChild(mk);
+      if (cad) hd.appendChild(cad);
+      add(hd);
+    };
+    // ── LINE 2: one per control. A VEC row makes one per lane. ──
+    var line = function () {
+      var ln = document.createElement('div'); ln.className = 'ln';
+      return add(ln);
+    };
 
     // ORGAN_2a — A WITNESS IS A METER, NOT A DIAL. A driven value carries no
     // input of any kind: the dials that move it are its driver's, enrolled
     // above it in the same group. The 250 ms loop below fills this span, so
     // the operator watches the driven value breathe beside the rests and
     // gains that shape it. No star either — a witness has no definition to
-    // write, and organ_set would refuse the write anyway.
+    // write, and organ_set would refuse the write anyway. The meter sits in
+    // the VALUE column, so a witness reads down the same edge as a dial.
     if (p.ro) {
+      closeHead();
       var meter = document.createElement('span'); meter.className = 'ro';
-      row.appendChild(meter); row.appendChild(mk);
-      if (cad) row.appendChild(cad);
-      add(row);
+      line().appendChild(meter);
       return finish({ p: p, mk: mk, ro: meter,
                show: function (nv) { v = nv.slice(); },
                read: function () { return v; } }, nodes);
     }
 
     if (p.type === BOOL) {
+      closeHead();
       var cb = document.createElement('input'); cb.type = 'checkbox';
       cb.checked = v[0] > 0.5;
       cb.addEventListener('input', function () { v[0] = cb.checked ? 1 : 0; push(p, v); });
-      row.appendChild(cb); row.appendChild(mk);
-      if (cad) row.appendChild(cad);
-      add(row);
+      line().appendChild(cb);
       return finish({ p: p, mk: mk,
                show: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; },
                read: function () { return v; } }, nodes);
     }
 
     if (n > 1) {
-      // A colour when the range says so; the fine sliders sit under it
-      // because a colour input alone cannot be nudged one step.
+      // A colour when the range says so. The swatch sits on the LABEL line
+      // beside the markers (ORGAN_3c) and the fine sliders stack below it,
+      // full width, because a colour input alone cannot be nudged one step.
       var col = document.createElement('input'); col.type = 'color';
       var isCol = (p.min === 0 && p.max === 1);
       if (isCol) {
@@ -265,28 +339,27 @@
           v[0] = c[0]; v[1] = c[1]; v[2] = c[2];
           push(p, v); sync();
         });
-        row.appendChild(col);
+        hd.appendChild(col);
       }
-      row.appendChild(mk);
-      if (cad) row.appendChild(cad);
-      add(row);
+      closeHead();
       var sliders = [];
       for (var i = 0; i < n; i++) (function (li) {
-        var r2 = document.createElement('div'); r2.className = 'row sub';
-        var s = document.createElement('input'); s.type = 'range'; s.className = 'lane';
-        s.min = p.min; s.max = p.max; s.step = p.step; s.value = v[li];
+        var ln = line();
+        var sl2 = document.createElement('input'); sl2.type = 'range';
+        sl2.min = p.min; sl2.max = p.max; sl2.step = p.step; sl2.value = v[li];
         var num = document.createElement('input'); num.type = 'number';
         num.min = p.min; num.max = p.max; num.step = p.step; num.value = v[li];
+        sl2.title = num.title = p.label + ' \u2014 lane ' + li;
         var on = function (src) {
           return function () {
             v[li] = clamp(parseFloat(src.value) || 0, p);
             push(p, v); sync();
           };
         };
-        s.addEventListener('input', on(s));
+        sl2.addEventListener('input', on(sl2));
         num.addEventListener('input', on(num));
-        r2.appendChild(s); r2.appendChild(num); add(r2);
-        sliders.push({ s: s, num: num });
+        ln.appendChild(sl2); ln.appendChild(num);
+        sliders.push({ s: sl2, num: num });
       })(i);
       var sync = function () {
         for (var k = 0; k < n; k++) { sliders[k].s.value = v[k]; sliders[k].num.value = v[k]; }
@@ -297,6 +370,8 @@
                read: function () { return v; } }, nodes);
     }
 
+    closeHead();
+    var ln1 = line();
     var sl = document.createElement('input'); sl.type = 'range';
     sl.min = p.min; sl.max = p.max; sl.step = p.step; sl.value = v[0];
     var nm = document.createElement('input'); nm.type = 'number';
@@ -309,9 +384,7 @@
     };
     sl.addEventListener('input', set(sl));
     nm.addEventListener('input', set(nm));
-    row.appendChild(sl); row.appendChild(nm); row.appendChild(mk);
-    if (cad) row.appendChild(cad);
-    add(row);
+    ln1.appendChild(sl); ln1.appendChild(nm);
     return finish({ p: p, mk: mk,
              show: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; },
              read: function () { return v; } }, nodes);
@@ -386,6 +459,8 @@
     var secs = [], cur = null, curGroup = null;
     var filtering = false;    // true while a needle is in the field
     var openMap = {};         // section name -> the operator's own choice
+    var width = W_DEF;        // ORGAN_3c P0b — the hand's width, same law:
+                              // a session variable, never storage
     manifest.forEach(function (p, i) {
       p.i = i;   // the manifest is emitted in registry order: index IS the key
       var cut = p.group.indexOf(SEP);
@@ -487,6 +562,45 @@
     foot.appendChild(status); foot.appendChild(legend);
     root.appendChild(foot);
     document.body.appendChild(root);
+
+    // ── ORGAN_3c P0b — THE RESIZE ────────────────────────────────────
+    // A grip on the panel's INNER edge, pointer events, vanilla. Width
+    // clamps to [W_MIN, wMax()] — W_MIN computed from the grid's own
+    // fixed parts (D2), so every width inside the clamp is a width the
+    // grid can lay out without hiding anything. Narrow squeezes the
+    // sliders toward their floor; wide gives them the room. Double-click
+    // is home. The width lives beside openMap and dies with the session,
+    // because a dev instrument that remembers is a dev instrument that
+    // surprises.
+    var grip = document.createElement('div'); grip.className = 'grip';
+    root.appendChild(grip);
+    function setWidth(w) {
+      var max = wMax();
+      width = w < W_MIN ? W_MIN : (w > max ? max : w);
+      root.style.width = width + 'px';
+      grip.style.right = (width - 3) + 'px';   // straddles the edge
+    }
+    setWidth(width);
+    var drag = null;
+    grip.addEventListener('pointerdown', function (e) {
+      drag = { x: e.clientX, w: width };
+      grip.className = 'grip drag';
+      if (grip.setPointerCapture && e.pointerId !== undefined)
+        grip.setPointerCapture(e.pointerId);
+      if (e.preventDefault) e.preventDefault();
+    });
+    grip.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      setWidth(drag.w + (drag.x - e.clientX));   // the panel is on the right
+    });
+    var endDrag = function () { drag = null; grip.className = 'grip'; };
+    grip.addEventListener('pointerup', endDrag);
+    grip.addEventListener('pointercancel', endDrag);
+    grip.addEventListener('dblclick', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      setWidth(W_DEF);
+    });
+    window.addEventListener('resize', function () { setWidth(width); });
 
     // ── export / import ──────────────────────────────────────────────
     // A DEFINITION BELONGS TO A MOOD, so its key names one: "<mood>/<id>".
