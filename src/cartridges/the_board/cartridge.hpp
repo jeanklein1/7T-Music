@@ -1149,13 +1149,18 @@ namespace t7 {
                     } else {
                         py = estimate_terrain_height(tile_world_state_, point_.x, point_.z);
                     }
+                    // ORGAN_3b — the beacon reads its BANK, not the design
+                    // table. ORGAN_3 w2 built PANEL_LIVE and enrolled it and
+                    // then left these four reading the constexprs, so seven
+                    // dials wrote a bank nothing read. Repaired here.
+                    const auto& bcn = PANEL_LIVE.beacon;
                     fa.count = 1u;
                     fa.rows[0][0] = point_.x;
-                    fa.rows[0][1] = py + FIELD_BEACON_LIFT;
+                    fa.rows[0][1] = py + bcn.lift;
                     fa.rows[0][2] = point_.z;
                     fa.rows[0][3] = FIELD_BEACON_S * coord;
-                    fa.rows[1][0] = FIELD_BEACON_R0;
-                    fa.rows[1][1] = FIELD_BEACON_R;
+                    fa.rows[1][0] = bcn.r0;
+                    fa.rows[1][1] = bcn.r;
                     fa.rows[1][2] = (coord > 0.0f) ? 1.0f : 0.0f;
                     gpuState_.upload_field_authored(c.queue, fa);
                 }

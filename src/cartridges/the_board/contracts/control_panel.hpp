@@ -127,8 +127,11 @@ struct PanelSurface {
 inline constexpr PanelSurface PANEL_TABLE = {
     { FIELD_BEACON_R0, FIELD_BEACON_R, FIELD_BEACON_LIFT },
     { 0.005f, 1.25f, 8.0f, 2.0f },   // carried verbatim from
-                                     // CameraControls (direction/input.hpp),
-                                     // retired there by ORGAN_3 w2
+                                     // CameraControls (direction/input.hpp);
+                                     // retired there and its readers moved
+                                     // here at ORGAN_3b — w2 built the bank
+                                     // and left the readers behind, so these
+                                     // four wrote a home nothing read
 };
 
 inline PanelSurface PANEL_LIVE = PANEL_TABLE;

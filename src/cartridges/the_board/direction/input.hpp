@@ -4,6 +4,7 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_* IDs (the mood keys) + PortalDestination
 #include "cartridges/the_board/contracts/point.hpp"             // PointState/PointHost (the point — the driver toggles its host)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
+#include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_3b — PANEL_LIVE.camera: the look/zoom controls' live surface
 #include <algorithm>       // std::max, std::min   // (impl, merged)
 #include <cmath>           // std::sqrt   // (impl, merged)
 #include <iostream>        // toggle / radius logs   // (impl, merged)
@@ -63,9 +64,10 @@ struct CameraControls {
     // ── DESIGN-TIME (the dial's own grammar) ─────────────────────
     // Multiplicative: sensitivity is perceived logarithmically, so a
     // fixed additive step is huge at the bottom and invisible at the top.
-    static constexpr float LOOK_SENS_STEP  = 1.25f;   // per keypress
-    static constexpr float LOOK_SENS_RANGE = 8.0f;    // clamp: init ÷R … init ×R
-    static constexpr float LOOK_SENS_INIT  = 0.005f;  // the clamp's anchor
+    // LOOK_SENS_STEP / _RANGE / _INIT and SCROLL_ZOOM_SCALE graduated to
+    // PANEL_LIVE.camera (contracts/control_panel.hpp) at ORGAN_3 w2, where
+    // PANEL_TABLE is the design row. ORGAN_3b moved the readers, which w2
+    // had left behind — the values are the same, the home is now one.
     // W/S/A/D velocity in free-fly (world units per second) — the
     // camera host's MOVE_SPEED, wired to config.point_fly_speed at
     // boot. The pawn host's walk speed is Idle::PAWN_SPEED (state.hpp),
@@ -73,7 +75,6 @@ struct CameraControls {
     static constexpr float MOVE_SPEED = 30.0f;
 
     // Scroll → zoom-delta scale (orbit distance per wheel notch).
-    static constexpr float SCROLL_ZOOM_SCALE = 2.0f;
 };
 
 // ═══ INPUT STATE ═════════════════════════════════════════════════
@@ -308,7 +309,7 @@ inline void on_mouse_button(InputDeps* c, int button, bool pressed) {
 }
 
 inline void on_scroll(InputDeps* c, float delta) {
-    c->inputState_.zoom_delta -= delta * CameraControls::SCROLL_ZOOM_SCALE;
+    c->inputState_.zoom_delta -= delta * PANEL_LIVE.camera.scroll_zoom_scale;
 }
 
 // ═══ TOUCH (SHIP_1) ══════════════════════════════════════════════
@@ -418,16 +419,17 @@ inline void clear_input_deltas(InputDeps* c) {
 // number to write into look_sensitivity's initialiser. The run-time
 // value is a VIEW of the source constant, not a rival to it.
 inline void nudge_look_sensitivity(InputDeps* c, bool up) {
-    const float lo = CameraControls::LOOK_SENS_INIT / CameraControls::LOOK_SENS_RANGE;
-    const float hi = CameraControls::LOOK_SENS_INIT * CameraControls::LOOK_SENS_RANGE;
-    const float k  = up ? CameraControls::LOOK_SENS_STEP
-                        : 1.0f / CameraControls::LOOK_SENS_STEP;
+    const auto& cam = PANEL_LIVE.camera;
+    const float lo = cam.look_sens_init / cam.look_sens_range;
+    const float hi = cam.look_sens_init * cam.look_sens_range;
+    const float k  = up ? cam.look_sens_step
+                        : 1.0f / cam.look_sens_step;
 
     c->camera_.look_sensitivity =
         std::min(hi, std::max(lo, c->camera_.look_sensitivity * k));
 
     std::cout << "[Camera] Look sensitivity: " << c->camera_.look_sensitivity
-              << "  (x" << (c->camera_.look_sensitivity / CameraControls::LOOK_SENS_INIT)
+              << "  (x" << (c->camera_.look_sensitivity / PANEL_LIVE.camera.look_sens_init)
               << " of design)\n";
 }
 
