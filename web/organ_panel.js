@@ -44,6 +44,13 @@
   // added here rather than by being forgotten at three call sites.
   var DEF_MOOD = 1, DEF_TIER = 2, DEF_BEHAVIOR = 3, DEFONLY = 255;
   function isWorldDef(p) { return p.def === DEF_TIER || p.def === DEF_BEHAVIOR; }
+
+  // ORGAN_3b — CADENCE. The manifest's "cad" says WHEN a stop sounds; the
+  // C++ derives it, this file only prints it. Live is SILENT on purpose:
+  // silence is the default state of a working dial, and a chip on every
+  // row would be noise rather than information. The other three each
+  // answer a question the operator would otherwise have to ask the source.
+  var CAD = [null, 'on respawn', 'boundary', 'driven'];
   var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
@@ -73,6 +80,13 @@
     '#organ input[type=color]{flex:0 0 34px;height:18px;background:#14181d;border:1px solid #262b33;padding:0}' +
     '#organ .lane{flex:0 0 108px}' +
     '#organ .ro{flex:1 1 auto;text-align:right;color:#8fa3b8}' +
+    // ORGAN_3b — the cadence chip. One rule, three modifiers, no colour
+    // louder than the existing accent; the panel is an instrument.
+    '#organ .cad{flex:0 0 auto;font-size:9px;letter-spacing:.06em;color:#4f5761;' +
+    'border:1px solid #262b33;border-radius:2px;padding:0 3px;margin-left:2px}' +
+    '#organ .cad.gen{color:#b0954e;border-color:#3a3226}' +
+    '#organ .cad.boundary{color:#5c93c4;border-color:#24313d}' +
+    '#organ .cad.driven{color:#8fa3b8;border-color:#262b33}' +
     '#organ .mk{flex:0 0 58px;text-align:right;font-size:10px;color:#4f5761}' +
     '#organ .mk.free{color:#5f8f6a}' +
     '#organ .mk.event{color:#b0954e}' +
@@ -178,6 +192,21 @@
     mk.textContent = '\u00b7';
     mk.title = 'contest: does the panel\u2019s last word on this dial still stand?';
 
+    // ORGAN_3b — the cadence chip rides beside the contest marker, because
+    // the two answer the operator's two questions about one row: WHEN does
+    // my edit land, and DOES it still stand.
+    var cad = null;
+    if (CAD[p.cad]) {
+      cad = document.createElement('span');
+      cad.className = 'cad ' + ['live', 'gen', 'boundary', 'driven'][p.cad];
+      cad.textContent = CAD[p.cad];
+      cad.title = ['',
+        'the author\u2019s next natural event applies this \u2014 a spawn, a world init. ' +
+        'Dragging it and seeing nothing IS the dial working.',
+        'a re-speak at the frame boundary applies this \u2014 it lands within a frame.',
+        'a per-frame author writes this; the row is a meter, not a dial.'][p.cad];
+    }
+
     // ORGAN_2a — A WITNESS IS A METER, NOT A DIAL. A driven value carries no
     // input of any kind: the dials that move it are its driver's, enrolled
     // above it in the same group. The 250 ms loop below fills this span, so
@@ -186,7 +215,9 @@
     // write, and organ_set would refuse the write anyway.
     if (p.ro) {
       var meter = document.createElement('span'); meter.className = 'ro';
-      row.appendChild(meter); row.appendChild(mk); host.appendChild(row);
+      row.appendChild(meter); row.appendChild(mk);
+      if (cad) row.appendChild(cad);
+      host.appendChild(row);
       return finish({ p: p, mk: mk, ro: meter,
                show: function (nv) { v = nv.slice(); },
                read: function () { return v; } });
@@ -196,7 +227,9 @@
       var cb = document.createElement('input'); cb.type = 'checkbox';
       cb.checked = v[0] > 0.5;
       cb.addEventListener('input', function () { v[0] = cb.checked ? 1 : 0; push(p, v); });
-      row.appendChild(cb); row.appendChild(mk); host.appendChild(row);
+      row.appendChild(cb); row.appendChild(mk);
+      if (cad) row.appendChild(cad);
+      host.appendChild(row);
       return finish({ p: p, mk: mk,
                show: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; },
                read: function () { return v; } });
@@ -217,6 +250,7 @@
         row.appendChild(col);
       }
       row.appendChild(mk);
+      if (cad) row.appendChild(cad);
       host.appendChild(row);
       var sliders = [];
       for (var i = 0; i < n; i++) (function (li) {
@@ -257,7 +291,9 @@
     };
     sl.addEventListener('input', set(sl));
     nm.addEventListener('input', set(nm));
-    row.appendChild(sl); row.appendChild(nm); row.appendChild(mk); host.appendChild(row);
+    row.appendChild(sl); row.appendChild(nm); row.appendChild(mk);
+    if (cad) row.appendChild(cad);
+    host.appendChild(row);
     return finish({ p: p, mk: mk,
              show: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; },
              read: function () { return v; } });

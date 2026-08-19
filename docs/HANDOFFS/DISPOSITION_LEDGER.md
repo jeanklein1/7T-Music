@@ -941,3 +941,74 @@ counts in its C2 and C3-destructive rows — the ribbon's spawn vocabulary,
 the orb registries, `PC_COLOR`, the canvas envelopes, and the five
 modules of §4.6 that were surveyed and not read. That is the next
 campaign's opening census, and it is larger than this one's close.
+
+---
+
+# ORGAN_3b — THE INSTRUMENT LEARNS TIME
+
+## P0 repair — seven dead dials, found by the cadence lens
+
+Before cadence could be added, a defect ORGAN_3 *created* had to go.
+Wave 2 built `PANEL_LIVE`, enrolled its seven dials, and **never moved the
+readers**: the beacon writer still read `FIELD_BEACON_*` and `input.hpp`
+still read `CameraControls::LOOK_SENS_*`. Seven dials wrote a bank nothing
+read — the exact "dead dial" class Jean's sweep named, one campaign
+upstream of the one that named it. `PANEL_TABLE`'s own comment asserted a
+retirement that had not happened; it is true now.
+
+Fixed: the beacon reads `PANEL_LIVE.beacon`, `input.hpp` reads
+`PANEL_LIVE.camera`, and `CameraControls`' four constants retired (the
+design row is `PANEL_TABLE`, which holds the literals). The three beacon
+constants stay — `PANEL_TABLE` seeds *from* them under a static_assert.
+
+## P0 — cadence
+
+| cadence | count | how it is known |
+| --- | --- | --- |
+| LIVE | 101 | derived (nothing else applies) — and **silent** in the shell |
+| GEN | 2 | **stored** — the only cadence an entry cannot infer about itself |
+| BOUNDARY | 107 | derived from `def_kind`, the sentinel block, or `block_has_boundary` |
+| DRIVEN | 13 | derived from `ro` |
+
+`derived_cadence()` is the one place the rule lives, so the manifest
+emitter and the harness cannot disagree. The harness restates the rule
+independently and checks all 223 rows against it, plus two invariants:
+stored cadence is only ever LIVE or GEN, and **a witness is never GEN** —
+a meter has no edit to defer.
+
+### The GEN set is 2, not the 10–30 the handoff expected
+
+The handoff sized it from the ledger's destructive rows. But ORGAN_3 w3
+**enrolled only one** destructive bank (`INDOOR_LIVE`) and deferred the
+rest as bulk — `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE`,
+`SCHEME_WEIGHTS`, `PORTAL_COLORS`, the ribbon's spawn vocabulary, the
+floater weights. Those rows are still DEFER, so there is nothing to tag.
+The `_GEN` machinery is built and proven on the two that exist; it carries
+the rest the moment they land, at one macro token each.
+
+| GEN id | group |
+| --- | --- |
+| `INDOOR.height_cap_fraction` | Terrain · Indoor |
+| `INDOOR.ribbon_scale` | Terrain · Indoor |
+
+### One fact, one home — the group's name gave the chip its job
+
+`"Terrain · Indoor (edits the next spawn)"` became `"Terrain · Indoor"`.
+The warning moved from the group's NAME to the ROW, which is where the
+hand is — Jean's diagnosis, applied. Two homes for one fact would have
+been the smaller of the two errors, but still one.
+
+### A cadence the panel currently states imprecisely — flagged
+
+`ORB_CONSOLE_LIVE`'s three dials (dome radius, base size, noise floor) are
+read **only inside `configure_orbs`**, which runs only from the mood
+applier. Their true cadence today is "the next mood change" — neither LIVE
+nor GEN nor boundary. They read LIVE, which understates the wait.
+
+Not tagged GEN, because D5 forbids inventing a third phrasing and *"on
+respawn"* would be a **wrong** word for a mood change — a wrong word is
+worse than a missing one. **P3 fixes it properly**: once the orb boundary
+and flag exist, block 5's writes share the orb author's flag and
+`block_has_boundary` gains the block, making these three genuinely
+BOUNDARY. `block_has_boundary()` is already in place, returning false,
+so P3 is a one-line addition.

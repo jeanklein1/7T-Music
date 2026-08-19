@@ -162,6 +162,38 @@ enum : uint8_t {
                           //   (ORGAN_3 w3)
 };
 
+// ─── Cadence (ORGAN_3b) ───────────────────────────────────────────────
+// WHEN a stop sounds. Jean's first sweep on the disposition named the one
+// defect it inherited rather than created: a generational dial reads as a
+// DEAD dial, because the panel said what every stop was and never said
+// when it spoke.
+//
+// CADENCE IS A PROPERTY OF A FACT'S AUTHORSHIP, so it is DERIVED and not
+// hand-painted. Only the one bit the registry cannot infer is stored:
+//
+//   DRIVEN   — an `ro` entry: its author speaks every frame, and the row
+//              is a meter. Inferred from `ro`.
+//   BOUNDARY — a definition-kind entry, a definition-only entry, or an
+//              entry in a block whose writes raise a re-speak flag: the
+//              edit lands within a frame. Inferred from def_kind, from
+//              the sentinel block, and from block_has_boundary below.
+//   GEN      — the author's next natural event (a spawn, a world init).
+//              STORED, because nothing in the entry can tell you that the
+//              nine readers of a cap fraction run at spawn time. This is
+//              the one fact the enrollment line must volunteer, and
+//              ORGAN_PARAM_GEN is how it does.
+//   LIVE     — everything else: the home is read where it is needed and
+//              the edit is simply true.
+//
+// derived_cadence() is the ONE place the rule lives, so the manifest
+// emitter and the harness cannot disagree about what a row means.
+enum : uint8_t {
+    ORGAN_CAD_LIVE     = 0,
+    ORGAN_CAD_GEN      = 1,
+    ORGAN_CAD_BOUNDARY = 2,   // derived, never stored
+    ORGAN_CAD_DRIVEN   = 3,   // derived, never stored
+};
+
 // ─── The entry ────────────────────────────────────────────────────────
 // POD, so the table is a constant the linker can place in rodata.
 // `couple` is tier 3's reserved column (docs/ORGAN.md, "The three tiers"):
@@ -182,6 +214,8 @@ struct OrganParam {
                               // (MoodProfile or AgentTierBank), when there is one
     uint8_t     ro;           // ORGAN_2a — a WITNESS, not a dial: the panel
                               // meters it and organ_set refuses to write it
+    uint8_t     cad;          // ORGAN_3b — ORGAN_CAD_LIVE | _GEN, the only
+                              // cadence the entry cannot infer about itself
 };
 
 // ─── The enrollment macro ─────────────────────────────────────────────
@@ -193,7 +227,19 @@ struct OrganParam {
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
-                ORGAN_DEF_NONE, 0, 0 },
+                ORGAN_DEF_NONE, 0, 0, ORGAN_CAD_LIVE },
+
+// ORGAN_3b — THE SAME LINE, DECLARED GENERATIONAL. Identical in every
+// column but the last: the edit lands at the author's next natural event,
+// not now and not at the boundary. A dial that edits the future must say
+// so WHERE THE HAND IS — at the row, not only in the group's name — which
+// is what the chip this feeds is for.
+#define ORGAN_PARAM_GEN(BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL) \
+    OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
+                ORGAN_BLOCK_##BLOCK,                                          \
+                (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
+                ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
+                ORGAN_DEF_NONE, 0, 0, ORGAN_CAD_GEN },
 
 // The same line plus the field the dial DEFINES, and the family that field
 // belongs to. The compiler takes this offset too, so a rename on the
@@ -208,7 +254,8 @@ struct OrganParam {
                 (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_##DEFKIND,                                          \
-                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0 },
+                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0,        \
+                ORGAN_CAD_LIVE },
 
 // ORGAN_2b — A DEFINITION WITH NO INSTANCE. Some facts have a definition
 // the panel may write and no home the panel may address: MoodProfile's
@@ -225,7 +272,8 @@ struct OrganParam {
                 (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), \
                 ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
                 ORGAN_DEF_##DEFKIND,                                          \
-                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0 },
+                (uint16_t)offsetof(the_board::DEFSTRUCT, DEFFIELD), 0,        \
+                ORGAN_CAD_LIVE },
 
 // ORGAN_2a — A WITNESS, NOT A DIAL. The same offsetof plumbing pointed at a
 // DRIVEN value: the panel reads it every 250 ms and shows it moving, and
@@ -237,12 +285,13 @@ struct OrganParam {
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(the_board::STRUCT, FIELD),       \
                 ORGAN_##TYPE, 0.0f, 0.0f, 0.0f, 0.0f, 0,                      \
-                ORGAN_DEF_NONE, 0, 1 },
+                ORGAN_DEF_NONE, 0, 1, ORGAN_CAD_LIVE },
 
 inline const OrganParam kOrganParams[] = {
 #include "console/organ_params.inc"
 };
 #undef ORGAN_PARAM
+#undef ORGAN_PARAM_GEN
 #undef ORGAN_PARAM_DEF
 #undef ORGAN_PARAM_DEFONLY
 #undef ORGAN_PARAM_RO
@@ -282,6 +331,38 @@ inline void* block_base(uint8_t block) {
     }
 }
 
+// ORGAN_3b — A DEFINITION-ONLY ENTRY'S BLOCK. One helper rather than a
+// literal at three call sites, because ORGAN_3b's orb family takes a
+// second sentinel and a third family will take a third (the convention
+// descends from 255; see the block enum).
+inline bool is_defonly(uint8_t block) {
+    return block == ORGAN_BLOCK_NONE;
+}
+
+// ORGAN_3b — DOES A WRITE TO THIS BLOCK RAISE A RE-SPEAK FLAG? A bank
+// whose author is re-spoken at the frame boundary gives its dials
+// BOUNDARY cadence, and that is a property of the BLOCK, not of the
+// entry — so it is stated once, here, rather than per line. Empty today:
+// blocks 0..8 either reach the GPU directly (LIVE) or are read where they
+// are needed. ORGAN_3b P3 adds the orb console, whose author is
+// configure_orbs and whose re-speak the orb flag carries.
+inline bool block_has_boundary(uint8_t block) {
+    (void)block;
+    return false;
+}
+
+// ORGAN_3b — THE ONE PLACE THE CADENCE RULE LIVES. The manifest emitter
+// and the harness both call this, so they cannot disagree about what a
+// row means. Order matters: a witness is DRIVEN even if its block had a
+// boundary, because the row is a meter and the meter's cadence is its
+// author's.
+inline uint8_t derived_cadence(const OrganParam& e) {
+    if (e.ro) return ORGAN_CAD_DRIVEN;
+    if (e.def_kind != ORGAN_DEF_NONE || is_defonly(e.block)
+        || block_has_boundary(e.block)) return ORGAN_CAD_BOUNDARY;
+    return e.cad;                       // LIVE or the stored GEN
+}
+
 // THE WHITELIST LOOKUP. A triple that is not an entry is not addressable,
 // full stop — this is what keeps organ_set from being a memory editor.
 inline const OrganParam* find_entry(int block, int offset, int type) {
@@ -304,7 +385,7 @@ inline float read_lane(const OrganParam& e, int lane) {
     // therefore show what the current mood means; a mood change is
     // reflected on the next panel open, the same freshness the mood-def
     // dials already have.
-    if (e.block == ORGAN_BLOCK_NONE)
+    if (is_defonly(e.block))
         return read_definition(e, current_mood(), lane);
     void* base = block_base(e.block);
     if (!base || lane < 0 || lane >= lanes_of(e.type)) return 0.0f;
@@ -526,11 +607,12 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
         std::snprintf(buf, sizeof buf,
             "{\"id\":\"%s\",\"label\":\"%s\",\"group\":\"%s\",\"block\":%u,"
             "\"offset\":%u,\"type\":%u,\"min\":%g,\"max\":%g,\"step\":%g,"
-            "\"couple\":%u,\"def\":%u,\"ro\":%u,\"v\":[",
+            "\"couple\":%u,\"def\":%u,\"ro\":%u,\"cad\":%u,\"v\":[",
             e.id, e.label, e.group, (unsigned)e.block, (unsigned)e.offset,
             (unsigned)e.type, e.minv, e.maxv, e.step, (unsigned)e.couple,
             (unsigned)e.def_kind,
-            (unsigned)(e.ro ? 1u : 0u));
+            (unsigned)(e.ro ? 1u : 0u),
+            (unsigned)derived_cadence(e));   // ORGAN_3b — derived, not stored
         json += buf;
         const int n = lanes_of(e.type);
         for (int l = 0; l < n; ++l) {
@@ -562,7 +644,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     const OrganParam* e = find_entry(block, offset, type);
     if (!e)    { ++g_rejected; return; }   // not in the manifest: refused
     if (e->ro) { ++g_rejected; return; }   // a witness, not a dial (ORGAN_2a)
-    if (e->block == ORGAN_BLOCK_NONE) {    // definition-only (ORGAN_2b):
+    if (is_defonly(e->block)) {            // definition-only (ORGAN_2b):
         const float lanes_only[4] = { x, y, z, w };
         if (target < 0 || !write_definition(*e, (uint32_t)target, lanes_only))
             ++g_rejected;                  // no instance exists to fall back to

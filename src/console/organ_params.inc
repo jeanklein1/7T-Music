@@ -267,11 +267,16 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.0
 // for the author's next natural event — the next spawn, the next mood
 // change — exactly as a non-live mood's definition already waits.
 //
-// TURNING ONE AND SEEING NOTHING IS THE DIAL WORKING. That is why the
-// group says so in its name: a dial that edits the future must say it
-// edits the future, or the operator reads a working panel as a broken one.
-ORGAN_PARAM(INDOOR, IndoorSurface, height_cap_fraction, F32, 0.0f, 1.0f, 0.005f, "Terrain · Indoor (edits the next spawn)", "height cap fraction")
-ORGAN_PARAM(INDOOR, IndoorSurface, ribbon_scale,        F32, 0.0f, 0.6f, 0.005f, "Terrain · Indoor (edits the next spawn)", "ribbon scale")
+// TURNING ONE AND SEEING NOTHING IS THE DIAL WORKING — and ORGAN_3b moved
+// that warning from the GROUP'S NAME to THE ROW ITSELF. These two enroll
+// through ORGAN_PARAM_GEN, so the manifest carries cadence GEN and the
+// shell prints an "on respawn" chip beside the hand that is dragging.
+// Jean's diagnosis was exactly this: the panel said what every stop WAS
+// and never said WHEN it spoke, so a generational dial read as a dead one.
+// One fact, one home — the chip is that home now, and the group's name is
+// a group's name again.
+ORGAN_PARAM_GEN(INDOOR, IndoorSurface, height_cap_fraction, F32, 0.0f, 1.0f, 0.005f, "Terrain · Indoor", "height cap fraction")
+ORGAN_PARAM_GEN(INDOOR, IndoorSurface, ribbon_scale,        F32, 0.0f, 0.6f, 0.005f, "Terrain · Indoor", "ribbon scale")
 
 // ─── AURA (the drivers' room + its witnesses) ────────────────────────
 // The intent is the presence ramp's rest target — moved home from
