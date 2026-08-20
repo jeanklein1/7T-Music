@@ -12,89 +12,89 @@ proposing.
 ## Lane table — one row per (pipeline, stage)
 
 Each cell reads `used / free` against the per-stage Core limit in
-the header. The immediates lane is a byte budget, per pipeline
-layout rather than per stage — the schema's `immediate_size` fact
-(DOMESDAY_2 A10), captured from the pipeline-layout creation
-sites and cross-checked against the WGSL by witness M-2.
+the header. REGAIN_1 retired the immediates column: the program
+spends nothing in that lane and declares nothing in the immediate
+address space, so every cell read `0 / 64`. Witness M-2 keeps it
+that way — it fails the run if a `var<immediate>` reappears.
 
-| pipeline | member | stage | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 | immediates(bytes) /64 |
-|---|---|---|---|---|---|---|---|---|
-| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Compute Photographer VP (0D) | `photographerVPPipeline_` | C | 4 / 8 | 5 / 3 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 5 / 3 | 2 / 14 | 3 / 13 | 1 / 3 | 0 / 64 |
-| Frustum Cull Patches | `frustumCullPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 1 / 3 | 0 / 64 |
-| Live Card Heights (2D) | `liveCardHeightsPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Live Card Resolve (2D) | `liveCardResolvePipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Orb Init | `orbInitPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Orb Dynamics | `orbDynamicsPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Orb Recolor | `orbRecolorPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Orb State Prev Copy | `orbCopyPrevPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| GoL Zone Sync | `zoneGolSyncPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Zone Derive Params | `zoneDeriveParamsPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
-| Arch Mesh Gen | `archMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Column Mesh Gen | `columnMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Catenary Arch (Rasterized) | `archPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Generative Column (Rasterized) | `columnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Palm Tree (Rasterized) | `palmPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Cactus (Rasterized) | `cactusPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Gallery Frame | `galleryFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Gallery Frame | `galleryFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
-| Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
-| Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
+| pipeline | member | stage | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 |
+|---|---|---|---|---|---|---|---|
+| Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Compute Photographer VP (0D) | `photographerVPPipeline_` | C | 4 / 8 | 5 / 3 | 1 / 15 | 3 / 13 | 0 / 4 |
+| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 5 / 3 | 2 / 14 | 3 / 13 | 1 / 3 |
+| Frustum Cull Patches | `frustumCullPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 1 / 3 |
+| Live Card Heights (2D) | `liveCardHeightsPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Live Card Resolve (2D) | `liveCardResolvePipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Orb Init | `orbInitPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Orb Dynamics | `orbDynamicsPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Orb Recolor | `orbRecolorPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Orb State Prev Copy | `orbCopyPrevPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
+| GoL Zone Sync | `zoneGolSyncPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Zone Derive Params | `zoneDeriveParamsPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Arch Mesh Gen | `archMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Column Mesh Gen | `columnMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Catenary Arch (Rasterized) | `archPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Catenary Arch (Rasterized) | `archPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Generative Column (Rasterized) | `columnPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Generative Column (Rasterized) | `columnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Palm Tree (Rasterized) | `palmPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Palm Tree (Rasterized) | `palmPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Cactus (Rasterized) | `cactusPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Cactus (Rasterized) | `cactusPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Blade Cluster (Rasterized) | `bladePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | 3 / 9 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
+| Gallery Frame | `galleryFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 |
+| Gallery Frame | `galleryFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 |
+| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 |
+| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 |
+| Wall Painting Frame | `wallPaintingFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 |
+| Wall Painting Frame | `wallPaintingFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
+| Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
 
 ## Wallet summary — worst row per lane, program-wide
 
@@ -105,7 +105,6 @@ sites and cross-checked against the WGSL by witness M-2.
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
 | storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |
-| immediates(bytes) | 0 / 64 | 64 | (unused everywhere) |
 
 ## Table A's shape, with the channel column
 

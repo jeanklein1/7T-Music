@@ -11,26 +11,33 @@
 //
 // THE LAWS THAT GOVERN THIS FILE — docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
-// ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12) ══════════════════
+// ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12; recut by REGAIN_1) ═══
 // The web twin is the program (SUNSET_0; native archived at tag
-// native-sunset). Supported compilers: Tint→DXC (SM6.0+) on
-// Windows Chrome,
-// Tint→MSL, Tint→SPIR-V. Firefox: PENDING — naga 30 lacks
-// immediate_address_space; the floor of record is the Tint trio
-// until a Firefox boot witnesses otherwise (Jean's witness,
-// queued). Regaining Firefox is priced: a generated no-immediates
-// module (the wgsl_gate transform as generator) plus, on that path
-// only, the per-patch staging machinery PROBATE_I retired — two
-// boot paths, doubled witnesses. HELD until naga ships the
-// extension or an exhibition demands the spend; the card is the
-// boundary meanwhile (Jean's gate). FXC is unsupported;
-// its retired laws live in docs/FXC_LAWS_RECORD.md. naga gates
-// the module THROUGH THE IMMEDIATE SHIM (tools/wgsl_gate.py; the
-// transform is the gate's pinned half). The immediate address
-// space itself is witnessed by boots alone — one generation wider
-// than the blind spot this block already names. The web build +
-// boot is the witness of
-// record; the [Pipeline] timer prices compile time per kernel.
+// native-sunset). THIS MODULE IS CORE WGSL — no `requires`, no
+// language extension, nothing outside the statute every conforming
+// implementation must carry. So the floor of record is no longer a
+// named trio of compilers: it is WebGPU itself. Tint→DXC (SM6.0+),
+// Tint→MSL, Tint→SPIR-V and naga all read this file.
+//
+// REGAIN_1 is why. The floor was the Tint trio because DOMESDAY_2
+// F3-a declared `requires immediate_address_space;` and naga 30
+// does not know it — which refused Firefox at line one, and Safari
+// and iOS with it. Regaining them was priced at a second generated
+// module and doubled witnesses; the price turned out to be a
+// binding change instead, and the two immediates are dynamic-offset
+// uniforms now. FXC is unsupported; its retired laws live in
+// docs/FXC_LAWS_RECORD.md.
+//
+// NO ENGINE IS REFUSED BY THIS FILE ANY MORE. None outside Chromium
+// has been WITNESSED running the program either — that is a boot, and
+// a boot is Jean's to take (docs/OPEN.md).
+//
+// naga gates the module WHOLE and UNMODIFIED (tools/wgsl_gate.py).
+// The shim that stood between them from DOMESDAY_2 F3-a until
+// REGAIN_1 is retired, and with it the blind spot it created: what
+// naga reads is now the file the browser is served. The web build +
+// boot is still the witness of record for everything below; the
+// [Pipeline] timer prices compile time per kernel.
 // NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance and
 // minBindingSize are Dawn's checks at pipeline creation, so the web boot
 // witnesses them and naga cannot. ATLAS_1revB caught two defects of
@@ -150,25 +157,23 @@
 // §1 FOUNDATIONS
 
 // ── Language extensions (WGSL §4.1.2) ───────────────────────────────
-// THE SHADER NAMES ITS OWN DEPENDENCY. `var<immediate>` (the shadow
-// light index, §7.0's declaration — DOMESDAY_1 B6) is the immediate
-// address space, WGSL §14.3, reached through the standard language
-// extension below. Declaring it here is the statute's own mechanism
-// for exactly this: an implementation that lacks the extension fails
-// the shader HERE, by name, instead of failing later at a var it does
-// not understand.
+// THIS MODULE NAMES NO DEPENDENCY, and that is the point. REGAIN_1
+// retired the immediates lane: the shadow tile's light index and the
+// patch generator's params are DYNAMIC-OFFSET UNIFORMS now (§7.0's two
+// declarations), so nothing here reaches outside core WGSL and there is
+// no `requires` line to fail on.
 //
-// Directives precede every declaration in a WGSL module, so this is
-// the earliest legal line in the file and must stay above the first
-// `override`.
+// DOMESDAY_2 F3-a put `requires immediate_address_space;` here and it
+// stood until this campaign. It was the statute's own mechanism working
+// correctly — an implementation lacking the extension failed the shader
+// HERE, by name — but naming a dependency is only free when every
+// implementation has it, and this one refused every engine outside the
+// Tint trio. The dependency is gone, so the sentence that declared it
+// is gone with it.
 //
-// Generation note (DOMESDAY_2 F5): at the pinned emdawnwebgpu
-// generation this extension is STANDARD and Tint reports it
-// FeatureStatus::kShipped — exposed by default, no instance control.
-// Older generations gate it at a tier an instance has to open, which
-// is why the pin is a pin and not a preference. See
-// third_party/emdawnwebgpu/PINNED.md.
-requires immediate_address_space;
+// A directive precedes every declaration in a WGSL module. If a future
+// campaign ever needs one, this is where it goes: above the first
+// `override`, the earliest legal line in the file.
 
 // ── Pipeline specialization overrides (set at pipeline creation) ────
 // Controls which VS path is used (direct patch access vs indirection through

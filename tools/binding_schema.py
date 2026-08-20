@@ -733,7 +733,6 @@ NEEDS = {
     'maxUniformBuffersPerShaderStage': {'floor': 12, 'source': 'core-default', 'note': 'the wallet fits the default; worst row per MANIFEST\'s lane table'},
     'maxUniformBufferBindingSize': {'floor': 65536, 'source': 'core-default', 'note': 'every uniform window sits well under 64 KiB'},
     'maxBindGroups': {'floor': 4, 'source': 'core-default', 'note': 'the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design'},
-    'maxImmediateSize': {'floor': 32, 'source': 'sizeof(GPUPatchParams)', 'note': 'the patchgen params (PROBATE_I) — the lane statute grants 64; the program stands on 32; shadow_slot rides within it'},
 }
 
 # ═══ THE FEATURE WALLET (PROBATE_F) ═════════════════════════════════

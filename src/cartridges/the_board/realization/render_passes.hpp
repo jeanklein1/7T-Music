@@ -571,8 +571,10 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // this pass, so they bind once here. Group 2 is set by the plan
     // slot helper — since B5 all three slots bind the ONE scene group,
     // and the table draws inherit it after slot C.
-    // DOMESDAY_1 B6 (R3): FRAME binds with no offset argument — the
-    // main family's pipelines carry no immediate and no dynamic seat.
+    // REGAIN_1: no group here binds with an offset argument. The two
+    // dynamic-offset seats the program owns are the PATCHGEN and SHADOW
+    // families' (g2:40, g2:201); sceneStateLayout_ carries neither, so
+    // the main family's binds are plain.
     pass.SetBindGroup(0, c->gpuState_.world_group());
     pass.SetBindGroup(1, c->gpuState_.frame_r_group());
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
