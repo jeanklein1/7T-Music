@@ -25,9 +25,9 @@ sites and cross-checked against the WGSL by witness M-2.
 | Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 32 / 32 |
-| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 32 / 32 |
-| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 32 / 32 |
+| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
+| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
+| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 | 0 / 64 |
 | Compute Ribbon Rings (1D, per frame) | `ribbonRingPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Compute Photographer VP (0D) | `photographerVPPipeline_` | C | 4 / 8 | 5 / 3 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 5 / 3 | 2 / 14 | 3 / 13 | 1 / 3 | 0 / 64 |
@@ -100,12 +100,12 @@ sites and cross-checked against the WGSL by witness M-2.
 
 | lane | worst used / limit | free | at |
 |---|---|---|---|
-| uniform | 5 / 12 | 7 | `updatePlayerAgentPipeline_` C (+3 more) |
+| uniform | 5 / 12 | 7 | `updatePlayerAgentPipeline_` C (+6 more) |
 | storage | 5 / 8 | 3 | `updatePlayerAgentPipeline_` C (+20 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
 | storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |
-| immediates(bytes) | 32 / 64 | 32 | `generatePatchHeightsPipeline_` C (+2 more) |
+| immediates(bytes) | 4 / 64 | 60 | `shadowPatchTerrainPipeline_` V (+12 more) |
 
 ## Table A's shape, with the channel column
 
@@ -138,6 +138,7 @@ declaration alone — no hand-authored field.
 | `shadow_map` | 3:200 | handle | `texture_depth_2d` | sampled |
 | `shadow_sampler` | 3:201 | handle | `sampler_comparison` | samplers |
 | `spot_shadow_map` | 3:202 | handle | `texture_depth_2d` | sampled |
+| `patch_params` | 2:40 | uniform | `PatchParams` | uniform |
 | `patch_heightfield_array_write` | 3:40 | handle | `texture_storage_2d_array<rgba16float, write>` | storagetex |
 | `tile_grid` | 0:1 | uniform | `TileGrid` | uniform |
 | `patch_cell_color_array_write` | 3:41 | handle | `texture_storage_2d_array<rgba8unorm, write>` | storagetex |

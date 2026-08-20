@@ -6387,14 +6387,21 @@ fn shadow_light_vp() -> mat4x4<f32> {
 // --- Patch heightfield generation (Group 0: bindings 23-24)
 // Separate pipeline layout. Dispatched per-patch when a new patch enters
 // the active set. Writes to one layer of the patch heightfield array.
-// PROBATE_I — PatchParams rides the immediates lane (the lane's second
-// spend; shadow_slot, DOMESDAY_1 B6, was the first). One struct, one
-// dispatch cadence, 32 of the 64-byte grant. The g2:40 seat, the params
-// buffer and the 225-slot staging ladder left the program with it; the
-// storm path sets these bytes on the pass encoder instead of copying
-// them between buffers. Every read below is untouched — the address
-// space moved, the name did not.
-var<immediate> patch_params: PatchParams;
+// REGAIN_1 — PatchParams LEAVES the immediates lane and takes the
+// g2:40 seat back. One uniform buffer of Dim::MAX_ACTIVE_PATCHES
+// 256-byte windows, one WriteBuffer per batch, and a DYNAMIC OFFSET
+// carrying the patch index: window i is this dispatch's 32 bytes.
+//
+// THIS IS NOT THE PRE-PROBATE_I LADDER RETURNING. That ladder — a
+// 225-slot staging buffer plus a CopyBufferToBuffer per patch into a
+// one-patch params buffer — existed because a binding could not change
+// inside an encoder. A dynamic offset IS that ability, so the copy has
+// nothing left to do: one buffer where there were two, one write where
+// there was a write plus a copy per patch.
+//
+// Every read below is untouched — the address space moved, the name
+// did not, and a uniform reads exactly as an immediate did.
+@group(2) @binding(40) var<uniform> patch_params: PatchParams;
 // .a = the terrain's reserve field — 28.125 MiB pre-paid, nine consumers wired, write nothing until a campaign names it (LOOM ruling).
 @group(3) @binding(40) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(1) var<uniform> tile_grid: TileGrid;

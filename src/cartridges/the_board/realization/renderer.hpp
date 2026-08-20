@@ -559,15 +559,23 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
             }
 
+            // REGAIN_1 — THE PATCH INDEX IS THE OFFSET, for all three
+            // helpers below. The patchgen kernels read patch_params from
+            // g2:40, a uniform window bound with a DYNAMIC OFFSET, and
+            // these helpers own the group-2 bind — so the offset belongs
+            // here, beside it, not at the call site. paramsOffset is
+            // i * PATCH_PARAMS_STRIDE for the i-th patch of the batch.
+
             // Pass 1: evaluate ground_formed() per texel, store height only.
             void dispatch_generate_patch_heights(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups
+                uint32_t workgroups,
+                uint32_t paramsOffset
             ) {
                 pass.SetPipeline(generatePatchHeightsPipeline_);
-                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
@@ -577,10 +585,11 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups
+                uint32_t workgroups,
+                uint32_t paramsOffset
             ) {
                 pass.SetPipeline(generatePatchGradientsPipeline_);
-                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
@@ -589,10 +598,11 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups
+                uint32_t workgroups,
+                uint32_t paramsOffset
             ) {
                 pass.SetPipeline(generatePatchCellsPipeline_);
-                pass.SetBindGroup(2, stateGroup);
+                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
@@ -1711,8 +1721,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
-                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
                         pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
@@ -1720,8 +1729,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
-                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
                         pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
@@ -1729,8 +1737,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_cells (2D, on demand)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
-                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_cells", "Generate Patch Cells (2D, on demand)",
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;

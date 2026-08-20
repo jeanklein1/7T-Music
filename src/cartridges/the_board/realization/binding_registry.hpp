@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (86 declarations over 71 slots;
+// The WGSL @binding literals in world.wgsl (87 declarations over 72 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -70,6 +70,7 @@ namespace t7 {
                 // sampler that reads it — bands under the family that
                 // AUTHORS the estate; readers borrow at its numbers.
                 // R3a extended from resource to estate.
+                inline constexpr uint32_t patch_params                = 40;  // REGAIN_1: the slot PROBATE_I freed, taken back — one 256-byte window per patch, the offset carrying the index
                 inline constexpr uint32_t patch_height_scratch        = 41;
                 inline constexpr uint32_t pyramid_instances           = 42;
                 inline constexpr uint32_t patch_grid                  = 43;

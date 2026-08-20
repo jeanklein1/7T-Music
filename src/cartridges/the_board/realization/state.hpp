@@ -1590,6 +1590,14 @@ namespace t7 {
         inline constexpr uint32_t FC_LIST_BYTES  = 2048;
         inline constexpr uint32_t FC_ARGS_BYTES  = 15 * sizeof(uint32_t);  // 3 x 5-u32 draw-args slots
 
+        // ─── REGAIN_1 — the patch params windows ──────────────────
+        // One 256-byte window per pool slot; window i holds patch i's
+        // GPUPatchParams. The STRIDE is the binding offset alignment,
+        // not the payload: 32 bytes are used and the rest is what the
+        // alignment demands. The legality argument is the one the
+        // ATLAS_1revB D3" paragraph below makes for the same number.
+        inline constexpr uint32_t PATCH_PARAMS_STRIDE = 256;
+
         // ─── ATLAS_1revB D3" — the shadow tile's light-index windows ──
         // One 256-byte window per spot light; window i holds the literal
         // i. 256 is minUniformBufferOffsetAlignment's core default and
@@ -2056,11 +2064,16 @@ namespace t7 {
             uint32_t meterPairCount_ = 0;
             uint32_t meterNextIndex_ = 0;
 
-            // PROBATE_I: patchParamsBuffer_ and patchStagingBuffer_ are
-            // retired. `patch_params` is `var<immediate>` (world.wgsl
-            // §7.0a) and GPUPatchParams is the value type handed to
-            // SetImmediates at the dispatch site — no seat, no backing,
-            // no 225-slot ladder to take turns in.
+            // REGAIN_1: ONE buffer, not the two PROBATE_I retired.
+            // patchParamsBuffer_ is Dim::MAX_ACTIVE_PATCHES windows at
+            // PATCH_PARAMS_STRIDE, bound at g2:40 with a dynamic offset;
+            // patchParamsWindows_ is the CPU side of the single
+            // WriteBuffer that fills a batch's windows (57,600 B, sized
+            // to the pool because the boot pregen's batch is not bounded
+            // by PATCH_BUDGET_MAX). There is no staging buffer and no
+            // copy — see the banner at the creation site.
+            wgpu::Buffer patchParamsBuffer_;
+            uint8_t patchParamsWindows_[Dim::MAX_ACTIVE_PATCHES * PATCH_PARAMS_STRIDE] = {};
             wgpu::Buffer patchInstancesBuffer_;
             // OIL_1 U10: shadow of the last-uploaded instance packing +
             // first-upload flag — the upload_patch_instances gate.
@@ -2500,9 +2513,9 @@ namespace t7 {
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
-            // PROBATE_I: upload_patch_params is retired with its buffer —
-            // the params reach the shader through SetImmediates on the
-            // patchgen compute passes (surface/patch_system.hpp).
+            // REGAIN_1: the params door is a BATCH door now and lives
+            // with the other batch machinery — upload_patch_params_batch,
+            // below, under "Batch patch generation".
 
             void upload_tile_grid(wgpu::Queue& queue, const GPUTileGrid& grid) {
                 writeStruct(queue, tileGridBuffer_, grid);
@@ -3649,10 +3662,41 @@ namespace t7 {
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
 
             // --- Batch patch generation ---
-            // PROBATE_I: the three staging doors — patch_params_buffer,
-            // patch_staging_buffer and upload_patch_staging — are retired
-            // with the two buffers behind them. A batch's params are CPU
-            // values now, set per patch on the pass encoder.
+            // REGAIN_1 — ONE WRITE PER BATCH. Every window a batch will
+            // bind is filled here, in a single WriteBuffer, before the
+            // pass loop opens; inside the loop nothing is written at all,
+            // only an offset moves. That is strictly less traffic than
+            // the ladder PROBATE_I retired (one write plus one copy per
+            // patch) and one buffer fewer than it needed.
+            //
+            // THE CLAMP IS FOR THE BOOT PREGEN. Its batch size is not
+            // bounded by PATCH_BUDGET_MAX, so a pool-sized window array
+            // is the honest allocation and a count past it is a caller
+            // defect, said out loud rather than scribbled past the end.
+            //
+            // IT RETURNS WHAT IT WROTE so the clamp is one fact in one
+            // place: the caller's dispatch loop walks the windows that
+            // exist, and no offset can be handed to a bind that the
+            // buffer does not contain. A void door would have left the
+            // guard decorative and the loop free to walk past the end.
+            uint32_t upload_patch_params_batch(wgpu::Queue& queue,
+                const GPUPatchParams* params, uint32_t count) {
+                if (count == 0 || !patchParamsBuffer_) return 0;
+                if (count > Dim::MAX_ACTIVE_PATCHES) {
+                    std::cerr << "[GPUState] upload_patch_params_batch: count "
+                        << count << " exceeds the window array ("
+                        << Dim::MAX_ACTIVE_PATCHES << ") — clamped. The batch "
+                           "the caller asked for cannot be generated whole.\n";
+                    count = Dim::MAX_ACTIVE_PATCHES;
+                }
+                for (uint32_t i = 0; i < count; i++) {
+                    std::memcpy(patchParamsWindows_ + i * PATCH_PARAMS_STRIDE,
+                                &params[i], sizeof(GPUPatchParams));
+                }
+                queue.WriteBuffer(patchParamsBuffer_, 0, patchParamsWindows_,
+                    static_cast<size_t>(count) * PATCH_PARAMS_STRIDE);
+                return count;
+            }
 
         private:
 
@@ -3968,11 +4012,27 @@ namespace t7 {
                         METER_QUERY_COUNT * sizeof(uint64_t),
                         wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 }
-                // PROBATE_I: "Patch Params" (32 B) and "Patch Params
-                // Staging" (225 × 32 B) are no longer created — the
-                // immediates lane carries the struct, so the budget
-                // stops paying for a buffer pair the pass encoder
-                // replaces.
+                // ─── REGAIN_1 — THE PATCH PARAMS WINDOWS ──────────
+                //
+                // ONE buffer: Dim::MAX_ACTIVE_PATCHES windows at
+                // PATCH_PARAMS_STRIDE (57,600 B), uniform, bound at g2:40
+                // with a DYNAMIC OFFSET that carries the patch index. One
+                // WriteBuffer per batch fills every window the batch will
+                // bind; nothing is written inside the pass loop.
+                //
+                // THIS IS NOT THE PRE-PROBATE_I LADDER. That was TWO
+                // buffers — a 225-slot staging ladder and a one-patch
+                // params buffer — plus a CopyBufferToBuffer per patch,
+                // and it existed for one reason: a binding could not
+                // change inside an encoder, so the bytes had to move
+                // instead. A dynamic offset is precisely that ability, so
+                // the copy has nothing left to do. One buffer where there
+                // were two; one write where there was a write plus a copy
+                // per patch; and the 32 bytes of budget the lane carried
+                // become 57,600 of window, which is not a number worth a
+                // second thought against a 225-layer heightfield array.
+                patchParamsBuffer_ = makeBuffer("Patch Params Windows",
+                    Dim::MAX_ACTIVE_PATCHES * PATCH_PARAMS_STRIDE, UU);
                 tileGridBuffer_ = makeBuffer("Tile Grid", sizeof(GPUTileGrid), UU);
                 patchInstancesBuffer_ = makeBuffer("Patch Instances",
                     sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES,
@@ -4050,6 +4110,7 @@ namespace t7 {
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
+                    patchParamsBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
