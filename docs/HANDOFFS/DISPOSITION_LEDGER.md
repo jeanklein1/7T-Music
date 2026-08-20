@@ -867,9 +867,14 @@ applied without being asked twice.
 
 | seam | why |
 | --- | --- |
-| the ribbon's four pipes (`ribbon.amp_lateral_mult`, `amp_vertical_mult`, `color_stim`, `color_mix`) | The rests are already at the seam as hard-coded fallbacks (`: 1.0f`, `: 0.0f`, `nullptr`) inside `ribbon.hpp:833-846` — but the **`color_stim` fallback is a null pointer**, not a value, and the code branches on it downstream. Moving it into the room means giving the null branch a rest *shape* first, which is a read of the tint path this sitting did not make. The other three are mechanical; they were held back with the fourth so the ribbon's seam lands as one coherent unit rather than three-quarters of one. Anatomy: `DriverSurface::Ribbon { rest_amp_lat, rest_amp_vert, rest_tint_stim[3], rest_tint_mix, gain }`. |
 | `floater_coordination` | driven by `cube_behaviors.hpp:400`, which is one of the five modules flagged unread in §4.6. Witness-only would be honest, but its *dial* lives in that module and the pair should land together. |
 | `veil_strength`, `terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap` | driven per-world/per-mood from MoodProfile's **structural** group, which is C5 by the standing eligibility rule. A witness on each is defensible and cheap; deferred only because the four belong to one reading of the mood applier that Wave 3's ORB deferral already named. |
+
+**The ribbon's four pipes died at ORGAN_4 P2** — the fourth pipe's blocker
+was read rather than worked around: downstream is `st ? st[c2] : 0.0f`, so
+the null branch's rest SHAPE is `{0,0,0}`, which is PARAM_LAYOUT's own rest
+column for `ribbon.color_stim`. The anatomy this row predicted is the
+anatomy that landed, field for field.
 
 ---
 
@@ -1821,3 +1826,62 @@ window that tight measures IEEE-754, not the grid.
 | `tools/organ_gap.py --gate` | **PASS** — 0 surviving runtime readers across 11 graduated pairs |
 | `tools/gates/score/run.py` | **RED, 4 violations — PRE-EXISTING.** Verified by `git stash`: identical at 85b1cd6. `phase_motion_corral` missing from the spine; ribbon's F8 door and orbs' boot config ungated in the manifest; `phase_live_card_write` ungated but not FOUNDATIONAL. Not ORGAN_4's, not repaired here — the spine table is a different jurisdiction. Flagged for the next sitting that opens `UPDATE_SPINE`. |
 | `tools/wgsl_gate.py` | FAIL, environmental — `naga` is not on PATH in this container. The gate reports unrunnable as failed by design (P1). No WGSL was touched this campaign. |
+
+## P2 — the ribbon seam
+
+Wave 4's ribbon row named the anatomy and left it: `DriverSurface::Ribbon
+{ rest_amp_lat, rest_amp_vert, rest_tint_stim[3], rest_tint_mix, gain }`.
+That is the anatomy that landed, field for field. What Wave 4 was missing
+was one read, and this is it.
+
+**The fourth pipe's blocker, read rather than worked around.** `color_stim`'s
+fallback is a NULL POINTER, so the row asked what a null branch's rest
+SHAPE is. The answer was already in the line below it:
+`const float s = st ? st[c2] : 0.0f`. The code has always assumed `{0,0,0}`;
+`PARAM_LAYOUT` says the same thing independently — `{ "ribbon.color_stim",
+6, 3, 0.0f }`. Two witnesses, one shape, no guess.
+
+**The rests ARE the old fallbacks.** `{ 1.0f, 1.0f, {0,0,0}, 0.0f, 1.0f }`
+— `PARAM_LAYOUT`'s four rest columns and the seam's four hardcoded
+fallbacks agree, which is what made this a rest-and-gain seam rather than
+a redesign. One gain for four pipes, as fog's density and colour share
+one: the four are one gesture, the canvas moving a ribbon.
+
+The room is **60 → 88 bytes** (22 words: fog 5, aura 4, checker 6, ribbon
+7), and the whole-struct `static_assert` the room never had is added with
+it — the canvas precedent, which bites, rather than the tautological form.
+
+### Byte-stability, measured rather than claimed
+
+The handoff's sentence is *"gain 1 and the shipped rests reproduce today's
+arithmetic exactly."* Half of it is trivially true and half needed a
+number, so both were measured:
+
+```
+  [PASS] rest 0, gain 1: byte-identical (stim and mix)
+         4718592 samples, 0 differences
+  [PASS] rest 1, gain 1: byte-identical across the pipe's domain
+         1310720 samples over [0.5, 16], 0 differ
+         (over the full sweep [1e-9, 32]: differences exist, ALL below
+          0.0078 — d − 1 loses the low bits only when d is far under the
+          pipe's floor. The swell coupling's multiplier rests at 1.0 and
+          its ceiling dial floors at 1.0, so the domain is [1, ceiling].)
+  [PASS] gain 0 returns the curator's rest exactly, for every driven value
+```
+
+The stim and mix pipes need no Sterbenz argument at all — their rests are
+0, and `0 + 1·(d − 0) == d` is exact for every float, the same argument the
+checker seam got for free. The two amp pipes rest at 1.0 and so do need
+one, and the window is stated above with its evidence instead of assumed.
+
+### No witness, and that is the finding (D2)
+
+C4 asked whether a FIXED CPU home holds the last-uploaded amp/colour
+quartet. It does not: they live at `rs.gpu[rs.rendered_slot]`, and
+`rendered_slot` moves with eviction and reads `UINT32_MAX` when nothing is
+rendered. **A witness needs a home; a varying slot is not one.** Minting a
+mirror to give it one is what windows-not-homes forbids, so the section
+carries five dials and no meter — and says so in its own banner, where the
+next reader will look.
+
+Entries **258 → 263**. `organ_gap` now reads `DriverSurface 4/4 named`.

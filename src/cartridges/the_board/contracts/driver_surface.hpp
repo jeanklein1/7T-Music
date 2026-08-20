@@ -52,6 +52,26 @@ struct DriverSurface {
         float rest_variance;      // enveloped distinct-pc count at gain 0
         float gain;               // 0 manual … 1 coupling verbatim
     } checker;
+    // ORGAN_4 P2 — THE RIBBON'S FOUR PIPES. ribbon_frame_tick reads four
+    // already-wired C4 seams every frame, and their hardcoded fallbacks
+    // ARE the rests: `: 1.0f`, `: 1.0f`, `: nullptr`, `: 0.0f`. Wave 4
+    // held them back on the fourth, whose fallback is a NULL POINTER and
+    // not a value — moving it into the room needed the null branch's rest
+    // SHAPE read first. It is read now: downstream is
+    // `const float s = st ? st[c2] : 0.0f`, so the shape is {0,0,0} —
+    // exactly PARAM_LAYOUT's rest column for `ribbon.color_stim`, and the
+    // same "return to seed, not gray" the checker's rests carry.
+    //
+    // ONE GAIN, THE SEAM'S VOLUME. The four pipes are one gesture — the
+    // canvas moving a ribbon — so they share a gain, as fog's density and
+    // colour do.
+    struct Ribbon {
+        float rest_amp_lat;       // 1.0 — identity: the seed's dance
+        float rest_amp_vert;      // 1.0
+        float rest_tint_stim[3];  // {0,0,0} — the null branch's shape, read
+        float rest_tint_mix;      // 0.0
+        float gain;               // one gain, the seam's volume
+    } ribbon;
 };
 
 // The authored design — the code panel. Values with a /* D1 */ marker
@@ -75,10 +95,22 @@ inline constexpr DriverSurface DRIVER_TABLE = {
     { { 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f, 1.0f },   // checker: the rests are
                                 // terrain_looks REST_CHECKER_* verbatim —
                                 // a return to seed, not gray (ORGAN_3 w4)
+    { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the four
+                                // hardcoded fallbacks at ribbon.hpp's seam,
+                                // carried verbatim — 1.0/1.0 are the
+                                // amp identities (the seed's own dance),
+                                // {0,0,0} is the null branch's shape as the
+                                // downstream `st ? st[c2] : 0.0f` reads it,
+                                // and mix 0 is the seed-drawn colour
+                                // exactly (ORGAN_4 P2)
 };
 
 // The live surface — the panel's fourth block and the seams' read.
 inline DriverSurface DRIVER_LIVE = DRIVER_TABLE;
+static_assert(sizeof(DriverSurface) == 22 * sizeof(float),
+    "DRIVER_LIVE is a whole-struct copy of the design row: a field added "
+    "to one is added to the other by construction. 22 words — fog 5, "
+    "aura 4, checker 6, ribbon 7 (60 -> 88 bytes at ORGAN_4 P2)");
 
 } // namespace the_board
 } // namespace t7

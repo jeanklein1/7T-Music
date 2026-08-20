@@ -7,6 +7,7 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 #include "cartridges/the_board/contracts/control_panel.hpp"    // FIELD_SLACK/K/FMAX + the two emitter mutes — the one home
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"   // ORGAN_3 w2 — RIBBON_LIVE: the head law + wander steering
+#include "cartridges/the_board/contracts/driver_surface.hpp"   // ORGAN_4 P2 — DRIVER_LIVE.ribbon: the four pipes' rests + the seam's gain
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
 //
@@ -822,22 +823,39 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         rs.gpu[i].time = par.phase;
         {
             const VisualParams& vp = c->visual_canvas_.params();
-            const float ml = c->ribbon_amp_lat_dst_.valid
-                ? vp.get(c->ribbon_amp_lat_dst_.base)  : 1.0f;
-            const float mv = c->ribbon_amp_vert_dst_.valid
-                ? vp.get(c->ribbon_amp_vert_dst_.base) : 1.0f;
+            // ORGAN_4 P2 — THE SEAM, the 2a recipe verbatim:
+            // out = rest + gain·(driven − rest). The rests below ARE the
+            // fallbacks this block hardcoded before the room existed, so
+            // at the shipped seeds (gain 1, rests 1/1/{0,0,0}/0) the
+            // arithmetic is byte-stable: rest + 1·(d − rest) folds back
+            // to d for every float, and with the pipe unbound the driven
+            // value IS the rest and the blend is the rest exactly.
+            const auto& R = DRIVER_LIVE.ribbon;
+            const float ml_raw = c->ribbon_amp_lat_dst_.valid
+                ? vp.get(c->ribbon_amp_lat_dst_.base)  : R.rest_amp_lat;
+            const float ml = R.rest_amp_lat + R.gain * (ml_raw - R.rest_amp_lat);
+            const float mv_raw = c->ribbon_amp_vert_dst_.valid
+                ? vp.get(c->ribbon_amp_vert_dst_.base) : R.rest_amp_vert;
+            const float mv = R.rest_amp_vert + R.gain * (mv_raw - R.rest_amp_vert);
             rs.gpu[i].lateral_amp  = rs.active[i].spawn_lateral_amp  * ml;
             rs.gpu[i].vertical_amp = rs.active[i].spawn_vertical_amp * mv;
 
             // Line tint (color gen-2): gpu.color = lerp(spawn, stim, mix).
             // Rest = mix 0 = the seed-drawn color exactly; the held-slot
             // upload_ribbon_color line ships it unchanged.
-            const float mix = c->ribbon_tint_mix_dst_.valid
-                ? vp.get(c->ribbon_tint_mix_dst_.base) : 0.0f;
+            const float mix_raw = c->ribbon_tint_mix_dst_.valid
+                ? vp.get(c->ribbon_tint_mix_dst_.base) : R.rest_tint_mix;
+            const float mix = R.rest_tint_mix + R.gain * (mix_raw - R.rest_tint_mix);
             const float* st = c->ribbon_tint_stim_dst_.valid
                 ? vp.run(c->ribbon_tint_stim_dst_.base) : nullptr;
             for (int c2 = 0; c2 < 3; ++c2) {
-                const float s = st ? st[c2] : 0.0f;
+                // THE NULL BRANCH'S REST SHAPE, READ RATHER THAN GUESSED:
+                // downstream was `st ? st[c2] : 0.0f`, so the shape the
+                // code already assumed is {0,0,0} — PARAM_LAYOUT's rest
+                // column for ribbon.color_stim, verbatim.
+                const float s_raw = st ? st[c2] : R.rest_tint_stim[c2];
+                const float s = R.rest_tint_stim[c2]
+                              + R.gain * (s_raw - R.rest_tint_stim[c2]);
                 rs.gpu[i].color[c2] =
                     par.spawn_color[c2]
                     + (s - par.spawn_color[c2]) * mix;

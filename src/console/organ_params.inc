@@ -473,6 +473,31 @@ ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_mix_attack,  F32, 0.01f, 12.0
 ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_mix_release, F32, 0.01f, 12.0f, 0.05f,  "Ribbon · Tint", "mix release (beats)")
 ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, tint_hue_span,    F32, 0.01f, 12.0f, 0.05f,  "Ribbon · Tint", "hue span (beats)")
 
+// ─── Ribbon · Drivers (the seam's rests and its one gain) ───────
+// ORGAN_4 P2 (C4). The four pipes ribbon_frame_tick reads every frame —
+// amp_lateral_mult, amp_vertical_mult, color_stim, color_mix — seamed
+// with the 2a recipe: out = rest + gain·(driven − rest). The rests ARE
+// the hardcoded fallbacks the block carried before the room existed, so
+// gain 1 at the shipped rests reproduces today's frames exactly.
+//
+// THE FOURTH PIPE'S BLOCKER, READ. Wave 4 held all four back because
+// color_stim's fallback is a NULL POINTER and not a value. Downstream is
+// `const float s = st ? st[c2] : 0.0f`, so the null branch's rest SHAPE
+// is {0,0,0} — PARAM_LAYOUT's own rest column for ribbon.color_stim, and
+// the same "return to seed" the checker's rests carry.
+//
+// NO WITNESS HERE, AND THAT IS THE HONEST ANSWER (D2). The driven quartet
+// has no fixed CPU home: the last-uploaded values live at
+// `rs.gpu[rs.rendered_slot]`, and the slot moves with eviction and reads
+// UINT32_MAX when nothing is rendered. A witness needs a home; a varying
+// slot is not one — and windows-not-homes forbids minting a mirror to
+// give it one.
+ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_amp_lat,   F32,  0.0f, 4.0f, 0.01f,  "Ribbon · Drivers", "amp lat rest")
+ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_amp_vert,  F32,  0.0f, 4.0f, 0.01f,  "Ribbon · Drivers", "amp vert rest")
+ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_tint_stim, VEC3, 0.0f, 1.0f, 0.01f,  "Ribbon · Drivers", "tint stim rest")
+ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_tint_mix,  F32,  0.0f, 1.0f, 0.005f, "Ribbon · Drivers", "tint mix rest")
+ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.gain,           F32,  0.0f, 2.0f, 0.01f,  "Ribbon · Drivers", "drive gain")
+
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // AgentTierParams::color_r/g/b are three contiguous floats, so one VEC3
 // addresses the triple; speed_gain is the tier's motion scale. The home is
