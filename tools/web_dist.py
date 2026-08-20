@@ -703,6 +703,16 @@ def main():
     print("  %-18s %s   <- sha256(the_board.wasm)[:%d]; the .js/.wasm/.data query"
           % ("build id", build_id, BUILD_ID_LEN))
     print("  %-18s %s" % ("", "Deploy twice without rebuilding and this must not change."))
+    # ORGAN_5 P5a — THE PANEL IS IN THE SAME BOAT, and this line says so
+    # because "is the panel versioned too?" is a question the report was
+    # letting the reader answer by reading index.html. organ_panel.js
+    # carries the same ?v= key, and index.html hands the id to the panel
+    # as window.T7_BUILD_ID so the footer and the pill can name the build
+    # a phone is actually running. Two devices showing different ids are
+    # not the same program.
+    print("  %-18s %s"
+          % ("", "organ_panel.js?v=%s too; the panel's footer prints `build %s`."
+                 % (build_id, build_id)))
     print("  %-18s %s   <- sha256(world.wgsl)[:%d] over %d bytes; the boot compares"
           % ("shader sha", shader_sha, SHADER_SHA_LEN, len(shader_bytes)))
     print("  %-18s %s" % ("", "Pixel console must read: [Dist] world.wgsl sha=%s expected=%s MATCH"

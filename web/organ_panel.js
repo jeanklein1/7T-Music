@@ -79,6 +79,21 @@
   // onto the wrong button.
   var RULE_NAMES = ['brownian', 'orbital', 'frozen', 'flocking'];
 
+  // ── ORGAN_5 P5b — WHICH BUILD IS THIS? ────────────────────────────
+  // index.html sets window.T7_BUILD_ID from the same `BUILD` variable it
+  // versions every script URL with (BUILDID_0), so the footer names the
+  // bytes the visitor is actually running. Two devices showing different
+  // ids are not the same program, and "count works here and not there"
+  // stops being a mystery and becomes a fact one glance settles.
+  //
+  // ABSENT IS NOT AN ERROR. Opening web/index.html directly leaves the
+  // placeholder unsubstituted, and a page that predates this line has no
+  // global at all; either way the footer simply says nothing rather than
+  // printing a lie about provenance.
+  var BUILD_ID = (typeof window !== 'undefined' && window.T7_BUILD_ID) || '';
+  var BUILD_OK = BUILD_ID && BUILD_ID.indexOf('_') < 0;   // not the placeholder
+  var BUILD_TAG = BUILD_OK ? ('build ' + BUILD_ID + '  \u00b7  ') : '';
+
   // A group whose name ends in "<rule> rule" is scoped to that rule, and
   // the shell learns which one from the name itself. "Flocking rule" -> 3,
   // "Orbital rule" -> 1, "Motion — all rules" -> none (and no line, which
@@ -492,14 +507,49 @@
     sl.min = p.min; sl.max = p.max; sl.step = p.step; sl.value = v[0];
     var nm = document.createElement('input'); nm.type = 'number';
     nm.min = p.min; nm.max = p.max; nm.step = p.step; nm.value = v[0];
-    var set = function (src) {
+    // ── ORGAN_5 P5c — AN EMPTY BOX IS NOT A VALUE ───────────────────
+    //
+    // The old form was `clamp(parseFloat(src.value) || 0, p)`, and it
+    // committed p.min for an EMPTY field: '' parses NaN, `|| 0` makes it
+    // 0, and clamp snaps to the floor. Clearing a number box before
+    // typing is the ordinary way to enter a value on a touch keyboard, so
+    // the FIRST keystroke of every phone edit wrote the minimum. On
+    // `count` (min 0) that is count = 0, and configure_orbs early-returns
+    // on `os.count == 0` — the dome goes dark mid-edit and every later
+    // keystroke lands on a dead sky. This is the most economical
+    // explanation the tree can give for "count works on desktop but not
+    // his phone", and the harness reproduces the C++ half natively.
+    //
+    // A non-numeric box now commits NOTHING and the program keeps its
+    // last good value.
+    //
+    // AND THE HANDLER NO LONGER WRITES BACK INTO THE ELEMENT UNDER THE
+    // FINGER. Reassigning a focused number input on every keystroke
+    // fights the caret on touch keyboards; the OTHER widget is synced, so
+    // the slider still follows the box and the box still follows the
+    // slider, but neither overwrites the one being used.
+    //
+    // TWO COMMIT PATHS, ONE PUSH. `input` is the live one — the drag and
+    // the keystroke — and `change` is the settle: it fires on blur and on
+    // Enter, and it NORMALISES the box to the value that actually landed,
+    // so a clamp becomes visible the moment the hand lets go instead of
+    // silently disagreeing with the program.
+    var commit = function (src) {
       return function () {
-        v[0] = clamp(parseFloat(src.value) || 0, p);
-        push(p, v); sl.value = v[0]; nm.value = v[0];
+        var raw = parseFloat(src.value);
+        if (!isFinite(raw)) return;      // an empty box is not a value
+        v[0] = clamp(raw, p);
+        push(p, v);
+        if (src !== sl) sl.value = v[0];
+        if (src !== nm) nm.value = v[0];
       };
     };
-    sl.addEventListener('input', set(sl));
-    nm.addEventListener('input', set(nm));
+    sl.addEventListener('input', commit(sl));
+    nm.addEventListener('input', commit(nm));
+    nm.addEventListener('change', function () {
+      commit(nm)();
+      nm.value = v[0];                   // the settle: show what landed
+    });
     ln1.appendChild(sl); ln1.appendChild(nm);
     return finish({ p: p, mk: mk,
              show: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; },
@@ -1029,7 +1079,7 @@
           : '\u00b7';
       });
       refreshRule();
-      status.textContent = rows.length + ' dials  ·  mood ' + C.mood() +
+      status.textContent = BUILD_TAG + rows.length + ' dials  ·  mood ' + C.mood() +
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
                            '  ·  reconciled ' + C.flushes() +
                            '  ·  rejected ' + C.rejects() +
@@ -1055,6 +1105,9 @@
     var pill = document.createElement('div');
     pill.id = 'organ-pill';
     pill.textContent = 'organ';
+    // ORGAN_5 P5b — the build id rides the pill's hover as well as the
+    // footer: on a phone the footer is a scroll away and the pill never is.
+    pill.title = 'restore the panel' + (BUILD_OK ? '  \u00b7  build ' + BUILD_ID : '');
     document.body.appendChild(pill);
 
     var minimized = false;

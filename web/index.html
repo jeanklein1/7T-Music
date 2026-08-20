@@ -1026,6 +1026,17 @@
     // risking for an instrument. It waits by asking instead.
     // NOT terminal on failure, deliberately: a panel that fails to load
     // must never be able to take the world down with it.
+    // ORGAN_5 P5a — THE PANEL IS ALREADY VERSIONED (see op.src below),
+    // and this is how the footer learns which build it is showing.
+    //
+    // A SECOND PLACEHOLDER WAS THE OBVIOUS SHAPE AND IS THE WRONG ONE.
+    // The law three blocks above says the token appears exactly ONCE in
+    // this file, so the substitution has one target and web_dist's
+    // refusal-to-ship check has one thing to count — and web_dist
+    // replaces every occurrence, so a second one inside a COMMENT would
+    // be rewritten too. BUILD already holds the substituted value; the
+    // panel reads it from the variable, and the invariant stands.
+    window.T7_BUILD_ID = BUILD;
     var op = document.createElement('script');
     op.src = 'organ_panel.js?v=' + BUILD;
     op.async = true;

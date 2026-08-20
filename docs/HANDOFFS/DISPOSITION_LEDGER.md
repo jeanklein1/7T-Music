@@ -2990,3 +2990,111 @@ this line.
 The four query modes still hold, all GREEN: `?organ=1&preset=baseline`,
 `?preset=baseline` (no panel, no pill, the scene still applies), no flag
 (no DOM, no fetch, no timer, no ccall), and the synthetic probe.
+
+## P5 — the phone
+
+### P5a — the panel was already versioned; the second placeholder was not built
+
+Gate 5's finding (P0) settles half of this phase before it starts:
+`op.src = 'organ_panel.js?v=' + BUILD;` has been in `web/index.html` all
+along. *"A stale panel against a fresh program"* was already impossible by
+construction.
+
+The handoff's other half — a second `__BUILD_ID__` placeholder — **would
+have broken a law to obtain a value the file already holds**. The shell
+states it three blocks above:
+
+> *"The placeholder appears exactly ONCE in this file, on the next line, so
+> the substitution has one target and the dist script's refusal-to-ship
+> check has one thing to count."*
+
+And `web_dist` substitutes with `str.replace`, which rewrites **every**
+occurrence — including one inside a comment. (Verified the hard way: the
+first draft of the comment defending this invariant spelled the token, and
+`grep -c` caught it before it shipped.) What landed is one line:
+
+```js
+window.T7_BUILD_ID = BUILD;
+```
+
+Proved end to end against stub build outputs: `dist/index.html` carries
+`var BUILD = 'f9372e70c562';`, `window.T7_BUILD_ID = BUILD;` and
+`organ_panel.js?v=f9372e70c562`, from ONE substitution target.
+
+`web_dist`'s report gains the line the handoff asked for — *"is the panel
+versioned too?"* was a question the report left the reader to answer by
+opening `index.html`:
+
+```
+  build id           f9372e70c562   <- sha256(the_board.wasm)[:12]; the .js/.wasm/.data query
+                     Deploy twice without rebuilding and this must not change.
+                     organ_panel.js?v=f9372e70c562 too; the panel's footer prints `build f9372e70c562`.
+```
+
+### P5b — the footer tells, and so does the pill
+
+`build <id>` leads the footer's status line, and rides the pill's hover
+too — on a phone the footer is a scroll away and the pill never is. Two
+devices showing different ids are not the same program, and *"count works
+here and not there"* stops being a mystery.
+
+**Absent is not an error.** Opening `web/index.html` directly leaves the
+placeholder unsubstituted, and a page predating this line has no global at
+all; either way the footer says NOTHING rather than printing a lie about
+provenance. Both paths are driven in the harness.
+
+**No new counters (D2).** C4 found `organ_rejected_count()` already
+cwrapped and already displayed as `· rejected N`. The instrument P5b
+offers to add exists; nothing was added.
+
+### P5c — an empty box is not a value
+
+C4's mechanical finding, fixed. The old handler was:
+
+```js
+v[0] = clamp(parseFloat(src.value) || 0, p);
+push(p, v); sl.value = v[0]; nm.value = v[0];
+```
+
+Two defects, both provable without a phone:
+
+1. **An EMPTY field committed `p.min`.** `''` parses `NaN`, `|| 0` makes it
+   `0`, `clamp` snaps to the floor. Clearing a number box before typing is
+   the ordinary way to enter a value on a touch keyboard, so the FIRST
+   keystroke of every phone edit wrote the minimum. On `count` (min 0)
+   that is `count = 0` — and `configure_orbs` early-returns on
+   `os.count == 0`, so the dome goes dark mid-edit and every later
+   keystroke lands on a dead sky. **The C++ half is reproduced natively in
+   P1's harness**: `count = 0` early-returns *before* the upload.
+2. **The handler rewrote the box being typed in.** Reassigning a focused
+   number input on every keystroke fights the caret on touch keyboards.
+
+Now: a non-numeric box commits nothing and the program keeps its last good
+value; the handler syncs the OTHER widget only; and `change` (blur/Enter)
+is the settle — it normalises the box to the value that actually landed,
+so a clamp becomes visible when the hand lets go instead of silently
+disagreeing with the program. **Two commit paths, one `push`.**
+
+```
+  [PASS] ORGAN_5 P5b — the footer names the build, first   build a1b2c3d4e5f6 · 306 dials
+  [PASS]   and the pill carries it too
+  [PASS] ORGAN_5 P5b — an absent or unsubstituted id prints NOTHING, not a lie
+  [PASS] ORGAN_5 P5c — an EMPTY box commits NOTHING
+  [PASS]   and neither does a non-numeric one
+  [PASS]   a real value still commits, one write                    1 write
+  [PASS]   and the OTHER widget follows it                          64
+  [PASS]   while the box being typed in is NOT rewritten under the finger
+  [PASS]   `change` normalises the box to the CLAMPED value that landed  256
+  [PASS]   and the slider agrees                                    256
+```
+
+### The sentence P5c asks for, and it still stands
+
+**Count-on-phone awaits a same-build comparison; the footer's build id is
+the instrument.** What P5c fixed is mechanical and device-independent —
+the empty-box commit is wrong on every device and merely bites hardest
+where clearing the field is how one types. Whether it was the whole of
+Jean's phone defect cannot be settled from here: no device, no
+reproduction. The next report should name the build id from the phone's
+footer and the desktop's, and if they match, the remaining difference is
+the device and not the program.
