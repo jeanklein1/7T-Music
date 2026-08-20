@@ -1007,6 +1007,21 @@ that can move the live world: the roll is fixed by the seed, the
 thresholds are the weights, so raising a regime's weight can bring this
 world into it without a transition. The scope line's hover says so.
 
+### The regime lens (LENS_1)
+
+A regime is an axis, not a group, and the panel's rows are one set looked
+at four ways. The lens — a select beside the mood select — picks the way:
+**this world's** (the default) shows the regime the world was drawn into
+and follows the draw; **regime N** shows that regime whether or not this
+world is in it, the scope line saying which; **all** shows this world's
+rows and fans a write to the same row in every regime. Kin are found by
+name — the group with "Regime N" struck out, plus the label — the shell's
+one permitted kind of knowledge about a dial. Under *all*, a label wears
+`≠` when its kin disagree and the hover lists them; a write clears it.
+The lens is a view: export and import see every row. A section's tally
+reads `shown/total` whenever they differ, whichever instrument hid the
+rest.
+
 ### The tuning loop
 
 `?organ=1&mood=4&seed=N` boots straight into the night (DOMESDAY_1 B9's

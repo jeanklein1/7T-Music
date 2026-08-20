@@ -250,6 +250,8 @@
     '#organ button:hover{border-color:#5c93c4}' +
     '#organ button.on{background:#1d2a36;border-color:#5c93c4;color:#cfe0ef}' +
     '#organ .star{color:#5c93c4}' +
+    // LENS_1 — the kin marker: under ALL, a label whose regimes disagree.
+    '#organ .hd.kin .lbl::after{content:" \\2260";color:#5c93c4}' +
     '#organ .foot{margin-top:12px;padding-top:6px;border-top:1px solid #1d222a;color:#6b7480}' +
     '#organ .bar{display:flex;gap:6px;margin-bottom:6px}' +
     '#organ .bar.doors{margin:-2px 0 8px;flex-wrap:wrap}' +
@@ -313,6 +315,13 @@
   var rows = [];                // {p, apply(values)} per manifest entry
   var MANIFEST = null;          // ORGAN_4 P6 — bound at boot, panel or not
   var rowsById = {};            // id -> row, filled by build() when it runs
+  // LENS_1 — the regime lens. `lens` is 'live', 'all' or a regime index;
+  // `regimeKin` maps "<group sans Regime N>|<label>" to the rows that are
+  // the same dial in every regime (filled by build()); `lensAll` is the
+  // fan-out switch push() reads. Session state, never storage.
+  var lens = 'live';
+  var lensAll = false;
+  var regimeKin = {};
   var importNote = '';
   var touched = {};             // manifest index -> this session has written it
   var CLASS = ['free', 'event', 'frame'];   // organ_contest's three readings
@@ -368,10 +377,34 @@
     if (!(definitionMode && p.def) && !p.ro) touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           target);
+    fanRegimes(p, v);   // LENS_1 — under ALL, every regime
   }
   function pushDef(p, v, mood) {
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           mood);
+  }
+
+  // ── LENS_1 — KIN: the same dial in every regime, found by NAME ────
+  // A regime row's siblings are the rows whose group is the same with
+  // "Regime N" struck out and whose label is the same. Derived from the
+  // group string and the label — the shell's one permitted kind of
+  // knowledge about a dial (ORGAN_5 P2b, ATMOS_1b) — never from the id.
+  function kinKey(p) {
+    var m = /^(.*)\bRegime \d+$/.exec(p.group || '');
+    return m ? (m[1] + '|' + p.label) : null;
+  }
+  // Under ALL, a write to a regime row lands in the same row of every
+  // other regime: the same definition write, the same mood, the
+  // sibling's own manifest index. setDef shows the sibling too, so the
+  // hidden rows' caches stay true and the ≠ marker clears on the next
+  // tick because the kin now agree.
+  function fanRegimes(p, v) {
+    if (!lensAll) return;
+    var k = kinKey(p); if (!k) return;
+    var kin = regimeKin[k] || [], mood = C.mood();
+    kin.forEach(function (s) {
+      if (s.p.id !== p.id) s.setDef(mood, v.slice());
+    });
   }
 
   // Every row is built the same way at the end: show() moves the widgets,
@@ -811,6 +844,7 @@
     var group = null, section = null, host = root, count = 0, tally = null;
     var secs = [], cur = null, curGroup = null;
     var filtering = false;    // true while a needle is in the field
+    var regimeCount = 0;      // LENS_1 — read from the group names, not declared
     var openMap = {};         // section name -> the operator's own choice
     var width = W_DEF;        // ORGAN_3c P0b — the hand's width, same law:
                               // a session variable, never storage
@@ -884,6 +918,8 @@
           gs.className = 'rulescope';
           host.appendChild(gs);
           curGroup.scope = gs;
+          curGroup.regime = gg;                       // LENS_1 — the lens hides by this
+          if (gg + 1 > regimeCount) regimeCount = gg + 1;
           regimeScopes.push({ el: gs, regime: gg });
         }
       }
@@ -895,6 +931,11 @@
       if (curGroup) curGroup.rows.push(r);
       rows.push(r);
       rowsById[p.id] = r;   // ORGAN_4 P6 — the preset road moves widgets too
+      // LENS_1 — a row in a regime group carries its regime (−1 otherwise)
+      // and joins its kin across regimes.
+      r.regime = (curGroup && curGroup.regime !== undefined) ? curGroup.regime : -1;
+      var kk = kinKey(p);
+      if (kk) (regimeKin[kk] = regimeKin[kk] || []).push(r);
     });
 
     // ── ORGAN_3b P4a/P4b — the filter, applied ───────────────────────
@@ -903,13 +944,22 @@
     // The section tally reads `hits/total` while filtering, so the operator
     // can see how much of a voice a word touches without opening it.
     function vis(node, on) { node.style.display = on ? '' : 'none'; }
+    // LENS_1 — the lens is a second predicate, AND-ed with the needle.
+    // A row outside any regime group is always admitted. LIVE and ALL
+    // admit the regime this world is drawn into; a number admits that
+    // regime, live or dormant — the scope line says which.
+    function lensAdmits(regime) {
+      if (regime < 0) return true;
+      if (lens === 'live' || lens === 'all') return regime === (C.regime ? C.regime() : 0);
+      return regime === lens;
+    }
     function applyFilter() {
       var q = (find.value || '').toLowerCase().trim();
       filtering = q.length > 0;
       secs.forEach(function (s2) {
         var live = 0;
         s2.rows.forEach(function (r) {
-          r.on = !filtering || r.hay.indexOf(q) >= 0;
+          r.on = (!filtering || r.hay.indexOf(q) >= 0) && lensAdmits(r.regime);
           r.nodes.forEach(function (n) { vis(n, r.on); });
           if (r.on) live++;
         });
@@ -925,11 +975,50 @@
         });
         vis(s2.det, live > 0);
         s2.det.open = filtering ? live > 0 : !!openMap[s2.name];
+        // LENS_1 — shown/total whenever they differ, whichever instrument
+        // hid the rest: a section that says 73 while showing 25 is a lie.
         s2.tally.textContent = '  ' +
-          (filtering ? live + '/' + s2.rows.length : String(s2.rows.length));
+          (live !== s2.rows.length ? live + '/' + s2.rows.length : String(s2.rows.length));
       });
     }
     find.addEventListener('input', applyFilter);
+
+    // ── LENS_1 — THE REGIME LENS ─────────────────────────────────────
+    // A regime is an AXIS, not a group: four groups of twelve rows are one
+    // set of twelve looked at four ways. The lens picks the way. LIVE
+    // follows the world's draw; a number is the operator's word; ALL
+    // shows the live regime's rows and fans a write to every regime. It
+    // is built after the loop because the count is read from the group
+    // names (regimeOfGroup), not declared here. Beside the mood select
+    // when there is one: the two selects are the panel's two axes.
+    var lensSel = null;
+    if (regimeCount > 0 && C.regime) {
+      lensSel = document.createElement('select'); lensSel.className = 'mood';
+      var addOpt = function (value, text) {
+        var o = document.createElement('option'); o.value = value; o.textContent = text; lensSel.appendChild(o);
+      };
+      addOpt('live', 'regime: this world\u2019s');
+      for (var ri = 0; ri < regimeCount; ri++) addOpt(String(ri), 'regime ' + (ri + 1));
+      addOpt('all', 'all regimes \u2014 write to every one');
+      lensSel.value = 'live';
+      lensSel.title = 'which regime\u2019s rows to show. "this world\u2019s" follows the draw; '
+                    + 'a number shows that regime whether or not this world is in it (the scope '
+                    + 'line says); "all" shows this world\u2019s rows and a write there lands in '
+                    + 'every regime \u2014 a \u2260 on a label means the regimes disagree.';
+      lensSel.addEventListener('change', function () {
+        var val = lensSel.value;
+        lens = (val === 'live' || val === 'all') ? val : parseInt(val, 10);
+        lensAll = (val === 'all');
+        applyFilter();
+        refreshRegime();
+      });
+      var lensHost = goBar || (function () {
+        var b = document.createElement('div'); b.className = 'bar doors';
+        root.insertBefore(b, find); return b;
+      })();
+      lensHost.appendChild(lensSel);
+    }
+    applyFilter();   // the lens's default (LIVE) takes effect before the first paint
 
     var foot = document.createElement('div'); foot.className = 'foot';
     var status = document.createElement('div');
@@ -1116,13 +1205,23 @@
     // organ_regime() reads the spine's own field through the pointer
     // organ_mood() follows; the text shows the LABEL's number, never the
     // index.
+    var lastLensRegime = -1;   // LENS_1 — the regime the lens last followed
     function refreshRegime() {
       if (!C.regime) return;
       var g = C.regime();
+      // LENS_1 — the lens follows the draw at LIVE and ALL: a transition
+      // or a weight edit that re-rolls moves the shown groups on this tick.
+      if (g !== lastLensRegime) {
+        lastLensRegime = g;
+        if (lens === 'live' || lens === 'all') applyFilter();
+      }
       regimeScopes.forEach(function (gs) {
         var on = gs.regime === g;
         gs.el.className = 'rulescope ' + (on ? 'on' : 'off');
-        gs.el.textContent = on
+        gs.el.textContent = (on && lensAll)
+          ? '\u25b8 ALL \u2014 showing regime ' + (g + 1) + ', this world\u2019s; '
+            + 'a write here lands in every regime'
+          : on
           ? '\u25b8 this world is drawn into regime ' + (g + 1)
             + ' \u2014 these rows act NOW'
           : '\u25b8 these rows act in worlds drawn into regime ' + (gs.regime + 1)
@@ -1131,8 +1230,30 @@
           ? 'the seed drew this regime: turning these moves the sky at the next boundary'
           : 'the seed drew regime ' + (g + 1) + ', and RESPEAK keeps the seed, so the '
             + 'centres and spreads here move nothing until a world lands in regime '
-            + (gs.regime + 1) + ' (?seed= pins which). The WEIGHT row is the exception: '
-            + 'it moves where this world\u2019s roll lands, and can bring this world here.';
+            + (gs.regime + 1) + ' (?seed= pins which). The weight rows \u2014 Atmosphere '
+            + '\u00b7 Regimes, above \u2014 are the exception: they move where this '
+            + 'world\u2019s roll lands, and can bring this world here.';
+      });
+
+      // LENS_1 — ≠: under ALL the shown row carries the live regime's
+      // value; if its kin disagree, the label says so and the hover lists
+      // them. Read from the rows' caches (kept true by show/setDef and the
+      // follow-the-mood refresh), so this is arithmetic, not ABI calls.
+      Object.keys(regimeKin).forEach(function (k) {
+        var kin = regimeKin[k];
+        kin.forEach(function (r) {
+          var hd = r.nodes[0]; if (!hd) return;
+          if (!lensAll || !r.on) { hd.classList.remove('kin'); hd.title = ''; return; }
+          var mine = r.read(), differ = false, lines = [];
+          kin.forEach(function (s) {
+            var theirs = s.read();
+            var same = theirs.length === mine.length && theirs.every(function (x, i) { return x === mine[i]; });
+            if (!same) differ = true;
+            lines.push('regime ' + (s.regime + 1) + ': ' + theirs.map(g4).join(', '));
+          });
+          hd.classList.toggle('kin', differ);
+          hd.title = differ ? 'the regimes disagree \u2014 a write here makes them agree\n' + lines.join('\n') : '';
+        });
       });
     }
     refreshRegime();
