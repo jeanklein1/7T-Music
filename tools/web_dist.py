@@ -46,6 +46,26 @@ SRC_MUSIC = os.path.join(ROOT, "assets", "music")
 DIST_PAINTINGS = os.path.join(DIST, "paintings")
 DIST_MUSIC = os.path.join(DIST, "music")
 
+# ── ORGAN_4 P6 — THE PRESET SHELF ────────────────────────────────
+# web/presets/ holds index.json and one file per scene, fetched BY THE
+# PANEL at boot (`?preset=<name>`) and by its select. They are SOURCE, not
+# build output, and they are tracked — a scene is a file, and dropping one
+# in the folder plus one line in the index is the whole publishing act.
+#
+# They ship the same way the exhibition does: copied verbatim, weighed by
+# the same per-file cap, and COUNTED, so the file count printed at the end
+# is not a lie (the poster precedent).
+SRC_PRESETS = os.path.join(WEB, "presets")
+DIST_PRESETS = os.path.join(DIST, "presets")
+
+
+def preset_files():
+    """Every .json on the shelf, sorted. Absent folder -> no shelf, no error:
+    presets are a LAYER, and the panel hides its select when the index 404s."""
+    if not os.path.isdir(SRC_PRESETS):
+        return []
+    return sorted(f for f in os.listdir(SRC_PRESETS) if f.endswith(".json"))
+
 # index.html is SOURCE (tracked); the other three are build output
 # (.gitignore'd). All four ship — but index.html is the only one that is
 # TRANSFORMED on the way (BUILDID_0), not copied.
@@ -444,6 +464,8 @@ def main():
     # copied verbatim so its source size IS its dist size, and paintings
     # only ever shrink, so a source size is a safe upper bound.
     verdict_sizes = dict(sizes)
+    for f in preset_files():
+        verdict_sizes["presets/" + f] = os.path.getsize(os.path.join(SRC_PRESETS, f))
     for f in paintings:
         verdict_sizes["paintings/" + f] = os.path.getsize(os.path.join(SRC_PAINTINGS, f))
     for f in music:
@@ -545,6 +567,15 @@ def main():
     for f in ARTIFACTS:
         shutil.copy2(os.path.join(WEB, f), os.path.join(DIST, f))
 
+    # ORGAN_4 P6 — the preset shelf, copied verbatim. The panel fetches
+    # `presets/index.json` relative to the page, so the folder has to be
+    # beside index.html in dist/ or the layer simply is not there.
+    presets = preset_files()
+    if presets:
+        os.makedirs(DIST_PRESETS, exist_ok=True)
+        for f in presets:
+            shutil.copy2(os.path.join(SRC_PRESETS, f), os.path.join(DIST_PRESETS, f))
+
     # dist/index.html is GENERATED from here on, not copied. The hash is
     # taken from the file that actually shipped, so the id names the
     # bytes a visitor will run.
@@ -637,7 +668,7 @@ def main():
                  "/index.html\n  Cache-Control: no-cache\n")
 
     file_count = (len(ARTIFACTS) + len(painting_paths) + len(music_paths)
-                  + len(poster_paths) + 2)
+                  + len(poster_paths) + len(presets) + 2)
 
     print("  %-18s %14d  %9.2f  %7d" % ("paintings (dist)", paintings_dist_bytes,
                                         mib(paintings_dist_bytes), len(painting_paths)))
@@ -660,6 +691,15 @@ def main():
         print("    %-16s %14d  %9.2f   <- %s"
               % (out_name, n, mib(n), POSTERS[out_name]))
     print("  %s: %d painting(s), %d track(s)" % (EXHIBITION_JSON, len(paintings), len(music)))
+    if presets:
+        print("  %-18s %14d  %9.2f  %7d   <- the preset shelf (ORGAN_4 P6); "
+              "?preset=<name> picks one at boot"
+              % ("presets (dist)",
+                 sum(os.path.getsize(os.path.join(DIST_PRESETS, f)) for f in presets),
+                 mib(sum(os.path.getsize(os.path.join(DIST_PRESETS, f)) for f in presets)),
+                 len(presets)))
+    else:
+        print("  presets: none — web/presets/ is absent, and the panel hides its select")
     print("  %-18s %s   <- sha256(the_board.wasm)[:%d]; the .js/.wasm/.data query"
           % ("build id", build_id, BUILD_ID_LEN))
     print("  %-18s %s" % ("", "Deploy twice without rebuilding and this must not change."))

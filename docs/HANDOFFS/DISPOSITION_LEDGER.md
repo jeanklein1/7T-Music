@@ -2175,3 +2175,96 @@ The book closes with the verbatim tails of both check tools under
 names, what it does not, and whether the readers agree. Written LF, no
 BOM, single trailing newline, proved by byte-level read-back — the
 `binding_ledger` G2-eol precedent.
+
+## P6 — the preset layer (`web/presets/`)
+
+**A scene is a file, a boot is a choice.** `presets/index.json` lists what
+is on the shelf; `?preset=<name>` picks one at boot and a select in the
+panel header picks one by hand. Both walk the SAME import path the file
+picker already walked, so **zero new write machinery exists here** — a
+partial file applies exactly what it carries, definitions raise their
+flags, instances write and mark.
+
+### The one thing the handoff's shape would have got wrong
+
+`organ_panel.js` opens with `if (…get('organ') !== '1') return;`. Building
+the preset loader inside `build()` — the obvious place, and where the
+handoff's wording points — would have made a preset reachable **only by
+someone already holding the panel open**, which is the exact opposite of
+what an exhibition boot is for. São Paulo wants the design, not the
+instrument.
+
+So the gate now has two reasons to wake and the loader lives at MODULE
+scope:
+
+```js
+var WANT_PANEL  = Q.get('organ') === '1';
+var WANT_PRESET = Q.get('preset');
+if (!WANT_PANEL && !WANT_PRESET) return;
+```
+
+The audience path keeps its promise exactly: with neither flag the file
+still returns on its first statement — no DOM, no stylesheet, no timer, no
+ccall. Proved below rather than asserted.
+
+`applyFile` therefore reads the MANIFEST rather than the panel's rows, and
+moves a widget only when a row happens to exist. One road, three doors:
+the URL, the select, the import button.
+
+### The shelf ships
+
+`tools/web_dist.py` copied five named artifacts and the exhibition; a
+folder the panel fetches by relative path would simply not have been
+there. It now copies `web/presets/*.json` into `dist/presets/`, weighs them
+under the same per-file cap, and COUNTS them — the poster precedent, so
+the file count it prints is not a lie. Verified end to end against stub
+build outputs: `presets (dist) 10456 bytes, 2 files`, `dist/presets/`
+holding both.
+
+### `baseline.json` — captured, and honest about what it is not
+
+Captured by running **the panel's own export walk** (`collect(null)`)
+natively against the C++ boot values: 126 definitions keyed `<mood>/` or
+`world/`, 105 bank instances keyed by id, 17 witnesses skipped because a
+meter is not a setting. **231 keys.**
+
+What it deliberately omits: the **57 boot-pinned `GPUDesignConfig` rows**.
+`initializeState` writes them at device init and no offline capture can
+run it, so fabricating them would have shipped a preset that zeroes the
+config on load. The index entry says so in its `note`, which the select
+shows as the option's title. A complete scene comes from the panel's own
+export — which is what P6c tells Jean to do anyway.
+
+### The harness — the SHIPPED panel, under a shim, on the REAL manifest
+
+`organ_manifest()` was dumped from the compiled registry and fed to a
+hand-rolled DOM; `web/organ_panel.js` was loaded unmodified. Four modes:
+
+```
+?organ=1&preset=baseline   panel built · 305 dials · both orb doors render
+                           · select in the bar, lists "baseline", carries the
+                           note as its title · choosing resets it (a verb,
+                           not a state) and walks the same write path
+                           · 231 applied, 0 unknown, 0 rejects
+?preset=baseline           NO PANEL, no DOM, never says "panel up"
+                           · 231 applied, 105 inst / 126 def, 0 rejects
+                           · ORBS.dome_radius = 500
+(no flag)                  no DOM, no fetch, no timer, no ccall,
+                           the program untouched
+?preset=probe (synthetic)  2 applied, 1 unknown COUNTED not thrown,
+                           1 witness NAMED not rejected, 0 rejects,
+                           and the real dial still moved to 777
+```
+
+Every mode GREEN, and `localStorage`/`sessionStorage` were instrumented to
+count accesses: **0**. The artifact rule holds — a preset is chosen per
+boot or per click, and the URL is the only thing that carries a choice
+between sessions.
+
+### P6c — the sentence for Jean
+
+> Design a scene on the panel. Press **export** (or a section's own export
+> for one voice). Drop the JSON in `web/presets/`, add one line to
+> `web/presets/index.json` — `{ "name": "dusk", "file": "dusk.json" }` —
+> and São Paulo boots into it with `?preset=dusk`. No panel needed at the
+> exhibition; `?organ=1` is only for the desk.

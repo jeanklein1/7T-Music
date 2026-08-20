@@ -6,9 +6,12 @@
 // no ranges and no offsets — enroll a dial in organ_params.inc and it
 // appears; remove one and it stops. There is nothing to keep in step.
 //
-// ACCESS. Without ?organ=1 this file returns on its second line: no DOM, no
-// stylesheet, no timer, no ccall. The audience path is byte-identical, and
-// that is why the file may ship unconditionally.
+// ACCESS. Without ?organ=1 AND without ?preset=<name> this file returns on
+// its first statement: no DOM, no stylesheet, no timer, no ccall. The
+// audience path is byte-identical, and that is why the file may ship
+// unconditionally. ORGAN_4 P6 added the second flag and kept that promise:
+// an exhibition boot names a scene and gets no panel, a plain visit names
+// neither and pays nothing.
 //
 // DEFINITION OR PREVIEW (O1b). A dial marked * has a mood DEFINITION
 // behind its home. In definition mode — the default — writing it changes
@@ -29,7 +32,17 @@
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
   'use strict';
-  if (new URLSearchParams(location.search).get('organ') !== '1') return;
+  // ORGAN_4 P6 — TWO REASONS TO WAKE, NOT ONE. `?organ=1` opens the panel;
+  // `?preset=<name>` applies a scene. An EXHIBITION boots with the second
+  // and not the first — São Paulo wants the design, not the instrument —
+  // so gating the whole file on `organ=1` would have made the preset layer
+  // reachable only by someone already holding the panel open, which is the
+  // opposite of what it is for. A plain visitor still pays nothing: with
+  // neither flag this file returns on its second statement, as before.
+  var Q = new URLSearchParams(location.search);
+  var WANT_PANEL = Q.get('organ') === '1';
+  var WANT_PRESET = Q.get('preset');
+  if (!WANT_PANEL && !WANT_PRESET) return;
 
   var F32 = 0, U32 = 1, BOOL = 2, VEC3 = 3, VEC4 = 4;
   // The manifest's "def" column names the definition FAMILY: 0 none,
@@ -202,10 +215,17 @@
     '#organ .find:focus{outline:none;border-color:#5c93c4}' +
     '#organ details.sec>summary .sx{float:right;background:none;border:0;color:#4f5761;' +
     'font:inherit;padding:0 2px;cursor:pointer;letter-spacing:0}' +
-    '#organ details.sec>summary .sx:hover{color:#5c93c4}';
+    '#organ details.sec>summary .sx:hover{color:#5c93c4}' +
+    // ORGAN_4 P6 — the preset select, dressed as the buttons beside it so
+    // the bar reads as one row rather than as a native control dropped in.
+    '#organ .bar select.preset{background:#14181d;color:#c8ccd2;' +
+    'border:1px solid #303742;font:inherit;padding:3px 6px;cursor:pointer}' +
+    '#organ .bar select.preset:hover{border-color:#5c93c4}';
 
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
+  var MANIFEST = null;          // ORGAN_4 P6 — bound at boot, panel or not
+  var rowsById = {};            // id -> row, filled by build() when it runs
   var importNote = '';
   var touched = {};             // manifest index -> this session has written it
   var CLASS = ['free', 'event', 'frame'];   // organ_contest's three readings
@@ -426,6 +446,111 @@
              read: function () { return v; } }, nodes);
   }
 
+  // ── ORGAN_4 P6 — THE PRESET LAYER ──────────────────────────────────
+  //
+  // A SCENE IS A FILE, A BOOT IS A CHOICE. `web/presets/index.json` lists
+  // what is on the shelf; `?preset=<name>` picks one at boot and the
+  // panel's select picks one by hand. Both walk the SAME import path — a
+  // partial file applies exactly what it carries, definitions raise their
+  // flags and instances write and mark — so ZERO new write machinery
+  // exists here and none was needed.
+  //
+  // IT LIVES AT MODULE SCOPE, NOT INSIDE build(), and that is the whole
+  // point: an exhibition boots with `?preset=` and NO panel. A preset
+  // reachable only from an open panel would be an instrument feature
+  // wearing an exhibition's name.
+  //
+  // NO STORAGE OF ANY KIND. The artifact rule, and the same law the width
+  // and the openMap already follow: a dev instrument that remembers is a
+  // dev instrument that surprises. A preset is chosen per boot or per
+  // click, and the URL is the only thing that carries a choice between
+  // sessions.
+  //
+  // AN UNKNOWN ID IS NOT AN ERROR. The import path counts it and the
+  // status line names the count — the standing behaviour, which is why a
+  // preset cut against another build degrades instead of failing.
+
+  // THE IMPORT WALK, LIFTED OUT OF THE FILE READER. It reads the MANIFEST
+  // rather than the panel's rows, so it works with the panel closed; when
+  // a row does exist, the widget is moved too, exactly as `r.apply` and
+  // `r.setDef` would have.
+  function applyFile(obj, what) {
+    var applied = 0, skipped = 0, witnesses = 0;
+    if (!MANIFEST) { importNote = what + ': the registry is not bound'; return importNote; }
+    var byId = {};
+    MANIFEST.forEach(function (p) { byId[p.id] = p; });
+    // IMPORT KNOWS WHAT EXPORT KNOWS (ORGAN_2b): a witness is not a
+    // setting. A file cut before ORGAN_2a still carries the four driven
+    // values by id; sending them would only be refused in the C++, so they
+    // are counted and named instead of rung up as rejections.
+    Object.keys(obj).forEach(function (k) {
+      var cut = k.indexOf('/');
+      var scope = cut > 0 ? k.slice(0, cut) : null;
+      var id = cut > 0 ? k.slice(cut + 1) : k;
+      var p = byId[id], r = rowsById[id];
+      if (!p)     { skipped++;   return; }   // an id this build does not enroll
+      if (p.ro)   { witnesses++; return; }   // a meter is not a setting
+      var v = [].concat(obj[k]);
+      if (scope === null) {
+        if (r) r.show(v);
+        push(p, v);
+        applied++;
+        return;
+      }
+      // "world/<id>" is the world's bank, which belongs to no mood: the
+      // live mood is sent and the C++ kind lets it fall away.
+      var mood = (scope === 'world') ? C.mood() : parseInt(scope, 10);
+      if (p.def && mood >= 0) {
+        pushDef(p, v, mood);
+        if (r && mood === C.mood()) r.show(v);
+        applied++;
+      } else skipped++;                      // no definition behind that dial
+    });
+    importNote = what + ': ' + applied + ' applied, ' + skipped + ' unknown'
+               + (witnesses ? ', skipped ' + witnesses + ' witnesses' : '');
+    return importNote;
+  }
+
+  // The index, fetched ONCE however many doors ask for it.
+  var shelfPromise = null;
+  function shelf() {
+    if (shelfPromise) return shelfPromise;
+    shelfPromise = fetch('presets/index.json')
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        return res.json();
+      })
+      .then(function (list) {
+        var byName = {};
+        if (Array.isArray(list)) list.forEach(function (e) {
+          if (e && e.name && e.file) byName[e.name] = e;
+        });
+        return byName;
+      })
+      .catch(function (e) {
+        // No shelf is not a defect: presets are a layer, not a dependency.
+        console.log('[ORGAN] no preset index (' + e.message + ')');
+        return {};
+      });
+    return shelfPromise;
+  }
+
+  function loadPreset(entry) {
+    return fetch('presets/' + entry.file)
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        return res.json();
+      })
+      .then(function (obj) {
+        console.log('[ORGAN] preset "' + entry.name + '" \u2014 '
+                    + applyFile(obj, 'preset ' + entry.name));
+      })
+      .catch(function (e) {
+        importNote = 'preset ' + entry.name + ': ' + e.message;
+        console.log('[ORGAN] preset "' + entry.name + '" did not load: ' + e.message);
+      });
+  }
+
   function build(manifest) {
     var st = document.createElement('style'); st.textContent = CSS;
     document.head.appendChild(st);
@@ -555,6 +680,7 @@
       cur.rows.push(r);
       if (curGroup) curGroup.rows.push(r);
       rows.push(r);
+      rowsById[p.id] = r;   // ORGAN_4 P6 — the preset road moves widgets too
     });
 
     // ── ORGAN_3b P4a/P4b — the filter, applied ───────────────────────
@@ -690,35 +816,43 @@
         if (!f.files || !f.files[0]) return;
         var rd = new FileReader();
         rd.onload = function () {
-          var obj, applied = 0, skipped = 0, witnesses = 0;
+          var obj;
           try { obj = JSON.parse(rd.result); }
           catch (e) { importNote = 'import: not JSON'; return; }
-          var byId = {};
-          rows.forEach(function (r) { byId[r.p.id] = r; });
-          // IMPORT KNOWS WHAT EXPORT KNOWS (ORGAN_2b): a witness is not a
-          // setting. A file cut before ORGAN_2a still carries the four
-          // driven values by id; sending them would only be refused in the
-          // C++, so they are counted and named instead of rung up as
-          // rejections.
-          Object.keys(obj).forEach(function (k) {
-            var cut = k.indexOf('/');
-            var scope = cut > 0 ? k.slice(0, cut) : null;
-            var r = byId[cut > 0 ? k.slice(cut + 1) : k];
-            if (!r)     { skipped++;   return; }   // an id this build does not enroll
-            if (r.p.ro) { witnesses++; return; }   // a meter is not a setting
-            if (scope === null) { r.apply([].concat(obj[k])); applied++; return; }
-            // "world/<id>" is the world's bank, which belongs to no mood:
-            // the live mood is sent and the C++ kind lets it fall away.
-            var mood = (scope === 'world') ? C.mood() : parseInt(scope, 10);
-            if (r.p.def && mood >= 0) { r.setDef(mood, [].concat(obj[k])); applied++; }
-            else skipped++;                       // no definition behind that dial
-          });
-          importNote = 'import: ' + applied + ' applied, ' + skipped + ' unknown'
-                     + (witnesses ? ', skipped ' + witnesses + ' witnesses' : '');
+          applyFile(obj, 'import');
         };
         rd.readAsText(f.files[0]);
       });
       f.click();
+    });
+
+    // ── ORGAN_4 P6b — THE SHELF, IN THE HEADER ───────────────────────
+    // A small select beside export/import, filled from the same index the
+    // boot reads. Choosing walks the same road `?preset=` walks, which is
+    // the same road `import` walks — one write path, three doors onto it.
+    var sel = document.createElement('select');
+    sel.className = 'preset';
+    sel.title = 'apply a preset \u2014 the same import path, so a partial file '
+              + 'applies exactly what it carries';
+    var opt0 = document.createElement('option');
+    opt0.value = ''; opt0.textContent = 'preset\u2026';
+    sel.appendChild(opt0);
+    bar.appendChild(sel);
+
+    shelf().then(function (byName) {
+      var names = Object.keys(byName);
+      if (!names.length) { sel.style.display = 'none'; return; }
+      names.forEach(function (n) {
+        var o = document.createElement('option');
+        o.value = n; o.textContent = n;
+        if (byName[n].note) o.title = byName[n].note;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', function () {
+        var e = byName[sel.value];
+        sel.value = '';                 // the select is a verb, not a state
+        if (e) loadPreset(e);
+      });
     });
 
     // ── the panel carries its own witnesses ──────────────────────────
@@ -788,7 +922,21 @@
     } catch (e) { return; }                 // not ready; ask again
     if (!manifest || !manifest.length) return;
     clearInterval(wait);
-    build(manifest);
-    console.log('[ORGAN] panel up — ' + manifest.length + ' dials');
+    MANIFEST = manifest;
+    if (WANT_PANEL) {
+      build(manifest);
+      console.log('[ORGAN] panel up — ' + manifest.length + ' dials');
+    }
+    // ORGAN_4 P6 — THE BOOT CHOICE, read once from the URL and applied
+    // through the same road the select and the import button walk. It runs
+    // whether or not the panel is up, because an exhibition boots with the
+    // scene and not the instrument.
+    if (WANT_PRESET) {
+      shelf().then(function (byName) {
+        if (byName[WANT_PRESET]) return loadPreset(byName[WANT_PRESET]);
+        console.log('[ORGAN] ?preset=' + WANT_PRESET
+                    + ' is not in presets/index.json');
+      });
+    }
   }, 500);
 })();

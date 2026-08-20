@@ -1,0 +1,5 @@
+[
+ { "name": "baseline",
+   "file": "baseline.json",
+   "note": "The authored design tables, captured from the C++ at ORGAN_4 P6 by the panel's own export walk: 126 definitions and 105 bank instances. The 57 boot-pinned GPUDesignConfig rows are NOT here — initializeState writes them at device init and no offline capture can run it. Export from the panel for a complete scene." }
+]
