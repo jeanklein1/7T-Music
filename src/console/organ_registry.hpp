@@ -458,6 +458,41 @@ inline uint8_t derived_cadence(const OrganParam& e) {
     return e.cad;                       // LIVE or the stored GEN
 }
 
+// ─── ORGAN_6 — THE SHELL'S TWO QUESTIONS, DERIVED HERE ────────────────────
+// derived_cadence's precedent, applied to the two rules the shell was
+// still restating in JavaScript. A rule restated in a second language is
+// a rule with two homes, and the second one drifted: ORGAN_3b P3 minted a
+// second def-only sentinel and web/organ_panel.js kept one number, which
+// killed nineteen dials in preview mode for two campaigns.
+//
+// THE SHELL MUST NOT KNOW A BLOCK NUMBER OR A KIND NUMBER. It asks two
+// questions and the manifest answers them; a sixth definition family
+// answers here and the shell learns nothing.
+
+// May the panel address this row's INSTANCE? A preview write needs one;
+// a definition-only row has none, so it targets the live mood whatever
+// the mode toggle says.
+inline uint8_t derived_has_instance(const OrganParam& e) {
+    return is_defonly(e.block) ? 0u : 1u;
+}
+
+// How a DEFINITION is addressed — the export's keying and the panel's
+// follow-the-mood refresh both turn on this and on nothing else.
+enum : uint8_t {
+    ORGAN_SCOPE_NONE  = 0,   // no definition behind this row
+    ORGAN_SCOPE_MOOD  = 1,   // one row per mood: the write's target picks it
+    ORGAN_SCOPE_WORLD = 2,   // one bank for the world: the target is ignored
+};
+inline uint8_t derived_scope(const OrganParam& e) {
+    switch (e.def_kind) {
+    case ORGAN_DEF_MOOD:
+    case ORGAN_DEF_ORB_MOOD: return ORGAN_SCOPE_MOOD;
+    case ORGAN_DEF_TIER:
+    case ORGAN_DEF_BEHAVIOR: return ORGAN_SCOPE_WORLD;
+    default:                 return ORGAN_SCOPE_NONE;
+    }
+}
+
 // THE WHITELIST LOOKUP. A triple that is not an entry is not addressable,
 // full stop — this is what keeps organ_set from being a memory editor.
 inline const OrganParam* find_entry(int block, int offset, int type) {
@@ -923,10 +958,13 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
         std::snprintf(buf, sizeof buf,
             "{\"id\":\"%s\",\"label\":\"%s\",\"group\":\"%s\",\"block\":%u,"
             "\"offset\":%u,\"type\":%u,\"min\":%g,\"max\":%g,\"step\":%g,"
-            "\"couple\":%u,\"def\":%u,\"ro\":%u,\"cad\":%u,\"v\":[",
+            "\"couple\":%u,\"def\":%u,\"scope\":%u,\"inst\":%u,"
+            "\"ro\":%u,\"cad\":%u,\"v\":[",
             e.id, e.label, e.group, (unsigned)e.block, (unsigned)e.offset,
             (unsigned)e.type, e.minv, e.maxv, e.step, (unsigned)e.couple,
             (unsigned)e.def_kind,
+            (unsigned)derived_scope(e),        // ORGAN_6 — derived, not stored
+            (unsigned)derived_has_instance(e), // ORGAN_6 — derived, not stored
             (unsigned)(e.ro ? 1u : 0u),
             (unsigned)derived_cadence(e));   // ORGAN_3b — derived, not stored
         json += buf;

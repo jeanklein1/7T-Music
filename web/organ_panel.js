@@ -45,26 +45,17 @@
   if (!WANT_PANEL && !WANT_PRESET) return;
 
   var F32 = 0, U32 = 1, BOOL = 2, VEC3 = 3, VEC4 = 4;
-  // The manifest's "def" column names the definition FAMILY: 0 none,
-  // 1 a mood's meaning, 2 the world's tiers (ORGAN_2b), 3 the world's
-  // behaviours (ORGAN_3). DEFONLY is the sentinel block of an entry that
-  // has a definition and no instance at all.
+  // ORGAN_6 — THE SHELL KNOWS NO NUMBERS. It asked two questions of the
+  // manifest's raw columns and answered them here, in JS, from copies of
+  // C++ enum values: which blocks are def-only sentinels, and which kinds
+  // are world-scoped. Both are now DERIVED in organ_registry.hpp and
+  // EMITTED — `inst` and `scope` — the same move derived_cadence already
+  // made for `cad`, and for the same reason: a rule with two homes drifts,
+  // and this one did. A sixth definition family costs one line there and
+  // none here.
   //
-  // WHAT THE SHELL ACTUALLY NEEDS TO KNOW is not the family but its
-  // SCOPE: a per-mood definition keys its export by mood, a world
-  // definition keys it "world/" and appears once. isWorldDef is that
-  // question, asked in one place so a fourth family answers it by being
-  // added here rather than by being forgotten at three call sites.
-  var DEF_MOOD = 1, DEF_TIER = 2, DEF_BEHAVIOR = 3;
-  // ORGAN_6 P1 — TWO SENTINELS, NOT ONE. ORGAN_3b P3 minted a second
-  // def-only family and this file kept one number, so every ORB_MOOD row
-  // read as an ordinary block and preview sent it −1, which organ_set
-  // refuses. A LIST and not a range test, mirroring the C++'s own reason
-  // for descending from 255: a range would silently swallow a future 253.
-  // P2 deletes this list — the manifest answers the question instead.
-  var DEFONLY_BLOCKS = [255, 254];   // ORGAN_BLOCK_NONE, _NONE_ORB
-  function isDefOnly(p) { return DEFONLY_BLOCKS.indexOf(p.block) >= 0; }
-  function isWorldDef(p) { return p.def === DEF_TIER || p.def === DEF_BEHAVIOR; }
+  //   p.inst   1 the panel may address an instance · 0 definition only
+  //   p.scope  0 no definition · 1 mood-selected · 2 the world's
 
   // ORGAN_3b — CADENCE. The manifest's "cad" says WHEN a stop sounds; the
   // C++ derives it, this file only prints it. Live is SILENT on purpose:
@@ -379,10 +370,16 @@
     // A DEFINITION-ONLY DIAL HAS NO PREVIEW (ORGAN_2b, block NONE): there
     // is no instance for one to show, and −1 would only ring the reject
     // counter. It targets the live mood whatever the toggle says.
-    var target = (isDefOnly(p) || definitionMode) ? C.mood() : -1;
-    // A witness is never marked: organ_set refuses it, so the panel never got
-    // to ask the contest question and must not claim a reading (ORGAN_2a).
-    if (!(definitionMode && p.def) && !p.ro) touched[p.i] = 1;
+    var target = (!p.inst || definitionMode) ? C.mood() : -1;
+    // ORGAN_6 — MARK ON THE TARGET, NOT ON THE MODE. The contest question
+    // is asked by an INSTANCE write and by nothing else: a definition
+    // write never touches the home, so there is nothing for another author
+    // to contradict. These were two statements of one rule and the second
+    // was wrong for a definition-only row under preview — it claimed a
+    // reading for a write that had just been refused. `target < 0` IS the
+    // instance write, so the two can no longer disagree.
+    // A witness is never marked either: organ_set refuses it (ORGAN_2a).
+    if (target < 0 && !p.ro) touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           target);
     fanRegimes(p, v);   // LENS_1 — under ALL, every regime
@@ -445,7 +442,7 @@
     // is holding for you. The id rides along because the label alone does
     // not say which home a stop lives in.
     lbl.title = p.label + '\n' + p.id;
-    if (p.def && !p.ro) {
+    if (p.scope && !p.ro) {
       var star = document.createElement('span'); star.className = 'star';
       star.textContent = ' *';
       star.title = 'has a mood definition';
@@ -663,7 +660,7 @@
       // "world/<id>" is the world's bank, which belongs to no mood: the
       // live mood is sent and the C++ kind lets it fall away.
       var mood = (scope === 'world') ? C.mood() : parseInt(scope, 10);
-      if (p.def && mood >= 0) {
+      if (p.scope && mood >= 0) {
         pushDef(p, v, mood);
         if (r && mood === C.mood()) r.show(v);
         applied++;
@@ -811,8 +808,8 @@
     // Which mood is the program's to say: names from organ_mood_names(),
     // id = index, so a new mood appears here with zero JS edits. The
     // press walks request_mood_transition (keys 5-9's own door) at the
-    // next boundary. Editing a non-live mood's DEFONLY rows needs you IN
-    // it — this select is the road there.
+    // next boundary. Editing a non-live mood's definition-only rows needs
+    // you IN it — this select is the road there.
     var moodSel = null;
     if (C.goMood && C.moodNames) {
       var names = [];
@@ -1104,10 +1101,10 @@
       rows.forEach(function (r) {
         if (r.p.ro) return;   // witnesses export nothing: a meter is not a setting (ORGAN_2a)
         if (pred && !pred(r)) return;
-        if (r.p.def) {
+        if (r.p.scope) {
           var n = lanes(r.p.type), d = [];
           for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
-          out[(isWorldDef(r.p) ? 'world' : m) + '/' + r.p.id] = d;
+          out[(r.p.scope === 2 ? 'world' : m) + '/' + r.p.id] = d;
         } else {
           out[r.p.id] = r.read();
         }
@@ -1270,9 +1267,10 @@
     // ATMOS_1 — and it follows the MOOD. A mood-selected definition row
     // shows the LIVE mood's definition, so a transition (this select, a
     // key, a portal) leaves it showing the mood the panel was built in.
-    // isWorldDef is the shell's one home for "is this row mood-selected",
-    // so TIER and BEHAVIOR — one bank, the target ignored — are correctly
-    // left alone. r.show() reassigns each row's cached lane vector as
+    // The manifest's `scope` is the one home for "is this row
+    // mood-selected", so TIER and BEHAVIOR — one bank, the target ignored
+    // — are correctly left alone. r.show() reassigns each row's cached
+    // lane vector as
     // well as its widgets, so the next drag starts from the shown value
     // with nothing further to update. Instance rows refresh here too
     // (ATMOS_1b): the apply re-authors the sun's homes at every entry,
@@ -1286,8 +1284,8 @@
         if (moodSel) moodSel.value = String(m);
         rows.forEach(function (r) {
           if (r.p.ro) return;                    // witnesses refresh every tick below
-          if (r.p.def) {
-            if (isWorldDef(r.p)) return;         // TIER/BEHAVIOR: one bank, the mood ignored
+          if (r.p.scope) {
+            if (r.p.scope === 2) return;         // TIER/BEHAVIOR: one bank, the mood ignored
             var n = lanes(r.p.type), d = [];     // a mood-selected definition: the new mood's
             for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
             r.show(d);
