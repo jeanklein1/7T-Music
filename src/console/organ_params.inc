@@ -870,6 +870,31 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, pawn_speed,          F32, 0.0f, 60.0f,  0.5
 ORGAN_PARAM(CONFIG, GPUDesignConfig, point_fly_speed,     F32, 0.0f, 120.0f, 0.5f,   "Interaction · Camera", "fly speed")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, cube_plasticity,     F32, 0.0f, 1.0f,   0.005f, "Interaction · Cubes",  "plasticity λ")
 
+// ─── Interaction · Cubes — the floater synchrony knob ───────
+// ORGAN_5 CODA, on Jean's stamp. The last executable DEFER from ORGAN_4.
+//
+// TWO AUTHORS, ONE HOME: this dial and cube_behaviors.hpp's
+// cycle_floater_coordination, which steps the same field through
+// FLOATER_COORDINATION_STEPS { 0, 0.5, 1 }. Neither is an APPLIER — no
+// re-speak passes over this field at any boundary — so coexistence is
+// lawful and LAST WRITER WINS, with the contest column as the honest
+// narrator of who spoke last. That is the palette situation's opposite.
+//
+// The range IS the command's own set, and the step reaches every one of
+// its stops exactly (0.5 / 0.005 = 100), so the dial can say everything
+// the command can say and 198 values besides. Boot rest is 0.0, from
+// config_{}'s value-init — which is the command's own step 0.
+//
+// AND THE CENSUS FOUND THE SECOND AUTHOR UNREACHABLE. Tree-wide there are
+// exactly two hits on cycle_floater_coordination, its declaration and its
+// definition, both in cube_behaviors.hpp; nothing calls it, and the F5 the
+// control_panel comment names binds nothing. The contest this ruling
+// prices is therefore LATENT, not live: today the panel is this field's
+// only reachable author, which is the whole reason the row is worth
+// landing. When the command is bound, the contest column starts narrating
+// and no line here has to change.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, floater_coordination, F32, 0.0f, 1.0f, 0.005f, "Interaction · Cubes", "floater coordination")
+
 // ─── Interaction · Beacon / Camera ──────────────────────────────────
 // ORGAN_3 w2 (C2). PANEL_LIVE (contracts/control_panel.hpp) — the two
 // families whose rests had no transport before this campaign.
