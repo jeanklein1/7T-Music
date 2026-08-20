@@ -842,6 +842,33 @@ inline bool take_orb_definition_dirty() {
     return true;
 }
 
+// ─── THE RULE WINDOW (ORGAN_5 P2a) ────────────────────────────────
+// A DIAL WHOSE EFFECT DEPENDS ON A MODE STANDS NEXT TO A TRUTHFUL
+// READOUT OF THAT MODE. Fifteen of the orb rows are rule-scoped — the
+// seven flock rows act only under FLOCKING, the orbital speed only under
+// ORBITAL, each rule drag only under its own rule — and until now the
+// panel showed no rule at all. Turning one and seeing nothing was
+// indistinguishable from a dead dial.
+//
+// A WINDOW, NOT A HOME (the CHORD ruling). `OrbsState.current_motion_rule`
+// and `OrbsState.gesture_idx[]` remain the only truth; this is a packed
+// copy the CARTRIDGE writes so the panel can read it over the ABI.
+//
+// WHY A COPY AND NOT A POINTER, when `g_mood` is a pointer to the spine's
+// own field (C2): the mood lives in a CONTRACT the registry already
+// includes, and the rule lives in `OrbsState` — a BODY, which the organ
+// may not include. Same law, one home; different plumbing, because the
+// home is one tier further away.
+//
+// PACKED: rule in the low byte, the ACTIVE rule's gesture index in the
+// next. One uint32, one ABI call, and no second call to keep in step
+// with the first — the panel reads a rule and its gesture as one fact
+// because that is how the operator reads them.
+inline uint32_t g_orb_rule_view = 0;
+inline void set_orb_rule_view(uint32_t rule, uint32_t gesture) {
+    g_orb_rule_view = (rule & 0xFFu) | ((gesture & 0xFFu) << 8);
+}
+
 } // namespace organ
 } // namespace t7
 
@@ -1024,6 +1051,17 @@ EMSCRIPTEN_KEEPALIVE inline int organ_contest_frames(int index) {
 // definition and to key an export, and it must not keep its own copy.
 EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
     return (int)t7::organ::current_mood();
+}
+
+// ORGAN_5 P2a — the sky's live motion rule, packed with the ACTIVE
+// rule's gesture index: `rule | gesture << 8`. A WINDOW onto
+// OrbsState's own fields, written by the cartridge; the panel reads it
+// to say WHICH MODE the fifteen rule-scoped orb rows are acting in.
+// Zero before the first configure, which reads as brownian/0 — the
+// same thing the program seeds to, so the readout is never a lie even
+// on the frame before it is first written.
+EMSCRIPTEN_KEEPALIVE inline int organ_orb_rule(void) {
+    return (int)t7::organ::g_orb_rule_view;
 }
 
 // ORGAN_3b — press a door. Out-of-range ids are ignored rather than

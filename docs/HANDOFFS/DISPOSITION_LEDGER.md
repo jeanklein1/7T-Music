@@ -2703,3 +2703,128 @@ natively: `count = 0` reaches `if (!os.active || os.count == 0) return;`
 **before** the upload, so the dome goes dark and stays dark until the next
 non-zero write. On a touch keyboard the first keystroke of every edit
 writes zero (P5c).
+
+## P2 — the rule made visible
+
+**A dial whose effect depends on a mode stands next to a truthful readout
+of that mode.** Fifteen of the orb rows are rule-scoped — the seven flock
+rows act only under FLOCKING, the orbital speed only under ORBITAL, each
+rule drag only under its own rule — and the panel showed no rule at all.
+Turning one and seeing nothing was indistinguishable from a dead dial,
+which is the diagnosis ORGAN_4 spent a campaign learning to fear.
+
+### P2a — a window, and why it is a copy where the mood is a pointer
+
+```cpp
+inline uint32_t g_orb_rule_view = 0;                       // rule | gesture<<8
+inline void set_orb_rule_view(uint32_t rule, uint32_t gesture);
+EMSCRIPTEN_KEEPALIVE inline int organ_orb_rule(void);
+```
+
+`OrbsState.current_motion_rule` and `gesture_idx[]` remain the only truth
+(CHORD's windows-not-homes). C2 found `organ_mood()` borrows a POINTER to
+`mood_state_.active`; the rule cannot, and the reason is a tier: the mood
+lives in a CONTRACT the registry already includes, and the rule lives in
+`OrbsState` — a BODY, which the organ may not include. Same law, one home;
+different plumbing, because the home is one tier further away.
+
+**Packed into one `uint32`, and one ABI call**, because the operator reads
+a rule and its gesture as one fact and two calls could disagree between
+them.
+
+### ONE WRITER, ONE SITE — and NOT the door handlers
+
+The handoff placed the write "after boot's first configure, and after
+handling either orb door. One writer, three sites max." The census says
+three sites would have been stale for exactly the path Jean tested with:
+**`cycle_orb_motion_rule` has two callers** — the door, and `KP_8` in
+`direction/input.hpp:267` — and `cycle_orb_gesture` likewise has `KP_7`.
+A readout refreshed only beside the doors would sit still while the
+keyboard turned the sky.
+
+So the write is one line at the frame boundary, in `organ_flush`, from the
+one home:
+
+```cpp
+t7::organ::set_orb_rule_view(
+    orbs_state_.current_motion_rule,
+    orbs_state_.gesture_idx[orbs_state_.current_motion_rule & 3u]);
+```
+
+One writer, ONE site, and it cannot go stale whoever turned the rule. The
+cost on a frame where nothing moved is two masks and a store.
+
+### P2b — the shell, and what did NOT become a hardcode
+
+D3 rules the four rule names as the one exception to name-blindness, and
+the comment names the authority (`bodies/orbs.hpp`'s `RULE_NAMES`, and the
+`ORB_RULE_*` constants `world.wgsl`'s own dispatch tests). **Nothing else
+became an exception**, and two temptations were refused:
+
+- **Which DOORS cycle the rule** is never asked. The handoff asks for a
+  subtitle "on BOTH orb doors", which needs the shell to know that door
+  ids 1 and 2 are the orb ones — a C++ NUMBER, and one that would silently
+  move the readout onto the wrong button the day the roster is renumbered.
+  That is precisely the defect name-blindness exists to prevent, and unlike
+  the four names it fails SILENTLY. So the line sits under the whole door
+  bar, beside both buttons that cycle the rule, and no id is named.
+- **Which GROUPS are rule-scoped** is DERIVED from the group's own name:
+  a group ending `"<rule> rule"` is scoped to that rule, and which one is
+  read out of the name against `RULE_NAMES`. `Flocking rule` → 3,
+  `Orbital rule` → 1, `Motion — all rules` → no match and no line, which is
+  correct — those rows act under every rule. Renaming or adding a rule
+  group in the `.inc` needs no edit here.
+
+Two shapes, one voice. Under the door bar: `now: brownian · gesture 0`.
+Under a rule-scoped group's header, dim when dormant and lit when live:
+
+```
+▸ these rows act in the FLOCKING rule — live rule: brownian
+▸ these rows are acting NOW — live rule: flocking · gesture 2
+```
+
+The dormant line's hover carries the sentence the whole campaign is for:
+*"Turning one and seeing nothing is the RULE, not a dead dial — cycle to
+flocking to hear them."*
+
+**An unknown rule prints its NUMBER.** A ruled duplication that has fallen
+behind should say so, not invent: rule 9 reads `rule 9`, never a guess.
+
+Refreshed at C3's 250 ms poll and 60 ms after ANY door press — name-blind
+again, because RESPEAK moves no rule and a no-op refresh is cheaper than
+asking which door this is. 60 ms beats the poll to the eye without racing
+the program: the boundary has run three times by then at 60 fps, once at
+15 fps.
+
+The line is built once and the refresh moves TEXT, never nodes: at four
+refreshes a second, replacing children would be churn for a line that
+changes on a keypress. The filter hides a scope line with its header — a
+scope line over no rows would answer a question the filter just took away.
+
+### The harness
+
+Native, on the compiled window:
+
+```
+  ── P2a: the rule window ──
+  [PASS] boot reads brownian / gesture 0 — what the program seeds to
+  [PASS] rule and gesture pack into one uint32 (rule | gesture<<8)   0x503
+  [PASS]   and unpack to the pair the shell reads
+  [PASS] each field is masked to a byte — neither can bleed into the other
+  [PASS] the window follows the home and never writes back to it
+```
+
+Shell, under the shim against the real manifest — and with P3c's regroup
+simulated, so the mechanism is proved before the strings that will use it
+exist:
+
+```
+  [PASS] ORGAN_5 P2 — the live-rule line sits under the door bar
+  [PASS]   and reads the packed window                     brownian · gesture 0
+  [PASS]   a group named "<rule> rule" grows a scope line            1 scope
+  [PASS]   dormant while another rule is live                   rulescope off
+  [PASS]   and names its own rule       ▸ these rows act in the FLOCKING rule…
+  [PASS]   the line follows the window                     flocking · gesture 2
+  [PASS]   and the scope line LIGHTS when its rule goes live
+  [PASS]   an unknown rule prints its NUMBER rather than guessing    rule 9
+```

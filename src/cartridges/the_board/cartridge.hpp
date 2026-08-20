@@ -1511,6 +1511,24 @@ namespace t7 {
                         ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue,
                         reseed);
                 }
+                // ORGAN_5 P2a — THE RULE WINDOW, refreshed here and
+                // nowhere else. The sky's rule and gesture are
+                // player-owned and live in OrbsState; the panel needs to
+                // READ them so its fifteen rule-scoped rows can say which
+                // mode they are acting in.
+                //
+                // ONE WRITER, ONE SITE, AND IT IS THIS ONE RATHER THAN
+                // THE DOOR HANDLERS. cycle_orb_motion_rule has two
+                // callers — the door above and KP_8 in direction/input.hpp
+                // — and cycle_orb_gesture likewise has KP_7. Writing the
+                // view beside the doors would leave the readout stale for
+                // exactly the path Jean tested with. A refresh at the
+                // boundary cannot go stale whoever turned the rule, and
+                // costs two masks and a store on a frame where nothing
+                // moved.
+                t7::organ::set_orb_rule_view(
+                    orbs_state_.current_motion_rule,
+                    orbs_state_.gesture_idx[orbs_state_.current_motion_rule & 3u]);
                 gpuState_.organ_flush(queue);
             }
 

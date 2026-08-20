@@ -64,6 +64,30 @@
   // row would be noise rather than information. The other three each
   // answer a question the operator would otherwise have to ask the source.
   var CAD = [null, 'on respawn', 'boundary', 'driven'];
+
+  // ── ORGAN_5 P2b — THE ONE RULED EXCEPTION TO NAME-BLINDNESS (D3) ──
+  // Four strings. THE AUTHORITY IS bodies/orbs.hpp — `RULE_NAMES` beside
+  // cycle_orb_motion_rule, and the ORB_RULE_* constants the kernel's own
+  // dispatch tests (`orb_config.motion_rule == 0u` … in world.wgsl).
+  // Their ORDER is the contract; a fifth rule adds a string here and a
+  // branch there, and both fail loudly rather than silently.
+  //
+  // Everything else about the rule readout stays name-blind: which GROUPS
+  // are rule-scoped is derived from the group's own name below, not
+  // listed, and which DOORS cycle the rule is never asked — the readout
+  // sits under the whole door bar, so renumbering a door cannot move it
+  // onto the wrong button.
+  var RULE_NAMES = ['brownian', 'orbital', 'frozen', 'flocking'];
+
+  // A group whose name ends in "<rule> rule" is scoped to that rule, and
+  // the shell learns which one from the name itself. "Flocking rule" -> 3,
+  // "Orbital rule" -> 1, "Motion — all rules" -> none (and no line, which
+  // is correct: those rows act under every rule).
+  function ruleOfGroup(name) {
+    var m = /(^|\s)([A-Za-z]+)\s+rule$/.exec(name || '');
+    if (!m) return -1;
+    return RULE_NAMES.indexOf(m[2].toLowerCase());
+  }
   var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
@@ -220,7 +244,21 @@
     // the bar reads as one row rather than as a native control dropped in.
     '#organ .bar select.preset{background:#14181d;color:#c8ccd2;' +
     'border:1px solid #303742;font:inherit;padding:3px 6px;cursor:pointer}' +
-    '#organ .bar select.preset:hover{border-color:#5c93c4}';
+    '#organ .bar select.preset:hover{border-color:#5c93c4}' +
+    // ORGAN_5 P2b — THE RULE READOUT. Two shapes, one voice: a line under
+    // the door bar (the sky's live rule, beside the buttons that cycle
+    // it) and a line under each rule-scoped group's header (which rule
+    // THESE rows act in, and whether it is the live one). Dim when the
+    // group is dormant, lit when it is the rule in force — the operator
+    // learns "nothing is moving because this rule is not on" at a glance,
+    // which is the whole defect this phase exists to end.
+    '#organ .rulenow{margin:-4px 0 8px;color:#7d8894;font-size:10px;' +
+    'letter-spacing:.04em}' +
+    '#organ .rulenow b{color:#cfe0ef;font-weight:400}' +
+    '#organ .rulescope{margin:-2px 0 5px;font-size:10px;line-height:1.5;' +
+    'color:#5b636d;letter-spacing:.03em}' +
+    '#organ .rulescope.on{color:#8fb98f}' +
+    '#organ .rulescope.off{color:#6b7480}';
 
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
@@ -579,6 +617,13 @@
     // warning, and this is an instrument for an operator, not a consumer
     // UI. Presses coalesce in the C++ bitmask, so a double-click is one
     // raise.
+    // ORGAN_5 P2b — declared HERE and not beside the section loop: the
+    // door bar below assigns ruleNow, and a `var` further down would be
+    // hoisted and then overwrite it with null when execution reached it.
+    var ruleScopes = [];      // {el, rule} per rule-scoped group
+    var ruleNow = null;       // the line under the door bar
+    var ruleNowVal = null;    // its <b>, the only part that changes
+
     var doorRoster = [];
     try { doorRoster = JSON.parse(C.doors()); } catch (e) { doorRoster = []; }
 
@@ -594,10 +639,37 @@
         b.textContent = d.l;
         b.title = 'a door presses the program\u2019s own frame boundary \u2014 ' +
                   'it adds no author';
-        b.addEventListener('click', function () { C.door(d.i); });
+        b.addEventListener('click', function () {
+          C.door(d.i);
+          // ORGAN_5 P2b — a door is consumed at the NEXT frame boundary,
+          // so the window it moves is one frame behind this click. 60ms
+          // beats the 250ms poll to the operator's eye without racing the
+          // program: at 60fps the boundary has run three times by then,
+          // and on a 15fps phone it has run once. Every door refreshes,
+          // name-blind — RESPEAK moves no rule and the refresh is a
+          // no-op, which is cheaper than asking which door this is.
+          setTimeout(refreshRule, 60);
+        });
         doorBar.appendChild(b);
       });
       root.appendChild(doorBar);
+      // ORGAN_5 P2b — the live rule, under the bar that cycles it. NOT on
+      // the buttons themselves: which door is the rule door is a C++
+      // NUMBER, and a shell that hardcoded it would silently move this
+      // readout onto the wrong button the day the roster is renumbered.
+      // Under the bar the association is unambiguous and stays so.
+      ruleNow = document.createElement('div');
+      ruleNow.className = 'rulenow';
+      // Built once; the refresh moves TEXT and never nodes. At four
+      // refreshes a second, replacing children would be churn for a line
+      // that changes on a keypress.
+      var rnLbl = document.createElement('span'); rnLbl.textContent = 'now: ';
+      ruleNowVal = document.createElement('b');
+      ruleNow.appendChild(rnLbl); ruleNow.appendChild(ruleNowVal);
+      ruleNow.title = 'the sky\u2019s motion rule and the active rule\u2019s '
+                    + 'gesture \u2014 both PLAYER-OWNED (KP_8 / KP_7 or the '
+                    + 'doors above); the panel reads them, it does not own them';
+      root.appendChild(ruleNow);
     }
 
     // ── ORGAN_3b P4a — THE FILTER ────────────────────────────────────
@@ -672,6 +744,18 @@
         host.appendChild(h2);
         curGroup = { h2: h2, rows: [] };
         cur.groups.push(curGroup);
+        // ORGAN_5 P2b — a group whose name ends "<rule> rule" says so,
+        // and says whether that rule is the live one. Derived from the
+        // group's own name, so renaming or adding a rule group in the
+        // .inc needs no edit here.
+        var gr = ruleOfGroup(grp);
+        if (gr >= 0) {
+          var rs = document.createElement('div');
+          rs.className = 'rulescope';
+          host.appendChild(rs);
+          curGroup.rule = rs;      // the filter hides it with its header
+          ruleScopes.push({ el: rs, rule: gr });
+        }
       }
       var r = buildRow(p, host);
       // The haystack is the three names a stop already answers to.
@@ -703,6 +787,10 @@
           var any = false;
           g.rows.forEach(function (r) { if (r.on) any = true; });
           vis(g.h2, any);
+          // ORGAN_5 P2b — the rule line is part of its header, so it
+          // hides and shows with it. A scope line over no rows would be
+          // an answer to a question the filter just took away.
+          if (g.rule) vis(g.rule, any);
         });
         vis(s2.det, live > 0);
         s2.det.open = filtering ? live > 0 : !!openMap[s2.name];
@@ -855,6 +943,40 @@
       });
     });
 
+    // ── ORGAN_5 P2b — THE RULE READOUT, refreshed from the window ────
+    // One reader, two shapes. `organ_orb_rule()` packs `rule | gesture<<8`
+    // — one ABI call, because the operator reads a rule and its gesture
+    // as one fact and two calls could disagree between them.
+    //
+    // A rule the shell has no name for prints its NUMBER rather than
+    // guessing: the four names are a ruled duplication (D3), and a
+    // duplication that has fallen behind should say so, not invent.
+    function ruleName(r) {
+      return RULE_NAMES[r] || ('rule ' + r);
+    }
+    function refreshRule() {
+      var packed = C.orbRule();
+      var rule = packed & 0xFF, gesture = (packed >> 8) & 0xFF;
+      if (ruleNowVal) {
+        ruleNowVal.textContent = ruleName(rule) + ' \u00b7 gesture ' + gesture;
+      }
+      ruleScopes.forEach(function (rs) {
+        var on = rs.rule === rule;
+        rs.el.className = 'rulescope ' + (on ? 'on' : 'off');
+        rs.el.textContent = on
+          ? '\u25b8 these rows are acting NOW \u2014 live rule: '
+            + ruleName(rule) + ' \u00b7 gesture ' + gesture
+          : '\u25b8 these rows act in the ' + RULE_NAMES[rs.rule].toUpperCase()
+            + ' rule \u2014 live rule: ' + ruleName(rule);
+        rs.el.title = on
+          ? 'the live rule IS this group\u2019s rule: turning these moves the sky'
+          : 'the live rule is ' + ruleName(rule) + ', so these rows are dormant. '
+            + 'Turning one and seeing nothing is the RULE, not a dead dial \u2014 '
+            + 'cycle to ' + RULE_NAMES[rs.rule] + ' to hear them.';
+      });
+    }
+    refreshRule();
+
     // ── the panel carries its own witnesses ──────────────────────────
     setInterval(function () {
       var contested = 0;
@@ -875,6 +997,7 @@
           ? CLASS[k] + ' ' + C.contestFrames(r.p.i)
           : '\u00b7';
       });
+      refreshRule();
       status.textContent = rows.length + ' dials  ·  mood ' + C.mood() +
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
                            '  ·  reconciled ' + C.flushes() +
@@ -914,6 +1037,7 @@
         mood:          M.cwrap('organ_mood', 'number', []),
         defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number']),
         get:           M.cwrap('organ_get', 'number', ['number','number','number']),
+        orbRule:       M.cwrap('organ_orb_rule', 'number', []),
         doors:         M.cwrap('organ_doors', 'string', []),
         door:          M.cwrap('organ_door', null, ['number'])
       };
