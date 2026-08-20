@@ -1445,6 +1445,18 @@ namespace t7 {
                 if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_GESTURE))
                     cycle_orb_gesture(orbs_state_, &orbs_deps_, queue);
 
+                // ATMOS_1 — THE MOOD DOOR. The panel asked to go somewhere.
+                // This is the same request door keys 5-9 press, with its
+                // own guards (a transition in flight ignores the press,
+                // ROSTER.transitions gates it): a parametrised door, taken
+                // once.
+                {
+                    uint32_t go = 0;
+                    if (t7::organ::take_go_mood(go))
+                        request_mood_transition(transitionPhase_, pendingDestination_,
+                                                mood_state_, world_state_, go);
+                }
+
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {

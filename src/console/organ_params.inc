@@ -142,6 +142,8 @@
 // mid-stride or broken, which is exactly what a meter is for. (colour /
 // intensity / ambient keep their single window and their preview.)
 ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction (centre)", MOOD, MoodProfile, atmos.sun_direction)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 180.0f, 1.0f, "Sky & Light · Sun", "azimuth spread (±deg)",   MOOD, MoodProfile, atmos.sun_az_spread_deg)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 45.0f,  0.5f, "Sky & Light · Sun", "elevation spread (±deg)", MOOD, MoodProfile, atmos.sun_el_spread_deg)
 ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sky & Light · Sun", "direction (instance)")
 ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "colour",    MOOD, MoodProfile, atmos.sun_color)
 ORGAN_PARAM(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f,  "Sky & Light · Sun", "intensity (instance)")
@@ -156,6 +158,30 @@ ORGAN_PARAM(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sk
 // already trigger, and preview is refused because there is nothing a
 // preview could show.
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "clear colour", MOOD, MoodProfile, atmos.clear_color)
+
+// ─── Sky & Light · Light tiers (ATMOS_1) ────────────────────────────
+// The definition of intensity and ambient: up to three weighted regimes
+// the world's seed picks between, each a centre ± a spread. Weight 0
+// is an absent tier. A write re-draws the live mood at the boundary
+// with the same seed, so the instance moves WITH the dial: raise tier
+// 2's intensity and, if this world is in tier 2, the sun brightens
+// now; if it is not, nothing visible changes until a world lands there
+// (RESPEAK does not re-roll — the seed is the world's).
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f,  "Sky & Light · Light tier 1", "weight",           MOOD, MoodProfile, atmos.light[0].weight)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 4.0f, 0.01f,  "Sky & Light · Light tier 1", "intensity",        MOOD, MoodProfile, atmos.light[0].intensity)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 2.0f, 0.01f,  "Sky & Light · Light tier 1", "intensity spread", MOOD, MoodProfile, atmos.light[0].intensity_spread)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Light tier 1", "ambient",          MOOD, MoodProfile, atmos.light[0].ambient)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 0.5f, 0.005f, "Sky & Light · Light tier 1", "ambient spread",   MOOD, MoodProfile, atmos.light[0].ambient_spread)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f,  "Sky & Light · Light tier 2", "weight",           MOOD, MoodProfile, atmos.light[1].weight)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 4.0f, 0.01f,  "Sky & Light · Light tier 2", "intensity",        MOOD, MoodProfile, atmos.light[1].intensity)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 2.0f, 0.01f,  "Sky & Light · Light tier 2", "intensity spread", MOOD, MoodProfile, atmos.light[1].intensity_spread)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Light tier 2", "ambient",          MOOD, MoodProfile, atmos.light[1].ambient)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 0.5f, 0.005f, "Sky & Light · Light tier 2", "ambient spread",   MOOD, MoodProfile, atmos.light[1].ambient_spread)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f,  "Sky & Light · Light tier 3", "weight",           MOOD, MoodProfile, atmos.light[2].weight)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 4.0f, 0.01f,  "Sky & Light · Light tier 3", "intensity",        MOOD, MoodProfile, atmos.light[2].intensity)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 2.0f, 0.01f,  "Sky & Light · Light tier 3", "intensity spread", MOOD, MoodProfile, atmos.light[2].intensity_spread)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Light tier 3", "ambient",          MOOD, MoodProfile, atmos.light[2].ambient)
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 0.5f, 0.005f, "Sky & Light · Light tier 3", "ambient spread",   MOOD, MoodProfile, atmos.light[2].ambient_spread)
 
 // ═══ THE RULE CONSOLE (ORGAN_5 P3c) ══════════════════════════════
 //
@@ -347,10 +373,13 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f,
 // coupling through set_fog every frame — so the dials sit on the
 // driver's seam (contracts/driver_surface.hpp) and the driven values
 // convert to read-only witnesses below them. ATMOS_1 — the fog's REST is
-// the MOOD's (Atmosphere.fog_*, contracts/spine_state.hpp, enrolled in
-// Commit C); the canvas emits a deviation from its anchor, and this room
-// keeps the gain. out = mood rest + gain·deviation: gain 1 is the
-// coupling verbatim, gain 0 is the mood's own fog.
+// the MOOD's (Atmosphere.fog_*, contracts/spine_state.hpp; the three rest
+// dials below carry it); the canvas emits a deviation from its anchor,
+// and this room keeps the gain. out = mood rest + gain·deviation: gain 1
+// is the coupling verbatim, gain 0 is the mood's own fog.
+ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Fog", "rest density (centre)", MOOD, MoodProfile, atmos.fog_density)
+ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.02f, 0.0001f, "Atmosphere · Fog", "rest density spread",   MOOD, MoodProfile, atmos.fog_density_spread)
+ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Fog", "rest colour",           MOOD, MoodProfile, atmos.fog_color)
 ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Fog", "drive gain")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog", "density (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")

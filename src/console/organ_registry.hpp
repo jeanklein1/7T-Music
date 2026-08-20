@@ -830,6 +830,21 @@ inline uint32_t take_doors_pending() {
     return m;
 }
 
+// ─── THE MOOD DOOR (ATMOS_1) ─────────────────────────────────────
+// A door with a parameter: WHICH mood. The shell's select asks the
+// program to go somewhere; the frame boundary presses
+// request_mood_transition — the same door keys 5-9 and every portal
+// press walk — which keeps its own guards (a transition in flight
+// ignores the press). One pending id, last press wins, taken once.
+// MOOD_COUNT is "no request"; no mood has that id.
+inline uint32_t g_go_mood_pending = the_board::MOOD_COUNT;
+inline bool take_go_mood(uint32_t& mood) {
+    if (g_go_mood_pending >= the_board::MOOD_COUNT) return false;
+    mood = g_go_mood_pending;
+    g_go_mood_pending = the_board::MOOD_COUNT;
+    return true;
+}
+
 // The tier bank's re-apply, taken once by the frame boundary (the
 // cartridge, which owns the agents' deps and the queue — this file
 // knows neither).
@@ -1077,6 +1092,32 @@ EMSCRIPTEN_KEEPALIVE inline int organ_orb_rule(void) {
 EMSCRIPTEN_KEEPALIVE inline void organ_door(uint32_t id) {
     using namespace t7::organ;
     if (id < ORGAN_DOOR_COUNT) g_doors_pending |= (1u << id);
+}
+
+// ATMOS_1 — ask the program to enter a mood by id (the manifest's row
+// order; organ_mood_names gives the labels). Out of range is ignored, for
+// the same reason organ_door ignores it: a stale shell, not a refused
+// write.
+EMSCRIPTEN_KEEPALIVE inline void organ_go_mood(int mood) {
+    using namespace t7::organ;
+    if (mood >= 0 && (uint32_t)mood < t7::the_board::MOOD_COUNT)
+        g_go_mood_pending = (uint32_t)mood;
+}
+
+// ATMOS_1 — the names, positional by id: a JSON array the shell builds
+// its mood select from. A new mood appears there with zero JS edits.
+EMSCRIPTEN_KEEPALIVE inline const char* organ_mood_names(void) {
+    static std::string json;
+    json.clear();
+    json.push_back('[');
+    for (uint32_t m = 0; m < t7::the_board::MOOD_COUNT; ++m) {
+        if (m) json.push_back(',');
+        json.push_back('"');
+        json += t7::the_board::MOOD_NAMES[m];
+        json.push_back('"');
+    }
+    json.push_back(']');
+    return json.c_str();
 }
 
 // O1b — one lane of one dial's DEFINITION for one mood. Zero for a dial

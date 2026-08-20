@@ -643,12 +643,15 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
                 if (roll < cumul) break;
             }
         }
-        const LightTier& lt = a.light[t];
+        // The tier is indexed rather than aliased: every enrolled leaf is
+        // then reached through `a`, the Atmosphere this function holds, so
+        // the reader census (tools/organ_readers.py) can see that these
+        // four dials have a reader. Same values, same order.
         out.light_tier    = t;
-        out.sun_intensity = std::max(0.0f, lt.intensity
-                          + atmos_jitter(seed, AtmosProp::INTENSITY, lt.intensity_spread));
-        out.sun_ambient   = std::max(0.0f, lt.ambient
-                          + atmos_jitter(seed, AtmosProp::AMBIENT, lt.ambient_spread));
+        out.sun_intensity = std::max(0.0f, a.light[t].intensity
+                          + atmos_jitter(seed, AtmosProp::INTENSITY, a.light[t].intensity_spread));
+        out.sun_ambient   = std::max(0.0f, a.light[t].ambient
+                          + atmos_jitter(seed, AtmosProp::AMBIENT, a.light[t].ambient_spread));
     }
 
     // ── the fog's rest, the clear ──

@@ -24,11 +24,28 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | section | label | id | block / family | type | range | step | cadence | def-kind | ro |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Sky & Light · Sun | direction (centre) | `MoodProfile.atmos.sun_direction` | NONE (255) | VEC3 | -1 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Sun | azimuth spread (±deg) | `MoodProfile.atmos.sun_az_spread_deg` | NONE (255) | F32 | 0 … 180 | 1 | boundary | mood |  |
+| Sky & Light · Sun | elevation spread (±deg) | `MoodProfile.atmos.sun_el_spread_deg` | NONE (255) | F32 | 0 … 45 | 0.5 | boundary | mood |  |
 | Sky & Light · Sun | direction (instance) | `LIGHTING.sun.direction` | LIGHTING | VEC3 | — | — | driven | none | • |
 | Sky & Light · Sun | colour | `LIGHTING.sun.color` | LIGHTING | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Sky & Light · Sun | intensity (instance) | `LIGHTING.sun.intensity` | LIGHTING | F32 | 0 … 4 | 0.01 | live | none |  |
 | Sky & Light · Sun | ambient (instance) | `LIGHTING.sun.ambient` | LIGHTING | F32 | 0 … 1 | 0.005 | live | none |  |
 | Sky & Light · Sun | clear colour | `MoodProfile.atmos.clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 1 | weight | `MoodProfile.atmos.light[0].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 1 | intensity | `MoodProfile.atmos.light[0].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 1 | intensity spread | `MoodProfile.atmos.light[0].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 1 | ambient | `MoodProfile.atmos.light[0].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
+| Sky & Light · Light tier 1 | ambient spread | `MoodProfile.atmos.light[0].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
+| Sky & Light · Light tier 2 | weight | `MoodProfile.atmos.light[1].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 2 | intensity | `MoodProfile.atmos.light[1].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 2 | intensity spread | `MoodProfile.atmos.light[1].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 2 | ambient | `MoodProfile.atmos.light[1].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
+| Sky & Light · Light tier 2 | ambient spread | `MoodProfile.atmos.light[1].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
+| Sky & Light · Light tier 3 | weight | `MoodProfile.atmos.light[2].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 3 | intensity | `MoodProfile.atmos.light[2].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 3 | intensity spread | `MoodProfile.atmos.light[2].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
+| Sky & Light · Light tier 3 | ambient | `MoodProfile.atmos.light[2].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
+| Sky & Light · Light tier 3 | ambient spread | `MoodProfile.atmos.light[2].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
 | Sky & Light · Dome | dome radius | `ORBS.dome_radius` | ORBS | F32 | 0 … 2000 | 5 | boundary | none |  |
 | Sky & Light · Dome | base size | `ORBS.base_size` | ORBS | F32 | 0 … 12 | 0.05 | boundary | none |  |
 | Sky & Light · Orbs | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
@@ -63,6 +80,9 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Portals | to open night | `WORLD.portal_colors[4][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to open noon | `WORLD.portal_colors[5][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | back portal | `WORLD.portal_color_back[0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Atmosphere · Fog | rest density (centre) | `MoodProfile.atmos.fog_density` | NONE (255) | F32 | 0 … 0.05 | 0.0002 | boundary | mood |  |
+| Atmosphere · Fog | rest density spread | `MoodProfile.atmos.fog_density_spread` | NONE (255) | F32 | 0 … 0.02 | 0.0001 | boundary | mood |  |
+| Atmosphere · Fog | rest colour | `MoodProfile.atmos.fog_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
@@ -340,14 +360,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **312** |
-| by section | Agents 109 · Ribbon 56 · Terrain 42 · Sky & Light 40 · Interaction 22 · Atmosphere 21 · Pawn 18 · Debug 4 |
-| by cadence | boundary 128 · driven 17 · gen 46 · live 121 |
-| by macro form | PARAM 125 · PARAM_DEF 103 · PARAM_DEFONLY 21 · PARAM_GEN 46 · PARAM_RO 17 |
-| definition kinds | BEHAVIOR 70 · MOOD 3 · NONE 188 · ORB_MOOD 19 · TIER 32 |
+| entries | **332** |
+| by section | Agents 109 · Sky & Light 57 · Ribbon 56 · Terrain 42 · Atmosphere 24 · Interaction 22 · Pawn 18 · Debug 4 |
+| by cadence | boundary 148 · driven 17 · gen 46 · live 121 |
+| by macro form | PARAM 125 · PARAM_DEF 103 · PARAM_DEFONLY 41 · PARAM_GEN 46 · PARAM_RO 17 |
+| definition kinds | BEHAVIOR 70 · MOOD 23 · NONE 188 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 17 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 297 |
+| namespaces | canvas 15 · the_board 317 |
 
 ### Doors
 
@@ -414,7 +434,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    235   a declared reader names the field
+  proved    255   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    17   an _RO meter: the question is inverted (blind spot 5)
   scope      60   GPU-side or whole-struct (blind spots 2, 3)

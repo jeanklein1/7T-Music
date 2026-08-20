@@ -255,11 +255,13 @@
     '#organ details.sec>summary .sx{float:right;background:none;border:0;color:#4f5761;' +
     'font:inherit;padding:0 2px;cursor:pointer;letter-spacing:0}' +
     '#organ details.sec>summary .sx:hover{color:#5c93c4}' +
-    // ORGAN_4 P6 — the preset select, dressed as the buttons beside it so
+    // ORGAN_4 P6 — a select in a bar, dressed as the buttons beside it so
     // the bar reads as one row rather than as a native control dropped in.
-    '#organ .bar select.preset{background:#14181d;color:#c8ccd2;' +
+    // ATMOS_1 — the law was always about a select in a bar, not about
+    // presets, so the selector says that and the mood door inherits it.
+    '#organ .bar select{background:#14181d;color:#c8ccd2;' +
     'border:1px solid #303742;font:inherit;padding:3px 6px;cursor:pointer}' +
-    '#organ .bar select.preset:hover{border-color:#5c93c4}' +
+    '#organ .bar select:hover{border-color:#5c93c4}' +
     // ORGAN_5 P2b — THE RULE READOUT. Two shapes, one voice: a line under
     // the door bar (the sky's live rule, beside the buttons that cycle
     // it) and a line under each rule-scoped group's header (which rule
@@ -753,6 +755,31 @@
       root.appendChild(ruleNow);
     }
 
+    // ── ATMOS_1 — THE MOOD DOOR: a door with a parameter ──────────────
+    // Which mood is the program's to say: names from organ_mood_names(),
+    // id = index, so a new mood appears here with zero JS edits. The
+    // press walks request_mood_transition (keys 5-9's own door) at the
+    // next boundary. Editing a non-live mood's DEFONLY rows needs you IN
+    // it — this select is the road there.
+    var moodSel = null;
+    if (C.goMood && C.moodNames) {
+      var names = [];
+      try { names = JSON.parse(C.moodNames()); } catch (e) { names = []; }
+      if (names.length) {
+        var goBar = document.createElement('div'); goBar.className = 'bar doors';
+        moodSel = document.createElement('select'); moodSel.className = 'mood';
+        names.forEach(function (n, i) {
+          var o = document.createElement('option'); o.value = String(i); o.textContent = n; moodSel.appendChild(o);
+        });
+        moodSel.value = String(C.mood());
+        var go = document.createElement('button'); go.textContent = 'enter mood';
+        go.title = 'request a transition to the selected mood \u2014 the same door keys 5-9 press; ignored while one is in flight';
+        go.addEventListener('click', function () { C.goMood(parseInt(moodSel.value, 10)); });
+        goBar.appendChild(moodSel); goBar.appendChild(go);
+        root.appendChild(goBar);
+      }
+    }
+
     // ── ORGAN_3b P4a — THE FILTER ────────────────────────────────────
     // 262 rows are a library, not a page. One field, matched against
     // id + label + group lowercased, so the operator can reach a stop by
@@ -1059,8 +1086,28 @@
     refreshRule();
 
     // ── the panel carries its own witnesses ──────────────────────────
+    // ATMOS_1 — and it follows the MOOD. A mood-selected definition row
+    // shows the LIVE mood's definition, so a transition (this select, a
+    // key, a portal) leaves it showing the mood the panel was built in.
+    // isWorldDef is the shell's one home for "is this row mood-selected",
+    // so TIER and BEHAVIOR — one bank, the target ignored — are correctly
+    // left alone. r.show() reassigns each row's cached lane vector as
+    // well as its widgets, so the next drag starts from the shown value
+    // with nothing further to update.
+    var lastMood = C.mood();
     setInterval(function () {
       var contested = 0;
+      var m = C.mood();
+      if (m !== lastMood) {
+        lastMood = m;
+        if (moodSel) moodSel.value = String(m);
+        rows.forEach(function (r) {
+          if (!r.p.def || r.p.ro || isWorldDef(r.p)) return;
+          var n = lanes(r.p.type), d = [];
+          for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
+          r.show(d);
+        });
+      }
       rows.forEach(function (r) {
         // A witness reads the home itself, every tick — that IS the row.
         if (r.ro) {
@@ -1160,7 +1207,9 @@
         get:           M.cwrap('organ_get', 'number', ['number','number','number']),
         orbRule:       M.cwrap('organ_orb_rule', 'number', []),
         doors:         M.cwrap('organ_doors', 'string', []),
-        door:          M.cwrap('organ_door', null, ['number'])
+        door:          M.cwrap('organ_door', null, ['number']),
+        goMood:        M.cwrap('organ_go_mood', null, ['number']),
+        moodNames:     M.cwrap('organ_mood_names', 'string', [])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());
