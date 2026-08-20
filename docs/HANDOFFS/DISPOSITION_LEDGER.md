@@ -11,22 +11,25 @@ file; Jean and Claude rule its final form at the close. Until then it is
 the campaign's resumption point (Law 5): ledger + phase pushes are the
 complete handoff to a successor.
 
-**DEFER rows that died this campaign,** each in the commit that landed it
-(ORGAN_3c added none — its one target, `mute_couplings`, came back with
-evidence for keeping it):
-the canvas tier (P2), `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (P3), and
-`FIELD_BEACON_S` (P5 — the only one that needed a ruling rather than a
-reading). **Nine survive**, and each names its own owner in place:
-`THEME_BASE_WEIGHT`, `INDOOR_PALETTES[]` and `tierset_id` want a
-composite editor (D5); `mute_couplings` wants a checkbox per bit, which
-is a shell feature, not an enrollment line; `POSSESSION_RADIUS` wants its
-derived `_SQ` twin read first; Wave 3's remaining destructive banks and
-Wave 4's three seams (the ribbon's four pipes, `floater_coordination`,
-the four mood-structural witnesses) are bulk and pattern, not difficulty
-— the `INDOOR_LIVE` and checker-seam precedents are already in the tree.
+**DEFER rows that died,** each in the commit that landed it. ORGAN_3
+killed the canvas tier (P2), `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (P3) and
+`FIELD_BEACON_S` (P5); ORGAN_3c killed none, its one target
+(`mute_couplings`) having come back with evidence for keeping it; and
+**ORGAN_4 killed four of the nine that survived** — the ribbon's four
+pipes (P2), the four mood-structural witnesses (P3a), `POSSESSION_RADIUS`
+(P3b) and Wave 3's remaining destructive banks (P3d).
+
+**FIVE SURVIVE**, and each names its own owner in place:
+
+| what | owner |
+| --- | --- |
+| `THEME_BASE_WEIGHT`, `INDOOR_PALETTES[]`, `tierset_id` | a composite editor (D5) |
+| `mute_couplings` | a checkbox per bit — a shell feature, not an enrollment line; and ORGAN_3c found that the bits are not there to check |
+| `floater_coordination` | a TEMPERAMENT RULING, not a reading. ORGAN_4 P3c read the module and found the deferral's premise false: it is not driven, it is player-cycled. One `ORGAN_PARAM` line lands it the moment D1 rules who owns it. |
+
 None is externally blocked, which is why none of them is in
-`docs/OPEN.md`. The one that was — the beacon's assert — is the line P5
-killed there.
+`docs/OPEN.md`. The one that was — the beacon's assert — is the line
+ORGAN_3b P5 killed there.
 
 **Why the deferrals are here and not in `docs/OPEN.md`.** OPEN is the
 register of open STATE, one line per item, and its law is that a line
@@ -2268,3 +2271,107 @@ between sessions.
 > `web/presets/index.json` — `{ "name": "dusk", "file": "dusk.json" }` —
 > and São Paulo boots into it with `?preset=dusk`. No panel needed at the
 > exhibition; `?organ=1` is only for the desk.
+
+---
+
+## ORGAN_4 AT CLOSE
+
+### The tallies
+
+| | at open | at close |
+| --- | --- | --- |
+| entries | 263 | **305** |
+| dials / witnesses | 250 / 13 | **288 / 17** |
+| blocks | 10 | **12** |
+| doors | 1 | **3** |
+| by cadence | live 114 · gen 2 · boundary 134 · driven 13 | **live 120 · gen 39 · boundary 129 · driven 17** |
+| definition kinds | none 132 · MOOD 5 · TIER 32 · BEHAVIOR 70 · ORB_MOOD 24 | **none 179 · MOOD 5 · TIER 32 · BEHAVIOR 70 · ORB_MOOD 19** |
+| graduated pairs (organ_gap) | 11 | **13** |
+| audit books | 4 | **5** |
+| check tools | 1 (`organ_gap`) | **2** (`organ_gap`, `organ_readers`) |
+| GPU wallet | — | **UNTOUCHED**: zero buffers, zero bindings, zero WGSL |
+
+By section at close: Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 37
+· Atmosphere 23 · Interaction 21 · Pawn 18 · Debug 4.
+
+**The handoff predicted 257 and the tree carries 305.** Both halves of the
+gap are accounted for: it sized the retirement from a stale 262 when the
+tree already held 263 (ORGAN_3b P5's `PANEL.beacon.s`), and its expected
+shape counted the five deletions without counting its own additions —
+P2c's five, P3a's four, P3b's one and P3d's thirty-seven.
+
+### Every row-death this campaign caused
+
+| row | phase | fate |
+| --- | --- | --- |
+| `OrbMoodConfig.base_hue` | P1b | RETIRED — dead by construction; field docketed on L26 |
+| `OrbMoodConfig.hue_variance` | P1b | RETIRED — same branch, same fate |
+| `OrbMoodConfig.hue_converge_target` | P1b | RETIRED — field STAYS; the row returns with a gen-2 `color_converge` coupling |
+| `OrbMoodConfig.motion_rule` | P1b | RETIRED — dead tree-wide; field docketed; its reachable form is door 1 |
+| `OrbMoodConfig.flock_gesture_default` | P1b | RETIRED — field STAYS; a boot-only fact cannot wear a boundary chip; its reachable form is door 2 |
+| `POSSESSION_RADIUS_SQ` (a constant, not a row) | P3b | RETIRED outright — the square is derived at its one read from the live value |
+| `RibbonConfig` (a struct, not a row) | P3d | RETIRED — two static members were its whole body; both graduated |
+| `SPHERE_BASE_TIER_WEIGHTS` / `CUBE_BASE_TIER_WEIGHTS` | P3d | NOT ENROLLED — no reader anywhere; enrolling them would have built two dead dials on purpose |
+
+### Every DEFER row this campaign killed
+
+| row | phase |
+| --- | --- |
+| the ribbon's four pipes (Wave 4) | P2 |
+| `veil_strength`, `terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap` (Wave 4) | P3a |
+| `POSSESSION_RADIUS` (Wave 2 — the last of Wave 2) | P3b |
+| the remaining destructive banks (Wave 3 — the last of Wave 3) | P3d |
+
+`floater_coordination` survives with a **corrected** reason: Wave 4 called
+it driven; it is player-cycled, and what it needs is a temperament ruling
+D1 reserves. Four of the nine surviving rows died; five remain, and
+Waves 2 and 3 are now empty.
+
+### What ORGAN_4 built
+
+| | |
+| --- | --- |
+| one idiom | the CONSOLE MASK — a CPU bank whose reader is an event gets a per-field mask, and the boundary routes each field to its own reader's cadence |
+| two doors | `Cycle orb rule`, `Cycle orb gesture` — the reachable form of a player-owned fact |
+| one seam | the ribbon's four pipes, rests and one gain, byte-stable at the seeds |
+| two banks | `WORLD_DRAW_LIVE` (block 10), `RIBBON_SPAWN_LIVE` (block 11) — destructive, GEN on every row, no wiring |
+| one graduation | `POSSESSION_RADIUS` into `contracts/control_panel.hpp`, its `_SQ` twin retired |
+| four witnesses | the mood-structural facts, metered against the block the panel already addresses |
+| two instruments | `tools/organ_readers.py`, `tools/organ_ledger.py` |
+| one audit book | `audit/ORGAN.md` — the fifth, and the music campaign's coupling menu |
+| one layer | `web/presets/` — a scene is a file, a boot is a choice |
+
+### The harness at close
+
+Compiled and RUN natively against the real headers under the
+console_gate's pinned surface — 53 assertions, **GREEN, 0 failures** —
+plus the shipped panel driven under a shim in four query modes, all GREEN.
+
+| gate | verdict |
+| --- | --- |
+| `tools/gates/console_gate/run.py` | **PASS** — cartridge.hpp and console.hpp, zero diagnostics |
+| `tools/gates/glaw2/run.py` | **GREEN** |
+| `tools/gates/sha256_gate/run.py` | **PASS** |
+| `tools/organ_gap.py --gate` | **PASS** — 13 graduated pairs, 0 surviving runtime readers |
+| `tools/organ_readers.py` | 231 proved, **0 suspects**, 17 witnesses, 57 out of scope |
+| `tools/binding_gen.py --check` | PASS on every relation |
+| `tools/gates/score/run.py` | **RED, 4 violations — PRE-EXISTING** at 85b1cd6, proved by `git stash`. Spine-table jurisdiction, flagged for the next sitting that opens `UPDATE_SPINE`. |
+| `tools/wgsl_gate.py` | unrunnable here — no `naga` on PATH. No WGSL was touched. |
+| `tools/mirror_census.py` | NOT RUN — frozen at ML-1 per `docs/OPEN.md` |
+
+### What a successor should not trust silently
+
+- **`audit/ORGAN.md` is generated.** Regenerate with
+  `python3 tools/organ_ledger.py` after any `.inc` edit, or the book and
+  the panel disagree.
+- **`organ_readers.py`'s reader table is hand-authored.** It prints itself
+  and prints the functions its own census finds that it omits; a row
+  reading `proved` against a stale table is the failure mode it was built
+  to make visible rather than to make impossible.
+- **The kernel's ledger does not exist.** GPU-side consumption is out of
+  scope for both instruments. `base_hue` was found by Jean's eye, not by a
+  tool, and nothing in the tree would have caught it. That instrument is
+  the honest next spend.
+- **`baseline.json` is a partial preset by construction** — the 57
+  boot-pinned `GPUDesignConfig` rows are written by `initializeState` at
+  device init, which no offline capture can run. The index note says so.

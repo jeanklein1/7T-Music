@@ -443,7 +443,11 @@ raise, and the roster is read from the program (`organ_doors()`) rather
 than named in the shell — the shell stays name-blind about doors exactly
 as it is about dials.
 
-**Molt (door 1) is priced, not built.** `NEEDS_REGEN` re-runs the
+**Molt is priced, not built** — and it no longer has a number, because
+ORGAN_4 spent ids 1 and 2 on the sky's two player-owned facts (see *The
+reader answers* below). It was written here as "door 1" when 1 was the
+next free id; the id is a slot, not a claim, and the price is what
+survives. `NEEDS_REGEN` re-runs the
 heightfield only; `request_recenter` re-evaluates the window only;
 `evict_patch` is a loop. The bill is the risk, not the lines: evicting the
 point's own patch, a budgeted respawn, and the free-layer stack. D3's
@@ -452,7 +456,7 @@ deps the cartridge already holds — is not met, so it is recorded as a
 price.
 
 ## Navigation (ORGAN_3b P4)
-263 rows are a library, not a page. The panel opens **collapsed**, as a
+305 rows are a library, not a page. The panel opens **collapsed**, as a
 table of contents. One filter field matches `id + label + group`
 lowercased — the three names a stop already answers to — hiding rows,
 then group headers with no visible row, then sections with none either;
@@ -470,7 +474,7 @@ exactly what it carries. **A voice is a file.**
 A row is two lines, both grids, every cell placed by explicit
 `grid-column` rather than auto-placement — so a row with no colour swatch
 and no cadence chip still lines its markers up with the row above it, and
-263 rows read as a column rather than as a list.
+305 rows read as a column rather than as a list.
 
 ```
 line 1  [ label ……………………………  sw   mk   chip ]
@@ -495,27 +499,193 @@ found and the grid may squeeze a slider toward its floor, but neither
 rewrites what the hand set.
 
 ## The tally at close
-263 enrolled entries — 250 dials and 13 read-only witnesses — across
-eight sections and ten blocks.
+305 enrolled entries — 288 dials and 17 read-only witnesses — across
+eight sections and twelve blocks.
+
+THIS TABLE IS NO LONGER THE AUTHORITY. `audit/ORGAN.md` is generated from
+the enrollment list on demand (ORGAN_4 P5) and carries every row with its
+range, its step and its cadence. What stays here is the shape, because a
+shape is a thing to argue with and a table of 305 rows is not.
 
 | section | entries |
 | --- | --- |
-| Agents | 102 |
-| Terrain | 39 |
-| Sky & Light | 33 |
-| Ribbon | 25 |
-| Atmosphere | 22 |
-| Interaction | 20 |
+| Agents | 104 |
+| Ribbon | 56 |
+| Terrain | 42 |
+| Sky & Light | 37 |
+| Atmosphere | 23 |
+| Interaction | 21 |
 | Pawn | 18 |
 | Debug | 4 |
 
-By cadence: 114 live, 2 gen, 134 boundary, 13 driven.
+By cadence: 120 live, 39 gen, 129 boundary, 17 driven.
 
-Definition kinds: 132 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 24 ORB_MOOD;
-26 of them definition-only — 2 under sentinel 255 (MoodProfile) and 24
-under 254 (OrbMoodConfig). Blocks 0-9: config, lighting, agent room,
-drivers, pawn aura, orb console, the panel, the ribbon, indoor, canvas —
-ten of the twelve the campaign set as its consolidation threshold.
+Definition kinds: 179 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
+21 of them definition-only — 2 under sentinel 255 (MoodProfile) and 19
+under 254 (OrbMoodConfig). Blocks 0-11: config, lighting, agent room,
+drivers, pawn aura, orb console, the panel, the ribbon, indoor, canvas,
+the world draw, the ribbon's spawn bank — the twelve the campaign set as
+its consolidation threshold, now all in use.
+
+
+## The reader answers (ORGAN_4)
+
+**An enrollment states a belief; only the reader proves it.** Every row
+ORGAN_4 touched ends the campaign either consumed by its reader or retired
+with its reason ledgered.
+
+That law exists because of a defect the panel could not see. Jean's sweep
+of the orbs found eight of the sky's twenty-seven rows dead and thirteen
+more sitting on a sentinel — every one shipped through a green harness,
+because **the manifest's chip derives from the ENROLLMENT'S FORM while the
+truth lives in the READER'S BODY.** A registry that cannot drift about
+offsets can still be entirely wrong about consumption.
+
+### The console-mask idiom
+
+A CPU BANK WHOSE READER IS AN EVENT GETS A PER-FIELD MASK, consumed at the
+frame boundary, and the boundary routes each field to the cadence its own
+reader has.
+
+`ORB_CONSOLE_LIVE`'s only reader is `configure_orbs` — an event — so the
+three Dome dials were dead until a mood change. ORGAN_3b cured the silence
+with a block-wide re-speak flag, which cured it by firing the whole
+applier; `configure_orbs` ends `os.init_pending = true`, so every notch of
+the dome slider **re-seeded the sky**. Right about WHEN, wrong about WHAT.
+
+```cpp
+inline uint32_t g_orb_console_dirty = 0;   // bit = offsetof/4
+```
+
+The raise costs one shift at a site that already had the offset in hand —
+`organ_set`'s single post-clamp statement, keyed on the block (D1). A
+`static_assert` beside the flag pins the three offsets, so a field
+reordered in the struct fails the BUILD rather than routing a radius into
+a noise floor. `block_has_boundary` stays and keeps its meaning: all three
+fields still land at the boundary, so all three still read BOUNDARY
+cadence. **A cadence question and a plumbing question are two questions.**
+
+### The three doors
+
+A door is the panel pressing the program's OWN machinery. ORGAN_3b built
+one; ORGAN_4 added two, and they are what a PLAYER-OWNED fact's enrollment
+looks like when the panel tells the truth:
+
+| id | label | what it presses |
+| --- | --- | --- |
+| 0 | Re-speak definitions | every definition flag at once |
+| 1 | Cycle orb rule | `cycle_orb_motion_rule` — the same function KP_8 presses |
+| 2 | Cycle orb gesture | `cycle_orb_gesture` — the same function KP_7 presses |
+
+`OrbMoodConfig.motion_rule` had a dial and no reader: `configure_orbs`
+writes `os.current_motion_rule`, the player's, and never looks at the
+mood's. That hardcode is a RULING — the rule is player-owned, seeded once
+to Brownian — so the dial died and the ruling's reachable form is the
+door. `flock_gesture_default` is the same shape for a different reason: a
+BOOT-ONLY fact wearing a boundary chip misreports, because the applier
+refuses it on every run after the first.
+
+Zero JS edits were needed. The shell renders one button per manifest row,
+name-blind, exactly as it does for dials.
+
+### The thirteen floors — D1(d)'s second application
+
+THE TIERSET PRECEDENT, APPLIED VERBATIM: **a slider cannot express a
+sentinel without lying.** `configure_orbs` reads 0 as "no opinion"
+(`eff()`) for `drag`, `orbital_base_speed` and the seven `flock_*`, and
+`passthrough()` maps the four `rule_drag_*` zeros to 1.0×. Thirteen rows
+whose minimum was 0 therefore had a value the applier discards. Each min
+is now **exactly one step** of its own row (D4).
+
+One step and not less, and the arithmetic is the argument: with min 0.01
+against a step of 0.02 a dial reaches 0.99 and 1.01 and **never 1.0** —
+the pass-through identity itself. Half a step puts every gridline off the
+integers. At one step the authored mood value stays on the grid
+`min + k·step` for all thirteen, which the harness proves rather than
+assumes.
+
+### The palette temperament
+
+Stamped above `pack_palette_`, because the same function answers two
+questions:
+
+> palette is config-owned — the dial and the mood are the durable authors
+> and `pack_palette_` re-speaks them; the KP palette-cycle is a live
+> gesture that lasts until the next configure. Rule and gesture are the
+> OPPOSITE (player-owned, seed once): that asymmetry is deliberate — a
+> dial exists for `palette_id`, and a config the applier ignores is a dead
+> dial.
+
+Player-protecting the palette field would have killed the `palette id`
+dial the exact way the rule dial died. And the same function is why
+`base_hue` and `hue_variance` are not dials: every `ORB_PALETTES` row
+carries `count ≥ 1`, so `palette_count` is never 0 and the kernel's legacy
+single-hue arm is unreachable. Two fields the applier faithfully copies
+into a branch the GPU cannot take.
+
+### `tools/organ_readers.py` — does your reader name you?
+
+The audit family's newest check and the `organ_gap` sibling: stdout only,
+**exit 0 always**. `organ_gap` measures the gap between the HOMES and the
+panel; this measures the inward gap — of the dials that DO exist, which
+write a field nobody reads.
+
+**The match is HANDLE-QUALIFIED, and that is the whole tool.**
+`configure_orbs` CONTAINS the token `motion_rule`, in
+`gpuCfg.motion_rule = os.current_motion_rule;`. A bare-token match would
+have passed the deadest row in the tree. A row is proved only when its
+leaf is reached through a name that IS the bank — the LIVE symbol, a
+parameter of the bank's struct type, or a reference alias bound to either.
+
+Its blind spots, stated in its own header rather than discovered later:
+helper indirection and whole-struct copies produce false POSITIVES; a
+colliding leaf token produces a false NEGATIVE, which is worse and is why
+the match had to be handle-qualified; **GPU-side consumption is out of
+scope** — that is the kernel's ledger, a sixth instrument, and the one
+that could have caught `base_hue` mechanically instead of by Jean's eye.
+A witness is skipped because its question is inverted: a meter asks who
+AUTHORS, which is the contest instrument's job.
+
+### `audit/ORGAN.md` — the fifth ledger
+
+BINDING, COMMAND, MANIFEST and MIRROR each keep a generated book about one
+of the program's rooms. `tools/organ_ledger.py` writes the panel's: every
+row with its section, label, id, block, type, range, step, cadence,
+def-kind and `ro`, then the tallies, then the verbatim tails of both check
+tools.
+
+**Every row with an authored range is a trajectory domain.** A coupling is
+a parameter set into trajectory over time, so this table is the music
+campaign's target map — the range column is the domain a trajectory would
+play over, and the cadence column says whether playing it would be heard
+now, at the boundary, or at the author's next event.
+
+`derived_cadence()` is restated once in the generator, which is one more
+copy of a rule than the compiled-registry law likes — so the harness
+prints the same tallies from the COMPILED table and the two are compared
+rather than trusted.
+
+### The preset layer (`web/presets/`)
+
+**A scene is a file, a boot is a choice.** `index.json` is the shelf,
+`?preset=<name>` picks one at boot, a select in the panel header picks one
+by hand. All three walk the SAME import path: a partial file applies
+exactly what it carries, an unknown id is counted rather than thrown, and
+no new write machinery exists.
+
+THE LOADER LIVES AT MODULE SCOPE, NOT INSIDE `build()`, and that is the
+whole point: an exhibition boots with `?preset=` and no panel. A preset
+reachable only from an open panel would be an instrument feature wearing
+an exhibition's name. The audience path keeps its promise exactly — with
+neither flag the file still returns on its first statement.
+
+No storage of any kind, the same law the width and the `openMap` follow:
+the URL is the only thing that carries a choice between sessions.
+
+> **For Jean.** Design a scene on the panel. Press export (or a section's
+> own export for one voice). Drop the JSON in `web/presets/`, add one line
+> to `web/presets/index.json`, and São Paulo boots into it with
+> `?preset=<name>`.
 
 
 ## ORGAN_2 — the close (the campaign minute)
