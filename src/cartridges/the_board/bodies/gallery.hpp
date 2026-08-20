@@ -343,10 +343,10 @@ inline constexpr WallArtConfig WALL_ART = {
 // Dim::PATCH_EXTENT comes through this file's own include of state.hpp;
 // MOOD_TABLE comes by COHORT ORDER, the same reach the R4 assert below uses.
 inline constexpr uint32_t INDOOR_RADIUS_MAX =
-    MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
-        > MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max
-    ? MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
-    : MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max;
+    MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
+    ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+    : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
 
 inline constexpr float INDOOR_MAX_WALL_SPAN =
     (2.0f * (float)INDOOR_RADIUS_MAX + 1.0f) * Dim::PATCH_EXTENT;
@@ -417,7 +417,7 @@ static_assert(Dim::STAGING_LAYERS >= 4u * WALL_ART.per_wall_cap,
 static_assert(WALL_ART.min_bottom_height
             + WALL_ART.statement.height_hi
             + WALL_ART.top_margin
-              <= MOOD_TABLE[MOOD_INDOOR_FLAT].wall_height,
+              <= MOOD_TABLE[MOOD_INDOOR_FLAT].shape.wall_height,
     "R4: floor margin + tallest bucket + top margin must fit the FLAT wall");
 
 // ── Property index registries ────────────────────────────────────

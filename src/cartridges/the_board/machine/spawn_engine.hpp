@@ -313,7 +313,7 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 inline bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
     float footprint_r, float containment_r, float& cx, float& cz)
 {
-    if (!(c->world_state_.finite_mode && mood_def(c->mood_state_.active).indoor))
+    if (!(c->world_state_.finite_mode && mood_def(c->mood_state_.active).shape.indoor))
         return true;
     const IndoorBounds bounds = INDOOR_TREATMENT[family].bounds;
     if (bounds == IndoorBounds::FREE) return true;

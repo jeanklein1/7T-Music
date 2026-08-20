@@ -23,12 +23,12 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | section | label | id | block / family | type | range | step | cadence | def-kind | ro |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sky & Light · Sun | direction | `MoodProfile.sun_direction` | NONE (255) | VEC3 | -1 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Sun | direction (centre) | `MoodProfile.atmos.sun_direction` | NONE (255) | VEC3 | -1 … 1 | 0.01 | boundary | mood |  |
 | Sky & Light · Sun | direction (instance) | `LIGHTING.sun.direction` | LIGHTING | VEC3 | — | — | driven | none | • |
 | Sky & Light · Sun | colour | `LIGHTING.sun.color` | LIGHTING | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Sky & Light · Sun | intensity | `LIGHTING.sun.intensity` | LIGHTING | F32 | 0 … 4 | 0.01 | boundary | mood |  |
-| Sky & Light · Sun | ambient | `LIGHTING.sun.ambient` | LIGHTING | F32 | 0 … 1 | 0.005 | boundary | mood |  |
-| Sky & Light · Sun | clear colour | `MoodProfile.clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Sun | intensity (instance) | `LIGHTING.sun.intensity` | LIGHTING | F32 | 0 … 4 | 0.01 | live | none |  |
+| Sky & Light · Sun | ambient (instance) | `LIGHTING.sun.ambient` | LIGHTING | F32 | 0 … 1 | 0.005 | live | none |  |
+| Sky & Light · Sun | clear colour | `MoodProfile.atmos.clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Sky & Light · Dome | dome radius | `ORBS.dome_radius` | ORBS | F32 | 0 … 2000 | 5 | boundary | none |  |
 | Sky & Light · Dome | base size | `ORBS.base_size` | ORBS | F32 | 0 … 12 | 0.05 | boundary | none |  |
 | Sky & Light · Orbs | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
@@ -61,8 +61,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Portals | to indoor vault | `WORLD.portal_colors[2][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to finite outdoor | `WORLD.portal_colors[3][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | back portal | `WORLD.portal_color_back[0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Atmosphere · Fog | rest density | `DRIVERS.fog.rest_density` | DRIVERS | F32 | 0 … 0.05 | 0.0002 | live | none |  |
-| Atmosphere · Fog | rest colour | `DRIVERS.fog.rest_color` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
@@ -335,14 +333,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **307** |
-| by section | Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38 · Atmosphere 23 · Interaction 22 · Pawn 18 · Debug 4 |
-| by cadence | boundary 130 · driven 17 · gen 39 · live 121 |
-| by macro form | PARAM 125 · PARAM_DEF 105 · PARAM_DEFONLY 21 · PARAM_GEN 39 · PARAM_RO 17 |
-| definition kinds | BEHAVIOR 70 · MOOD 5 · NONE 181 · ORB_MOOD 19 · TIER 32 |
+| entries | **305** |
+| by section | Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38 · Interaction 22 · Atmosphere 21 · Pawn 18 · Debug 4 |
+| by cadence | boundary 128 · driven 17 · gen 39 · live 121 |
+| by macro form | PARAM 125 · PARAM_DEF 103 · PARAM_DEFONLY 21 · PARAM_GEN 39 · PARAM_RO 17 |
+| definition kinds | BEHAVIOR 70 · MOOD 3 · NONE 181 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 17 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 292 |
+| namespaces | canvas 15 · the_board 290 |
 
 ### Doors
 
@@ -374,11 +372,11 @@ reader, and the reason ORGAN_3 shipped seven dead dials.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=4 static_assert=9 constexpr=4 comment=34 
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].finite_radius_max
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:349  : MOOD_TABLE[MOOD_INDOOR_VAULT].finite_radius_max;
+  MOOD_TABLE           definition=1 seed=4 static_assert=18 constexpr=4 comment=28 
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:349  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
   ORB_CONSOLE          definition=1 seed=1 comment=2              
   ORB_MOOD_TABLE       definition=1 seed=4 comment=7              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
@@ -409,10 +407,10 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    232   a declared reader names the field
+  proved    228   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    17   an _RO meter: the question is inverted (blind spot 5)
-  scope      58   GPU-side or whole-struct (blind spots 2, 3)
+  scope      60   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

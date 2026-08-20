@@ -170,7 +170,14 @@ READERS = {
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
     ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
-    "MOOD": ("MOOD_LIVE", "MoodProfile", [
+    # ATMOS_1 — the MOOD family's enrolled fields all live under
+    # MoodProfile.atmos now, and the function that NAMES their leaves is
+    # draw_atmosphere, which takes the Atmosphere by parameter. The struct
+    # column types the HANDLE, so it names the struct the reader holds:
+    # apply_mood_lighting stays listed because it is the applier that runs
+    # the draw and fans the result.
+    "MOOD": ("MOOD_LIVE", "Atmosphere", [
+        ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
         ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
     ]),
     "TIER": ("TIER_LIVE", "AgentTierBank", [

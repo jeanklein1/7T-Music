@@ -156,10 +156,10 @@ inline bool generic_select(MachineCtx* c,
     //    solid extents are derived from the scaled params). THE
     //    INDOOR MODULE dispatches on its policy table: NATURAL
     //    skips; EXACT and CAP run the family's adapter hook. ──
-    if (mood_def(c->mood_state_.active).indoor
+    if (mood_def(c->mood_state_.active).shape.indoor
         && INDOOR_TREATMENT[traits.family_id].size != IndoorSize::NATURAL
         && adapter.apply_indoor_rescale) {
-        adapter.apply_indoor_rescale(inst, mood_def(c->mood_state_.active).wall_height);
+        adapter.apply_indoor_rescale(inst, mood_def(c->mood_state_.active).shape.wall_height);
     }
 
     // ── Per-family derived values ──
@@ -1038,7 +1038,7 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
             const auto& mp = mood_def(mood);
             aa.destination.seed = dest_seed;
             aa.destination.mood = mood;
-            aa.destination.finite = mp.finite;
+            aa.destination.finite = mp.shape.finite;
             aa.destination.finite_radius = derive_finite_radius(dest_seed, mp);
             // A portal wears its destination's color — paint has no home here.
             // Zeroed AT THE DECISION so both mesh-param producers read one

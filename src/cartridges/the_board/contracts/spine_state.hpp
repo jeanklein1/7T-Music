@@ -122,6 +122,14 @@ struct MoodState {
     // values. Fails loud.
     float sun_intensity = 0.0f;
     float sun_ambient   = 0.0f;
+    uint32_t light_tier = 0;                // ATMOS_1 — which LightTier the draw landed in (the witness)
+    // ATMOS_1 — the fog's REST, drawn per world from the mood's atmosphere.
+    // The U4 seam (phase_motion_drivers) composes the canvas's deviation
+    // over it every frame. 0 is the same fails-loud choice as the sun's:
+    // if the draw never ran, the world is fogless and black-fogged on
+    // frame 1 rather than quietly wearing the sunset's.
+    float fog_rest_density  = 0.0f;
+    float fog_rest_color[3] = { 0.0f, 0.0f, 0.0f };
     float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
     bool  spot_light_active = false;
 
@@ -156,6 +164,31 @@ struct MoodState {
 };
 
 // ═══ MOOD SYSTEM (vocabulary) ════════════════════════════════════
+//
+// A MOOD IS A SHAPE WEARING AN ATMOSPHERE (ATMOS_1). The shape is what
+// a world IS — read by generation, torn down with the world, never
+// re-spoken. The atmosphere is what it WEARS — a DISTRIBUTION, not a
+// point: centres and spreads, and a light regime drawn from weighted
+// tiers. At every apply the world's seed draws ONE atmosphere from it
+// (draw_atmosphere, direction/mood.hpp); the same seed draws the same
+// sky, so the back portal's promise holds. The panel writes the
+// distribution, and the draw moves WITH the dial rather than re-rolling.
+//
+// THE PERSISTENCE LADDER — every parameter stands on one rung, and the
+// rung says who takes it back and when (docs/ORGAN.md, "The persistence
+// ladder"):
+//   1 the instrument's registration — the LIVE banks; held through all
+//   2 the player's preferences — seeded once, then the player's; held
+//   3 the environment's instance — authored by apply_mood at entry;
+//     re-spoken at the boundary when rung 1 is edited
+//   4 the world's draw — (seed, tables) → terrain, spawns, THIS SKY;
+//     reborn at teardown, the same seed the same world
+//   5 the drivers' output — rest (3) + gain (1) · deviation, per frame
+//   6 the live simulation — advances per frame; a discrete command
+//     changes the LAW, not the state; reborn only at teardown
+// A transition holds 1-2, re-speaks 3, reborns 4 and 6; 5 continues over
+// the new rest. "Held regardless" is rungs 1 and 2; "a custom
+// environment" is a rung-1 row plus its rung-4 draw.
 
 enum class CeilingType : uint32_t {
     NONE = 0,   // outdoor — no shell geometry
@@ -163,57 +196,140 @@ enum class CeilingType : uint32_t {
     VAULT = 2,   // catenary vault ceiling
 };
 
-struct MoodProfile {
-    // ─── World bounds ───────────────────────────────────────
-    bool   finite;                 // true = walled world with finite radius
-    uint32_t finite_radius_min;    // min patch radius (when finite)
-    uint32_t finite_radius_max;    // max patch radius (when finite)
+// THE SHAPE — what a world IS. Structural by the eligibility rule
+// (stated beside MOOD_LIVE below): no field here may take a definition
+// target, because world GENERATION reads it, and rewriting it without
+// regenerating the world would mean nothing at best and disagree at
+// worst.
+struct WorldShape {
+    bool        finite;              // true = walled world with finite radius
+    uint32_t    finite_radius_min;   // min patch radius (when finite)
+    uint32_t    finite_radius_max;   // max patch radius (when finite)
+    bool        indoor;              // true = enclosed space with ceiling
+    CeilingType ceiling_type;        // NONE / FLAT / VAULT
+    float       wall_height;         // where the VERTICAL wall stops (world units).
+                                     // NOT the ceiling on VAULT — there the ceiling is
+                                     // the crown, 47-92 against this 25. See vault_crown.
+    float       terrain_amp_ceiling; // indoor terrain-amp cap (0 = uncapped, outdoor)
+    bool        allow_gol_zones;     // GoL zone spawning + visualization
+    bool        allow_pawn_aura;     // toroidal spring grid tinting + height boost
+    bool        allow_frustum_cull;  // STATUS: LATENT[mood_cull_opt_out] — INERT.
+                                     // Reaches renderer_.set_frustum_cull_active
+                                     // and stops: the flag's reader was retired
+                                     // when the draw plan took every mood, so
+                                     // indoor terrain IS culled despite the two
+                                     // `false` rows below. See renderer.hpp for
+                                     // the full note and the cut (OPT_1 O0-f).
+};
+// The open field, by property: neither walled nor roofed. The triad's
+// way out asks this; no id is kept for it, because the two flags already
+// say it.
+inline constexpr bool shape_is_open(const WorldShape& s) {
+    return !s.finite && !s.indoor;
+}
 
-    // ─── Lighting ───────────────────────────────────────────
-    float  sun_direction[3];       // directional light vector (normalized)
-    float  sun_color[3];           // sun RGB
-    float  sun_intensity;          // diffuse strength
-    float  sun_ambient;            // ambient fill strength
+// A LIGHT REGIME — one of up to three weighted tiers an atmosphere may
+// be drawn into. Tiers make a sky MULTIMODAL: a moonless night and a
+// bright-moon night are two regimes, not two ends of one smear. Weight
+// 0 is an absent tier. Intensity and ambient ride together because a
+// dark night is dark in both terms.
+struct LightTier {
+    float weight;            // relative selection weight; 0 = absent
+    float intensity;         // diffuse strength — the tier's centre
+    float intensity_spread;  // ± around it, uniform
+    float ambient;           // ambient fill strength — the tier's centre
+    float ambient_spread;    // ± around it, uniform
+};
+inline constexpr uint32_t LIGHT_TIER_COUNT = 3;
 
-    // ─── Indoor shell ───────────────────────────────────────
-    bool   indoor;                 // true = enclosed space with ceiling
-    CeilingType ceiling_type;      // NONE / FLAT / VAULT
-    float  wall_height;            // where the VERTICAL wall stops (world units).
-                                   // NOT the ceiling on VAULT — there the ceiling is
-                                   // the crown, 47-92 against this 25. See vault_crown.
-    float  terrain_amp_ceiling;    // indoor terrain-amp cap (0 = uncapped, outdoor)
-
-    // ─── Background ─────────────────────────────────────────
-    float  clear_color[3];         // sky or dark ceiling RGB
+// THE ATMOSPHERE — what a world WEARS, as a distribution. Every "spread"
+// is a uniform ± around its centre; spread 0 draws the centre EXACTLY
+// (no hash is taken), which is what keeps a carried row bit-identical
+// to the point value it replaced.
+struct Atmosphere {
+    // ─── Sun ──────────────────────────────────────────────────
+    float     sun_direction[3];     // the light vector's CENTRE — the direction light
+                                    // travels; its readers normalize it
+    float     sun_az_spread_deg;    // ± azimuth turn about +Y, degrees (180 = any bearing)
+    float     sun_el_spread_deg;    // ± elevation, degrees; the draw clamps elevation to [5°, 88°]
+    float     sun_color[3];         // sun RGB
+    LightTier light[LIGHT_TIER_COUNT];
+    // ─── Fog — the REST the drivers' seam composes the canvas's deviation over ──
+    float     fog_density;          // exponential coefficient — the rest's centre
+    float     fog_density_spread;   // ± around it, uniform
+    float     fog_color[3];         // the rest colour
+    // ─── Background ───────────────────────────────────────────
+    float     clear_color[3];       // sky or dark ceiling RGB
     // wall/ceiling colors: INDOOR_PALETTES (mood.hpp) is the authority —
     // seed-picked per world; the profile never authored them in effect.
+};
 
-    // ─── Feature selection (per-mood) ───────────────────────
-    bool   allow_gol_zones;        // GoL zone spawning + visualization
-    bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
-    bool   allow_frustum_cull;     // STATUS: LATENT[mood_cull_opt_out] — INERT.
-                                   // Reaches renderer_.set_frustum_cull_active
-                                   // and stops: the flag's reader was retired
-                                   // when the draw plan took every mood, so
-                                   // indoor terrain IS culled despite the two
-                                   // `false` rows below. See renderer.hpp for
-                                   // the full note and the cut (OPT_1 O0-f).
+struct MoodProfile {
+    WorldShape shape;   // what the world is
+    Atmosphere atmos;   // what it wears
+};
 
+// ═══ THE SHAPES ══════════════════════════════════════════════════
+// One authored home per shape. Three moods wear SHAPE_OPEN, and that
+// they are one stage is stated by this constant, not by three copies.
+//                                              fin    r_min r_max indoor ceil                wall_h amp_c  zones aura  cull
+inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true  };
+inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false };
+inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false };
+inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true  };
+
+// ═══ THE ATMOSPHERES ═════════════════════════════════════════════
+// The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly, with
+// every spread 0 and one light tier at weight 1 — so the boot draw is
+// the old table, bit for bit (the witnesses below pin it). Their fog
+// rest is the old drivers'-room rest, FOG_DENSITY_NONE / FOG_COLOR_NONE
+// (coupling/visual_canvas.hpp), which every mood wore before the rest
+// came home to the mood.
+//
+// Row shape:  sun centre, az spread, el spread · sun colour ·
+//             three light tiers { weight, int, int±, amb, amb± } ·
+//             fog density, density± · fog colour · clear colour
+inline constexpr Atmosphere ATMOS_SUNSET = {
+    { 0.94f, -0.29f, -0.13f }, 0.0f, 0.0f,
+    { 1.0f, 0.75f, 0.45f },
+    { { 1.0f, 0.90f, 0.0f, 0.20f, 0.0f },         // tier 0 — today's light, exactly
+      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f },
+      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f } },
+    0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f },       // fog rest: the anchor
+    { 0.95f, 0.70f, 0.45f },
+};
+inline constexpr Atmosphere ATMOS_ROOM = {        // both rooms wear it — one home, not two rows
+    { 0.20f, -0.90f, 0.00f }, 0.0f, 0.0f,
+    { 1.0f, 0.90f, 0.80f },
+    { { 1.0f, 0.35f, 0.0f, 0.35f, 0.0f },
+      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f },
+      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f } },
+    0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f },
+    { 0.15f, 0.12f, 0.10f },
+};
+inline constexpr Atmosphere ATMOS_FINITE_DAY = {
+    { 0.56f, -0.82f, -0.11f }, 0.0f, 0.0f,
+    { 1.0f, 0.95f, 0.90f },
+    { { 1.0f, 0.80f, 0.0f, 0.25f, 0.0f },
+      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f },
+      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f } },
+    0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f },
+    { 0.85f, 0.78f, 0.72f },
 };
 
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
 //
-// SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
-//   bool `indoor` flags. finite_outdoor is walled AND outdoor, so it
-//   sits astride the binary and the encoding doesn't survive contact —
-//   correct for today but worth re-examining when finite_outdoor
+// SEAM[mood:K1] indoor/outdoor binary lives in WorldShape as bool
+//   `finite` + bool `indoor`. finite_outdoor is walled AND outdoor, so
+//   it sits astride the binary and the encoding doesn't survive contact
+//   — correct for today but worth re-examining when finite_outdoor
 //   design lands.
-//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   indoor  ceil       wall_h  amp_c  clear_color            zones  aura   cull
+//                                      shape             atmosphere
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.94f,-0.29f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true  },
-    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
-    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f,  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false },
-    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.56f,-0.82f,-0.11f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f,  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true  },
+    /* MOOD_OPEN_SUNSET        */  { SHAPE_OPEN,       ATMOS_SUNSET     },
+    /* MOOD_INDOOR_FLAT        */  { SHAPE_ROOM_FLAT,  ATMOS_ROOM       },
+    /* MOOD_INDOOR_VAULT       */  { SHAPE_ROOM_VAULT, ATMOS_ROOM       },
+    /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY },
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
@@ -227,20 +343,48 @@ static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
     "reorder the table together with the ids");
 
 // COLUMN WITNESSES. F-3 pins ROW order; these pin COLUMN offsets. The
-// rows are positionally brace-initialised, so a column added or cut
-// mid-row shifts every field after it with no diagnostic. One probe per
-// region of the row — head, middle, tail — so a shift anywhere trips.
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].finite         == false, "MOOD_TABLE column drift: finite (head)");
-static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].finite      == true,  "MOOD_TABLE column drift: finite (head)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].indoor         == false, "MOOD_TABLE column drift: indoor (middle)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].indoor        == true,  "MOOD_TABLE column drift: indoor (middle)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].wall_height  == 20.0f, "MOOD_TABLE column drift: wall_height");
-static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].wall_height == 25.0f, "MOOD_TABLE column drift: wall_height");
-// The tail probe followed has_anchor_ribbon out; allow_frustum_cull is the
-// last field now and takes it. Both values differ from `indoor` at the same
-// rows, so the tail probe still names something the middle probe does not.
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].allow_frustum_cull == true,  "MOOD_TABLE column drift: allow_frustum_cull (tail)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].allow_frustum_cull == false, "MOOD_TABLE column drift: allow_frustum_cull (tail)");
+// shapes and the atmospheres are positionally brace-initialised, so a
+// column added or cut mid-row shifts every field after it with no
+// diagnostic. One probe per region of each row — head, middle, tail —
+// so a shift anywhere trips. allow_frustum_cull is WorldShape's last
+// field and takes the tail probe; its values differ from `indoor` at
+// the same rows, so the tail probe still names something the middle
+// probe does not.
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.finite         == false, "WorldShape column drift: finite (head)");
+static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape.finite      == true,  "WorldShape column drift: finite (head)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.indoor         == false, "WorldShape column drift: indoor (middle)");
+static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].shape.indoor        == true,  "WorldShape column drift: indoor (middle)");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.wall_height    == 20.0f, "WorldShape column drift: wall_height");
+static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].shape.wall_height   == 25.0f, "WorldShape column drift: wall_height");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "WorldShape column drift: allow_frustum_cull (tail)");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]    == 0.94f,   "Atmosphere column drift: sun_direction (head)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.light[0].intensity  == 0.90f,   "Atmosphere column drift: light[0].intensity (middle)");
+static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].atmos.light[0].ambient == 0.25f,   "Atmosphere column drift: light[0].ambient (middle)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.fog_density         == 0.0030f, "Atmosphere column drift: fog_density");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos.clear_color[2]      == 0.10f,   "Atmosphere column drift: clear_color (tail)");
+
+// THE CARRY WITNESS (ATMOS_1). A carried row draws its old point value
+// exactly only if every spread is 0 and tier 0 holds the whole weight;
+// draw_atmosphere short-circuits on exactly those conditions. A spread
+// or a second tier on one of the rows named below is a design change,
+// not a carry — make it on purpose and take the row off this list.
+// The predicate takes the atmosphere BY PARAMETER and the four rows are
+// NAMED at the assert: MOOD_TABLE is mentioned only inside the
+// static_assert, which is what keeps the design table's reader census
+// (tools/organ_gap.py) reading this proof as the proof it is.
+inline constexpr bool atmos_carries_point(const Atmosphere& a) {
+    return a.sun_az_spread_deg == 0.0f && a.sun_el_spread_deg == 0.0f
+        && a.fog_density_spread == 0.0f
+        && a.light[0].weight == 1.0f
+        && a.light[0].intensity_spread == 0.0f && a.light[0].ambient_spread == 0.0f
+        && a.light[1].weight == 0.0f && a.light[2].weight == 0.0f;
+}
+static_assert(atmos_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos)
+           && atmos_carries_point(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos)
+           && atmos_carries_point(MOOD_TABLE[MOOD_INDOOR_VAULT].atmos)
+           && atmos_carries_point(MOOD_TABLE[MOOD_FINITE_OUTDOOR].atmos),
+    "ATMOS_1 carry witness: the four pre-ATMOS_1 rows must draw their old point values exactly");
 
 // ═══ THE MOOD DEFINITION IN FORCE (O1b) ══════════════════════════
 // MOOD_TABLE above is the DESIGNED definition: constexpr, asserted,
@@ -259,14 +403,12 @@ static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].allow_frustum_cull == false, "MOOD_TA
 //
 // THE ELIGIBILITY RULE (docs/ORGAN.md, "Instance and definition").
 // A field may take a definition target in the ORGAN registry only if
-// the mood apply is its ONLY runtime reader. The atmospheric group —
-// sun_direction, sun_color, sun_intensity, sun_ambient, clear_color —
-// passes: apply_mood_lighting is the one place they are read, and
-// re-running it is how a change to them lands. The structural group —
-// finite, the radii, indoor, ceiling_type, wall_height,
-// terrain_amp_ceiling, the allow_* flags — does not: it is read all
-// over world GENERATION, and rewriting it without regenerating the
-// world would mean nothing at best and disagree at worst.
+// the mood apply is its ONLY runtime reader. The whole of `atmos`
+// passes: apply_mood_lighting is the one place it is read (through
+// draw_atmosphere), and re-running it is how a change to it lands. The
+// whole of `shape` does not: it is read all over world GENERATION, and
+// rewriting it without regenerating the world would mean nothing at
+// best and disagree at worst.
 inline MoodProfile MOOD_LIVE[MOOD_COUNT] = {
     MOOD_TABLE[0], MOOD_TABLE[1], MOOD_TABLE[2], MOOD_TABLE[3],
 };

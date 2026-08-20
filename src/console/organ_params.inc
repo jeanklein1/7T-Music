@@ -122,13 +122,15 @@
 // unambiguously — that home is their only window. Direction is the
 // exception ORGAN_2c ruled on; see the paragraph above its line below.
 //
-// AND THEY ARE THE FOUR WITH A DEFINITION. The mood apply authors this
-// home on every mood change — apply_mood_lighting reads MoodProfile's
-// sun_* into the deps, upload_lights composes GPULighting from them, and
-// the home records what shipped. So a write here is an INSTANCE that the
-// next mood change takes back, and the durable edit is the definition
-// beside it. The panel writes the definition by default and lets the same
-// apply produce the instance; nothing is duplicated to make that work.
+// TWO CARRY A DEFINITION, TWO ARE INSTANCE DIALS (ATMOS_1). The mood apply
+// DRAWS this home on every mood change — apply_mood_lighting draws an
+// AtmosphereInstance from MoodProfile.atmos and the world's seed,
+// upload_lights composes GPULighting from it, and the home records what
+// shipped. So a write here is an INSTANCE that the next apply takes back.
+// Direction and colour have a definition beside them (the centre; the
+// colour). Intensity and ambient do not: their definition is the LIGHT
+// TIERS (Sky & Light · Light tier 1-3) — weighted regimes the seed picks
+// between — so their dials here are previews, honestly labelled.
 // ORGAN_2c — sun DIRECTION is a MULTI-WINDOW fact: the author's fan fills
 // config (the compute face's shadow VP — frame_r is unreachable there by
 // the A8a split), frame_r.lighting (fragment shading) and the
@@ -139,11 +141,11 @@
 // author produces; definition and witness disagreeing is the fan caught
 // mid-stride or broken, which is exactly what a meter is for. (colour /
 // intensity / ambient keep their single window and their preview.)
-ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction", MOOD, MoodProfile, sun_direction)
+ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction (centre)", MOOD, MoodProfile, atmos.sun_direction)
 ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sky & Light · Sun", "direction (instance)")
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "colour",    MOOD, MoodProfile, sun_color)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f, "Sky & Light · Sun", "intensity", MOOD, MoodProfile, sun_intensity)
-ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sky & Light · Sun", "ambient",  MOOD, MoodProfile, sun_ambient)
+ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "colour",    MOOD, MoodProfile, atmos.sun_color)
+ORGAN_PARAM(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f,  "Sky & Light · Sun", "intensity (instance)")
+ORGAN_PARAM(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sky & Light · Sun", "ambient (instance)")
 
 // ORGAN_2b — CLEAR COLOUR, THE DEFINITION-ONLY DIAL. It passes the
 // eligibility rule (apply_mood_lighting is clear_color's only runtime
@@ -153,7 +155,7 @@ ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f,
 // meaning, the re-apply is the same apply_mood_lighting the sun dials
 // already trigger, and preview is refused because there is nothing a
 // preview could show.
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "clear colour", MOOD, MoodProfile, clear_color)
+ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "clear colour", MOOD, MoodProfile, atmos.clear_color)
 
 // ═══ THE RULE CONSOLE (ORGAN_5 P3c) ══════════════════════════════
 //
@@ -342,11 +344,11 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f,
 // ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
 // coupling through set_fog every frame — so the dials sit on the
 // driver's seam (contracts/driver_surface.hpp) and the driven values
-// convert to read-only witnesses below them. out = rest + gain·(driven
-// − rest): gain 1 is the coupling verbatim, gain 0 is the curator's
-// hand.
-ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_density, F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Fog", "rest density")
-ORGAN_PARAM(DRIVERS, DriverSurface, fog.rest_color,   VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Fog", "rest colour")
+// convert to read-only witnesses below them. ATMOS_1 — the fog's REST is
+// the MOOD's (Atmosphere.fog_*, contracts/spine_state.hpp, enrolled in
+// Commit C); the canvas emits a deviation from its anchor, and this room
+// keeps the gain. out = mood rest + gain·deviation: gain 1 is the
+// coupling verbatim, gain 0 is the mood's own fog.
 ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Fog", "drive gain")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog", "density (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")

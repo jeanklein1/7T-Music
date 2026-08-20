@@ -11,7 +11,10 @@
 // it once per tick.
 //
 //   rest — the value a seam holds when the driver's authority is
-//          dialed away: the curator's baseline.
+//          dialed away: the curator's baseline. (The fog's rest is the
+//          MOOD's since ATMOS_1 — drawn per world from the atmosphere
+//          into MoodState.fog_rest_*; the seam reads it there, and
+//          this room keeps only the fog's gain.)
 //   gain — the blend at the seam: out = rest + gain·(driven − rest).
 //          Gain 1 is the coupling verbatim; gain 0 is full manual.
 //   the aura intent — the presence ramp's rest TARGET (the ramp
@@ -31,9 +34,9 @@ namespace the_board {
 
 struct DriverSurface {
     struct Fog {
-        float    rest_density;    // exponential coefficient at gain 0
-        float    rest_color[3];   // fog/sky RGB at gain 0
-        float    gain;            // 0 manual … 1 coupling verbatim
+        float    gain;            // 0 manual … 1 coupling verbatim. The rest
+                                  // is the mood's (ATMOS_1): out = mood rest
+                                  // + gain · the canvas's deviation.
     } fog;
     struct Aura {
         uint32_t intent;          // the ramp's rest target: 0 off, 1 on
@@ -74,21 +77,12 @@ struct DriverSurface {
     } ribbon;
 };
 
-// The authored design — the code panel. Values with a /* D1 */ marker
-// are copied from the fog pipe's rest entries in PARAM_LAYOUT
-// (src/coupling/visual_canvas.hpp); if the layout carries no explicit
-// color rest, fall back to GPUDesignConfig's fog_color default
-// initializer (state.hpp) and say which source fed it, here:
-//   rest source: density — PARAM_LAYOUT's "fog.density" rest, which IS
-//   FOG_DENSITY_NONE (visual_canvas.hpp), 0.0030f. Colour — the
-//   FALLBACK: PARAM_LAYOUT's "fog.color" rest is one scalar (0.80f)
-//   that the table's own comment calls "only the pre-first-tick
-//   placeholder", so it is not an explicit color rest. The colour comes
-//   from GPUDesignConfig's fog_color boot seed in state.hpp
-//   (0.85/0.78/0.72), which is FOG_COLOR_NONE — the same anchor the
-//   density wears, twinned by the boot config.
+// The authored design — the code panel.
+// The fog row carries the gain alone. Its rests came home to the mood at
+// ATMOS_1 (Atmosphere.fog_*, contracts/spine_state.hpp); the D1 lineage
+// that sourced them is recorded there, beside ATMOS_SUNSET.
 inline constexpr DriverSurface DRIVER_TABLE = {
-    { /* D1 */ 0.0030f, { /* D1 */ 0.85f, 0.78f, 0.72f }, 1.0f },
+    { 1.0f },                   // fog: gain 1, the coupling verbatim
     { 0u, 1.0f, 1.5f, 1.0f },   // attack/release: the authored values
                                 // AURA_PRESENCE_ATTACK/RELEASE carried
                                 // (bodies/pawn.hpp, retired by U5)
@@ -107,10 +101,10 @@ inline constexpr DriverSurface DRIVER_TABLE = {
 
 // The live surface — the panel's fourth block and the seams' read.
 inline DriverSurface DRIVER_LIVE = DRIVER_TABLE;
-static_assert(sizeof(DriverSurface) == 22 * sizeof(float),
+static_assert(sizeof(DriverSurface) == 18 * sizeof(float),
     "DRIVER_LIVE is a whole-struct copy of the design row: a field added "
-    "to one is added to the other by construction. 22 words — fog 5, "
-    "aura 4, checker 6, ribbon 7 (60 -> 88 bytes at ORGAN_4 P2)");
+    "to one is added to the other by construction. 18 words — fog 1, "
+    "aura 4, checker 6, ribbon 7 (88 -> 72 bytes at ATMOS_1)");
 
 } // namespace the_board
 } // namespace t7

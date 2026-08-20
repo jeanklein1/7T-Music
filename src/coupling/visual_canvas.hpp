@@ -19,16 +19,19 @@
 //       once; tick() runs the couplings each frame. Resolve once, never per
 //       frame.
 //
-// FIRST COUPLING — fog. The held field (a one-based rank, 0 = none) selects an
-// absolute fog density from FOG_BY_FIELD and an atmospheric tint from
-// FOG_COLOR_BY_FIELD; Segments carry both, so density and color drift across a
-// modulation instead of snapping. The source, "all.field", is already
-// published, so the analysis side is untouched.
+// FIRST COUPLING — fog. The held field (a one-based rank, 0 = none) selects a
+// fog density from FOG_BY_FIELD and an atmospheric tint from FOG_COLOR_BY_FIELD;
+// the canvas emits each as a DEVIATION from the anchor row (ATMOS_1), and the
+// mood's own rest is composed in at the cartridge's seam — v3 §2, scalar
+// deviations over inviolate idleness. Segments carry both, so density and
+// color drift across a modulation instead of snapping. The source,
+// "all.field", is already published, so the analysis side is untouched.
 //
 // WIRING (live). The cartridge owns a VisualCanvas, binds it once in
 // bind_signal_layout with the analysis layout, ticks it each frame in
-// update() after the signal, and flushes fog — density and color —
-// from params() to set_fog. Fog has one driver: the field.
+// update() after the signal, and flushes fog — density and color — from
+// params() to set_fog as mood rest + gain · deviation. Fog has one driver:
+// the field.
 //
 // CHECKER-REBUILD — THE PITCH-CLASS COLOR FIELD (the terrain's checker
 // voice). The voice's WINDOW pc-LENGTH vector — pc_length(playhead,
@@ -81,18 +84,24 @@ namespace t7 {
     // can fall quiet (a count, a magnitude) has a rest the value returns to; a
     // held source never quiets, so its coupling goes value-to-value, no idle.
 
-    // Fog — the held field selects an absolute density. The field is a held source:
+    // Fog — the held field selects a density; the canvas emits the DEVIATION of
+    // that density from the anchor row (ATMOS_1). The field is a held source:
     // once a scale is established it persists through silence, so fog never returns
     // to a rest — it moves from one field's density to the next. FIELD 1 IS THE
-    // ANCHOR: the atmosphere the open outdoor world wears, which is also the value
-    // index 0 carries. Music is continuous, so that atmosphere is not a rest the
-    // world visits between fields — it is field 1's own look, and every other field
-    // is a deviation from it. Fields 5/6 sit in the dense band, 2/3/4 in the light.
+    // ANCHOR: the value index 0 also carries, and the zero point of the deviation
+    // the pipe now carries (ATMOS_1) — field 1 reads as "no deviation", and every
+    // other field as a shift away from it, composed at the seam over whatever rest
+    // the MOOD wears (a sunset's, a night's). The absolute values stay in the
+    // table because that is how a composer reads them; the subtraction is one
+    // line in tick(). Fields 5/6 sit in the dense band, 2/3/4 in the light.
     // Index 0 is "no field yet" — the value at boot, before any scale is held, not
     // an idle. Tunable.
     inline constexpr int   FOG_FIELD_COUNT = 7;          // index 0 = none, 1..6 fields
     // THE ANCHOR — one home for both rows that wear it. Twinned by the boot
-    // config in realization/state.hpp (config_.fog_density / fog_color).
+    // config in realization/state.hpp (config_.fog_density / fog_color) and by
+    // ATMOS_SUNSET's fog rest in contracts/spine_state.hpp: the mood's rest
+    // and the canvas's zero point are the same number by construction, which
+    // is what keeps gain 1 on the sunset the pre-ATMOS_1 picture exactly.
     inline constexpr float FOG_DENSITY_NONE  = 0.0030f;
     inline constexpr float FOG_COLOR_NONE[3] = { 0.85f, 0.78f, 0.72f };
     inline constexpr float FOG_BY_FIELD[FOG_FIELD_COUNT] = {
@@ -215,13 +224,14 @@ namespace t7 {
     // value it rests at. Slots are assigned here, by hand, in this single table, so
     // there are no collisions across entities. Read it as a register map; every
     // coupling and every entity flush resolves against it by name. (A vector's rest
-    // is one value across its channels; for fog.color the bind() seed sets the true
-    // per-channel start, so the rest is only the pre-first-tick placeholder.)
+    // is one value across its channels. Both fog pipes rest at 0 since ATMOS_1:
+    // the canvas emits DEVIATIONS from its anchor row, and the mood's own rest is
+    // composed in at the U4 seam — the same shape the ribbon pipes below wear.)
     //
     //                          name           base count   rest
     inline constexpr ParamSlot PARAM_LAYOUT[] = {
-        { "fog.density",          0,    1,    FOG_DENSITY_NONE },
-        { "fog.color",            1,    3,    0.80f            },
+        { "fog.density",          0,    1,    0.0f },   // deviation from the anchor (ATMOS_1)
+        { "fog.color",            1,    3,    0.0f },   // per channel, same law
         // ── ribbon (pitch compass) ── deviations composed over the seed
         // draws at the entity flush; rest = identity (1 = the seed's dance).
         { "ribbon.amp_lateral_mult",  4, 1, 1.0f },
@@ -268,15 +278,15 @@ namespace t7 {
 
             signal_layout_.bind(analysis_layout);
 
-            // fog: the held field → an absolute density and an atmospheric tint
+            // fog: the held field → a density and a tint, each a DEVIATION from
+            // the anchor row (ATMOS_1); index 0 is the anchor, so the Segments
+            // start at 0 — no deviation yet.
             fog_field_ = signal_layout_.resolve("all.field");
             fog_density_ = param_layout_.resolve("fog.density");
             fog_color_ = param_layout_.resolve("fog.color");
-            fog_seg_ = Segment{ FOG_DENSITY_NONE, FOG_DENSITY_NONE, 0.0f, 0.0f };
-            for (int c = 0; c < 3; ++c) {
-                fog_color_seg_[c] = Segment{ FOG_COLOR_BY_FIELD[0][c],
-                                             FOG_COLOR_BY_FIELD[0][c], 0.0f, 0.0f };
-            }
+            fog_seg_ = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
+            for (int c = 0; c < 3; ++c)
+                fog_color_seg_[c] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
 
             // ribbon sources (the casting sheet): the voice's Playhead drives
             // the sustain swell; the room's Wagon aims the tint's hue; the
@@ -357,23 +367,27 @@ namespace t7 {
             const float beat = signal.t_beats;
 
             // ── fog ──────────────────────────────────────────────────────────────
-            // The held field selects an absolute density and an atmospheric tint;
-            // Segments carry both so they drift across a modulation rather than
-            // snapping. One source, two pipes. Decode is a table index — inline,
-            // not a goal object.
+            // The held field selects a density and an atmospheric tint; the canvas
+            // emits each as a DEVIATION from the anchor row (ATMOS_1), and the
+            // cartridge's seam composes it over the mood's own rest. Segments carry
+            // both so they drift across a modulation rather than snapping. One
+            // source, two pipes. Decode is a table index — inline, not a goal
+            // object.
             if (fog_field_.valid) {
                 const int f = (int)signal.stat(fog_field_.channel, fog_field_.base);
                 const int idx = (f >= 0 && f < FOG_FIELD_COUNT) ? f : 0;
 
                 if (fog_density_.valid) {
                     params_.set(fog_density_.base,
-                        trajectory_release(fog_seg_, FOG_BY_FIELD[idx], beat, canvas::CANVAS_LIVE.fog_span));
+                        trajectory_release(fog_seg_, FOG_BY_FIELD[idx] - FOG_BY_FIELD[0],
+                                           beat, canvas::CANVAS_LIVE.fog_span));
                 }
                 if (fog_color_.valid) {
                     for (int c = 0; c < 3; ++c) {
                         params_.set(fog_color_.base + c,
                             trajectory_release(fog_color_seg_[c],
-                                FOG_COLOR_BY_FIELD[idx][c], beat, canvas::CANVAS_LIVE.fog_span));
+                                FOG_COLOR_BY_FIELD[idx][c] - FOG_COLOR_BY_FIELD[0][c],
+                                beat, canvas::CANVAS_LIVE.fog_span));
                     }
                 }
             }

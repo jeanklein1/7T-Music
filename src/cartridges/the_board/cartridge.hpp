@@ -1050,27 +1050,32 @@ namespace t7 {
             void phase_motion_drivers(UpdateCtx& c) {
                 auto& signal = c.signal;
                 visual_canvas_.tick(signal);
-                // ORGAN_2a — the drivers' room sits at this seam:
-                // out = rest + gain·(driven − rest). Gain 1 is the
-                // coupling verbatim (the pre-2a behavior, byte-for-byte);
-                // gain 0 is the curator's rest. With no bindings the rest
-                // alone speaks, so the dial works headless too.
+                // ORGAN_2a / ATMOS_1 — the drivers' room sits at this seam:
+                // out = rest + gain·deviation. The REST is the mood's
+                // (rung 3: drawn per world into mood_state_.fog_rest_* by
+                // apply_mood_lighting); the DEVIATION is the canvas's,
+                // measured from its anchor row. Gain 1 is the coupling
+                // verbatim — for the sunset, whose rest IS the anchor,
+                // byte-for-byte the pre-ATMOS_1 picture; gain 0 is the
+                // mood's own fog. With no bindings the rest alone speaks,
+                // so the dial works headless too.
                 //
                 // D2: set_fog GUARDS — it compares all four lanes and
                 // dirties only on a change — so both arms call it
                 // unconditionally and the silent case costs no dirty.
                 {
                     const auto& drv = DRIVER_LIVE.fog;
+                    const auto& ms  = mood_state_;
                     if (fog_density_dst_.valid && fog_color_dst_.valid) {
                         const VisualParams& fp = visual_canvas_.params();
                         gpuState_.set_fog(
-                            drv.rest_density + drv.gain * (fp.get(fog_density_dst_.base) - drv.rest_density),
-                            drv.rest_color[0] + drv.gain * (fp.get(fog_color_dst_.base + 0) - drv.rest_color[0]),
-                            drv.rest_color[1] + drv.gain * (fp.get(fog_color_dst_.base + 1) - drv.rest_color[1]),
-                            drv.rest_color[2] + drv.gain * (fp.get(fog_color_dst_.base + 2) - drv.rest_color[2]));
+                            std::max(0.0f, ms.fog_rest_density + drv.gain * fp.get(fog_density_dst_.base)),
+                            std::clamp(ms.fog_rest_color[0] + drv.gain * fp.get(fog_color_dst_.base + 0), 0.0f, 1.0f),
+                            std::clamp(ms.fog_rest_color[1] + drv.gain * fp.get(fog_color_dst_.base + 1), 0.0f, 1.0f),
+                            std::clamp(ms.fog_rest_color[2] + drv.gain * fp.get(fog_color_dst_.base + 2), 0.0f, 1.0f));
                     } else {
-                        gpuState_.set_fog(drv.rest_density, drv.rest_color[0],
-                                          drv.rest_color[1], drv.rest_color[2]);
+                        gpuState_.set_fog(ms.fog_rest_density, ms.fog_rest_color[0],
+                                          ms.fog_rest_color[1], ms.fog_rest_color[2]);
                     }
                 }
                 // CHECKER-REBUILD: the pc-color field's flush — one setter,

@@ -1144,7 +1144,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     // law — belt and braces; the cap never bites at 0.15. The
     // sampler's floors (MIN_CUBE_SIZE / MIN_ADDED_HEIGHT / 0.1 amps)
     // still hold.
-    if (mood_def(c->mood_state_.active).indoor) {
+    if (mood_def(c->mood_state_.active).shape.indoor) {
         sel.cube_size    = std::max(MIN_CUBE_SIZE,    sel.cube_size    * INDOOR_LIVE.ribbon_scale);
         sel.height       = std::max(MIN_ADDED_HEIGHT, sel.height       * INDOOR_LIVE.ribbon_scale);
         sel.lateral_amp  = std::max(0.1f,             sel.lateral_amp  * INDOOR_LIVE.ribbon_scale);
@@ -1152,7 +1152,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
         // The cap law, ribbon-shaped: extent = clearance + vertical
         // wave + half a cube; all four dimensions ride one ratio.
         const float cap_h  = INDOOR_LIVE.height_cap_fraction
-                           * mood_def(c->mood_state_.active).wall_height;
+                           * mood_def(c->mood_state_.active).shape.wall_height;
         const float extent = sel.height + sel.vertical_amp + 0.5f * sel.cube_size;
         if (extent > cap_h) {
             const float s = cap_h / extent;

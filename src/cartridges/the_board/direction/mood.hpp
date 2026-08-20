@@ -549,55 +549,195 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
         << (use_ew ? "E/W" : "N/S") << " walls)\n";
 }
 
-// ═══ APPLY MOOD ══════════════════════════════════════════════════
+// ═══ THE ATMOSPHERE DRAW (ATMOS_1) ═══════════════════════════════
+// (seed, definition) → instance. PURE: reads the seed and the
+// definition, returns a value, touches nothing else — the seeded-sampler
+// law (theory §12): the seed is the whole biography, so the same seed
+// draws the same sky and the back portal keeps its promise. The props
+// below are FROZEN; they draw off active_seed directly, beside 999u /
+// 77u / 5800u / 7950u, and the ATMOS_1 census found the block free.
+struct AtmosphereInstance {
+    float    sun_direction[3];   // the direction light travels (the table's convention); readers normalize
+    float    sun_color[3];
+    float    sun_intensity;
+    float    sun_ambient;
+    uint32_t light_tier;         // which LightTier the roll landed in (the witness)
+    float    fog_density;        // the REST the U4 seam composes over
+    float    fog_color[3];
+    float    clear_color[3];
+};
 
-// 1) Atmospheric: sun direction/color/intensity, fog, ambient,
-//    terrain amp ceiling. Touches GPU directly + a few member fields.
-inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& /*queue*/) {
-    c->sunDirection_[0] = m.sun_direction[0];
-    c->sunDirection_[1] = m.sun_direction[1];
-    c->sunDirection_[2] = m.sun_direction[2];
+struct AtmosProp {
+    static constexpr uint32_t SUN_AZ      = 8100u;
+    static constexpr uint32_t SUN_EL      = 8101u;
+    static constexpr uint32_t LIGHT_TIER  = 8102u;
+    static constexpr uint32_t INTENSITY   = 8103u;
+    static constexpr uint32_t AMBIENT     = 8104u;
+    static constexpr uint32_t FOG_DENSITY = 8105u;
+};
 
-    // Push to GPU config so compute_vp builds the shadow VP from the correct direction.
+// ± spread, uniform. Spread 0 returns 0 without taking a hash, so a
+// zero-spread row costs nothing and moves nothing — the carry witness
+// in spine_state.hpp leans on this.
+inline float atmos_jitter(uint32_t seed, uint32_t prop, float spread) {
+    if (spread <= 0.0f) return 0.0f;
+    return spread * (2.0f * cpu_hash_f(seed, prop) - 1.0f);
+}
+
+inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
+    AtmosphereInstance out{};
+
+    // ── the sun's bearing ──
+    // Spread 0 on both axes copies the centre EXACTLY — no trig round
+    // trip — which is what keeps the carried rows bit-identical.
+    if (a.sun_az_spread_deg <= 0.0f && a.sun_el_spread_deg <= 0.0f) {
+        out.sun_direction[0] = a.sun_direction[0];
+        out.sun_direction[1] = a.sun_direction[1];
+        out.sun_direction[2] = a.sun_direction[2];
+    } else {
+        // The table's vector is the direction light TRAVELS (y < 0 by
+        // day); the light's own bearing is its negation. Decompose that
+        // bearing into elevation above the horizon and azimuth about +Y,
+        // jitter both, clamp elevation so the light never sits on or
+        // under the horizon (the shadow VP degenerates there), recompose.
+        const float len = std::sqrt(a.sun_direction[0] * a.sun_direction[0]
+                                  + a.sun_direction[1] * a.sun_direction[1]
+                                  + a.sun_direction[2] * a.sun_direction[2]);
+        const float lx = -a.sun_direction[0] / len;
+        const float ly = -a.sun_direction[1] / len;
+        const float lz = -a.sun_direction[2] / len;
+        constexpr float DEG = 3.14159265359f / 180.0f;
+        float el = std::asin(std::clamp(ly, -1.0f, 1.0f))
+                 + DEG * atmos_jitter(seed, AtmosProp::SUN_EL, a.sun_el_spread_deg);
+        const float az = std::atan2(lz, lx)
+                 + DEG * atmos_jitter(seed, AtmosProp::SUN_AZ, a.sun_az_spread_deg);
+        el = std::clamp(el, 5.0f * DEG, 88.0f * DEG);
+        const float ce = std::cos(el);
+        out.sun_direction[0] = -(ce * std::cos(az));
+        out.sun_direction[1] = -std::sin(el);
+        out.sun_direction[2] = -(ce * std::sin(az));
+    }
+    out.sun_color[0] = a.sun_color[0];
+    out.sun_color[1] = a.sun_color[1];
+    out.sun_color[2] = a.sun_color[2];
+
+    // ── the light regime ──
+    // One roll, scaled by the weights' sum rather than dividing the
+    // weights (the panel's lanes stay independent; a lane of 0 is an
+    // absent tier). The walk skips absent tiers, and the float-epsilon
+    // miss lands on the last PRESENT tier rather than on an absent one.
     {
-        const float len = std::sqrt(m.sun_direction[0] * m.sun_direction[0] +
-                                    m.sun_direction[1] * m.sun_direction[1] +
-                                    m.sun_direction[2] * m.sun_direction[2]);
-        c->gpuState_.set_sun_direction(m.sun_direction[0] / len,
-                                    m.sun_direction[1] / len,
-                                    m.sun_direction[2] / len);
+        float sum = 0.0f;
+        for (uint32_t i = 0; i < LIGHT_TIER_COUNT; ++i)
+            sum += std::max(0.0f, a.light[i].weight);
+        uint32_t t = 0;
+        if (sum > 0.0f) {
+            const float roll = cpu_hash_f(seed, AtmosProp::LIGHT_TIER) * sum;
+            float cumul = 0.0f;
+            for (uint32_t i = 0; i < LIGHT_TIER_COUNT; ++i) {
+                const float w = std::max(0.0f, a.light[i].weight);
+                if (w <= 0.0f) continue;
+                cumul += w;
+                t = i;
+                if (roll < cumul) break;
+            }
+        }
+        const LightTier& lt = a.light[t];
+        out.light_tier    = t;
+        out.sun_intensity = std::max(0.0f, lt.intensity
+                          + atmos_jitter(seed, AtmosProp::INTENSITY, lt.intensity_spread));
+        out.sun_ambient   = std::max(0.0f, lt.ambient
+                          + atmos_jitter(seed, AtmosProp::AMBIENT, lt.ambient_spread));
     }
 
-    c->sunColor_[0] = m.sun_color[0];
-    c->sunColor_[1] = m.sun_color[1];
-    c->sunColor_[2] = m.sun_color[2];
-    c->mood_state_.sun_intensity = m.sun_intensity;
-    c->mood_state_.sun_ambient   = m.sun_ambient;
+    // ── the fog's rest, the clear ──
+    out.fog_density = std::max(0.0f, a.fog_density
+                    + atmos_jitter(seed, AtmosProp::FOG_DENSITY, a.fog_density_spread));
+    out.fog_color[0] = a.fog_color[0];
+    out.fog_color[1] = a.fog_color[1];
+    out.fog_color[2] = a.fog_color[2];
+    out.clear_color[0] = a.clear_color[0];
+    out.clear_color[1] = a.clear_color[1];
+    out.clear_color[2] = a.clear_color[2];
+    return out;
+}
 
-    c->clearColor_[0] = m.clear_color[0];
-    c->clearColor_[1] = m.clear_color[1];
-    c->clearColor_[2] = m.clear_color[2];
+// ═══ APPLY MOOD ══════════════════════════════════════════════════
 
-    c->gpuState_.set_terrain_amp_ceiling(m.terrain_amp_ceiling);
-    c->mood_state_.terrain_amp_ceiling = m.terrain_amp_ceiling;
+// 1) Atmospheric: THE DRAW, then the fan. (seed, definition) → instance,
+//    re-run on every apply — a mood entry and a definition edit alike.
+//    The seed is the world's, so a panel edit moves the instance WITH the
+//    dial (same seed, shifted centre, same offset) rather than re-rolling
+//    it. Touches GPU directly + a few member fields.
+inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& /*queue*/) {
+    const AtmosphereInstance ai = draw_atmosphere(c->world_state_.active_seed, m.atmos);
+    const float len = std::sqrt(ai.sun_direction[0] * ai.sun_direction[0] +
+                                ai.sun_direction[1] * ai.sun_direction[1] +
+                                ai.sun_direction[2] * ai.sun_direction[2]);
+
+    c->sunDirection_[0] = ai.sun_direction[0];
+    c->sunDirection_[1] = ai.sun_direction[1];
+    c->sunDirection_[2] = ai.sun_direction[2];
+
+    // Push to GPU config so compute_vp builds the shadow VP from the correct direction.
+    c->gpuState_.set_sun_direction(ai.sun_direction[0] / len,
+                                   ai.sun_direction[1] / len,
+                                   ai.sun_direction[2] / len);
+
+    c->sunColor_[0] = ai.sun_color[0];
+    c->sunColor_[1] = ai.sun_color[1];
+    c->sunColor_[2] = ai.sun_color[2];
+    c->mood_state_.sun_intensity = ai.sun_intensity;
+    c->mood_state_.sun_ambient   = ai.sun_ambient;
+    c->mood_state_.light_tier    = ai.light_tier;
+
+    // The fog's REST — the mood's since ATMOS_1. The U4 seam
+    // (phase_motion_drivers) composes the canvas's deviation over it
+    // every frame; this is the rung-3 instance that seam reads.
+    c->mood_state_.fog_rest_density  = ai.fog_density;
+    c->mood_state_.fog_rest_color[0] = ai.fog_color[0];
+    c->mood_state_.fog_rest_color[1] = ai.fog_color[1];
+    c->mood_state_.fog_rest_color[2] = ai.fog_color[2];
+
+    c->clearColor_[0] = ai.clear_color[0];
+    c->clearColor_[1] = ai.clear_color[1];
+    c->clearColor_[2] = ai.clear_color[2];
+
+    c->gpuState_.set_terrain_amp_ceiling(m.shape.terrain_amp_ceiling);
+    c->mood_state_.terrain_amp_ceiling = m.shape.terrain_amp_ceiling;
     // The GoL cap rides beside the amp column: indoors the cell lift caps
     // at the module's fraction of the ceiling; 0 disables (the derive
     // kernel's sentinel — outdoor byte-identical). Zones are torn down at
     // every mood transition, so every live zone was derived inside the mood
     // it lives in and the capping is complete, not approximate.
     c->gpuState_.set_indoor_height_cap(
-        m.indoor ? INDOOR_LIVE.height_cap_fraction * m.wall_height : 0.0f);
+        m.shape.indoor ? INDOOR_LIVE.height_cap_fraction * m.shape.wall_height : 0.0f);
     c->mood_state_.lights_dirty = true;
+
+    // THE WITNESS. One line per draw; the same seed prints the same line,
+    // and a boot must print tier=0 int=0.9 amb=0.2 fog=0.003 for the
+    // sunset until someone changes ATMOS_SUNSET on purpose.
+    {
+        constexpr float RAD2DEG = 180.0f / 3.14159265359f;
+        const float el = std::asin(std::clamp(-ai.sun_direction[1] / len, -1.0f, 1.0f)) * RAD2DEG;
+        const float az = std::atan2(-ai.sun_direction[2], -ai.sun_direction[0]) * RAD2DEG;
+        std::cout << "[Atmos] " << mood_name(c->mood_state_.active)
+                  << " seed=" << c->world_state_.active_seed
+                  << " tier=" << ai.light_tier
+                  << " int=" << ai.sun_intensity << " amb=" << ai.sun_ambient
+                  << " sun el=" << el << " az=" << az
+                  << " fog=" << ai.fog_density << "\n";
+    }
 }
 
 inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue) {
     c->cpuSpotLights_ = GPUSpotLightArray{};
-    if (m.indoor) {
+    if (m.shape.indoor) {
         c->gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, true);
 
         const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
         const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-        derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.wall_height, m.ceiling_type);
+        derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.shape.wall_height, m.shape.ceiling_type);
 
         for (uint32_t i = 0; i < c->cpuSpotLights_.count; i++) {
             compute_spot_light_vp(c->cpuSpotLights_.lights[i],
@@ -636,7 +776,7 @@ inline VaultCrown vault_crown(const MoodProfile& m, float bmin, float bmax) {
     // Lower the dial and it binds.
     static constexpr float MIN_RISE_FLOOR       = 5.0f;
     const float half_span = (bmax - bmin) * 0.5f;
-    const float spring_h = m.wall_height;
+    const float spring_h = m.shape.wall_height;
     // The crown clears the spring by construction now — rise is >= 5 — so
     // the old min_rise term (wall_height - spring_h, guarding exactly
     // that) has nothing left to guard and is gone with the derivation.
@@ -649,7 +789,7 @@ inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
 
 inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps) {
-    if (m.indoor && m.ceiling_type != CeilingType::NONE) {
+    if (m.shape.indoor && m.shape.ceiling_type != CeilingType::NONE) {
         const uint32_t pal_idx = cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
         const auto& pal = INDOOR_PALETTES[pal_idx];
         std::cout << "[Mood] Indoor palette: " << pal.name
@@ -660,9 +800,9 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
     }
 
     // Camera ceiling clamp — consumes THE CROWN LAW (vault_crown_height).
-    if (m.indoor) {
-        float effective_ceiling = m.wall_height;
-        if (m.ceiling_type == CeilingType::VAULT) {
+    if (m.shape.indoor) {
+        float effective_ceiling = m.shape.wall_height;
+        if (m.shape.ceiling_type == CeilingType::VAULT) {
             const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
             const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
             effective_ceiling = vault_crown_height(m, bmin, bmax);
@@ -685,12 +825,12 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     const auto& m = mood_def(mood);   // O1b — the definition IN FORCE
 
     // Frustum cull is mood-driven (not tied to indoor/outdoor).
-    c->renderer_.set_frustum_cull_active(m.allow_frustum_cull);
+    c->renderer_.set_frustum_cull_active(m.shape.allow_frustum_cull);
 
     // Per-mood feature gates: GoL zones, aura.
     // Aura policy: respect player preference when permitted, force off when forbidden.
-    c->gol_state_.mood_allowed     = m.allow_gol_zones;
-    apply_aura_mood_policy(pawn_state, m.allow_pawn_aura);  // the pawn door; byte-identical semantics
+    c->gol_state_.mood_allowed     = m.shape.allow_gol_zones;
+    apply_aura_mood_policy(pawn_state, m.shape.allow_pawn_aura);  // the pawn door; byte-identical semantics
 
     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured
@@ -707,7 +847,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
-        << (m.indoor ? " INDOOR" : " outdoor")
+        << (m.shape.indoor ? " INDOOR" : " outdoor")
         << ")\n";
 }
 
@@ -744,7 +884,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     GalleryState& gallery_state, GalleryDeps& gallery_deps) {
     float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    float ch = m.wall_height;
+    float ch = m.shape.wall_height;
 
     std::vector<ShellVertex> verts;
     std::vector<uint32_t> indices;
@@ -760,7 +900,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     float crown_h = ch; // effective crown height for log
     float rise = 0.0f;
 
-    if (m.ceiling_type == CeilingType::VAULT) {
+    if (m.shape.ceiling_type == CeilingType::VAULT) {
         const VaultCrown vc = vault_crown(m, bmin, bmax);   // THE CROWN LAW
         wall_h  = vc.spring_h;
         rise    = vc.rise;
@@ -792,13 +932,13 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
         -1.0f, 0.0f, 0.0f, pal.wall_color);
 
     // ─── Ceiling ─────────────────────────────────────────────
-    if (m.ceiling_type == CeilingType::FLAT) {
+    if (m.shape.ceiling_type == CeilingType::FLAT) {
         push_quad(verts, indices,
             bmin, ch, bmin, bmax, ch, bmin,
             bmax, ch, bmax, bmin, ch, bmax,
             0.0f, -1.0f, 0.0f, pal.ceiling_color);
     }
-    else if (m.ceiling_type == CeilingType::VAULT) {
+    else if (m.shape.ceiling_type == CeilingType::VAULT) {
         // ─── Groin vault (cross vault) ───────────────────────
 
         float half_x = (bmax - bmin) * 0.5f;
@@ -875,7 +1015,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     place_wall_paintings(gallery_state, &gallery_deps, queue, bmin, bmax, wall_h);
 
     std::cout << "[Shell] Generated "
-        << (m.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
+        << (m.shape.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
         << ": " << vc << " verts, " << ic << " indices"
         << " bounds=[" << bmin << "," << bmax << "]"
         << " wall_h=" << wall_h << " crown=" << crown_h
@@ -911,7 +1051,7 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
         float room_half = (bmax - bmin) * 0.5f;
 
         float WALL_MARGIN;
-        if (mood_def(c->mood_state_.active).indoor) {
+        if (mood_def(c->mood_state_.active).shape.indoor) {
             const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
             const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
             const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
@@ -970,7 +1110,7 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
         const auto& retMood = mood_def(c->mood_state_.back_portal_return_mood);
         PortalDestination dest{};
         dest.seed = c->mood_state_.back_portal_return_seed;
-        dest.finite = retMood.finite;
+        dest.finite = retMood.shape.finite;
         dest.finite_radius = c->mood_state_.back_portal_return_radius;
         dest.mood = c->mood_state_.back_portal_return_mood;
 
@@ -999,7 +1139,7 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
     const auto& retMood = mood_def(c->mood_state_.back_portal_return_mood);
     PortalDestination dest{};
     dest.seed = c->mood_state_.back_portal_return_seed;
-    dest.finite = retMood.finite;
+    dest.finite = retMood.shape.finite;
     dest.finite_radius = c->mood_state_.back_portal_return_radius;
     dest.mood = c->mood_state_.back_portal_return_mood;
 
@@ -1030,7 +1170,7 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     float room_half = (bmax - bmin) * 0.5f;
 
     float margin;
-    if (mood_def(c->mood_state_.active).indoor) {
+    if (mood_def(c->mood_state_.active).shape.indoor) {
         const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
         const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
         const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
@@ -1121,7 +1261,7 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         PortalDestination dest{};
         dest.seed = dest_seed;
         dest.mood = mood;
-        dest.finite = mp.finite;
+        dest.finite = mp.shape.finite;
         dest.finite_radius = derive_finite_radius(dest_seed, mp);
 
         uint32_t slot = force_spawn_portal_at(c, queue, jx, jz, spot.rotation, dest, false, machine_ctx);
@@ -1180,7 +1320,7 @@ inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCt
     PortalDestination dest{};
     dest.seed = dest_seed;
     dest.mood = mood;
-    dest.finite = mp.finite;
+    dest.finite = mp.shape.finite;
     dest.finite_radius = derive_finite_radius(dest_seed, mp);
 
     uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, rotation, dest, false, machine_ctx);
@@ -1268,11 +1408,11 @@ inline void request_mood_transition(TransitionPhase& phase, PortalDestination& p
     const auto& mp = mood_def(mood);
     uint32_t dest_seed = cpu_hash(ws.active_seed, 999u);
     uint32_t radius = derive_finite_radius(dest_seed, mp);
-    pending = { dest_seed, mp.finite, radius, mood };
+    pending = { dest_seed, mp.shape.finite, radius, mood };
     phase = TransitionPhase::FADE_OUT;
     ms.transition_timer = 0.0f;
 
-    if (mp.finite) {
+    if (mp.shape.finite) {
         uint32_t side = 2 * radius + 1;
         std::cout << "[World] Transition (" << mood_name(mood) << " "
             << side << "x" << side << "): seed " << ws.active_seed
@@ -1296,9 +1436,10 @@ inline const char* mood_name(uint32_t mood) {
 
 // Derive finite world radius from seed within mood-defined bounds.
 inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
-    if (mood.finite_radius_min >= mood.finite_radius_max) return mood.finite_radius_min;
-    uint32_t range = mood.finite_radius_max - mood.finite_radius_min + 1;
-    return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
+    const WorldShape& s = mood.shape;
+    if (s.finite_radius_min >= s.finite_radius_max) return s.finite_radius_min;
+    uint32_t range = s.finite_radius_max - s.finite_radius_min + 1;
+    return s.finite_radius_min + cpu_hash(seed, 77u) % range;
 }
 
 // PORTAL_2 — the OPEN-WORLD destination law. Finite worlds no
