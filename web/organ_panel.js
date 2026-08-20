@@ -1296,9 +1296,8 @@
     // The manifest's `scope` is the one home for "is this row
     // mood-selected", so TIER and BEHAVIOR — one bank, the target ignored
     // — are correctly left alone. r.show() reassigns each row's cached
-    // lane vector as
-    // well as its widgets, so the next drag starts from the shown value
-    // with nothing further to update. Instance rows refresh here too
+    // lane vector as well as its widgets, so the next drag starts from the
+    // shown value with nothing further to update. Instance rows refresh too
     // (ATMOS_1b): the apply re-authors the sun's homes at every entry,
     // and a panel that is a VIEW shows what the program wrote.
     var lastMood = C.mood();
