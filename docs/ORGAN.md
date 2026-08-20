@@ -456,7 +456,7 @@ deps the cartridge already holds — is not met, so it is recorded as a
 price.
 
 ## Navigation (ORGAN_3b P4)
-306 rows are a library, not a page. The panel opens **collapsed**, as a
+307 rows are a library, not a page. The panel opens **collapsed**, as a
 table of contents. One filter field matches `id + label + group`
 lowercased — the three names a stop already answers to — hiding rows,
 then group headers with no visible row, then sections with none either;
@@ -474,7 +474,7 @@ exactly what it carries. **A voice is a file.**
 A row is two lines, both grids, every cell placed by explicit
 `grid-column` rather than auto-placement — so a row with no colour swatch
 and no cadence chip still lines its markers up with the row above it, and
-306 rows read as a column rather than as a list.
+307 rows read as a column rather than as a list.
 
 ```
 line 1  [ label ……………………………  sw   mk   chip ]
@@ -499,13 +499,13 @@ found and the grid may squeeze a slider toward its floor, but neither
 rewrites what the hand set.
 
 ## The tally at close
-306 enrolled entries — 289 dials and 17 read-only witnesses — across
+307 enrolled entries — 290 dials and 17 read-only witnesses — across
 eight sections and twelve blocks.
 
 THIS TABLE IS NO LONGER THE AUTHORITY. `audit/ORGAN.md` is generated from
 the enrollment list on demand (ORGAN_4 P5) and carries every row with its
 range, its step and its cadence. What stays here is the shape, because a
-shape is a thing to argue with and a table of 306 rows is not.
+shape is a thing to argue with and a table of 307 rows is not.
 
 | section | entries |
 | --- | --- |
@@ -514,13 +514,13 @@ shape is a thing to argue with and a table of 306 rows is not.
 | Terrain | 42 |
 | Sky & Light | 38 |
 | Atmosphere | 23 |
-| Interaction | 21 |
+| Interaction | 22 |
 | Pawn | 18 |
 | Debug | 4 |
 
-By cadence: 120 live, 39 gen, 130 boundary, 17 driven.
+By cadence: 121 live, 39 gen, 130 boundary, 17 driven.
 
-Definition kinds: 179 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
+Definition kinds: 181 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
 21 of them definition-only — 2 under sentinel 255 (MoodProfile) and 19
 under 254 (OrbMoodConfig). Blocks 0-11: config, lighting, agent room,
 drivers, pawn aura, orb console, the panel, the ribbon, indoor, canvas,
@@ -805,6 +805,32 @@ and a pill inside it would vanish with the thing it exists to bring back.
 Both targets are 44 px, because the panel is used on a phone and that is
 the smallest a thumb hits reliably. No storage — the width and the
 `openMap`'s law, extended.
+
+### Two authors, one home (the CODA's row)
+
+`CONFIG.floater_coordination` is the campaign's 307th row and the first
+enrolled on a field that another author already writes. Both are writers
+and NEITHER is an applier: `cube_behaviors.hpp`'s
+`cycle_floater_coordination` steps the field through
+`FLOATER_COORDINATION_STEPS { 0, 0.5, 1 }`, the dial writes the same
+`config_` member through `organ_set`, and nothing re-speaks it at any
+boundary. So coexistence is lawful and LAST WRITER WINS — the palette
+situation's exact opposite, where an applier stood over the panel's word
+and took it back on the next mood. The contest column is the narrator:
+it already asks whether the panel's last word on a dial still stands, and
+here that question has a second author to answer about.
+
+The range is the command's own set, `[0, 1]`, and the step 0.005 puts
+every one of its three stops on the dial's grid — so the dial can say
+everything the command can say and 198 values besides.
+
+And the census that priced it found the second author UNREACHABLE:
+`cycle_floater_coordination` is declared and defined in
+`cube_behaviors.hpp` and called from nowhere in the tree, so the contest
+is LATENT. Today the panel is this field's only reachable author — which
+is why the row was worth landing rather than a reason to hold it. When
+the command is bound, the contest column starts narrating and no line
+here has to change.
 
 
 ## ORGAN_2 — the close (the campaign minute)

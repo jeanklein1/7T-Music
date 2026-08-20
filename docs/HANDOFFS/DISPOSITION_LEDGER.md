@@ -19,13 +19,19 @@ killed the canvas tier (P2), `ORB_MOOD_TABLE` → `ORB_MOOD_LIVE` (P3) and
 pipes (P2), the four mood-structural witnesses (P3a), `POSSESSION_RADIUS`
 (P3b) and Wave 3's remaining destructive banks (P3d).
 
-**FIVE SURVIVE**, and each names its own owner in place:
+**ORGAN_5's CODA killed a fifth**, and it is the only death in this
+ledger ruled by a STAMP rather than by a reading. ORGAN_4 P3c left
+`floater_coordination` needing a temperament ruling, not a survey; Jean's
+forwarding message supplied it — *"Proceed with C2, you have my stamp."*
+— and the row landed as `CONFIG.floater_coordination`, block 0, the
+campaign's 307th.
+
+**FOUR SURVIVE**, and each names its own owner in place:
 
 | what | owner |
 | --- | --- |
 | `THEME_BASE_WEIGHT`, `INDOOR_PALETTES[]`, `tierset_id` | a composite editor (D5) |
 | `mute_couplings` | a checkbox per bit — a shell feature, not an enrollment line; and ORGAN_3c found that the bits are not there to check |
-| `floater_coordination` | a TEMPERAMENT RULING, not a reading. ORGAN_4 P3c read the module and found the deferral's premise false: it is not driven, it is player-cycled. One `ORGAN_PARAM` line lands it the moment D1 rules who owns it. |
 
 None is externally blocked, which is why none of them is in
 `docs/OPEN.md`. The one that was — the beacon's assert — is the line
@@ -3216,22 +3222,116 @@ with it, here on the REACH of the disagreement. The provenance paragraph
 spells the placeholder token; it cannot reach the substituter, which
 replaces it in `shell_src` only, and `web/index.html` still counts one.
 
-**C2 — the floater ruling remains open by choice.** The phase is
-stamp-gated and Jean's forwarding message carries no stamp, so it was
-skipped entire: no census, no edit, no arithmetic, no adjacent tidying (D2).
-The stamp survives, and with it D1's condition on what the census must find
-before the ruling may land.
+**C2 — the floater landed, on the stamp.** Jean's forwarding message
+carried it in his own words — *"Proceed with C2, you have my stamp."* — so
+the phase ran, and `CONFIG.floater_coordination` is the panel's 307th row.
+The census, the ruling and the finding that re-priced it are below.
 
-**C3 — ORGAN_4 + ORGAN_5 closed.** `audit/ORGAN.md` regenerated and
-**byte-identical** to its P6 state (418 lines, 43907 bytes, LF-clean) — which
-is itself the proof that this coda touched no source. Quoted from the fifth
-ledger: **306 entries** · Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38
-· Atmosphere 23 · Interaction 21 · Pawn 18 · Debug 4 · boundary 130 · driven 17
-· gen 39 · live 120 · PARAM 124 · PARAM_DEF 105 · PARAM_DEFONLY 21 ·
+**C3 — ORGAN_4 + ORGAN_5 closed.** Quoted from the fifth ledger as
+regenerated here — `audit/ORGAN.md`, 419 lines, 44037 bytes, LF-clean:
+**307 entries** · Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38 ·
+Atmosphere 23 · Interaction 22 · Pawn 18 · Debug 4 · boundary 130 · driven 17
+· gen 39 · live 121 · PARAM 125 · PARAM_DEF 105 · PARAM_DEFONLY 21 ·
 PARAM_GEN 39 · PARAM_RO 17 · 17 witnesses · 3 doors. The pair opened at 263
-entries, 250/13 dials-to-witnesses, 10 blocks and 1 door; it closes at 306,
-289/17, 12 blocks and 3 doors. `MANIFEST.md` and `BINDING_LEDGER.md` were NOT
-regenerated: C2 did not run, so no count moved. And the mirror branch
-`origin/claude/campaign-handoff-3h50qd` **still exists** — left alone as the
-coda directs; the relay's HTTP 403 on delete refspecs stands, and the one
-command is still Jean's from his own machine.
+entries, 250/13 dials-to-witnesses, 10 blocks and 1 door; it closes at 307,
+290/17, 12 blocks and 3 doors, with the **GPU wallet untouched across both**
+— zero buffers, zero bindings, zero WGSL over twenty commits.
+`MANIFEST.md` and `BINDING_LEDGER.md` WERE regenerated, because C2 moved a
+count: both come back **byte-identical**, which is the honest reading — an
+enrollment line moves the organ's tallies and no binding's. `web/presets/
+baseline.json` is likewise unmoved at 232 keys: the capture skips
+boot-pinned GPU-room rows and the count of those it skips went 57 → 58. And
+the mirror branch `origin/claude/campaign-handoff-3h50qd` **still exists** —
+left alone as the coda directs; the relay's HTTP 403 on delete refspecs
+stands, and the one command is still Jean's from his own machine.
+
+### C2 — the census, and the ruling it priced
+
+`cycle_floater_coordination` (`bodies/cube_behaviors.hpp`) steps
+`cbs.coordination_step` modulo 3 and stages
+`FLOATER_COORDINATION_STEPS { 0.0, 0.5, 1.0 }` into
+`config_.floater_coordination`. **It is a scalar cycled through fixed
+values**, which is D1's condition for landing rather than skipping: the
+shape is a dial's envelope, not a toggle and not a ramp. So the envelope is
+the command's own set, `[0, 1]`, and the step is 0.005 — the neighbour
+`cube_plasticity`'s step, fine enough that 0.5 sits on the grid exactly
+(0.5 / 0.005 = 100) and the dial can say everything the command can say and
+198 values besides.
+
+The GROUP was censused, not chosen: `Interaction · Cubes` is the block-0
+group that already holds this fact's neighbour (`cube_plasticity`). The row
+sits under a comment of its own rather than under the "no second author"
+block above it — that claim covers the four rows ORGAN_3 w1 landed and must
+not be stretched over a fifth that contradicts it.
+
+**The ruling, restated where it now lives:** both authors keep writing the
+one home, and NEITHER is an applier. Nothing re-speaks
+`config_.floater_coordination` at any boundary, so coexistence is lawful,
+last writer wins, and the contest column is the honest narrator of who spoke
+last. That is the palette situation's exact opposite.
+
+### C2 — and the census found the second author unreachable
+
+`cycle_floater_coordination` has **two hits tree-wide** — its declaration at
+`cube_behaviors.hpp` and its definition, both in that file — and **no call
+site anywhere**. The search was untruncated over the whole repository (P11).
+The `(F5)` that `contracts/control_panel.hpp` names beside the beacon's S
+gain binds nothing: `input.hpp` takes `CubeBehaviorsState&` and `CubeDeps&`
+as parameters and never uses either, and the same is true of this command's
+neighbours `cycle_cube_behavior_override` and `toggle_cube_kite_mode` — the
+whole cube-behaviour command family is currently unbound.
+
+This does not fire D1, whose skip condition is about the command's SHAPE,
+and the shape is exactly right. It changes what the ruling MEANS: **the
+contest is latent, not live.** Today the panel is this field's only
+reachable author, which is the reason the row was worth landing rather than
+a reason to hold it — the enrollment turns a knob nothing can currently turn
+into one Jean can. When the command is bound, the contest column starts
+narrating and no line in the tree has to change.
+
+Two consequences of the same finding, recorded rather than acted on (D2):
+the handoff's hover-title sentence names a `<key>` that does not exist, and
+**the registry has no per-row prose channel at all** — `OrganParam` carries
+no note column and the panel's hover title is `label + '\n' + id`, derived.
+Adding one is a fifteenth column on every macro form, the manifest emitter,
+the shim and two generators; that is a campaign, not a coda line. The
+temperament therefore lives where prose already lives: the comment above the
+row in the `.inc`, `docs/ORGAN.md`, and here.
+
+### C2 — the harness, and what moved
+
+Sixteen new asserts in the ORGAN_5 harness (35 → **51, GREEN**), against the
+real registry with the **real command executed**: the id enrolled exactly
+once; the triple is the field's own `offsetof` (block 0, offset 204) and
+survives the `uint16_t` column; `find_entry` reaches it, so it is
+addressable and not merely listed; envelope `[0,1]`/0.005; group matched;
+dial not witness, def-kind NONE, cadence **LIVE**; all three commanded
+values on the grid; boot rest 0.0 from `config_{}`'s value-init, which is
+the command's own step 0. Then the contest itself, executed in both
+directions — the dial writes 0.25, `cycle_floater_coordination` takes it to
+0.5, the dial takes it back to 0.125 — plus both clamps and a rejection
+counter that never moves.
+
+| instrument | before | after |
+| --- | --- | --- |
+| `kOrganParamCount` | 306 | **307** |
+| Interaction section | 21 | **22** |
+| live cadence | 120 | **121** |
+| `organ_readers` | 232 proved · 57 scope | **232 proved · 58 scope**, 0 suspects |
+| `web/presets/baseline.json` | 232 keys | **232 keys** (GPU-room rows are skipped, 57 → 58) |
+| `tools/gates/console_gate` | PASS | **PASS**, zero diagnostics |
+| `tools/organ_gap.py --gate` | PASS | **PASS**, 13 pairs, 0 surviving readers |
+| ORGAN_4 harness · shell shim | 56 · 45 | **56 · 45**, both GREEN |
+
+`organ_readers` puts the row in `scope`, not `proved` — recorded, not
+forced, exactly as the coda instructs. Every block-0 row lands there: the
+tool declares CONFIG out of scope because `config_` ships whole to the
+kernel. The CPU reader exists all the same —
+`cartridge.hpp` reads `gpuState_.config().floater_coordination` as the
+beacon's S gain — and the tool's own blind-spot note is what says so.
+
+**One stale number corrected while the books were open.** `docs/ORGAN.md`
+read "179 none" for the definition kinds; the generated ledger read 180
+before this phase and 181 after. The prose had missed ORGAN_5 P3a's
+`speed_mult`. It now reads 181, with the section and cadence lines moved to
+match the fifth ledger rather than to match each other.
