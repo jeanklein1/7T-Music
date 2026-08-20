@@ -408,10 +408,14 @@ path is byte-identical. The panel is an instrument, not the art.
 
 ## The disposition (ORGAN_3)
 An organ's DISPOSITION is the document naming every stop the instrument
-has. `docs/HANDOFFS/DISPOSITION_LEDGER.md` is ours. A coupling is a
-parameter set into trajectory over time, so every enrolled dial — with
-its authored (min, max) — is a trajectory domain the music campaign will
-play. The panel is that campaign's target map, not decoration.
+has, and every one it does not. `audit/ORGAN.md` is the first — generated
+per commit from the compiled registry — and *What has no dial, and why*
+below is the second. ORGAN_3's own working ledger was the survey that
+produced both; it is spent and retired to git (L31, ORGAN_6 CODA C3). A
+coupling is a parameter set into trajectory over time, so every enrolled
+dial — with its authored (min, max) — is a trajectory domain the music
+campaign will play. The panel is that campaign's target map, not
+decoration.
 
 ### The five classes
 Every design parameter falls in exactly one.
@@ -796,6 +800,36 @@ the URL is the only thing that carries a choice between sessions.
 > to `web/presets/index.json`, and São Paulo boots into it with
 > `?preset=<name>`.
 
+
+## What has no dial, and why (ORGAN_3–6, closed)
+An enrollment states a belief and only the reader proves it; the converse
+also has a register. Four facts survived every wave of the disposition
+survey without earning a row, and each names its own owner rather than
+waiting on a campaign.
+
+| what | why not a dial | its owner |
+| --- | --- | --- |
+| `THEME_BASE_WEIGHT` | it is one scalar over a 5×N weight construction; the honest dial is the whole `MOOD_SPAWN_MULT` matrix, D5-large | a composite editor (D5) |
+| `INDOOR_PALETTES[]` | mixed-shape rows, count read from `INDOOR_PALETTE_COUNT` (D5) | a composite editor (D5) |
+| `tierset_id` | its "none" value is `0xFFFFFFFF`, and a 0…1 slider cannot express a sentinel without lying (D1(d)). `organ_gap` reports it, by name, as the one absent member of `OrbMoodConfig` | a composite editor (D5) |
+| `mute_couplings` | a bitmask: `Coupling::ALL` is `0x1FFFFF` and a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit — a shell feature, not an enrollment line — and ORGAN_3c found **the bits are not there to check**: 21 bits wide, 8 of them named, so twenty-one checkboxes would be thirteen toggles over bits nothing reads. `Coupling::` is also a hand-kept mirror of `world.wgsl`'s `COUPLING_*` block, which D1's third branch reserves | a checkbox grid over a roster the C++ emits — priced, unbuilt, and **not CC's to choose** |
+
+`D5` is the composite-editor deferral: a fact whose honest control is a
+grid rather than a slider, priced rather than promised. `D1(d)` is the
+range deferral: a value whose domain a slider cannot state without lying.
+
+None is externally blocked, which is why none of them is in
+`docs/OPEN.md`: OPEN is the register of open STATE, and a deferral any
+sitting can lift by reading a module is unfinished survey, not open state.
+The survey that produced them — ORGAN_3's disposition ledger — is spent
+and retired to git (L31); this table is what outlived it.
+
+**And one thing the next sitting should settle before it builds the
+strip.** `Coupling::` masks the PROGRAM's couplings — terrain→pawn (y,
+tilt), pawn→camera, the three input couplings, terrain→sphere-height and
+pawn→sun-VP. There is no fog bit. The music campaign's couplings are a
+different vocabulary that does not exist yet, and which one the strip is
+for changes what the strip is.
 
 ## The rule made visible (ORGAN_5)
 

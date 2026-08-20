@@ -21,8 +21,8 @@
 # CHECK-FAMILY, AND DELIBERATELY TOOTHLESS. stdout only, exit 0 ALWAYS —
 # the organ_gap sibling. A suspect here is a QUESTION, not a verdict:
 # helper indirection alone produces false positives, and the reason a row
-# survives one is a judgement docs/HANDOFFS/DISPOSITION_LEDGER.md makes
-# and this tool may not.
+# survives one is a judgement docs/ORGAN.md makes — "The disposition" and
+# "What has no dial, and why" — and this tool may not.
 #
 # ── THE BLIND SPOTS, SAID PLAINLY RATHER THAN DISCOVERED LATER ───────
 #
@@ -455,8 +455,7 @@ def main():
     print("ORGAN READERS — does your reader name you?")
     print("=" * 72)
     print("An enrollment states a belief; only the reader proves it. A map,")
-    print("not a gate: exit 0 always. Reasons live in")
-    print("docs/HANDOFFS/DISPOSITION_LEDGER.md.")
+    print("not a gate: exit 0 always. Reasons live in docs/ORGAN.md.")
     print()
     print("BLIND SPOTS this run carries: helper indirection and whole-struct")
     print("copies produce false positives; a colliding leaf token produces a")

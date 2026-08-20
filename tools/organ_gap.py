@@ -10,11 +10,12 @@
 # CHECK-FAMILY, AND DELIBERATELY TOOTHLESS. stdout only, exit 0 ALWAYS.
 # This is a map, not a gate: a member absent from the panel is usually
 # absent ON PURPOSE (structural, driven, a pad, an RNG salt), and the
-# reason lives in docs/HANDOFFS/DISPOSITION_LEDGER.md. A tool that failed
-# a build over an unenrolled field would be asserting a judgement it
-# cannot make. binding_gen.py --check is a gate because the schema IS the
-# authority there; here the LEDGER is the authority and this tool only
-# reports.
+# reason lives in docs/ORGAN.md — "The disposition" for the class, and
+# "What has no dial, and why" for the four facts that survived every wave
+# of the survey. A tool that failed a build over an unenrolled field would
+# be asserting a judgement it cannot make. binding_gen.py --check is a
+# gate because the schema IS the authority there; here the DOC is the
+# authority and this tool only reports.
 #
 # ITS TWO BLIND SPOTS, said plainly rather than discovered later:
 #
@@ -376,7 +377,7 @@ def main():
 
     print("ORGAN GAP — members of the enrolled homes that the panel does not name")
     print("=" * 72)
-    print("A map, not a gate. Reasons live in docs/HANDOFFS/DISPOSITION_LEDGER.md.")
+    print("A map, not a gate. Reasons live in docs/ORGAN.md.")
     print()
     print("THE FILE TABLE this run trusted (blind spot 2 — stale rows are")
     print("invisible bugs, so they are printed):")
