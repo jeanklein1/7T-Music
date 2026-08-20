@@ -3098,3 +3098,102 @@ Jean's phone defect cannot be settled from here: no device, no
 reproduction. The next report should name the build id from the phone's
 footer and the desktop's, and if they match, the remaining difference is
 the device and not the program.
+
+---
+
+## ORGAN_5 AT CLOSE
+
+### The tallies
+
+| | at open | at close |
+| --- | --- | --- |
+| entries | 305 | **306** |
+| dials / witnesses | 288 / 17 | **289 / 17** |
+| blocks · doors | 12 · 3 | **12 · 3** (unchanged) |
+| by cadence | live 120 · gen 39 · boundary 129 · driven 17 | **live 120 · gen 39 · boundary 130 · driven 17** |
+| Sky & Light section | 37 | **38** |
+| orb groups | 3 (Dome, Orb mood, Orb flock) | **5** (Dome, Orbs, Motion — all rules, Orbital rule, Flocking rule) |
+| `organ_readers` | 231 proved | **232 proved, 0 suspects** |
+| GPU wallet | — | **UNTOUCHED**: zero buffers, zero bindings, zero WGSL |
+
+### The P0 census verdicts
+
+Five gates green. **Gate 5 materially different and STOPPED on the item:**
+`web/index.html` already versions `organ_panel.js`, so P5a's first half
+was work already done and its second half would have broken the shell's
+one-placeholder law. Reported, not executed; P5 landed the goal by the
+route the tree's own law permits.
+
+C1 offsets and `ORB_RESEED_BITS = 0x1023` · C2 the mood pointer and why
+the rule cannot be one · C3 the poll and the door click · C4 two
+touch-hostile properties and a reject counter that already exists · C5 no
+dt/t stomp to name (the frame order prevents it) · C6 the orphan
+confirmed. Each is recorded in full under `ORGAN_5 P0`.
+
+### C6's anatomy, and D5
+
+**D5 did not fire.** `speed_mult_current` was declared, reset in teardown,
+read once in `pack_flocking_`, and moved by nothing; `upload_orb_speed_mult`
+had zero callers. The gen-1 coupling's writer was retired and left an
+authored landing pad with nothing landing on it. So the retirement went
+ahead: the field, its teardown reset, and a comment still promising a CPU
+smoother that no longer existed. The kernel's read was checked rather than
+assumed — brownian's noise, orbital's angular speed and flocking's speed
+ceiling all scale by it; FROZEN has no energy term, which is that rule's
+defining property and not an omission.
+
+### P5c's sentence, and it stands
+
+**Count-on-phone awaits a same-build comparison; the footer's build id is
+the instrument.** P5c fixed what is mechanical and device-independent —
+the empty-box commit is wrong everywhere and merely bites hardest where
+clearing the field is how one types, and `count = 0` reaching
+`configure_orbs`'s early return is reproduced natively. Whether that was
+the WHOLE of the defect cannot be settled without the device. The next
+report should name the build id from the phone's footer and the desktop's.
+
+### The one thing this session could not do
+
+`git push origin --delete claude/campaign-handoff-3h50qd` is **refused by
+the session's git relay with HTTP 403**, in every refspec form, while
+ordinary pushes to master succeed; no GitHub tool here exposes ref
+deletion. The local branch is gone. **One command for Jean from his own
+machine**, and the attic law is satisfied.
+
+### The gates at close
+
+| gate | verdict |
+| --- | --- |
+| `tools/gates/console_gate/run.py` | **PASS** — cartridge.hpp and console.hpp, zero diagnostics |
+| `tools/gates/glaw2/run.py` | **GREEN** — 294 fn, 271 const, 81 struct, 86 binding, 65 entry points |
+| `tools/gates/sha256_gate/run.py` | **PASS** |
+| `tools/organ_gap.py --gate` | **PASS** — 13 pairs, 0 surviving runtime readers |
+| `tools/organ_readers.py` | **232 proved, 0 suspects** — the new master dial is PROVED by `configure_orbs`, not merely enrolled |
+| `tools/binding_gen.py --check` | PASS on every relation |
+| native harnesses | **56 + 35 = 91 asserts, GREEN** — the ORGAN_4 harness re-run against the new tree, and an ORGAN_5 harness that calls the real `configure_orbs` behind a recording wgpu floor |
+| shell shim | **45 asserts, GREEN**, and all four query modes hold |
+| `tools/gates/score/run.py` | **RED, 4 violations — PRE-EXISTING** (proved by `git stash` at ORGAN_4). Spine-table jurisdiction. |
+| `tools/wgsl_gate.py` | unrunnable here — no `naga`. No WGSL was touched. |
+| `tools/mirror_census.py` | NOT RUN — frozen at ML-1 per `docs/OPEN.md` |
+
+### What a successor should not trust silently
+
+- **The harness restates the boundary's reseed expression.** `organ5_harness`
+  keeps its own copy of
+  `console_reseed || (tm == 0) || (tm & ORB_RESEED_BITS)`, kept in step
+  with `cartridge.hpp` by eye. The asserts catch a divergence in the
+  CLASSIFICATION; they would not catch the boundary dropping the test
+  altogether. A gate that reads the cartridge would.
+- **`RULE_NAMES` is four strings in JS (D3).** Their ORDER is the
+  contract, and the authorities are `bodies/orbs.hpp` and the kernel's own
+  dispatch. An unknown index prints its NUMBER rather than guessing, so a
+  stale table says so — but only for indices past the end.
+- **The rule window is refreshed every frame from `OrbsState`.** If a
+  future rule author writes `current_motion_rule` from somewhere the
+  boundary cannot see, the window still catches it; if one writes it
+  AFTER the boundary in the same frame, the panel is one frame behind.
+  At 250 ms polling that is invisible, and it is the price of one writer.
+- **`web/presets/baseline.json` is regenerated, not hand-kept.** It grew
+  `ORBS.speed_mult` this campaign. Any `.inc` change wants
+  `tools/organ_ledger.py` and a fresh capture, or the shelf drifts from
+  the registry.

@@ -456,7 +456,7 @@ deps the cartridge already holds — is not met, so it is recorded as a
 price.
 
 ## Navigation (ORGAN_3b P4)
-305 rows are a library, not a page. The panel opens **collapsed**, as a
+306 rows are a library, not a page. The panel opens **collapsed**, as a
 table of contents. One filter field matches `id + label + group`
 lowercased — the three names a stop already answers to — hiding rows,
 then group headers with no visible row, then sections with none either;
@@ -474,7 +474,7 @@ exactly what it carries. **A voice is a file.**
 A row is two lines, both grids, every cell placed by explicit
 `grid-column` rather than auto-placement — so a row with no colour swatch
 and no cadence chip still lines its markers up with the row above it, and
-305 rows read as a column rather than as a list.
+306 rows read as a column rather than as a list.
 
 ```
 line 1  [ label ……………………………  sw   mk   chip ]
@@ -499,26 +499,26 @@ found and the grid may squeeze a slider toward its floor, but neither
 rewrites what the hand set.
 
 ## The tally at close
-305 enrolled entries — 288 dials and 17 read-only witnesses — across
+306 enrolled entries — 289 dials and 17 read-only witnesses — across
 eight sections and twelve blocks.
 
 THIS TABLE IS NO LONGER THE AUTHORITY. `audit/ORGAN.md` is generated from
 the enrollment list on demand (ORGAN_4 P5) and carries every row with its
 range, its step and its cadence. What stays here is the shape, because a
-shape is a thing to argue with and a table of 305 rows is not.
+shape is a thing to argue with and a table of 306 rows is not.
 
 | section | entries |
 | --- | --- |
 | Agents | 104 |
 | Ribbon | 56 |
 | Terrain | 42 |
-| Sky & Light | 37 |
+| Sky & Light | 38 |
 | Atmosphere | 23 |
 | Interaction | 21 |
 | Pawn | 18 |
 | Debug | 4 |
 
-By cadence: 120 live, 39 gen, 129 boundary, 17 driven.
+By cadence: 120 live, 39 gen, 130 boundary, 17 driven.
 
 Definition kinds: 179 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
 21 of them definition-only — 2 under sentinel 255 (MoodProfile) and 19
@@ -686,6 +686,125 @@ the URL is the only thing that carries a choice between sessions.
 > own export for one voice). Drop the JSON in `web/presets/`, add one line
 > to `web/presets/index.json`, and São Paulo boots into it with
 > `?preset=<name>`.
+
+
+## The rule made visible (ORGAN_5)
+
+Three laws, and each answers a defect Jean found by playing the built
+panel rather than by reading it:
+
+> **A dial whose effect depends on a mode stands next to a truthful
+> readout of that mode.**
+> **An author re-speaks no more than the edit requires.**
+> **A section is organized for the hand that plays it, not the struct
+> that stores it.**
+
+### The touched mask — the console idiom, one level up
+
+ORGAN_4 gave a per-field mask to a bank whose reader is an EVENT. ORGAN_5
+gives one to a bank that already HAD a flag, and the division of labour is
+the whole idea:
+
+> **The FLAG says THAT the bank changed. The MASK says WHAT. The BOUNDARY
+> decides HOW MUCH re-speak the edit requires.**
+
+`configure_orbs` ends `os.init_pending = true`, so before this every notch
+of every orb-mood dial re-seeded the sky: dragging a flock radius
+destroyed the flock it was steering. Now `g_orb_def_touched` records
+`offsetof/4` at the one site that already raises the flag, and the
+boundary tests it against `ORB_RESEED_BITS` — the four facts the init
+kernel bakes into `orb_state` (`enabled`, `count`, `palette_id`, `drag`).
+The other fifteen are per-frame GPU reads: the uniform upload alone
+carries them and velocities persist under the finger.
+
+**A raise with NO bits means everything.** That is the RESPEAK door, which
+promises exactly that, and it is also the safe answer for a future caller
+that did not say — a caller that says nothing must not be handed the light
+path by default.
+
+**The classification lives with the mask, not with the boundary.** The bit
+convention is defined in the registry and nowhere else, so the constant
+that INTERPRETS bits belongs beside the constant that PRODUCES them. Two
+`static_assert`s pin it: the literal `0x1023`, and that the struct's word
+count still fits a `uint32`.
+
+**A mask that indexes one struct cannot speak for another.** `base_size`
+is an `OrbConsole` field that is init-baked, so it raises the orb flag
+while contributing no bit to a mask over `OrbMoodConfig`. The console
+block therefore carries its own heavy reason down in one local — without
+it a same-frame flock drag would have supplied a light bit and swallowed
+the size edit.
+
+### The rule window
+
+`organ_orb_rule()` returns `rule | gesture << 8` — a WINDOW onto
+`OrbsState`, which stays the only home (CHORD). `organ_mood()` borrows a
+POINTER to the spine's field; the rule cannot, and the difference is a
+tier: the mood lives in a CONTRACT the registry includes, the rule in a
+BODY the organ may not. **Same law, different plumbing, because the home
+is one tier further away.**
+
+**One writer, one site, and not the event.** The obvious placement is
+beside the door handlers — and it would be stale for exactly the path the
+defect was found on, because `cycle_orb_motion_rule` has two callers: the
+door and `KP_8`. The window is refreshed at the frame boundary from the
+one home, which cannot go stale whoever turned the rule.
+
+### By the hand, not by the struct
+
+The orb rows were grouped by HOME — three under "Dome" because they live
+in `OrbConsole`, nineteen under "Orb mood"/"Orb flock" because they live
+in `OrbMoodConfig`. Brownian's strength dial therefore sat in a geometry
+group under the name *"noise floor"*, and fifteen rule-scoped rows sat in
+one block with nothing saying which rule each acted in.
+
+Five groups now: **Dome** (what the sky is) · **Orbs** (what populates it
+— exactly the four reseed facts plus brightness) · **Motion — all rules**
+· **Orbital rule** · **Flocking rule**.
+
+**The layout and the readout stay in step with no table between them.** A
+group whose name ends `"<rule> rule"` grows a live-rule line under its
+header, and WHICH rule is read out of the name itself. `Motion — all
+rules` is plural and correctly grows none: those rows are never dormant.
+Adding a rule group later needs no shell edit.
+
+Only the four rule NAMES are duplicated in JS (D3), with the authority
+named. Two further hardcodes were refused: which DOORS cycle the rule
+(a C++ number that would silently move the readout onto the wrong button
+on a renumber — so the line sits under the whole door bar), and which
+GROUPS are rule-scoped (derived, as above).
+
+### The speed dial's claim note
+
+`OrbConsole.speed_mult` is the master motion strength: the kernel scales
+brownian's noise, orbital's angular speed and flocking's speed ceiling by
+it. FROZEN has no energy term, which is that rule's defining property.
+
+> A gen-2 coupling CLAIMS this field through a rest+gain seam when it
+> arrives; until then the dial IS the rest.
+
+Its floor of **0 is HONEST**, and the distinction is worth keeping: the
+thirteen orb-mood floors sit one step off zero because `eff()` reads 0 as
+*"no opinion"*. Nothing reads this one as a sentinel — the kernel
+multiplies by it — so **zero is stillness**, an authored artistic state,
+and the dial reaches it.
+
+It replaced an ORPHAN. `OrbsState.speed_mult_current` was the gen-1
+coupling's CPU smoother; the coupling's writer retired and left the field
+declared, reset in teardown, read once, and pinned at 1.0 forever — with a
+comment still promising a smoother that no longer existed. A GPU field, an
+uploader with zero callers, and no author: an authored landing pad with
+nothing landing on it.
+
+### The pill
+
+Minimized is a STATE, not a scroll: one session variable, three doors —
+the header's minimize button, the pill, and the backtick. The pill lives
+on `<body>` and not inside `#organ`, because `#organ` is what gets hidden
+and a pill inside it would vanish with the thing it exists to bring back.
+Both targets are 44 px, because the panel is used on a phone and that is
+the smallest a thumb hits reliably. No storage — the width and the
+`openMap`'s law, extended.
 
 
 ## ORGAN_2 — the close (the campaign minute)
