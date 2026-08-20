@@ -471,7 +471,7 @@ deps the cartridge already holds — is not met, so it is recorded as a
 price.
 
 ## Navigation (ORGAN_3b P4)
-307 rows are a library, not a page. The panel opens **collapsed**, as a
+The manifest is a library, not a page. The panel opens **collapsed**, as a
 table of contents. One filter field matches `id + label + group`
 lowercased — the three names a stop already answers to — hiding rows,
 then group headers with no visible row, then sections with none either;
@@ -489,7 +489,7 @@ exactly what it carries. **A voice is a file.**
 A row is two lines, both grids, every cell placed by explicit
 `grid-column` rather than auto-placement — so a row with no colour swatch
 and no cadence chip still lines its markers up with the row above it, and
-307 rows read as a column rather than as a list.
+the rows read as a column rather than as a list.
 
 ```
 line 1  [ label ……………………………  sw   mk   chip ]
@@ -513,30 +513,32 @@ the same law: session only, never storage. The filter may open a section it
 found and the grid may squeeze a slider toward its floor, but neither
 rewrites what the hand set.
 
-## The tally at close
-307 enrolled entries — 290 dials and 17 read-only witnesses — across
-eight sections and twelve blocks.
+## The tally at ATMOS_1's close
+332 enrolled entries — 315 dials and 17 read-only witnesses — across
+eight sections and twelve blocks. Re-cut at ATMOS_1 CODA from the
+generated book, as ORGAN_5 CODA re-cut it; a campaign that moves the count
+re-cuts this at its end.
 
 THIS TABLE IS NO LONGER THE AUTHORITY. `audit/ORGAN.md` is generated from
 the enrollment list on demand (ORGAN_4 P5) and carries every row with its
 range, its step and its cadence. What stays here is the shape, because a
-shape is a thing to argue with and a table of 307 rows is not.
+shape is a thing to argue with and a table of 332 rows is not.
 
 | section | entries |
 | --- | --- |
-| Agents | 104 |
+| Agents | 109 |
+| Sky & Light | 57 |
 | Ribbon | 56 |
 | Terrain | 42 |
-| Sky & Light | 38 |
-| Atmosphere | 23 |
+| Atmosphere | 24 |
 | Interaction | 22 |
 | Pawn | 18 |
 | Debug | 4 |
 
-By cadence: 121 live, 39 gen, 130 boundary, 17 driven.
+By cadence: 121 live, 46 gen, 148 boundary, 17 driven.
 
-Definition kinds: 181 none, 5 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
-21 of them definition-only — 2 under sentinel 255 (MoodProfile) and 19
+Definition kinds: 188 none, 23 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
+41 of them definition-only — 22 under sentinel 255 (MoodProfile) and 19
 under 254 (OrbMoodConfig). Blocks 0-11: config, lighting, agent room,
 drivers, pawn aura, orb console, the panel, the ribbon, indoor, canvas,
 the world draw, the ribbon's spawn bank — the twelve the campaign set as

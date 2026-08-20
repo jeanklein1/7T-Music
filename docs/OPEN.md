@@ -70,6 +70,11 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   campaign's handoff, held by Jean rather than filed in the tree; the
   campaign opens at 71619c0. Unblocked by a visual need (the recording's
   long takes) or the indoor atmospheres' rework.
+- CC's container lacks naga, so `tools/wgsl_gate.py` (the immediate shim)
+  cannot run there; ATMOS_1 stood in with a diff-emptiness check because
+  it touched no WGSL. A campaign that touches WGSL needs naga in the
+  container (cargo install naga-cli, priced at the sitting) or Jean
+  running the gate before merge. Origin: ATMOS_1 report, FLAG 12.
 - wgsl_gate.py TypeError in the directive-removed branch: the two-line note at
   "DIRECTIVE not in src" splits a %s from its operand, so the branch raises
   instead of printing. Unreachable while world.wgsl carries requires

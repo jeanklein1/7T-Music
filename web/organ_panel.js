@@ -792,10 +792,11 @@
     }
 
     // ── ORGAN_3b P4a — THE FILTER ────────────────────────────────────
-    // 262 rows are a library, not a page. One field, matched against
+    // The manifest is a library, not a page. One field, matched against
     // id + label + group lowercased, so the operator can reach a stop by
     // any of the three names it already has. No debounce: this is a dev
-    // instrument and a keystroke's worth of work is 262 substring tests.
+    // instrument and a keystroke's worth of work is one substring test
+    // per row (audit/ORGAN.md carries the count).
     var find = document.createElement('input');
     find.type = 'text'; find.className = 'find';
     find.placeholder = 'filter \u2014 id, label or section';
