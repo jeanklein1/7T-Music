@@ -2937,3 +2937,56 @@ needed is gone, the strings are in the tree:
   [PASS]   each names its OWN rule, derived from its group name
   [PASS]   FLOCKING lights and ORBITAL stays dark — one live rule at a time
 ```
+
+## P4 — the pill
+
+**Minimized is a state, not a scroll.** `hidden` already existed and the
+backtick already toggled it; what was missing was a way BACK on a device
+with no backtick. On a phone, `?organ=1` opened a panel that could be
+hidden and never restored.
+
+**One state, three doors.** A `minimized` session variable, moved by the
+header's minimize button, by the pill, and by the key — so they cannot
+disagree about whether the panel is up:
+
+```js
+function setMinimized(on) {
+  minimized = !!on;
+  root.className = minimized ? 'hidden' : '';
+  pill.className = minimized ? 'on' : '';
+}
+```
+
+**The pill lives on `<body>`, not inside `#organ`** — `#organ` is what
+gets hidden, and a pill inside it would vanish with the thing it exists to
+bring back. The harness asserts the parent, because that is the mistake
+this design is one line away from.
+
+**44 px, twice.** The minimize button and the pill are both 44 px tall —
+the smallest target a thumb hits reliably. The button's negative margins
+(`-14px` top and bottom) pull its box back to the header's own 16 px line,
+so the hit target is generous while the layout keeps its row; the ORGAN_3c
+grid is untouched. The glyph is an em dash: the panel, folded.
+
+**Session only** — no storage of any kind, the same law the width and the
+`openMap` already follow.
+
+The header's title changed from `ORGAN — \` to hide` to
+`ORGAN — \` toggles`, which is now true in both directions, and its hover
+names all three doors for the operator who found the panel before finding
+this line.
+
+```
+  [PASS] ORGAN_5 P4 — the pill exists
+  [PASS]   and lives on <body>, NOT inside the panel it brings back
+  [PASS]   hidden while the panel is up
+  [PASS]   the minimize button is in the header, sharing one row with the title
+  [PASS]   pressing it hides the panel and shows the pill   root="hidden" pill="on"
+  [PASS]   tapping the pill brings it back — the phone has its backtick
+  [PASS]   and the BACKTICK moves the same state, not a second one
+  [PASS]   toggling back agrees with both other doors
+```
+
+The four query modes still hold, all GREEN: `?organ=1&preset=baseline`,
+`?preset=baseline` (no panel, no pill, the scene still applies), no flag
+(no DOM, no fetch, no timer, no ccall), and the synthetic probe.

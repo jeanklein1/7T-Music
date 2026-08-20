@@ -258,7 +258,29 @@
     '#organ .rulescope{margin:-2px 0 5px;font-size:10px;line-height:1.5;' +
     'color:#5b636d;letter-spacing:.03em}' +
     '#organ .rulescope.on{color:#8fb98f}' +
-    '#organ .rulescope.off{color:#6b7480}';
+    '#organ .rulescope.off{color:#6b7480}' +
+    // ── ORGAN_5 P4 — MINIMIZED IS A STATE, NOT A SCROLL ──────────────
+    // The header becomes a row so the title and the minimize button share
+    // one line; the button is 44x44 because that is the smallest target a
+    // thumb hits reliably, and the panel is now used on a phone. Its GLYPH
+    // is small — the target is generous, the mark is quiet.
+    '#organ .head{display:flex;align-items:center;gap:6px;margin:2px 0 10px}' +
+    '#organ .head h1{margin:0;flex:1 1 auto;overflow:hidden;' +
+    'text-overflow:ellipsis;white-space:nowrap}' +
+    '#organ .min{flex:0 0 auto;width:44px;height:44px;margin:-14px -6px -14px 0;' +
+    'background:none;border:0;color:#7d8894;font:inherit;font-size:15px;' +
+    'line-height:1;cursor:pointer;padding:0}' +
+    '#organ .min:hover{color:#cfe0ef}' +
+    // THE PILL IS THE PHONE'S BACKTICK. A touch device has no key to press,
+    // so with ?organ=1 this is the way in and out. Bottom-right, clear of
+    // the panel's own edge, and 44px tall for the same reason.
+    '#organ-pill{position:fixed;right:10px;bottom:10px;z-index:9999;' +
+    'min-width:64px;height:44px;padding:0 14px;' +
+    'background:#0d0f12;color:#8fa3b8;border:1px solid #2c3a46;' +
+    'font:11px/44px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;' +
+    'cursor:pointer;display:none}' +
+    '#organ-pill.on{display:block}' +
+    '#organ-pill:hover{border-color:#5c93c4;color:#cfe0ef}';
 
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
@@ -594,8 +616,17 @@
     document.head.appendChild(st);
 
     var root = document.createElement('div'); root.id = 'organ';
-    var h = document.createElement('h1'); h.textContent = 'ORGAN — ` to hide';
-    root.appendChild(h);
+    var head = document.createElement('div'); head.className = 'head';
+    var h = document.createElement('h1');
+    h.textContent = 'ORGAN \u2014 ` toggles';
+    h.title = 'the backtick minimizes and restores; on a touch device the '
+            + 'button beside this does, and the pill brings it back';
+    var minBtn = document.createElement('button');
+    minBtn.className = 'min';
+    minBtn.textContent = '\u2014';          // an em dash: the panel, folded
+    minBtn.title = 'minimize to a pill (or press `)';
+    head.appendChild(h); head.appendChild(minBtn);
+    root.appendChild(head);
 
     var bar = document.createElement('div'); bar.className = 'bar';
     var bd = document.createElement('button'); bd.textContent = 'definition';
@@ -1006,9 +1037,46 @@
                            (importNote ? '  ·  ' + importNote : '');
     }, 250);
 
+    // ── ORGAN_5 P4 — THE PILL, and the one state behind both doors ───
+    //
+    // MINIMIZED IS A STATE, NOT A SCROLL. `hidden` already existed and
+    // the backtick already toggled it; what was missing was a way BACK on
+    // a device with no backtick. The pill is that way, and it is the same
+    // state — one variable, three ways to move it (the button, the pill,
+    // the key), so they can never disagree about whether the panel is up.
+    //
+    // SESSION ONLY, like the width and the openMap: no storage of any
+    // kind (the artifact rule). A dev instrument that remembers is a dev
+    // instrument that surprises.
+    //
+    // The pill lives on <body> and not inside #organ, because #organ is
+    // what gets hidden — a pill inside it would vanish with the thing it
+    // is meant to bring back.
+    var pill = document.createElement('div');
+    pill.id = 'organ-pill';
+    pill.textContent = 'organ';
+    document.body.appendChild(pill);
+
+    var minimized = false;
+    // ONE STATE, and `hidden` is the only class #organ ever carries — so
+    // an assignment is exact here and needs no classList dance.
+    function setMinimized(on) {
+      minimized = !!on;
+      root.className = minimized ? 'hidden' : '';
+      pill.className = minimized ? 'on' : '';
+    }
+    minBtn.addEventListener('click', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      setMinimized(true);
+    });
+    pill.addEventListener('click', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      setMinimized(false);
+    });
+
     // ── backtick, and the canvas keeps its keys ──────────────────────
     window.addEventListener('keydown', function (e) {
-      if (e.key === '`') { root.classList.toggle('hidden'); e.preventDefault(); }
+      if (e.key === '`') { setMinimized(!minimized); e.preventDefault(); }
     });
     // Anything typed at the panel is the panel's; the world never hears it.
     ['keydown', 'keyup', 'keypress'].forEach(function (t) {
