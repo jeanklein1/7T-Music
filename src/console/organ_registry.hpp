@@ -382,6 +382,19 @@ inline constexpr size_t kOrganParamCount =
 inline the_board::GPUState* g_home = nullptr;
 inline uint32_t g_rejected = 0;   // refused organ_set calls, shown in the panel
 
+// ORGAN_6 — A COUNT IS NOT A DIAGNOSIS. `rejected 19` says a refusal
+// happened and never which row or why, which is exactly how a shell
+// sending −1 for nineteen rows went unnoticed for two campaigns: the panel
+// WAS reporting it and the report carried no information. One string,
+// written at every refusal site, read by the status line.
+inline std::string g_last_reject;
+inline void note_reject(const char* id, const char* why) {
+    ++g_rejected;
+    g_last_reject.assign(id ? id : "(triple not in the manifest)");
+    g_last_reject += " — ";
+    g_last_reject += why;
+}
+
 // O1b — the live mood. The registry does not own it and does not want
 // to: it borrows the spine's own mood organ (contracts/spine_state.hpp,
 // a contract this header already includes), so the panel can never be
@@ -1033,16 +1046,18 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
                                            int target) {
     using namespace t7::organ;
     const OrganParam* e = find_entry(block, offset, type);
-    if (!e)    { ++g_rejected; return; }   // not in the manifest: refused
-    if (e->ro) { ++g_rejected; return; }   // a witness, not a dial (ORGAN_2a)
+    if (!e)    { note_reject(nullptr, "not in the manifest"); return; }
+    if (e->ro) { note_reject(e->id, "a witness, not a dial"); return; }   // ORGAN_2a
     if (is_defonly(e->block)) {            // definition-only (ORGAN_2b):
         const float lanes_only[4] = { x, y, z, w };
         if (target < 0 || !write_definition(*e, (uint32_t)target, lanes_only))
-            ++g_rejected;                  // no instance exists to fall back to
+            note_reject(e->id, target < 0                  // no instance to fall back to
+                ? "preview on a definition-only row — there is no instance to show"
+                : "the definition write did not land");
         return;
     }
     void* base = block_base((uint8_t)block);
-    if (!base) { ++g_rejected; return; }
+    if (!base) { note_reject(e->id, "the block has no home"); return; }
 
     const float lanes_in[4] = { x, y, z, w };
     if (target >= 0 && write_definition(*e, (uint32_t)target, lanes_in)) {
@@ -1104,6 +1119,10 @@ EMSCRIPTEN_KEEPALIVE inline float organ_get(int index, int lane) {
 // The panel's own witnesses, read once per frame by its status line.
 EMSCRIPTEN_KEEPALIVE inline int organ_rejected_count(void) {
     return (int)t7::organ::g_rejected;
+}
+// The last refusal, in words. Empty until one happens.
+EMSCRIPTEN_KEEPALIVE inline const char* organ_last_reject(void) {
+    return t7::organ::g_last_reject.c_str();
 }
 // Blocks the panel's edits RECONCILED on the last frame boundary — not
 // blocks written at that boundary. config_ counts here and uploads in the

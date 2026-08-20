@@ -1326,6 +1326,7 @@
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
                            '  ·  reconciled ' + C.flushes() +
                            '  ·  rejected ' + C.rejects() +
+                           (C.rejects() ? '  ·  last: ' + C.lastReject() : '') +
                            '  ·  contested ' + contested + '/' + rows.length +
                            (importNote ? '  ·  ' + importNote : '');
     }, 250);
@@ -1394,6 +1395,7 @@
         manifest: M.cwrap('organ_manifest', 'string', []),
         set:      M.cwrap('organ_set', null, ['number','number','number','number','number','number','number','number']),
         rejects:  M.cwrap('organ_rejected_count', 'number', []),
+        lastReject:    M.cwrap('organ_last_reject', 'string', []),
         flushes:  M.cwrap('organ_flush_count', 'number', []),
         count:    M.cwrap('organ_param_count', 'number', []),
         contest:       M.cwrap('organ_contest', 'number', ['number']),
