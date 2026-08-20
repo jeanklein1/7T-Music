@@ -55,7 +55,15 @@
   // definition keys it "world/" and appears once. isWorldDef is that
   // question, asked in one place so a fourth family answers it by being
   // added here rather than by being forgotten at three call sites.
-  var DEF_MOOD = 1, DEF_TIER = 2, DEF_BEHAVIOR = 3, DEFONLY = 255;
+  var DEF_MOOD = 1, DEF_TIER = 2, DEF_BEHAVIOR = 3;
+  // ORGAN_6 P1 — TWO SENTINELS, NOT ONE. ORGAN_3b P3 minted a second
+  // def-only family and this file kept one number, so every ORB_MOOD row
+  // read as an ordinary block and preview sent it −1, which organ_set
+  // refuses. A LIST and not a range test, mirroring the C++'s own reason
+  // for descending from 255: a range would silently swallow a future 253.
+  // P2 deletes this list — the manifest answers the question instead.
+  var DEFONLY_BLOCKS = [255, 254];   // ORGAN_BLOCK_NONE, _NONE_ORB
+  function isDefOnly(p) { return DEFONLY_BLOCKS.indexOf(p.block) >= 0; }
   function isWorldDef(p) { return p.def === DEF_TIER || p.def === DEF_BEHAVIOR; }
 
   // ORGAN_3b — CADENCE. The manifest's "cad" says WHEN a stop sounds; the
@@ -371,7 +379,7 @@
     // A DEFINITION-ONLY DIAL HAS NO PREVIEW (ORGAN_2b, block NONE): there
     // is no instance for one to show, and −1 would only ring the reject
     // counter. It targets the live mood whatever the toggle says.
-    var target = (p.block === DEFONLY || definitionMode) ? C.mood() : -1;
+    var target = (isDefOnly(p) || definitionMode) ? C.mood() : -1;
     // A witness is never marked: organ_set refuses it, so the panel never got
     // to ask the contest question and must not claim a reading (ORGAN_2a).
     if (!(definitionMode && p.def) && !p.ro) touched[p.i] = 1;
