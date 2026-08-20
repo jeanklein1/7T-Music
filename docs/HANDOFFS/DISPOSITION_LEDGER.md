@@ -3197,3 +3197,41 @@ machine**, and the attic law is satisfied.
   `ORBS.speed_mult` this campaign. Any `.inc` change wants
   `tools/organ_ledger.py` and a fresh capture, or the shelf drifts from
   the registry.
+
+## ORGAN_5 CODA
+
+**C1 — the law landed as P15, not P13.** The coda supplied the law and its
+provenance; `docs/PROCESS_LAWS.md` supplied the number. The file already
+carries a **P13 — A PRECONDITION NAMES THE STATE, NOT ITS PROXY** and a
+**P14 — THE GATE ROW NAMES THE ARTIFACT**, and its preamble rules that
+"the numbers are permanent. A retired rule is struck, not renumbered." The
+coda's own instruction — *matching the file's numbering* — therefore reads
+P15, and nothing above it moved. The body is the coda's text set in the
+file's voice: the statement, then *Paid for by:* ORGAN_5 gate 5 with the
+anatomy already recorded above (the panel was already versioned; the
+prescribed second `__BUILD_ID__` would have broken the shell's
+one-placeholder law; one phase re-scoped, six landed), then the tie to P13 —
+there the executor rules by the STATE when a precondition's proxy disagrees
+with it, here on the REACH of the disagreement. The provenance paragraph
+spells the placeholder token; it cannot reach the substituter, which
+replaces it in `shell_src` only, and `web/index.html` still counts one.
+
+**C2 — the floater ruling remains open by choice.** The phase is
+stamp-gated and Jean's forwarding message carries no stamp, so it was
+skipped entire: no census, no edit, no arithmetic, no adjacent tidying (D2).
+The stamp survives, and with it D1's condition on what the census must find
+before the ruling may land.
+
+**C3 — ORGAN_4 + ORGAN_5 closed.** `audit/ORGAN.md` regenerated and
+**byte-identical** to its P6 state (418 lines, 43907 bytes, LF-clean) — which
+is itself the proof that this coda touched no source. Quoted from the fifth
+ledger: **306 entries** · Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38
+· Atmosphere 23 · Interaction 21 · Pawn 18 · Debug 4 · boundary 130 · driven 17
+· gen 39 · live 120 · PARAM 124 · PARAM_DEF 105 · PARAM_DEFONLY 21 ·
+PARAM_GEN 39 · PARAM_RO 17 · 17 witnesses · 3 doors. The pair opened at 263
+entries, 250/13 dials-to-witnesses, 10 blocks and 1 door; it closes at 306,
+289/17, 12 blocks and 3 doors. `MANIFEST.md` and `BINDING_LEDGER.md` were NOT
+regenerated: C2 did not run, so no count moved. And the mirror branch
+`origin/claude/campaign-handoff-3h50qd` **still exists** — left alone as the
+coda directs; the relay's HTTP 403 on delete refspecs stands, and the one
+command is still Jean's from his own machine.
