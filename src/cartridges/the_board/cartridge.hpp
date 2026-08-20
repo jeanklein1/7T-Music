@@ -745,10 +745,12 @@ namespace t7 {
                 // which is why organ_manifest may be called by a page that
                 // loaded before the program finished booting.
                 t7::organ::bind_home(&gpuState_);
-                // O1b — and the live mood id, borrowed rather than copied:
+                // O1b — and the live mood, borrowed rather than copied:
                 // a definition is addressed BY mood, and the panel must
-                // never be editing a mood the program has left.
-                t7::organ::bind_mood(&mood_state_.active);
+                // never be editing a mood the program has left. ATMOS_1b
+                // — the whole organ, not one field: the panel's tier
+                // readout reads light_tier through the same pointer.
+                t7::organ::bind_mood(&mood_state_);
 
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;

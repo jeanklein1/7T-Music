@@ -103,6 +103,15 @@
     if (!m) return -1;
     return RULE_NAMES.indexOf(m[2].toLowerCase());
   }
+  // ATMOS_1b — a group whose name ends "Light tier N" is scoped to that
+  // tier, read from the name as ruleOfGroup reads its rule. N is the
+  // label's number; the draw's tier is the Atmosphere.light[] index, so
+  // "Light tier 1" -> 0. Adding a tier group in the .inc needs no edit
+  // here; the operator never sees the index.
+  function tierOfGroup(name) {
+    var m = /\bLight tier (\d)$/.exec(name || '');
+    return m ? parseInt(m[1], 10) - 1 : -1;
+  }
   var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
@@ -265,8 +274,9 @@
     // ORGAN_5 P2b — THE RULE READOUT. Two shapes, one voice: a line under
     // the door bar (the sky's live rule, beside the buttons that cycle
     // it) and a line under each rule-scoped group's header (which rule
-    // THESE rows act in, and whether it is the live one). Dim when the
-    // group is dormant, lit when it is the rule in force — the operator
+    // or light tier THESE rows act in, and whether it is the live one —
+    // the tier line since ATMOS_1b). Dim when the group is dormant, lit
+    // when it is the rule in force — the operator
     // learns "nothing is moving because this rule is not on" at a glance,
     // which is the whole defect this phase exists to end.
     '#organ .rulenow{margin:-4px 0 8px;color:#7d8894;font-size:10px;' +
@@ -704,6 +714,7 @@
     // door bar below assigns ruleNow, and a `var` further down would be
     // hoisted and then overwrite it with null when execution reached it.
     var ruleScopes = [];      // {el, rule} per rule-scoped group
+    var tierScopes = [];      // {el, tier} per tier-scoped group (ATMOS_1b)
     var ruleNow = null;       // the line under the door bar
     var ruleNowVal = null;    // its <b>, the only part that changes
 
@@ -861,8 +872,18 @@
           var rs = document.createElement('div');
           rs.className = 'rulescope';
           host.appendChild(rs);
-          curGroup.rule = rs;      // the filter hides it with its header
+          curGroup.scope = rs;     // the filter hides it with its header
           ruleScopes.push({ el: rs, rule: gr });
+        }
+        // ATMOS_1b — the same line for a tier-scoped group. It wears the
+        // rule line's dress: the class names a scope line, not a rule.
+        var gt = tierOfGroup(grp);
+        if (gt >= 0) {
+          var ts = document.createElement('div');
+          ts.className = 'rulescope';
+          host.appendChild(ts);
+          curGroup.scope = ts;
+          tierScopes.push({ el: ts, tier: gt });
         }
       }
       var r = buildRow(p, host);
@@ -895,10 +916,11 @@
           var any = false;
           g.rows.forEach(function (r) { if (r.on) any = true; });
           vis(g.h2, any);
-          // ORGAN_5 P2b — the rule line is part of its header, so it
-          // hides and shows with it. A scope line over no rows would be
-          // an answer to a question the filter just took away.
-          if (g.rule) vis(g.rule, any);
+          // ORGAN_5 P2b — a scope line — rule or tier — is part of its
+          // header, so it hides and shows with it. A scope line over no
+          // rows would be an answer to a question the filter just took
+          // away.
+          if (g.scope) vis(g.scope, any);
         });
         vis(s2.det, live > 0);
         s2.det.open = filtering ? live > 0 : !!openMap[s2.name];
@@ -1085,6 +1107,36 @@
     }
     refreshRule();
 
+    // ── ATMOS_1b — THE TIER READOUT, the rule readout's law again ────
+    // A dial whose effect depends on a mode stands next to a truthful
+    // readout of that mode. The fifteen tier rows are mode-scoped: a
+    // world is drawn into ONE tier by its seed, and the other two tiers'
+    // intensity, ambient and spreads move nothing here until a world
+    // lands in them. organ_light_tier() reads the spine's own field
+    // through the pointer organ_mood() follows; the text shows the
+    // LABEL's number, never the index.
+    function refreshTier() {
+      if (!C.lightTier) return;
+      var t = C.lightTier();
+      tierScopes.forEach(function (ts) {
+        var on = ts.tier === t;
+        ts.el.className = 'rulescope ' + (on ? 'on' : 'off');
+        ts.el.textContent = on
+          ? '\u25b8 this world is drawn into tier ' + (t + 1)
+            + ' \u2014 these rows act NOW'
+          : '\u25b8 these rows act in worlds drawn into tier ' + (ts.tier + 1)
+            + ' \u2014 this world is in tier ' + (t + 1);
+        ts.el.title = on
+          ? 'the seed drew this tier: turning these moves the sun at the next boundary'
+          : 'the seed drew tier ' + (t + 1) + ', and RESPEAK keeps the seed, so '
+            + 'intensity, ambient and their spreads here move nothing until a world '
+            + 'lands in tier ' + (ts.tier + 1) + ' (?seed= pins which). The WEIGHT '
+            + 'row is the exception: it moves where this world\u2019s roll lands, '
+            + 'and can bring this world here.';
+      });
+    }
+    refreshTier();
+
     // ── the panel carries its own witnesses ──────────────────────────
     // ATMOS_1 — and it follows the MOOD. A mood-selected definition row
     // shows the LIVE mood's definition, so a transition (this select, a
@@ -1126,7 +1178,9 @@
           : '\u00b7';
       });
       refreshRule();
+      refreshTier();
       status.textContent = BUILD_TAG + rows.length + ' dials  ·  mood ' + C.mood() +
+                           (C.lightTier ? '  ·  tier ' + (C.lightTier() + 1) : '') +
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
                            '  ·  reconciled ' + C.flushes() +
                            '  ·  rejected ' + C.rejects() +
@@ -1209,7 +1263,8 @@
         doors:         M.cwrap('organ_doors', 'string', []),
         door:          M.cwrap('organ_door', null, ['number']),
         goMood:        M.cwrap('organ_go_mood', null, ['number']),
-        moodNames:     M.cwrap('organ_mood_names', 'string', [])
+        moodNames:     M.cwrap('organ_mood_names', 'string', []),
+        lightTier:     M.cwrap('organ_light_tier', 'number', [])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());

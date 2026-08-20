@@ -122,7 +122,8 @@ struct MoodState {
     // values. Fails loud.
     float sun_intensity = 0.0f;
     float sun_ambient   = 0.0f;
-    uint32_t light_tier = 0;                // ATMOS_1 — which LightTier the draw landed in (the witness)
+    uint32_t light_tier = 0;                // ATMOS_1 — which LightTier the draw landed in;
+                                            // the panel's tier readout reads it (organ_light_tier, ATMOS_1b)
     // ATMOS_1 — the fog's REST, drawn per world from the mood's atmosphere.
     // The U4 seam (phase_motion_drivers) composes the canvas's deviation
     // over it every frame. 0 is the same fails-loud choice as the sun's:

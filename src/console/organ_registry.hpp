@@ -382,14 +382,19 @@ inline constexpr size_t kOrganParamCount =
 inline the_board::GPUState* g_home = nullptr;
 inline uint32_t g_rejected = 0;   // refused organ_set calls, shown in the panel
 
-// O1b — the live mood id. The registry does not own it and does not want
-// to: it borrows the spine's own field, so the panel can never be looking
-// at a mood the program has left.
-inline const uint32_t* g_mood = nullptr;
+// O1b — the live mood. The registry does not own it and does not want
+// to: it borrows the spine's own mood organ (contracts/spine_state.hpp,
+// a contract this header already includes), so the panel can never be
+// looking at a mood the program has left. ATMOS_1b widened the borrowing
+// from one field to the organ: the same pointer now answers WHICH MOOD
+// and WHICH LIGHT TIER the world was drawn into — two windows, one home,
+// no copy.
+inline const the_board::MoodState* g_mood = nullptr;
 
 inline void bind_home(the_board::GPUState* s) { g_home = s; }
-inline void bind_mood(const uint32_t* active) { g_mood = active; }
-inline uint32_t current_mood() { return g_mood ? *g_mood : 0u; }
+inline void bind_mood(const the_board::MoodState* ms) { g_mood = ms; }
+inline uint32_t current_mood()       { return g_mood ? g_mood->active     : 0u; }
+inline uint32_t current_light_tier() { return g_mood ? g_mood->light_tier : 0u; }
 
 inline void* block_base(uint8_t block) {
     if (!g_home) return nullptr;
@@ -876,7 +881,7 @@ inline bool take_orb_definition_dirty() {
 // copy the CARTRIDGE writes so the panel can read it over the ABI.
 //
 // WHY A COPY AND NOT A POINTER, when `g_mood` is a pointer to the spine's
-// own field (C2): the mood lives in a CONTRACT the registry already
+// own mood organ (C2): the mood lives in a CONTRACT the registry already
 // includes, and the rule lives in `OrbsState` — a BODY, which the organ
 // may not include. Same law, one home; different plumbing, because the
 // home is one tier further away.
@@ -1072,6 +1077,16 @@ EMSCRIPTEN_KEEPALIVE inline int organ_contest_frames(int index) {
 // definition and to key an export, and it must not keep its own copy.
 EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
     return (int)t7::organ::current_mood();
+}
+
+// ATMOS_1b — the light tier the live world was drawn into: the
+// Atmosphere.light[] INDEX (0-based; the shell shows it as the label's
+// number). Read through the same borrowed pointer as organ_mood(), so
+// the panel's tier lines can never name a tier the draw has left. The
+// seed drew it and RESPEAK keeps the seed; only a weight dial can move
+// it without a transition.
+EMSCRIPTEN_KEEPALIVE inline int organ_light_tier(void) {
+    return (int)t7::organ::current_light_tier();
 }
 
 // ORGAN_5 P2a — the sky's live motion rule, packed with the ACTIVE
