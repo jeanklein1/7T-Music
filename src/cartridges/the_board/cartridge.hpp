@@ -747,9 +747,9 @@ namespace t7 {
                 t7::organ::bind_home(&gpuState_);
                 // O1b — and the live mood, borrowed rather than copied:
                 // a definition is addressed BY mood, and the panel must
-                // never be editing a mood the program has left. ATMOS_1b
-                // — the whole organ, not one field: the panel's tier
-                // readout reads light_tier through the same pointer.
+                // never be editing a mood the program has left. ATMOS_1b/2
+                // — the whole organ, not one field: the panel's regime
+                // readout reads mood_state_.regime through the same pointer.
                 t7::organ::bind_mood(&mood_state_);
 
                 if constexpr (!ROSTER.all_enabled()) {

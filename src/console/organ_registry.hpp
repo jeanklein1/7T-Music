@@ -387,14 +387,14 @@ inline uint32_t g_rejected = 0;   // refused organ_set calls, shown in the panel
 // a contract this header already includes), so the panel can never be
 // looking at a mood the program has left. ATMOS_1b widened the borrowing
 // from one field to the organ: the same pointer now answers WHICH MOOD
-// and WHICH LIGHT TIER the world was drawn into — two windows, one home,
+// and WHICH REGIME the world was drawn into — two windows, one home,
 // no copy.
 inline const the_board::MoodState* g_mood = nullptr;
 
 inline void bind_home(the_board::GPUState* s) { g_home = s; }
 inline void bind_mood(const the_board::MoodState* ms) { g_mood = ms; }
 inline uint32_t current_mood()       { return g_mood ? g_mood->active     : 0u; }
-inline uint32_t current_light_tier() { return g_mood ? g_mood->regime     : 0u; }
+inline uint32_t current_regime()     { return g_mood ? g_mood->regime     : 0u; }
 
 inline void* block_base(uint8_t block) {
     if (!g_home) return nullptr;
@@ -1079,14 +1079,14 @@ EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
     return (int)t7::organ::current_mood();
 }
 
-// ATMOS_1b — the light tier the live world was drawn into: the
-// Atmosphere.light[] INDEX (0-based; the shell shows it as the label's
+// ATMOS_1b/2 — the regime the live world was drawn into: the
+// Atmosphere.regime[] INDEX (0-based; the shell shows it as the label's
 // number). Read through the same borrowed pointer as organ_mood(), so
-// the panel's tier lines can never name a tier the draw has left. The
-// seed drew it and RESPEAK keeps the seed; only a weight dial can move
-// it without a transition.
-EMSCRIPTEN_KEEPALIVE inline int organ_light_tier(void) {
-    return (int)t7::organ::current_light_tier();
+// the panel's regime lines can never name a regime the draw has left.
+// The seed drew it and RESPEAK keeps the seed; only a weight dial can
+// move it without a transition.
+EMSCRIPTEN_KEEPALIVE inline int organ_regime(void) {
+    return (int)t7::organ::current_regime();
 }
 
 // ORGAN_5 P2a — the sky's live motion rule, packed with the ACTIVE
