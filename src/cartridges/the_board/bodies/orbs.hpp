@@ -284,7 +284,16 @@ struct OrbsState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Lifecycle
-void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg, wgpu::Queue& queue);
+// ORGAN_5 P1b — CONFIGURE LEARNS RESTRAINT. `reseed` says whether this
+// re-speak must also re-run the init kernel. A mood change does (a new
+// world's sky is a new sky); a panel edit that touched only per-frame
+// GPU reads does not, and re-seeding for one would suppress the very
+// motion texture the drag is meant to show.
+// NO DEFAULT, deliberately: there are exactly two callers and each has a
+// different answer, so a third that forgets should fail the BUILD rather
+// than inherit whichever answer happened to be written here.
+void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
+    wgpu::Queue& queue, bool reseed);
 void teardown_orbs(OrbsState& os, OrbsDeps* c);
 // Player commands
 void cycle_orb_palette(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
@@ -505,7 +514,8 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
 
 // ═══ LIFECYCLE ═══════════════════════════════════════════════════
 
-inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg, wgpu::Queue& queue) {
+inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
+    wgpu::Queue& queue, bool reseed) {
     os.active = cfg.enabled != 0u;   // ORGAN_3b P3 — enabled is a u32 now (D2)
     os.count = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
     if (!os.active || os.count == 0) return;
@@ -586,7 +596,20 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
         cfg.rule_drag_frozen, cfg.rule_drag_flocking);
 
     c->gpuState_.upload_orb_config(queue, gpuCfg);
-    os.init_pending = true;
+    // ORGAN_5 P1b — NEVER CLEAR A PENDING INIT HERE. A light pass leaves
+    // the flag exactly as it found it, so a re-seed already armed by a
+    // mood change (or by an earlier heavy edit in the same frame) still
+    // fires; only a heavy pass ever raises it.
+    //
+    // THE UNIFORM'S dt/t ARE ZEROED BY THIS WRITE and that is invisible
+    // by construction, not by luck: `gpuCfg` is value-initialised, so a
+    // whole-struct upload carries dt = t_seconds = 0 — and organ_flush
+    // runs at the HEAD of the frame (pawn.cpp) while phase_orb_sky runs
+    // in the RENDER spine, so the same frame's dispatch_orb_dynamics
+    // re-authors both before any kernel reads them. With the dome
+    // inactive the dispatch early-returns and nothing reads the uniform
+    // at all. Every mood change has always taken this same path.
+    if (reseed) os.init_pending = true;
 
     log_configure_(os, cfg, eff_drag, eff_orbital_speed, os.current_palette_id);
 }

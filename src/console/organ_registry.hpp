@@ -602,6 +602,49 @@ inline uint32_t g_def_dirty_mood = 0;
 inline bool     g_tier_def_dirty = false;   // ORGAN_2b — the world bank changed
 inline bool     g_orb_def_dirty  = false;   // ORGAN_3b — the orb mood bank changed
 
+// ─── THE TOUCHED MASK (ORGAN_5 P1a) ───────────────────────────────
+// WHICH FIELDS the orb bank's writes touched since the boundary last
+// looked (bit = offsetof/4 into OrbMoodConfig). The console-mask idiom
+// one level up: the FLAG says THAT the bank changed, the MASK says WHAT,
+// and the boundary decides how much re-speak the edit actually requires.
+//
+// Door RESPEAK raises the flag with no bits, which the boundary reads as
+// "everything": a full re-speak is exactly what that door promises, and a
+// future caller that raises the flag without saying what it touched gets
+// the same conservative answer rather than a silent light pass.
+inline uint32_t g_orb_def_touched = 0;
+inline uint32_t take_orb_def_touched() {
+    const uint32_t m = g_orb_def_touched;
+    g_orb_def_touched = 0;
+    return m;
+}
+
+// THE CLASSIFICATION LIVES HERE, NOT AT THE BOUNDARY (D1). Four of the
+// nineteen orb-mood facts are baked into orb_state by the init kernel —
+// `enabled` and `count` decide whether and how many orbs exist, `drag`
+// is written per orb at seed time, and `palette_id` colours them at
+// init/recolor. Touching any of those means the sky must be re-seeded.
+// The other fifteen are per-frame GPU reads: the uniform upload alone
+// carries them, and velocities and positions persist under the finger.
+//
+// It sits beside the mask rather than beside the boundary block because
+// the bit convention (offset/4) is DEFINED here and nowhere else: the
+// constant that interprets bits belongs with the constant that produces
+// them, which is the same argument the console mask's assert already
+// makes two blocks down.
+inline constexpr uint32_t ORB_RESEED_BITS =
+      (1u << (offsetof(the_board::OrbMoodConfig, enabled)    / 4u))
+    | (1u << (offsetof(the_board::OrbMoodConfig, count)      / 4u))
+    | (1u << (offsetof(the_board::OrbMoodConfig, palette_id) / 4u))
+    | (1u << (offsetof(the_board::OrbMoodConfig, drag)       / 4u));
+static_assert(ORB_RESEED_BITS == 0x00001023u,
+    "the reseed set is enabled 0 · count 1 · drag 5 · palette_id 12 "
+    "(ORGAN_5 C1). A field reordered in OrbMoodConfig fails the BUILD "
+    "here rather than teaching the boundary to re-seed on the wrong dial");
+static_assert(sizeof(the_board::OrbMoodConfig) / 4u <= 32u,
+    "the touched mask is a uint32: every field's offset/4 must be a bit "
+    "it can hold. 27 words today, five to spare");
+
 // ─── THE CONSOLE MASK (ORGAN_4 P1a) ───────────────────────────────
 // A CPU BANK WHOSE READER IS AN EVENT GETS A PER-FIELD MASK. The three
 // Dome dials write ORB_CONSOLE_LIVE, whose only reader is
@@ -687,6 +730,15 @@ inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in
         // Its own author, so its own flag — the converse of BEHAVIOR's
         // case, and the same rule: the flag names the occasion.
         g_orb_def_dirty = true;
+        // ORGAN_5 P1a — and WHICH field, so the boundary can re-speak no
+        // more than the edit requires. `def_offset` and not `offset`: the
+        // write two blocks above lands at `p + e.def_offset`, so the bit
+        // must name the same word. For today's ORB_MOOD rows the two are
+        // equal (every one is DEFINITION-ONLY, and a def-only entry's
+        // `offset` IS its def_offset); a future ORGAN_PARAM_DEF row with
+        // an instance elsewhere would make them differ, and this is the
+        // one that stays right.
+        g_orb_def_touched |= (1u << (e.def_offset / 4u));
     } else {
         g_def_dirty = true; g_def_dirty_mood = mood;
     }

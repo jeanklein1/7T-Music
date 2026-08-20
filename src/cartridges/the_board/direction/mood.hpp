@@ -698,7 +698,12 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
         apply_mood_indoor_shell(c, m, queue, gallery_state, gallery_deps);  // shell + camera ceiling clamp
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
-        configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_LIVE[mood], queue);   // ORGAN_3b P3 — the world's definition, not the design table
+        // ORGAN_3b P3 — the world's definition, not the design table.
+        // ORGAN_5 P1b — reseed TRUE: a mood change is a new world's sky,
+        // so the init kernel re-runs and every orb is re-drawn. This is
+        // the heavy path, and it is the one path that should be.
+        configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_LIVE[mood], queue,
+            /*reseed=*/true);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood

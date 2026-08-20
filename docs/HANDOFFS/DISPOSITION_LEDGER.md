@@ -2576,3 +2576,130 @@ energy source of each rule that HAS one:
 So "all rules" is true in the only sense that means anything: every rule
 that produces motion has that motion scaled. The dial's banner says so in
 those words rather than in the looser ones.
+
+## P1 — the upload-only path
+
+**An author re-speaks no more than the edit requires.** Before this, every
+notch of every one of the nineteen orb-mood dials ran `configure_orbs`,
+which ends `os.init_pending = true` — so the init kernel re-seeded the
+whole sky. Dragging a flock radius destroyed the flock it was steering,
+which is why the dynamics rows did not READ as working even though every
+one of them landed.
+
+### The idiom, one level up
+
+ORGAN_4's console mask gave a per-field mask to a bank whose reader is an
+event. ORGAN_5 gives one to a bank that already HAD a flag:
+
+> **The FLAG says THAT the bank changed; the MASK says WHAT; the boundary
+> decides HOW MUCH re-speak the edit requires.**
+
+```cpp
+inline uint32_t g_orb_def_touched = 0;      // bit = offsetof/4
+inline uint32_t take_orb_def_touched();
+```
+
+One raise, at the one site that already raises the flag — and it uses
+`e.def_offset`, not `e.offset`. The write two blocks above lands at
+`p + e.def_offset`, so the bit must name the same word. For today's rows
+the two are equal (every ORB_MOOD row is definition-only, and a def-only
+entry's `offset` IS its `def_offset`); a future `ORGAN_PARAM_DEF` row with
+an instance elsewhere would make them differ, and this is the one that
+stays right.
+
+### The classification lives in the registry, not at the boundary (D1)
+
+```cpp
+inline constexpr uint32_t ORB_RESEED_BITS =
+      (1u << (offsetof(the_board::OrbMoodConfig, enabled)    / 4u))
+    | (1u << (offsetof(the_board::OrbMoodConfig, count)      / 4u))
+    | (1u << (offsetof(the_board::OrbMoodConfig, palette_id) / 4u))
+    | (1u << (offsetof(the_board::OrbMoodConfig, drag)       / 4u));
+static_assert(ORB_RESEED_BITS == 0x00001023u, …);
+```
+
+D1 permits either home. The registry wins because **the bit convention
+(offset ÷ 4) is defined there and nowhere else**: the constant that
+interprets bits belongs with the constant that produces them — the same
+argument the console mask's own assert makes two blocks below. A field
+reordered in `OrbMoodConfig` now fails the BUILD at the assert rather than
+teaching the boundary to re-seed on the wrong dial.
+
+Why these four and not others: `enabled` and `count` decide whether and
+how many orbs exist; `drag` is written per orb at seed time; `palette_id`
+colours them at init and recolor. All four are baked into `orb_state`. The
+other fifteen are per-frame GPU reads — the uniform upload alone carries
+them, and velocities and positions persist under the finger.
+
+### One hazard the prescribed shape left open, and closed
+
+`base_size` is an **OrbConsole** field, so it can raise the orb flag (it is
+init-baked) while contributing **no bit** to a mask that indexes
+`OrbMoodConfig`. Left alone, a same-frame flock drag would have supplied a
+light bit, `tm != 0` would have been true, `(tm & RESEED) == 0` would have
+been true, and the size edit would have been **swallowed**.
+
+The console block now carries its own heavy reason down in one local:
+
+```cpp
+bool console_reseed = false;
+…
+if (cm & 2u) { g_orb_def_dirty = true; console_reseed = true; }
+…
+const bool reseed = console_reseed || (tm == 0u)
+                 || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
+```
+
+### `configure_orbs` gains `bool reseed`, with NO default
+
+Two callers, two different answers, so a third that forgets should fail the
+build rather than inherit whichever answer happened to be written into a
+default. `direction/mood.hpp` passes `/*reseed=*/true` — a mood change is a
+new world's sky. The tail never CLEARS a pending init: a light pass leaves
+the flag exactly as it found it, so a re-seed already armed by a mood
+change still fires.
+
+**The dt/t question, answered rather than deferred.** C5 found there is no
+stomp to name. `gpuCfg` is value-initialised, so a whole-struct upload does
+carry `dt = t_seconds = 0` — but `organ_flush` runs at the HEAD of the
+frame (`pawn.cpp:190`, before input, before update, before render) and
+`phase_orb_sky` runs in the RENDER spine, so the same frame's
+`dispatch_orb_dynamics` re-authors both before any kernel reads them. With
+the dome inactive the dispatch early-returns and nothing reads the uniform
+at all. The comment in the tail says that, which is the honest version of
+what the handoff asked to have said.
+
+### The harness — with a wgpu floor that RECORDS
+
+`configure_orbs` really uploads, so the harness stubs
+`wgpuQueueWriteBuffer` to record the write instead of performing one.
+*"The light pass still uploaded the uniform"* is therefore an assertion,
+not a hope.
+
+```
+  ── P1: the touched mask and the reseed classification ──
+  [PASS] ORB_RESEED_BITS is enabled 0 | count 1 | drag 5 | palette_id 12  0x00001023
+  [PASS] every OrbMoodConfig offset/4 fits a uint32 mask            27 words
+  [PASS] a flock def write raises the flag AND exactly its own bit  mask=0x00020000 (bit 17)
+  [PASS]   and the boundary computes reseed = FALSE (the light path)
+  [PASS]   the take returns the mask and clears it
+  [PASS] a write to `count` computes reseed = TRUE                  mask=0x00000002
+  [PASS] each of the four reseed facts computes TRUE alone          4/4
+  [PASS] and the other fifteen orb rows all compute FALSE           15/15
+  [PASS] door RESPEAK — the flag with NO bits — computes TRUE
+  [PASS] a base-size raise forces TRUE even beside a light bit      the hazard, closed
+  ── P1b: configure_orbs, called for real ──
+  [PASS] a LIGHT pass still uploads the whole uniform               1 write, 480 bytes
+  [PASS]   and leaves init_pending down
+  [PASS]   a light pass NEVER CLEARS an init already pending
+  [PASS] a HEAVY pass raises init_pending
+  [PASS] a disabled mood uploads nothing and arms nothing (the early return)
+  [PASS] count = 0 early-returns before the upload — the dome goes dark
+GREEN — 0 failure(s)
+```
+
+The last line is C4's explanation of the phone defect, reproduced
+natively: `count = 0` reaches `if (!os.active || os.count == 0) return;`
+**before** the upload, so the dome goes dark and stays dark until the next
+non-zero write. On a touch keyboard the first keystroke of every edit
+writes zero (P5c).

@@ -1461,12 +1461,23 @@ namespace t7 {
                 // IMMEDIATELY BEFORE the take_orb_definition_dirty()
                 // block so a base-size raise is consumed the same frame
                 // rather than the next one.
+                //
+                // ORGAN_5 P1 — AND THE CONSOLE CARRIES ITS OWN HEAVY
+                // REASON DOWN. base_size is init-baked, so its raise must
+                // re-seed; but it is an OrbConsole field, and its offset
+                // means nothing in OrbMoodConfig's bit space, so it can
+                // raise the FLAG and no touched bit. Without this local
+                // the light test below would read a same-frame flock drag
+                // as "nothing heavy touched" and swallow the size edit.
+                // One bool, declared where the reason is found.
+                bool console_reseed = false;
                 if (const uint32_t cm = t7::organ::take_orb_console_dirty()) {
                     if (cm & 1u) gpuState_.upload_orb_dome_radius(queue,
                                      ORB_CONSOLE_LIVE.dome_radius);
                     if (cm & 4u) gpuState_.upload_orb_noise(queue,
                                      ORB_CONSOLE_LIVE.noise_floor);
-                    if (cm & 2u) t7::organ::g_orb_def_dirty = true;
+                    if (cm & 2u) { t7::organ::g_orb_def_dirty = true;
+                                   console_reseed = true; }
                 }
                 // ORGAN_3b P3 — the orb mood bank changed: its applier
                 // re-speaks, for the LIVE mood only. Same shape as the
@@ -1477,8 +1488,28 @@ namespace t7 {
                 // the table it reads moved, from ORB_MOOD_TABLE to the
                 // bank. Once per frame however many edits arrived.
                 if (t7::organ::take_orb_definition_dirty()) {
+                    // ORGAN_5 P1 — AN AUTHOR RE-SPEAKS NO MORE THAN THE
+                    // EDIT REQUIRES. Four of the nineteen orb-mood facts
+                    // are baked into orb_state by the init kernel
+                    // (enabled, count, palette, drag): touching any of
+                    // them re-seeds. The other fifteen are per-frame GPU
+                    // reads — the uniform upload alone carries them, and
+                    // velocities and positions persist under the finger,
+                    // which is the whole point: a flock radius should
+                    // STEER the flock, not replace it.
+                    //
+                    // A raise with NO touched bits is the RESPEAK door,
+                    // or a future caller that did not say. Either way the
+                    // answer is everything: the door promises a full
+                    // re-speak, and a caller that says nothing must not
+                    // be given the light path by default.
+                    const uint32_t tm = t7::organ::take_orb_def_touched();
+                    const bool reseed = console_reseed
+                        || (tm == 0u)
+                        || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
                     configure_orbs(orbs_state_, &orbs_deps_,
-                        ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue);
+                        ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue,
+                        reseed);
                 }
                 gpuState_.organ_flush(queue);
             }
