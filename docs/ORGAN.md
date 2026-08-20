@@ -291,8 +291,19 @@ A sixth definition family answers in `derived_scope()` and the shell
 learns nothing. `push()` also stated one rule twice — it chose its target
 from the mode and then marked the contest from the mode AGAIN, and the two
 disagreed for a definition-only row under preview, claiming a contest
-reading for a write that had just been refused. The mark keys on the
-target itself now, so they cannot disagree again.
+reading for a write that had just been refused.
+
+**And the first fix was wrong, which the CODA says here rather than
+elsewhere.** P2 replaced the mark with `target < 0` and called that the
+instance write; it is not, because a row with no definition in definition
+mode carries a mood target, `write_definition` refuses it on
+`ORGAN_DEF_NONE`, and the write falls through to the instance — 172
+writable rows stopped being asked a question the contest instrument was
+still answering. The predicate is now `!(target >= 0 && p.scope)`, which
+is `organ_set`'s own early return transcribed rather than a second rule
+that happens to agree with it: `p.scope > 0` holds exactly when
+`write_definition` succeeds, so the two cannot disagree because one IS the
+other.
 
 ### The two mood-selected families keep one discipline
 `MOOD` and `ORB_MOOD` are both mood-selected: the write's target picks the
