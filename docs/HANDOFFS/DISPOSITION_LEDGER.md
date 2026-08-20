@@ -2116,3 +2116,62 @@ the same question of the shader bodies, and it is the one thing that could
 have caught `base_hue`/`hue_variance` mechanically instead of by Jean's
 eye. Seventeen witnesses are skipped because their question is inverted: a
 meter asks who AUTHORS, and that is the contest instrument's job.
+
+## P5 — the fifth ledger (`audit/ORGAN.md`)
+
+`tools/organ_ledger.py` emits it; the header names its generator and its
+regen command, the audit family's convention. BINDING, COMMAND, MANIFEST
+and MIRROR each keep a book about one of the program's rooms; the organ
+had two instruments and no book, and now has one.
+
+**Two reasons, and the second is the larger.** SEARCHABILITY — *"what is
+the range on the cohesion radius"* should be answerable by grepping a file
+in the tree, not by building the program and opening a panel. And **the
+coupling menu**: a coupling is a parameter set into trajectory over time,
+so every row with an authored range IS a trajectory domain. The `range`
+column is the domain a trajectory would play over and the `cadence` column
+says whether playing it would be heard now, at the boundary, or at the
+author's next event. That makes this table the music campaign's target
+map rather than panel decoration.
+
+### The derivation is restated once, and then CHECKED against the C++
+
+`derived_cadence()` lives in `organ_registry.hpp`; the generator restates
+it in Python, which is one more copy of a rule than the compiled-registry
+law likes. So the harness prints the same tallies from the COMPILED table
+and the two are compared rather than trusted:
+
+```
+      cadence   live 120 · gen 39 · boundary 129 · driven 17
+      def kind  NONE 179 · MOOD 5 · TIER 32 · BEHAVIOR 70 · ORB_MOOD 19
+      witnesses 17 · doors 3 · blocks 12
+  [PASS] every row lands in exactly one cadence
+  [PASS] witness count equals the DRIVEN count (a meter's cadence)
+```
+
+`audit/ORGAN.md` reports the same numbers, field for field. The door table
+is PARSED out of `kOrganDoors` rather than restated, for the same reason.
+
+### The tallies at close
+
+| | |
+| --- | --- |
+| entries | **305** |
+| by section | Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 37 · Atmosphere 23 · Interaction 21 · Pawn 18 · Debug 4 |
+| by cadence | live 120 · gen 39 · boundary 129 · driven 17 |
+| by macro form | PARAM 123 · PARAM_DEF 105 · PARAM_DEFONLY 21 · PARAM_GEN 39 · PARAM_RO 17 |
+| definition kinds | NONE 179 · MOOD 5 · TIER 32 · BEHAVIOR 70 · ORB_MOOD 19 |
+| blocks and sentinels | 12 blocks + two sentinels (255 MoodProfile, 254 OrbMoodConfig) |
+| namespaces | the_board 290 · canvas 15 |
+| doors | 3 |
+
+**The GEN set is 2 → 39.** ORGAN_3b sized it at two and said the machinery
+"carries the rest the moment they land, at one macro token each." It did:
+thirty-seven rows landed at P3d and not one line of cadence machinery
+changed.
+
+The book closes with the verbatim tails of both check tools under
+`## THE GAP` and `## THE READERS`, so one file answers what the panel
+names, what it does not, and whether the readers agree. Written LF, no
+BOM, single trailing newline, proved by byte-level read-back — the
+`binding_ledger` G2-eol precedent.
