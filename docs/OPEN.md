@@ -21,10 +21,19 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
 - L26 docket — fields marked dead, awaiting the sitting that next opens their
   struct: `RibbonState.is_roaming`, `RibbonRingTransform._pad0`,
   `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
-  went with the FileWatcher at SUNSET_1; `pawn.cpp:60` still names the dial).
-  Each dies in the commit that reopens its struct (L26, L3: twin rooms, one
-  commit). Origin: L26, moved here by RECENSION_2. Unblocked by any campaign
-  that relayouts one of the four.
+  went with the FileWatcher at SUNSET_1; `pawn.cpp:60` still names the dial),
+  `OrbMoodConfig.base_hue` / `.hue_variance` (dead BY CONSTRUCTION — every
+  ORB_PALETTES row carries count ≥ 1, so `pack_palette_` never leaves
+  `palette_count` at 0 and the kernel's legacy single-hue arm is
+  unreachable; ORGAN_4 P1b), and `OrbMoodConfig.motion_rule` (dead TREE-WIDE
+  — `configure_orbs` writes the player's `os.current_motion_rule` and never
+  reads the config field; ORGAN_4 C2). The three orb fields stay put rather
+  than dying now because `ORB_MOOD_TABLE` is positionally brace-initialised
+  (D3: the braces outrank the broom), and the twin rooms — table and struct
+  — must move in one commit. Each dies in the commit that reopens its struct
+  (L26, L3: twin rooms, one commit). Origin: L26, moved here by RECENSION_2;
+  grown by ORGAN_4 P1b. Unblocked by any campaign that relayouts one of the
+  three structs named.
 - Dead boot write, awaiting the boot block's next sitting: state.hpp's
   `config_.aura_enabled = 1.0f` boot seed is overwritten within one frame by
   tick_pawn_couplings (the driven window's only runtime author since

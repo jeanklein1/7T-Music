@@ -1678,3 +1678,146 @@ The generic pipeline rolls a floater's tier from
 Enrolling them would have built two dead dials on purpose, which is the
 exact defect this campaign exists to end, so their share of the Wave-3 row
 is **retired, not landed** (P3d).
+
+## P1 — the sky repairs
+
+### P1a — the console mask: a CPU bank whose reader is an EVENT
+
+`ORB_CONSOLE_LIVE`'s only reader is `configure_orbs`, so the three Dome
+dials were dead until a mood change; ORGAN_3b P3 cured the *silence* with a
+block-wide `g_orb_def_dirty` raise, which cured it by firing the whole
+applier — and `configure_orbs` ends `os.init_pending = true`, so every
+notch of the dome slider **re-seeded the sky**. Right about WHEN, wrong
+about WHAT.
+
+**The idiom, stated once so it can be reused:** a CPU bank whose reader is
+an event gets a PER-FIELD MASK consumed at the boundary, and the boundary
+routes each field to the cadence its own reader has.
+
+```cpp
+inline uint32_t g_orb_console_dirty = 0;   // bit = offsetof/4
+```
+
+Three routes, chosen by reading the kernel rather than by taste:
+
+| field | GPU reader | route |
+| --- | --- | --- |
+| `dome_radius` | `world.wgsl:13218` (init) and `:13576` (the dynamics shell re-projection, every frame) | targeted 4-byte partial — `upload_orb_dome_radius`, minted this phase |
+| `noise_floor` | `world.wgsl:13371/13390`, every frame | targeted 4-byte partial — `upload_orb_noise`, **revived** from its gen-1 orphanhood; its comment now names the panel as its living caller |
+| `base_size` | `world.wgsl:13323` (init) and `:13263` (recolor) — baked into `orb_state[i].size` | the definition re-speak: bit 1 raises `g_orb_def_dirty` |
+
+**One statement changed in `organ_set`, not added.** D1 asked for the hook
+at the single site after the clamp and the write succeed, keyed on the
+block. That site already existed — the `block_has_boundary` raise — so the
+raise became the mask and no new site was born:
+
+```cpp
+if (block == ORGAN_BLOCK_ORBS)
+    g_orb_console_dirty |= (1u << (e->offset / 4u));
+```
+
+`block_has_boundary` STAYS and keeps its meaning: all three fields still
+land at the frame boundary, so all three still read BOUNDARY cadence. What
+changed is what the boundary *does*, and that is plumbing, not cadence —
+two questions, two mechanisms. A `static_assert` beside the flag pins
+dome 0 / base size 4 / noise 8, so a field reordered in `OrbConsole` fails
+the build at the flag rather than routing a radius into the noise floor.
+
+The boundary block sits IMMEDIATELY BEFORE `take_orb_definition_dirty()`,
+so a base-size raise is consumed in the same frame it is made.
+
+### P1b — five rows retired, each on its reader's word
+
+| row | field | fate |
+| --- | --- | --- |
+| `base hue` | `OrbMoodConfig.base_hue` | **row dies, field docketed (L26).** Dead BY CONSTRUCTION: every `ORB_PALETTES` row carries `count ≥ 1` (4, 4, 3, 1), so `pack_palette_` never leaves `palette_count` at 0, so `world.wgsl`'s legacy single-hue arm (`if palette_count > 0u` … else) is unreachable. |
+| `hue variance` | `OrbMoodConfig.hue_variance` | same branch, same fate. |
+| `hue converge target` | `OrbMoodConfig.hue_converge_target` | **row dies, field STAYS.** It is mood-scoped and honest; `configure_orbs` copies it, but `color_converge` is hard-zeroed, so nothing moves when it is turned. **Revival intent ledgered:** the row returns in the commit that gives `color_converge` a gen-2 coupling. |
+| `rule (0B 1O 2F 3K)` | `OrbMoodConfig.motion_rule` | **row dies, field docketed (L26).** C2 proved it dead tree-wide. The applier's hardcode is a RULING, restated in the .inc: the rule is player-owned, seeded once to Brownian. Its reachable form is the door. |
+| `flock gesture seed` | `OrbMoodConfig.flock_gesture_default` | **row dies, field STAYS.** A first-run seed is its honest job; a boot-only fact wearing a boundary chip misreports, because `apply_mood_first_run_defaults_` refuses it on every run after the first. Its reachable form is the other door. |
+
+The three docketed fields do not die now: `ORB_MOOD_TABLE` is positionally
+brace-initialised, so D3 holds the broom back — the twin rooms move in one
+commit, and `docs/OPEN.md`'s L26 line carries them until then.
+
+Orb mood 13 → 8, Orb flock 11 (unchanged), ORB_MOOD 24 → 19, entries
+263 → **258**.
+
+### P1c — two doors
+
+`ORGAN_DOOR_ORB_RULE` and `ORGAN_DOOR_ORB_GESTURE` call
+`cycle_orb_motion_rule` and `cycle_orb_gesture` — the same functions KP_8
+and KP_7 press. No author added, no behavior invented, no write path
+opened; each keeps its own guard and its own partial upload. The shell
+renders one button per manifest row name-blind (`organ_panel.js:457-475`),
+so **zero JS edits**: the two buttons appear because the roster grew.
+
+This is what a player-owned fact's enrollment looks like when the panel
+tells the truth: not a dial the applier ignores, but the program's own
+command with a button on it.
+
+### P1d — thirteen floors, and one correction to the handoff
+
+The floors are one step each, and the correction is arithmetic. The handoff
+glossed the four `rule_drag_*` floors as **0.01**, against a step of 0.02;
+D4 says *min := exactly one step*. Half a step puts every gridline off the
+integers — with min 0.01 and step 0.02 the dial reaches 0.99 and 1.01 and
+**never 1.0**, which is exactly the pass-through identity the operator most
+needs. D4 governs; the four floors are **0.02**. The harness proves the
+consequence directly: for all thirteen rows the authored mood value still
+sits on the grid `min + k·step`.
+
+### P1e — the palette temperament, stamped
+
+Stamped above `pack_palette_` verbatim, plus the sentence P1b earned: the
+same function is why `base_hue`/`hue_variance` are not dials. Palette is
+config-owned (the dial and the mood are the durable authors); rule and
+gesture are player-owned (seed once). The asymmetry is deliberate — a dial
+exists for `palette_id`, and a config the applier ignores is a dead dial.
+
+### P1f — the harness, run against the compiled registry
+
+Not a browser shim this time: the assertions are about the COMPILED table,
+so they were compiled and **executed** natively against the real headers
+under the console_gate's own pinned surface (`clang++ -std=gnu++20
+-D__EMSCRIPTEN__`, the vendored emdawnwebgpu includes, the gate's stub
+set). The harness is a scratchpad instrument; its output is the artifact.
+
+```
+ORGAN_4 harness — the compiled registry, executed
+  [PASS] entry tally is 258 (263 - 5; the handoff predicted 257)
+  [PASS] ORGAN_DOOR_COUNT == 3 / kOrganDoors carries three rows / both labels
+  [PASS] five retired ids ABSENT from the manifest (each named)
+  [PASS] every def-only entry sits on its own family's sentinel
+  [PASS] no (block, offset, type) triple repeats across all 258 entries
+  [PASS] find_entry resolves every entry to itself
+  [PASS] every section is contiguous in registry order      8 sections
+  [PASS] a Dome write raises exactly its own console bit    0 -> 0x1
+  [PASS] a Dome write raises exactly its own console bit    4 -> 0x2
+  [PASS] a Dome write raises exactly its own console bit    8 -> 0x4
+  [PASS]   the take clears the mask, each time
+  [PASS]   and NO blanket re-speak is raised (the sky is not re-seeded)
+  [PASS] the three writes landed in ORB_CONSOLE_LIVE   dome=640 size=4.5 noise=0.42
+  [PASS] three writes coalesce into one mask of three bits  0x7
+  [PASS] all three Dome dials still read BOUNDARY cadence
+  [PASS] each floor is exactly one step, authored value still reachable  13/13
+  [PASS] no sentinel-backed row can be dialled to 0 any more
+GREEN — 0 failure(s)
+```
+
+One harness bug found and fixed in the harness, not the tree: the first
+grid check used a 1e-6 tolerance and failed six rows whose residual is
+2e-6 — float representation noise (`0.01f` is `0.00999999977648…`). A
+window that tight measures IEEE-754, not the grid.
+
+### The rest of the harness family, at P1 close
+
+| gate | verdict |
+| --- | --- |
+| `tools/gates/console_gate/run.py` | **PASS** — cartridge.hpp and console.hpp type-check with zero diagnostics; this is the gate that reads every edit above |
+| `tools/gates/glaw2/run.py` | **GREEN** — 294 fn, 271 const, 81 struct, 86 binding, 65 entry points |
+| `tools/gates/sha256_gate/run.py` | **PASS** |
+| `tools/binding_gen.py --check` | PASS on every relation; S-6 (commit integrity) is red only while HEAD is ahead of upstream, by construction |
+| `tools/organ_gap.py --gate` | **PASS** — 0 surviving runtime readers across 11 graduated pairs |
+| `tools/gates/score/run.py` | **RED, 4 violations — PRE-EXISTING.** Verified by `git stash`: identical at 85b1cd6. `phase_motion_corral` missing from the spine; ribbon's F8 door and orbs' boot config ungated in the manifest; `phase_live_card_write` ungated but not FOUNDATIONAL. Not ORGAN_4's, not repaired here — the spine table is a different jurisdiction. Flagged for the next sitting that opens `UPDATE_SPINE`. |
+| `tools/wgsl_gate.py` | FAIL, environmental — `naga` is not on PATH in this container. The gate reports unrunnable as failed by design (P1). No WGSL was touched this campaign. |

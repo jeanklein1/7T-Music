@@ -3497,9 +3497,23 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, force_radial), &radial, sizeof(float));
             }
+            // ORGAN_4 P1a — REVIVED. This writer was orphaned when the
+            // gen-1 noise coupling retired and the floor became a
+            // constant; its living caller is now the PANEL, through the
+            // cartridge's console-mask block. The kernel reads noise_amp
+            // every frame, so a targeted 4-byte partial is the whole cost
+            // of a dial that moves under the finger.
             void upload_orb_noise(wgpu::Queue& queue, float noise) {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, noise_amp), &noise, sizeof(float));
+            }
+            // Its sibling, minted for the same caller. The dome radius is
+            // read per frame by the dynamics kernel (the shell re-projection)
+            // and by the init kernel; the partial moves the live sky without
+            // re-seeding it, which the full configure_orbs path would.
+            void upload_orb_dome_radius(wgpu::Queue& queue, float radius) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, dome_radius), &radius, sizeof(float));
             }
             void upload_orb_flock_intensity(wgpu::Queue& queue, float intensity) {
                 queue.WriteBuffer(orbConfigBuffer_,

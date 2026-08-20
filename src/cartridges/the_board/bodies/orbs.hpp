@@ -343,6 +343,21 @@ inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& c
     // ORB_RULE_FROZEN has no gestures — index stays at 0, unread.
 }
 
+// TEMPERAMENT (ORGAN_4 P1e): palette is config-owned — the dial and the
+// mood are the durable authors and pack_palette_ re-speaks them; the
+// KP palette-cycle is a live gesture that lasts until the next
+// configure. Rule and gesture are the OPPOSITE (player-owned, seed
+// once): that asymmetry is deliberate — a dial exists for palette_id,
+// and a config the applier ignores is a dead dial (the motion_rule
+// conviction, ORGAN_4).
+//
+// AND IT IS WHY base_hue / hue_variance ARE NOT DIALS. Every row of
+// ORB_PALETTES carries count >= 1, so this function never leaves
+// palette_count at 0, so the kernel's legacy single-hue arm
+// (world.wgsl `if palette_count > 0u` … else) is unreachable. Two
+// fields the applier faithfully copies into a branch the GPU cannot
+// take: the enrollment stated a belief, the reader refused it.
+//
 // Pack the active palette's per-entry HSV pockets into GPU config.
 inline void pack_palette_(OrbsState& os, GPUOrbConfig& gpuCfg, uint32_t palette_id) {
     uint32_t pal_id = std::min(palette_id, ORB_PAL_COUNT - 1u);

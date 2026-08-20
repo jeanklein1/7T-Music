@@ -415,10 +415,17 @@ inline bool is_defonly(uint8_t block) {
 // configure_orbs and whose re-speak the orb flag carries.
 inline bool block_has_boundary(uint8_t block) {
     // The orb console's only reader is configure_orbs — the same author
-    // the orb MOOD bank has — so a write to block 5 raises that author's
-    // flag (see organ_set) and the boundary re-speaks it. Which makes the
-    // three console dials BOUNDARY cadence, not LIVE: before ORGAN_3b P3
-    // they read LIVE and the wait was real but unstated.
+    // the orb MOOD bank has — so a write to block 5 is consumed at the
+    // frame boundary rather than where it lands. Which makes the three
+    // console dials BOUNDARY cadence, not LIVE: before ORGAN_3b P3 they
+    // read LIVE and the wait was real but unstated.
+    //
+    // ORGAN_4 P1a — THIS ANSWERS WHEN, NOT WHAT. The three fields still
+    // all land at the boundary, so the cadence is unchanged; what the
+    // boundary DOES for each of them now differs (a partial upload for
+    // dome and noise, the definition re-speak for base size), and that
+    // routing rides g_orb_console_dirty, not this predicate. A cadence
+    // question and a plumbing question are two questions.
     return block == ORGAN_BLOCK_ORBS;
 }
 
@@ -583,6 +590,36 @@ inline uint32_t g_def_dirty_mood = 0;
 inline bool     g_tier_def_dirty = false;   // ORGAN_2b — the world bank changed
 inline bool     g_orb_def_dirty  = false;   // ORGAN_3b — the orb mood bank changed
 
+// ─── THE CONSOLE MASK (ORGAN_4 P1a) ───────────────────────────────
+// A CPU BANK WHOSE READER IS AN EVENT GETS A PER-FIELD MASK. The three
+// Dome dials write ORB_CONSOLE_LIVE, whose only reader is
+// configure_orbs — an EVENT — so before this commit they were dead
+// until a mood change, and ORGAN_3b's block-wide re-speak cured that by
+// firing the whole applier (which re-seeds the sky) on every drag.
+// Neither is the truth: the console's three fields land by their
+// READERS' own cadences — dome and noise are per-frame GPU reads and
+// take targeted partial uploads, base size is baked into orb_state at
+// init and needs the definition re-speak. One flag cannot say which,
+// so the flag becomes a mask and the boundary routes per field.
+//
+// A BIT IS AN OFFSET / 4. The registry already carries every entry's
+// offset, so the raise costs one shift at a site that has the number in
+// hand — no second table, nothing to keep in step.
+inline uint32_t g_orb_console_dirty = 0;   // bit = offsetof/4
+inline uint32_t take_orb_console_dirty() {
+    const uint32_t m = g_orb_console_dirty;
+    g_orb_console_dirty = 0;
+    return m;
+}
+// The three bits the cartridge boundary reads, proved here rather than
+// trusted there: a field reordered in OrbConsole fails the BUILD at this
+// line instead of routing a dome radius into the noise floor.
+static_assert(offsetof(the_board::OrbConsole, dome_radius) == 0
+           && offsetof(the_board::OrbConsole, base_size)   == 4
+           && offsetof(the_board::OrbConsole, noise_floor) == 8,
+    "the console mask's bits are offset/4 — dome 0, base size 1, noise 2; "
+    "the cartridge boundary routes on exactly those three");
+
 // One base per definition family. MOOD selects by target; TIER is the
 // world's single bank and ignores it.
 inline char* definition_base(const OrganParam& e, uint32_t mood) {
@@ -684,15 +721,29 @@ inline bool take_definition_dirty(uint32_t& mood) {
 // cartridge, where the deps are; this file knows neither the mood state
 // nor the queue and must not learn them (the take_definition_dirty
 // precedent, ORGAN_1).
+//
+// ORGAN_4 P1c — AND A DOOR IS WHERE A PLAYER-OWNED FACT BELONGS. The orb
+// rule and the flock gesture are the sky's two player-owned facts: the
+// mood seeds each once and the player wins after, which is why their
+// enrollment rows died this campaign (a boot-only fact wearing a
+// boundary chip misreports, and a config the applier ignores is a dead
+// dial). Their reachable form is the program's OWN command — the same
+// cycle_orb_motion_rule / cycle_orb_gesture that key KP_8 and KP_7
+// already press. The door presses machinery the program owns and adds
+// no author, so sovereignty holds exactly as it does for RESPEAK.
 enum : uint32_t {
-    ORGAN_DOOR_RESPEAK = 0,   // raise every definition flag at once
-    ORGAN_DOOR_COUNT   = 1,
+    ORGAN_DOOR_RESPEAK     = 0,   // raise every definition flag at once
+    ORGAN_DOOR_ORB_RULE    = 1,   // cycle the sky's motion rule (player-owned)
+    ORGAN_DOOR_ORB_GESTURE = 2,   // cycle the active rule's gesture
+    ORGAN_DOOR_COUNT       = 3,
 };
 
 struct OrganDoor { uint32_t id; const char* label; };
 
 inline constexpr OrganDoor kOrganDoors[] = {
-    { ORGAN_DOOR_RESPEAK, "Re-speak definitions" },
+    { ORGAN_DOOR_RESPEAK,     "Re-speak definitions" },
+    { ORGAN_DOOR_ORB_RULE,    "Cycle orb rule" },
+    { ORGAN_DOOR_ORB_GESTURE, "Cycle orb gesture" },
 };
 static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
     "one row per door id — the manifest emits this table and the shell "
@@ -847,7 +898,17 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     // orb mood bank's applier — one author, so one flag, the same rule
     // BEHAVIOR follows against TIER. Without this the three console dials
     // would wait for a mood change with nothing on the panel saying so.
-    if (block_has_boundary((uint8_t)block)) g_orb_def_dirty = true;
+    //
+    // ORGAN_4 P1a — AND THE FLAG BECOMES A MASK. The blanket raise was
+    // right about WHEN and wrong about WHAT: it re-spoke the whole
+    // applier, which re-seeds the sky, for a dome radius the GPU reads
+    // fresh every frame. So the raise is now per FIELD, and the boundary
+    // decides what each one costs — a targeted partial for the two the
+    // kernel reads live, the definition re-speak for the one it bakes at
+    // init. D1: the hook lives at the single site after the clamp and the
+    // write succeed, keyed on the block, never in the shell.
+    if (block == ORGAN_BLOCK_ORBS)
+        g_orb_console_dirty |= (1u << (e->offset / 4u));
     note_write(*e);   // O1a — the shadow, read back from the home
 }
 

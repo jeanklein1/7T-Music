@@ -1428,6 +1428,17 @@ namespace t7 {
                     t7::organ::g_tier_def_dirty = true;
                     t7::organ::g_orb_def_dirty  = true;
                 }
+                // ORGAN_4 P1c — THE SKY'S TWO PLAYER-OWNED FACTS. Both
+                // are the program's OWN commands, the same two KP_8/KP_7
+                // presses; the panel reaches them as doors because a
+                // player-owned fact cannot honestly wear a dial. Neither
+                // adds an author, invents a behavior or opens a write
+                // path: each calls the function its key calls, with its
+                // own guards and its own partial upload unchanged.
+                if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_RULE))
+                    cycle_orb_motion_rule(orbs_state_, &orbs_deps_, queue);
+                if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_GESTURE))
+                    cycle_orb_gesture(orbs_state_, &orbs_deps_, queue);
 
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
@@ -1441,6 +1452,21 @@ namespace t7 {
                 // above.
                 if (t7::organ::take_tier_definition_dirty()) {
                     upload_agent_registries_to_gpu(&agents_deps_, queue);
+                }
+                // ORGAN_4 P1a — THE DOME DIALS LAND BY THEIR READERS'
+                // CADENCES. dome and noise are per-frame GPU reads, so
+                // they take targeted partials and stay smooth under the
+                // finger; base size is baked into orb_state at init, so
+                // it raises the orb re-speak instead. This sits
+                // IMMEDIATELY BEFORE the take_orb_definition_dirty()
+                // block so a base-size raise is consumed the same frame
+                // rather than the next one.
+                if (const uint32_t cm = t7::organ::take_orb_console_dirty()) {
+                    if (cm & 1u) gpuState_.upload_orb_dome_radius(queue,
+                                     ORB_CONSOLE_LIVE.dome_radius);
+                    if (cm & 4u) gpuState_.upload_orb_noise(queue,
+                                     ORB_CONSOLE_LIVE.noise_floor);
+                    if (cm & 2u) t7::organ::g_orb_def_dirty = true;
                 }
                 // ORGAN_3b P3 — the orb mood bank changed: its applier
                 // re-speaks, for the LIVE mood only. Same shape as the
