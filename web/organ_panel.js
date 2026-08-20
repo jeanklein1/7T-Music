@@ -371,15 +371,24 @@
     // is no instance for one to show, and −1 would only ring the reject
     // counter. It targets the live mood whatever the toggle says.
     var target = (!p.inst || definitionMode) ? C.mood() : -1;
-    // ORGAN_6 — MARK ON THE TARGET, NOT ON THE MODE. The contest question
-    // is asked by an INSTANCE write and by nothing else: a definition
-    // write never touches the home, so there is nothing for another author
-    // to contradict. These were two statements of one rule and the second
-    // was wrong for a definition-only row under preview — it claimed a
-    // reading for a write that had just been refused. `target < 0` IS the
-    // instance write, so the two can no longer disagree.
+    // ORGAN_6 CODA — THE MARK IS organ_set's OWN LINE, TRANSCRIBED. The
+    // contest question is asked by an INSTANCE write and by nothing else,
+    // and the C++ decides that in one statement:
+    //
+    //     if (target >= 0 && write_definition(...)) return;   // no instance
+    //
+    // `p.scope > 0` is exactly when write_definition succeeds, so the
+    // predicate below IS that line rather than a second rule that agrees
+    // with it — which is why the two can no longer disagree.
+    //
+    // P2 wrote `target < 0` here and called it the instance write. It is
+    // not: a row with NO definition in definition mode carries a mood
+    // target, write_definition refuses it on ORGAN_DEF_NONE, and the write
+    // falls through to the instance. 172 rows the old form marked and that
+    // one did not.
+    //
     // A witness is never marked either: organ_set refuses it (ORGAN_2a).
-    if (target < 0 && !p.ro) touched[p.i] = 1;
+    if (!(target >= 0 && p.scope) && !p.ro) touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           target);
     fanRegimes(p, v);   // LENS_1 — under ALL, every regime
@@ -445,7 +454,9 @@
     if (p.scope && !p.ro) {
       var star = document.createElement('span'); star.className = 'star';
       star.textContent = ' *';
-      star.title = 'has a mood definition';
+      star.title = p.scope === 2
+        ? 'has a definition in the world\u2019s own bank \u2014 one bank, every mood'
+        : 'has a definition in this mood\u2019s own row';
       lbl.appendChild(star);
     }
     hd.appendChild(lbl);
