@@ -392,7 +392,19 @@ one, the two shadow layouts carry one, and nothing carries two.
 
 ## 3a. The landing check
 
-*(appended after the push — see the P6b commit.)*
+Run at `7c2501f`, immediately after the push, with the tree clean and HEAD equal
+to the pushed tip — the state S-6 exists to witness. **Exit status 0.**
+
+```
+  [PASS] S-6  commit integrity: working tree clean; HEAD 7c2501f == pushed tip
+
+--check: all relations agree, all witnesses pass.
+```
+
+Every other line is identical to §3's; only S-6 moved, and only because the
+landing happened. (This section is itself a later commit, so a `--check` run now
+sees one more commit on top — the green above is the record of the state it
+describes.)
 
 ---
 
