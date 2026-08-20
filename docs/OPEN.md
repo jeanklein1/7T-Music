@@ -9,15 +9,16 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
 - DAWN_REFERENCE web-era rewrite: docs/reference/DAWN_REFERENCE.md is
   archival-with-named-drift (its own CANON stamp); the rewrite awaits Jean's
   reference round. Origin: the stamp itself.
-- GUARD DEBT in realization/renderer.hpp: four __EMSCRIPTEN__ guards survive
+- GUARD DEBT in realization/renderer.hpp: three __EMSCRIPTEN__ guards survive
   SUNSET_1 (census `git grep -n "__EMSCRIPTEN__" -- src`). Coverage is
   SPLIT, not blind: console_gate defines __EMSCRIPTEN__ (fidelity with emcc)
   and so type-checks the shipping arms; glaw1 does not, and so type-checks
   the dead ones. The sitting decides two things: collapse the guards
   (SUNSET_1's stated intent; may cost stub declarations), and whether
-  glaw1's macro set should match the build's. Origin: RECENSION_1 FLAG-7,
-  corrected by RECENSION_4 when the gates were first read whole. Unblocked
-  by the gates sitting.
+  glaw1's macro set should match the build's. (Four until REGAIN_1 retired the
+  floor's dialect/setImmediates probe, which was one of them.) Origin:
+  RECENSION_1 FLAG-7, corrected by RECENSION_4 when the gates were first read
+  whole. Unblocked by the gates sitting.
 - L26 docket — fields marked dead, awaiting the sitting that next opens their
   struct: `RibbonState.is_roaming`, `RibbonRingTransform._pad0`,
   `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
@@ -55,14 +56,9 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   the existing gate flags. Cure is one stub line; adding to the pinned stub
   set is a gates decision. Origin: RECENSION_2 FLAG-U5c. Unblocked by the
   gates sitting.
-- FIREFOX REGAIN, HELD: naga 30 lacks immediate_address_space, so the module
-  does not compile there; the audience card is the boundary. Priced: a
-  generated no-immediates module (the wgsl_gate transform as generator) plus,
-  on that path only, the per-patch staging machinery PROBATE_I retired — two
-  boot paths, doubled witnesses. Origin: world.wgsl COMPILER FLOOR block,
-  PROBATE_E3. Unblocked by naga shipping the extension — watched
-  automatically by tools/wgsl_gate.py ARM 4, which prints when it happens —
-  or by an exhibition that pays for the spend.
+- FIREFOX / SAFARI / iOS: the immediates lane is retired (REGAIN_1) and the module
+  is core WGSL, but NO non-Chromium boot has been witnessed. Origin: REGAIN_1.
+  Unblocked by Jean booting the branch in Firefox and on the iPhone.
 - In-place same-shape atmosphere transition (sunset → night without a
   teardown, the sky re-drawn over a standing world): priced at ATMOS_1,
   not built — the spawns' population row is per mood, so a "same shape"
@@ -93,12 +89,6 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   it touched no WGSL. A campaign that touches WGSL needs naga in the
   container (cargo install naga-cli, priced at the sitting) or Jean
   running the gate before merge. Origin: ATMOS_1 report, FLAG 12.
-- wgsl_gate.py TypeError in the directive-removed branch: the two-line note at
-  "DIRECTIVE not in src" splits a %s from its operand, so the branch raises
-  instead of printing. Unreachable while world.wgsl carries requires
-  immediate_address_space; fires the day it does not — i.e. exactly when the
-  gate should announce its own retirement. Reproduced 2026-08-18. Origin:
-  RECENSION rider FLAG-R1. Cure is one line; unblocked by the gates sitting.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
