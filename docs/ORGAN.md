@@ -219,11 +219,14 @@ the target is ignored by design rather than by oversight.
 mood, so like `MOOD` and unlike the other two it is **mood-selected**
 and the write's target picks the row.
 `definition_base` is the one place that mapping lives; a further family
-costs an enum value and nothing else. The manifest's `def` column
-carries the kind, so the shell can key an export by it without
-learning any parameter's name — and it must ask that question ONCE:
-`isWorldDef()` in the shell exists because a fourth kind is added in
-one place or forgotten in three.
+costs an enum value and nothing else. Five kinds exist: `NONE`, `MOOD`,
+`TIER`, `BEHAVIOR` and `ORB_MOOD` — and any prose that stops at the
+fourth predates ORGAN_3b. The manifest's `def` column carries the kind,
+so the shell can key an export by it without learning any parameter's
+name; what the shell actually needs is not the family but its SCOPE, and
+since ORGAN_6 the registry derives that and emits it. The shell asks the
+question by reading a column, which is once by construction rather than
+once by discipline — see *The manifest answers* below.
 
 A DEFINITION-ONLY ENTRY is the case where a fact has a definition the
 panel may write and no instance the panel may address. Its block is
@@ -250,6 +253,93 @@ reinterpretation — writing a float's bits into an integer field. But
 is not reinterpretation. ORGAN_3b taught both definition paths the same
 conversion; the rule that survives is **never reinterpret**, which is what
 was actually being defended.
+
+## The manifest answers (ORGAN_6)
+> *A rule restated in a second language is a rule with two homes.*
+
+`derived_cadence()` exists for exactly one reason: the shell must not
+restate a rule the C++ owns, so the C++ derives `cad` and emits it. Two
+rules were left un-derived and the shell restated both in JavaScript —
+**which blocks are def-only sentinels**, and **which definition kinds are
+world-scoped**. The first drifted the moment ORGAN_3b P3 minted a second
+sentinel (254) beside the first (255): `web/organ_panel.js` kept one
+number, so every one of the nineteen `ORB_MOOD` rows read as an ordinary
+block, and in PREVIEW mode `push()` sent `target = -1`, which `organ_set`
+refuses on a definition-only row. **Nineteen dials died silently the
+moment the operator pressed `preview` and came back when he pressed
+`definition`** — for two campaigns, behind a live reject counter.
+
+Two derived columns close it, beside `derived_cadence()` and for its
+reason:
+
+| column | question | values |
+| --- | --- | --- |
+| `inst` | may the panel address this row's INSTANCE? | `1` yes · `0` definition only |
+| `scope` | how is its DEFINITION addressed? | `0` none · `1` mood-selected · `2` the world's |
+
+`def` STAYS: it is the FACT — which family — and `scope`/`inst` are the
+DERIVATIONS. A manifest carries both, exactly as it carries `block` and
+`offset` beside `cad`.
+
+**The shell holds no C++ number.** Not a block sentinel, not a def-kind.
+A sixth definition family answers in `derived_scope()` and the shell
+learns nothing. `push()` also stated one rule twice — it chose its target
+from the mode and then marked the contest from the mode AGAIN, and the two
+disagreed for a definition-only row under preview, claiming a contest
+reading for a write that had just been refused. The mark keys on the
+target itself now, so they cannot disagree again.
+
+### The two mood-selected families keep one discipline
+`MOOD` and `ORB_MOOD` are both mood-selected: the write's target picks the
+row. `MOOD` has recorded WHICH mood since O1b, and the boundary drops a
+stale write with it, because populating this world from one we are not in
+is not a preview, it is a wrong answer. `ORB_MOOD` recorded nothing and
+re-spoke the live mood regardless — so a write aimed at a dormant mood
+landed in its own row and then made the boundary re-speak a *different*
+one: the edit lost with the reject counter untouched, and its touched bits
+spent re-seeding a sky the edit was never about.
+`g_orb_def_dirty_mood` is the slot it was missing, and
+`raise_orb_definition(mood)` is now the only way to raise the flag. The
+touched mask is taken BEFORE the mood test and unconditionally: leaving
+bits standing would let a dormant-mood edit reseed the live sky one frame
+later, which is the same defect through a slower door.
+
+### A rejection gets a name
+The panel WAS reporting the sentinel defect the whole time. It printed
+`rejected 19`, and the number carried no information — not which row, not
+why. **A count is not a diagnosis.** `g_last_reject` is one string written
+at every refusal site in `organ_set` and read by the status line beside
+the count; `++g_rejected` appears exactly once in the tree, inside
+`note_reject`, so a fifth refusal site cannot forget to say why.
+
+### The dome says whether it is lit
+`configure_orbs` early-returns on `!os.active || os.count == 0`, so with
+`enabled 0` or `count 0` every other orb dial is inert and the panel said
+nothing — the operator drags a cohesion radius against a dark sky and
+reads it as a broken panel. That is the defect the rule readout (ORGAN_5
+P2b) and the regime readout (ATMOS_1b) each answer, in a third place that
+never got one. The rule window WIDENS rather than a second window being
+minted — its own argument, extended: `active` takes bit 16 and `count`
+bits 17..25 of the same `uint32`, one ABI call, nothing to keep in step.
+The line rides beside the rule readout under the door bar, because
+deriving WHICH groups are orb groups would be a fourth name-string in a
+file whose whole argument is that it holds none.
+
+### The shell gets a standing witness
+`tools/gates/shell_gate/run.py` (L33). The C++ organ is proved by
+`organ_gap`, `organ_readers`, `organ_ledger`, `console_gate` and a native
+harness; the shell was proved by a shim rebuilt each campaign and thrown
+away with it, so nothing in the tree could have caught the sentinel drift
+and nothing would have caught its successor. Six checks, both sides parsed
+from the tree, no browser and no node: the shell names no block sentinel;
+the type enum, the cadence table's length, the scope constants and
+`RULE_NAMES` agree with the C++ they copy; and every `M.cwrap` reaches a
+real `EMSCRIPTEN_KEEPALIVE` export at the matching arity — the last of
+which catches a change made on one side of the ABI only.
+
+It reads TEXT, not behaviour: it cannot see a value passed wrongly, only a
+name or an arity that disagrees, and it proves the SEAM rather than the
+shell. The web boot remains the witness of record for everything past it.
 
 ## The write path
 A panel edit in preview mode writes the home struct member and marks
