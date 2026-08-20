@@ -718,19 +718,36 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
         m.shape.indoor ? INDOOR_LIVE.height_cap_fraction * m.shape.wall_height : 0.0f);
     c->mood_state_.lights_dirty = true;
 
-    // THE WITNESS. One line per draw; the same seed prints the same line,
-    // and a boot must print tier=0 int=0.9 amb=0.2 fog=0.003 for the
-    // sunset until someone changes ATMOS_SUNSET on purpose.
+    // THE WITNESS. One line per REGIME, not per draw (ATMOS_1b): the
+    // regime is (mood, seed, tier), and a line prints when it changes —
+    // every entry, and a weight dial that flips the tier, which is the
+    // one event a drag should announce. A fog, colour or spread drag
+    // re-draws every frame and says nothing here; the panel is its
+    // readout. The same seed still prints the same line, and a boot must
+    // print tier=1 int=0.9 amb=0.2 fog=0.003 for the sunset until someone
+    // changes ATMOS_SUNSET on purpose. `tier=` is the LABEL's number
+    // (1-based, the panel's "Light tier N"): the operator never sees the
+    // index. Function-local statics: the checker's [FLUSH] one-shot in
+    // cartridge.hpp is the precedent.
     {
-        constexpr float RAD2DEG = 180.0f / 3.14159265359f;
-        const float el = std::asin(std::clamp(-ai.sun_direction[1] / len, -1.0f, 1.0f)) * RAD2DEG;
-        const float az = std::atan2(-ai.sun_direction[2], -ai.sun_direction[0]) * RAD2DEG;
-        std::cout << "[Atmos] " << mood_name(c->mood_state_.active)
-                  << " seed=" << c->world_state_.active_seed
-                  << " tier=" << ai.light_tier
-                  << " int=" << ai.sun_intensity << " amb=" << ai.sun_ambient
-                  << " sun el=" << el << " az=" << az
-                  << " fog=" << ai.fog_density << "\n";
+        static uint32_t last_mood = MOOD_COUNT, last_seed = 0u, last_tier = 0u;
+        const bool regime_changed = c->mood_state_.active != last_mood
+                                 || c->world_state_.active_seed != last_seed
+                                 || ai.light_tier != last_tier;
+        if (regime_changed) {
+            last_mood = c->mood_state_.active;
+            last_seed = c->world_state_.active_seed;
+            last_tier = ai.light_tier;
+            constexpr float RAD2DEG = 180.0f / 3.14159265359f;
+            const float el = std::asin(std::clamp(-ai.sun_direction[1] / len, -1.0f, 1.0f)) * RAD2DEG;
+            const float az = std::atan2(-ai.sun_direction[2], -ai.sun_direction[0]) * RAD2DEG;
+            std::cout << "[Atmos] " << mood_name(c->mood_state_.active)
+                      << " seed=" << c->world_state_.active_seed
+                      << " tier=" << (ai.light_tier + 1u)
+                      << " int=" << ai.sun_intensity << " amb=" << ai.sun_ambient
+                      << " sun el=" << el << " az=" << az
+                      << " fog=" << ai.fog_density << "\n";
+        }
     }
 }
 

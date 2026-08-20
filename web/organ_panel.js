@@ -1145,7 +1145,9 @@
     // so TIER and BEHAVIOR — one bank, the target ignored — are correctly
     // left alone. r.show() reassigns each row's cached lane vector as
     // well as its widgets, so the next drag starts from the shown value
-    // with nothing further to update.
+    // with nothing further to update. Instance rows refresh here too
+    // (ATMOS_1b): the apply re-authors the sun's homes at every entry,
+    // and a panel that is a VIEW shows what the program wrote.
     var lastMood = C.mood();
     setInterval(function () {
       var contested = 0;
@@ -1154,10 +1156,23 @@
         lastMood = m;
         if (moodSel) moodSel.value = String(m);
         rows.forEach(function (r) {
-          if (!r.p.def || r.p.ro || isWorldDef(r.p)) return;
-          var n = lanes(r.p.type), d = [];
-          for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
-          r.show(d);
+          if (r.p.ro) return;                    // witnesses refresh every tick below
+          if (r.p.def) {
+            if (isWorldDef(r.p)) return;         // TIER/BEHAVIOR: one bank, the mood ignored
+            var n = lanes(r.p.type), d = [];     // a mood-selected definition: the new mood's
+            for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
+            r.show(d);
+          } else {
+            // An instance: the apply may have re-authored its home, so
+            // read the HOME, not the row's cache. r.read() returns the
+            // cached lane vector (`v`) — the same value already shown —
+            // so it could not carry the new mood's numbers. C.get is the
+            // reader the witness poll below already uses, and it reads
+            // through the registry to the home itself (ATMOS_1b).
+            var ni = lanes(r.p.type), iv = [];
+            for (var li = 0; li < ni; li++) iv.push(C.get(r.p.block, r.p.offset, li));
+            r.show(iv);
+          }
         });
       }
       rows.forEach(function (r) {
