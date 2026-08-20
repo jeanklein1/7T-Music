@@ -1605,6 +1605,14 @@ namespace t7 {
         // (the limit is "better is lower", so an adapter's own value is a
         // power of two <= 256 and divides 256). The payload is 4 bytes;
         // the rest of each window is padding the alignment demands.
+        //
+        // REGAIN_1 restores the two constants B6 retired with the
+        // machinery they measured. SIZE is honestly 4 now, not the 16 it
+        // carried before: shadow_slot is a bare u32 in the shader, not a
+        // struct, so nothing rounds it up to a 16-byte alignment and the
+        // minimum binding size is the payload itself.
+        inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
+        inline constexpr uint32_t SHADOW_SLOT_SIZE   = 4;
         // ─── FORMAT_1 D1 — THE ONE AUTHORITY FOR THE SHADOW DEPTH FORMAT ──
         //
         // PASS_0 F1 found this format spelled at four coupled sites with no
@@ -1633,11 +1641,6 @@ namespace t7 {
         // 96 this era began with.
         inline constexpr wgpu::TextureFormat kShadowDepthFormat =
             wgpu::TextureFormat::Depth16Unorm;
-
-        // DOMESDAY_1 B6 (R3): SHADOW_SLOT_STRIDE / SHADOW_SLOT_SIZE are
-        // retired with the dynamic-offset machinery they measured — the
-        // shadow light index is immediate data now (one u32, no buffer,
-        // no window, no offset arithmetic).
 
         struct MeshVertex {
             float pos[3];
@@ -2038,6 +2041,11 @@ namespace t7 {
             // member where three storage buffers used to be.
             wgpu::Buffer frameRMainBuffer_;
             wgpu::Buffer frameRPhotoBuffer_;
+            // REGAIN_1 (ATLAS_1revB D3"): MAX_SPOT_LIGHTS × 256 B windows,
+            // window i holding the literal i. Written once at init. It sits
+            // beside the frame block because that is the group it rode
+            // before B6; it is seated on the SHADOW stratum now.
+            wgpu::Buffer lightSlotBuffer_;
             // ORGAN_0b — THE LIGHTING HOME. CHORD_3 gave lighting two GPU
             // windows but left its CPU side composed on the stack at the
             // authoring site (upload_lights, mood.hpp), so there was nothing
@@ -3977,9 +3985,25 @@ namespace t7 {
                 // is that it stops spending F-stage storage seats.
                 frameRMainBuffer_  = makeBuffer("Frame R (Main)", sizeof(GPUFrameR), UU);
                 frameRPhotoBuffer_ = makeBuffer("Frame R (Photographer)", sizeof(GPUFrameR), UU);
-                // DOMESDAY_1 B6 (R3): the ATLAS_1revB D3" light-index
-                // window buffer is retired — the shadow light index rides
-                // immediate data now (SetImmediates, render_passes.hpp).
+                // ─── REGAIN_1 (ATLAS_1revB D3") — the light-index
+                // windows. Written ONCE, here, and never again: window i
+                // holds the constant i, so the buffer has no owner, no
+                // cadence and no way to go stale. The whole mechanism is
+                // the OFFSET moving, not the bytes — which is why this
+                // costs strictly less per frame than the immediates path
+                // it replaces, where four bytes went out per light per
+                // frame to say the same thing.
+                //
+                // No per-frame door exists and none should be added. If a
+                // later campaign needs one it can add it then.
+                lightSlotBuffer_ = makeBuffer("Shadow Light Slot Windows",
+                    MAX_SPOT_LIGHTS * SHADOW_SLOT_STRIDE, UU);
+                if (lightSlotBuffer_) {
+                    auto q = device_.GetQueue();
+                    for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
+                        q.WriteBuffer(lightSlotBuffer_, i * SHADOW_SLOT_STRIDE,
+                                      &i, sizeof(uint32_t));
+                }
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
                 // usage; the descriptor was hand-rolled only because
@@ -4110,7 +4134,7 @@ namespace t7 {
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
-                    patchParamsBuffer_ &&
+                    lightSlotBuffer_ && patchParamsBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&

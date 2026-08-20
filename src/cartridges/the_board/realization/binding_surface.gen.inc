@@ -810,7 +810,7 @@
 
                 // Shadow State Layout — stratum 2 (Shadow family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].visibility = wgpu::ShaderStage::Vertex;
@@ -849,6 +849,30 @@
                     entries[5].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[5].visibility = wgpu::ShaderStage::Vertex;
                     entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // REGAIN_1 — THE LIGHT INDEX IS THE OFFSET (the ATLAS_1revB D3"
+                    // shape, restored on the LOOM_2 strata). MAX_SPOT_LIGHTS windows
+                    // at SHADOW_SLOT_STRIDE, window i holding the literal i, written
+                    // ONCE at GPU-state init and never again: the buffer has no owner,
+                    // no cadence and no way to go stale, and its per-frame traffic is
+                    // nothing at all — strictly less than the four bytes per light the
+                    // immediates path set.
+                    //
+                    // WHY THE VALUE MUST BE ABLE TO CHANGE INSIDE A PASS (D2', and the
+                    // load-bearing half): one shadow pass serves several lights, and a
+                    // buffer write cannot be recorded inside a render pass. A dynamic
+                    // offset is a bind, not a write, so the split into one pass per
+                    // light stays retired.
+                    //
+                    // It rides the SHADOW family's own stratum rather than the frame
+                    // group it used before B6 — the frame group is shared with eleven
+                    // pipelines that never read it; this layout is the shadow family's
+                    // alone.
+                    entries[6].binding = bind::g2::shadow_slot;  // shadow_slot (uniform, one u32 — the offset is the light index)
+                    entries[6].visibility = wgpu::ShaderStage::Vertex;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[6].buffer.hasDynamicOffset = true;
+                    entries[6].buffer.minBindingSize = SHADOW_SLOT_SIZE;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Shadow State Layout";
@@ -1758,7 +1782,7 @@
 
                 // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].buffer = agentStateBuffer_;
@@ -1783,6 +1807,10 @@
                     entries[5].binding = bind::g2::scene_constants;
                     entries[5].buffer = sceneConstantsBuffer_;
                     entries[5].size = sizeof(GPUSceneConstants);
+
+                    entries[6].binding = bind::g2::shadow_slot;
+                    entries[6].buffer = lightSlotBuffer_;
+                    entries[6].size = SHADOW_SLOT_SIZE;  // REGAIN_1: the WINDOW, not the buffer — the dynamic offset walks the rest
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Shadow State BindGroup";

@@ -298,13 +298,19 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         // Now each texture is cleared once, drawn for every light it owns
         // under per-light viewports, and stored once: 96 -> 32 MiB at four
         // lights, 48 -> 16 at two. No LoadOp::Load survives in this
-        // function. The per-light index arrives as IMMEDIATE DATA since
-        // DOMESDAY_1 B6 (it rode a dynamic offset from ATLAS_1revB D3"
-        // until then) — either way a value that can change inside a
-        // render pass, which is what makes one pass able to serve
-        // several lights; a buffer write cannot be recorded inside a
-        // render pass, and that copy is exactly what forced the split
-        // before.
+        // function. The per-light index arrives as a DYNAMIC OFFSET on
+        // the SHADOW state group (REGAIN_1; the shape ATLAS_1revB D3"
+        // built, which DOMESDAY_1 B6 traded for immediate data and this
+        // campaign takes back).
+        //
+        // THE REASON IS THE LOAD-BEARING HALF AND IT HAS NOT CHANGED:
+        // what this needs is a value that can change INSIDE a render
+        // pass, because that is what lets one pass serve several lights.
+        // A buffer write cannot be recorded inside a render pass, and
+        // that write is exactly what forced the one-pass-per-light split
+        // before D3". A dynamic offset is a bind, not a write — so the
+        // split stays retired, and nothing here is written per light at
+        // all: the windows were filled once at init.
         //
         // A pass opens only if its texture owns at least one active light.
         const uint32_t live = (cpuSpotLights_.count < MAX_SPOT_LIGHTS)
@@ -330,22 +336,27 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
 
             wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
-            // LOOM_2 pass head: WORLD + FRAME + the SHADOW pair, once per
-            // pass. DOMESDAY_1 B6 (R3): FRAME binds with no offset
-            // argument — the dynamic-offset machinery left the program.
+            // LOOM_2 pass head: WORLD + FRAME + the SHADOW textures, once
+            // per pass. REGAIN_1: the SHADOW STATE group is NOT bound
+            // here — it carries shadow_slot's dynamic offset now, so the
+            // per-light bind inside the loop below is its only bind and a
+            // pass-head bind would be a bind nothing could use. Every draw
+            // in this pass is inside that loop (draw_shadow_all is called
+            // there and nowhere else in this arm), so nothing is left
+            // unbound.
             pass.SetBindGroup(0, c->gpuState_.world_group());
             pass.SetBindGroup(1, c->gpuState_.frame_r_group());
-            pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
             pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
 
             for (uint32_t li = first; li < first + 2 && li < live; li++) {
                 const uint32_t within = li % 2;   // 0 = left half, 1 = right
 
-                // B6 (R3) — the light index is the one thing that
+                // REGAIN_1 — the light index is the one thing that
                 // distinguishes this light's draws from the last's, and
-                // it rides IMMEDIATE DATA now: one SetImmediates per
-                // light is the whole per-light traffic.
-                pass.SetImmediates(0, &li, sizeof(uint32_t));
+                // it rides the OFFSET: one bind of a group whose bytes
+                // were written at init is the whole per-light traffic.
+                { const uint32_t off = li * SHADOW_SLOT_STRIDE;
+                  pass.SetBindGroup(2, c->gpuState_.shadow_state_group(), 1, &off); }
 
                 const float vx = static_cast<float>(within * TILE_W);
                 pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
@@ -377,14 +388,18 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
         // OIL_1 U12 — the pass-head binds (see the atlas arm above).
         // Outdoor draws for the sun, which shadow_light_vp() reads from
-        // frame_r.vp.light_vp; the shadow_slot immediate is unread on
-        // this path (spots.count == 0) and set to 0 for determinism.
-        const uint32_t kLightZero = 0;
+        // frame_r.vp.light_vp; shadow_slot is unread on this path
+        // (spots.count == 0). REGAIN_1: window 0 already holds 0, so the
+        // determinism the B6 note claimed through a write is now a
+        // property of a buffer written once at init — the offset names
+        // it and nothing is set at all.
+        // Spelled as an offset, not as an index, because that is what it
+        // is: window 0's byte address happens to be 0.
+        const uint32_t kLightZeroOffset = 0u * SHADOW_SLOT_STRIDE;
         pass.SetBindGroup(0, c->gpuState_.world_group());
         pass.SetBindGroup(1, c->gpuState_.frame_r_group());
-        pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
+        pass.SetBindGroup(2, c->gpuState_.shadow_state_group(), 1, &kLightZeroOffset);
         pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
-        pass.SetImmediates(0, &kLightZero, sizeof(uint32_t));
 
         draw_shadow_all(c, pass, /*cast_terrain=*/true);
         pass.End();
@@ -479,10 +494,11 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // ATLAS_1revB G2 — group 0 is NOT rebound here any more. The two shadow
     // artwork pipelines take the RENDER-ENTITY layout at group 0 now (they
     // need frame_r.lighting, which the gallery entity layout does not
-    // carry; the shadow_slot light index rides the pipeline layout as
-    // immediate data since B6), and the pass head already bound it. Only
-    // the texture group changes. One fewer bind per light, and group 0
-    // no longer moves mid-tile.
+    // carry), and the pass head already bound it. Only the texture group
+    // changes. One fewer bind per light, and group 0 no longer moves
+    // mid-tile. REGAIN_1: group 2 is not rebound here either — these two
+    // pipelines take the same shadowStateLayout_ as the other eleven, so
+    // the caller's per-light bind, offset and all, is already theirs.
     // LOOM_2: the artwork shadow draws are SHADOW family — their strata
     // are already bound, and the old texture-group fork is retired.
     c->renderer_.draw_shadow_wall_paintings(

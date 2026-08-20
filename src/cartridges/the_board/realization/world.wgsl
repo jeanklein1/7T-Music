@@ -6340,26 +6340,30 @@ struct FrameR {
 }
 @group(1) @binding(1) var<uniform> frame_r: FrameR;
 
-// ─── THE SHADOW TILE'S LIGHT INDEX (DOMESDAY_1 B6, R3) ─────────────
-// One u32, delivered as IMMEDIATE DATA: the shadow pass sets it per
-// light inside a single pass (SetImmediates, render_passes.hpp), and
-// the whole dynamic-offset machinery this replaces — the 256-byte
-// window buffer, the strided boot writes, the offset argument at
-// every bind of the FRAME group — has left the program. A3 printed
-// the grant (the Pixel gave maxImmediateSize=64); this is the first
-// spend in that lane.
+// ─── THE SHADOW TILE'S LIGHT INDEX (REGAIN_1) ──────────────────────
+// One u32, read from a DYNAMIC-OFFSET UNIFORM: MAX_SPOT_LIGHTS windows
+// of 256 bytes, window i holding the literal i, written once at
+// GPU-state init and never again. The shadow pass moves the OFFSET per
+// light inside a single pass (render_passes.hpp), so the per-frame
+// traffic on this fact is nothing at all.
+//
+// This is the ATLAS_1revB D3" shape, which DOMESDAY_1 B6 traded for
+// immediate data and REGAIN_1 takes back — on the SHADOW family's own
+// stratum this time, not the frame group eleven other pipelines share.
+//
+// WHY THE VALUE MUST BE ABLE TO CHANGE INSIDE A PASS, the load-bearing
+// half and true under either carrier: one pass serves several lights,
+// and a buffer write cannot be recorded inside a render pass. A
+// dynamic offset is a bind, not a write. That is what keeps the
+// one-pass-per-light split retired.
 //
 // WHY AN INDEX AND NOT THE MATRIX (D2', unchanged by the carrier). A
-// matrix immediate would need the SUN's matrix on the outdoor path,
-// and the sun VP's only writer is compute_vp — on the GPU, every
-// frame; a CPU-pushed matrix would give it two owners at two
-// cadences. An index has no owners and no cadence. Its failure mode
-// is a validation error, not a wrong pixel. Requires the WGSL
-// LANGUAGE feature immediate_address_space — instance-scoped, enabled
-// at instance creation (F3-a, console.hpp: the enablement site is this
-// fact's home) and never a device feature, which is what F2-a got
-// wrong — plus maxImmediateSize >= 4 (NEEDS r7).
-var<immediate> shadow_slot: u32;
+// pushed matrix would need the SUN's matrix on the outdoor path, and
+// the sun VP's only writer is compute_vp — on the GPU, every frame; a
+// CPU-authored matrix would give it two owners at two cadences. An
+// index has no owners and no cadence. Its failure mode is a validation
+// error, not a wrong pixel.
+@group(2) @binding(201) var<uniform> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
 // Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by

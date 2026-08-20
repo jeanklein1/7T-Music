@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (87 declarations over 72 slots;
+// The WGSL @binding literals in world.wgsl (88 declarations over 73 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -122,6 +122,7 @@ namespace t7 {
 
                 // SCENE (200–219)
                 inline constexpr uint32_t scene_constants             = 200;  // SceneConstants — CHORD_4: tier_gains + figure_profiles + ribbon, one uniform block at world/mood cadence (4336 B, render VS only; bound by the scene AND shadow layouts)
+                inline constexpr uint32_t shadow_slot                 = 201;  // REGAIN_1: the shadow tile's light index — one u32 per window, the DYNAMIC OFFSET selecting the light. ATLAS_1revB D3" held it at g1:2 until DOMESDAY_1 B6; it lands on the SHADOW family's own stratum now, not the frame's
 
                 // FRAME_K (240–259)
                 inline constexpr uint32_t vp_data                     = 240;  // aka fc_vp (frustum-cull alias) — aka fc_vp

@@ -80,19 +80,19 @@ sites and cross-checked against the WGSL by witness M-2.
 | Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | V | 2 / 10 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Wall Painting Frame | `wallPaintingFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 | 0 / 64 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 3 / 9 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 4 / 60 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
+| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 | 0 / 64 |
 | Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 | Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 | 0 / 64 |
 
@@ -105,7 +105,7 @@ sites and cross-checked against the WGSL by witness M-2.
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
 | storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |
-| immediates(bytes) | 4 / 64 | 60 | `shadowPatchTerrainPipeline_` V (+12 more) |
+| immediates(bytes) | 0 / 64 | 64 | (unused everywhere) |
 
 ## Table A's shape, with the channel column
 
@@ -135,6 +135,7 @@ declaration alone — no hand-authored field.
 | `frame_r` | 1:1 | uniform | `FrameR` | uniform |
 | `bilinear_sampler` | 1:5 | handle | `sampler` | samplers |
 | `nearest_sampler` | 1:6 | handle | `sampler` | samplers |
+| `shadow_slot` | 2:201 | uniform | `u32` | uniform |
 | `shadow_map` | 3:200 | handle | `texture_depth_2d` | sampled |
 | `shadow_sampler` | 3:201 | handle | `sampler_comparison` | samplers |
 | `spot_shadow_map` | 3:202 | handle | `texture_depth_2d` | sampled |

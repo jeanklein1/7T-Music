@@ -1886,8 +1886,7 @@ namespace t7 {
 
             bool createRenderPipelines() {
                 // Shadow pipeline layout (entity + textures WITHOUT shadow map)
-                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor("shadowRenderLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_,
-                    sizeof(uint32_t));   // B6 (R3): the shadow_slot immediate — the shadow VSes read it
+                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor("shadowRenderLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
                 if (!shadowRenderLayout) return false;
 
                 // Main render pipeline layout (entity + textures WITH shadow map)
@@ -2827,10 +2826,8 @@ namespace t7 {
                     // ATLAS_1revB G2 — group 0 is the RENDER-ENTITY layout here,
                     // not the gallery entity layout. Under D2' these two
                     // shadow VSes call shadow_light_vp(), which reads
-                    // frame_r.lighting (and, since B6, the shadow_slot
-                    // IMMEDIATE — a pipeline-layout fact, not a group
-                    // member); the gallery entity layout carries no
-                    // frame_r block, so Dawn would reject both pipelines
+                    // frame_r.lighting; the gallery entity layout carries
+                    // no frame_r block, so Dawn would reject both pipelines
                     // at creation. It is a strict subset for everything they DO
                     // use — config (Uniform) and frame_r.vp / frame_r.camera,
                     // which CHORD_3 folded into that one block — so nothing is
@@ -2840,8 +2837,13 @@ namespace t7 {
                     // painting slots and array still come from the gallery
                     // texture layout. The COLOUR gallery pipelines keep the
                     // gallery entity layout; only the shadow pair moves.
-                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor("galleryShadowLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_,
-                        sizeof(uint32_t));   // A10 (M-2's catch): these two shadow VSes read the shadow_slot immediate too — B6 set the size on shadowRenderLayout and missed this sibling layout
+                    // REGAIN_1: shadow_slot is a group-2 SEAT again, and this
+                    // layout already takes shadowStateLayout_ at group 2 — the
+                    // same layout the other eleven shadow pipelines take. B6's
+                    // pipeline-layout fact needed a size set on two sibling
+                    // layouts and A10 caught the one it missed; a seat cannot
+                    // be missed the same way, because the layout carries it.
+                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor("galleryShadowLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
                     if (!galleryShadowLayout) return false;
 
                     if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",
