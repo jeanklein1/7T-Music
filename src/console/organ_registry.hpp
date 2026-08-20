@@ -642,6 +642,24 @@ inline uint32_t g_def_dirty_mood = 0;
 inline bool     g_tier_def_dirty = false;   // ORGAN_2b — the world bank changed
 inline bool     g_orb_def_dirty  = false;   // ORGAN_3b — the orb mood bank changed
 
+// ORGAN_6 — AND WHICH MOOD IT MEANT. MOOD has recorded this since O1b and
+// the boundary drops a stale write with it; ORB_MOOD is the OTHER
+// mood-selected kind and recorded nothing, so a write aimed at a dormant
+// mood made the boundary re-speak the LIVE one — the edit lost, and its
+// touched bits spent re-seeding a sky it was never about. One slot, and
+// the two mood-selected families keep one discipline.
+//
+// ONE SLOT, AND ITS LIMIT SAID PLAINLY: two moods written between one
+// boundary and the next leave the last one's id here, exactly as
+// g_def_dirty_mood has always done. Reachable only through a multi-mood
+// preset import; the guard makes that case SAFE (dropped) rather than
+// wrong (mis-applied), which is the whole gain.
+inline uint32_t g_orb_def_dirty_mood = 0;
+inline void raise_orb_definition(uint32_t mood) {
+    g_orb_def_dirty = true;
+    g_orb_def_dirty_mood = mood;
+}
+
 // ─── THE TOUCHED MASK (ORGAN_5 P1a) ───────────────────────────────
 // WHICH FIELDS the orb bank's writes touched since the boundary last
 // looked (bit = offsetof/4 into OrbMoodConfig). The console-mask idiom
@@ -775,7 +793,7 @@ inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in
     } else if (e.def_kind == ORGAN_DEF_ORB_MOOD) {
         // Its own author, so its own flag — the converse of BEHAVIOR's
         // case, and the same rule: the flag names the occasion.
-        g_orb_def_dirty = true;
+        raise_orb_definition(mood);
         // ORGAN_5 P1a — and WHICH field, so the boundary can re-speak no
         // more than the edit requires. `def_offset` and not `offset`: the
         // write two blocks above lands at `p + e.def_offset`, so the bit
@@ -897,9 +915,10 @@ inline bool take_tier_definition_dirty() {
 // ORGAN_3b — the orb mood bank's re-apply, taken once by the frame
 // boundary. Its applier is configure_orbs, which the cartridge can reach
 // and this file cannot.
-inline bool take_orb_definition_dirty() {
+inline bool take_orb_definition_dirty(uint32_t& mood) {
     if (!g_orb_def_dirty) return false;
     g_orb_def_dirty = false;
+    mood = g_orb_def_dirty_mood;
     return true;
 }
 

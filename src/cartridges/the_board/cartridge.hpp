@@ -1434,7 +1434,9 @@ namespace t7 {
                     t7::organ::g_def_dirty      = true;
                     t7::organ::g_def_dirty_mood = mood_state_.active;
                     t7::organ::g_tier_def_dirty = true;
-                    t7::organ::g_orb_def_dirty  = true;
+                    // ORGAN_6 — the door promises to re-speak the LIVE
+                    // definitions, so it names the live mood.
+                    t7::organ::raise_orb_definition(mood_state_.active);
                 }
                 // ORGAN_4 P1c — THE SKY'S TWO PLAYER-OWNED FACTS. Both
                 // are the program's OWN commands, the same two KP_8/KP_7
@@ -1507,8 +1509,12 @@ namespace t7 {
                     // stillness to 4x, without replacing one orb.
                     if (cm & 8u) gpuState_.upload_orb_speed_mult(queue,
                                      ORB_CONSOLE_LIVE.speed_mult);
-                    if (cm & 2u) { t7::organ::g_orb_def_dirty = true;
-                                   console_reseed = true; }
+                    // ORGAN_6 — a console edit is about the sky we are
+                    // looking at, so the live mood is the honest answer.
+                    if (cm & 2u) {
+                        t7::organ::raise_orb_definition(mood_state_.active);
+                        console_reseed = true;
+                    }
                 }
                 // ORGAN_3b P3 — the orb mood bank changed: its applier
                 // re-speaks, for the LIVE mood only. Same shape as the
@@ -1518,7 +1524,8 @@ namespace t7 {
                 // mood fan's own site (direction/mood.hpp) exactly; only
                 // the table it reads moved, from ORB_MOOD_TABLE to the
                 // bank. Once per frame however many edits arrived.
-                if (t7::organ::take_orb_definition_dirty()) {
+                uint32_t orb_mood = 0;
+                if (t7::organ::take_orb_definition_dirty(orb_mood)) {
                     // ORGAN_5 P1 — AN AUTHOR RE-SPEAKS NO MORE THAN THE
                     // EDIT REQUIRES. Four of the nineteen orb-mood facts
                     // are baked into orb_state by the init kernel
@@ -1534,13 +1541,24 @@ namespace t7 {
                     // answer is everything: the door promises a full
                     // re-speak, and a caller that says nothing must not
                     // be given the light path by default.
+                    //
+                    // ORGAN_6 — AND ONLY WHEN THE EDIT WAS ABOUT THIS
+                    // WORLD. The mask is taken either way, so a dormant
+                    // mood's bits can never reach the live sky's reseed
+                    // decision; the write itself already landed in its own
+                    // row and waits there for the mood that owns it. The
+                    // same rule the mood re-apply above has always kept:
+                    // populating this sky from a world we are not in is not
+                    // a preview, it is a wrong answer.
                     const uint32_t tm = t7::organ::take_orb_def_touched();
-                    const bool reseed = console_reseed
-                        || (tm == 0u)
-                        || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
-                    configure_orbs(orbs_state_, &orbs_deps_,
-                        ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue,
-                        reseed);
+                    if (orb_mood == mood_state_.active) {
+                        const bool reseed = console_reseed
+                            || (tm == 0u)
+                            || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
+                        configure_orbs(orbs_state_, &orbs_deps_,
+                            ORB_MOOD_LIVE[orb_mood % MOOD_COUNT], queue,
+                            reseed);
+                    }
                 }
                 // ORGAN_5 P2a — THE RULE WINDOW, refreshed here and
                 // nowhere else. The sky's rule and gesture are
