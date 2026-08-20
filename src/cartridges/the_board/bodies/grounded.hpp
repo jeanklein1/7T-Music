@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, PortalDestination, PORTAL_COLORS, portal_color_for
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, PortalDestination, WORLD_DRAW_LIVE (the portal palette), portal_color_for
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
@@ -744,7 +744,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     // RULING 14 — CHANNEL B ONLY. A portal you can walk a pyramid into is a
     // real artifact and claims real ground. Channel A (generic, dispatch-
     // spawned) already registers through negotiate_position, and with
-    // PORTAL_DENSITY at 1.0 every DOORWAY-tier arch through dispatch IS a
+    // WORLD_DRAW_LIVE.portal_density at 1.0 every DOORWAY-tier arch through dispatch IS a
     // portal — so this is the one channel that claimed nothing. The census
     // measured the gap exactly twice: arch delta -2 in a world with two forced
     // portals, -4 in a world with four.

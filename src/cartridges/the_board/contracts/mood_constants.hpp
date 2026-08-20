@@ -31,14 +31,60 @@ struct PortalDestination {
     uint32_t mood = 0;               // destination mood id (MOOD_* above)
 };
 
-// Portal color by mood (indexed by destination.mood)
-inline constexpr float PORTAL_COLORS[MOOD_COUNT][3] = {
-    { 0.72f, 0.45f, 0.85f },  // mood 0  open_sunset     — lilac
-    { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
-    { 0.95f, 0.80f, 0.20f },  // mood 2  indoor_vault    — yellow
-    { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
+// ═══ THE WORLD-DRAW BANK, GRADUATED (ORGAN_4 P3d) ════════════════
+//
+// C3 DESTRUCTIVE, every row. These four facts are read while a WORLD IS
+// BEING DRAWN — the portal roll as each DOORWAY arch commits, the mood
+// draw as each portal picks its destination, the scheme roll as each
+// indoor room derives its lights, the palette as each portal is built.
+// None is re-read afterwards, which is exactly why the bank has NO
+// BOUNDARY WIRING: re-speaking a destructive author means tearing the
+// world down to apply a slider (D5, and the 3b D4 law behind it — a
+// wrong re-speak tears down a world). The edit lands at the author's own
+// next natural event, and the enrollment rows say so with the GEN chip.
+//
+// WHY THEY LIVE HERE. `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE` and
+// `SCHEME_WEIGHTS` were `inline constexpr` in direction/mood.hpp, which
+// the ORGAN may not include; the palette was already here, beside the
+// PortalDestination it describes (PORTAL_1 C5). One bank rather than
+// two: they are one question — what does a fresh world roll?
+//
+// WORLD_DRAW_TABLE is the DESIGN, two jobs only: seeding the bank and
+// standing under its assert. WORLD_DRAW_LIVE is what the rollers read.
+
+inline constexpr uint32_t SCHEME_COUNT = 4;   // indoor light schemes; sizes
+                                              // LIGHT_SCHEMES and SCHEME_NAMES
+                                              // in direction/mood.hpp
+
+struct WorldDrawSurface {
+    float portal_density;         // fraction of DOORWAY arches that become portals
+    float finite_outdoor_chance;  // the open field's rare finite draw
+    float scheme_weights[SCHEME_COUNT];        // Cathedral / Quartet / Gallery / Sanctum
+    float portal_colors[MOOD_COUNT][3];        // by DESTINATION mood
+    float portal_color_back[3];                // the back-portal
 };
-inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
+
+inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
+    1.00f,   // portal_density — every Doorway arch is a portal today
+    0.10f,   // finite_outdoor_chance — PORTAL_2's open-world law
+    { 0.42f, 0.43f, 0.10f, 0.05f },
+    {
+        { 0.72f, 0.45f, 0.85f },  // mood 0  open_sunset     — lilac
+        { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
+        { 0.95f, 0.80f, 0.20f },  // mood 2  indoor_vault    — yellow
+        { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
+    },
+    { 0.35f, 0.55f, 0.90f },      // back-portal — blue
+};
+
+inline WorldDrawSurface WORLD_DRAW_LIVE = WORLD_DRAW_TABLE;
+static_assert(sizeof(WorldDrawSurface) == (2 + SCHEME_COUNT + MOOD_COUNT * 3 + 3) * sizeof(float),
+    "WORLD_DRAW_LIVE is a whole-struct copy of the design row: a field "
+    "added to one is added to the other by construction");
+static_assert(MOOD_COUNT == 4 && SCHEME_COUNT == 4,
+    "WORLD_DRAW_TABLE's palette and scheme rows are POSITIONAL — a new "
+    "mood or a new scheme needs its row here, in the same commit");
+
 // PORTAL_1 — THE ONE DERIVATION. A portal's colour is a fact about its
 // DESTINATION, so it is derived from the destination and never stored twice.
 // The palette lives HERE, with the destination it describes: every channel
@@ -49,8 +95,12 @@ inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-
 // force_spawn_portal_arch (the force-spawn channel). build_arch_mesh_params
 // calls nothing — it is a producer of mesh params, and reads
 // ActiveArch::col_* like every other arch.
+//
+// ORGAN_4 P3d — it reads the BANK now, not the table. The derivation is
+// unchanged; only where it looks moved, which is what a graduation is.
 inline const float* portal_color_for(const PortalDestination& dest, bool is_back) {
-    return is_back ? PORTAL_COLOR_BACK : PORTAL_COLORS[dest.mood % MOOD_COUNT];
+    return is_back ? WORLD_DRAW_LIVE.portal_color_back
+                   : WORLD_DRAW_LIVE.portal_colors[dest.mood % MOOD_COUNT];
 }
 
 } // namespace the_board

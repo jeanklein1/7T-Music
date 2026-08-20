@@ -43,6 +43,7 @@
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_3 w2 — PANEL_LIVE (block 6)
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // ORGAN_3 w2 — RIBBON_LIVE (block 7)
 #include "cartridges/the_board/contracts/indoor_module.hpp"   // ORGAN_3 w3 — INDOOR_LIVE (block 8, destructive)
+#include "cartridges/the_board/contracts/mood_constants.hpp"  // ORGAN_4 P3d — WORLD_DRAW_LIVE (block 10, destructive)
 #include "coupling/canvas_surface.hpp"                        // ORGAN_3b P2 — CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // ORGAN_2a — the drivers' room (block 3)
 
@@ -119,7 +120,16 @@ enum : uint8_t {
                                   //   the first block BELOW the cartridge
                                   //   tier (coupling/canvas_surface.hpp);
                                   //   the _NS macros exist for it (P2)
-    ORGAN_BLOCK_COUNT      = 10,
+    // ORGAN_4 P3d — THE TWO DESTRUCTIVE BANKS. Both are read while a
+    // world or a ribbon is being DRAWN and never re-read, so both follow
+    // INDOOR_LIVE's temperament exactly: a plain block id, no boundary
+    // wiring anywhere, and GEN on every row. The stricter temperament
+    // governs, and for these two it is the only one there is.
+    ORGAN_BLOCK_WORLD        = 10,  // WorldDrawSurface   — WORLD_DRAW_LIVE
+                                    //   (contracts/mood_constants.hpp)
+    ORGAN_BLOCK_RIBBON_SPAWN = 11,  // RibbonSpawnSurface — RIBBON_SPAWN_LIVE
+                                    //   (contracts/ribbon_surface.hpp)
+    ORGAN_BLOCK_COUNT        = 12,
 };
 
 // A definition-only entry has no instance anywhere: its block is the
@@ -394,6 +404,8 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_RIBBON:     return &the_board::RIBBON_LIVE;
     case ORGAN_BLOCK_INDOOR:     return &the_board::INDOOR_LIVE;
     case ORGAN_BLOCK_CANVAS:     return &canvas::CANVAS_LIVE;
+    case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_DRAW_LIVE;
+    case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
     default:                     return nullptr;
     }
 }

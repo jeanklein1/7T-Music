@@ -776,8 +776,8 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // samples it mid-breath. Both readings mean "the ceiling is binding".
     //
     // portal is arch-only and DASHED elsewhere — not zeroed. A palm has no
-    // portal count to be zero; PORTAL_DENSITY applies to the DOORWAY arch
-    // tier alone (mood.hpp), so `0` on a palm row would be a measurement
+    // portal count to be zero; portal_density applies to the DOORWAY arch
+    // tier alone (the world-draw bank), so `0` on a palm row would be a measurement
     // of something that does not exist. Same law as census_put_dash.
     // It is a SUBSET of the arch row's live, never a separate population:
     // portals are force-spawned into the same sixteen slots every rolled

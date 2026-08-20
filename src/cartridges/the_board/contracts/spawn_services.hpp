@@ -169,8 +169,9 @@ struct ArchTierRow {
 // changing a number changes every arch ever born.
 inline constexpr ArchTierRow ARCH_TIERS[] = {
     //   {  weight, color_var, { {μ,σ}: SPAN      RISE        DEPTH       THICKNESS     PIER_HEIGHT  PIER_PAD     EDGE_BLEND } },  col_ovr  mosaic  burial  segs_u  segs_v
-    // DOORWAY's weight IS the open world's portal density. PORTAL_DENSITY
-    // is 1.0 (mood.hpp): every doorway arch becomes a portal, so this
+    // DOORWAY's weight IS the open world's portal density.
+    // WORLD_DRAW_LIVE.portal_density is 1.0 (mood_constants.hpp, the
+    // world-draw bank): every doorway arch becomes a portal, so this
     // number and ArchConfig::SPAWN_CHANCE are the only two dials deciding
     // how many ways out the field has.
     // ZERO-SUM (ARCH_2): at a fixed SPAWN_CHANCE these three weights trade

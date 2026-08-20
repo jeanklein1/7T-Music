@@ -103,6 +103,9 @@ HOMES = {
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
     "IndoorSurface":         "src/cartridges/the_board/contracts/indoor_module.hpp",
     "CanvasSurface":         "src/coupling/canvas_surface.hpp",
+    # ORGAN_4 P3d — the two destructive banks the Wave-3 row was holding.
+    "WorldDrawSurface":      "src/cartridges/the_board/contracts/mood_constants.hpp",
+    "RibbonSpawnSurface":    "src/cartridges/the_board/contracts/ribbon_surface.hpp",
 }
 
 # ─── THE GRADUATED PAIRS (ORGAN_3c — the reader witness) ──────────────
@@ -120,6 +123,8 @@ PAIRS = {
     "RibbonSurface":     ("RIBBON_TABLE",      "RIBBON_LIVE"),
     "IndoorSurface":     ("INDOOR_TABLE",      "INDOOR_LIVE"),
     "CanvasSurface":     ("CANVAS_TABLE",      "CANVAS_LIVE"),
+    "WorldDrawSurface":  ("WORLD_DRAW_TABLE",  "WORLD_DRAW_LIVE"),
+    "RibbonSpawnSurface":("RIBBON_SPAWN_TABLE","RIBBON_SPAWN_LIVE"),
 }
 SRC_EXT = (".hpp", ".cpp", ".inc", ".h")
 

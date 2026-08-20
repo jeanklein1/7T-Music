@@ -229,6 +229,33 @@ ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock",
 ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × frozen", ORB_MOOD, OrbMoodConfig, rule_drag_frozen)
 ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × flocking", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
 
+// ─── Sky & Light · Schemes / Portals — EDITS THE NEXT DRAW ──────
+// ORGAN_4 P3d (C3, DESTRUCTIVE). WORLD_DRAW_LIVE
+// (contracts/mood_constants.hpp), block 10.
+//
+// THE WORLD-DRAW BANK'S TWO LIGHT-SIDE FAMILIES. The scheme weights roll
+// once, in derive_indoor_lights, as a room is built; the portal palette
+// is read once per portal, by portal_color_for, as an arch commits. Both
+// are read WHILE A WORLD IS BEING DRAWN and never re-read, so the bank
+// has no boundary wiring at all (D5) and every row wears the GEN chip:
+// turning one and seeing nothing is the dial working — the edit lands on
+// the next room and the next portal.
+//
+// THE WEIGHTS ARE PROBABILITIES, NOT A PARTITION. select_tier normalises
+// by their sum, so four independent 0…1 lanes stay honest at every value
+// — the same reading the terrain palette weights already carry.
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[0], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "cathedral")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[1], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "quartet")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[2], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "gallery")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "sanctum")
+// A portal's colour is a fact about its DESTINATION (PORTAL_1), so the
+// four rows are indexed by destination mood and the fifth is the way back.
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[0][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open sunset")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[1][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor flat")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[2][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor vault")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to finite outdoor")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "back portal")
+
 // ─── FOG (the drivers' room + its witnesses) ─────────────────────────
 // ORGAN_2a. Fog is DRIVEN — phase_motion_drivers flushes the field
 // coupling through set_fog every frame — so the dials sit on the
@@ -260,6 +287,14 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_ring,   F32, 265.0f, 349.0f, 0.5f,  "A
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "icing band")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_dither, F32, 0.0f,   1.0f,   1.0f,  "Atmosphere · Veil", "rim dither (>0.5)")
+// ORGAN_4 P3a (C4 witness). veil_strength has ONE author and it is not a
+// dial: cartridge.hpp:1206 writes `finite_mode ? 0 : 1` — a WORLD-SHAPE
+// fact, not a taste. A slider here would fight that author and lose on
+// the next world draw, so the panel meters it instead. Where the three
+// dials above are the veil's geometry, this is its authority: 1
+// outdoors, 0 wherever walls define the edge. Its DEFER row named the
+// witness "defensible and cheap"; it is both.
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, veil_strength, F32, "Atmosphere · Veil", "authority (driven)")
 
 // ─── Atmosphere · Checker (the drivers' room + its witnesses) ────
 // ORGAN_3 w4 (C4). The pitch-class colour field is DRIVEN —
@@ -387,6 +422,22 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.0
 // a group's name again.
 ORGAN_PARAM_GEN(INDOOR, IndoorSurface, height_cap_fraction, F32, 0.0f, 1.0f, 0.005f, "Terrain · Indoor", "height cap fraction")
 ORGAN_PARAM_GEN(INDOOR, IndoorSurface, ribbon_scale,        F32, 0.0f, 0.6f, 0.005f, "Terrain · Indoor", "ribbon scale")
+// ORGAN_4 P3a (C4 witnesses) — THE THREE INDOOR STRUCTURALS, METERED.
+// Their author is the mood applier (direction/mood.hpp): it composes
+// each from MoodProfile's STRUCTURAL group, which is C5 by the standing
+// eligibility rule — world generation reads it, so a dial would edit a
+// world that is already built. All three land in GPUDesignConfig, the
+// block the panel already addresses, so each has the FIXED home a
+// witness needs (D2) and none needs a mirror minted for it.
+//
+// They sit here rather than in a section of their own because a dial
+// sits under its SUBJECT: these three are what "indoor" MEANS to the
+// terrain, the camera and the GoL lift. The GEN chip is per-ROW since
+// ORGAN_3b, so a DRIVEN meter beside two generational dials reports its
+// own cadence and not the group's.
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, terrain_amp_ceiling, F32, "Terrain · Indoor", "terrain amp ceiling (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, ceiling_height,      F32, "Terrain · Indoor", "ceiling height (driven)")
+ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, indoor_height_cap,   F32, "Terrain · Indoor", "GoL lift cap (driven)")
 
 // ─── AURA (the drivers' room + its witnesses) ────────────────────────
 // The intent is the presence ramp's rest target — moved home from
@@ -497,6 +548,57 @@ ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_amp_vert,  F32,  0.0f, 4.0f, 0.0
 ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_tint_stim, VEC3, 0.0f, 1.0f, 0.01f,  "Ribbon · Drivers", "tint stim rest")
 ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.rest_tint_mix,  F32,  0.0f, 1.0f, 0.005f, "Ribbon · Drivers", "tint mix rest")
 ORGAN_PARAM(DRIVERS, DriverSurface, ribbon.gain,           F32,  0.0f, 2.0f, 0.01f,  "Ribbon · Drivers", "drive gain")
+
+// ─── Ribbon · Spawn / Colour — EDITS THE NEXT RIBBON ────────────
+// ORGAN_4 P3d (C3, DESTRUCTIVE). RIBBON_SPAWN_LIVE
+// (contracts/ribbon_surface.hpp), block 11 — a SECOND bank beside
+// RIBBON_LIVE because its temperament differs: the head law above is
+// read every frame, and every row below is read ONCE, as a ribbon is
+// drawn. select_ribbon_for_patch rolls the chance and the colour mode,
+// fill_ribbon_selection_geometry draws the colour, commit_ribbon rolls
+// the wander policy, and none of them looks again.
+//
+// NO BOUNDARY WIRING, BY LAW (D5). Re-speaking a destructive author
+// means tearing down the ribbons that already fly to apply a slider, so
+// every row wears the GEN chip instead and the edit lands on the next
+// ribbon — the INDOOR_LIVE temperament, applied to the second bank that
+// earns it.
+//
+// The cruise draw is a GAUSSIAN over a fraction of RIBBON_LIVE.max_speed,
+// so base/sigma/min/max are all 0…1 and the pair asserts in the contract
+// keep min ≤ max at the authored values; the panel's own clamp keeps each
+// inside its box, and an operator who crosses them gets a pinned cruise
+// rather than an inverted one.
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, spawn_chance,        F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "spawn chance")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, position_jitter,     F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "position jitter")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_chance,       F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "wander chance")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_base,  F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise mean (× max speed)")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_sigma, F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise sigma")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_min,   F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise floor")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_max,   F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise ceiling")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_leg_min,      F32, 0.0f,   2000.0f, 5.0f,  "Ribbon · Spawn", "leg min (u)")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_leg_max,      F32, 0.0f,   2000.0f, 5.0f,  "Ribbon · Spawn", "leg max (u)")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_spread,       F32, 0.0f,   3.1416f, 0.01f, "Ribbon · Spawn", "bearing spread (rad)")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_retarget_min, F32, 0.0f,   60.0f,  0.25f,  "Ribbon · Spawn", "retarget min (s)")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_retarget_var, F32, 0.0f,   60.0f,  0.25f,  "Ribbon · Spawn", "retarget spread (s)")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_hatch_leg,    F32, 0.0f,   1200.0f, 5.0f,  "Ribbon · Spawn", "hatch leg (u)")
+// The colour vocabulary. The three weights are selection probabilities
+// select_tier normalises, so three independent 0…1 lanes; the palette is
+// four base colours the SMOOTH draw varies around; range/bias/scales are
+// that variance's shape, and bias is signed on purpose (−0.05 authored).
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, color_weights[0],    F32, 0.0f, 1.0f, 0.005f, "Ribbon · Colour", "weight smooth")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, color_weights[1],    F32, 0.0f, 1.0f, 0.005f, "Ribbon · Colour", "weight tinted")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, color_weights[2],    F32, 0.0f, 1.0f, 0.005f, "Ribbon · Colour", "weight contrast")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_palette[0][0], VEC3, 0.0f, 1.0f, 0.01f, "Ribbon · Colour", "smooth 0 sandstone")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_palette[1][0], VEC3, 0.0f, 1.0f, 0.01f, "Ribbon · Colour", "smooth 1 sky")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_palette[2][0], VEC3, 0.0f, 1.0f, 0.01f, "Ribbon · Colour", "smooth 2 golden")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_palette[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Ribbon · Colour", "smooth 3 sage")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_var_range,    F32,  0.0f, 0.4f,  0.005f, "Ribbon · Colour", "smooth var range")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_var_bias,     F32, -0.2f, 0.2f,  0.005f, "Ribbon · Colour", "smooth var bias")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_var_g_scale,  F32,  0.0f, 2.0f,  0.01f,  "Ribbon · Colour", "smooth var × green")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_var_b_scale,  F32,  0.0f, 2.0f,  0.01f,  "Ribbon · Colour", "smooth var × blue")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, tinted_range[0],     VEC3, 0.0f, 1.0f,  0.01f,  "Ribbon · Colour", "tinted range")
+ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, tinted_base[0],      VEC3, 0.0f, 1.0f,  0.01f,  "Ribbon · Colour", "tinted base")
 
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // AgentTierParams::color_r/g/b are three contiguous floats, so one VEC3
@@ -641,6 +743,19 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].home_pull,      
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · levy_flight", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[9].neighbor_radius)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "speed cap", BEHAVIOR, AgentBehaviorBank, b[9].speed_cap)
 
+// ─── Agents · Portals — EDITS THE NEXT DRAW ─────────────────────
+// ORGAN_4 P3d (C3, DESTRUCTIVE). WORLD_DRAW_LIVE again (block 10) — the
+// population half of the same bank, under the section that owns what a
+// world is populated WITH.
+//
+// portal density is `[tree]`: the constant's own comment calls it "the
+// fraction of Doorway arches that become portals", and a fraction's box
+// is 0…1. The finite chance is `[identity]` for the same reason — it is
+// compared against one uniform roll. Both are read as the world draws
+// and never again, so both wear the GEN chip and neither is wired.
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_density,        F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "portal density")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, finite_outdoor_chance, F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "finite-outdoor chance")
+
 // ─── Interaction · Field ───────────────────────────────────────
 // ORGAN_3 w1 (C1). THE PANEL (contracts/control_panel.hpp) authors these;
 // GPUState::initializeState boot-pins them into config and nothing else
@@ -695,6 +810,15 @@ ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_init,    F32, 0.000625f, 0.04f
 ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_step,    F32, 1.01f, 2.0f,  0.005f, "Interaction · Camera", "look sens step")
 ORGAN_PARAM(PANEL, PanelSurface, camera.look_sens_range,   F32, 1.0f,  32.0f, 0.25f,  "Interaction · Camera", "look sens range")
 ORGAN_PARAM(PANEL, PanelSurface, camera.scroll_zoom_scale, F32, 0.0f,  8.0f,  0.05f,  "Interaction · Camera", "scroll zoom")
+// ORGAN_4 P3b (C2). PANEL_LIVE again — the possession reach, graduated
+// out of bodies/agents.hpp's TUNING CONSOLE, which the ORGAN may not
+// include. Its DEFER row wanted the derived `_SQ` twin read first: the
+// square had exactly one reader, so it is derived AT that read from the
+// live value now and the constant is retired. Range 0…80 is 4× the
+// authored 20 `[heuristic]`; the floor is one step, because a zero reach
+// makes the search unwinnable rather than merely small — the same
+// argument that floors the ribbon's r_min at 1.
+ORGAN_PARAM(PANEL, PanelSurface, possession.radius, F32, 0.5f, 80.0f, 0.5f, "Interaction · Possession", "reach")
 
 // ─── Debug ──────────────────────────────────────────────────────────
 // ORGAN_3 w1 (C1, D2). Config's uint32_t toggle words enroll as BOOL

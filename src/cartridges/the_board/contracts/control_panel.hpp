@@ -124,6 +124,17 @@ static_assert(FIELD_BEACON_S <= FIELD_BEACON_S_MAX,
 // truth and has no section by ORGAN_3's rule; what lives here is the
 // input grammar — how far a wheel notch zooms, how a keypress steps
 // the look sensitivity and where that step is clamped.
+//
+// ORGAN_4 P3b — AND POSSESSION'S REACH JOINS THEM, for the reason this
+// file's own banner gives: possession is input grammar, this file is
+// "THE PANEL — one home, every room", and a second contracts header for
+// one scalar would be two homes for one idea. It was an
+// `inline constexpr` in bodies/agents.hpp, which the ORGAN may not
+// include — so a dial on it was impossible until it had a contracts
+// home. Its `_SQ` twin was a second constexpr derived at declaration,
+// which is exactly the disagreement its DEFER row named: dial the radius
+// and the square would keep the old word. The square is DERIVED AT THE
+// READ now, from the live value, so the two cannot disagree.
 struct PanelSurface {
     struct Beacon {
         float r0;      // inner radius — sits outside the point's bubble
@@ -137,7 +148,17 @@ struct PanelSurface {
         float look_sens_range;   // clamp half-width: init/R … init*R
         float scroll_zoom_scale; // orbit distance per wheel notch
     } camera;
+    struct Possession {
+        float radius;            // how far the POINT reaches to take a body
+    } possession;
 };
+
+// ═══ POSSESSION (ORGAN_4 P3b) ═════════════════════════════════════
+// The authored reach, carried verbatim from bodies/agents.hpp's TUNING
+// CONSOLE where it lived as `POSSESSION_RADIUS` beside a derived `_SQ`.
+// The square does not come with it: a second constant is the whole
+// defect, and the one read site squares the LIVE value instead.
+inline constexpr float POSSESSION_RADIUS = 20.0f;
 
 inline constexpr PanelSurface PANEL_TABLE = {
     { FIELD_BEACON_R0, FIELD_BEACON_R, FIELD_BEACON_S, FIELD_BEACON_LIFT },
@@ -147,15 +168,22 @@ inline constexpr PanelSurface PANEL_TABLE = {
                                      // here at ORGAN_3b — w2 built the bank
                                      // and left the readers behind, so these
                                      // four wrote a home nothing read
+    { POSSESSION_RADIUS },           // ORGAN_4 P3b
 };
 
 inline PanelSurface PANEL_LIVE = PANEL_TABLE;
 static_assert(PANEL_TABLE.beacon.r0 == FIELD_BEACON_R0
            && PANEL_TABLE.beacon.r  == FIELD_BEACON_R
            && PANEL_TABLE.beacon.s  == FIELD_BEACON_S
-           && PANEL_TABLE.beacon.lift == FIELD_BEACON_LIFT,
-    "PANEL_TABLE's beacon row is seeded FROM the authored rests above — "
-    "one fact, one home; if they can disagree the seeding is wrong");
+           && PANEL_TABLE.beacon.lift == FIELD_BEACON_LIFT
+           && PANEL_TABLE.possession.radius == POSSESSION_RADIUS,
+    "PANEL_TABLE's beacon and possession rows are seeded FROM the authored "
+    "rests above — one fact, one home; if they can disagree the seeding is "
+    "wrong");
+static_assert(PANEL_TABLE.possession.radius > 0.0f,
+    "the possession reach is squared at its read site; a zero or negative "
+    "reach would make the search unwinnable rather than merely small — the "
+    "enrollment line floors the dial above zero");
 
 } // namespace the_board
 } // namespace t7

@@ -6,6 +6,7 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // Tier vocabulary graduated to contracts/agent_tiers.hpp (ORGAN_2b) — the bank TIER_LIVE is the world's definition; the translator below reads it.
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
+#include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_4 P3b — PANEL_LIVE.possession.radius: the reach, graduated out of this file's console
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
 //
@@ -90,8 +91,12 @@ inline constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
 
 inline constexpr uint32_t PLAYER_SLOT = 0;
 
-inline constexpr float POSSESSION_RADIUS    = 20.0f;
-inline constexpr float POSSESSION_RADIUS_SQ = POSSESSION_RADIUS * POSSESSION_RADIUS;
+// POSSESSION_RADIUS graduated to contracts/control_panel.hpp (ORGAN_4
+// P3b) — PANEL_LIVE.possession.radius is what this module reads, and
+// POSSESSION_RADIUS_SQ is retired outright. It was a second constant
+// derived at declaration, so a dialled radius and a frozen square would
+// have disagreed silently; the one read site squares the LIVE value now,
+// which is why the pair could stop being a pair.
 
 //
 // SEAM[agents:L2] hardware mirror — AGENT_EVICTION_RADIUS must agree
@@ -495,7 +500,12 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
     const float pz = c->point_.z;
 
     int best_slot = -1;
-    float best_d2 = POSSESSION_RADIUS_SQ;
+    // ORGAN_4 P3b — THE SQUARE IS DERIVED HERE, from the live reach. The
+    // retired POSSESSION_RADIUS_SQ was a constexpr twin, and a dialled
+    // radius against a frozen square is the disagreement its DEFER row
+    // named. One authority, squared where it is used.
+    const float reach = PANEL_LIVE.possession.radius;
+    float best_d2 = reach * reach;
     for (uint32_t s = 0; s < Dim::MAX_AGENTS; s++) {
         if (s == cur) continue;
         const auto& a = as.slots[s];
@@ -512,7 +522,7 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
     }
 
     if (best_slot < 0) {
-        std::cout << "[Possess] No agent within " << POSSESSION_RADIUS
+        std::cout << "[Possess] No agent within " << reach
                   << " units of the point at (" << px << "," << pz << ")\n";
         return;
     }

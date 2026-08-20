@@ -19,7 +19,7 @@
 // Depends on cohort include order: entity_types.hpp (traits/adapter/
 // instance vocabulary), grounded.hpp (props/configs/palettes + the
 // tier enums — COMPLETE, the merged bodies deref them), state.hpp
-// (GPU mesh params), mood.hpp (MOOD_TABLE / PORTAL_DENSITY / portal
+// (GPU mesh params), mood.hpp (MOOD_TABLE / portal
 // doors), machine/spawn_engine.hpp (the services, defined just above
 // in the cohort). MERGED at the cohort tail (the
 // B ruling): the decl tier (the generic_* decls, the arch
@@ -1031,7 +1031,7 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
         // PORTAL_2 — the triad is a finite world's whole roster. A
         // dispatch DOORWAY indoors stays an arch; it opens nowhere.
         float portal_roll = cpu_hash_f(inst.seed, ArchProp::ROTATION + 200u);
-        if (portal_roll < PORTAL_DENSITY) {
+        if (portal_roll < WORLD_DRAW_LIVE.portal_density) {
             aa.is_portal = true;
             uint32_t dest_seed = cpu_hash(aa.position_hash, 1u);
             uint32_t mood = pick_portal_mood(aa.position_hash, 2u);

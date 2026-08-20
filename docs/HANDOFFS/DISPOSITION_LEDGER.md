@@ -752,9 +752,10 @@ sentence.
 **`FIELD_BEACON_S`'s row died at ORGAN_3b P5** — the clamp at the writer,
 adjudicated by Jean. What remains:
 
-| what | why |
-| --- | --- |
-| `POSSESSION_RADIUS` | its `_SQ` twin is a derived constant; enrolling the radius without recomputing the square at the read would let the two disagree silently. Small, real, and wants the read site changed first. |
+**`POSSESSION_RADIUS`'s row died at ORGAN_4 P3b.** Its condition was met
+rather than waived: the `_SQ` twin had exactly one reader, so the square is
+derived AT that read from the live value and the second constant is retired.
+Nothing survives from Wave 2.
 
 ---
 
@@ -817,9 +818,16 @@ forgotten at three.
 because the boundary was a guess; ORGAN_3b P3 read the module and landed
 it. What remains:
 
-| what | why |
-| --- | --- |
-| the remaining destructive banks — `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE`, `SCHEME_WEIGHTS`, `PORTAL_COLORS`, ribbon's spawn rolls and colour vocabulary, the floater tier weights | Each is a small bank with a banner and no wiring — mechanical, and the pattern is now proven by `INDOOR_LIVE`. Deferred as bulk, not as difficulty. |
+**The remaining destructive banks died at ORGAN_4 P3d** — five of the six
+landed, and the sixth was retired for a reason the bulk reading could not
+have found. `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE`, `SCHEME_WEIGHTS` and
+the portal palette became `WORLD_DRAW_LIVE` (block 10,
+contracts/mood_constants.hpp); the ribbon's spawn rolls and colour
+vocabulary became `RIBBON_SPAWN_LIVE` (block 11,
+contracts/ribbon_surface.hpp), a SECOND bank beside `RIBBON_LIVE` because
+its temperament differs. **The floater tier weights did not land:**
+`SPHERE_BASE_TIER_WEIGHTS` and `CUBE_BASE_TIER_WEIGHTS` have NO READER —
+see P3d below. Nothing survives from Wave 3.
 
 ---
 
@@ -867,8 +875,11 @@ applied without being asked twice.
 
 | seam | why |
 | --- | --- |
-| `floater_coordination` | driven by `cube_behaviors.hpp:400`, which is one of the five modules flagged unread in §4.6. Witness-only would be honest, but its *dial* lives in that module and the pair should land together. |
-| `veil_strength`, `terrain_amp_ceiling`, `ceiling_height`, `indoor_height_cap` | driven per-world/per-mood from MoodProfile's **structural** group, which is C5 by the standing eligibility rule. A witness on each is defensible and cheap; deferred only because the four belong to one reading of the mood applier that Wave 3's ORB deferral already named. |
+| `floater_coordination` | **SHARPENED at ORGAN_4 P3c, and the premise below was wrong.** It is not driven at all: `cube_behaviors.hpp:400` is inside `cycle_floater_coordination`, a PLAYER COMMAND. There is no per-frame author. The anatomy and the priced shape are in P3c below; what remains is a temperament ruling, not a reading. |
+
+**The four mood-structural witnesses died at ORGAN_4 P3a** — all four
+land in `GPUDesignConfig`, the block the panel already addresses, so each
+had the fixed home a witness needs and none needed a mirror minted for it.
 
 **The ribbon's four pipes died at ORGAN_4 P2** — the fourth pipe's blocker
 was read rather than worked around: downstream is `st ? st[c2] : 0.0f`, so
@@ -1885,3 +1896,141 @@ carries five dials and no meter — and says so in its own banner, where the
 next reader will look.
 
 Entries **258 → 263**. `organ_gap` now reads `DriverSurface 4/4 named`.
+
+## P3 — the backlog sweep
+
+**Six landed, one retired unbuilt, one sharpened.** Entries 263 → **305**;
+blocks 10 → 12.
+
+### P3a — four structural witnesses
+
+Per C6, all four author into `GPUDesignConfig`, so the block the panel
+already addresses IS their fixed home and D2 is satisfied without minting
+anything. Sections by SUBJECT, not by home:
+
+| fact | section · group | why a meter and not a dial |
+| --- | --- | --- |
+| `veil_strength` | Atmosphere · Veil | `cartridge.hpp:1206` writes `finite_mode ? 0 : 1` — a world-shape fact. A slider would fight that author and lose on the next world draw. |
+| `terrain_amp_ceiling` | Terrain · Indoor | composed by the mood applier from MoodProfile's STRUCTURAL group, which is C5: world generation reads it, so a dial would edit a world already built. |
+| `ceiling_height` | Terrain · Indoor | the same, and it is also a camera clamp. |
+| `indoor_height_cap` | Terrain · Indoor | the same, read once per zone birth by `zone_derive_params`. |
+
+The three indoor meters sit beside two GEN dials in one group, which is
+legible only because ORGAN_3b moved the cadence chip from the group's NAME
+to the ROW. A DRIVEN meter under a heading that once read *"edits the next
+spawn"* would have been the misreport this campaign exists to end.
+
+### P3b — POSSESSION_RADIUS, and the pair that stopped being a pair
+
+C7's first branch: `POSSESSION_RADIUS_SQ` had exactly one reader. So the
+constant is retired outright and the one site squares the LIVE value:
+
+```cpp
+const float reach = PANEL_LIVE.possession.radius;
+float best_d2 = reach * reach;
+```
+
+The graduation went to `contracts/control_panel.hpp` rather than to a new
+header, on that file's own argument — *"a second contracts header per
+family would be two homes for one idea"* — and because possession IS input
+grammar, which is what the file says it holds. `bodies/agents.hpp` could
+never have carried the dial: the ORGAN may not include a body.
+
+Range 0…80 is 4× the authored 20 `[heuristic]`, and the floor is one step:
+a zero reach makes the search unwinnable rather than merely small. A
+`static_assert` states that beside the design value, the ribbon `r_min`
+precedent applied to the second divisor-shaped fact in the tree.
+
+### P3c — floater_coordination: the ledger's own premise was wrong
+
+Wave 4 filed it as *"driven by `cube_behaviors.hpp:400`"* and deferred it
+because the module was unread. The module is read now, and **there is no
+driver.** Line 400 sits inside `cycle_floater_coordination`, a player
+command: it steps `cbs.coordination_step` through the three values of
+`FLOATER_COORDINATION_STEPS` and calls `stage_floater_coordination(v)`,
+which assigns `config_.floater_coordination` and raises no dirty bit. Its
+readers are `world.wgsl:8845` (per frame) and `cartridge.hpp:1143`, where
+`phase_motion_drivers` reads it as the beacon's S gain — both READS.
+
+So P3c's first branch does not apply: **a rest-and-gain room for it would
+model a driver that does not exist.** Per the handoff's second branch the
+anatomy is ledgered and the row is not landed. The anatomy, priced:
+
+- The fact already has a fixed home the panel addresses —
+  `GPUDesignConfig.floater_coordination`, block 0 — so a plain
+  `ORGAN_PARAM` line is the whole build. No bank, no block, no witness.
+- What it needs first is a **temperament ruling**, and it is exactly the
+  one P1e stamped for the palette: the key-cycle is a live gesture and the
+  dial would be the durable author, or the reverse. The three authored
+  steps (0 / 0.5 / 1.0) are a vocabulary the cycle walks; a continuous
+  slider over the same range is a strictly larger space, which is either
+  the point or a lie about what the world was designed to do.
+- D1 reserves that choice. One line lands it the moment it is made.
+
+### P3d — the destructive banks
+
+**Two banks born, thirty-seven rows, no wiring anywhere.** The Wave-3
+recipe verbatim: LIVE bank beside its table, `ORGAN_PARAM_GEN` on every
+row, the banner naming the next natural event, and NOT ONE flag raised —
+because a wrong re-speak tears down a world (D5, and 3b's D4 behind it).
+
+**`WORLD_DRAW_LIVE`** — `contracts/mood_constants.hpp`, block 10, 11 rows.
+`PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE` and `SCHEME_WEIGHTS` were
+`inline constexpr` in `direction/mood.hpp`, which the ORGAN may not
+include; the portal palette was already in mood_constants beside the
+`PortalDestination` it describes. One bank rather than two, because they
+are one question — *what does a fresh world roll?* Rows split by SUBJECT
+per the ledger's own placement: `Sky & Light · Schemes` (4),
+`Sky & Light · Portals` (5), `Agents · Portals` (2). `SCHEME_COUNT`
+travelled with the weights it sizes; the two tables it also sizes stay in
+`mood.hpp` and read it unqualified, unchanged.
+
+One reader tightened while it was open: `pick_portal_mood` read
+`FINITE_OUTDOOR_CHANCE` four times across one ladder. It reads the live
+value ONCE into a local now, so a write landing mid-draw cannot make the
+four branches disagree about the same roll.
+
+**`RIBBON_SPAWN_LIVE`** — `contracts/ribbon_surface.hpp`, block 11, 26
+rows. A SECOND bank in the same file as `RIBBON_LIVE`, and the reason is
+temperament: the head law is read every frame, and every row here is read
+ONCE, as a ribbon is drawn. `RibbonConfig` dies with its two members —
+two static constants were its whole body. `RIBBON_SMOOTH_PALETTE_COUNT`
+and `RIBBON_COLOR_MODE_COUNT` moved to contracts because they SIZE the
+bank's rows, and a `static_assert` ties `RibbonColorMode::COUNT` to the
+second so a fourth colour mode cannot be born without its weight.
+
+**The floater tier weights did NOT land, and the reason is the campaign's
+own law.** `SPHERE_BASE_TIER_WEIGHTS` and `CUBE_BASE_TIER_WEIGHTS` have
+**no reader**: `git grep` finds each symbol exactly once in `src/`, at its
+own declaration. The generic pipeline rolls a floater's tier from
+`adapter.get_tier_profile(t).weight` — the `weight` column of
+`SPHERE_TIERS` / `CUBE_TIERS` — multiplied by `theme_tier_weights()`
+(`entity_pipeline.hpp:110-116`). The base arrays were superseded and left
+standing. Enrolling them would have built **two dead dials on purpose**,
+which is the exact defect ORGAN_4 exists to end. Their share of the row is
+retired; the constants themselves are a broom question for whichever
+sitting next opens `contracts/floaters.hpp`, and they are named here so it
+does not have to rediscover them.
+
+### The harness at P3 close
+
+```
+  [PASS] the entry tally is the counted one              305 (want 305)
+  [PASS] twelve block ids (two destructive banks born)
+  [PASS] block 10 -> WORLD_DRAW_LIVE / block 11 -> RIBBON_SPAWN_LIVE
+  [PASS] both banks seed byte-for-byte from their design tables
+  [PASS] every destructive-bank row reads cadence GEN            39 rows
+  [PASS] a destructive write LANDS in its bank
+  [PASS]   and raises NO re-speak flag of any kind (D5)
+  [PASS] the four mood-structural facts meter as DRIVEN witnesses  4/4
+  [PASS] organ_set refuses to write a witness                 4 refusals
+  [PASS] the possession reach enrolls, floors at one step, lands, and
+         clamps 0 up to the floor rather than zeroing the reach
+  [PASS] no (block, offset, type) triple repeats across all 305 entries
+  [PASS] every section is contiguous in registry order        8 sections
+GREEN — 0 failure(s)
+```
+
+`organ_gap` reads **13 graduated pairs, 0 surviving runtime readers** —
+`WorldDrawSurface 5/5 named`, `RibbonSpawnSurface 21/21 named`. Its file
+table and its pair table both grew, so neither bank is scanned by silence.

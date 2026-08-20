@@ -75,16 +75,18 @@ struct RibbonDeps {
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Spawn ────────────────────────────────────────────────────────
-struct RibbonConfig {
-    static constexpr float SPAWN_CHANCE = 0.900f;   // authored value (control-panel constant; the distributions pass revisits it)
-    // SEAM[ribbon:P4] hygiene rows pattern — the ribbon column of
-    //   MOOD_SPAWN_MULT (surface/population_themes.hpp) is
-    //   { 1, 1, 1, 1 }, all identity: the mood term suppresses no
-    //   row today. (It previously read as carrying indoor zeros; the
-    //   live table never had them.) Same family as gol_zones:P4 and
-    //   the cube populations' hygiene rows.
-    static constexpr float POSITION_JITTER = 0.3f;
-};
+// RibbonConfig::SPAWN_CHANCE / POSITION_JITTER graduated to
+// contracts/ribbon_surface.hpp (ORGAN_4 P3d) as the first two fields of
+// RIBBON_SPAWN_LIVE — the DESTRUCTIVE bank, read once as a ribbon is
+// drawn and never again. The struct dies with them: two static members
+// were its whole body.
+//
+// SEAM[ribbon:P4] hygiene rows pattern — the ribbon column of
+//   MOOD_SPAWN_MULT (surface/population_themes.hpp) is
+//   { 1, 1, 1, 1 }, all identity: the mood term suppresses no
+//   row today. (It previously read as carrying indoor zeros; the
+//   live table never had them.) Same family as gol_zones:P4 and
+//   the cube populations' hygiene rows.
 
 // ── Length cap ───────────────────────────────────────────────────
 
@@ -116,17 +118,12 @@ inline constexpr float MOUNT_BANK_MAX      = 0.6f;
 // (steer_soft, yaw_max, yaw_tau, arrive_radius) graduated to
 // contracts/ribbon_surface.hpp at ORGAN_3 w2; the per-SPAWN rolls below
 // stay authored until w3 gives them a destructive-temperament bank.
-inline constexpr float WANDER_CHANCE      = 0.30f;   // per-spawn roll
-inline constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction of RIBBON_LIVE.max_speed)
-inline constexpr float WANDER_CRUISE_SIGMA = 0.15f;   // gaussian sigma
-inline constexpr float WANDER_CRUISE_MIN  = 0.15f;
-inline constexpr float WANDER_CRUISE_MAX  = 0.80f;
-inline constexpr float WANDER_LEG_MIN     = 200.0f;  // waypoint leg length (units)
-inline constexpr float WANDER_LEG_MAX     = 500.0f;
-inline constexpr float WANDER_SPREAD      = 1.0f;    // rad of bearing spread around current motion
-inline constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoints
-inline constexpr float WANDER_RETARGET_VAR = 15.0f;
-inline constexpr float WANDER_HATCH_LEG   = 300.0f;  // hatchling's first-waypoint leg (units) — the newborn's opening stride, sized between LEG_MIN/MAX's band; consumed in commit_ribbon's hatchling rule
+// The per-SPAWN rolls graduated to contracts/ribbon_surface.hpp
+// (ORGAN_4 P3d) as RIBBON_SPAWN_LIVE's wander_* fields — chance, cruise
+// base/sigma/min/max, leg min/max, spread, retarget min/var, hatch leg.
+// w3's sentence above said they were waiting on "a destructive-temperament
+// bank"; that bank exists now, and it is a second bank beside RIBBON_LIVE
+// precisely because its temperament differs from the head law's.
 
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════
 
@@ -135,31 +132,19 @@ struct RibbonColorMode {
     static constexpr uint32_t TINTED = 1;  // warm/cool hue shift
     static constexpr uint32_t CONTRAST = 2;  // cell skin: per-cell coloring — pair-contrast species (two medians, parity) or median-field species (one median, terrain-patch texture); see fill
     static constexpr uint32_t COUNT = 3;
-    //                                     SMOOTH TINTED CONTRAST (selection probabilities, sum 1.0)
-    static constexpr float WEIGHTS[COUNT] = { 0.40f, 0.35f, 0.25f };
+    //   The three selection probabilities (SMOOTH/TINTED/CONTRAST, sum
+    //   1.0) graduated to RIBBON_SPAWN_LIVE.color_weights (ORGAN_4 P3d);
+    //   the three IDS stay — a vocabulary is not a range.
 };
+static_assert(RibbonColorMode::COUNT == RIBBON_COLOR_MODE_COUNT,
+    "the bank's color_weights row is sized by the vocabulary above; a "
+    "fourth mode needs its weight in contracts/ribbon_surface.hpp too");
 
-// Smooth color palettes: base colors for SMOOTH mode ribbons
-inline constexpr float RIBBON_SMOOTH_PALETTE[][3] = {
-    { 0.82f, 0.75f, 0.62f },   // warm sandstone
-    { 0.55f, 0.65f, 0.78f },   // sky blue
-    { 0.85f, 0.78f, 0.58f },   // golden
-    { 0.50f, 0.68f, 0.55f },   // sage green
-};
-inline constexpr uint32_t RIBBON_SMOOTH_PALETTE_COUNT = 4;
-
-// ── Color character ──────────────────────────────────────────────
-
-// SMOOTH: per-channel variance around the palette base.
-//   var = hash * RANGE + BIAS; applied as { +var, +var*G, +var*B }.
-inline constexpr float SMOOTH_VAR_RANGE = 0.10f;
-inline constexpr float SMOOTH_VAR_BIAS  = -0.05f;
-inline constexpr float SMOOTH_VAR_G_SCALE = 0.8f; // green channel gets var * G_SCALE
-inline constexpr float SMOOTH_VAR_B_SCALE = 0.6f; // blue  channel gets var * B_SCALE
-
-// TINTED: per-channel hash*range + base (R & B range 0.45, G range 0.40).
-inline constexpr float TINTED_RANGE[3] = { 0.45f, 0.40f, 0.45f };
-inline constexpr float TINTED_BASE[3]  = { 0.40f, 0.35f, 0.35f };
+// The SMOOTH palette and the whole colour character block graduated to
+// contracts/ribbon_surface.hpp (ORGAN_4 P3d) — RIBBON_SPAWN_LIVE's
+// smooth_palette, smooth_var_range/bias/g_scale/b_scale, tinted_range and
+// tinted_base. RIBBON_SMOOTH_PALETTE_COUNT went with them because it SIZES
+// the bank's palette row; the draw below still reads it unqualified.
 
 struct CheckerPair {
     float dark[3];
@@ -493,14 +478,15 @@ inline void ribbon_wander_inputs(ActiveRibbon& ar,
     if (ar.wander_retarget <= 0.0f
         || wdx * wdx + wdz * wdz < RIBBON_LIVE.wander_arrive_radius * RIBBON_LIVE.wander_arrive_radius) {
         const float move_dir = heading + 3.14159265f;           // movement = -heading
-        const float spread = (wander_rand01(ar.wander_rng) * 2.0f - 1.0f) * WANDER_SPREAD;
-        const float leg = WANDER_LEG_MIN
-                        + (WANDER_LEG_MAX - WANDER_LEG_MIN) * wander_rand01(ar.wander_rng);
+        const float spread = (wander_rand01(ar.wander_rng) * 2.0f - 1.0f) * RIBBON_SPAWN_LIVE.wander_spread;
+        const float leg = RIBBON_SPAWN_LIVE.wander_leg_min
+                        + (RIBBON_SPAWN_LIVE.wander_leg_max - RIBBON_SPAWN_LIVE.wander_leg_min)
+                          * wander_rand01(ar.wander_rng);
         const float b = move_dir + spread;
         ar.wander_tx = head_x + leg * std::cos(b);
         ar.wander_tz = head_z + leg * std::sin(b);
-        ar.wander_retarget = WANDER_RETARGET_MIN
-                           + WANDER_RETARGET_VAR * wander_rand01(ar.wander_rng);
+        ar.wander_retarget = RIBBON_SPAWN_LIVE.wander_retarget_min
+                           + RIBBON_SPAWN_LIVE.wander_retarget_var * wander_rand01(ar.wander_rng);
     }
 
     const float bearing = std::atan2(ar.wander_tz - head_z, ar.wander_tx - head_x);
@@ -1028,20 +1014,22 @@ inline void fill_ribbon_selection_geometry(
 
     // Color
     sel.color_mode = select_tier(seed, RibbonProp::COLOR_ROLL,
-        RibbonColorMode::WEIGHTS, RibbonColorMode::COUNT);
+        RIBBON_SPAWN_LIVE.color_weights, RibbonColorMode::COUNT);
 
     if (sel.color_mode == RibbonColorMode::SMOOTH) {
         uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
         if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
-        float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * SMOOTH_VAR_RANGE + SMOOTH_VAR_BIAS;
-        sel.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
-        sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * SMOOTH_VAR_G_SCALE;
-        sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * SMOOTH_VAR_B_SCALE;
+        const auto& S = RIBBON_SPAWN_LIVE;
+        float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * S.smooth_var_range + S.smooth_var_bias;
+        sel.color[0] = S.smooth_palette[pal_idx][0] + var;
+        sel.color[1] = S.smooth_palette[pal_idx][1] + var * S.smooth_var_g_scale;
+        sel.color[2] = S.smooth_palette[pal_idx][2] + var * S.smooth_var_b_scale;
     }
     else if (sel.color_mode == RibbonColorMode::TINTED) {
-        sel.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * TINTED_RANGE[0] + TINTED_BASE[0];
-        sel.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * TINTED_RANGE[1] + TINTED_BASE[1];
-        sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * TINTED_RANGE[2] + TINTED_BASE[2];
+        const auto& S = RIBBON_SPAWN_LIVE;
+        sel.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * S.tinted_range[0] + S.tinted_base[0];
+        sel.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * S.tinted_range[1] + S.tinted_base[1];
+        sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * S.tinted_range[2] + S.tinted_base[2];
     }
     else {
         if (cpu_hash_f(seed, RibbonProp::MEDIAN_SPECIES_ROLL) < CELLS_MEDIAN_CHANCE) {
@@ -1129,7 +1117,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     }
     auto gate = run_spawn_preamble(c, gx, gz,
         rs.active, MAX_RIBBON_INSTANCES,
-        RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
+        RibbonProp::SPAWN_ROLL, RIBBON_SPAWN_LIVE.spawn_chance,
         mood_mult_for(PopFamily::RIBBON),
         PopFamily::RIBBON);
     if (!gate.ok) return false;
@@ -1192,7 +1180,7 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
     auto pos = negotiate_position(c, sel.seed,
         sel.trigger_gx, sel.trigger_gz,
         RibbonProp::ANCHOR_X, RibbonProp::ANCHOR_Z,
-        RibbonConfig::POSITION_JITTER,
+        RIBBON_SPAWN_LIVE.position_jitter,
         RibbonProp::ORIENTATION,
         /*grounded=*/true,   // the anchor ribbon's tips touch ground; it claims and is blocked
         sel.footprint_r,
@@ -1292,18 +1280,19 @@ inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
     ar.anchor_x = plan.cx;
     ar.anchor_z = plan.cz;
 
-    ar.wander = cpu_hash_f(plan.seed, RibbonProp::WANDER_ROLL) < WANDER_CHANCE;
+    ar.wander = cpu_hash_f(plan.seed, RibbonProp::WANDER_ROLL) < RIBBON_SPAWN_LIVE.wander_chance;
     {
         float cr = cpu_sample_gaussian(plan.seed, RibbonProp::WANDER_CRUISE,
-                                       WANDER_CRUISE_BASE, WANDER_CRUISE_SIGMA);
-        ar.wander_cruise = (cr < WANDER_CRUISE_MIN) ? WANDER_CRUISE_MIN
-                         : (cr > WANDER_CRUISE_MAX) ? WANDER_CRUISE_MAX : cr;
+                                       RIBBON_SPAWN_LIVE.wander_cruise_base,
+                                       RIBBON_SPAWN_LIVE.wander_cruise_sigma);
+        ar.wander_cruise = (cr < RIBBON_SPAWN_LIVE.wander_cruise_min) ? RIBBON_SPAWN_LIVE.wander_cruise_min
+                         : (cr > RIBBON_SPAWN_LIVE.wander_cruise_max) ? RIBBON_SPAWN_LIVE.wander_cruise_max : cr;
     }
     ar.wander_rng = 1u + (uint32_t)(cpu_hash_f(plan.seed, RibbonProp::WANDER_RNG)
                                     * 16777215.0f);
-    ar.wander_tx = plan.cx - WANDER_HATCH_LEG * std::cos(r.orientation);
-    ar.wander_tz = plan.cz - WANDER_HATCH_LEG * std::sin(r.orientation);
-    ar.wander_retarget = WANDER_RETARGET_MIN;
+    ar.wander_tx = plan.cx - RIBBON_SPAWN_LIVE.wander_hatch_leg * std::cos(r.orientation);
+    ar.wander_tz = plan.cz - RIBBON_SPAWN_LIVE.wander_hatch_leg * std::sin(r.orientation);
+    ar.wander_retarget = RIBBON_SPAWN_LIVE.wander_retarget_min;
     ar.wander_yaw_state = 0.0f;
     if (ribbon_head_is(rs, s))
         ribbon_invalidate_head(rs);

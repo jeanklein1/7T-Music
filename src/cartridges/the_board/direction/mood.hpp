@@ -104,12 +104,17 @@ struct PawnState;
 // ═══ PORTAL VOCABULARY ═══════════════════════════════════════════
 
 // ── Portal detection ──
-inline constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals
+// PORTAL_DENSITY graduated to contracts/mood_constants.hpp (ORGAN_4 P3d)
+// with the rest of the world-draw bank — WORLD_DRAW_LIVE.portal_density is
+// what entity_pipeline's portal roll reads. The organ may not include a
+// direction file, so a dial on it was impossible until it had a contracts
+// home; it is C3 DESTRUCTIVE and enrolls with the GEN chip and no wiring.
 
-// The portal palette (PORTAL_COLORS, PORTAL_COLOR_BACK) and its one
-// derivation portal_color_for GRADUATED to contracts/mood_constants.hpp
-// at PORTAL_1 C5 — they live beside PortalDestination, the thing they
-// describe, so grounded.hpp derives too instead of receiving a value.
+// The portal palette and its one derivation portal_color_for GRADUATED
+// to contracts/mood_constants.hpp at PORTAL_1 C5 — they live beside
+// PortalDestination, the thing they describe, so grounded.hpp derives too
+// instead of receiving a value. ORGAN_4 P3d folded the palette into
+// WORLD_DRAW_LIVE there; portal_color_for reads the bank now.
 
 // ═══ INDOOR WALL PALETTE ═════════════════════════════════════════
 //
@@ -276,8 +281,10 @@ struct LightSlotDef {
 };
 
 // Vault adds an uplight when count < 4, so MOOD_INDOOR_VAULT reads one row up.
-inline constexpr float SCHEME_WEIGHTS[] = { 0.42f, 0.43f, 0.10f, 0.05f };
-inline constexpr uint32_t SCHEME_COUNT = 4;
+// SCHEME_WEIGHTS graduated to contracts/mood_constants.hpp (ORGAN_4 P3d)
+// as WORLD_DRAW_LIVE.scheme_weights — the roll below reads the bank.
+// SCHEME_COUNT went with it, because it SIZES the bank's row; the two
+// tables it also sizes are here and read it unqualified, unchanged.
 inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
 inline constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
 
@@ -350,7 +357,7 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
 
     // Scheme selection
     uint32_t scheme = select_tier(seed, IndoorLightProp::SCHEME,
-        SCHEME_WEIGHTS, SCHEME_COUNT);
+        WORLD_DRAW_LIVE.scheme_weights, SCHEME_COUNT);
 
     // Wall pair: N/S or E/W — gives axis variety across seeds
     bool use_ew = cpu_hash_f(seed, IndoorLightProp::WALL_PAIR) > 0.5f;
@@ -1131,7 +1138,7 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
 // THE DOOR GUARANTEE (U2). Runs once per world, after the synchronous
 // population, behind a count-gate over the live arches: if any active
 // portal already stands — the finite machinery's back portal, or a
-// Channel A DOORWAY arch (PORTAL_DENSITY 1.0, entity_pipeline.hpp) —
+// Channel A DOORWAY arch (portal_density 1.0, entity_pipeline.hpp) —
 // this is a no-op and the world changes by nothing. Only a world that
 // populated DOORLESS gets one forced door: an open-world roll can
 // commit zero DOORWAY arches in the priority window, and the boot
@@ -1293,14 +1300,17 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
 // longer roll: their roster is the fixed triad
 // (force_spawn_finite_portals). The finite outdoors is a rare
 // feature of the open field only.
-inline constexpr float FINITE_OUTDOOR_CHANCE = 0.10f;
-
+// FINITE_OUTDOOR_CHANCE graduated to contracts/mood_constants.hpp
+// (ORGAN_4 P3d) as WORLD_DRAW_LIVE.finite_outdoor_chance. The ladder
+// below reads it ONCE into a local, so a mid-draw write cannot make the
+// four branches disagree about the same roll.
 inline uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) {
     float roll = cpu_hash_f(seed, prop);
-    if (roll < FINITE_OUTDOOR_CHANCE) return MOOD_FINITE_OUTDOOR;
-    float span = (1.0f - FINITE_OUTDOOR_CHANCE) / 3.0f;
-    if (roll < FINITE_OUTDOOR_CHANCE + span)        return MOOD_OPEN_SUNSET;
-    if (roll < FINITE_OUTDOOR_CHANCE + 2.0f * span) return MOOD_INDOOR_FLAT;
+    const float finite = WORLD_DRAW_LIVE.finite_outdoor_chance;
+    if (roll < finite) return MOOD_FINITE_OUTDOOR;
+    float span = (1.0f - finite) / 3.0f;
+    if (roll < finite + span)        return MOOD_OPEN_SUNSET;
+    if (roll < finite + 2.0f * span) return MOOD_INDOOR_FLAT;
     return MOOD_INDOOR_VAULT;
 }
 

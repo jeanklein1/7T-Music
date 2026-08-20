@@ -327,7 +327,7 @@ namespace t7 {
             //   (force_spawn_* functions read pendingDestination_), direction/input.hpp
             //   (keypress mood transitions request via mood.hpp's
             //   request_mood_transition), render() (readback callback drives
-            //   portal trigger detection). PORTAL_COLORS lives in
+            //   portal trigger detection). The portal palette lives in
             //   contracts/mood_constants.hpp, beside PortalDestination —
             //   a portal's colour is a fact about its destination, so the
             //   palette sits with the type that names it (PORTAL_1 C5) and

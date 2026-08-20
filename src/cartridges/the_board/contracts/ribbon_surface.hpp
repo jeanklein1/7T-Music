@@ -27,12 +27,15 @@
 // turn radius to nothing and hand the head an unbounded yaw rate. The
 // enrollment line carries that floor.
 //
-// NOT HERE: the spawn-rolled wander policy (chance, cruise, legs,
-// retarget, hatch leg) and the colour vocabulary — those are
-// DESTRUCTIVE-temperament facts, ORGAN_3 w3, and they edit the next
-// spawn rather than this one. Nor the MOUNT_* frame-law mirrors:
-// those are LOCKSTEP MIRRORS of world.wgsl and a dial on one half of
-// a hand-kept mirror is the L3 hazard the panel exists to avoid.
+// HERE SINCE ORGAN_4 P3d, IN A SECOND BANK: the spawn-rolled wander
+// policy (chance, cruise, legs, retarget, hatch leg) and the colour
+// vocabulary. They are DESTRUCTIVE-temperament facts and they edit the
+// NEXT spawn rather than this one, which is why they are a second bank
+// with a second temperament and not four more fields on the first.
+//
+// STILL NOT HERE: the MOUNT_* frame-law mirrors. Those are LOCKSTEP
+// MIRRORS of world.wgsl and a dial on one half of a hand-kept mirror is
+// the L3 hazard the panel exists to avoid.
 // ────────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -78,6 +81,94 @@ inline RibbonSurface RIBBON_LIVE = RIBBON_TABLE;
 static_assert(RIBBON_TABLE.r_min > 0.0f,
     "r_min is a divisor in the steering law's min(); the design value must "
     "be positive and the enrollment line must floor the dial above zero");
+
+
+// ═══ THE SPAWN BANK, GRADUATED (ORGAN_4 P3d) ═════════════════════
+//
+// C3 DESTRUCTIVE, every row, and that is why it is a SECOND bank rather
+// than more fields on the first. RIBBON_LIVE is read every frame by the
+// head mover; everything below is read ONCE, as a ribbon is drawn:
+// `select_ribbon_for_patch` rolls the spawn chance and the colour mode,
+// `fill_ribbon_selection_geometry` draws the colour, `commit_ribbon`
+// rolls the wander policy, and none of them looks again. Re-speaking a
+// destructive author means tearing down the ribbons that already exist
+// to apply a slider, so this bank has NO BOUNDARY WIRING (D5) and its
+// enrollment rows wear the GEN chip: the edit lands on the next ribbon.
+//
+// SIZE COUNTS THAT ARE NOT DIALS STAY IN THE MODULE.
+// RIBBON_SMOOTH_PALETTE_COUNT sizes the palette row here and the draw
+// there; RibbonColorMode's three ids are a vocabulary, not a range.
+inline constexpr uint32_t RIBBON_SMOOTH_PALETTE_COUNT = 4;
+inline constexpr uint32_t RIBBON_COLOR_MODE_COUNT = 3;
+
+struct RibbonSpawnSurface {
+    // ── The spawn rolls ──────────────────────────────────────────
+    float spawn_chance;          // per-patch: does a ribbon happen at all
+    float position_jitter;       // anchor scatter inside the trigger patch
+    float wander_chance;         // per-spawn: is this one an idle wanderer
+    float wander_cruise_base;    // gaussian mean, as a fraction of max_speed
+    float wander_cruise_sigma;   // gaussian sigma
+    float wander_cruise_min;     // the draw's clamp, low
+    float wander_cruise_max;     // the draw's clamp, high
+    float wander_leg_min;        // waypoint leg length (units)
+    float wander_leg_max;
+    float wander_spread;         // rad of bearing spread around current motion
+    float wander_retarget_min;   // seconds between waypoints
+    float wander_retarget_var;
+    float wander_hatch_leg;      // the newborn's opening stride (units)
+    // ── The colour vocabulary ────────────────────────────────────
+    float color_weights[RIBBON_COLOR_MODE_COUNT];   // SMOOTH / TINTED / CONTRAST
+    float smooth_palette[RIBBON_SMOOTH_PALETTE_COUNT][3];
+    float smooth_var_range;      // var = hash * RANGE + BIAS
+    float smooth_var_bias;
+    float smooth_var_g_scale;    // green gets var * G_SCALE
+    float smooth_var_b_scale;    // blue  gets var * B_SCALE
+    float tinted_range[3];       // per-channel hash * range + base
+    float tinted_base[3];
+};
+
+inline constexpr RibbonSpawnSurface RIBBON_SPAWN_TABLE = {
+    0.900f,   // spawn_chance    — the module's authored value
+    0.3f,     // position_jitter
+    0.30f,    // wander_chance
+    0.35f,    // wander_cruise_base
+    0.15f,    // wander_cruise_sigma
+    0.15f,    // wander_cruise_min
+    0.80f,    // wander_cruise_max
+    200.0f,   // wander_leg_min
+    500.0f,   // wander_leg_max
+    1.0f,     // wander_spread
+    10.0f,    // wander_retarget_min
+    15.0f,    // wander_retarget_var
+    300.0f,   // wander_hatch_leg — sized inside the LEG_MIN/MAX band
+    { 0.40f, 0.35f, 0.25f },   // color_weights — SMOOTH / TINTED / CONTRAST
+    {
+        { 0.82f, 0.75f, 0.62f },   // warm sandstone
+        { 0.55f, 0.65f, 0.78f },   // sky blue
+        { 0.85f, 0.78f, 0.58f },   // golden
+        { 0.50f, 0.68f, 0.55f },   // sage green
+    },
+    0.10f,    // smooth_var_range
+    -0.05f,   // smooth_var_bias
+    0.8f,     // smooth_var_g_scale
+    0.6f,     // smooth_var_b_scale
+    { 0.45f, 0.40f, 0.45f },   // tinted_range
+    { 0.40f, 0.35f, 0.35f },   // tinted_base
+};
+
+inline RibbonSpawnSurface RIBBON_SPAWN_LIVE = RIBBON_SPAWN_TABLE;
+static_assert(sizeof(RibbonSpawnSurface)
+              == (13 + RIBBON_COLOR_MODE_COUNT
+                     + RIBBON_SMOOTH_PALETTE_COUNT * 3 + 4 + 3 + 3) * sizeof(float),
+    "RIBBON_SPAWN_LIVE is a whole-struct copy of the design row: a field "
+    "added to one is added to the other by construction");
+static_assert(RIBBON_SPAWN_TABLE.wander_cruise_min
+              <= RIBBON_SPAWN_TABLE.wander_cruise_max,
+    "the cruise draw clamps low-then-high; an inverted pair would pin every "
+    "wanderer to the low bound and read as a dead gaussian");
+static_assert(RIBBON_SPAWN_TABLE.wander_leg_min <= RIBBON_SPAWN_TABLE.wander_leg_max,
+    "the leg draw is min + (max - min) * u; an inverted pair would walk the "
+    "waypoint backwards");
 
 } // namespace the_board
 } // namespace t7
