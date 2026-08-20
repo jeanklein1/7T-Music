@@ -301,6 +301,29 @@ what else the edit cannot cause*. UMBRA_3's rim-leak row implicitly asserted tha
 were where to look. Naming one artifact narrows the search for everyone downstream, so
 naming the wrong one misdirects rather than merely underdelivers.
 
+## P15 — A GATE STOPS THE WORK IT PROTECTS, NOT THE CAMPAIGN
+
+A stale-authority gate is a QUOTE about a site. When the site reads as quoted,
+the phases that lean on it proceed. When it differs, the halt's jurisdiction is
+exactly those phases: the item stops, its reason is recorded, and every phase
+that does not depend on the quote continues under flag-and-finish. A
+campaign-wide halt is reserved for a site so load-bearing that nothing
+downstream is safe without it, and the handoff must SAY which gates are of that
+kind.
+
+*Paid for by:* ORGAN_5 gate 5. The gate quoted `web/index.html` as loading
+`organ_panel.js` without a version query, and phase P5a's job was to add one.
+The panel was already versioned — `op.src = 'organ_panel.js?v=' + BUILD;` — and
+the same phase's second half, a literal `window.T7_BUILD_ID = "__BUILD_ID__";`,
+would have broken the shell's one-placeholder law to obtain a value the file
+already held in a variable. The correct outcome was one phase re-scoped —
+`window.T7_BUILD_ID = BUILD;`, one line, the law intact — while six phases
+landed. A halt at the campaign would have bought nothing and cost all six.
+
+It is P13 one rung out. There the executor rules by the state when a
+precondition's proxy disagrees with it; here the executor rules on the *reach*
+of the disagreement. The handoff author quotes; the census proves.
+
 ---
 
 ## SCHEDULING RECORD
