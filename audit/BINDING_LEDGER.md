@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `0cdad010faefff23ba09aa7d4649abb5e3c130e1` |
-| | CANON C1-c: the sphere walk-through folds into the manifold banner |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:6c248ade377ec51cdb29caf635302e9f87f848e80f0b05390ff1cf799c9fae07` |
+| source commit | `c5eaa7476ffbfa30975e2e2f80ab522023483201` |
+| | ORGAN_3b P5 — the adjudications: the beacon's ruling gets a runtime answer, and a claim gets corrected |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:d1975294654162ac0075ded0a706b7cf4c259065eb321cb7df155c798f242671` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:7e3529b4eb9e15f9b811c8e30d804d2a16be2f41ccdab407278a5fc5354c00af` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:154c114845d4dbd595592c799dd33ca171273ee6ab9b6820ffebe87131dabddc` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:022f6b6d21cdb5039b4213c1157cdfb2c05c45a66af6e73d4b2cc9a7d2379ed0` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:002d0c2ee4abb3f84745c9c40c1fe3047f06a97664f873e67b0528e66b9ece31` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:8cf14f9594f2a23df7966a9c00abb2feecb652e4a8c01d2f130461177ca66417` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -29,13 +29,13 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `24e2acdc121904efaa52a6ddee1c0762656703f894c0ad3f223fdc39567639cf` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `e83fb819907b139aca789ff10781fbbf5139520ec95322d9b1d369ba579fbf12` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `910a31d0aa5e81cdcbc8cc9f121469d9e607eb5c16d82d579032f385079fa00b` |
-| `src/cartridges/the_board/bodies/pawn.hpp` | `d1108a1595ac30cec4cd97712c8cf8093e2988c622d554fd2bbea871de31cb7c` |
-| `src/cartridges/the_board/cartridge.hpp` | `e0ace59b97c3334ea9e91e2b31b241953defdec0d291fc774ec259004a3aac41` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `d26cc8c4c6f2470b081b27e46f9006f267f0dd6cd00ce428e5f9f6be6bef44f4` |
+| `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
+| `src/cartridges/the_board/cartridge.hpp` | `4b7da372fe0fc4a67eb3e4da8c11cb47692a39e8ad56835250c0155e660664ec` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `b1f02cfa57d8ed5dec65c6761a727d0d62b0e91d5f34031ee23f01cfd42e9fc2` |
-| `src/cartridges/the_board/direction/mood.hpp` | `cfacfc86866f233b7482918bff8903fe712e686f2168240cd17716eca6874b76` |
+| `src/cartridges/the_board/direction/mood.hpp` | `0839a1f22b488f492d417165b3c114ecb061908f71224c42435fc702e4c5713d` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `e0a9755062ef2dfcddc306dca792354e7bfa87a86eb88a30cc8ff20aee4ea473` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `08d71a39977a275a0650d656942afad05e0fbebe12dc4383727ba28bec8667eb` |
 
@@ -1077,15 +1077,15 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2706 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2709 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4907 | `law-ref` | A:proximity, B:named |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5098 | `witness` | A:proximity |
-| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5181 | `law-ref` | A:proximity |
-| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5186 | `law-ref` | A:proximity |
-| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5254 | `law-ref`, `witness` | A:proximity, B:named |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5325 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5338 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5552 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5552 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4933 | `law-ref` | A:proximity, B:named |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5124 | `witness` | A:proximity |
+| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5207 | `law-ref` | A:proximity |
+| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5212 | `law-ref` | A:proximity |
+| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5280 | `law-ref`, `witness` | A:proximity, B:named |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5351 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5364 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5578 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5578 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 299 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 446 | `law-ref` | A:proximity, B:named |
