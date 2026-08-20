@@ -2375,3 +2375,204 @@ plus the shipped panel driven under a shim in four query modes, all GREEN.
 - **`baseline.json` is a partial preset by construction** — the 57
   boot-pinned `GPUDesignConfig` rows are written by `initializeState` at
   device init, which no offline capture can run. The index note says so.
+
+---
+
+# ORGAN_5 — THE RULE MADE VISIBLE
+
+**The laws of this campaign:** a dial whose effect depends on a mode
+stands next to a truthful readout of that mode; an author re-speaks no
+more than the edit requires; and a section is organized for the hand that
+plays it, not the struct that stores it.
+
+## P0 — the census
+
+### The stale-authority gates: five green, one MATERIALLY DIFFERENT
+
+| gate | verdict |
+| --- | --- |
+| 1 · `cartridge.hpp` boundary order | **GREEN**, with one immaterial note. The order is doors → *mood-def take → tier-def take* → console mask → orb-def take → `configure_orbs(orbs_state_, &orbs_deps_, ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue)`. The two intervening takes are independent flags the handoff's quote simply did not enumerate; every ordering the quote asserts holds. |
+| 2 · `configure_orbs` tail and callers | **GREEN**. Tail is `upload_orb_config(queue, gpuCfg); os.init_pending = true;` (then the diagnostic print). Exactly two callers: `cartridge.hpp:1480` (the boundary) and `direction/mood.hpp:701` (the mood apply). |
+| 3 · `.inc` orb sections, doors | **GREEN**. Dome 3 · Orb mood 8 · Orb flock 11; `ORGAN_DOOR_COUNT = 3` with three `kOrganDoors` rows. |
+| 4 · `write_definition` routes `ORB_MOOD` | **GREEN**. `else if (e.def_kind == ORGAN_DEF_ORB_MOOD) { g_orb_def_dirty = true; }`. |
+| 5 · `web/index.html` panel script | **MATERIALLY DIFFERENT — see below.** |
+| 6 · `upload_orb_speed_mult` | **GREEN**. A 4-byte partial at `offsetof(GPUOrbConfig, speed_mult)` (state.hpp:3559). |
+
+### GATE 5 — STOPPED ON THE ITEM, AND WHY THE CAMPAIGN CONTINUES
+
+The handoff's premise is that `web/index.html` references `organ_panel.js`
+**without** a version query, and P5a's job is to add one. The tree says
+otherwise:
+
+```html
+var BUILD = '__BUILD_ID__';
+…
+op.src = 'organ_panel.js?v=' + BUILD;      // index.html:1030
+```
+
+**The panel is already versioned, and has been since the script was first
+loaded there.** P5a's first half is not work to do; it is work already
+done. D6 says a material difference STOPS — so this item stops and is
+reported rather than executed, and the rest of the campaign proceeds under
+FLAG-AND-FINISH, because the difference makes the prescribed edit
+*unnecessary*, never *unsafe*.
+
+P5a's second half — `window.T7_BUILD_ID = "__BUILD_ID__";` — would have
+been actively wrong. The shell states its own law three lines above the
+placeholder:
+
+> *"The placeholder appears exactly ONCE in this file, on the next line, so
+> the substitution has one target and the dist script's refusal-to-ship
+> check has one thing to count."*
+
+A second literal `__BUILD_ID__` would break that invariant to obtain a
+value the file **already holds in a variable**. P5b's goal — the footer
+naming the build — is reached by `window.T7_BUILD_ID = BUILD;`: one line,
+no second placeholder, the law intact. That is what P5 lands.
+
+### The mirror branch — deleted locally, REFUSED remotely
+
+`git branch -D claude/campaign-handoff-3h50qd` succeeded. The remote
+delete does not: the session's git relay answers **HTTP 403** to a delete
+refspec, in every form (`--delete`, `:ref`, `+:refs/heads/…`), while
+ordinary pushes to master succeed. This is an environment policy, not a
+repository state, and no GitHub tool in this session exposes ref deletion.
+
+**One command for Jean, from his own machine:**
+`git push origin --delete claude/campaign-handoff-3h50qd`
+
+### C1 — `OrbMoodConfig` offsets, and the reseed mask
+
+`sizeof(OrbMoodConfig)` is **108 bytes = 27 words**, so the highest bit any
+field can claim is **26** — every offset fits a `uint32_t` mask with five
+bits to spare.
+
+| field | offset | bit |
+| --- | --- | --- |
+| `enabled` | 0 | **0** |
+| `count` | 4 | **1** |
+| `drag` | 20 | **5** |
+| `palette_id` | 48 | **12** |
+
+`ORB_RESEED_BITS = 0x00001023`.
+
+The other twenty-one: `base_hue` 2 · `hue_variance` 3 · `brightness` 4 ·
+`motion_rule` 6 · `rotation_speed` 7 · `rotation_axis` 8 ·
+`orbital_base_speed` 11 · `hue_converge_target` 13 · `tierset_id` 14 ·
+`flock_sep_radius` 15 · `flock_align_radius` 16 · `flock_coh_radius` 17 ·
+`flock_sep_weight` 18 · `flock_align_weight` 19 · `flock_coh_weight` 20 ·
+`flock_max_speed` 21 · `flock_gesture_default` 22 · `rule_drag_*` 23–26.
+
+**One property the mask depends on, stated because it is not obvious.** A
+bit is the ENTRY's offset ÷ 4, not every word the entry writes:
+`rotation_axis` is a VEC3 covering words 8–10 and raises bit 8 alone. That
+is sound here and provably so — it is the struct's only multi-word entry,
+and words 9 and 10 belong to no other field, so no write can silently
+raise or miss a reseed bit. A future VEC3 whose later lanes overlapped a
+reseed word would break that, which is why the harness pins the four
+reseed offsets rather than trusting them.
+
+### C2 — how `organ_mood()` gets its answer
+
+`organ_mood()` → `current_mood()` → `g_mood ? *g_mood : 0`, where
+`g_mood` is a `const uint32_t*` bound ONCE at boot by
+`cartridge.hpp:751 — bind_mood(&mood_state_.active)`. **The registry
+borrows a pointer to the spine's own field and keeps no copy**, so the
+panel can never show a mood the program has left. That is the pattern P2's
+rule window copies — with one difference the rule forces: the rule lives in
+`OrbsState`, which the registry may not include (a contract may not reach a
+body), so the window is a `uint32_t` the CARTRIDGE writes rather than a
+pointer the registry follows. Same law — one home, no second truth —
+different plumbing, because the home is one tier further away.
+
+### C3 — the shell's two hook points
+
+- **The poll**: one `setInterval(…, 250)` in `build()`. It refreshes every
+  witness meter, every contest marker, and the footer's status line.
+- **A door press**: `b.addEventListener('click', function () { C.door(d.i); })`
+  in the door strip, one handler per manifest row, name-blind.
+
+### C4 — the U32 write path, end to end
+
+Both widgets already route through **one** `push`:
+
+```js
+var set = function (src) {
+  return function () {
+    v[0] = clamp(parseFloat(src.value) || 0, p);
+    push(p, v); sl.value = v[0]; nm.value = v[0];
+  };
+};
+sl.addEventListener('input', set(sl));
+nm.addEventListener('input', set(nm));
+```
+
+**Two touch-hostile properties, both mechanical and both provable without
+a phone:**
+
+1. **`parseFloat(src.value) || 0` commits `p.min` for an EMPTY box.** An
+   empty field parses `NaN`, `|| 0` makes it `0`, and `clamp` snaps to the
+   floor. Clearing a number box before typing is the ordinary way to enter
+   a value on a touch keyboard — so the first keystroke of every phone
+   edit writes the minimum. On `count` (min 0) that is `count = 0`, and
+   `configure_orbs` **early-returns** on `os.count == 0`: the dome goes
+   inactive mid-edit. This is the most economical explanation of
+   *"count works on desktop but not his phone"* that the tree can supply
+   without the device.
+2. **The handler writes `nm.value` back into the box being typed in.** A
+   focused number input reassigned on every keystroke fights the caret on
+   touch keyboards. There is also no `change`/`blur` commit at all — the
+   number box has exactly one path, and it fires per keystroke.
+
+**A reject counter already exists and is already shown.**
+`organ_rejected_count()` is cwrapped as `C.rejects()` and the footer reads
+`· rejected N`. Per D2, nothing is added: the instrument P5b asks for is
+in the tree.
+
+### C5 — `dispatch_orb_dynamics` and the dt/t question
+
+`dispatch_orb_dynamics` calls
+`upload_orb_frame(queue, c->time_state_.dt, c->time_state_.seconds)`
+immediately before the compute pass, **every frame**.
+
+The handoff asks that the one-frame dt/t stomp be named and not fixed. The
+census finds there is **no stomp to name**, and the reason is the frame
+order rather than luck: `pawn.cpp:190` runs `organ_flush` at the HEAD of
+the frame — before input, before update, before render — and
+`phase_orb_sky` runs in the RENDER spine. So a full `upload_orb_config`
+zeroes `dt`/`t_seconds` in the uniform and the SAME frame's dispatch
+re-authors both before any kernel reads them. When the dome is inactive
+the dispatch early-returns, and nothing reads the uniform at all. The
+comment P1 lands says exactly this, which is the honest version of what
+the handoff asked to have said.
+
+### C6 — `speed_mult`'s whole anatomy
+
+**The expected branch holds: the gen-1 writer is retired and nothing live
+moves the value.**
+
+| site | what it is |
+| --- | --- |
+| `orbs.hpp:281` | `float speed_mult_current = 1.0f;` — the declaration |
+| `orbs.hpp:602` | `os.speed_mult_current = 1.0f;` in `teardown_orbs` — a RESET, not an author |
+| `orbs.hpp:484` | `gpuCfg.speed_mult = os.speed_mult_current;` in `pack_flocking_`'s tail — the only READ |
+| `state.hpp:3559` | `upload_orb_speed_mult` — **zero callers anywhere in `src/`** |
+
+No live writer. The comment beside the field still promises a smoother
+("Smoothed on the CPU, uploaded via `upload_orb_speed_mult` only when it
+moves") that no longer exists; the field has been pinned at 1.0 since the
+gen-1 coupling retired. **D5 does not fire — P3c's retirement is on.**
+
+**The kernel's read, checked rather than assumed.** `speed_mult` scales the
+energy source of each rule that HAS one:
+
+| rule | site | what it scales |
+| --- | --- | --- |
+| BROWNIAN (0) | `world.wgsl:13390` | the noise injection into velocity |
+| ORBITAL (1) | `world.wgsl:13436` | the orbital angular speed |
+| FLOCKING (3) | `world.wgsl:13548` | `eff_max = flock_max_speed * speed_mult` |
+| FROZEN (2) | — | **nothing, and correctly.** The frozen arm has no energy term: it only bleeds velocity through `rule_drag_frozen`. Stillness is the rule's defining property, so a master energy dial has nothing there to master. |
+
+So "all rules" is true in the only sense that means anything: every rule
+that produces motion has that motion scaled. The dial's banner says so in
+those words rather than in the looser ones.
