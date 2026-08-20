@@ -46,6 +46,8 @@ inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
     /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_NIGHT      */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_NOON       */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
 };
 
 // The per-family column view, contiguous for the const float* funnels

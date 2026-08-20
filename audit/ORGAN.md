@@ -60,6 +60,8 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Portals | to indoor flat | `WORLD.portal_colors[1][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to indoor vault | `WORLD.portal_colors[2][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to finite outdoor | `WORLD.portal_colors[3][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Sky & Light · Portals | to open night | `WORLD.portal_colors[4][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Sky & Light · Portals | to open noon | `WORLD.portal_colors[5][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | back portal | `WORLD.portal_color_back[0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
@@ -301,7 +303,12 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Agents · levy_flight | neighbour radius | `AGENT_ROOM.behaviors[9].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
 | Agents · levy_flight | speed cap | `AGENT_ROOM.behaviors[9].speed_cap` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
 | Agents · Portals | portal density | `WORLD.portal_density` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | finite-outdoor chance | `WORLD.finite_outdoor_chance` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · open sunset | `WORLD.mood_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · indoor flat | `WORLD.mood_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · indoor vault | `WORLD.mood_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · finite outdoor | `WORLD.mood_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · open night | `WORLD.mood_weights[4]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · open noon | `WORLD.mood_weights[5]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Interaction · Field | slack | `CONFIG.field_slack` | CONFIG | F32 | 0 … 12 | 0.05 | live | none |  |
 | Interaction · Field | k (accel) | `CONFIG.field_k` | CONFIG | F32 | 0 … 1200 | 5 | live | none |  |
 | Interaction · Field | f max | `CONFIG.field_fmax` | CONFIG | F32 | 0 … 2400 | 10 | live | none |  |
@@ -333,14 +340,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **305** |
-| by section | Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38 · Interaction 22 · Atmosphere 21 · Pawn 18 · Debug 4 |
-| by cadence | boundary 128 · driven 17 · gen 39 · live 121 |
-| by macro form | PARAM 125 · PARAM_DEF 103 · PARAM_DEFONLY 21 · PARAM_GEN 39 · PARAM_RO 17 |
-| definition kinds | BEHAVIOR 70 · MOOD 3 · NONE 181 · ORB_MOOD 19 · TIER 32 |
+| entries | **312** |
+| by section | Agents 109 · Ribbon 56 · Terrain 42 · Sky & Light 40 · Interaction 22 · Atmosphere 21 · Pawn 18 · Debug 4 |
+| by cadence | boundary 128 · driven 17 · gen 46 · live 121 |
+| by macro form | PARAM 125 · PARAM_DEF 103 · PARAM_DEFONLY 21 · PARAM_GEN 46 · PARAM_RO 17 |
+| definition kinds | BEHAVIOR 70 · MOOD 3 · NONE 188 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 17 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 290 |
+| namespaces | canvas 15 · the_board 297 |
 
 ### Doors
 
@@ -372,13 +379,13 @@ reader, and the reason ORGAN_3 shipped seven dead dials.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=4 static_assert=18 constexpr=4 comment=28 
+  MOOD_TABLE           definition=1 seed=6 static_assert=23 constexpr=4 comment=28 
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:349  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       definition=1 seed=4 comment=7              
+  ORB_MOOD_TABLE       definition=1 seed=6 comment=7              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=4        
@@ -407,7 +414,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    228   a declared reader names the field
+  proved    235   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    17   an _RO meter: the question is inverted (blind spot 5)
   scope      60   GPU-side or whole-struct (blind spots 2, 3)

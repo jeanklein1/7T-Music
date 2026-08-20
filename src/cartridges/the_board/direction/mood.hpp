@@ -213,6 +213,7 @@ void upload_portal_array(MoodDeps* c, wgpu::Queue& queue);
 const char* mood_name(uint32_t mood);
 uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
 uint32_t pick_portal_mood(uint32_t seed, uint32_t prop);
+uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
@@ -1184,14 +1185,15 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     }
 
     // PORTAL_2 — THE TRIAD. A finite world offers exactly three
-    // doors: deeper in (one of the two rooms, seed's coin), out (the
-    // open field), and back (already standing). Two forwards here;
+    // doors: deeper in (one of the two rooms, seed's coin), out — an
+    // open sky, drawn by the destination law's weights among the open
+    // moods (ATMOS_1) — and back (already standing). Two forwards here;
     // the radius no longer buys doors.
     constexpr uint32_t count = 2;
     const uint32_t fwd_moods[2] = {
         (cpu_hash_f(c->world_state_.active_seed, 7950u) < 0.5f)
             ? MOOD_INDOOR_FLAT : MOOD_INDOOR_VAULT,
-        MOOD_OPEN_SUNSET,
+        pick_open_mood(c->world_state_.active_seed, 7951u),   // the way out: an open sky (ATMOS_1)
     };
 
     // Perimeter positions: distribute along the 4 walls
@@ -1426,12 +1428,7 @@ inline void request_mood_transition(TransitionPhase& phase, PortalDestination& p
 // ═══ DERIVERS ════════════════════════════════════════════════════
 
 inline const char* mood_name(uint32_t mood) {
-    // Sized array: the compiler catches an EXTRA entry past
-    // MOOD_COUNT, but not a missing one — it zero-fills to nullptr.
-    static const char* NAMES[MOOD_COUNT] = {
-        "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor"
-    };
-    return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
+    return (mood < MOOD_COUNT) ? MOOD_NAMES[mood] : "unknown";
 }
 
 // Derive finite world radius from seed within mood-defined bounds.
@@ -1446,19 +1443,35 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
 // longer roll: their roster is the fixed triad
 // (force_spawn_finite_portals). The finite outdoors is a rare
 // feature of the open field only.
-// FINITE_OUTDOOR_CHANCE graduated to contracts/mood_constants.hpp
-// (ORGAN_4 P3d) as WORLD_DRAW_LIVE.finite_outdoor_chance. The ladder
-// below reads it ONCE into a local, so a mid-draw write cannot make the
-// four branches disagree about the same roll.
-inline uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) {
-    float roll = cpu_hash_f(seed, prop);
-    const float finite = WORLD_DRAW_LIVE.finite_outdoor_chance;
-    if (roll < finite) return MOOD_FINITE_OUTDOOR;
-    float span = (1.0f - finite) / 3.0f;
-    if (roll < finite + span)        return MOOD_OPEN_SUNSET;
-    if (roll < finite + 2.0f * span) return MOOD_INDOOR_FLAT;
-    return MOOD_INDOOR_VAULT;
+// THE DESTINATION LAW (ATMOS_1). One weighted walk over every mood, in id
+// order, from WORLD_DRAW_LIVE.mood_weights — the open field's law in one
+// table the panel can reach. The walk skips weight-0 rows and normalises
+// itself by the sum, so a row at 0 retires a door without retiring the
+// mood, and the float-epsilon miss lands on the last PRESENT row.
+// open_only restricts the walk to shape_is_open moods: the triad's way
+// OUT of a room is an open sky, whichever one the weights favour.
+inline uint32_t pick_mood_weighted_(uint32_t seed, uint32_t prop, bool open_only) {
+    float sum = 0.0f;
+    for (uint32_t m = 0; m < MOOD_COUNT; ++m) {
+        if (open_only && !shape_is_open(mood_def(m).shape)) continue;
+        sum += std::max(0.0f, WORLD_DRAW_LIVE.mood_weights[m]);
+    }
+    if (sum <= 0.0f) return MOOD_OPEN_SUNSET;   // every door shut: the home sky
+    const float roll = cpu_hash_f(seed, prop) * sum;
+    float cumul = 0.0f;
+    uint32_t pick = MOOD_OPEN_SUNSET;
+    for (uint32_t m = 0; m < MOOD_COUNT; ++m) {
+        if (open_only && !shape_is_open(mood_def(m).shape)) continue;
+        const float w = std::max(0.0f, WORLD_DRAW_LIVE.mood_weights[m]);
+        if (w <= 0.0f) continue;
+        cumul += w;
+        pick = m;
+        if (roll < cumul) break;
+    }
+    return pick;
 }
+inline uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) { return pick_mood_weighted_(seed, prop, false); }
+inline uint32_t pick_open_mood  (uint32_t seed, uint32_t prop) { return pick_mood_weighted_(seed, prop, true);  }
 
 } // namespace the_board
 } // namespace t7

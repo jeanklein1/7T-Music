@@ -193,7 +193,7 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 //
 // Cubes carry a mood term, mood_mult_for(PopFamily::CUBE) from
 // MOOD_SPAWN_MULT (surface/population_themes.hpp). That column is
-// {1, 1, 1, 1} — all identity. This banner used to claim
+// {1, 1, 1, 1, 1, 1} — all identity. This banner used to claim
 // {1, 1, 0, 0, 1, 0} and conclude that cubes "don't spawn in indoor
 // moods"; the indoor zeros never existed in the live table, and the
 // per-row "exists for hygiene" notes inherited the error. The mood
@@ -220,6 +220,12 @@ inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_FINITE_OUTDOOR */
     { MOOD_FINITE_OUTDOOR,
       /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_OPEN_NIGHT (ATMOS_1) */
+    { MOOD_OPEN_NIGHT,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_OPEN_NOON (ATMOS_1) */
+    { MOOD_OPEN_NOON,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
 };
 
 static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
@@ -228,6 +234,8 @@ static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_SUNSET,    "row 0 must be
 static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_INDOOR_FLAT,    "row 1 must be MOOD_INDOOR_FLAT");
 static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_VAULT,   "row 2 must be MOOD_INDOOR_VAULT");
 static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be MOOD_FINITE_OUTDOOR");
+static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_OPEN_NIGHT,     "row 4 must be MOOD_OPEN_NIGHT");
+static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_OPEN_NOON,      "row 5 must be MOOD_OPEN_NOON");
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 

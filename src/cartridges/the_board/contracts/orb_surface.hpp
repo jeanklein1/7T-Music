@@ -151,6 +151,11 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     /* 1 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
     /* 2 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
     /* 3 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    // ATMOS_1 — the night is the sunset's field, fuller, brighter and slower
+    // (256 stars, bri 0.95, a slow near-axial turn); the noon is the
+    // indoor disabled row verbatim — no stars by day.
+    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.95f, 0.4f,  3u,  0.004f, {0.05f, 0.99f, 0.05f},  0.0f, 0u,  0.08f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // The live surface — the panel's definition bank. Seeded row by row, so
@@ -158,8 +163,9 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
 // module carried before this commit.
 inline OrbMoodConfig ORB_MOOD_LIVE[MOOD_COUNT] = {
     ORB_MOOD_TABLE[0], ORB_MOOD_TABLE[1], ORB_MOOD_TABLE[2], ORB_MOOD_TABLE[3],
+    ORB_MOOD_TABLE[4], ORB_MOOD_TABLE[5],
 };
-static_assert(MOOD_COUNT == 4,
+static_assert(MOOD_COUNT == 6,
     "ORB_MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
     "a new mood needs its row here as well as in ORB_MOOD_TABLE");
 

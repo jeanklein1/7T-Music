@@ -333,11 +333,13 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[1], F32, 0.0f, 1.0f, 0.0
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[2], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "gallery")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "sanctum")
 // A portal's colour is a fact about its DESTINATION (PORTAL_1), so the
-// four rows are indexed by destination mood and the fifth is the way back.
+// per-mood rows are indexed by destination mood and the last is the way back.
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[0][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open sunset")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[1][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor flat")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[2][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor vault")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to finite outdoor")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[4][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open night")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[5][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open noon")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "back portal")
 
 // ─── FOG (the drivers' room + its witnesses) ─────────────────────────
@@ -834,11 +836,20 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,      
 //
 // portal density is `[tree]`: the constant's own comment calls it "the
 // fraction of Doorway arches that become portals", and a fraction's box
-// is 0…1. The finite chance is `[identity]` for the same reason — it is
-// compared against one uniform roll. Both are read as the world draws
-// and never again, so both wear the GEN chip and neither is wired.
+// is 0…1. Both are read as the world draws and never again, so both wear
+// the GEN chip and neither is wired.
+//
+// THE DESTINATION LAW (ATMOS_1) — one weight per mood, by id; the walk
+// normalises, so these are proportions, not probabilities, and a 0 shuts
+// a door without unmaking the mood. GEN: a portal drawn after the edit
+// reads the new law; one already standing keeps its destination.
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_density,        F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "portal density")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, finite_outdoor_chance, F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "finite-outdoor chance")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[0], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open sunset")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[1], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · indoor flat")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[2], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · indoor vault")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[3], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · finite outdoor")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[4], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open night")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[5], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open noon")
 
 // ─── Interaction · Field ───────────────────────────────────────
 // ORGAN_3 w1 (C1). THE PANEL (contracts/control_panel.hpp) authors these;

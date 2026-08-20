@@ -15,14 +15,27 @@
 namespace t7 {
 namespace the_board {
 
-inline constexpr uint32_t MOOD_COUNT = 4;
+inline constexpr uint32_t MOOD_COUNT = 6;
 
 // ─── Mood IDs ───────────────────────────────────────────────────
-// One outdoor world open, one outdoor world walled, two rooms.
+// Three outdoor worlds open (one sky each), one outdoor world walled,
+// two rooms.
 inline constexpr uint32_t MOOD_OPEN_SUNSET = 0;
 inline constexpr uint32_t MOOD_INDOOR_FLAT = 1;
 inline constexpr uint32_t MOOD_INDOOR_VAULT = 2;
 inline constexpr uint32_t MOOD_FINITE_OUTDOOR = 3;
+inline constexpr uint32_t MOOD_OPEN_NIGHT     = 4;  // ATMOS_1 — the open shape under a night sky
+inline constexpr uint32_t MOOD_OPEN_NOON      = 5;  // ATMOS_1 — the open shape under a high sun
+
+// The names, positional by id (F-3's kin). mood_name() reads them, the
+// registry emits them to the panel's mood select (organ_mood_names), and
+// a new mood names itself here in the same commit as its id.
+// Sized array: the compiler catches an EXTRA entry past MOOD_COUNT, but
+// not a missing one — it zero-fills to nullptr.
+inline constexpr const char* MOOD_NAMES[MOOD_COUNT] = {
+    "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor",
+    "open_night",  "open_noon",
+};
 
 struct PortalDestination {
     uint32_t seed = 0;
@@ -43,8 +56,9 @@ struct PortalDestination {
 // wrong re-speak tears down a world). The edit lands at the author's own
 // next natural event, and the enrollment rows say so with the GEN chip.
 //
-// WHY THEY LIVE HERE. `PORTAL_DENSITY`, `FINITE_OUTDOOR_CHANCE` and
-// `SCHEME_WEIGHTS` were `inline constexpr` in direction/mood.hpp, which
+// WHY THEY LIVE HERE. `PORTAL_DENSITY`, the destination law (a chance,
+// one table since ATMOS_1) and `SCHEME_WEIGHTS` were `inline constexpr`
+// in direction/mood.hpp, which
 // the ORGAN may not include; the palette was already here, beside the
 // PortalDestination it describes (PORTAL_1 C5). One bank rather than
 // two: they are one question — what does a fresh world roll?
@@ -58,7 +72,10 @@ inline constexpr uint32_t SCHEME_COUNT = 4;   // indoor light schemes; sizes
 
 struct WorldDrawSurface {
     float portal_density;         // fraction of DOORWAY arches that become portals
-    float finite_outdoor_chance;  // the open field's rare finite draw
+    float mood_weights[MOOD_COUNT]; // ATMOS_1 — the open field's destination law:
+                                    // one weighted walk over every mood, by id
+                                    // (pick_portal_mood). 0 shuts a door without
+                                    // unmaking the mood; the walk normalises.
     float scheme_weights[SCHEME_COUNT];        // Cathedral / Quartet / Gallery / Sanctum
     float portal_colors[MOOD_COUNT][3];        // by DESTINATION mood
     float portal_color_back[3];                // the back-portal
@@ -66,22 +83,27 @@ struct WorldDrawSurface {
 
 inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
     1.00f,   // portal_density — every Doorway arch is a portal today
-    0.10f,   // finite_outdoor_chance — PORTAL_2's open-world law
+    { 0.20f, 0.20f, 0.20f, 0.10f, 0.15f, 0.15f },   // mood_weights by id: sunset, flat, vault,
+                                                    // finite, night, noon — PORTAL_2's 0.10
+                                                    // finite kept; the old even thirds re-cut
+                                                    // to seat the two new skies (ATMOS_1)
     { 0.42f, 0.43f, 0.10f, 0.05f },
     {
         { 0.72f, 0.45f, 0.85f },  // mood 0  open_sunset     — lilac
         { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
         { 0.95f, 0.80f, 0.20f },  // mood 2  indoor_vault    — yellow
         { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
+        { 0.80f, 0.85f, 0.95f },  // mood 4  open_night      — moon silver (ATMOS_1)
+        { 0.20f, 0.85f, 0.85f },  // mood 5  open_noon       — cyan (ATMOS_1)
     },
     { 0.35f, 0.55f, 0.90f },      // back-portal — blue
 };
 
 inline WorldDrawSurface WORLD_DRAW_LIVE = WORLD_DRAW_TABLE;
-static_assert(sizeof(WorldDrawSurface) == (2 + SCHEME_COUNT + MOOD_COUNT * 3 + 3) * sizeof(float),
+static_assert(sizeof(WorldDrawSurface) == (1 + MOOD_COUNT + SCHEME_COUNT + MOOD_COUNT * 3 + 3) * sizeof(float),
     "WORLD_DRAW_LIVE is a whole-struct copy of the design row: a field "
     "added to one is added to the other by construction");
-static_assert(MOOD_COUNT == 4 && SCHEME_COUNT == 4,
+static_assert(MOOD_COUNT == 6 && SCHEME_COUNT == 4,
     "WORLD_DRAW_TABLE's palette and scheme rows are POSITIONAL — a new "
     "mood or a new scheme needs its row here, in the same commit");
 

@@ -209,6 +209,9 @@ void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multipl
 #ifndef GLFW_KEY_4
 #define GLFW_KEY_4  52
 #endif
+#ifndef GLFW_KEY_9
+#define GLFW_KEY_9  57
+#endif
 #ifndef GLFW_KEY_W
 #define GLFW_KEY_W  87
 #endif
@@ -254,6 +257,8 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);    break;
     case GLFW_KEY_7: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_VAULT);   break;
     case GLFW_KEY_8: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_FINITE_OUTDOOR); break;
+    case GLFW_KEY_9: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_NIGHT);     break;
+    case GLFW_KEY_4: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_NOON);      break;
     case GLFW_KEY_0:              cycle_orb_palette(orbs_state, &orbs_deps, q);          break;
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;

@@ -181,6 +181,24 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_inner_radius=*/ 0.0f,
       /*spawn_radius=*/       0.0f,
       /*home_seeding_radius=*/ 0.0f },
+    /* MOOD_OPEN_NIGHT — the sunset's travelers, thinned to six (ATMOS_1) */
+    { /*mood_id=*/ MOOD_OPEN_NIGHT, /*count=*/ 6,
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
+      /*spawn_inner_radius=*/ 200.0f,
+      /*spawn_radius=*/       340.0f,
+      /*home_seeding_radius=*/ 8.0f },
+    /* MOOD_OPEN_NOON — the sunset's travelers, twelve strong (ATMOS_1) */
+    { /*mood_id=*/ MOOD_OPEN_NOON, /*count=*/ 12,
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
+      /*spawn_inner_radius=*/ 200.0f,
+      /*spawn_radius=*/       340.0f,
+      /*home_seeding_radius=*/ 8.0f },
 };
 
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
@@ -218,6 +236,8 @@ static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET   ].mood_id == MOOD_OPEN_SUNSET
 static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT   ].mood_id == MOOD_INDOOR_FLAT,    "AGENT_POPULATIONS row 1 must be MOOD_INDOOR_FLAT");
 static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT  ].mood_id == MOOD_INDOOR_VAULT,   "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_VAULT");
 static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR].mood_id == MOOD_FINITE_OUTDOOR, "AGENT_POPULATIONS row 3 must be MOOD_FINITE_OUTDOOR");
+static_assert(AGENT_POPULATIONS[MOOD_OPEN_NIGHT     ].mood_id == MOOD_OPEN_NIGHT,     "AGENT_POPULATIONS row 4 must be MOOD_OPEN_NIGHT");
+static_assert(AGENT_POPULATIONS[MOOD_OPEN_NOON      ].mood_id == MOOD_OPEN_NOON,      "AGENT_POPULATIONS row 5 must be MOOD_OPEN_NOON");
 
 // ═══ AGENT MODULE STATE ══════════════════════════════════════════
 

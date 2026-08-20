@@ -158,6 +158,9 @@ READERS = {
     "WORLD": ("WORLD_DRAW_LIVE", "WorldDrawSurface", [
         ("src/cartridges/the_board/contracts/mood_constants.hpp", "portal_color_for"),
         ("src/cartridges/the_board/direction/mood.hpp", "derive_indoor_lights"),
+        # ATMOS_1 — pick_portal_mood and pick_open_mood are one-line faces
+        # on the weighted walk; mood_weights is named in the walk's body.
+        ("src/cartridges/the_board/direction/mood.hpp", "pick_mood_weighted_"),
         ("src/cartridges/the_board/direction/mood.hpp", "pick_portal_mood"),
         ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_write_active"),
         ("src/cartridges/the_board/bodies/grounded.hpp", "force_spawn_portal_arch"),

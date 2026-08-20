@@ -317,6 +317,30 @@ inline constexpr Atmosphere ATMOS_FINITE_DAY = {
     { 0.85f, 0.78f, 0.72f },
 };
 
+// ═══ THE TWO NEW SKIES (ATMOS_1) — sketches for the panel ════════
+// Every number below is a starting point Jean tunes from the Organ and
+// exports; none is a measurement. The night is MULTIMODAL by design:
+// a moonless tier, a moonlit tier, a bright-moon tier, picked by the
+// seed. The noon is one regime, tight and high.
+inline constexpr Atmosphere ATMOS_NIGHT = {
+    { 0.78f, -0.62f, -0.11f }, 180.0f, 14.0f,      // moon centre ~38° up; any bearing; ±14°
+    { 0.72f, 0.80f, 1.00f },                       // cold, blue-white
+    { { 0.35f, 0.14f, 0.04f, 0.08f, 0.02f },       // moonless
+      { 0.45f, 0.30f, 0.08f, 0.10f, 0.03f },       // moonlit
+      { 0.20f, 0.55f, 0.10f, 0.14f, 0.03f } },     // bright moon
+    0.0042f, 0.0012f, { 0.04f, 0.05f, 0.09f },     // a deeper, darker fog
+    { 0.02f, 0.03f, 0.06f },
+};
+inline constexpr Atmosphere ATMOS_NOON = {
+    { 0.43f, -0.90f, -0.06f }, 40.0f, 8.0f,        // sun centre ~64° up; ±40° bearing; ±8°
+    { 1.00f, 0.98f, 0.92f },                       // near-white
+    { { 1.0f, 1.10f, 0.10f, 0.35f, 0.05f },        // one bright regime
+      { 0.0f, 0.0f,  0.0f,  0.0f,  0.0f },
+      { 0.0f, 0.0f,  0.0f,  0.0f,  0.0f } },
+    0.0020f, 0.0005f, { 0.78f, 0.86f, 0.97f },     // thin, sky-blue haze
+    { 0.45f, 0.68f, 0.95f },
+};
+
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
 //
 // SEAM[mood:K1] indoor/outdoor binary lives in WorldShape as bool
@@ -330,6 +354,8 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_INDOOR_FLAT        */  { SHAPE_ROOM_FLAT,  ATMOS_ROOM       },
     /* MOOD_INDOOR_VAULT       */  { SHAPE_ROOM_VAULT, ATMOS_ROOM       },
     /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY },
+    /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT      },
+    /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON       },
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
@@ -338,7 +364,8 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
 // drift in mood_constants.hpp fails HERE, where the rows live.
 static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
            && MOOD_INDOOR_VAULT == 2 && MOOD_FINITE_OUTDOOR == 3
-           && MOOD_COUNT == 4,
+           && MOOD_OPEN_NIGHT   == 4 && MOOD_OPEN_NOON      == 5
+           && MOOD_COUNT == 6,
     "MOOD_TABLE rows are positional in mood-id order (F-3): "
     "reorder the table together with the ids");
 
@@ -363,6 +390,14 @@ static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.light[0].intensity  == 0.90f,  
 static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].atmos.light[0].ambient == 0.25f,   "Atmosphere column drift: light[0].ambient (middle)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.fog_density         == 0.0030f, "Atmosphere column drift: fog_density");
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos.clear_color[2]      == 0.10f,   "Atmosphere column drift: clear_color (tail)");
+
+// The open family is one stage: three moods, one SHAPE_OPEN, stated once.
+static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)
+           && shape_is_open(MOOD_TABLE[MOOD_OPEN_NIGHT].shape)
+           && shape_is_open(MOOD_TABLE[MOOD_OPEN_NOON].shape)
+           && !shape_is_open(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape)
+           && !shape_is_open(MOOD_TABLE[MOOD_INDOOR_FLAT].shape),
+    "ATMOS_1: sunset, night and noon wear the open shape; the rooms and the finite field do not");
 
 // THE CARRY WITNESS (ATMOS_1). A carried row draws its old point value
 // exactly only if every spread is 0 and tier 0 holds the whole weight;
@@ -411,8 +446,9 @@ static_assert(atmos_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos)
 // best and disagree at worst.
 inline MoodProfile MOOD_LIVE[MOOD_COUNT] = {
     MOOD_TABLE[0], MOOD_TABLE[1], MOOD_TABLE[2], MOOD_TABLE[3],
+    MOOD_TABLE[4], MOOD_TABLE[5],
 };
-static_assert(MOOD_COUNT == 4,
+static_assert(MOOD_COUNT == 6,
     "MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
     "a new mood needs its row here as well as in MOOD_TABLE");
 

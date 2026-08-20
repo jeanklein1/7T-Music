@@ -217,7 +217,6 @@
  "world/AGENT_ROOM.behaviors[9].neighbor_radius": [0],
  "world/AGENT_ROOM.behaviors[9].speed_cap": [8],
  "WORLD.portal_density": [1],
- "WORLD.finite_outdoor_chance": [0.1],
  "PANEL.beacon.r0": [25],
  "PANEL.beacon.r": [120],
  "PANEL.beacon.s": [200],
