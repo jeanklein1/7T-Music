@@ -50,7 +50,11 @@ where the intent is the presence ramp's rest target, moved home from
 PawnState. Driven values enroll as read-only witnesses (ro column):
 the panel meters them beside their drivers' dials, organ_set refuses
 them, export skips them. No upload and no dirty flag: the seams that
-read the room each tick are its flush.
+read the room each tick are its flush. Since ATMOS_1 the fog's REST is
+the mood's (`Atmosphere.fog_*`, drawn per world into
+`MoodState.fog_rest_*`); the room keeps the gain, the canvas emits a
+deviation from its anchor row, and the seam reads
+`rest + gain · deviation`.
 
 ## The compiled-registry law
 The registry is COMPILED, not parsed. Enrollment is one macro line
@@ -82,12 +86,13 @@ every boot. It reads ONE profile and fans it out:
 
 | what it authors | from | reaches |
 | --- | --- | --- |
-| frustum cull, GoL gate, aura policy | `allow_*` | renderer / GoL / pawn |
-| sun direction, colour, intensity, ambient | `sun_*` | `apply_mood_lighting` → the deps → `upload_lights` → `GPULighting` |
-| clear colour | `clear_color` | `clearColor_` |
-| terrain amp ceiling, indoor height cap | `terrain_amp_ceiling`, `wall_height` | GPU config |
-| spot lights | `indoor`, `wall_height`, `ceiling_type` | the spot array |
-| indoor shell, camera ceiling | `indoor`, `ceiling_type`, `wall_height` | the shell + the clamp |
+| frustum cull, GoL gate, aura policy | `shape.allow_*` | renderer / GoL / pawn |
+| sun direction, colour, intensity, ambient | `atmos` (through `draw_atmosphere`) | `apply_mood_lighting` → the deps → `upload_lights` → `GPULighting` |
+| clear colour | `atmos.clear_color` | `clearColor_` |
+| fog rest | `atmos.fog_*` | `mood_state_.fog_rest_*` → the U4 seam |
+| terrain amp ceiling, indoor height cap | `shape.terrain_amp_ceiling`, `shape.wall_height` | GPU config |
+| spot lights | `shape.indoor`, `shape.wall_height`, `shape.ceiling_type` | the spot array |
+| indoor shell, camera ceiling | `shape.indoor`, `shape.ceiling_type`, `shape.wall_height` | the shell + the clamp |
 | sky dome | `ORB_MOOD_TABLE[mood]` | the orbs |
 
 The profile it reads used to be `MOOD_TABLE`, a constexpr table no
@@ -100,7 +105,9 @@ bodies/gallery.hpp stay on the design table on purpose: they are
 compile-time budgets, and a wall's allowance is not a live dial.)
 
 ### The three layers, for the sun
-1. DEFINITION — `MOOD_LIVE[mood].sun_*`. What the mood means.
+1. DEFINITION — `MOOD_LIVE[mood].atmos` — the distribution;
+   `draw_atmosphere(seed, ·)` turns it into layer 2 at every apply.
+   What the mood means.
 2. INSTANCE OF RECORD — `sunDirection_` / `sunColor_` /
    `mood_state_.sun_*`, written by `apply_mood_lighting`.
 3. HOME — `lightingStage_.sun`, written by `upload_lights` and
@@ -119,9 +126,11 @@ panel's durable subject for direction is therefore the DEFINITION alone
 
 ### The eligibility rule
 A field may carry a definition target only if the mood apply is its
-ONLY runtime reader. The atmospheric group — `sun_direction`,
-`sun_color`, `sun_intensity`, `sun_ambient`, `clear_color` — passes.
-The structural group — `finite`, the radii, `indoor`, `ceiling_type`,
+ONLY runtime reader. Since ATMOS_1 the split is the type's own: the
+whole of `Atmosphere` — the sun's centre and spreads, the light tiers,
+the fog rest, the clear colour — passes, because `apply_mood_lighting`
+reads it in one place, through `draw_atmosphere`. The whole of
+`WorldShape` — `finite`, the radii, `indoor`, `ceiling_type`,
 `wall_height`, `terrain_amp_ceiling`, the `allow_*` flags — does not:
 world generation reads it, and rewriting it without regenerating the
 world means nothing at best and disagrees at worst. The rule is
@@ -442,6 +451,12 @@ both. Presses coalesce in a `uint32_t` bitmask, so a double-click is one
 raise, and the roster is read from the program (`organ_doors()`) rather
 than named in the shell — the shell stays name-blind about doors exactly
 as it is about dials.
+
+**The mood door** (`organ_go_mood`, ATMOS_1) is a door with a parameter:
+the shell's select, built from `organ_mood_names()`, asks the program to
+enter a mood by id; the boundary walks `request_mood_transition`, which
+keeps its own guards. Editing a non-live mood's definition rows requires
+being in it; this is the road.
 
 **Molt is priced, not built** — and it no longer has a number, because
 ORGAN_4 spent ids 1 and 2 on the sky's two player-owned facts (see *The
@@ -860,3 +875,61 @@ PRICED AND UNSPENT: removing `config.sun_direction` (refused — the
 bytes work); Firefox regain (held at OPEN); tiers 2 and 3 — the
 tremulant and the keys — stay reserved columns in this registry until
 the music-coupling campaign claims them beside the VOICE bus.
+
+
+## The persistence ladder (ATMOS_1)
+
+Every parameter stands on one rung, and the rung says who takes it back
+and when.
+
+1. **The instrument's registration** — every `*_LIVE` bank, the drivers'
+   gains, the canvas's envelopes. Written by the panel and the presets;
+   no program author touches it. Held through everything.
+2. **The player's preferences** — orb rule, flock gesture, aura intent,
+   palette, the possessed body, render radius. Seeded once by a mood's
+   first run, then the player's. Held through transitions.
+3. **The environment's instance** — `sunDirection_`, `sunColor_`,
+   `mood_state_.sun_*`, `clearColor_`, `mood_state_.fog_rest_*`. Authored
+   by `apply_mood` at every entry from rung 1 and the seed; re-spoken at
+   the frame boundary when rung 1 is edited (RESPEAK).
+4. **The world's draw** — terrain, spawns, the finite radius, the indoor
+   palette, and the atmosphere's draw (`draw_atmosphere`). Reborn at
+   teardown; the same seed is the same world.
+5. **The drivers' output** — fog, the checker field, the ribbon pipes,
+   aura presence, the fade. Re-authored every frame as
+   `rest (3) + gain (1) · deviation`; never held.
+6. **The live simulation** — orb pos/vel/colour, agents, GoL cells, the
+   aura grid, the camera. Advances per frame; a discrete command changes
+   the law, not the state; reborn only at teardown.
+
+A transition holds 1–2, re-speaks 3, reborns 4 and 6; 5 continues over
+the new rest. "Held regardless" is rungs 1 and 2. "A custom environment"
+is a rung-1 row plus its rung-4 draw.
+
+## The atmosphere is a distribution (ATMOS_1)
+
+A mood is `{ WorldShape shape; Atmosphere atmos; }` (contracts/
+spine_state.hpp). The shape is structural — generation reads it, the
+eligibility rule bars dials. The atmosphere is a distribution: a sun
+centre with azimuth and elevation spreads, up to three weighted light
+tiers (each intensity and ambient, centre ± spread), a fog rest (centre
+± spread, colour) and a clear colour. `draw_atmosphere(seed, atmos)` is
+a pure deriver (direction/mood.hpp): the world's seed draws one instance
+at every apply, so the same seed draws the same sky and the back portal
+keeps its promise. A DEFONLY dial on any of it re-draws the live mood at
+the boundary with the same seed: the instance moves with the dial rather
+than re-rolling. Spread 0 draws the centre exactly, which is how the four
+pre-ATMOS_1 moods stayed bit-identical.
+
+Variants are moods: `open_sunset`, `open_night`, `open_noon` share one
+`SHAPE_OPEN` and differ only in atmosphere. A new mood is one `SHAPE_`
+(or a shared one) and one `ATMOS_` constant, one row in each positional
+per-mood table (`MOOD_TABLE`, `ORB_MOOD_TABLE`, `AGENT_POPULATIONS`,
+`MOOD_SPAWN_MULT`, `CUBE_POPULATIONS`), a portal colour and a weight in
+`WORLD_DRAW_TABLE`, and a name in `MOOD_NAMES` — every table's assert
+names the commit it expects.
+
+The destination law is one weighted table, `WORLD_DRAW_LIVE.mood_weights`,
+walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to
+open shapes — the triad's way out of a room). A weight of 0 shuts a door
+without unmaking the mood.

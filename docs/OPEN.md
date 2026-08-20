@@ -63,6 +63,13 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   PROBATE_E3. Unblocked by naga shipping the extension — watched
   automatically by tools/wgsl_gate.py ARM 4, which prints when it happens —
   or by an exhibition that pays for the spend.
+- In-place same-shape atmosphere transition (sunset → night without a
+  teardown, the sky re-drawn over a standing world): priced at ATMOS_1,
+  not built — the spawns' population row is per mood, so a "same shape"
+  transition is not yet a no-op below the sky. Origin: ATMOS_1 §7 — the
+  campaign's handoff, held by Jean rather than filed in the tree; the
+  campaign opens at 71619c0. Unblocked by a visual need (the recording's
+  long takes) or the indoor atmospheres' rework.
 - wgsl_gate.py TypeError in the directive-removed branch: the two-line note at
   "DIRECTIVE not in src" splits a %s from its operand, so the branch raises
   instead of printing. Unreachable while world.wgsl carries requires
