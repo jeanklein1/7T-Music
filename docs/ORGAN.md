@@ -894,9 +894,10 @@ and when.
    palette, the possessed body, render radius. Seeded once by a mood's
    first run, then the player's. Held through transitions.
 3. **The environment's instance** — `sunDirection_`, `sunColor_`,
-   `mood_state_.sun_*`, `clearColor_`, `mood_state_.fog_rest_*`. Authored
-   by `apply_mood` at every entry from rung 1 and the seed; re-spoken at
-   the frame boundary when rung 1 is edited (RESPEAK).
+   `mood_state_.sun_*`, `clearColor_`, `mood_state_.fog_rest_*`, and
+   `mood_state_.regime`, rolled by `apply_mood_regime` from rung 1 and
+   the seed. Authored by `apply_mood` at every entry from rung 1 and the
+   seed; re-spoken at the frame boundary when rung 1 is edited (RESPEAK).
 4. **The world's draw** — terrain, spawns, the finite radius, the indoor
    palette, and the atmosphere's draw (`draw_atmosphere`). Reborn at
    teardown; the same seed is the same world.
@@ -916,10 +917,12 @@ is a rung-1 row plus its rung-4 draw.
 A mood is `{ WorldShape shape; Atmosphere atmos; }` (contracts/
 spine_state.hpp). The shape is structural — generation reads it, the
 eligibility rule bars dials. The atmosphere is a distribution: a sun
-bearing (centre, azimuth and elevation spreads) and up to four weighted
-REGIMES. **A regime is a whole sky** — the sun's colour, the light's
-intensity and ambient, the fog's rest and colour, the clear colour, each
-a centre with its own spread — and the seed picks one row. "The light
+bearing (centre, azimuth and elevation spreads) and up to four REGIMES,
+weighted by the mood's own `regime_weight[]` (REGIME_1). **A regime is a
+state of the world; the atmosphere's row for it is the whole sky** — the
+sun's colour, the light's intensity and ambient, the fog's rest and
+colour, the clear colour, each a centre with its own spread — and the
+seed picks one regime for the whole world. "The light
 according to this fog" is therefore written, not coupled: they are in the
 same row. A colour's spread is a ± on brightness over the whole triple,
 hue kept. `draw_atmosphere(seed, atmos)` is a pure deriver
@@ -942,6 +945,36 @@ flattens to its leaves, and what a tree adds over the leaves is SHARING.
 Sharing is an economy — a per-parameter "mood-wide" flag — priced in
 OPEN.md; today a parameter wanted the same in every regime is set equal
 in every regime.
+
+### The subscription law (REGIME_1)
+
+The regime is the world's. `MoodProfile.regime_weight[REGIME_COUNT]` is
+the mood's law — how often it draws each regime — and `apply_mood_regime`
+rolls it first in `apply_mood` and first in the boundary's mood re-speak,
+writing `MoodState.regime` before any applier reads it. `draw_atmosphere`
+takes that index as a parameter and obeys.
+
+A family subscribes by carrying `[REGIME_COUNT]` columns in its own
+definition and indexing them with `MoodState.regime` at its own apply.
+There is never a second roll: "moonless, thick, six slow walkers, dim
+orbs" is one index read by four families. The atmosphere is the first
+subscriber; its columns are the `Atmosphere · Regime N` groups and its
+law's four rows are `Atmosphere · Regimes`, at the head of the section so
+the hand finds the law beside the rows it governs.
+
+The eligibility rule is the gate on who may subscribe: a family's columns
+must be read by its applier and by nothing else at runtime. The orb mood
+bank passes today; the agent populations need enrolling first; the
+ribbon, the terrain and the canvas are read per frame and would need
+per-mood rests before they could carry a column; `WorldShape` can only
+ever take effect at the next world, a temperament question rather than a
+dial question.
+
+The first second subscriber owes one thing: the weight rows raise the
+MOOD definition flag and no other, so a weight edit re-speaks the sky
+alone. When the orbs subscribe, the edit must raise their flag too, or
+the sky changes regime and the orbs keep the old one for a frame or for
+a world (OPEN.md prices it).
 
 Variants are moods: `open_sunset`, `open_night`, `open_noon` share one
 `SHAPE_OPEN` and differ only in atmosphere. A new mood is one `SHAPE_`
@@ -969,10 +1002,10 @@ spine's mood organ, and the two ABI calls are two windows on one home.
 The operator never sees an index: the scope line, the status line and
 the `[Atmos]` witness all print the label's number.
 
-The weight row is the one dormant-regime dial that can move the live
-world: the roll is fixed by the seed, the thresholds are the weights, so
-raising a regime's weight can bring this world into it without a
-transition. The scope line's hover says so.
+The weight rows (`Atmosphere · Regimes`) are the one dormant-regime edit
+that can move the live world: the roll is fixed by the seed, the
+thresholds are the weights, so raising a regime's weight can bring this
+world into it without a transition. The scope line's hover says so.
 
 ### The tuning loop
 

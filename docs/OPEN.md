@@ -70,6 +70,13 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   campaign's handoff, held by Jean rather than filed in the tree; the
   campaign opens at 71619c0. Unblocked by a visual need (the recording's
   long takes) or the indoor atmospheres' rework.
+- The regime's second subscriber owes the flag (REGIME_1): the four weight
+  rows raise the MOOD definition flag only, so a weight edit re-rolls and
+  re-speaks the sky and nothing else. The first family to carry a regime
+  column (the orb mood bank is eligible today) must make the weight rows
+  raise its definition flag too — a per-field mask or a "regime law"
+  hook at the boundary — or a regime change leaves it behind. Origin:
+  REGIME_1 §0.5.
 - A per-parameter "mood-wide" flag for the regimes (ATMOS_2 §0.5): today a
   parameter wanted the same in every regime is set equal in every regime,
   four dials that agree. The flag would make it one dial and restore
@@ -77,8 +84,10 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   parameter and a draw that reads regime 0 when the flag is set. Also
   priced, not built: a second independent roll (axes), should the
   combinatorics of independent light and fog be wanted back; and moving
-  the sun's bearing into the regime row. Unblocked by Jean's tuning
-  asking for any of them. Origin: ATMOS_2 §0.5.
+  the sun's bearing into the regime row. LENS_1's ALL position writes
+  every regime at a stroke, which is the gesture form of the same relief;
+  the flag remains the one-home form. Unblocked by Jean's tuning asking
+  for any of them. Origin: ATMOS_2 §0.5.
 - CC's container lacks naga, so `tools/wgsl_gate.py` (the immediate shim)
   cannot run there; ATMOS_1 stood in with a diff-emptiness check because
   it touched no WGSL. A campaign that touches WGSL needs naga in the
