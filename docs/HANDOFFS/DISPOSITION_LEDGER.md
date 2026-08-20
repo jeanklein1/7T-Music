@@ -2034,3 +2034,85 @@ GREEN — 0 failure(s)
 `organ_gap` reads **13 graduated pairs, 0 surviving runtime readers** —
 `WorldDrawSurface 5/5 named`, `RibbonSpawnSurface 21/21 named`. Its file
 table and its pair table both grew, so neither bank is scanned by silence.
+
+## P4 — the reader proof (`tools/organ_readers.py`)
+
+The audit family's newest check, and the organ_gap sibling: stdout only,
+**exit 0 always**. `organ_gap` measures the gap between the HOMES and the
+panel — which declared members no dial names. This measures the inward
+gap: of the dials that DO exist, which write a field nobody reads.
+
+### The match is HANDLE-QUALIFIED, and that is the whole tool
+
+A bare-token match cannot answer this campaign's own flagship question.
+`configure_orbs` CONTAINS the token `motion_rule` — in the line
+`gpuCfg.motion_rule = os.current_motion_rule;`, which reads the PLAYER's
+rule and never the mood's. **A tool that matched the bare token would have
+passed the deadest row in the tree.**
+
+So a row is proved only when its leaf is reached through a name that IS
+the bank: the LIVE symbol, a parameter whose type is the bank's struct
+(`cfg`, `m`), or a reference alias bound to either (`const auto& S =
+RIBBON_SPAWN_LIVE`), resolved to a fixed point because aliases chain. The
+gap between handle and leaf admits member and index characters only, so a
+match is one EXPRESSION and never one line.
+
+### The positive control — a gate that cannot fail is decoration
+
+Run by re-adding the two rows this campaign had just retired:
+
+```
+  SUSPECT     1
+  ORB_MOOD       motion_rule                   Sky & Light · Orb mood
+        MECHANICAL? — named outside the declared readers at:
+          …/bodies/orbs.hpp:559  gpuCfg.motion_rule = os.current_motion_rule;
+```
+
+`motion_rule` came back a suspect **with the evidence for its ruling
+quoted in its own second pass**. `flock_gesture_default` came back PROVED
+— correctly: `apply_mood_first_run_defaults_` really does read it, and its
+row died for a CADENCE reason, not a reader one. Separating those two is
+the only thing that makes the instrument worth having.
+
+### The second pass is what makes a suspect actionable (D6)
+
+For every row the declared readers miss, the tool searches all of `src/`
+for the same token, drops the field's own declaration, and prints what is
+left:
+
+- **MECHANICAL** — named somewhere the table does not list. The table is
+  stale or the reader moved. Fix now.
+- **SEMANTIC** — named nowhere but its own declaration. The dial writes a
+  fact nothing reads. Ledger the anatomy; Jean and Claude rule.
+
+### The run against the tree ORGAN_4 leaves
+
+```
+  proved    231   a declared reader names the field
+  SUSPECT     0   no declared reader names it
+  witness    17   an _RO meter: the question is inverted (blind spot 5)
+  scope      57   GPU-side or whole-struct (blind spots 2, 3)
+```
+
+**Zero suspects, and the number is only worth what the control is worth.**
+Nothing needed a mechanical fix and nothing needed a ruling — P1b had
+already retired the five the instrument would have caught, which is the
+campaign working in the order it was written rather than the tool finding
+nothing to find.
+
+The table's own census pass names four functions it does not list —
+`mood_def`, `organ_flush` (×2) and `init_renderer`. All four hand a whole
+row on or return a reference; none reads a field, so none belongs in the
+table. They are printed anyway, marked `?`, because a reader the table
+forgot looks exactly like this until someone reads it.
+
+### What it deliberately cannot see
+
+Fifty-seven `CONFIG` rows are OUT OF SCOPE, named as such rather than
+reported: `config_` ships whole and is read in `world.wgsl`. Proving
+GPU-side consumption is the kernel's ledger — a sixth instrument, priced
+here and not built: it would parse `world.wgsl`'s uniform structs and ask
+the same question of the shader bodies, and it is the one thing that could
+have caught `base_hue`/`hue_variance` mechanically instead of by Jean's
+eye. Seventeen witnesses are skipped because their question is inverted: a
+meter asks who AUTHORS, and that is the contest instrument's job.
