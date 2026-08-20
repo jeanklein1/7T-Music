@@ -1067,13 +1067,19 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     note_write(*e);   // O1a — the shadow, read back from the home
 }
 
-EMSCRIPTEN_KEEPALIVE inline float organ_get(int block, int offset, int lane) {
+// ORGAN_6 — BY INDEX, LIKE ITS THREE SIBLINGS. This keyed on (block,
+// offset) while organ_set keys on (block, offset, TYPE): the reader and
+// the writer disagreed about what identifies a row, and the law the
+// harness proves — no duplicate TRIPLE — does not forbid two rows sharing
+// a pair. organ_contest, organ_contest_frames and organ_def_get have
+// always taken the manifest index, which IS the index in kOrganParams
+// because the manifest is emitted in table order. This joins them, and
+// the shell stops spelling a home's coordinates to read a value it is
+// already holding an index for.
+EMSCRIPTEN_KEEPALIVE inline float organ_get(int index, int lane) {
     using namespace t7::organ;
-    for (size_t i = 0; i < kOrganParamCount; ++i) {
-        const OrganParam& e = kOrganParams[i];
-        if (e.block == block && e.offset == offset) return read_lane(e, lane);
-    }
-    return 0.0f;
+    if (index < 0 || (size_t)index >= kOrganParamCount) return 0.0f;
+    return read_lane(kOrganParams[index], lane);
 }
 
 // The panel's own witnesses, read once per frame by its status line.

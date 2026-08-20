@@ -1297,7 +1297,7 @@
             // reader the witness poll below already uses, and it reads
             // through the registry to the home itself (ATMOS_1b).
             var ni = lanes(r.p.type), iv = [];
-            for (var li = 0; li < ni; li++) iv.push(C.get(r.p.block, r.p.offset, li));
+            for (var li = 0; li < ni; li++) iv.push(C.get(r.p.i, li));
             r.show(iv);
           }
         });
@@ -1306,7 +1306,7 @@
         // A witness reads the home itself, every tick — that IS the row.
         if (r.ro) {
           var n = lanes(r.p.type), out = [];
-          for (var l = 0; l < n; l++) out.push(g4(C.get(r.p.block, r.p.offset, l)));
+          for (var l = 0; l < n; l++) out.push(g4(C.get(r.p.i, l)));
           r.ro.textContent = out.join(' ');
         }
         var k = C.contest(r.p.i);
@@ -1400,7 +1400,7 @@
         contestFrames: M.cwrap('organ_contest_frames', 'number', ['number']),
         mood:          M.cwrap('organ_mood', 'number', []),
         defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number']),
-        get:           M.cwrap('organ_get', 'number', ['number','number','number']),
+        get:           M.cwrap('organ_get', 'number', ['number','number']),
         orbRule:       M.cwrap('organ_orb_rule', 'number', []),
         doors:         M.cwrap('organ_doors', 'string', []),
         door:          M.cwrap('organ_door', null, ['number']),
