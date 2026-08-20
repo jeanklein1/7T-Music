@@ -31,26 +31,27 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Sun | clear colour | `MoodProfile.clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Sky & Light · Dome | dome radius | `ORBS.dome_radius` | ORBS | F32 | 0 … 2000 | 5 | boundary | none |  |
 | Sky & Light · Dome | base size | `ORBS.base_size` | ORBS | F32 | 0 … 12 | 0.05 | boundary | none |  |
-| Sky & Light · Dome | noise floor | `ORBS.noise_floor` | ORBS | F32 | 0 … 1 | 0.005 | boundary | none |  |
-| Sky & Light · Orb mood | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | count | `OrbMoodConfig.count` | NONE_ORB (254) | U32 | 0 … 256 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | brightness | `OrbMoodConfig.brightness` | NONE_ORB (254) | F32 | 0 … 1 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | drag | `OrbMoodConfig.drag` | NONE_ORB (254) | F32 | 0.01 … 2 | 0.01 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | rotation speed (rad/s) | `OrbMoodConfig.rotation_speed` | NONE_ORB (254) | F32 | -2 … 2 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | rotation axis | `OrbMoodConfig.rotation_axis` | NONE_ORB (254) | VEC3 | -1 … 1 | 0.01 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | orbital speed (rad/s) | `OrbMoodConfig.orbital_base_speed` | NONE_ORB (254) | F32 | 0.005 … 1 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Orb mood | palette id | `OrbMoodConfig.palette_id` | NONE_ORB (254) | U32 | 0 … 3 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | separation radius | `OrbMoodConfig.flock_sep_radius` | NONE_ORB (254) | F32 | 1 … 200 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | alignment radius | `OrbMoodConfig.flock_align_radius` | NONE_ORB (254) | F32 | 2 … 480 | 2 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | cohesion radius | `OrbMoodConfig.flock_coh_radius` | NONE_ORB (254) | F32 | 4 … 800 | 4 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | separation weight | `OrbMoodConfig.flock_sep_weight` | NONE_ORB (254) | F32 | 0.5 … 120 | 0.5 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | alignment weight | `OrbMoodConfig.flock_align_weight` | NONE_ORB (254) | F32 | 0.2 … 32 | 0.2 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | cohesion weight | `OrbMoodConfig.flock_coh_weight` | NONE_ORB (254) | F32 | 0.25 … 60 | 0.25 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | max speed | `OrbMoodConfig.flock_max_speed` | NONE_ORB (254) | F32 | 1 … 240 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | drag × brownian | `OrbMoodConfig.rule_drag_brownian` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | drag × orbital | `OrbMoodConfig.rule_drag_orbital` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | drag × frozen | `OrbMoodConfig.rule_drag_frozen` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Orb flock | drag × flocking | `OrbMoodConfig.rule_drag_flocking` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
+| Sky & Light · Orbs | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
+| Sky & Light · Orbs | count | `OrbMoodConfig.count` | NONE_ORB (254) | U32 | 0 … 256 | 1 | boundary | orb_mood |  |
+| Sky & Light · Orbs | palette id | `OrbMoodConfig.palette_id` | NONE_ORB (254) | U32 | 0 … 3 | 1 | boundary | orb_mood |  |
+| Sky & Light · Orbs | drag | `OrbMoodConfig.drag` | NONE_ORB (254) | F32 | 0.01 … 2 | 0.01 | boundary | orb_mood |  |
+| Sky & Light · Orbs | brightness | `OrbMoodConfig.brightness` | NONE_ORB (254) | F32 | 0 … 1 | 0.005 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | speed mult | `ORBS.speed_mult` | ORBS | F32 | 0 … 4 | 0.01 | boundary | none |  |
+| Sky & Light · Motion — all rules | noise floor | `ORBS.noise_floor` | ORBS | F32 | 0 … 3 | 0.005 | boundary | none |  |
+| Sky & Light · Motion — all rules | rotation speed (rad/s) | `OrbMoodConfig.rotation_speed` | NONE_ORB (254) | F32 | -2 … 2 | 0.005 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | rotation axis | `OrbMoodConfig.rotation_axis` | NONE_ORB (254) | VEC3 | -1 … 1 | 0.01 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | drag × brownian rule | `OrbMoodConfig.rule_drag_brownian` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | drag × orbital rule | `OrbMoodConfig.rule_drag_orbital` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | drag × frozen rule | `OrbMoodConfig.rule_drag_frozen` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | drag × flocking rule | `OrbMoodConfig.rule_drag_flocking` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
+| Sky & Light · Orbital rule | orbital speed (rad/s) | `OrbMoodConfig.orbital_base_speed` | NONE_ORB (254) | F32 | 0.005 … 1 | 0.005 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | separation radius | `OrbMoodConfig.flock_sep_radius` | NONE_ORB (254) | F32 | 1 … 200 | 1 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | alignment radius | `OrbMoodConfig.flock_align_radius` | NONE_ORB (254) | F32 | 2 … 480 | 2 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | cohesion radius | `OrbMoodConfig.flock_coh_radius` | NONE_ORB (254) | F32 | 4 … 800 | 4 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | separation weight | `OrbMoodConfig.flock_sep_weight` | NONE_ORB (254) | F32 | 0.5 … 120 | 0.5 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | alignment weight | `OrbMoodConfig.flock_align_weight` | NONE_ORB (254) | F32 | 0.2 … 32 | 0.2 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | cohesion weight | `OrbMoodConfig.flock_coh_weight` | NONE_ORB (254) | F32 | 0.25 … 60 | 0.25 | boundary | orb_mood |  |
+| Sky & Light · Flocking rule | max speed | `OrbMoodConfig.flock_max_speed` | NONE_ORB (254) | F32 | 1 … 240 | 1 | boundary | orb_mood |  |
 | Sky & Light · Schemes | cathedral | `WORLD.scheme_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
@@ -333,14 +334,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **305** |
-| by section | Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 37 · Atmosphere 23 · Interaction 21 · Pawn 18 · Debug 4 |
-| by cadence | boundary 129 · driven 17 · gen 39 · live 120 |
-| by macro form | PARAM 123 · PARAM_DEF 105 · PARAM_DEFONLY 21 · PARAM_GEN 39 · PARAM_RO 17 |
-| definition kinds | BEHAVIOR 70 · MOOD 5 · NONE 179 · ORB_MOOD 19 · TIER 32 |
+| entries | **306** |
+| by section | Agents 104 · Ribbon 56 · Terrain 42 · Sky & Light 38 · Atmosphere 23 · Interaction 21 · Pawn 18 · Debug 4 |
+| by cadence | boundary 130 · driven 17 · gen 39 · live 120 |
+| by macro form | PARAM 124 · PARAM_DEF 105 · PARAM_DEFONLY 21 · PARAM_GEN 39 · PARAM_RO 17 |
+| definition kinds | BEHAVIOR 70 · MOOD 5 · NONE 180 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 17 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 290 |
+| namespaces | canvas 15 · the_board 291 |
 
 ### Doors
 
@@ -407,7 +408,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    231   a declared reader names the field
+  proved    232   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    17   an _RO meter: the question is inverted (blind spot 5)
   scope      57   GPU-side or whole-struct (blind spots 2, 3)

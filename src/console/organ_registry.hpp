@@ -666,14 +666,20 @@ inline uint32_t take_orb_console_dirty() {
     g_orb_console_dirty = 0;
     return m;
 }
-// The three bits the cartridge boundary reads, proved here rather than
-// trusted there: a field reordered in OrbConsole fails the BUILD at this
-// line instead of routing a dome radius into the noise floor.
+// The bits the cartridge boundary reads, proved here rather than trusted
+// there: a field reordered in OrbConsole fails the BUILD at this line
+// instead of routing a dome radius into the noise floor.
+//
+// ORGAN_5 P3a — a fourth: speed_mult at offset 12, bit 3. Like dome and
+// noise it is a per-frame GPU read, so it routes to a targeted partial
+// and never to a re-speak; unlike them it scales every rule's energy,
+// which is why it is the console's master and not a Dome dial.
 static_assert(offsetof(the_board::OrbConsole, dome_radius) == 0
            && offsetof(the_board::OrbConsole, base_size)   == 4
-           && offsetof(the_board::OrbConsole, noise_floor) == 8,
-    "the console mask's bits are offset/4 — dome 0, base size 1, noise 2; "
-    "the cartridge boundary routes on exactly those three");
+           && offsetof(the_board::OrbConsole, noise_floor) == 8
+           && offsetof(the_board::OrbConsole, speed_mult)  == 12,
+    "the console mask's bits are offset/4 — dome 0, base size 1, noise 2, "
+    "speed mult 3; the cartridge boundary routes on exactly those four");
 
 // One base per definition family. MOOD selects by target; TIER is the
 // world's single bank and ignores it.

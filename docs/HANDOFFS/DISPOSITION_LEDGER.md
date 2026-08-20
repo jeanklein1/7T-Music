@@ -2828,3 +2828,112 @@ exist:
   [PASS]   and the scope line LIGHTS when its rule goes live
   [PASS]   an unknown rule prints its NUMBER rather than guessing    rule 9
 ```
+
+## P3 — the rule console
+
+**A section is organized for the hand that plays it, not the struct that
+stores it.** The orb rows were grouped by HOME — three under "Dome"
+because they live in `OrbConsole`, nineteen under "Orb mood" and "Orb
+flock" because they live in `OrbMoodConfig` — and the operator paid twice:
+brownian's strength dial sat in the Dome group under the geometry-sounding
+name *"noise floor"*, and fifteen rule-scoped rows sat in one
+undifferentiated block with nothing saying which rule each acted in.
+
+### P3a — the master motion dial, and an orphan retired
+
+`OrbConsole` gains a fourth field. C6's expected branch held, so **D5 does
+not fire**: the retirement is on.
+
+| | before | after |
+| --- | --- | --- |
+| the value the kernel scales by | `OrbsState.speed_mult_current`, pinned at 1.0 since the gen-1 coupling retired | `ORB_CONSOLE_LIVE.speed_mult`, an authored console fact with a dial |
+| where `configure_orbs` reads it | the tail of `pack_flocking_` | the config-build block, beside the other three console reads |
+| `upload_orb_speed_mult` | zero callers | the console mask's bit 3 |
+
+Three retirements, all C6-gated: the field, its teardown reset, and a
+comment that still promised *"smoothed on the CPU, uploaded via
+`upload_orb_speed_mult` only when it moves"* — a promise about a smoother
+that no longer existed. The read moved out of `pack_flocking_` because it
+was never a flocking fact: the kernel scales brownian's noise, orbital's
+angular speed and flocking's speed ceiling by it. FROZEN has no energy
+term, which is that rule's defining property and not an omission.
+
+**The floor of 0 is HONEST**, and the distinction matters: the thirteen
+ORB_MOOD floors sit one step off zero because `eff()`/`passthrough()` read
+0 as *"no opinion"*. Nothing reads this one as a sentinel — the kernel
+multiplies by it — so **zero is stillness**, an authored artistic state,
+and the dial reaches it.
+
+The console mask grows bit 3, pinned by the same `static_assert` that
+pins the other three, and the boundary routes it to a targeted 4-byte
+partial: **smooth under the finger, no re-seed.**
+
+> A gen-2 coupling CLAIMS this field through a rest+gain seam when it
+> arrives; until then the dial IS the rest. — the field's own banner
+
+### P3b — the noise envelope widens
+
+`noise_floor` max **1.0 → 3.0** `[heuristic]`, step unchanged. A dial must
+be able to overshoot salience before Jean's eye can tune it back; the
+ceiling is his to rule later.
+
+### P3c — the five groups, by the hand
+
+| group | rows | why it is one group |
+| --- | --- | --- |
+| `Sky & Light · Dome` | 2 — dome radius, base size | what the sky IS |
+| `Sky & Light · Orbs` | 5 — enabled, count, palette id, drag, brightness | what populates it. The first four are EXACTLY `ORB_RESEED_BITS`; brightness rides with them by SUBJECT (what a mote looks like, not how it moves) |
+| `Sky & Light · Motion — all rules` | 8 — speed mult, noise floor, rotation speed, rotation axis, drag ×4 | what moves it whatever rule is on |
+| `Sky & Light · Orbital rule` | 1 — orbital speed | one row, and it earns a group: the group's NAME is what makes the live-rule line appear |
+| `Sky & Light · Flocking rule` | 7 — the boids rows | the seven that made Jean's sweep |
+
+**The layout and the readout stay in step with no table between them.**
+P2b derives a group's rule from its own name, so `Orbital rule` → 1 and
+`Flocking rule` → 3 light up automatically, and `Motion — all rules`
+(plural) correctly grows no line — those rows are never dormant.
+
+**The four rule drags stay together** rather than being split one per rule
+group: they are one four-lane fact — the shape of drag across the whole
+rule set — and splitting them would hide that shape from the hand
+comparing them. Each names its own rule in its label, now spelled
+`drag × brownian rule` so the label answers the question the group's
+heading no longer does.
+
+D4 held: **no block, offset, type, range, step or mask bit changed** in the
+regroup. Only group strings, labels, and row order within the section —
+plus the two edits P3a and P3b authorise by name.
+
+### P3d — the books
+
+| | |
+| --- | --- |
+| entries | 305 → **306** |
+| `organ_readers` | 231 → **232 proved, 0 suspects** — `configure_orbs` names `speed_mult`, so the new row is PROVED and not merely enrolled |
+| `organ_gap` | `OrbConsole 4/4 named`, 13 pairs, 0 surviving readers |
+| `audit/ORGAN.md` | regenerated — Sky & Light 37 → 38 |
+| `web/presets/baseline.json` | regenerated — 231 → 232 keys, `ORBS.speed_mult = [1]` |
+
+```
+  ── P3a: the master motion dial ──
+  [PASS] OrbConsole is four words — the design row grew with the bank
+  [PASS] speed_mult sits at offset 12, so its console bit is 3
+  [PASS] the authored rest is identity — the dance, unscaled
+  [PASS] the master dial enrolls · 0 … 4, the floor HONEST not a sentinel
+  [PASS] a speed write raises console bit 3 and lands       mask=0x8 value=2.75
+  [PASS]   and asks for NO re-speak — smooth under the finger, no reseed
+  [PASS] configure_orbs reads the CONSOLE, not OrbsState (smoother retired)
+  ── P3b/P3c: the noise envelope and the regroup ──
+  [PASS] noise floor's ceiling widens 1.0 -> 3.0                      max 3
+  [PASS] the five orb groups are contiguous and correctly populated     5/5
+  [PASS] D4: noise floor changed GROUP, never its block or offset
+```
+
+And the shell, against the REAL regrouped manifest — the simulation P2
+needed is gone, the strings are in the tree:
+
+```
+  [PASS] the two "<rule> rule" groups grow scope lines            2 scope(s)
+  [PASS]   both dormant while brownian is live        rulescope off | off
+  [PASS]   each names its OWN rule, derived from its group name
+  [PASS]   FLOCKING lights and ORBITAL stays dark — one live rule at a time
+```

@@ -155,15 +155,46 @@ ORGAN_PARAM_DEF(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f,
 // preview could show.
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Sun", "clear colour", MOOD, MoodProfile, clear_color)
 
+// ═══ THE RULE CONSOLE (ORGAN_5 P3c) ══════════════════════════════
+//
+// A SECTION IS ORGANIZED FOR THE HAND THAT PLAYS IT, NOT THE STRUCT THAT
+// STORES IT. Until ORGAN_5 the orb rows were grouped by HOME — three
+// under "Dome" because they live in OrbConsole, nineteen under "Orb mood"
+// and "Orb flock" because they live in OrbMoodConfig — and the operator
+// paid for it twice. Brownian's strength dial sat in the Dome group under
+// the name "noise floor", nowhere near the rule it drives; and fifteen
+// rule-scoped rows sat in one undifferentiated block with nothing saying
+// which rule each acted in.
+//
+// The five groups below are the hand's taxonomy: what the sky IS (Dome),
+// what populates it (Orbs), what moves ALL of it (Motion), and one group
+// per rule that has dials of its own. A group whose name ends "<rule>
+// rule" grows a live-rule line under its header (ORGAN_5 P2b), derived
+// from the name — so this layout and that readout stay in step with no
+// table between them.
+//
+// D4 — REGROUPING MOVES STRINGS AND ORDER, NOTHING ELSE. Every block,
+// offset, type, range, step and mask bit below is what it was; only the
+// group strings and the rows' order within the section changed, plus the
+// two edits P3a and P3b authorise by name (one new row, one widened max).
+// Order matters only because the shell opens a header when the group
+// token changes, so a group must be CONTIGUOUS — the harness proves it.
+
 // ─── Sky & Light · Dome ─────────────────────────────────────────────
 // ORGAN_3 w2 (C2). ORB_CONSOLE_LIVE (contracts/orb_surface.hpp). The dome
 // radius's own comment named it "Jean's dial" while it was a constexpr;
 // this line is that sentence made true.
+//
+// WHAT THE SKY IS: the shell it is painted on, and how big a mote is.
+// Both are init-baked — dome radius is also a per-frame read (the
+// dynamics kernel re-projects onto the shell), so it lands smooth under
+// the finger; base size is baked into orb_state at seed time and takes
+// the re-speak. `noise_floor` LEFT this group at ORGAN_5 P3c: it is not
+// geometry, it is brownian's strength.
 ORGAN_PARAM(ORBS, OrbConsole, dome_radius, F32, 0.0f, 2000.0f, 5.0f,   "Sky & Light · Dome", "dome radius")
 ORGAN_PARAM(ORBS, OrbConsole, base_size,   F32, 0.0f, 12.0f,   0.05f,  "Sky & Light · Dome", "base size")
-ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 1.0f,    0.005f, "Sky & Light · Dome", "noise floor")
 
-// ─── Sky & Light · Orb mood / Orb flock ─────────────────────────
+// ─── Sky & Light · Orbs ─────────────────────────────────────────────
 // ORGAN_3b P3 (C3, kind ORB_MOOD). ORB_MOOD_LIVE
 // (contracts/orb_surface.hpp), block sentinel 254 — DEFINITION-ONLY,
 // because configure_orbs consumes the config into GPU state and there is
@@ -179,6 +210,15 @@ ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 1.0f,    0.005f, "Sky & Li
 // offset into OrbMoodConfig; MoodProfile's family uses 255 and offsets
 // into MoodProfile. Sharing one sentinel would let two different structs'
 // offsets collide at the same number and resolve to each other.
+//
+// THESE FIVE ARE THE POPULATION, and they are exactly the four that
+// RE-SEED plus the one that rides with them. `enabled`, `count`,
+// `palette id` and `drag` are baked into orb_state by the init kernel, so
+// touching any of them re-draws the sky (ORGAN_5 P1's ORB_RESEED_BITS);
+// `brightness` is a per-frame read but belongs here by SUBJECT — it is
+// what a mote looks like, not how it moves. Turning one of the four and
+// watching the sky redraw is the dial working: they answer "what is up
+// there", and that question cannot be re-answered without re-drawing.
 //
 // `count`'s max is 256 — Dim::MAX_ORBS, which the config's own comment
 // names as its clamp. `tierset_id` is NOT here: its "none" value is
@@ -202,32 +242,74 @@ ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 1.0f,    0.005f, "Sky & Li
 //     panel would promise a landing that apply_mood_first_run_defaults_
 //     refuses on every run after the first. Its reachable form is the
 //     other door (ORGAN_DOOR_ORB_GESTURE).
+ORGAN_PARAM_DEFONLY(BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orbs", "enabled", ORB_MOOD, OrbMoodConfig, enabled)
+ORGAN_PARAM_DEFONLY(U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orbs", "count", ORB_MOOD, OrbMoodConfig, count)
+ORGAN_PARAM_DEFONLY(U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orbs", "palette id", ORB_MOOD, OrbMoodConfig, palette_id)
+ORGAN_PARAM_DEFONLY(F32,  0.01f,  2.0f,     0.01f,   "Sky & Light · Orbs", "drag", ORB_MOOD, OrbMoodConfig, drag)
+ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orbs", "brightness", ORB_MOOD, OrbMoodConfig, brightness)
+
+// ─── Sky & Light · Motion — all rules ───────────────────────────────
+// WHAT MOVES THE SKY, WHATEVER RULE IS ON. Every row here acts under
+// every rule — which is why the group's name says so, and why the
+// live-rule line the rule groups carry is deliberately absent: there is
+// no rule for these to be dormant under.
 //
-// FLOORS SIT ONE STEP OFF ZERO: 0 is the mood table's "no opinion"
-// sentinel (configure_orbs eff()/passthrough), and a slider cannot
-// express a sentinel without lying (D1(d), the tierset precedent). Each
-// floor below is exactly one step of its own row, so the authored value
-// and — for the four rule drags — the 1.0× pass-through both stay
-// reachable; a half-step floor would put every gridline off the integers.
-ORGAN_PARAM_DEFONLY(BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orb mood", "enabled", ORB_MOOD, OrbMoodConfig, enabled)
-ORGAN_PARAM_DEFONLY(U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orb mood", "count", ORB_MOOD, OrbMoodConfig, count)
-ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orb mood", "brightness", ORB_MOOD, OrbMoodConfig, brightness)
-ORGAN_PARAM_DEFONLY(F32,  0.01f,  2.0f,     0.01f,   "Sky & Light · Orb mood", "drag", ORB_MOOD, OrbMoodConfig, drag)
-ORGAN_PARAM_DEFONLY(F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Orb mood", "rotation speed (rad/s)", ORB_MOOD, OrbMoodConfig, rotation_speed)
-ORGAN_PARAM_DEFONLY(VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Orb mood", "rotation axis", ORB_MOOD, OrbMoodConfig, rotation_axis)
-ORGAN_PARAM_DEFONLY(F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orb mood", "orbital speed (rad/s)", ORB_MOOD, OrbMoodConfig, orbital_base_speed)
-ORGAN_PARAM_DEFONLY(U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orb mood", "palette id", ORB_MOOD, OrbMoodConfig, palette_id)
-ORGAN_PARAM_DEFONLY(F32,  1.0f,   200.0f,   1.0f,    "Sky & Light · Orb flock", "separation radius", ORB_MOOD, OrbMoodConfig, flock_sep_radius)
-ORGAN_PARAM_DEFONLY(F32,  2.0f,   480.0f,   2.0f,    "Sky & Light · Orb flock", "alignment radius", ORB_MOOD, OrbMoodConfig, flock_align_radius)
-ORGAN_PARAM_DEFONLY(F32,  4.0f,   800.0f,   4.0f,    "Sky & Light · Orb flock", "cohesion radius", ORB_MOOD, OrbMoodConfig, flock_coh_radius)
-ORGAN_PARAM_DEFONLY(F32,  0.5f,   120.0f,   0.5f,    "Sky & Light · Orb flock", "separation weight", ORB_MOOD, OrbMoodConfig, flock_sep_weight)
-ORGAN_PARAM_DEFONLY(F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Orb flock", "alignment weight", ORB_MOOD, OrbMoodConfig, flock_align_weight)
-ORGAN_PARAM_DEFONLY(F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Orb flock", "cohesion weight", ORB_MOOD, OrbMoodConfig, flock_coh_weight)
-ORGAN_PARAM_DEFONLY(F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Orb flock", "max speed", ORB_MOOD, OrbMoodConfig, flock_max_speed)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × brownian", ORB_MOOD, OrbMoodConfig, rule_drag_brownian)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × orbital", ORB_MOOD, OrbMoodConfig, rule_drag_orbital)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × frozen", ORB_MOOD, OrbMoodConfig, rule_drag_frozen)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Orb flock", "drag × flocking", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
+// `speed mult` is the master (ORGAN_5 P3a) — ORB_CONSOLE_LIVE's fourth
+// field, a per-frame GPU read that takes a targeted partial and never a
+// re-seed. Its floor of 0 is HONEST and not an `eff()` sentinel: zero is
+// STILLNESS, an authored artistic state, and the kernel scales by it
+// rather than testing it. The four rule drags each name their own rule in
+// their label; they sit here rather than one per rule group because they
+// are one four-lane fact — the shape of drag across the whole rule set —
+// and splitting them would hide that shape from the hand comparing them.
+//
+// `noise floor` MOVED HERE from Dome at ORGAN_5 P3c. It is brownian's
+// strength dial, and its old home under a geometry heading with a
+// geometry-sounding name is exactly the by-the-struct grouping this
+// campaign ends. Its max widens 1.0 → 3.0 `[heuristic]` (P3b): a dial
+// must be able to overshoot salience before Jean's eye can tune it back,
+// and the ceiling is his to rule later.
+//
+// FLOORS SIT ONE STEP OFF ZERO for the four rule drags: 0 is the mood
+// table's "no opinion" sentinel (configure_orbs passthrough), and a
+// slider cannot express a sentinel without lying (D1(d), the tierset
+// precedent). Each floor is exactly one step of its own row, so the 1.0×
+// pass-through stays reachable; a half-step floor would put every
+// gridline off the integers.
+ORGAN_PARAM(ORBS, OrbConsole, speed_mult,  F32, 0.0f, 4.0f, 0.01f,  "Sky & Light · Motion — all rules", "speed mult")
+ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 3.0f, 0.005f, "Sky & Light · Motion — all rules", "noise floor")
+ORGAN_PARAM_DEFONLY(F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Motion — all rules", "rotation speed (rad/s)", ORB_MOOD, OrbMoodConfig, rotation_speed)
+ORGAN_PARAM_DEFONLY(VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Motion — all rules", "rotation axis", ORB_MOOD, OrbMoodConfig, rotation_axis)
+ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × brownian rule", ORB_MOOD, OrbMoodConfig, rule_drag_brownian)
+ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × orbital rule", ORB_MOOD, OrbMoodConfig, rule_drag_orbital)
+ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × frozen rule", ORB_MOOD, OrbMoodConfig, rule_drag_frozen)
+ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × flocking rule", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
+
+// ─── Sky & Light · Orbital rule ─────────────────────────────────────
+// ONE ROW, AND IT EARNS ITS OWN GROUP. The orbital angular speed does
+// nothing under any other rule, and the group's name is what tells the
+// shell to print the live-rule line beneath it (ORGAN_5 P2b derives the
+// rule from the name). A row that only sometimes acts, in a group that
+// always says whether now is one of those times.
+ORGAN_PARAM_DEFONLY(F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orbital rule", "orbital speed (rad/s)", ORB_MOOD, OrbMoodConfig, orbital_base_speed)
+
+// ─── Sky & Light · Flocking rule ────────────────────────────────────
+// THE SEVEN BOIDS ROWS, and they act only under FLOCKING. The group's
+// header carries the live-rule line, so an operator dragging a cohesion
+// radius in brownian is told why the sky is not answering rather than
+// left to conclude the dial is dead — which is the defect Jean's sweep
+// named and this campaign's first law answers.
+//
+// FLOORS SIT ONE STEP OFF ZERO here too: 0 is the mood table's "no
+// opinion" sentinel (configure_orbs eff()), so each floor is one step of
+// its own row and every authored value stays on the grid.
+ORGAN_PARAM_DEFONLY(F32,  1.0f,   200.0f,   1.0f,    "Sky & Light · Flocking rule", "separation radius", ORB_MOOD, OrbMoodConfig, flock_sep_radius)
+ORGAN_PARAM_DEFONLY(F32,  2.0f,   480.0f,   2.0f,    "Sky & Light · Flocking rule", "alignment radius", ORB_MOOD, OrbMoodConfig, flock_align_radius)
+ORGAN_PARAM_DEFONLY(F32,  4.0f,   800.0f,   4.0f,    "Sky & Light · Flocking rule", "cohesion radius", ORB_MOOD, OrbMoodConfig, flock_coh_radius)
+ORGAN_PARAM_DEFONLY(F32,  0.5f,   120.0f,   0.5f,    "Sky & Light · Flocking rule", "separation weight", ORB_MOOD, OrbMoodConfig, flock_sep_weight)
+ORGAN_PARAM_DEFONLY(F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Flocking rule", "alignment weight", ORB_MOOD, OrbMoodConfig, flock_align_weight)
+ORGAN_PARAM_DEFONLY(F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Flocking rule", "cohesion weight", ORB_MOOD, OrbMoodConfig, flock_coh_weight)
+ORGAN_PARAM_DEFONLY(F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Flocking rule", "max speed", ORB_MOOD, OrbMoodConfig, flock_max_speed)
 
 // ─── Sky & Light · Schemes / Portals — EDITS THE NEXT DRAW ──────
 // ORGAN_4 P3d (C3, DESTRUCTIVE). WORLD_DRAW_LIVE

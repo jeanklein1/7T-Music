@@ -276,9 +276,15 @@ struct OrbsState {
     bool     gesture_initialized[4] = { false, false, false, false };
 
     // ── Speed ────────────────────────────────────────────────────
-    // Population speed multiplier. Smoothed on the CPU, uploaded via
-    // upload_orb_speed_mult only when it moves.
-    float    speed_mult_current = 1.0f;
+    // ORGAN_5 P3a — `speed_mult_current` RETIRED. It was the gen-1
+    // coupling's CPU smoother, and that coupling's writer went with it:
+    // C6 found the field declared, reset in teardown, read once, and
+    // never moved off 1.0 by anything. Its comment still promised
+    // "smoothed on the CPU, uploaded via upload_orb_speed_mult only when
+    // it moves" — a promise about a smoother that no longer existed.
+    // The master motion strength is ORB_CONSOLE_LIVE.speed_mult now: an
+    // authored console fact with a dial on it, and the rest a gen-2
+    // coupling will claim through a seam.
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -489,8 +495,9 @@ inline void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
     gpuCfg.rule_drag_orbital = passthrough(rule_drag_orb);
     gpuCfg.rule_drag_frozen = passthrough(rule_drag_frz);
     gpuCfg.rule_drag_flocking = passthrough(rule_drag_flk);
-
-    gpuCfg.speed_mult = os.speed_mult_current;
+    // (speed_mult moved to the config-build block at ORGAN_5 P3a — it is a
+    //  console fact for every rule, not a flocking one, and the CPU
+    //  smoother it used to read retired with the gen-1 coupling.)
 }
 
 inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
@@ -563,6 +570,11 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     gpuCfg.noise_amp = ORB_CONSOLE_LIVE.noise_floor;   // rests at the floor (driverless since the gen-1 retirement)
     gpuCfg.dome_radius = ORB_CONSOLE_LIVE.dome_radius;
     gpuCfg.base_size = ORB_CONSOLE_LIVE.base_size;
+    // ORGAN_5 P3a — the master motion strength, read HERE beside the other
+    // three console facts rather than at the tail of pack_flocking_, where
+    // it sat behind a smoother that no longer exists. It is not a flocking
+    // fact: the kernel scales every rule's energy by it.
+    gpuCfg.speed_mult = ORB_CONSOLE_LIVE.speed_mult;
     gpuCfg.dt = 0.0f;
     gpuCfg.t_seconds = 0.0f;
     gpuCfg.force_radial = 0.0f;
@@ -621,8 +633,9 @@ inline void teardown_orbs(OrbsState& os, OrbsDeps* c) {
     os.init_pending = false;
     os.recolor_pending = false;
 
-    // Speed multiplier resets with the mood (not player state).
-    os.speed_mult_current = 1.0f;
+    // (The speed multiplier's reset retired with the field at ORGAN_5 P3a:
+    //  the master strength is a CONSOLE fact now, and a console fact is
+    //  the operator's, so a teardown must not take it back.)
 }
 
 // ═══ PLAYER COMMANDS ═════════════════════════════════════════════

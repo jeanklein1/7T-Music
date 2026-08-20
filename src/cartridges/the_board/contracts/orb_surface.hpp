@@ -33,6 +33,17 @@ struct OrbConsole {
     float dome_radius;   // skybox radius the orb field is painted on
     float base_size;     // world units before per-tier scaling
     float noise_floor;   // motion noise amplitude at rest
+    // ORGAN_5 P3a — MASTER MOTION STRENGTH, all rules; 1.0 = the authored
+    // dance. The kernel scales every rule's energy source by it: brownian's
+    // noise injection, orbital's angular speed, flocking's speed ceiling.
+    // FROZEN has none to scale, which is that rule's defining property and
+    // not an omission.
+    //
+    // A gen-2 coupling CLAIMS this field through a rest+gain seam when it
+    // arrives; until then the dial IS the rest. The field existed in
+    // GPUOrbConfig with an uploader and no author since the gen-1 coupling
+    // retired — an authored landing pad with nothing landing on it.
+    float speed_mult;
 };
 
 // The authored design — values carried verbatim from bodies/orbs.hpp's
@@ -41,11 +52,12 @@ inline constexpr OrbConsole ORB_CONSOLE = {
     500.0f,   // dome_radius — 700 fell into the fog; 500 is the visible dial (Jean's dial)
     3.0f,     // base_size
     0.3f,     // noise_floor — rests at the floor (driverless since the gen-1 retirement)
+    1.0f,     // speed_mult — identity: the authored dance, unscaled (ORGAN_5 P3a)
 };
 
 // The live surface — the panel's block and configure_orbs' read.
 inline OrbConsole ORB_CONSOLE_LIVE = ORB_CONSOLE;
-static_assert(sizeof(OrbConsole) == 3 * sizeof(float),
+static_assert(sizeof(OrbConsole) == 4 * sizeof(float),
     "ORB_CONSOLE_LIVE is a whole-struct copy of the design row: a field "
     "added to one is added to the other by construction");
 

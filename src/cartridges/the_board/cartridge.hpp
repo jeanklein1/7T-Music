@@ -1476,6 +1476,13 @@ namespace t7 {
                                      ORB_CONSOLE_LIVE.dome_radius);
                     if (cm & 4u) gpuState_.upload_orb_noise(queue,
                                      ORB_CONSOLE_LIVE.noise_floor);
+                    // ORGAN_5 P3a — the master motion strength: a
+                    // per-frame GPU read like dome and noise, so a
+                    // targeted 4-byte partial and NO re-seed. The dial
+                    // scales the sky's energy under the finger, from
+                    // stillness to 4x, without replacing one orb.
+                    if (cm & 8u) gpuState_.upload_orb_speed_mult(queue,
+                                     ORB_CONSOLE_LIVE.speed_mult);
                     if (cm & 2u) { t7::organ::g_orb_def_dirty = true;
                                    console_reseed = true; }
                 }
