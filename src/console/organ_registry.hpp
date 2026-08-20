@@ -236,10 +236,15 @@ enum : uint8_t {
 
 // ─── The entry ────────────────────────────────────────────────────────
 // POD, so the table is a constant the linker can place in rodata.
-// `couple` is tier 3's reserved column (docs/ORGAN.md, "The three tiers"):
-// zero means "no ear drives this", and ORGAN_0 ships every entry that way.
-// The column exists now so tiers 2 and 3 arrive in this registry rather
-// than in a second system beside it.
+//
+// ORGAN_6 CODA — NO RESERVED COLUMNS. ORGAN_0 shipped `float def` and
+// `uint8_t couple` against tiers that had not arrived; six campaigns
+// later both were still zero on every row, `couple` was emitted on every
+// manifest entry and read by nothing on either side, and `def` was not
+// even emitted. YAGNI is hard: unused code is deleted, not reserved. The
+// three tiers are still the shape and this registry is still their one
+// home — the column arrives with the campaign that fills it, which is
+// also the only campaign that can say what shape it needs.
 struct OrganParam {
     const char* id;
     const char* label;
@@ -247,8 +252,7 @@ struct OrganParam {
     uint8_t     block;
     uint16_t    offset;
     uint8_t     type;
-    float       minv, maxv, step, def;
-    uint8_t     couple;
+    float       minv, maxv, step;
     uint8_t     def_kind;     // O1b — ORGAN_DEF_NONE | ORGAN_DEF_MOOD | _TIER
     uint16_t    def_offset;   // byte offset into the kind's own struct
                               // (MoodProfile or AgentTierBank), when there is one
@@ -266,7 +270,7 @@ struct OrganParam {
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(NS::STRUCT, FIELD),       \
-                ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
+                ORGAN_##TYPE, MIN, MAX, STEP,                                  \
                 ORGAN_DEF_NONE, 0, 0, ORGAN_CAD_LIVE },
 
 // ORGAN_3b — THE SAME LINE, DECLARED GENERATIONAL. Identical in every
@@ -278,7 +282,7 @@ struct OrganParam {
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(NS::STRUCT, FIELD),       \
-                ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
+                ORGAN_##TYPE, MIN, MAX, STEP,                                  \
                 ORGAN_DEF_NONE, 0, 0, ORGAN_CAD_GEN },
 
 // The same line plus the field the dial DEFINES, and the family that field
@@ -292,7 +296,7 @@ struct OrganParam {
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(NS::STRUCT, FIELD),       \
-                ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
+                ORGAN_##TYPE, MIN, MAX, STEP,                                  \
                 ORGAN_DEF_##DEFKIND,                                          \
                 (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
                 ORGAN_CAD_LIVE },
@@ -320,7 +324,7 @@ struct OrganParam {
     OrganParam{ #DEFSTRUCT "." #DEFFIELD, LABEL, GROUP,                       \
                 ORGAN_DEFONLY_BLOCK_##DEFKIND,                                \
                 (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), \
-                ORGAN_##TYPE, MIN, MAX, STEP, 0.0f, 0,                        \
+                ORGAN_##TYPE, MIN, MAX, STEP,                                  \
                 ORGAN_DEF_##DEFKIND,                                          \
                 (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
                 ORGAN_CAD_LIVE },
@@ -334,7 +338,7 @@ struct OrganParam {
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
                 (uint16_t)offsetof(NS::STRUCT, FIELD),       \
-                ORGAN_##TYPE, 0.0f, 0.0f, 0.0f, 0.0f, 0,                      \
+                ORGAN_##TYPE, 0.0f, 0.0f, 0.0f,                                \
                 ORGAN_DEF_NONE, 0, 1, ORGAN_CAD_LIVE },
 
 // ─── ORGAN_3b P2 — THE NAMESPACE PARAMETER, MADE INVISIBLE ────────────
@@ -1001,10 +1005,10 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
         std::snprintf(buf, sizeof buf,
             "{\"id\":\"%s\",\"label\":\"%s\",\"group\":\"%s\",\"block\":%u,"
             "\"offset\":%u,\"type\":%u,\"min\":%g,\"max\":%g,\"step\":%g,"
-            "\"couple\":%u,\"def\":%u,\"scope\":%u,\"inst\":%u,"
+            "\"def\":%u,\"scope\":%u,\"inst\":%u,"
             "\"ro\":%u,\"cad\":%u,\"v\":[",
             e.id, e.label, e.group, (unsigned)e.block, (unsigned)e.offset,
-            (unsigned)e.type, e.minv, e.maxv, e.step, (unsigned)e.couple,
+            (unsigned)e.type, e.minv, e.maxv, e.step,
             (unsigned)e.def_kind,
             (unsigned)derived_scope(e),        // ORGAN_6 — derived, not stored
             (unsigned)derived_has_instance(e), // ORGAN_6 — derived, not stored

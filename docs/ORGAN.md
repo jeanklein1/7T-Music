@@ -11,8 +11,13 @@ Every enrolled parameter has, in principle, three tiers:
    unstimulated: amplitude, period, waveform (the tremulant).
 3. COUPLED — the ear that drives it (one of SignalLayout's seven),
    with gain and shape (the keys).
-ORGAN_0 ships tier 1 live and reserves columns for tiers 2 and 3 in
-the same registry — one registry, three tiers, never three systems.
+Tier 1 is live. One registry, three tiers, never three systems — but
+the columns for tiers 2 and 3 arrive with the campaign that fills them,
+not six campaigns early. ORGAN_0 reserved them and ORGAN_6 CODA spent
+them: both sat at zero on every row for six campaigns, and a placeholder
+cannot tell the music campaign what shape the column it needs actually
+has. The charter's argument is about WHERE a coupling column belongs,
+which is here; it is not an argument for shipping an empty one.
 Idleness law restated: a parameter without a coupling in this run is
 a control-panel design constant; any procedural parameter is a
 coupling candidate by design.
