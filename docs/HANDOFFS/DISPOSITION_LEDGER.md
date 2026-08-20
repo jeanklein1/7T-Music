@@ -1545,3 +1545,136 @@ That is a defensible design and it is **not CC's to choose**: it changes
 what a hand-kept WGSL mirror is allowed to grow, and D1 reserves that. The
 deferral survives with both findings attached; the next sitting starts from
 them rather than from the enum.
+
+---
+
+# ORGAN_4 — THE READER ANSWERS
+
+**The law of this campaign:** an enrollment states a belief; only the
+reader proves it. Every row this handoff touches ends the phase either
+consumed by its reader or retired with its reason ledgered.
+
+## P0 — the census
+
+### The stale-authority gates: all five green
+
+| gate | subject | verdict |
+| --- | --- | --- |
+| 1 | `configure_orbs` (`bodies/orbs.hpp`) | reads `ORB_CONSOLE_LIVE.noise_floor / .dome_radius / .base_size`; zeros `force_radial`, `color_pulse/converge/surge`; `gpuCfg.motion_rule = os.current_motion_rule` behind the one-time Brownian seed; ends `upload_orb_config(queue, gpuCfg); os.init_pending = true;` — with `log_configure_` after it, a print and nothing else |
+| 2 | `realization/state.hpp` | `upload_orb_frame` (dt+t coalesced, `static_assert`ed adjacent) and `upload_orb_noise` (`offsetof(noise_amp)`, 4 bytes) both present |
+| 3 | `src/console/organ_params.inc` | `Sky & Light · Dome` = 3 plain `ORGAN_PARAM(ORBS, OrbConsole, …)`; `Orb mood` = 13 and `Orb flock` = 11 `ORGAN_PARAM_DEFONLY(… ORB_MOOD, OrbMoodConfig …)` — 24 total |
+| 4 | `src/console/organ_registry.hpp` | `kOrganDoors` carries exactly `ORGAN_DOOR_RESPEAK`; `ORGAN_DOOR_COUNT = 1`; `g_orb_def_dirty` + `take_orb_definition_dirty()` present; the cartridge boundary consumes them and calls `configure_orbs(orbs_state_, &orbs_deps_, ORB_MOOD_LIVE[mood_state_.active % MOOD_COUNT], queue)` |
+| 5 | `bodies/ribbon.hpp` | the four pipe reads sit at :824-838 with fallbacks `: 1.0f`, `: 1.0f`, `: 0.0f`, `: nullptr`, and downstream `const float s = st ? st[c2] : 0.0f;` |
+
+Nothing differs materially from the handoff's quotes; D7 does not fire.
+Two immaterial drifts, recorded so a successor is not surprised: gate 1's
+function ends with a diagnostic print after the upload, and gate 5's block
+sits nine lines above the quoted 833-846 (ORGAN_3d's edits moved it).
+
+### FLAG — the entry count is 263, not 262
+
+The handoff sizes the campaign from 262 and expects 257 at close. The tree
+carries **263**: ORGAN_3b P5 enrolled `PANEL.beacon.s` after the P3 tally
+this file records, and ORGAN_3c's own prose already says *"263 rows read as
+a column"*. The five retirements therefore land 258, not 257, before this
+campaign's additions. Flagged and continued; the close tally below is the
+counted one, not the predicted one.
+
+### C1 — `organ_set`'s instance-write path
+
+`organ_registry.hpp`, the tail of `organ_set`. After the whitelist lookup,
+the `ro` refusal, the def-only branch and the definition branch, the
+instance path is: take `base`, offset by `e->offset`, convert-or-clamp-and-
+write, then three statements —
+`g_home->organ_mark_dirty((uint32_t)block);`,
+`if (block_has_boundary((uint8_t)block)) g_orb_def_dirty = true;`,
+`note_write(*e);`. The per-block hook belongs on the middle statement: it
+is the one site that has already succeeded at clamping and writing, and it
+is already keyed on the block. D1 satisfied without adding a site.
+
+### C2 — is `OrbMoodConfig.motion_rule` read anywhere at all?
+
+**No. Dead tree-wide.** `git grep -n "motion_rule" -- src | grep -v
+current_motion_rule` returns eleven hits and not one of them reads the
+config field: three name `OrbsState::motion_rule_initialized`, two name
+`cycle_orb_motion_rule`, three name `GPUOrbConfig::motion_rule` (the
+struct member, its partial uploader, and the WGSL mirror's dispatch),
+one is the field's own declaration, one is a comment, and the last is the
+enrollment line itself. `configure_orbs` writes
+`gpuCfg.motion_rule = os.current_motion_rule` — the player's, never the
+mood's. The dial has been writing a field with no reader since the bank
+was born.
+
+### C3 — `ORB_MOOD_TABLE` rows sitting on the sentinel
+
+`drag` 0.4/0.5/0.5/0.4 and every `flock_*` at its authored value: no zeros.
+`orbital_base_speed` is **0.0f in all four rows** — so four of four rows
+ride `eff()`'s fallback (`ORB_DEFAULT_ORBITAL_SPEED`, 0.15) rather than an
+authored value. The four `rule_drag_*` are 0.0f in all four rows too:
+sixteen initialisers riding `passthrough()`'s 1.0×. The sentinel is in
+live use, which is what D1(d) needs to be true.
+
+### C4 — is there a fixed CPU home for the ribbon's driven quartet?
+
+**No.** `RibbonState` holds `GPURibbonState gpu[MAX_RIBBON_INSTANCES]` and
+`uint32_t rendered_slot = UINT32_MAX`. The last-uploaded amps and colour
+live at `rs.gpu[rs.rendered_slot]`, whose index moves with eviction and
+reads a sentinel when nothing is rendered. There is no `last_uploaded_*`
+member and no other candidate. Per **D2**, P2c enrolls **no witness** for
+the ribbon seam: *a witness needs a home; a varying slot is not one*, and
+minting a mirror to give it one is forbidden by windows-not-homes.
+
+### C5 — the `floater_coordination` driver, read whole
+
+**The ledger's premise is wrong, and this is the correction.** Wave 4 filed
+it as *"driven by `cube_behaviors.hpp:400`"*. That line is inside
+`cycle_floater_coordination`, a **player command**: it steps
+`cbs.coordination_step` through three values of
+`FLOATER_COORDINATION_STEPS` and calls `stage_floater_coordination(v)`,
+which assigns `config_.floater_coordination` with no dirty raise. There is
+no per-frame author anywhere. Its readers are `world.wgsl:8845` (per frame)
+and `cartridge.hpp:1143`, where `phase_motion_drivers` reads
+`config().floater_coordination` as the beacon's S gain. So it is **not a
+C4 seam** — a rest+gain room for it would model a driver that does not
+exist. Verdict feeds P3c.
+
+### C6 — the four mood-structural facts and their instance homes
+
+| fact | instance home | the applier that writes it |
+| --- | --- | --- |
+| `veil_strength` | `GPUDesignConfig.veil_strength` | `cartridge.hpp:1206` — `set_veil_strength(finite_mode ? 0 : 1)` |
+| `terrain_amp_ceiling` | `GPUDesignConfig.terrain_amp_ceiling` | `direction/mood.hpp:574` — `set_terrain_amp_ceiling(m.terrain_amp_ceiling)` |
+| `ceiling_height` | `GPUDesignConfig.ceiling_height` | `direction/mood.hpp:663/665` — `set_ceiling_height(effective_ceiling)` / `(0.0f)` |
+| `indoor_height_cap` | `GPUDesignConfig.indoor_height_cap` | `direction/mood.hpp:581` — `set_indoor_height_cap(…)` |
+
+All four have a FIXED home in the block the panel already addresses
+(`ORGAN_BLOCK_CONFIG`), so all four clear **D2** and take witnesses.
+
+### C7 — `POSSESSION_RADIUS` and its `_SQ` twin
+
+`bodies/agents.hpp:93-94` declares the pair; `POSSESSION_RADIUS_SQ` has
+**exactly one reader** — `float best_d2 = POSSESSION_RADIUS_SQ;` at :498 —
+and `POSSESSION_RADIUS` has exactly one, the "no agent within N units"
+diagnostic at :515. Single derivation site, so P3b takes its first branch.
+
+### C8 — the surviving Wave-3 destructive-bank DEFER rows, with homes
+
+| bank | home | its live reader |
+| --- | --- | --- |
+| `PORTAL_DENSITY` | `direction/mood.hpp:107` | `entity_pipeline.hpp:1034` — `if (portal_roll < PORTAL_DENSITY)` |
+| `FINITE_OUTDOOR_CHANCE` | `direction/mood.hpp:1296` | `direction/mood.hpp:1300-1303` — the world-draw ladder |
+| `SCHEME_WEIGHTS[4]` | `direction/mood.hpp:279` | `direction/mood.hpp:353` — the indoor light-scheme roll |
+| `PORTAL_COLORS[4][3]` + `PORTAL_COLOR_BACK[3]` | `contracts/mood_constants.hpp:35/48` | `portal_color_for()` at :53, called when a portal is built |
+| the ribbon's spawn rolls | `bodies/ribbon.hpp:78,87` (`RibbonConfig::SPAWN_CHANCE / POSITION_JITTER`) and `:118-130` (`WANDER_*`) | `select_ribbon_for_patch:1114`, `place_ribbon_from_selection:1177`, `commit_ribbon:1277` and the wander policy — all runtime, none constexpr |
+| the ribbon's colour vocabulary | `bodies/ribbon.hpp:132-161` | `fill_ribbon_selection_geometry:1013-1026` |
+| the floater tier weights | `contracts/floaters.hpp:41,100` | **NONE — see below** |
+
+**`SPHERE_BASE_TIER_WEIGHTS` and `CUBE_BASE_TIER_WEIGHTS` HAVE NO READER.**
+`git grep` finds each symbol exactly once in `src/`: its own declaration.
+The generic pipeline rolls a floater's tier from
+`adapter.get_tier_profile(t).weight` — `SPHERE_TIERS[t].weight` and
+`CUBE_TIERS[t].weight` (`entity_pipeline.hpp:110-116`) — multiplied by
+`theme_tier_weights()`. The base arrays were superseded and left standing.
+Enrolling them would have built two dead dials on purpose, which is the
+exact defect this campaign exists to end, so their share of the Wave-3 row
+is **retired, not landed** (P3d).
