@@ -753,8 +753,9 @@ the size edit.
 ### The rule window
 
 `organ_orb_rule()` returns `rule | gesture << 8` — a WINDOW onto
-`OrbsState`, which stays the only home (CHORD). `organ_mood()` borrows a
-POINTER to the spine's field; the rule cannot, and the difference is a
+`OrbsState`, which stays the only home (CHORD). `organ_mood()` and
+`organ_light_tier()` borrow ONE POINTER to the spine's mood organ
+(ATMOS_1b); the rule cannot, and the difference is a
 tier: the mood lives in a CONTRACT the registry includes, the rule in a
 BODY the organ may not. **Same law, different plumbing, because the home
 is one tier further away.**
@@ -933,3 +934,31 @@ The destination law is one weighted table, `WORLD_DRAW_LIVE.mood_weights`,
 walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to
 open shapes — the triad's way out of a room). A weight of 0 shuts a door
 without unmaking the mood.
+
+### The tier readout (ATMOS_1b)
+
+The light tiers are mode-scoped rows: a world is drawn into one tier by
+its seed, and the other two tiers' intensity, ambient and spreads move
+nothing in it. So the rule readout's law applies and the shell applies it
+the same way — a group whose name ends "Light tier N" grows a live line
+under its header, derived from the name, lit when this world was drawn
+into that tier and dim otherwise. `organ_light_tier()` answers through
+the pointer `organ_mood()` already borrows: `bind_mood` hands the
+registry the spine's mood organ, and the two ABI calls are two windows on
+one home. The operator never sees an index: the scope line, the status
+line and the `[Atmos]` witness all print the label's number.
+
+The weight row is the one dormant-tier dial that can move the live world:
+the roll is fixed by the seed, the thresholds are the weights, so raising
+a tier's weight can bring this world into it without a transition. The
+scope line's hover says so.
+
+### The tuning loop
+
+`?organ=1&mood=4&seed=N` boots straight into the night (DOMESDAY_1 B9's
+`?mood=` took the two new ids for free, range-checked against
+`MOOD_COUNT`); the seed pins which tier. Export; drop the JSON in
+`web/presets/` and add its line to `index.json`;
+`?preset=<name>&mood=4&seed=N` boots the tuned sky. The `[Atmos]` witness
+speaks once per regime — `(mood, seed, tier)` — so a drag is silent and a
+tier flip under a weight dial is announced.
