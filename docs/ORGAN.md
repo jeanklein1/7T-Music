@@ -110,7 +110,8 @@ compile-time budgets, and a wall's allowance is not a live dial.)
    `draw_atmosphere(seed, ·)` turns it into layer 2 at every apply.
    What the mood means.
 2. INSTANCE OF RECORD — `sunDirection_` / `sunColor_` /
-   `mood_state_.sun_*`, written by `apply_mood_lighting`.
+   `mood_state_.sun_*` / `mood_state_.regime`, written by
+   `apply_mood_lighting`.
 3. HOME — `lightingStage_.sun`, written by `upload_lights` and
    recorded by `upload_lighting`. This is the panel's subject.
 A write to 3 is undone the next time 1 is read. A write to 1 flows
@@ -514,32 +515,32 @@ the same law: session only, never storage. The filter may open a section it
 found and the grid may squeeze a slider toward its floor, but neither
 rewrites what the hand set.
 
-## The tally at ATMOS_1's close
-332 enrolled entries — 315 dials and 17 read-only witnesses — across
-eight sections and twelve blocks. Re-cut at ATMOS_1 CODA from the
-generated book, as ORGAN_5 CODA re-cut it; a campaign that moves the count
-re-cuts this at its end.
+## The tally at ATMOS_2's close
+365 enrolled entries — 348 dials and 17 read-only witnesses — across
+eight sections and twelve blocks. Re-cut at ATMOS_2's close from the
+generated book, as every campaign that moves the count re-cuts it at its
+end.
 
 THIS TABLE IS NO LONGER THE AUTHORITY. `audit/ORGAN.md` is generated from
 the enrollment list on demand (ORGAN_4 P5) and carries every row with its
 range, its step and its cadence. What stays here is the shape, because a
-shape is a thing to argue with and a table of 332 rows is not.
+shape is a thing to argue with and a table of 365 rows is not.
 
 | section | entries |
 | --- | --- |
 | Agents | 109 |
-| Sky & Light | 57 |
+| Atmosphere | 73 |
 | Ribbon | 56 |
 | Terrain | 42 |
-| Atmosphere | 24 |
+| Sky & Light | 41 |
 | Interaction | 22 |
 | Pawn | 18 |
 | Debug | 4 |
 
-By cadence: 121 live, 46 gen, 148 boundary, 17 driven.
+By cadence: 122 live, 46 gen, 180 boundary, 17 driven.
 
-Definition kinds: 188 none, 23 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
-41 of them definition-only — 22 under sentinel 255 (MoodProfile) and 19
+Definition kinds: 189 none, 55 MOOD, 32 TIER, 70 BEHAVIOR, 19 ORB_MOOD;
+74 of them definition-only — 55 under sentinel 255 (MoodProfile) and 19
 under 254 (OrbMoodConfig). Blocks 0-11: config, lighting, agent room,
 drivers, pawn aura, orb console, the panel, the ribbon, indoor, canvas,
 the world draw, the ribbon's spawn bank — the twelve the campaign set as
@@ -910,20 +911,37 @@ A transition holds 1–2, re-speaks 3, reborns 4 and 6; 5 continues over
 the new rest. "Held regardless" is rungs 1 and 2. "A custom environment"
 is a rung-1 row plus its rung-4 draw.
 
-## The atmosphere is a distribution (ATMOS_1)
+## The atmosphere is a distribution (ATMOS_1, ATMOS_2)
 
 A mood is `{ WorldShape shape; Atmosphere atmos; }` (contracts/
 spine_state.hpp). The shape is structural — generation reads it, the
 eligibility rule bars dials. The atmosphere is a distribution: a sun
-centre with azimuth and elevation spreads, up to three weighted light
-tiers (each intensity and ambient, centre ± spread), a fog rest (centre
-± spread, colour) and a clear colour. `draw_atmosphere(seed, atmos)` is
-a pure deriver (direction/mood.hpp): the world's seed draws one instance
-at every apply, so the same seed draws the same sky and the back portal
-keeps its promise. A DEFONLY dial on any of it re-draws the live mood at
-the boundary with the same seed: the instance moves with the dial rather
-than re-rolling. Spread 0 draws the centre exactly, which is how the four
-pre-ATMOS_1 moods stayed bit-identical.
+bearing (centre, azimuth and elevation spreads) and up to four weighted
+REGIMES. **A regime is a whole sky** — the sun's colour, the light's
+intensity and ambient, the fog's rest and colour, the clear colour, each
+a centre with its own spread — and the seed picks one row. "The light
+according to this fog" is therefore written, not coupled: they are in the
+same row. A colour's spread is a ± on brightness over the whole triple,
+hue kept. `draw_atmosphere(seed, atmos)` is a pure deriver
+(direction/mood.hpp): the world's seed draws one instance at every apply,
+so the same seed draws the same sky and the back portal keeps its
+promise. A DEFONLY dial on any of it re-draws the live mood at the
+boundary with the same seed: the instance moves with the dial rather
+than re-rolling. Spread 0 draws the centre exactly (a colour multiplies
+by exactly 1.0f), which is how the four pre-ATMOS_1 moods stayed
+bit-identical: one regime at weight 1, every spread 0.
+
+Three designs were weighed for "the light according to each fog"
+(ATMOS_2). Independent rolls — a light table and a fog table — buy
+combinations and cannot say it: the tables never meet. Per-parameter
+subscription — each parameter naming which roll picks its row — is the
+general form, but a row's liveness then depends on a selector the shell
+cannot read from a name, and the readout law would need an ABI per row.
+Flat regimes are the leaf form of both: any tree of tiers and sub-tiers
+flattens to its leaves, and what a tree adds over the leaves is SHARING.
+Sharing is an economy — a per-parameter "mood-wide" flag — priced in
+OPEN.md; today a parameter wanted the same in every regime is set equal
+in every regime.
 
 Variants are moods: `open_sunset`, `open_night`, `open_noon` share one
 `SHAPE_OPEN` and differ only in atmosphere. A new mood is one `SHAPE_`
@@ -938,30 +956,30 @@ walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to
 open shapes — the triad's way out of a room). A weight of 0 shuts a door
 without unmaking the mood.
 
-### The tier readout (ATMOS_1b)
+### The regime readout (ATMOS_1b, ATMOS_2)
 
-The light tiers are mode-scoped rows: a world is drawn into one tier by
-its seed, and the other two tiers' intensity, ambient and spreads move
-nothing in it. So the rule readout's law applies and the shell applies it
-the same way — a group whose name ends "Light tier N" grows a live line
-under its header, derived from the name, lit when this world was drawn
-into that tier and dim otherwise. `organ_light_tier()` answers through
-the pointer `organ_mood()` already borrows: `bind_mood` hands the
-registry the spine's mood organ, and the two ABI calls are two windows on
-one home. The operator never sees an index: the scope line, the status
-line and the `[Atmos]` witness all print the label's number.
+The regime rows are mode-scoped: a world is drawn into one regime by its
+seed, and the other regimes' centres and spreads move nothing in it. So
+the rule readout's law applies and the shell applies it the same way — a
+group whose name ends "Regime N" grows a live line under its header,
+derived from the name, lit when this world was drawn into that regime
+and dim otherwise. `organ_regime()` answers through the pointer
+`organ_mood()` already borrows: `bind_mood` hands the registry the
+spine's mood organ, and the two ABI calls are two windows on one home.
+The operator never sees an index: the scope line, the status line and
+the `[Atmos]` witness all print the label's number.
 
-The weight row is the one dormant-tier dial that can move the live world:
-the roll is fixed by the seed, the thresholds are the weights, so raising
-a tier's weight can bring this world into it without a transition. The
-scope line's hover says so.
+The weight row is the one dormant-regime dial that can move the live
+world: the roll is fixed by the seed, the thresholds are the weights, so
+raising a regime's weight can bring this world into it without a
+transition. The scope line's hover says so.
 
 ### The tuning loop
 
 `?organ=1&mood=4&seed=N` boots straight into the night (DOMESDAY_1 B9's
 `?mood=` took the two new ids for free, range-checked against
-`MOOD_COUNT`); the seed pins which tier. Export; drop the JSON in
+`MOOD_COUNT`); the seed pins which regime. Export; drop the JSON in
 `web/presets/` and add its line to `index.json`;
 `?preset=<name>&mood=4&seed=N` boots the tuned sky. The `[Atmos]` witness
-speaks once per regime — `(mood, seed, tier)` — so a drag is silent and a
-tier flip under a weight dial is announced.
+speaks once per regime — `(mood, seed, regime)` — so a drag is silent and
+a regime change under a weight dial is announced.

@@ -70,6 +70,15 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   campaign's handoff, held by Jean rather than filed in the tree; the
   campaign opens at 71619c0. Unblocked by a visual need (the recording's
   long takes) or the indoor atmospheres' rework.
+- A per-parameter "mood-wide" flag for the regimes (ATMOS_2 §0.5): today a
+  parameter wanted the same in every regime is set equal in every regime,
+  four dials that agree. The flag would make it one dial and restore
+  "one fact, one home" at the tuning level; it costs a selector row per
+  parameter and a draw that reads regime 0 when the flag is set. Also
+  priced, not built: a second independent roll (axes), should the
+  combinatorics of independent light and fog be wanted back; and moving
+  the sun's bearing into the regime row. Unblocked by Jean's tuning
+  asking for any of them. Origin: ATMOS_2 §0.5.
 - CC's container lacks naga, so `tools/wgsl_gate.py` (the immediate shim)
   cannot run there; ATMOS_1 stood in with a diff-emptiness check because
   it touched no WGSL. A campaign that touches WGSL needs naga in the
