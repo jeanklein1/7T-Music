@@ -79,7 +79,8 @@ struct DriverSurface {
 
 // The authored design — the code panel.
 // The fog row carries the gain alone. Its rests came home to the mood at
-// ATMOS_1 (Atmosphere.fog_*, contracts/spine_state.hpp); the D1 lineage
+// ATMOS_1, and to the REGIME at ATMOS_2 (Regime.fog_density /
+// .fog_color, contracts/spine_state.hpp); the D1 lineage
 // that sourced them is recorded there, beside ATMOS_SUNSET.
 inline constexpr DriverSurface DRIVER_TABLE = {
     { 1.0f },                   // fog: gain 1, the coupling verbatim

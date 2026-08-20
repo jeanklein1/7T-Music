@@ -51,7 +51,8 @@ PawnState. Driven values enroll as read-only witnesses (ro column):
 the panel meters them beside their drivers' dials, organ_set refuses
 them, export skips them. No upload and no dirty flag: the seams that
 read the room each tick are its flush. Since ATMOS_1 the fog's REST is
-the mood's (`Atmosphere.fog_*`, drawn per world into
+the mood's, and since ATMOS_2 one column of the drawn REGIME
+(`Regime.fog_density` / `.fog_color`, drawn per world into
 `MoodState.fog_rest_*`); the room keeps the gain, the canvas emits a
 deviation from its anchor row, and the seam reads
 `rest + gain · deviation`.
@@ -88,8 +89,8 @@ every boot. It reads ONE profile and fans it out:
 | --- | --- | --- |
 | frustum cull, GoL gate, aura policy | `shape.allow_*` | renderer / GoL / pawn |
 | sun direction, colour, intensity, ambient | `atmos` (through `draw_atmosphere`) | `apply_mood_lighting` → the deps → `upload_lights` → `GPULighting` |
-| clear colour | `atmos.clear_color` | `clearColor_` |
-| fog rest | `atmos.fog_*` | `mood_state_.fog_rest_*` → the U4 seam |
+| clear colour | `atmos.regime[r].clear_color` | `clearColor_` |
+| fog rest | `atmos.regime[r].fog_*` | `mood_state_.fog_rest_*` → the U4 seam |
 | terrain amp ceiling, indoor height cap | `shape.terrain_amp_ceiling`, `shape.wall_height` | GPU config |
 | spot lights | `shape.indoor`, `shape.wall_height`, `shape.ceiling_type` | the spot array |
 | indoor shell, camera ceiling | `shape.indoor`, `shape.ceiling_type`, `shape.wall_height` | the shell + the clamp |
@@ -127,8 +128,8 @@ panel's durable subject for direction is therefore the DEFINITION alone
 ### The eligibility rule
 A field may carry a definition target only if the mood apply is its
 ONLY runtime reader. Since ATMOS_1 the split is the type's own: the
-whole of `Atmosphere` — the sun's centre and spreads, the light tiers,
-the fog rest, the clear colour — passes, because `apply_mood_lighting`
+whole of `Atmosphere` — the sun's bearing and the regimes — passes,
+because `apply_mood_lighting`
 reads it in one place, through `draw_atmosphere`. The whole of
 `WorldShape` — `finite`, the radii, `indoor`, `ceiling_type`,
 `wall_height`, `terrain_amp_ceiling`, the `allow_*` flags — does not:

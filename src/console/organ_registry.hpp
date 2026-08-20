@@ -394,7 +394,7 @@ inline const the_board::MoodState* g_mood = nullptr;
 inline void bind_home(the_board::GPUState* s) { g_home = s; }
 inline void bind_mood(const the_board::MoodState* ms) { g_mood = ms; }
 inline uint32_t current_mood()       { return g_mood ? g_mood->active     : 0u; }
-inline uint32_t current_light_tier() { return g_mood ? g_mood->light_tier : 0u; }
+inline uint32_t current_light_tier() { return g_mood ? g_mood->regime     : 0u; }
 
 inline void* block_base(uint8_t block) {
     if (!g_home) return nullptr;

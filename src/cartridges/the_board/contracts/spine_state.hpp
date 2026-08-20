@@ -122,8 +122,8 @@ struct MoodState {
     // values. Fails loud.
     float sun_intensity = 0.0f;
     float sun_ambient   = 0.0f;
-    uint32_t light_tier = 0;                // ATMOS_1 — which LightTier the draw landed in;
-                                            // the panel's tier readout reads it (organ_light_tier, ATMOS_1b)
+    uint32_t regime = 0;                    // ATMOS_2 — which Regime the draw landed in;
+                                            // the panel's regime readout reads it (organ_regime)
     // ATMOS_1 — the fog's REST, drawn per world from the mood's atmosphere.
     // The U4 seam (phase_motion_drivers) composes the canvas's deviation
     // over it every frame. 0 is the same fails-loud choice as the sun's:
@@ -229,38 +229,49 @@ inline constexpr bool shape_is_open(const WorldShape& s) {
     return !s.finite && !s.indoor;
 }
 
-// A LIGHT REGIME — one of up to three weighted tiers an atmosphere may
-// be drawn into. Tiers make a sky MULTIMODAL: a moonless night and a
-// bright-moon night are two regimes, not two ends of one smear. Weight
-// 0 is an absent tier. Intensity and ambient ride together because a
-// dark night is dark in both terms.
-struct LightTier {
-    float weight;            // relative selection weight; 0 = absent
-    float intensity;         // diffuse strength — the tier's centre
-    float intensity_spread;  // ± around it, uniform
-    float ambient;           // ambient fill strength — the tier's centre
-    float ambient_spread;    // ± around it, uniform
+// A REGIME (ATMOS_2) — one of up to four weighted rows a world may be
+// drawn into, and a WHOLE SKY: every parameter the draw reads, except
+// the sun's bearing, has its centre and its spread here. Regimes make a
+// sky MULTIMODAL: a moonless-and-clear night and a moonlit-and-thick one
+// are two regimes, not two ends of one smear — and because the light and
+// the fog sit in one row, "the light according to this fog" is authored
+// by writing the row, not by coupling two tables. Weight 0 is an absent
+// regime. A parameter the operator wants the same in every regime is set
+// equal in every regime (a per-parameter "mood-wide" flag is priced in
+// OPEN.md, not built).
+//
+// A colour's spread is a ± on BRIGHTNESS over the whole triple, hue
+// kept (0.2 = ±20%): a darker or lighter draw of the same thing.
+struct Regime {
+    float weight;                // relative selection weight; 0 = absent
+    float sun_color[3];          // sun RGB — the centre
+    float sun_color_spread;      // ± brightness
+    float intensity;             // diffuse strength — the centre
+    float intensity_spread;      // ± around it, uniform
+    float ambient;               // ambient fill strength — the centre
+    float ambient_spread;        // ± around it, uniform
+    float fog_density;           // the REST the drivers' seam composes over — the centre
+    float fog_density_spread;    // ± around it, uniform
+    float fog_color[3];          // the rest colour — the centre
+    float fog_color_spread;      // ± brightness
+    float clear_color[3];        // sky or dark ceiling RGB — the centre
+    float clear_color_spread;    // ± brightness
 };
-inline constexpr uint32_t LIGHT_TIER_COUNT = 3;
+inline constexpr uint32_t REGIME_COUNT = 4;
 
 // THE ATMOSPHERE — what a world WEARS, as a distribution. Every "spread"
 // is a uniform ± around its centre; spread 0 draws the centre EXACTLY
 // (no hash is taken), which is what keeps a carried row bit-identical
-// to the point value it replaced.
+// to the point value it replaced. A colour's spread is a ± on
+// brightness, and spread 0 multiplies by exactly 1.0f.
 struct Atmosphere {
-    // ─── Sun ──────────────────────────────────────────────────
-    float     sun_direction[3];     // the light vector's CENTRE — the direction light
+    // ─── The sun's bearing — the mood's, not a regime's ───────
+    float  sun_direction[3];        // the light vector's CENTRE — the direction light
                                     // travels; its readers normalize it
-    float     sun_az_spread_deg;    // ± azimuth turn about +Y, degrees (180 = any bearing)
-    float     sun_el_spread_deg;    // ± elevation, degrees; the draw clamps elevation to [5°, 88°]
-    float     sun_color[3];         // sun RGB
-    LightTier light[LIGHT_TIER_COUNT];
-    // ─── Fog — the REST the drivers' seam composes the canvas's deviation over ──
-    float     fog_density;          // exponential coefficient — the rest's centre
-    float     fog_density_spread;   // ± around it, uniform
-    float     fog_color[3];         // the rest colour
-    // ─── Background ───────────────────────────────────────────
-    float     clear_color[3];       // sky or dark ceiling RGB
+    float  sun_az_spread_deg;       // ± azimuth turn about +Y, degrees (180 = any bearing)
+    float  sun_el_spread_deg;       // ± elevation, degrees; the draw clamps elevation to [5°, 88°]
+    // ─── The regimes — the seed picks one; it is the whole sky ──
+    Regime regime[REGIME_COUNT];
     // wall/ceiling colors: INDOOR_PALETTES (mood.hpp) is the authority —
     // seed-picked per world; the profile never authored them in effect.
 };
@@ -280,66 +291,60 @@ inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  Ceili
 inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true  };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
-// The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly, with
-// every spread 0 and one light tier at weight 1 — so the boot draw is
-// the old table, bit for bit (the witnesses below pin it). Their fog
-// rest is the old drivers'-room rest, FOG_DENSITY_NONE / FOG_COLOR_NONE
+// The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
+// regime at weight 1 with every spread 0 — so the boot draw is the old
+// table, bit for bit (the witnesses below pin it). Their fog rest is
+// the old drivers'-room rest, FOG_DENSITY_NONE / FOG_COLOR_NONE
 // (coupling/visual_canvas.hpp), which every mood wore before the rest
 // came home to the mood.
 //
-// Row shape:  sun centre, az spread, el spread · sun colour ·
-//             three light tiers { weight, int, int±, amb, amb± } ·
-//             fog density, density± · fog colour · clear colour
+// Row shape:  sun centre, az spread, el spread ·
+//             regimes { weight · sun colour, sun± · int, int± · amb, amb± ·
+//                       fog density, density± · fog colour, colour± ·
+//                       clear colour, clear± }   — {} is absent
 inline constexpr Atmosphere ATMOS_SUNSET = {
     { 0.94f, -0.29f, -0.13f }, 0.0f, 0.0f,
-    { 1.0f, 0.75f, 0.45f },
-    { { 1.0f, 0.90f, 0.0f, 0.20f, 0.0f },         // tier 0 — today's light, exactly
-      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f },
-      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f } },
-    0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f },       // fog rest: the anchor
-    { 0.95f, 0.70f, 0.45f },
+    { { 1.0f, { 1.0f, 0.75f, 0.45f }, 0.0f, 0.90f, 0.0f, 0.20f, 0.0f,
+        0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f, { 0.95f, 0.70f, 0.45f }, 0.0f },   // today's sky, exactly
+      {}, {}, {} },
 };
 inline constexpr Atmosphere ATMOS_ROOM = {        // both rooms wear it — one home, not two rows
     { 0.20f, -0.90f, 0.00f }, 0.0f, 0.0f,
-    { 1.0f, 0.90f, 0.80f },
-    { { 1.0f, 0.35f, 0.0f, 0.35f, 0.0f },
-      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f },
-      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f } },
-    0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f },
-    { 0.15f, 0.12f, 0.10f },
+    { { 1.0f, { 1.0f, 0.90f, 0.80f }, 0.0f, 0.35f, 0.0f, 0.35f, 0.0f,
+        0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f, { 0.15f, 0.12f, 0.10f }, 0.0f },
+      {}, {}, {} },
 };
 inline constexpr Atmosphere ATMOS_FINITE_DAY = {
     { 0.56f, -0.82f, -0.11f }, 0.0f, 0.0f,
-    { 1.0f, 0.95f, 0.90f },
-    { { 1.0f, 0.80f, 0.0f, 0.25f, 0.0f },
-      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f },
-      { 0.0f, 0.0f,  0.0f, 0.0f,  0.0f } },
-    0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f },
-    { 0.85f, 0.78f, 0.72f },
+    { { 1.0f, { 1.0f, 0.95f, 0.90f }, 0.0f, 0.80f, 0.0f, 0.25f, 0.0f,
+        0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f },
+      {}, {}, {} },
 };
 
-// ═══ THE TWO NEW SKIES (ATMOS_1) — sketches for the panel ════════
+// ═══ THE TWO NEW SKIES (ATMOS_1, regimes at ATMOS_2) — sketches ═══
 // Every number below is a starting point Jean tunes from the Organ and
-// exports; none is a measurement. The night is MULTIMODAL by design:
-// a moonless tier, a moonlit tier, a bright-moon tier, picked by the
-// seed. The noon is one regime, tight and high.
+// exports; none is a measurement. The night is four regimes — each a
+// light AND a fog, chosen together: moonless-and-clear, moonlit-and-
+// hazy, bright-moon-and-clear, moonless-and-thick. The noon is two,
+// tight and high.
 inline constexpr Atmosphere ATMOS_NIGHT = {
     { 0.78f, -0.62f, -0.11f }, 180.0f, 14.0f,      // moon centre ~38° up; any bearing; ±14°
-    { 0.72f, 0.80f, 1.00f },                       // cold, blue-white
-    { { 0.35f, 0.14f, 0.04f, 0.08f, 0.02f },       // moonless
-      { 0.45f, 0.30f, 0.08f, 0.10f, 0.03f },       // moonlit
-      { 0.20f, 0.55f, 0.10f, 0.14f, 0.03f } },     // bright moon
-    0.0042f, 0.0012f, { 0.04f, 0.05f, 0.09f },     // a deeper, darker fog
-    { 0.02f, 0.03f, 0.06f },
+    { { 0.30f, { 0.72f, 0.80f, 1.00f }, 0.05f, 0.14f, 0.04f, 0.08f, 0.02f,          // moonless & clear
+        0.0024f, 0.0006f, { 0.03f, 0.04f, 0.08f }, 0.15f, { 0.02f, 0.03f, 0.06f }, 0.15f },
+      { 0.35f, { 0.72f, 0.80f, 1.00f }, 0.05f, 0.30f, 0.08f, 0.10f, 0.03f,          // moonlit & hazy
+        0.0048f, 0.0010f, { 0.05f, 0.06f, 0.10f }, 0.15f, { 0.03f, 0.04f, 0.08f }, 0.15f },
+      { 0.20f, { 0.80f, 0.86f, 1.00f }, 0.05f, 0.55f, 0.10f, 0.14f, 0.03f,          // bright moon & clear
+        0.0020f, 0.0005f, { 0.04f, 0.05f, 0.09f }, 0.10f, { 0.04f, 0.05f, 0.10f }, 0.10f },
+      { 0.15f, { 0.72f, 0.80f, 1.00f }, 0.05f, 0.12f, 0.03f, 0.07f, 0.02f,          // moonless & thick
+        0.0095f, 0.0020f, { 0.09f, 0.09f, 0.12f }, 0.10f, { 0.02f, 0.02f, 0.04f }, 0.10f } },
 };
 inline constexpr Atmosphere ATMOS_NOON = {
     { 0.43f, -0.90f, -0.06f }, 40.0f, 8.0f,        // sun centre ~64° up; ±40° bearing; ±8°
-    { 1.00f, 0.98f, 0.92f },                       // near-white
-    { { 1.0f, 1.10f, 0.10f, 0.35f, 0.05f },        // one bright regime
-      { 0.0f, 0.0f,  0.0f,  0.0f,  0.0f },
-      { 0.0f, 0.0f,  0.0f,  0.0f,  0.0f } },
-    0.0020f, 0.0005f, { 0.78f, 0.86f, 0.97f },     // thin, sky-blue haze
-    { 0.45f, 0.68f, 0.95f },
+    { { 0.70f, { 1.00f, 0.98f, 0.92f }, 0.0f, 1.10f, 0.10f, 0.35f, 0.05f,           // clear
+        0.0015f, 0.0004f, { 0.78f, 0.86f, 0.97f }, 0.05f, { 0.45f, 0.68f, 0.95f }, 0.08f },
+      { 0.30f, { 1.00f, 0.98f, 0.92f }, 0.0f, 1.00f, 0.10f, 0.38f, 0.05f,           // hazy
+        0.0036f, 0.0008f, { 0.86f, 0.90f, 0.96f }, 0.05f, { 0.62f, 0.76f, 0.94f }, 0.08f },
+      {}, {} },
 };
 
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
@@ -386,11 +391,14 @@ static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.wall_height    == 20.0f, "World
 static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].shape.wall_height   == 25.0f, "WorldShape column drift: wall_height");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]    == 0.94f,   "Atmosphere column drift: sun_direction (head)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.light[0].intensity  == 0.90f,   "Atmosphere column drift: light[0].intensity (middle)");
-static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].atmos.light[0].ambient == 0.25f,   "Atmosphere column drift: light[0].ambient (middle)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.fog_density         == 0.0030f, "Atmosphere column drift: fog_density");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos.clear_color[2]      == 0.10f,   "Atmosphere column drift: clear_color (tail)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]            == 0.94f,   "Atmosphere column drift: sun_direction (head)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].sun_color[0]      == 1.0f,    "Atmosphere column drift: regime[0].sun_color");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].intensity         == 0.90f,   "Atmosphere column drift: regime[0].intensity (middle)");
+static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].atmos.regime[0].ambient        == 0.25f,   "Atmosphere column drift: regime[0].ambient (middle)");
+static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].fog_density       == 0.0030f, "Atmosphere column drift: regime[0].fog_density");
+static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos.regime[0].clear_color[2]    == 0.10f,   "Atmosphere column drift: regime[0].clear_color");
+static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].fog_density        == 0.0095f, "Atmosphere column drift: regime[3].fog_density");
+static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].clear_color_spread == 0.10f,   "Atmosphere column drift: regime[3].clear_color_spread (tail)");
 
 // The open family is one stage: three moods, one SHAPE_OPEN, stated once.
 static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)
@@ -401,9 +409,9 @@ static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)
     "ATMOS_1: sunset, night and noon wear the open shape; the rooms and the finite field do not");
 
 // THE CARRY WITNESS (ATMOS_1). A carried row draws its old point value
-// exactly only if every spread is 0 and tier 0 holds the whole weight;
+// exactly only if every spread is 0 and regime 0 holds the whole weight;
 // draw_atmosphere short-circuits on exactly those conditions. A spread
-// or a second tier on one of the rows named below is a design change,
+// or a second regime on one of the rows named below is a design change,
 // not a carry — make it on purpose and take the row off this list.
 // The predicate takes the atmosphere BY PARAMETER and the four rows are
 // NAMED at the assert: MOOD_TABLE is mentioned only inside the
@@ -411,10 +419,12 @@ static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)
 // (tools/organ_gap.py) reading this proof as the proof it is.
 inline constexpr bool atmos_carries_point(const Atmosphere& a) {
     return a.sun_az_spread_deg == 0.0f && a.sun_el_spread_deg == 0.0f
-        && a.fog_density_spread == 0.0f
-        && a.light[0].weight == 1.0f
-        && a.light[0].intensity_spread == 0.0f && a.light[0].ambient_spread == 0.0f
-        && a.light[1].weight == 0.0f && a.light[2].weight == 0.0f;
+        && a.regime[0].weight == 1.0f
+        && a.regime[0].sun_color_spread == 0.0f
+        && a.regime[0].intensity_spread == 0.0f && a.regime[0].ambient_spread == 0.0f
+        && a.regime[0].fog_density_spread == 0.0f && a.regime[0].fog_color_spread == 0.0f
+        && a.regime[0].clear_color_spread == 0.0f
+        && a.regime[1].weight == 0.0f && a.regime[2].weight == 0.0f && a.regime[3].weight == 0.0f;
 }
 static_assert(atmos_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos)
            && atmos_carries_point(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos)

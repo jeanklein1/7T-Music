@@ -1,7 +1,10 @@
 {
  "0/MoodProfile.atmos.sun_direction": [0.94,-0.29,-0.13],
  "0/LIGHTING.sun.color": [1,0.75,0.45],
- "0/MoodProfile.atmos.clear_color": [0.95,0.7,0.45],
+ "0/MoodProfile.atmos.regime[0].clear_color": [0.95,0.7,0.45],
+ "0/MoodProfile.atmos.regime[1].clear_color": [0.95,0.7,0.45],
+ "0/MoodProfile.atmos.regime[2].clear_color": [0.95,0.7,0.45],
+ "0/MoodProfile.atmos.regime[3].clear_color": [0.95,0.7,0.45],
  "ORBS.dome_radius": [500],
  "ORBS.base_size": [3],
  "0/OrbMoodConfig.enabled": [1],
@@ -225,5 +228,9 @@
  "PANEL.camera.look_sens_step": [1.25],
  "PANEL.camera.look_sens_range": [8],
  "PANEL.camera.scroll_zoom_scale": [2],
- "PANEL.possession.radius": [20]
+ "PANEL.possession.radius": [20],
+ "0/MoodProfile.atmos.regime[0].clear_color_spread": [0],
+ "0/MoodProfile.atmos.regime[1].clear_color_spread": [0],
+ "0/MoodProfile.atmos.regime[2].clear_color_spread": [0],
+ "0/MoodProfile.atmos.regime[3].clear_color_spread": [0]
 }

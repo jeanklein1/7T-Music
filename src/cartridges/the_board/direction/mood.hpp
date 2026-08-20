@@ -562,7 +562,7 @@ struct AtmosphereInstance {
     float    sun_color[3];
     float    sun_intensity;
     float    sun_ambient;
-    uint32_t light_tier;         // which LightTier the roll landed in (the witness)
+    uint32_t regime;             // which Regime the roll landed in (the witness, the readout)
     float    fog_density;        // the REST the U4 seam composes over
     float    fog_color[3];
     float    clear_color[3];
@@ -571,10 +571,13 @@ struct AtmosphereInstance {
 struct AtmosProp {
     static constexpr uint32_t SUN_AZ      = 8100u;
     static constexpr uint32_t SUN_EL      = 8101u;
-    static constexpr uint32_t LIGHT_TIER  = 8102u;
+    static constexpr uint32_t REGIME      = 8102u;   // ATMOS_2 — was LIGHT_TIER; one roll, the whole sky
     static constexpr uint32_t INTENSITY   = 8103u;
     static constexpr uint32_t AMBIENT     = 8104u;
     static constexpr uint32_t FOG_DENSITY = 8105u;
+    static constexpr uint32_t SUN_COLOR   = 8106u;   // ATMOS_2 — brightness factors
+    static constexpr uint32_t FOG_COLOR   = 8107u;
+    static constexpr uint32_t CLEAR_COLOR = 8108u;
 };
 
 // ± spread, uniform. Spread 0 returns 0 without taking a hash, so a
@@ -583,6 +586,16 @@ struct AtmosProp {
 inline float atmos_jitter(uint32_t seed, uint32_t prop, float spread) {
     if (spread <= 0.0f) return 0.0f;
     return spread * (2.0f * cpu_hash_f(seed, prop) - 1.0f);
+}
+
+// A COLOUR'S SPREAD is a ± on BRIGHTNESS over the whole triple, hue
+// kept: one factor for all three lanes, clamped to [0,1]. Spread 0
+// multiplies by exactly 1.0f, the IEEE identity — a carried colour is
+// bit-identical to the point value it replaced.
+inline void atmos_draw_color(uint32_t seed, uint32_t prop,
+                             const float in[3], float spread, float out[3]) {
+    const float f = 1.0f + atmos_jitter(seed, prop, spread);
+    for (int i = 0; i < 3; ++i) out[i] = std::clamp(in[i] * f, 0.0f, 1.0f);
 }
 
 inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
@@ -618,51 +631,43 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
         out.sun_direction[1] = -std::sin(el);
         out.sun_direction[2] = -(ce * std::sin(az));
     }
-    out.sun_color[0] = a.sun_color[0];
-    out.sun_color[1] = a.sun_color[1];
-    out.sun_color[2] = a.sun_color[2];
-
-    // ── the light regime ──
+    // ── the regime — one roll, the whole sky ──
     // One roll, scaled by the weights' sum rather than dividing the
     // weights (the panel's lanes stay independent; a lane of 0 is an
-    // absent tier). The walk skips absent tiers, and the float-epsilon
-    // miss lands on the last PRESENT tier rather than on an absent one.
+    // absent regime). The walk skips absent regimes, and the
+    // float-epsilon miss lands on the last PRESENT regime rather than on
+    // an absent one. All weights 0 → regime 0. The regime is INDEXED,
+    // never aliased: every enrolled leaf is reached through `a`, the
+    // Atmosphere this function holds, so the reader census
+    // (tools/organ_readers.py) can see that each dial has a reader.
     {
         float sum = 0.0f;
-        for (uint32_t i = 0; i < LIGHT_TIER_COUNT; ++i)
-            sum += std::max(0.0f, a.light[i].weight);
+        for (uint32_t i = 0; i < REGIME_COUNT; ++i)
+            sum += std::max(0.0f, a.regime[i].weight);
         uint32_t t = 0;
         if (sum > 0.0f) {
-            const float roll = cpu_hash_f(seed, AtmosProp::LIGHT_TIER) * sum;
+            const float roll = cpu_hash_f(seed, AtmosProp::REGIME) * sum;
             float cumul = 0.0f;
-            for (uint32_t i = 0; i < LIGHT_TIER_COUNT; ++i) {
-                const float w = std::max(0.0f, a.light[i].weight);
+            for (uint32_t i = 0; i < REGIME_COUNT; ++i) {
+                const float w = std::max(0.0f, a.regime[i].weight);
                 if (w <= 0.0f) continue;
                 cumul += w;
                 t = i;
                 if (roll < cumul) break;
             }
         }
-        // The tier is indexed rather than aliased: every enrolled leaf is
-        // then reached through `a`, the Atmosphere this function holds, so
-        // the reader census (tools/organ_readers.py) can see that these
-        // four dials have a reader. Same values, same order.
-        out.light_tier    = t;
-        out.sun_intensity = std::max(0.0f, a.light[t].intensity
-                          + atmos_jitter(seed, AtmosProp::INTENSITY, a.light[t].intensity_spread));
-        out.sun_ambient   = std::max(0.0f, a.light[t].ambient
-                          + atmos_jitter(seed, AtmosProp::AMBIENT, a.light[t].ambient_spread));
+        out.regime = t;
+        atmos_draw_color(seed, AtmosProp::SUN_COLOR, a.regime[t].sun_color, a.regime[t].sun_color_spread, out.sun_color);
+        out.sun_intensity = std::max(0.0f, a.regime[t].intensity
+                          + atmos_jitter(seed, AtmosProp::INTENSITY, a.regime[t].intensity_spread));
+        out.sun_ambient   = std::max(0.0f, a.regime[t].ambient
+                          + atmos_jitter(seed, AtmosProp::AMBIENT, a.regime[t].ambient_spread));
+        // The fog's REST — the U4 seam composes the canvas's deviation over it.
+        out.fog_density   = std::max(0.0f, a.regime[t].fog_density
+                          + atmos_jitter(seed, AtmosProp::FOG_DENSITY, a.regime[t].fog_density_spread));
+        atmos_draw_color(seed, AtmosProp::FOG_COLOR,   a.regime[t].fog_color,   a.regime[t].fog_color_spread,   out.fog_color);
+        atmos_draw_color(seed, AtmosProp::CLEAR_COLOR, a.regime[t].clear_color, a.regime[t].clear_color_spread, out.clear_color);
     }
-
-    // ── the fog's rest, the clear ──
-    out.fog_density = std::max(0.0f, a.fog_density
-                    + atmos_jitter(seed, AtmosProp::FOG_DENSITY, a.fog_density_spread));
-    out.fog_color[0] = a.fog_color[0];
-    out.fog_color[1] = a.fog_color[1];
-    out.fog_color[2] = a.fog_color[2];
-    out.clear_color[0] = a.clear_color[0];
-    out.clear_color[1] = a.clear_color[1];
-    out.clear_color[2] = a.clear_color[2];
     return out;
 }
 
@@ -693,7 +698,7 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     c->sunColor_[2] = ai.sun_color[2];
     c->mood_state_.sun_intensity = ai.sun_intensity;
     c->mood_state_.sun_ambient   = ai.sun_ambient;
-    c->mood_state_.light_tier    = ai.light_tier;
+    c->mood_state_.regime        = ai.regime;
 
     // The fog's REST — the mood's since ATMOS_1. The U4 seam
     // (phase_motion_drivers) composes the canvas's deviation over it
@@ -718,32 +723,32 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
         m.shape.indoor ? INDOOR_LIVE.height_cap_fraction * m.shape.wall_height : 0.0f);
     c->mood_state_.lights_dirty = true;
 
-    // THE WITNESS. One line per REGIME, not per draw (ATMOS_1b): the
-    // regime is (mood, seed, tier), and a line prints when it changes —
-    // every entry, and a weight dial that flips the tier, which is the
-    // one event a drag should announce. A fog, colour or spread drag
-    // re-draws every frame and says nothing here; the panel is its
+    // THE WITNESS. One line per (mood, seed, regime), not per draw
+    // (ATMOS_1b): a line prints when that triple changes — every entry,
+    // and a weight dial that moves this world into another regime, which
+    // is the one event a drag should announce. A centre, colour or spread
+    // drag re-draws every frame and says nothing here; the panel is its
     // readout. The same seed still prints the same line, and a boot must
-    // print tier=1 int=0.9 amb=0.2 fog=0.003 for the sunset until someone
-    // changes ATMOS_SUNSET on purpose. `tier=` is the LABEL's number
-    // (1-based, the panel's "Light tier N"): the operator never sees the
-    // index. Function-local statics: the checker's [FLUSH] one-shot in
-    // cartridge.hpp is the precedent.
+    // print regime=1 int=0.9 amb=0.2 fog=0.003 for the sunset until
+    // someone changes ATMOS_SUNSET on purpose. `regime=` is the LABEL's
+    // number (1-based, the panel's "Regime N"): the operator never sees
+    // the index. Function-local statics: the checker's [FLUSH] one-shot
+    // in cartridge.hpp is the precedent.
     {
-        static uint32_t last_mood = MOOD_COUNT, last_seed = 0u, last_tier = 0u;
+        static uint32_t last_mood = MOOD_COUNT, last_seed = 0u, last_regime = 0u;
         const bool regime_changed = c->mood_state_.active != last_mood
                                  || c->world_state_.active_seed != last_seed
-                                 || ai.light_tier != last_tier;
+                                 || ai.regime != last_regime;
         if (regime_changed) {
-            last_mood = c->mood_state_.active;
-            last_seed = c->world_state_.active_seed;
-            last_tier = ai.light_tier;
+            last_mood   = c->mood_state_.active;
+            last_seed   = c->world_state_.active_seed;
+            last_regime = ai.regime;
             constexpr float RAD2DEG = 180.0f / 3.14159265359f;
             const float el = std::asin(std::clamp(-ai.sun_direction[1] / len, -1.0f, 1.0f)) * RAD2DEG;
             const float az = std::atan2(-ai.sun_direction[2], -ai.sun_direction[0]) * RAD2DEG;
             std::cout << "[Atmos] " << mood_name(c->mood_state_.active)
                       << " seed=" << c->world_state_.active_seed
-                      << " tier=" << (ai.light_tier + 1u)
+                      << " regime=" << (ai.regime + 1u)
                       << " int=" << ai.sun_intensity << " amb=" << ai.sun_ambient
                       << " sun el=" << el << " az=" << az
                       << " fog=" << ai.fog_density << "\n";
