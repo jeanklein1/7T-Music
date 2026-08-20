@@ -173,13 +173,11 @@ READERS = {
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
     ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
-    # ATMOS_1 — the MOOD family's enrolled fields all live under
-    # MoodProfile.atmos now, and the function that NAMES their leaves is
-    # draw_atmosphere, which takes the Atmosphere by parameter. The struct
-    # column types the HANDLE, so it names the struct the reader holds:
-    # apply_mood_lighting stays listed because it is the applier that runs
-    # the draw and fans the result.
-    "MOOD": ("MOOD_LIVE", "Atmosphere", [
+    # REGIME_1 — two handles: the regime law is MoodProfile's own field
+    # (read by apply_mood_regime through `m`), the rest is atmos.* (read by
+    # draw_atmosphere through `a`).
+    "MOOD": ("MOOD_LIVE", ("MoodProfile", "Atmosphere"), [
+        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_regime"),
         ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
         ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
     ]),
@@ -388,10 +386,16 @@ PARAM = re.compile(r"[(,]\s*(?:const\s+)?(\w+)\s*[&*]?\s*&?\s*(\w+)\s*(?=[,)])")
 
 
 def handles_in(sig_and_body, live, struct):
-    """Every identifier inside this body that IS the bank."""
+    """Every identifier inside this body that IS the bank.
+
+    `struct` is a name or a tuple of names (REGIME_1): a family whose
+    leaves live at two depths — MoodProfile.regime_weight beside
+    MoodProfile.atmos.* — is held by two handle types.
+    """
+    structs = struct if isinstance(struct, tuple) else (struct,)
     hs = {live}
     for m in PARAM.finditer(sig_and_body):
-        if m.group(1) == struct:
+        if m.group(1) in structs:
             hs.add(m.group(2))
     for _ in range(4):                      # aliases chain; settle them
         before = len(hs)

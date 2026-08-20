@@ -188,8 +188,9 @@ void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     PawnState& pawn_state);
 // request_mood_transition decl GRADUATED to spine_state.hpp (input
 // calls it before this file in the cohort); the definition is below.
-// Appliers (apply_mood's three named sub-functions; each takes only
+// Appliers (apply_mood's four named sub-functions; each takes only
 // the targets its own fan drives)
+void apply_mood_regime(MoodDeps* c, const MoodProfile& m);     // REGIME_1 — the roll, first
 void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
@@ -562,7 +563,6 @@ struct AtmosphereInstance {
     float    sun_color[3];
     float    sun_intensity;
     float    sun_ambient;
-    uint32_t regime;             // which Regime the roll landed in (the witness, the readout)
     float    fog_density;        // the REST the U4 seam composes over
     float    fog_color[3];
     float    clear_color[3];
@@ -571,7 +571,8 @@ struct AtmosphereInstance {
 struct AtmosProp {
     static constexpr uint32_t SUN_AZ      = 8100u;
     static constexpr uint32_t SUN_EL      = 8101u;
-    static constexpr uint32_t REGIME      = 8102u;   // ATMOS_2 — was LIGHT_TIER; one roll, the whole sky
+    static constexpr uint32_t REGIME      = 8102u;   // the WORLD's roll (apply_mood_regime) — kept here because
+                                                     // the atmosphere was its first subscriber; the value is frozen
     static constexpr uint32_t INTENSITY   = 8103u;
     static constexpr uint32_t AMBIENT     = 8104u;
     static constexpr uint32_t FOG_DENSITY = 8105u;
@@ -598,7 +599,7 @@ inline void atmos_draw_color(uint32_t seed, uint32_t prop,
     for (int i = 0; i < 3; ++i) out[i] = std::clamp(in[i] * f, 0.0f, 1.0f);
 }
 
-inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
+inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a, uint32_t regime) {
     AtmosphereInstance out{};
 
     // ── the sun's bearing ──
@@ -631,32 +632,13 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
         out.sun_direction[1] = -std::sin(el);
         out.sun_direction[2] = -(ce * std::sin(az));
     }
-    // ── the regime — one roll, the whole sky ──
-    // One roll, scaled by the weights' sum rather than dividing the
-    // weights (the panel's lanes stay independent; a lane of 0 is an
-    // absent regime). The walk skips absent regimes, and the
-    // float-epsilon miss lands on the last PRESENT regime rather than on
-    // an absent one. All weights 0 → regime 0. The regime is INDEXED,
-    // never aliased: every enrolled leaf is reached through `a`, the
-    // Atmosphere this function holds, so the reader census
-    // (tools/organ_readers.py) can see that each dial has a reader.
+    // ── the regime — the WORLD's, handed in (REGIME_1) ──
+    // apply_mood_regime rolled it and wrote MoodState.regime before this
+    // ran; the draw obeys. Indexed, never aliased: every enrolled leaf is
+    // reached through `a`, so the reader census (tools/organ_readers.py)
+    // can see that each dial has a reader.
     {
-        float sum = 0.0f;
-        for (uint32_t i = 0; i < REGIME_COUNT; ++i)
-            sum += std::max(0.0f, a.regime[i].weight);
-        uint32_t t = 0;
-        if (sum > 0.0f) {
-            const float roll = cpu_hash_f(seed, AtmosProp::REGIME) * sum;
-            float cumul = 0.0f;
-            for (uint32_t i = 0; i < REGIME_COUNT; ++i) {
-                const float w = std::max(0.0f, a.regime[i].weight);
-                if (w <= 0.0f) continue;
-                cumul += w;
-                t = i;
-                if (roll < cumul) break;
-            }
-        }
-        out.regime = t;
+        const uint32_t t = regime;
         atmos_draw_color(seed, AtmosProp::SUN_COLOR, a.regime[t].sun_color, a.regime[t].sun_color_spread, out.sun_color);
         out.sun_intensity = std::max(0.0f, a.regime[t].intensity
                           + atmos_jitter(seed, AtmosProp::INTENSITY, a.regime[t].intensity_spread));
@@ -673,13 +655,48 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const Atmosphere& a) {
 
 // ═══ APPLY MOOD ══════════════════════════════════════════════════
 
+// 0) THE ROLL (REGIME_1). (seed, the mood's regime law) → which regime
+//    this world is drawn into — a WORLD fact, written to MoodState.regime
+//    before any applier reads it. Runs first in apply_mood and first in
+//    the boundary's mood re-speak (organ_flush), so a weight dial can
+//    still move this world into another regime under the same seed: the
+//    roll is the seed's, the thresholds are the weights. A family
+//    SUBSCRIBES to the regime by carrying its own [REGIME_COUNT] columns
+//    and indexing them with this field at its own apply — no second roll,
+//    ever. The atmosphere is the first subscriber.
+inline void apply_mood_regime(MoodDeps* c, const MoodProfile& m) {
+    // One roll, scaled by the weights' sum rather than dividing the
+    // weights (the panel's lanes stay independent; a lane of 0 is an
+    // absent regime). The walk skips absent regimes, and the
+    // float-epsilon miss lands on the last PRESENT regime rather than on
+    // an absent one. All weights 0 → regime 0. ATMOS_1's arithmetic,
+    // verbatim, and the same prop: the same seed draws the regime it drew.
+    float sum = 0.0f;
+    for (uint32_t i = 0; i < REGIME_COUNT; ++i)
+        sum += std::max(0.0f, m.regime_weight[i]);
+    uint32_t t = 0;
+    if (sum > 0.0f) {
+        const float roll = cpu_hash_f(c->world_state_.active_seed, AtmosProp::REGIME) * sum;
+        float cumul = 0.0f;
+        for (uint32_t i = 0; i < REGIME_COUNT; ++i) {
+            const float w = std::max(0.0f, m.regime_weight[i]);
+            if (w <= 0.0f) continue;
+            cumul += w;
+            t = i;
+            if (roll < cumul) break;
+        }
+    }
+    c->mood_state_.regime = t;
+}
+
 // 1) Atmospheric: THE DRAW, then the fan. (seed, definition) → instance,
 //    re-run on every apply — a mood entry and a definition edit alike.
 //    The seed is the world's, so a panel edit moves the instance WITH the
 //    dial (same seed, shifted centre, same offset) rather than re-rolling
 //    it. Touches GPU directly + a few member fields.
 inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& /*queue*/) {
-    const AtmosphereInstance ai = draw_atmosphere(c->world_state_.active_seed, m.atmos);
+    const AtmosphereInstance ai = draw_atmosphere(c->world_state_.active_seed, m.atmos,
+                                                  c->mood_state_.regime);   // rolled by apply_mood_regime
     const float len = std::sqrt(ai.sun_direction[0] * ai.sun_direction[0] +
                                 ai.sun_direction[1] * ai.sun_direction[1] +
                                 ai.sun_direction[2] * ai.sun_direction[2]);
@@ -698,7 +715,6 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     c->sunColor_[2] = ai.sun_color[2];
     c->mood_state_.sun_intensity = ai.sun_intensity;
     c->mood_state_.sun_ambient   = ai.sun_ambient;
-    c->mood_state_.regime        = ai.regime;
 
     // The fog's REST — the mood's since ATMOS_1. The U4 seam
     // (phase_motion_drivers) composes the canvas's deviation over it
@@ -738,17 +754,17 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
         static uint32_t last_mood = MOOD_COUNT, last_seed = 0u, last_regime = 0u;
         const bool regime_changed = c->mood_state_.active != last_mood
                                  || c->world_state_.active_seed != last_seed
-                                 || ai.regime != last_regime;
+                                 || c->mood_state_.regime != last_regime;
         if (regime_changed) {
             last_mood   = c->mood_state_.active;
             last_seed   = c->world_state_.active_seed;
-            last_regime = ai.regime;
+            last_regime = c->mood_state_.regime;
             constexpr float RAD2DEG = 180.0f / 3.14159265359f;
             const float el = std::asin(std::clamp(-ai.sun_direction[1] / len, -1.0f, 1.0f)) * RAD2DEG;
             const float az = std::atan2(-ai.sun_direction[2], -ai.sun_direction[0]) * RAD2DEG;
             std::cout << "[Atmos] " << mood_name(c->mood_state_.active)
                       << " seed=" << c->world_state_.active_seed
-                      << " regime=" << (ai.regime + 1u)
+                      << " regime=" << (c->mood_state_.regime + 1u)
                       << " int=" << ai.sun_intensity << " amb=" << ai.sun_ambient
                       << " sun el=" << el << " az=" << az
                       << " fog=" << ai.fog_density << "\n";
@@ -858,6 +874,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     c->gol_state_.mood_allowed     = m.shape.allow_gol_zones;
     apply_aura_mood_policy(pawn_state, m.shape.allow_pawn_aura);  // the pawn door; byte-identical semantics
 
+    apply_mood_regime(c, m);                   // REGIME_1 — the world's roll, before anything reads it
     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured
         apply_mood_spot_lights(c, m, queue);   // indoor only

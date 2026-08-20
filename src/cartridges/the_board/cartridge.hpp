@@ -1405,9 +1405,10 @@ namespace t7 {
             // O1b — and the DEFINITION re-apply, which belongs here for the
             // same reason: this is the layer that owns both the mood deps
             // and the queue, and the registry knows neither. The panel wrote
-            // what the mood MEANS; apply_mood_lighting is the program's own
-            // author, run unchanged, and it is what turns that into the
-            // instance. One re-apply per frame however many edits arrived.
+            // what the mood MEANS; apply_mood_regime and apply_mood_lighting
+            // are the program's own authors, run unchanged, and they are what
+            // turns that into the instance. One re-apply per frame however
+            // many edits arrived.
             //
             // Only for the LIVE mood. An edit to another mood's definition
             // is stored and takes effect the next time the program enters
@@ -1462,6 +1463,10 @@ namespace t7 {
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {
+                    // REGIME_1 — the roll, then the sky: a weight dial
+                    // moves this world's regime under the same seed, and
+                    // the sky is re-drawn from the regime it landed in.
+                    apply_mood_regime(&mood_deps_, mood_def(def_mood));
                     apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
                 }
                 // ORGAN_2b — the tier bank changed: the author re-speaks,

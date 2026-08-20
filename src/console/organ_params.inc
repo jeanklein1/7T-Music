@@ -334,20 +334,34 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[4][0], VEC3, 0.0f, 1.0f, 
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[5][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open noon")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "back portal")
 
+// ─── Atmosphere · Regimes — THE REGIME LAW (REGIME_1) ───────────────
+// One weight per regime, the MOOD's: how often this mood draws each of
+// its four regimes. The walk normalises, so these are proportions, not
+// probabilities, and a 0 is an absent regime. The roll is the world's
+// (apply_mood_regime, MoodState.regime) and every family that subscribes
+// reads it; the four groups below are the sky's columns. A write re-rolls
+// at the boundary under the same seed — the roll is the seed's, the
+// thresholds are the weights — so raising a regime's weight can bring
+// THIS world into it, which is the one dormant-regime edit that moves
+// the sky now.
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 1", MOOD, MoodProfile, regime_weight[0])
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 2", MOOD, MoodProfile, regime_weight[1])
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 3", MOOD, MoodProfile, regime_weight[2])
+ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 4", MOOD, MoodProfile, regime_weight[3])
+
 // ─── Atmosphere · Regime 1-4 (ATMOS_2) ─────────────────────────────
 // A REGIME IS A WHOLE SKY. Up to four weighted rows the world's seed
 // picks between; each row carries every parameter the draw reads — the
 // sun's colour, the light, the fog's rest, the clear colour — as a
 // centre ± a spread (a colour's spread is ± brightness, hue kept). The
 // light and the fog sit in ONE row, so "this light with this fog" is
-// written, not coupled. Weight 0 is an absent regime. A write re-draws
+// written, not coupled. The weights are the group above's. A write re-draws
 // the live mood at the boundary with the same seed, so the instance
 // moves WITH the dial: if this world is in regime 2, regime 2's rows
 // move the sky now; if it is not, nothing visible changes until a world
 // lands there (RESPEAK does not re-roll — the seed is the world's). The
-// WEIGHT row is the exception: it moves where this world's roll lands.
+// weight rows above are the exception: they move where this world's roll lands.
 // The shell grows a live line under each "Regime N" header.
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "weight",                        MOOD, MoodProfile, atmos.regime[0].weight)
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "sun colour",                    MOOD, MoodProfile, atmos.regime[0].sun_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[0].sun_color_spread)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 1", "intensity",                     MOOD, MoodProfile, atmos.regime[0].intensity)
@@ -361,7 +375,6 @@ ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "fog c
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "clear colour",                  MOOD, MoodProfile, atmos.regime[0].clear_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[0].clear_color_spread)
 
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "weight",                        MOOD, MoodProfile, atmos.regime[1].weight)
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "sun colour",                    MOOD, MoodProfile, atmos.regime[1].sun_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[1].sun_color_spread)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 2", "intensity",                     MOOD, MoodProfile, atmos.regime[1].intensity)
@@ -375,7 +388,6 @@ ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "fog c
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "clear colour",                  MOOD, MoodProfile, atmos.regime[1].clear_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[1].clear_color_spread)
 
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "weight",                        MOOD, MoodProfile, atmos.regime[2].weight)
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "sun colour",                    MOOD, MoodProfile, atmos.regime[2].sun_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[2].sun_color_spread)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 3", "intensity",                     MOOD, MoodProfile, atmos.regime[2].intensity)
@@ -389,7 +401,6 @@ ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "fog c
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "clear colour",                  MOOD, MoodProfile, atmos.regime[2].clear_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[2].clear_color_spread)
 
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "weight",                        MOOD, MoodProfile, atmos.regime[3].weight)
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "sun colour",                    MOOD, MoodProfile, atmos.regime[3].sun_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[3].sun_color_spread)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 4", "intensity",                     MOOD, MoodProfile, atmos.regime[3].intensity)

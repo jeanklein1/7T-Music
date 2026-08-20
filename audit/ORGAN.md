@@ -64,7 +64,10 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Portals | to open night | `WORLD.portal_colors[4][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to open noon | `WORLD.portal_colors[5][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | back portal | `WORLD.portal_color_back[0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Atmosphere · Regime 1 | weight | `MoodProfile.atmos.regime[0].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Atmosphere · Regimes | draw · regime 1 | `MoodProfile.regime_weight[0]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Atmosphere · Regimes | draw · regime 2 | `MoodProfile.regime_weight[1]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Atmosphere · Regimes | draw · regime 3 | `MoodProfile.regime_weight[2]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Atmosphere · Regimes | draw · regime 4 | `MoodProfile.regime_weight[3]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 1 | sun colour | `MoodProfile.atmos.regime[0].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 1 | sun colour spread (±bright) | `MoodProfile.atmos.regime[0].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 1 | intensity | `MoodProfile.atmos.regime[0].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
@@ -77,7 +80,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Regime 1 | fog colour spread (±bright) | `MoodProfile.atmos.regime[0].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 1 | clear colour | `MoodProfile.atmos.regime[0].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 1 | clear colour spread (±bright) | `MoodProfile.atmos.regime[0].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | weight | `MoodProfile.atmos.regime[1].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 2 | sun colour | `MoodProfile.atmos.regime[1].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 2 | sun colour spread (±bright) | `MoodProfile.atmos.regime[1].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 2 | intensity | `MoodProfile.atmos.regime[1].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
@@ -90,7 +92,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Regime 2 | fog colour spread (±bright) | `MoodProfile.atmos.regime[1].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 2 | clear colour | `MoodProfile.atmos.regime[1].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 2 | clear colour spread (±bright) | `MoodProfile.atmos.regime[1].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | weight | `MoodProfile.atmos.regime[2].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 3 | sun colour | `MoodProfile.atmos.regime[2].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 3 | sun colour spread (±bright) | `MoodProfile.atmos.regime[2].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 3 | intensity | `MoodProfile.atmos.regime[2].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
@@ -103,7 +104,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Regime 3 | fog colour spread (±bright) | `MoodProfile.atmos.regime[2].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 3 | clear colour | `MoodProfile.atmos.regime[2].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 3 | clear colour spread (±bright) | `MoodProfile.atmos.regime[2].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | weight | `MoodProfile.atmos.regime[3].weight` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | sun colour | `MoodProfile.atmos.regime[3].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | sun colour spread (±bright) | `MoodProfile.atmos.regime[3].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | intensity | `MoodProfile.atmos.regime[3].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
@@ -432,7 +432,7 @@ reader, and the reason ORGAN_3 shipped seven dead dials.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=6 static_assert=26 constexpr=4 comment=28 
+  MOOD_TABLE           definition=1 seed=6 static_assert=28 constexpr=4 comment=29 
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
