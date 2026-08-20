@@ -954,12 +954,23 @@ inline bool take_orb_definition_dirty(uint32_t& mood) {
 // home is one tier further away.
 //
 // PACKED: rule in the low byte, the ACTIVE rule's gesture index in the
-// next. One uint32, one ABI call, and no second call to keep in step
-// with the first — the panel reads a rule and its gesture as one fact
-// because that is how the operator reads them.
+// next, and — ORGAN_6 — whether the dome is LIT and how many motes it
+// carries. One uint32, one ABI call, and no second call to keep in step
+// with the first, which is this window's own argument extended rather
+// than a new window beside it. The panel reads a rule and its gesture as
+// one fact because that is how the operator reads them.
+//
+//   bits  0..7   motion rule
+//   bits  8..15  the active rule's gesture
+//   bit  16      os.active — the dome is lit
+//   bits 17..25  os.count  — motes (0…511; Dim::MAX_ORBS is 256)
 inline uint32_t g_orb_rule_view = 0;
-inline void set_orb_rule_view(uint32_t rule, uint32_t gesture) {
-    g_orb_rule_view = (rule & 0xFFu) | ((gesture & 0xFFu) << 8);
+inline void set_orb_rule_view(uint32_t rule, uint32_t gesture,
+                              bool active, uint32_t count) {
+    g_orb_rule_view = (rule & 0xFFu)
+                    | ((gesture & 0xFFu) << 8)
+                    | ((active ? 1u : 0u) << 16)
+                    | ((count & 0x1FFu) << 17);
 }
 
 } // namespace organ
@@ -1172,9 +1183,12 @@ EMSCRIPTEN_KEEPALIVE inline int organ_regime(void) {
 }
 
 // ORGAN_5 P2a — the sky's live motion rule, packed with the ACTIVE
-// rule's gesture index: `rule | gesture << 8`. A WINDOW onto
-// OrbsState's own fields, written by the cartridge; the panel reads it
-// to say WHICH MODE the fifteen rule-scoped orb rows are acting in.
+// rule's gesture index and — ORGAN_6 — whether the dome is lit and how
+// many motes it carries. set_orb_rule_view states the bit layout; this
+// is its one reader and must not restate it. A WINDOW onto OrbsState's
+// own fields, written by the cartridge; the panel reads it to say WHICH
+// MODE the fifteen rule-scoped orb rows are acting in, and whether there
+// is a sky for any of them to act on.
 // Zero before the first configure, which reads as brownian/0 — the
 // same thing the program seeds to, so the readout is never a lie even
 // on the frame before it is first written.

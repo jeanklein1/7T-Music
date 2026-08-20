@@ -755,6 +755,7 @@
     var regimeScopes = [];    // {el, regime} per regime-scoped group (ATMOS_1b/2)
     var ruleNow = null;       // the line under the door bar
     var ruleNowVal = null;    // its <b>, the only part that changes
+    var domeLine = null;      // ORGAN_6 — the dome's own line, beside it
 
     var doorRoster = [];
     try { doorRoster = JSON.parse(C.doors()); } catch (e) { doorRoster = []; }
@@ -802,6 +803,22 @@
                     + 'gesture \u2014 both PLAYER-OWNED (KP_8 / KP_7 or the '
                     + 'doors above); the panel reads them, it does not own them';
       root.appendChild(ruleNow);
+
+      // ── ORGAN_6 — IS THE DOME LIT? ───────────────────────────────────
+      // configure_orbs early-returns on !active || count == 0, so with the
+      // dome dark every other orb dial is inert and the panel said nothing —
+      // the operator drags a cohesion radius against an empty sky and reads
+      // it as a broken panel. That is the defect the rule readout and the
+      // regime readout each answer; this is the third place that needed one.
+      // It rides beside the rule readout rather than under a group, because
+      // deriving WHICH groups are orb groups would be a fourth name-string
+      // in a file whose whole argument is that it holds none.
+      domeLine = document.createElement('div');
+      domeLine.className = 'rulescope';
+      domeLine.title = 'configure_orbs returns early on enabled 0 or count 0, '
+                     + 'so with the dome dark every other orb dial is inert \u2014 '
+                     + 'the dial is not broken, the sky is empty';
+      root.appendChild(domeLine);
     }
 
     // ── ATMOS_1 — THE MOOD DOOR: a door with a parameter ──────────────
@@ -1184,6 +1201,15 @@
       var rule = packed & 0xFF, gesture = (packed >> 8) & 0xFF;
       if (ruleNowVal) {
         ruleNowVal.textContent = ruleName(rule) + ' \u00b7 gesture ' + gesture;
+      }
+      if (domeLine) {
+        var lit = (packed >> 16) & 1, motes = (packed >> 17) & 0x1FF;
+        domeLine.className = 'rulescope ' + (lit && motes ? 'on' : 'off');
+        domeLine.textContent = (lit && motes)
+          ? '\u25b8 the dome is lit \u2014 ' + motes + ' motes'
+          : '\u25b8 the dome is DARK ('
+            + (!lit ? 'enabled 0' : 'count 0')
+            + ') \u2014 every orb dial below is inert until it is lit';
       }
       ruleScopes.forEach(function (rs) {
         var on = rs.rule === rule;

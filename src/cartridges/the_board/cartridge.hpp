@@ -1577,7 +1577,8 @@ namespace t7 {
                 // moved.
                 t7::organ::set_orb_rule_view(
                     orbs_state_.current_motion_rule,
-                    orbs_state_.gesture_idx[orbs_state_.current_motion_rule & 3u]);
+                    orbs_state_.gesture_idx[orbs_state_.current_motion_rule & 3u],
+                    orbs_state_.active, orbs_state_.count);
                 gpuState_.organ_flush(queue);
             }
 
