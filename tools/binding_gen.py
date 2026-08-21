@@ -519,7 +519,6 @@ def capture_tree():
             "vertex_attributes": p.vertex_attribute_count,
             "color_targets": p.color_target_count,
             "roster_gate": p.roster_gate,
-            "immediate_size": p.immediate_size,
         }
 
     return {
@@ -855,12 +854,9 @@ def rewrite_wgsl(schema, raw):
 
 MANIFEST_MD = os.path.join(REPO, "audit", "MANIFEST.md")
 
-# (lane, per-stage Core limit) in emission order. The immediates lane is
-# carried separately: a byte budget, not a seat count — it reads 0
-# everywhere today and exists so the lane is visible.
+# (lane, per-stage Core limit) in emission order.
 MANIFEST_LANES = (("uniform", 12), ("storage", 8), ("sampled", 16),
                   ("samplers", 16), ("storagetex", 4))
-IMMEDIATE_LANE_BYTES = 64
 
 
 def decl_channel(d):
@@ -908,16 +904,12 @@ def manifest_facts(schema):
                 stop("witness M-1: lane sums %r != per-seat count %d on "
                      "(%s, %s)" % (lanes, total, pm, st))
             rows.append({"member": pm, "label": p["label"], "stage": st,
-                         "lanes": lanes, "total": total,
-                         "imm": p.get("immediate_size", 0)})
+                         "lanes": lanes, "total": total})
     worst = {}
     for ln, cap in MANIFEST_LANES:
         peak = max(r["lanes"][ln] for r in rows)
         at = [r for r in rows if r["lanes"][ln] == peak]
         worst[ln] = {"used": peak, "cap": cap, "rows": at}
-    imm_peak = max(r["imm"] for r in rows)
-    worst["immediates"] = {"used": imm_peak, "cap": IMMEDIATE_LANE_BYTES,
-                           "rows": [r for r in rows if r["imm"] == imm_peak]}
     return {"rows": rows, "worst": worst}
 
 
@@ -938,21 +930,16 @@ def emit_manifest(schema):
     L.append("## Lane table — one row per (pipeline, stage)")
     L.append("")
     L.append("Each cell reads `used / free` against the per-stage Core limit in")
-    L.append("the header. The immediates lane is a byte budget, per pipeline")
-    L.append("layout rather than per stage — the schema's `immediate_size` fact")
-    L.append("(DOMESDAY_2 A10), captured from the pipeline-layout creation")
-    L.append("sites and cross-checked against the WGSL by witness M-2.")
+    L.append("the header.")
     L.append("")
     hdr = ["pipeline", "member", "stage"]
     hdr += ["%s /%d" % (ln, cap) for ln, cap in MANIFEST_LANES]
-    hdr += ["immediates(bytes) /%d" % IMMEDIATE_LANE_BYTES]
     L.append("| " + " | ".join(hdr) + " |")
     L.append("|" + "---|" * len(hdr))
     for r in F["rows"]:
         cells = [r["label"], "`%s`" % r["member"], r["stage"]]
         for ln, cap in MANIFEST_LANES:
             cells.append("%d / %d" % (r["lanes"][ln], cap - r["lanes"][ln]))
-        cells.append("%d / %d" % (r["imm"], IMMEDIATE_LANE_BYTES - r["imm"]))
         L.append("| " + " | ".join(cells) + " |")
     L.append("")
     L.append("## Wallet summary — worst row per lane, program-wide")
@@ -967,14 +954,6 @@ def emit_manifest(schema):
             at += " (+%d more)" % (len(w["rows"]) - 1)
         L.append("| %s | %d / %d | %d | %s |"
                  % (ln, w["used"], cap, cap - w["used"], at))
-    iw = F["worst"]["immediates"]
-    ifirst = iw["rows"][0]
-    iat = ("`%s` %s" % (ifirst["member"], ifirst["stage"])
-           + (" (+%d more)" % (len(iw["rows"]) - 1) if len(iw["rows"]) > 1 else "")
-           if iw["used"] else "(unused everywhere)")
-    L.append("| immediates(bytes) | %d / %d | %d | %s |"
-             % (iw["used"], IMMEDIATE_LANE_BYTES,
-                IMMEDIATE_LANE_BYTES - iw["used"], iat))
     L.append("")
     L.append("## Table A's shape, with the channel column")
     L.append("")
@@ -1656,38 +1635,6 @@ def check(args):
     # this line is the PASS; the worst rows are emitted, not hardcoded.
     mf = manifest_facts(schema)
 
-    # M-2 (DOMESDAY_2 A10): a pipeline's immediate_size is nonzero IFF
-    # its module set statically accesses a var<immediate> declaration.
-    # WGSL side computed fresh: the immediate symbols, then a transitive
-    # closure over the call graph per entry point.
-    b0m = BL.phase_0b(BL.Witnesses())
-    imm_syms = set(re.findall(r"var<immediate>\s+(\w+)\s*:", b0m["src"]))
-    fn_touches = {name: any(re.search(r"(?<![\w.])%s(?![\w])" % re.escape(s),
-                                      fn.body or "")
-                            for s in imm_syms)
-                  for name, fn in b0m["fns"].items()}
-    m2_bad = []
-    for pm, p in schema.PIPELINES.items():
-        reads = False
-        for ep in (p["vs"], p["fs"], p["cs"]):
-            if not ep:
-                continue
-            reached, _refs = b0m["reach"].get(ep, (set(), set()))
-            if any(fn_touches.get(f, False) for f in reached | {ep}):
-                reads = True
-        declared = p.get("immediate_size", 0)
-        if bool(declared) != reads:
-            m2_bad.append("%s: immediate_size %d but module %s a "
-                          "var<immediate>"
-                          % (pm, declared, "reads" if reads else "never reads"))
-    n_imm = sum(1 for p in schema.PIPELINES.values()
-                if p.get("immediate_size", 0))
-    print("  [%s] M-2  immediate_size nonzero iff the module set statically "
-          "accesses a var<immediate> (%d symbols, %d pipelines nonzero)%s"
-          % ("PASS" if not m2_bad else "FAIL", len(imm_syms), n_imm,
-             "" if not m2_bad else " — " + "; ".join(m2_bad)))
-    if m2_bad:
-        problems.append("M-2 immediate-size/WGSL mismatch")
     print("  [PASS] M-1  MANIFEST lane sums equal per-seat counts on all "
           "%d (pipeline, stage) rows; worst: %s"
           % (len(mf["rows"]),

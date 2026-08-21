@@ -229,10 +229,9 @@ void request_recenter(WorldState& ws);
 void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);
-// PROBATE_I: the stagingOffset parameter left with the ladder — the
-// params ride the pass encoder as immediate data now.
+// ringCursor is stream_patches' per-frame cursor into the params ring.
 void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    const GPUPatchParams* params, uint32_t count);
+    const GPUPatchParams* params, uint32_t count, uint32_t& ringCursor);
 GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer);
 uint32_t alloc_layer(MachineCtx* c);
 void free_layer(MachineCtx* c, uint32_t layer);
@@ -248,7 +247,8 @@ void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uin
 void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     bool& tileGridDirty,
-    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps,
+    uint32_t& ringCursor);
 
 // THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,

@@ -11,37 +11,26 @@
 //
 // THE LAWS THAT GOVERN THIS FILE — docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
-// ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12) ══════════════════
-// The web twin is the program (SUNSET_0; native archived at tag
-// native-sunset). Supported compilers: Tint→DXC (SM6.0+) on
-// Windows Chrome,
-// Tint→MSL, Tint→SPIR-V. Firefox: PENDING — naga 30 lacks
-// immediate_address_space; the floor of record is the Tint trio
-// until a Firefox boot witnesses otherwise (Jean's witness,
-// queued). Regaining Firefox is priced: a generated no-immediates
-// module (the wgsl_gate transform as generator) plus, on that path
-// only, the per-patch staging machinery PROBATE_I retired — two
-// boot paths, doubled witnesses. HELD until naga ships the
-// extension or an exhibition demands the spend; the card is the
-// boundary meanwhile (Jean's gate). FXC is unsupported;
-// its retired laws live in docs/FXC_LAWS_RECORD.md. naga gates
-// the module THROUGH THE IMMEDIATE SHIM (tools/wgsl_gate.py; the
-// transform is the gate's pinned half). The immediate address
-// space itself is witnessed by boots alone — one generation wider
-// than the blind spot this block already names. The web build +
-// boot is the witness of
-// record; the [Pipeline] timer prices compile time per kernel.
-// NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance and
-// minBindingSize are Dawn's checks at pipeline creation, so the web boot
-// witnesses them and naga cannot. ATLAS_1revB caught two defects of
-// exactly that class by hand — a shader referencing bindings its
-// pipeline layout did not carry, and a uniform struct whose 16-byte
-// rounding exceeded a declared minBindingSize — both green under naga.
-// The protocol names the blind spot so the next campaign does not have
-// to rediscover it.
-// Witness protocol, unchanged by the pivot: a shader-shape
-// change is proven by witnesses, not argument, and no witness
-// substitutes for another — each browser gates at its own.
+// ═══ COMPILER FLOOR ═══════════════════════════════════════
+// The web twin is the program (native archived at tag
+// native-sunset). This module is PLAIN WGSL: no `requires`
+// directive, no immediate address space, so naga reads it raw
+// and tools/wgsl_gate.py is that read, per commit.
+// The floor of record is the Tint trio — Tint→DXC (SM6.0+),
+// Tint→MSL, Tint→SPIR-V. Firefox and Safari are PENDING BOOT
+// WITNESSES, not supported: naga accepting the module at the
+// gate is not a browser accepting it at a boot, and no compiler
+// this program has never seen accept it is claimed
+// (docs/OPEN.md owes both). FXC is unsupported; its retired
+// laws live in docs/FXC_LAWS_RECORD.md.
+// NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance,
+// minBindingSize and every dynamic-offset alignment are Dawn's
+// checks at pipeline creation and at bind, so the web boot
+// witnesses them and naga cannot; the [Pipeline] timer prices
+// compile time per kernel.
+// Witness protocol: a shader-shape change is proven by
+// witnesses, not argument, and no witness substitutes for
+// another — each browser gates at its own.
 //   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage;
 //   per-row occupancy is MANIFEST.md's lane table — the banner names
 //   the witness, not its value (TETRIS WALLET_0; demotions: Table C).
@@ -148,27 +137,6 @@
 // Global bindings (signal, config, VP, render mirrors, lights) are in §7.0.
 
 // §1 FOUNDATIONS
-
-// ── Language extensions (WGSL §4.1.2) ───────────────────────────────
-// THE SHADER NAMES ITS OWN DEPENDENCY. `var<immediate>` (the shadow
-// light index, §7.0's declaration — DOMESDAY_1 B6) is the immediate
-// address space, WGSL §14.3, reached through the standard language
-// extension below. Declaring it here is the statute's own mechanism
-// for exactly this: an implementation that lacks the extension fails
-// the shader HERE, by name, instead of failing later at a var it does
-// not understand.
-//
-// Directives precede every declaration in a WGSL module, so this is
-// the earliest legal line in the file and must stay above the first
-// `override`.
-//
-// Generation note (DOMESDAY_2 F5): at the pinned emdawnwebgpu
-// generation this extension is STANDARD and Tint reports it
-// FeatureStatus::kShipped — exposed by default, no instance control.
-// Older generations gate it at a tier an instance has to open, which
-// is why the pin is a pin and not a preference. See
-// third_party/emdawnwebgpu/PINNED.md.
-requires immediate_address_space;
 
 // ── Pipeline specialization overrides (set at pipeline creation) ────
 // Controls which VS path is used (direct patch access vs indirection through
@@ -6340,26 +6308,18 @@ struct FrameR {
 }
 @group(1) @binding(1) var<uniform> frame_r: FrameR;
 
-// ─── THE SHADOW TILE'S LIGHT INDEX (DOMESDAY_1 B6, R3) ─────────────
-// One u32, delivered as IMMEDIATE DATA: the shadow pass sets it per
-// light inside a single pass (SetImmediates, render_passes.hpp), and
-// the whole dynamic-offset machinery this replaces — the 256-byte
-// window buffer, the strided boot writes, the offset argument at
-// every bind of the FRAME group — has left the program. A3 printed
-// the grant (the Pixel gave maxImmediateSize=64); this is the first
-// spend in that lane.
+// ─── THE SHADOW TILE'S LIGHT INDEX ────────────────────────────────
+// One u32 on a DYNAMIC-OFFSET uniform seat: the buffer is four
+// 256-byte records holding 0..3, written once at boot, and the shadow
+// pass rebinds group 1 with this light's offset. Every other group-1
+// render bind carries offset 0.
 //
-// WHY AN INDEX AND NOT THE MATRIX (D2', unchanged by the carrier). A
-// matrix immediate would need the SUN's matrix on the outdoor path,
-// and the sun VP's only writer is compute_vp — on the GPU, every
-// frame; a CPU-pushed matrix would give it two owners at two
-// cadences. An index has no owners and no cadence. Its failure mode
-// is a validation error, not a wrong pixel. Requires the WGSL
-// LANGUAGE feature immediate_address_space — instance-scoped, enabled
-// at instance creation (F3-a, console.hpp: the enablement site is this
-// fact's home) and never a device feature, which is what F2-a got
-// wrong — plus maxImmediateSize >= 4 (NEEDS r7).
-var<immediate> shadow_slot: u32;
+// WHY AN INDEX AND NOT THE MATRIX. A matrix would need the SUN's on
+// the outdoor path, and the sun VP's only writer is compute_vp — on
+// the GPU, every frame; a CPU-pushed matrix would give it two owners
+// at two cadences. An index has no owners and no cadence, and its
+// failure mode is a validation error rather than a wrong pixel.
+@group(1) @binding(2) var<uniform> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
 // Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by
@@ -6387,14 +6347,11 @@ fn shadow_light_vp() -> mat4x4<f32> {
 // --- Patch heightfield generation (Group 0: bindings 23-24)
 // Separate pipeline layout. Dispatched per-patch when a new patch enters
 // the active set. Writes to one layer of the patch heightfield array.
-// PROBATE_I — PatchParams rides the immediates lane (the lane's second
-// spend; shadow_slot, DOMESDAY_1 B6, was the first). One struct, one
-// dispatch cadence, 32 of the 64-byte grant. The g2:40 seat, the params
-// buffer and the 225-slot staging ladder left the program with it; the
-// storm path sets these bytes on the pass encoder instead of copying
-// them between buffers. Every read below is untouched — the address
-// space moved, the name did not.
-var<immediate> patch_params: PatchParams;
+// This patch's 32 bytes on a DYNAMIC-OFFSET uniform seat: the buffer is
+// a MAX_ACTIVE_PATCHES ring at 256-byte stride, written per batch before
+// the passes are recorded, and each dispatch binds group 2 at its own
+// record. One struct, one dispatch cadence, no per-patch copies.
+@group(2) @binding(40) var<uniform> patch_params: PatchParams;
 // .a = the terrain's reserve field — 28.125 MiB pre-paid, nine consumers wired, write nothing until a campaign names it (LOOM ruling).
 @group(3) @binding(40) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(1) var<uniform> tile_grid: TileGrid;

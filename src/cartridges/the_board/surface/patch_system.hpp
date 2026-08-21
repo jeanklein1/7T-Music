@@ -180,29 +180,24 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
 
 // ── Patch generation ───────────────────────────────────────────────
 
-// PROBATE_I — the storm path on the immediates lane. `patch_params` is
-// `var<immediate>` now (world.wgsl §7.0a), so this patch's 32 bytes are
-// set on the pass encoder and the round trip they used to take is gone:
-// the one WriteBuffer into a 225-slot staging ladder, the per-patch
-// CopyBufferToBuffer from staging slot into the active params buffer,
-// and both buffers with them. The precedent is DOMESDAY_1 B6's
-// shadow_slot, set the same way on the shadow render passes.
-//
-// IMMEDIATE DATA IS PASS STATE, so each pass sets it — the two passes
-// below carry the same 32 bytes for the same patch, not two values.
-//
-// THE PER-PATCH PASS PAIR STAYS, and it is not the churn the copy left
-// behind. `patch_height_scratch` is ONE patch's worth of scratch
-// (256×256×2 floats, state.hpp) shared by every patch, so heights must
-// reach gradients before the next patch's heights overwrite it: the
-// dispatch order H_i → G_i → C_i per patch is the RAW contract of
-// Table E, and hoisting the loop inside the passes would break it.
+// The params ride a DYNAMIC-OFFSET uniform seat: one write per patch into
+// the ring before any pass is recorded, then one offset per dispatch.
+// `ringCursor` is stream_patches' per-frame cursor — a full regen makes two
+// batches into one encoder, and the queue orders both writes before the
+// command buffer, so the second must not land on the first's records.
+// THE PER-PATCH PASS PAIR STAYS: `patch_height_scratch` is ONE patch's
+// worth, so heights must reach gradients before the next patch overwrites
+// them — H_i → G_i → C_i is Table E's RAW contract.
 inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    const GPUPatchParams* params, uint32_t count) {
+    const GPUPatchParams* params, uint32_t count, uint32_t& ringCursor) {
     if (count == 0) return;
-    (void)queue;   // the params no longer travel through a buffer
+    const uint32_t base = ringCursor;
+    count = c->gpuState_.upload_patch_params(queue, params, count, base);
+    if (count == 0) return;
+    ringCursor = base + count;
 
     for (uint32_t i = 0; i < count; i++) {
+        const uint32_t paramsOffset = (base + i) * Dim::UNIFORM_DYNAMIC_STRIDE;
         // Pass 1: heights only (one ground_formed_with_complexity per texel)
         {
             wgpu::ComputePassDescriptor cpd{};
@@ -212,8 +207,7 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
             { cp.SetBindGroup(0, c->gpuState_.world_group());
               cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-            cp.SetImmediates(0, &params[i], sizeof(GPUPatchParams));   // PROBATE_I: this patch's params
-            c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
+            c->renderer_.dispatch_generate_patch_heights(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
             cp.End();
         }
 
@@ -226,9 +220,8 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
             { cp.SetBindGroup(0, c->gpuState_.world_group());
               cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-            cp.SetImmediates(0, &params[i], sizeof(GPUPatchParams));   // PROBATE_I: the same 32 bytes, this pass's copy
-            c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
-            c->renderer_.dispatch_generate_patch_cells(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups());
+            c->renderer_.dispatch_generate_patch_gradients(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
+            c->renderer_.dispatch_generate_patch_cells(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups());
             cp.End();
         }
     }
@@ -349,7 +342,8 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
 inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     bool& tileGridDirty,
-    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps) {
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps,
+    uint32_t& ringCursor) {
     if (count == 0) return;
     if (tileGridDirty) {
         upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
@@ -363,7 +357,7 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
             c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z, c->patch_system_state_.patches_[pi].layer);
         batchIdx[i] = pi;
     }
-    generate_patch_batch(c, encoder, queue, batchParams, count);
+    generate_patch_batch(c, encoder, queue, batchParams, count, ringCursor);
     for (uint32_t b = 0; b < count; b++) {
         uint32_t pi = batchIdx[b];
         c->patch_system_state_.patches_[pi].phase = PatchPhase::GENERATED;
@@ -539,9 +533,11 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── Patch Generation Pipeline ─────────────────────────────────
 
     int32_t centerX, centerZ;
-    // PROBATE_I: the running staging offset is retired with the ladder —
-    // a patch's params ride the pass encoder, so batches no longer share
-    // a buffer they have to take turns in.
+    // THE PARAMS RING'S CURSOR, one frame's worth. A full regen generates
+    // two batches into this one encoder, and the queue orders every
+    // WriteBuffer before the whole command buffer — so the second batch
+    // takes fresh records rather than overwriting the first's.
+    uint32_t patchParamsCursor = 0;
     bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
     if (c->world_state_.finite_mode) {
         centerX = 0;
@@ -638,7 +634,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
                 }, true);
             generate_selected_patches(c, genCands, genCount,
-                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
+                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
+                patchParamsCursor);
 
             // THE DOOR GUARANTEE (U2) — after the synchronous population
             // above, so Channel A's DOORWAY portals are countable: a world
@@ -802,7 +799,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             }, true);
         generate_selected_patches(c, candidates,
             std::min(count, patches_budget_this_frame(c, inputState)),
-            encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
+            encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
+            patchParamsCursor);
     }
 
     // The conductor tail as a sequence of named units (was one inline block).

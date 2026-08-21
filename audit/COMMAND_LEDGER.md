@@ -5,21 +5,21 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `30462b74e25b2565be30e0a7270fd12841beec00`
-(ORGAN_5 P3 — the rule console: grouped for the hand, mastered by one dial)
+Last commit touching any scanned file: `c64e119e2e944ba60e0adb0493d54b63469b522b`
+(ORGAN_7 P6: the contest instrument retires — its census graduated into the registry's own columns (revert this one commit to restore it))
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e0a9755062ef2dfcddc306dca792354e7bfa87a86eb88a30cc8ff20aee4ea473` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:022f6b6d21cdb5039b4213c1157cdfb2c05c45a66af6e73d4b2cc9a7d2379ed0` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:9e72975cd64dbef30b382f8f793a86d84b96bb89e06e91012302fc553282be9c` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:08d71a39977a275a0650d656942afad05e0fbebe12dc4383727ba28bec8667eb` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:c5144f9bff5539050229a289bda5128cdfd5173747151eccbdb050a5e51a1378` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:a63c5dc2c95b3cc184dba47ca29b92822c5e8f45a8b528758a98c59088cf9fe6` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:cdd7a076acbd206c9949534bd3f221b14bade0927fc709d0150e35bb4b72d781` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:724a0149882de9cdc5b910c8671d9e10b6a59317d0febd8fd85fe07c86f363ff` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:e83fb819907b139aca789ff10781fbbf5139520ec95322d9b1d369ba579fbf12` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:f3bbd6d4ed600ff8350c1f32a28dfffeea3d62af40ead23bac9c67e3b61eda86` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
-| `src/pawn.cpp` | `sha256:b9fd91e2fbb1a174e0d557f14de05bb5718135c2c627e500c302b152f7f1f162` |
-| `src/console/console.hpp` | `sha256:aa5a84f6ae58fb0f1132135e2ec2467bc9ff537d529925d0f16d3b1d9b78c238` |
+| `src/pawn.cpp` | `sha256:d8da6e3de0c3337105ea572d8e016263a891c2482363a070ec6e85d7e35bb313` |
+| `src/console/console.hpp` | `sha256:df11e25ad0acb1f7156fbf54e76b91a63f4fe2470b6188d0e45221aeecf73f8b` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -39,10 +39,10 @@ in `console.hpp`.
 | 4 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:259` | — | — | — |
 | 5 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:332` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
 | 6 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:376` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
-| 7 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:550` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2015` | — | — | — |
-| 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:211` | — | — | — |
-| 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:225` | — | — | — |
+| 7 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:548` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
+| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1865` | — | — | — |
+| 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:206` | — | — | — |
+| 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:219` | — | — | — |
 | 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:675` | — | — | — |
 | 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:763` | — | — | — |
 | 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:776` | — | — | — |
@@ -61,7 +61,7 @@ in `console.hpp`.
 | # | receiver | enclosing function | site |
 |---|---|---|---|
 | 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:692` |
-| 2 | `app->queue.Submit` | `frame` | `src/pawn.cpp:226` |
+| 2 | `app->queue.Submit` | `frame` | `src/pawn.cpp:220` |
 
 2 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
@@ -76,19 +76,19 @@ every landing.
 | # | label | enclosing function | site |
 |---|---|---|---|
 | 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:668` |
-| 2 | `"frame"` | `frame` | `src/pawn.cpp:217` |
+| 2 | `"frame"` | `frame` | `src/pawn.cpp:211` |
 
 ## §3 — the swapchain reconfigure trigger
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:1047` |
-| 2 | `reassert_canvas_target` | `src/console/console.hpp:1204` |
-| 3 | `begin_frame` | `src/console/console.hpp:1343` |
+| 1 | `initSurface` | `src/console/console.hpp:963` |
+| 2 | `reassert_canvas_target` | `src/console/console.hpp:1120` |
+| 3 | `begin_frame` | `src/console/console.hpp:1259` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:1333`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:1249`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer

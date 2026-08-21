@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (86 declarations over 71 slots;
+// The WGSL @binding literals in world.wgsl (88 declarations over 73 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -41,6 +41,7 @@ namespace t7 {
                 // FRAME — R2 v2: the per-frame ro faces, the light system, the shadow window, the two shared samplers.
                 inline constexpr uint32_t signal                      = 0;
                 inline constexpr uint32_t frame_r                     = 1;  // FrameR — CHORD_3: lighting + vp + camera, one uniform block per frame. Two instances (main, photographer) back two groups over one layout; vp and camera arrive by encoder copy from the GPU-sovereign homes (g2:240 vp_data, g2:241 camera_state), never by readback
+                inline constexpr uint32_t shadow_slot                 = 2;  // u32 — the light a shadow pass serves, on a dynamic-offset uniform seat: four 256-byte records holding 0..3, written once at boot. Every group-1 render bind carries one offset, 0 outside the shadow atlas loop
                 inline constexpr uint32_t bilinear_sampler            = 5;
                 inline constexpr uint32_t nearest_sampler             = 6;
             } // namespace g1
@@ -70,6 +71,7 @@ namespace t7 {
                 // sampler that reads it — bands under the family that
                 // AUTHORS the estate; readers borrow at its numbers.
                 // R3a extended from resource to estate.
+                inline constexpr uint32_t patch_params                = 40;  // PatchParams — the patch being generated, on a dynamic-offset uniform seat over a MAX_ACTIVE_PATCHES ring at 256-byte stride
                 inline constexpr uint32_t patch_height_scratch        = 41;
                 inline constexpr uint32_t pyramid_instances           = 42;
                 inline constexpr uint32_t patch_grid                  = 43;

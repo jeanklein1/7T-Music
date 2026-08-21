@@ -193,17 +193,12 @@ namespace t7 {
             wgpu::PipelineLayout strataLayoutFor(const char* label,
                                                  wgpu::BindGroupLayout frame,
                                                  wgpu::BindGroupLayout state,
-                                                 wgpu::BindGroupLayout tex,
-                                                 uint32_t immediateSize = 0) {
-                // DOMESDAY_1 B6 (R3): immediateSize is nonzero only for the
-                // layout whose module entry points read the shadow_slot
-                // immediate (the shadow family); everything else stays 0.
+                                                 wgpu::BindGroupLayout tex) {
                 std::array<wgpu::BindGroupLayout, 4> sa = { worldLayout_, frame, state, tex };
                 wgpu::PipelineLayoutDescriptor d{};
                 d.label = label;
                 d.bindGroupLayoutCount = sa.size();
                 d.bindGroupLayouts = sa.data();
-                d.immediateSize = immediateSize;
                 return device_.CreatePipelineLayout(&d);
             }
             bool makeComputePipeline(const char* label, const char* dbgLabel,
@@ -322,116 +317,6 @@ namespace t7 {
             Renderer(const Renderer&) = delete;
             Renderer& operator=(const Renderer&) = delete;
 
-            // ═══ PROBATE_SEAL3 — THE FLOOR THAT STOPS ════════════════
-            //
-            // Both consoles asked for this. The R3 check NARRATED and
-            // proceeded: it printed "the post-B6 shader cannot compile
-            // here", then compiled it anyway, then ran a frame loop on
-            // a dead device that emitted thousands of validation lines,
-            // while the [Pipeline] timers printed success-shaped zeroes
-            // for pipelines that had never been created. On Firefox the
-            // missing JS surface threw uncaught, every frame, forever.
-            // Four symptoms, one cause: nothing in the program treated
-            // "this device cannot run me" as a REASON TO STOP.
-            //
-            // THE PREDICATE, evaluated before any GPU object exists:
-            //   1. the immediate address space is in the instance's WGSL
-            //      dialect  (console.hpp, instance-scoped — F3-a)
-            //   2. the device granted maxImmediateSize >= the program's
-            //      floor  (NEEDS r7, limits_floor.gen.inc)
-            //   3. setImmediates exists on the compute pass encoder's
-            //      JS surface  (the generation's own API, not a limit —
-            //      the emsdk hole F5F found, one encoder over)
-            //   4. the shader received == the shader shipped  (SEAL2)
-            //
-            // Any arm false: no module, no pipelines, no frame loop, and
-            // one [Floor] line naming the arm. The shell matches that
-            // line and shows the audience card (index.html, onLine), so
-            // a viewer in the wrong browser meets a designed sentence
-            // instead of a black canvas over console spam.
-            //
-            // Arms 1-3 are checked HERE because they are properties of
-            // the device and the page, knowable before a single object
-            // is made. Arm 4 is checked in loadShader(), where the bytes
-            // first exist, and reported through serveWitnessed_.
-            //
-            // WHY THIS IS NOT A LIMIT CHECK. maxImmediateSize is a
-            // number the device reports; setImmediates is a method the
-            // JS glue either carries or does not. DOMESDAY_2 F3-b spent
-            // a round learning that these are different questions with
-            // different homes, and F5F spent one learning that a header
-            // can promise a call the payload lacks. The floor asks all
-            // of them because each has failed alone.
-            bool floorHolds(const wgpu::Device& device) {
-                bool ok = true;
-
-                // THE FLOOR IS THE PROGRAM'S OWN LARGEST IMMEDIATE, and
-                // it is spelled with the same expression NEEDS r7 sources
-                // from (`sizeof(GPUPatchParams)`, binding_schema.py). Not
-                // FLOOR_MAX_IMMEDIATE_SIZE: that constant lives in
-                // console.hpp's namespace and cartridge.hpp — glaw1's own
-                // translation unit — does not include console.hpp. Reading
-                // the struct the pipeline layouts actually declare keeps
-                // the request and the check from drifting without giving
-                // the fact a second home.
-                const uint32_t immediateFloor =
-                    static_cast<uint32_t>(sizeof(GPUPatchParams));
-                wgpu::Limits granted{};
-                device.GetLimits(&granted);
-                if (granted.maxImmediateSize < immediateFloor) {
-                    std::cout << "[Floor] STOP — maxImmediateSize granted "
-                        << granted.maxImmediateSize << ", the program stands on "
-                        << immediateFloor
-                        << " (NEEDS r7). patch_params and shadow_slot ride the"
-                           " immediates lane; without it no pipeline in this"
-                           " program can be built.\n";
-                    ok = false;
-                }
-#ifdef __EMSCRIPTEN__
-                // The dialect and the method, asked of the page itself.
-                // A device limit cannot answer either: the WGSL dialect
-                // is instance-scoped (F3-a) and the encoder method is a
-                // property of the shipped glue (F5F).
-                const int surface = EM_ASM_INT({
-                    if (!navigator.gpu) return 0;
-                    // 1 = dialect present. wgslLanguageFeatures is a
-                    // setlike; older glue may not carry it at all.
-                    var f = navigator.gpu.wgslLanguageFeatures;
-                    var dialect = !!(f && typeof f.has === 'function'
-                                     && f.has('immediate_address_space'));
-                    // 2 = setImmediates on the COMPUTE pass encoder's
-                    // prototype. Checked on the prototype, not on an
-                    // instance: no pass exists yet, and creating one to
-                    // ask would be a GPU object made before the floor
-                    // that decides whether to make GPU objects.
-                    var enc = (typeof GPUComputePassEncoder !== 'undefined')
-                              ? GPUComputePassEncoder.prototype : null;
-                    var method = !!(enc && typeof enc.setImmediates === 'function');
-                    return (dialect ? 1 : 0) | (method ? 2 : 0);
-                });
-                if (!(surface & 1)) {
-                    std::cout << "[Floor] STOP — immediate_address_space is not in this"
-                                 " browser's WGSL dialect. The shader declares"
-                                 " var<immediate> and cannot compile here (R3 floor).\n";
-                    ok = false;
-                }
-                if (!(surface & 2)) {
-                    std::cout << "[Floor] STOP — GPUComputePassEncoder.setImmediates is"
-                                 " absent from this browser's WebGPU surface. The patchgen"
-                                 " passes set their params through it every patch; without"
-                                 " it the terrain cannot be generated.\n";
-                    ok = false;
-                }
-#endif
-                if (!ok) {
-                    std::cout << "[Floor] This work needs a current Chromium-based browser"
-                                 " with WebGPU immediates. Nothing further is created —"
-                                 " no shader module, no pipelines, no frame loop."
-                                 " PROBATE_SEAL3.\n";
-                }
-                return ok;
-            }
-
             bool init(
                 wgpu::Device device,
                 const GPUState& gpuState,
@@ -439,7 +324,6 @@ namespace t7 {
                 wgpu::TextureFormat depthFormat
             ) {
                 device_ = device;
-                if (!floorHolds(device)) return false;
                 agentsStateLayout_ = gpuState.agents_state_layout();
                 agentsTexturesLayout_ = gpuState.agents_textures_layout();
                 auraStateLayout_ = gpuState.aura_state_layout();
@@ -562,12 +446,14 @@ namespace t7 {
             // Pass 1: evaluate ground_formed() per texel, store height only.
             void dispatch_generate_patch_heights(
                 wgpu::ComputePassEncoder& pass,
+                uint32_t paramsOffset,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchHeightsPipeline_);
-                pass.SetBindGroup(2, stateGroup);
+                // The patch being generated: one dynamic offset into the params ring.
+                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
@@ -575,24 +461,28 @@ namespace t7 {
             // Pass 2: read stored heights from neighbors, compute gradients + complexity.
             void dispatch_generate_patch_gradients(
                 wgpu::ComputePassEncoder& pass,
+                uint32_t paramsOffset,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchGradientsPipeline_);
-                pass.SetBindGroup(2, stateGroup);
+                // The patch being generated: one dynamic offset into the params ring.
+                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             void dispatch_generate_patch_cells(
                 wgpu::ComputePassEncoder& pass,
+                uint32_t paramsOffset,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchCellsPipeline_);
-                pass.SetBindGroup(2, stateGroup);
+                // The patch being generated: one dynamic offset into the params ring.
+                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
@@ -1711,8 +1601,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
-                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
                         pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
@@ -1720,8 +1609,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
-                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
                         pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
@@ -1729,8 +1617,7 @@ namespace t7 {
 
                 // Pipeline: generate_patch_cells (2D, on demand)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_,
-                        sizeof(GPUPatchParams));   // PROBATE_I: the patch_params immediate — the three patchgen kernels read it
+                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("gen_patch_cells", "Generate Patch Cells (2D, on demand)",
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
@@ -1879,8 +1766,7 @@ namespace t7 {
 
             bool createRenderPipelines() {
                 // Shadow pipeline layout (entity + textures WITHOUT shadow map)
-                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor("shadowRenderLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_,
-                    sizeof(uint32_t));   // B6 (R3): the shadow_slot immediate — the shadow VSes read it
+                wgpu::PipelineLayout shadowRenderLayout = strataLayoutFor("shadowRenderLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
                 if (!shadowRenderLayout) return false;
 
                 // Main render pipeline layout (entity + textures WITH shadow map)
@@ -2833,8 +2719,7 @@ namespace t7 {
                     // painting slots and array still come from the gallery
                     // texture layout. The COLOUR gallery pipelines keep the
                     // gallery entity layout; only the shadow pair moves.
-                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor("galleryShadowLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_,
-                        sizeof(uint32_t));   // A10 (M-2's catch): these two shadow VSes read the shadow_slot immediate too — B6 set the size on shadowRenderLayout and missed this sibling layout
+                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor("galleryShadowLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
                     if (!galleryShadowLayout) return false;
 
                     if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",

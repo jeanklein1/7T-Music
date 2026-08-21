@@ -45,7 +45,7 @@
                 // the compute face (signal-only FRAME_C) never carries the render ro
                 // windows, so compute dispatches never co-bind them against rw homes.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
                     // FRAME R (CHORD_3) — the render frame in one uniform block:
                     // lighting (CPU-authored, WALLET_1revA’s 848 B trio) plus vp and
@@ -73,6 +73,15 @@
                     entries[2].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
                     entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[2].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+
+                    // The light this shadow pass serves: four 256-byte records holding 0..3,
+                    // written once at boot; the dynamic offset selects the light. Every group-1
+                    // render bind carries one offset — 0 except inside the shadow atlas loop.
+                    entries[3].binding = bind::g1::shadow_slot;  // shadow_slot (uniform, dynamic — the light index)
+                    entries[3].visibility = wgpu::ShaderStage::Vertex;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[3].buffer.hasDynamicOffset = true;
+                    entries[3].buffer.minBindingSize = sizeof(uint32_t);
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frame R Layout";
@@ -540,7 +549,7 @@
 
                 // Patchgen State Layout — stratum 2 (Patchgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -549,6 +558,15 @@
                     entries[1].binding = bind::g2::pyramid_instances;  // pyramid_instances
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // This patch's 32 bytes, at record i of a MAX_ACTIVE_PATCHES ring with a
+                    // 256-byte stride; the dynamic offset selects the record. Written per batch
+                    // before the passes are recorded, from a per-frame cursor in stream_patches.
+                    entries[2].binding = bind::g2::patch_params;  // patch_params (uniform, dynamic — the patch being generated)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[2].buffer.hasDynamicOffset = true;
+                    entries[2].buffer.minBindingSize = sizeof(GPUPatchParams);
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Patchgen State Layout";
@@ -965,7 +983,7 @@
                 // A8a: the render face of the old Frame BindGroup — same backings,
                 // same numbers; signal stays with the compute face.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
 
                     entries[0].binding = bind::g1::frame_r;
                     entries[0].buffer = frameRMainBuffer_;
@@ -976,6 +994,10 @@
 
                     entries[2].binding = bind::g1::nearest_sampler;
                     entries[2].sampler = nearestSampler_;
+
+                    entries[3].binding = bind::g1::shadow_slot;
+                    entries[3].buffer = shadowSlotBuffer_;
+                    entries[3].size = sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame R BindGroup";
@@ -1013,7 +1035,7 @@
 
                 // Projected from: galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
 
                     entries[0].binding = bind::g1::frame_r;
                     entries[0].buffer = frameRPhotoBuffer_;
@@ -1026,6 +1048,11 @@
                     // Shared backing, completed from the primary variant.
                     entries[2].binding = bind::g1::nearest_sampler;
                     entries[2].sampler = nearestSampler_;
+
+                    // Shared backing, completed from the primary variant.
+                    entries[3].binding = bind::g1::shadow_slot;
+                    entries[3].buffer = shadowSlotBuffer_;
+                    entries[3].size = sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame BindGroup (Photographer)";
@@ -1537,7 +1564,7 @@
 
                 // Projected from: patchGenBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::patch_height_scratch;
                     entries[0].buffer = patchHeightScratchBuffer_;
@@ -1546,6 +1573,10 @@
                     entries[1].binding = bind::g2::pyramid_instances;
                     entries[1].buffer = pyramidInstancesBuffer_;
                     entries[1].size = sizeof(GPUPyramidArray);
+
+                    entries[2].binding = bind::g2::patch_params;
+                    entries[2].buffer = patchParamsBuffer_;
+                    entries[2].size = sizeof(GPUPatchParams);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Patchgen State BindGroup";

@@ -36,6 +36,7 @@
 #include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS — source of truth for the CONTACT_2 boot pin
 #include "cartridges/the_board/contracts/control_panel.hpp"         // THE PANEL — the field dials' rests, boot-pinned into the config
 #include <webgpu/webgpu_cpp.h>
+#include <cstdio>    // the params ring's clamp report
 #include <cstring>
 #include <array>
 #include <vector>
@@ -80,6 +81,11 @@ namespace t7 {
             constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units; OPT_1b — fits default maxTextureArrayLayers, veil chain holds exactly: 7·50 = EXIST_RADIUS)
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
+
+            // minUniformBufferOffsetAlignment, core default — the ring stride
+            // for a dynamic uniform seat. A device that reports a SMALLER
+            // alignment still accepts multiples of 256, so no floor is stood on.
+            constexpr uint32_t UNIFORM_DYNAMIC_STRIDE = 256;
 
             // ── THE LIVE CARD (GROUND_CARD_1) ──
             // One 2D RGBA16F field over the ground window, point-centered,
@@ -1967,6 +1973,12 @@ namespace t7 {
             inline constexpr uint32_t SnapshotPass        = 20;
         }
 
+        // GROUP 1 CARRIES A DYNAMIC SEAT (shadow_slot), so every bind of it
+        // passes one offset. Everything outside the shadow atlas loop reads
+        // record 0, which holds light 0. It lives here because both binders
+        // — render_passes.hpp and bodies/gallery.hpp — include this file.
+        inline constexpr uint32_t kFrameSlotZero = 0;
+
         class GPUState {
 
             wgpu::Device device_;
@@ -2023,6 +2035,10 @@ namespace t7 {
             // lighting still holds the ground it won: one 848 B uniform
             // member where three storage buffers used to be.
             wgpu::Buffer frameRMainBuffer_;
+            // The light a shadow pass serves, on a dynamic-offset uniform
+            // seat: MAX_SPOT_LIGHTS records holding 0..3, written once at
+            // boot. Every group-1 render bind carries one offset.
+            wgpu::Buffer shadowSlotBuffer_;
             wgpu::Buffer frameRPhotoBuffer_;
             // ORGAN — THE LIGHTING HOME. upload_lighting stores through it,
             // so it always carries what the GPU last received and the panel
@@ -2047,11 +2063,10 @@ namespace t7 {
             uint32_t meterPairCount_ = 0;
             uint32_t meterNextIndex_ = 0;
 
-            // PROBATE_I: patchParamsBuffer_ and patchStagingBuffer_ are
-            // retired. `patch_params` is `var<immediate>` (world.wgsl
-            // §7.0a) and GPUPatchParams is the value type handed to
-            // SetImmediates at the dispatch site — no seat, no backing,
-            // no 225-slot ladder to take turns in.
+            // The patch being generated, on a dynamic-offset uniform seat:
+            // one record per patch at Dim::UNIFORM_DYNAMIC_STRIDE, written
+            // per batch and selected by the offset at each dispatch.
+            wgpu::Buffer patchParamsBuffer_;
             wgpu::Buffer patchInstancesBuffer_;
             // OIL_1 U10: shadow of the last-uploaded instance packing +
             // first-upload flag — the upload_patch_instances gate.
@@ -2491,9 +2506,33 @@ namespace t7 {
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
-            // PROBATE_I: upload_patch_params is retired with its buffer —
-            // the params reach the shader through SetImmediates on the
-            // patchgen compute passes (surface/patch_system.hpp).
+            // The light index rides a dynamic offset on frame R: record i holds i.
+            static constexpr uint32_t shadow_slot_offset(uint32_t light) { return light * Dim::UNIFORM_DYNAMIC_STRIDE; }
+
+            // This batch's params, one record per patch at the ring's stride,
+            // starting at record `base`. The passes that read them are recorded
+            // after this call and execute after the write on the queue timeline.
+            // stream_patches carries a per-frame CURSOR because a full regen
+            // generates two batches into one encoder, and the second batch's
+            // write must not land on the first's records. Returns how many
+            // records were accepted.
+            uint32_t upload_patch_params(wgpu::Queue& queue, const GPUPatchParams* params,
+                                         uint32_t count, uint32_t base) {
+                if (base >= Dim::MAX_ACTIVE_PATCHES) {
+                    std::fprintf(stderr, "[PatchParams] ring full at %u records; batch of %u dropped\n",
+                                 base, count);
+                    return 0;
+                }
+                if (base + count > Dim::MAX_ACTIVE_PATCHES) {
+                    std::fprintf(stderr, "[PatchParams] batch of %u at record %u exceeds the %u-record ring; clamped\n",
+                                 count, base, Dim::MAX_ACTIVE_PATCHES);
+                    count = Dim::MAX_ACTIVE_PATCHES - base;
+                }
+                for (uint32_t i = 0; i < count; i++)
+                    queue.WriteBuffer(patchParamsBuffer_, (base + i) * Dim::UNIFORM_DYNAMIC_STRIDE,
+                                      &params[i], sizeof(GPUPatchParams));
+                return count;
+            }
 
             void upload_tile_grid(wgpu::Queue& queue, const GPUTileGrid& grid) {
                 writeStruct(queue, tileGridBuffer_, grid);
@@ -3907,10 +3946,15 @@ namespace t7 {
                 // not storage, because the whole point of the lighting block
                 // is that it stops spending F-stage storage seats.
                 frameRMainBuffer_  = makeBuffer("Frame R (Main)", sizeof(GPUFrameR), UU);
+                shadowSlotBuffer_ = makeBuffer("Shadow Slot Ring",
+                    MAX_SPOT_LIGHTS * Dim::UNIFORM_DYNAMIC_STRIDE,
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                // Record i holds i, written once and never again: the light
+                // index is the OFFSET, so the contents are a constant ladder.
+                for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
+                    device_.GetQueue().WriteBuffer(shadowSlotBuffer_,
+                        i * Dim::UNIFORM_DYNAMIC_STRIDE, &i, sizeof(uint32_t));
                 frameRPhotoBuffer_ = makeBuffer("Frame R (Photographer)", sizeof(GPUFrameR), UU);
-                // DOMESDAY_1 B6 (R3): the ATLAS_1revB D3" light-index
-                // window buffer is retired — the shadow light index rides
-                // immediate data now (SetImmediates, render_passes.hpp).
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
                 // usage; the descriptor was hand-rolled only because
@@ -3955,6 +3999,9 @@ namespace t7 {
                 patchGridBuffer_ = makeBuffer("Patch Grid",
                     sizeof(GPUPatchGrid),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                patchParamsBuffer_ = makeBuffer("Patch Params Ring",
+                    Dim::MAX_ACTIVE_PATCHES * Dim::UNIFORM_DYNAMIC_STRIDE,
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 patchHeightScratchBuffer_ = makeBuffer("Patch Height Scratch",
                     Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float),
                     wgpu::BufferUsage::Storage);
@@ -4025,8 +4072,9 @@ namespace t7 {
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
+                    shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
-                    patchGridBuffer_ &&
+                    patchGridBuffer_ && patchParamsBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&

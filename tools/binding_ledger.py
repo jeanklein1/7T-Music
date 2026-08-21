@@ -1797,38 +1797,12 @@ def phase_ext2(w, wgsl):
 # resolve to a four-layout list.
 # ═══════════════════════════════════════════════════════════════════════
 
-def imm_bytes_of(expr, w=None):
-    """DOMESDAY_2 A10: resolve a pipeline-layout immediateSize argument
-    to bytes. Known spellings only — an unknown expression is recorded
-    as a failed witness row rather than silently zeroed."""
-    if not expr or not expr.strip():
-        return 0
-    e = expr.strip()
-    if e.isdigit():
-        return int(e)
-    known = {"sizeof(uint32_t)": 4, "sizeof(u32)": 4, "sizeof(float)": 4,
-             "sizeof(uint64_t)": 8,
-             # PROBATE_I: the patchgen params struct. 32 is not asserted
-             # here — state.hpp carries
-             # `static_assert(sizeof(GPUPatchParams) == 32)`, so the
-             # struct's own home is what holds this entry honest.
-             "sizeof(GPUPatchParams)": 32}
-    if e in known:
-        return known[e]
-    if w is not None:
-        w.record("A10-imm", False,
-                 "unparsed immediateSize expression %r — teach imm_bytes_of" % e)
-    return 0
-
-
 class Pipeline:
     __slots__ = ("label", "member", "kind", "vs_entry", "fs_entry", "cs_entry",
                  "group_layouts", "vertex_buffer_count", "vertex_attribute_count",
-                 "color_target_count", "roster_gate", "line", "off",
-                 "immediate_size")
+                 "color_target_count", "roster_gate", "line", "off")
 
     def __init__(self, **kw):
-        kw.setdefault("immediate_size", 0)
         for k in self.__slots__:
             setattr(self, k, kw.get(k))
 
@@ -1877,26 +1851,19 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*device_\.CreatePipelineLayout\(\s*&(\w+)\s*\)", src):
         events.append((m.start(), "create", m.group(1), m.group(2), None))
-    # DOMESDAY_1 B6: strataLayoutFor grew an optional immediateSize
-    # argument (an expression, possibly with one paren level, e.g.
-    # sizeof(uint32_t)). DOMESDAY_2 A10 captures it and resolves to
-    # bytes, so a pipeline carries its immediate_size fact.
     # DOMESDAY_2 F2-b2: the label law gave the builder a LEADING
-    # string argument (F2-b1) — the layouts are now arguments two
-    # through four, the immediate size the optional fifth. The label
-    # itself is display prose; the layout list is still these three
-    # plus the implicit WORLD.
+    # string argument (F2-b1) — the layouts are arguments two through
+    # four. The label itself is display prose; the layout list is still
+    # these three plus the implicit WORLD.
     for m in re.finditer(
             r"wgpu::PipelineLayout\s+(\w+)\s*=\s*strataLayoutFor\(\s*"
             r"\"[^\"]*\"\s*,\s*"
-            r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*"
-            r"(?:,\s*((?:[^()]|\([^()]*\))*?)\s*)?\)", src):
+            r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)", src):
         events.append((m.start(), "for", m.group(1),
                        ["worldLayout_", m.group(2), m.group(3), m.group(4)],
-                       imm_bytes_of(m.group(5), w)))
+                       None))
 
     bad_counts = []
-    imm = {}
     for pos, kind, a, b, n in sorted(events):
         if kind == "array":
             arrays[a] = b
@@ -1906,10 +1873,8 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             plds[a] = b
         elif kind == "create":
             pls[a] = list(arrays.get(plds.get(b, ""), []))
-            imm[a] = 0
         elif kind == "for":
             pls[a] = list(b)
-            imm[a] = n or 0
     w.record("0c-0b", not bad_counts,
              "every std::array<BindGroupLayout, N> lists exactly N members"
              if not bad_counts else "; ".join(bad_counts))
@@ -1918,30 +1883,19 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
         return [handles.get(h, h) for h in pls.get(plvar, [])]
 
     # Snapshot the pipeline-layout map at each use site: the same variable
-    # name (`pl`, `layout`) is rebound in later blocks. The snapshot
-    # carries (layout list, immediate bytes) per variable (A10).
+    # name (`pl`, `layout`) is rebound in later blocks.
     snapshots = []
-    imm_run = {}
     for pos, kind, a, b, n in sorted(events):
         if kind in ("create", "for"):
-            imm_run[a] = (n or 0) if kind == "for" else 0
             snapshots.append((pos, a,
-                              list(pls_at(events, pos, handles).get(a, [])),
-                              imm_run[a]))
+                              list(pls_at(events, pos, handles).get(a, []))))
 
     def layouts_at(plvar, pos):
         best = None
-        for p, name, val, _i in snapshots:
+        for p, name, val in snapshots:
             if name == plvar and p <= pos:
                 best = val
         return best if best is not None else []
-
-    def imm_at(plvar, pos):
-        best = 0
-        for p, name, _val, i in snapshots:
-            if name == plvar and p <= pos:
-                best = i
-        return best
 
     pipelines = []
 
@@ -1952,7 +1906,6 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
         pipelines.append(Pipeline(
             label=m.group(2), member=m.group(5), kind="compute",
             cs_entry=m.group(4), group_layouts=layouts_at(m.group(3), m.start()),
-            immediate_size=imm_at(m.group(3), m.start()),
             vertex_buffer_count=0, vertex_attribute_count=0, color_target_count=0,
             roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
             off=m.start()))
@@ -2002,7 +1955,6 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             label=a[1].strip('"'), member=a[5], kind="render",
             vs_entry=entry_name(a[2]), fs_entry="ENTITY_FS",
             group_layouts=layouts_at("renderLayout", m.start()),
-            immediate_size=imm_at("renderLayout", m.start()),
             vertex_buffer_count=vb, vertex_attribute_count=va, color_target_count=1,
             roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
             off=m.start()))
@@ -2016,7 +1968,6 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             label=a[1].strip('"'), member=a[5], kind="render",
             vs_entry=entry_name(a[2]), fs_entry=None,       # depth-only: no FS
             group_layouts=layouts_at(plvar, m.start()),
-            immediate_size=imm_at(plvar, m.start()),
             vertex_buffer_count=vb, vertex_attribute_count=va, color_target_count=0,
             roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
             off=m.start()))
@@ -2081,7 +2032,6 @@ def parse_pipelines(w, src, spans, handles, layouts_by_member):
             label=(get("label") or "").strip().strip('"'), member=cm.group(1), kind="render",
             vs_entry=entry_name(get(r"vertex\.entryPoint") or ""), fs_entry=fs,
             group_layouts=layouts_at((get("layout") or "").strip(), m.start()),
-            immediate_size=imm_at((get("layout") or "").strip(), m.start()),
             vertex_buffer_count=vbn,
             vertex_attribute_count=va, color_target_count=tc if tc is not None else 0,
             roster_gate=roster_gate_of(spans, m.start()), line=line_of(src, m.start()),
@@ -3677,10 +3627,10 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     A("  could ever buy.")
     A("")
     A("| pipeline | member | stage | entry point | uniform /%d | storage /%d | "
-      "sampled /%d | samplers /%d | storagetex /%d | bind groups /%d | dyn_u /%d | dyn_s /%d | imm B /64 |"
+      "sampled /%d | samplers /%d | storagetex /%d | bind groups /%d | dyn_u /%d | dyn_s /%d |"
       % (CORE["uniform"], CORE["storage"], CORE["sampled"], CORE["samplers"],
          CORE["storagetex"], CORE_BIND_GROUPS, CORE_DYN_UNIFORM, CORE_DYN_STORAGE))
-    A("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    A("|---|---|---|---|---|---|---|---|---|---|---|---|")
     for bx in budget:
         p = bx["pipeline"]
         ep = ", ".join(cen["entry_const"].get(c, c) for c, s in p.entries() if s == bx["stage"])
@@ -3690,10 +3640,9 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
             if bx["declared"][k] == CORE[k]:
                 cell = "**%s**" % cell
             cells.append(cell)
-        A("| %s | `%s` | %s | `%s` | %s | %d | %d | %d | %d |"
+        A("| %s | `%s` | %s | `%s` | %s | %d | %d | %d |"
           % (md_escape(p.label), p.member, bx["stage"], ep, " | ".join(cells),
-             len(p.group_layouts), bx["dyn_uniform"], bx["dyn_storage"],
-             p.immediate_size))
+             len(p.group_layouts), bx["dyn_uniform"], bx["dyn_storage"]))
     A("")
     tight, tcat = join["tightest"]
     A("Tightest row: **%s / %s** at %s **%d of %d**, and `actual` reads %d there too —"
