@@ -90,7 +90,7 @@ READERS = {
         # the console mask's boundary block: dome, noise and speed reach
         # the GPU through targeted partials from here rather than through
         # configure_orbs.
-        ("src/cartridges/the_board/cartridge.hpp", "organ_flush"),
+        ("src/cartridges/the_board/organ_boundary.inc", "organ_flush"),
     ]),
     "PANEL": ("PANEL_LIVE", "PanelSurface", [
         ("src/cartridges/the_board/cartridge.hpp", "phase_motion_drivers"),
@@ -312,7 +312,7 @@ def owners_of(symbol, cache):
     found = set()
     for base, _dirs, files in os.walk(SRC):
         for f in sorted(files):
-            if not f.endswith((".hpp", ".cpp")):
+            if not f.endswith((".hpp", ".cpp", ".inc")):
                 continue
             rel = os.path.relpath(os.path.join(base, f), ROOT).replace(os.sep, "/")
             if rel.endswith("organ_registry.hpp") or rel.endswith("organ_params.inc"):
