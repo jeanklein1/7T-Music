@@ -1,95 +1,58 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════
-# THE READER PROOF (ORGAN_4 P4) — organ_readers.py
+# THE READER PROOF — organ_readers.py
 #
-# WHAT THIS IS. An enrollment states a belief; only the reader proves it.
-# This tool asks every enrolled row the one question ORGAN_4 exists to
-# ask: DOES YOUR READER NAME YOU? It parses the enrollment list
-# (src/console/organ_params.inc), maps each row to the FUNCTION its family
-# is consumed by, brace-parses that function out of the tree, and reports
-# every row whose field name is absent from every one of its readers.
+# AN ENROLLMENT STATES A BELIEF; ONLY THE READER PROVES IT. This asks
+# every enrolled row one question — DOES YOUR READER NAME YOU? — by
+# mapping each row to the FUNCTION its family is consumed by,
+# brace-parsing that function out of the tree, and reporting every row
+# whose field name is absent from all of its readers.
 #
-# WHY IT HAD TO EXIST. organ_gap.py measures the gap between the HOMES and
-# the panel — which declared members no dial names. That is the outward
-# question. This is the inward one: of the dials that DO exist, which
-# write a field nobody reads? Jean's sweep of the orb bank found eight
-# dead rows and thirteen more at a sentinel, every one shipped through a
-# green harness, because the manifest's chip derives from the ENROLLMENT'S
-# FORM while the truth lives in the READER'S BODY. A tool that reads
-# bodies is the only thing that can close that.
+# EXIT 0 ALWAYS. organ_gap measures the gap between the HOMES and the
+# panel; this is the inward question. A suspect here is a QUESTION, not a
+# verdict: the reason a row survives one is docs/ORGAN.md's judgement.
 #
-# CHECK-FAMILY, AND DELIBERATELY TOOTHLESS. stdout only, exit 0 ALWAYS —
-# the organ_gap sibling. A suspect here is a QUESTION, not a verdict:
-# helper indirection alone produces false positives, and the reason a row
-# survives one is a judgement docs/ORGAN.md makes — "The disposition" and
-# "What has no dial, and why" — and this tool may not.
-#
+# USAGE   organ_readers.py · --brief for counts and suspects only
+# ═══════════════════════════════════════════════════════════════════════
+
 # ── THE BLIND SPOTS, SAID PLAINLY RATHER THAN DISCOVERED LATER ───────
-#
-#   1. HELPER INDIRECTION PRODUCES FALSE POSITIVES. A reader that passes
-#      `cfg.flock_sep_radius` into a helper by value names the field at
-#      the call site — fine — but a reader that copies a whole struct and
-#      hands the copy on does not name any field at all. Every function
-#      in a family's list is searched, so the cure is to LIST the helper;
-#      the table below is printed on every run so a missing one is
-#      visible rather than silent (the organ_gap precedent).
-#
+#   1. HELPER INDIRECTION PRODUCES FALSE POSITIVES. A reader that copies a
+#      whole struct and hands the copy on names no field at all. Every
+#      function in a family's list is searched, so the cure is to LIST the
+#      helper — and the table below is printed on every run.
+
 #   2. MACRO PACKING AND WHOLE-STRUCT COPIES ARE INVISIBLE. `writeStruct`,
 #      `memcpy` and an aggregate assignment consume every field and name
-#      none. The three GPU rooms are out of scope for exactly this reason
-#      and say so below rather than reporting 130 false suspects.
-#
+#      none. The three GPU rooms are out of scope for that reason, and say
+#      so below rather than reporting 130 false suspects.
+
 #   3. GPU-SIDE CONSUMPTION IS OUT OF SCOPE. A field uploaded into a
 #      uniform is read in world.wgsl, and proving THAT is the kernel's
-#      ledger — a future instrument, not this one. Rows whose only reader
-#      is the GPU are named as out of scope, never as suspects.
-#
+#      ledger. Rows whose only reader is the GPU are named as out of
+#      scope, never as suspects.
+
 #   4. A LEAF TOKEN CAN COLLIDE. The match is on the field's last
 #      identifier, so a leaf like `direction` or `count` can be satisfied
-#      by an unrelated mention inside the same function body. This
-#      produces false NEGATIVES — a dead row reading green — which is the
-#      worse direction, so it is stated first among the things a
-#      successor should not trust silently.
-#
-#   5. A WITNESS'S QUESTION IS INVERTED. An `_RO` row is a meter: nobody
-#      is supposed to read the panel's word for it, because the panel
-#      never writes one. What matters for a witness is who AUTHORS it,
-#      and that is the contest instrument's job, not this one's.
-#
-# ── THE POSITIVE CONTROL (a gate that cannot fail is decoration) ─────
-#
-# Blind spot 4 above is what the match had to be built against, and this
-# campaign's own flagship row is the proof. `configure_orbs` CONTAINS the
-# token `motion_rule` — in `gpuCfg.motion_rule = os.current_motion_rule;`,
-# which reads the PLAYER'S rule and never the mood's. A bare-token match
-# would have passed the deadest row in the tree. So the match is
-# HANDLE-QUALIFIED: the leaf must be reached through a name that IS the
-# bank (the LIVE symbol, a parameter of the bank's struct type, or a
-# reference alias bound to either, resolved to a fixed point).
-#
-# Verified at ORGAN_4 P4 by re-adding the two rows the campaign had just
-# retired: `OrbMoodConfig.motion_rule` came back as SUSPECT with the
-# `gpuCfg.motion_rule = os.current_motion_rule` line quoted in its second
-# pass, and `flock_gesture_default` came back PROVED — correctly, because
-# `apply_mood_first_run_defaults_` really does read it. Its row died for a
-# CADENCE reason, not a reader one. The tool separates those two, which is
-# the only way it is worth anything.
-#
-# THE SECOND PASS is what makes a suspect actionable. For every row the
-# declared readers do not name, the tool searches the whole of `src/` for
-# the same token and prints where it IS mentioned. That separates the two
-# findings D6 rules differently:
-#
-#   MECHANICAL — the field is named somewhere the table does not list.
-#                The table is stale, or the reader moved. Fix now.
-#   SEMANTIC   — the field is named NOWHERE but its own declaration and
-#                its enrollment. The dial writes a fact nothing reads.
-#                Ledger the anatomy; Jean and Claude rule.
-#
-# USAGE
-#   python3 tools/organ_readers.py            # the map
-#   python3 tools/organ_readers.py --brief    # counts and suspects only
-# ═══════════════════════════════════════════════════════════════════════
+#      by an unrelated mention in the same body. That produces false
+#      NEGATIVES — a dead row reading green — which is the worse
+#      direction, so a successor should not trust it silently.
+
+#   5. A WITNESS'S QUESTION IS INVERTED. An `_RO` row is a meter and
+#      nobody is supposed to read the panel's word for it, because the
+#      panel never writes one. What matters for a witness is who AUTHORS
+#      it, which is another instrument's question.
+
+# THE MATCH IS HANDLE-QUALIFIED, and that is the whole tool. A bare token
+# match would pass a dead row: `configure_orbs` contains the token
+# `motion_rule` in a line that reads the PLAYER's rule and never the
+# mood's. So the leaf must be reached THROUGH a name that IS the bank.
+
+# THE SECOND PASS makes a suspect actionable: for every row the declared
+# readers do not name, the tool searches src/ for the token and prints
+# where it IS mentioned.
+#   MECHANICAL — named somewhere the table does not list: a stale table.
+#   SEMANTIC   — named nowhere but its declaration and its enrollment.
+#                The dial writes a fact nothing reads.
 
 import os
 import re
@@ -104,11 +67,11 @@ SRC_EXT = (".hpp", ".cpp", ".inc", ".h")
 # family -> (the LIVE bank this family addresses, [(file, function), …]).
 # A family is a BLOCK for a plain / GEN row and a DEFINITION KIND for a
 # DEF / DEFONLY row: a definition's reader is its applier, not its home's.
-#
-# The functions were censused, not guessed: every function body in src/
-# that mentions the family's LIVE symbol. The tool re-derives that census
-# on every run and prints any function it finds that this table omits, so
-# the table cannot go stale in silence.
+
+# The functions are censused, not guessed — every function body in src/
+# that names the family's LIVE symbol. The tool re-derives that census on
+# every run and prints any function this table omits, so it cannot go
+# stale in silence.
 READERS = {
     "DRIVERS": ("DRIVER_LIVE", "DriverSurface", [
         ("src/cartridges/the_board/cartridge.hpp", "phase_motion_drivers"),
@@ -124,9 +87,9 @@ READERS = {
     "ORBS": ("ORB_CONSOLE_LIVE", "OrbConsole", [
         ("src/cartridges/the_board/bodies/orbs.hpp", "configure_orbs"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "log_configure_"),
-        # ORGAN_4 P1a — the console mask's boundary block: dome and noise
-        # never reach configure_orbs at all any more, they reach the GPU
-        # through targeted partials from here.
+        # the console mask's boundary block: dome, noise and speed reach
+        # the GPU through targeted partials from here rather than through
+        # configure_orbs.
         ("src/cartridges/the_board/cartridge.hpp", "organ_flush"),
     ]),
     "PANEL": ("PANEL_LIVE", "PanelSurface", [
@@ -158,8 +121,8 @@ READERS = {
     "WORLD": ("WORLD_DRAW_LIVE", "WorldDrawSurface", [
         ("src/cartridges/the_board/contracts/mood_constants.hpp", "portal_color_for"),
         ("src/cartridges/the_board/direction/mood.hpp", "derive_indoor_lights"),
-        # ATMOS_1 — pick_portal_mood and pick_open_mood are one-line faces
-        # on the weighted walk; mood_weights is named in the walk's body.
+        # pick_portal_mood and pick_open_mood are one-line faces on the
+        # weighted walk; mood_weights is named in the walk's body.
         ("src/cartridges/the_board/direction/mood.hpp", "pick_mood_weighted_"),
         ("src/cartridges/the_board/direction/mood.hpp", "pick_portal_mood"),
         ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_write_active"),
@@ -173,8 +136,8 @@ READERS = {
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
     ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
-    # REGIME_1 — two handles: the regime law is MoodProfile's own field
-    # (read by apply_mood_regime through `m`), the rest is atmos.* (read by
+    # Two handles: the regime law is MoodProfile's own field (read by
+    # apply_mood_regime through `m`), the rest is atmos.* (read by
     # draw_atmosphere through `a`).
     "MOOD": ("MOOD_LIVE", ("MoodProfile", "Atmosphere"), [
         ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_regime"),
@@ -214,7 +177,7 @@ OUT_OF_SCOPE = {
 # Same five macro forms and the same _NS shift. What differs is what this
 # tool takes from each line: organ_gap wants (struct, member); this wants
 # (family, field), and for a DEF row the family is the KIND and the field
-# is the DEFFIELD — because a definition's reader is its applier.
+# is the DEFFIELD, because a definition's reader is its applier.
 MACRO = re.compile(
     r"^(ORGAN_PARAM(?:_GEN|_DEF|_DEFONLY|_RO)?)(_NS)?\s*\((.*)\)\s*$")
 
@@ -369,18 +332,15 @@ def owners_of(symbol, cache):
 
 
 # ─── THE MATCH IS HANDLE-QUALIFIED, AND THAT IS THE WHOLE TOOL ────────
-# A bare token match cannot answer this campaign's own flagship question.
-# `configure_orbs` contains the token `motion_rule` — in the line
-# `gpuCfg.motion_rule = os.current_motion_rule;`, which reads the PLAYER's
-# rule and never the mood's. A tool that matched the bare token would have
-# passed the deadest row in the tree.
-#
-# So the match is `<handle>.<…>.<leaf>`: the leaf must be reached THROUGH
-# a name that is the bank. A handle is
-#   · the LIVE symbol itself                     (WORLD_DRAW_LIVE.portal_density)
-#   · a parameter whose type is the bank's struct (cfg, in configure_orbs)
-#   · a reference alias bound to either           (const auto& S = RIBBON_SPAWN_LIVE)
-# resolved to a fixed point, because aliases chain.
+# A bare token match would pass a dead row: `configure_orbs` contains the
+# token `motion_rule` in a line that reads the PLAYER's rule and never the
+# mood's. So the match is `<handle>.<…>.<leaf>` — the leaf must be reached
+# THROUGH a name that IS the bank.
+
+# A handle is the LIVE symbol itself (WORLD_DRAW_LIVE.portal_density), a
+# parameter whose type is the bank's struct (cfg, in configure_orbs), or a
+# reference alias bound to either (const auto& S = RIBBON_SPAWN_LIVE),
+# resolved to a fixed point because aliases chain.
 ALIAS = re.compile(r"(?:const\s+)?auto\s*&\s*(\w+)\s*=\s*([A-Za-z_]\w*)")
 PARAM = re.compile(r"[(,]\s*(?:const\s+)?(\w+)\s*[&*]?\s*&?\s*(\w+)\s*(?=[,)])")
 
@@ -535,7 +495,7 @@ def main():
         print("a function this tool can read.")
         return 0
 
-    print("THE SUSPECTS, each with its second pass (D6: mechanical -> fix now,")
+    print("THE SUSPECTS, each with its second pass (mechanical -> fix now,")
     print("semantic -> ledger the anatomy)")
     print("-" * 72)
     for r in suspects:

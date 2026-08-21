@@ -1,84 +1,47 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════
-# THE ORGAN'S GAP (ORGAN_3 P3) — organ_gap.py
+# THE ORGAN'S GAP — organ_gap.py
 #
-# WHAT THIS IS. A map of what the panel does NOT yet name. It parses the
-# enrollment list (src/console/organ_params.inc) for every home struct
-# the four macro forms address, brace-parses those structs out of the
-# tree, and prints each declared member that no enrollment line mentions.
+# A map of what the panel does NOT yet name: it parses the enrollment
+# list (src/console/organ_params.inc) for every home struct the macro
+# forms address, brace-parses those structs out of the tree, and prints
+# each declared member that no enrollment line mentions.
 #
-# CHECK-FAMILY, AND DELIBERATELY TOOTHLESS. stdout only, exit 0 ALWAYS.
-# This is a map, not a gate: a member absent from the panel is usually
-# absent ON PURPOSE (structural, driven, a pad, an RNG salt), and the
-# reason lives in docs/ORGAN.md — "The disposition" for the class, and
-# "What has no dial, and why" for the four facts that survived every wave
-# of the survey. A tool that failed a build over an unenrolled field would
-# be asserting a judgement it cannot make. binding_gen.py --check is a
-# gate because the schema IS the authority there; here the DOC is the
-# authority and this tool only reports.
+# EXIT 0 ALWAYS UNLESS --gate. A member absent from the panel is usually
+# absent ON PURPOSE and the reason lives in docs/ORGAN.md, so failing a
+# build over one would assert a judgement this tool cannot make.
 #
-# ITS TWO BLIND SPOTS, said plainly rather than discovered later:
-#
-#   1. IT CANNOT SEE HOMELESS CONSTANTS. A design parameter that lives as
-#      an `inline constexpr` in a module and has no live home at all is
-#      invisible here — there is no struct member for it to be missing
-#      from. Those are the ledger's C2 rows, and the ledger is the only
-#      instrument that finds them. This tool measures the gap between the
-#      HOMES and the panel; the ledger measures the gap between the
-#      PROGRAM and the panel, which is larger.
-#
-#   2. IT TRUSTS ITS OWN FILE TABLE. HOMES below maps each enrolled
-#      struct to the file that declares it, by hand. A bank born without
-#      a row here is simply not scanned, and the tool would report no gap
-#      for it — silence that reads like health. So the tool PRINTS ITS
-#      TABLE on every run: staleness is visible in the output rather than
-#      hidden in the source. Update it when a bank is born.
-#
-#   3. IT REPORTS AT THE GRANULARITY THE ENROLLMENT ADDRESSES. A line
-#      spelling `fog.gain` names the top-level member `fog`, so a bank
-#      whose nested aggregate is PARTLY enrolled reads as fully named.
-#      DriverSurface says 3/3 because fog, aura and checker each have at
-#      least one dial — not because every field inside them does. The
-#      same holds for `t[2].color_r` and `b[3].speed_cap`. Recursing
-#      would be a bigger tool than the job wants; the ledger carries the
-#      per-field truth for those five banks, and this line is here so the
-#      count is never read as more than it is.
-#
-# THE READER WITNESS (ORGAN_3c P1) — the one thing here that CAN fail.
-#
-# A GRADUATION IS COMPLETE when the design table's only remaining readers
-# are its own seed and its own asserts. ORGAN_3 w2 built PANEL_LIVE,
-# enrolled it, and left the readers on the constexprs — seven dials that
-# wrote a bank nothing read, found by hand a campaign later. That class of
-# defect is mechanical to detect, so from ORGAN_3c it is detected
-# mechanically: for every pair in PAIRS below, every word-boundary mention
-# of the DESIGN symbol anywhere in src/ is classified, and anything that is
-# not one of the lawful classes is a surviving runtime reader.
-#
-#   definition   the declaring statement itself
-#   seed         a statement that also names the LIVE bank (the seeding)
-#   static_assert  a proof about the authored table — its second job
-#   comment      prose, including a mention inside a message string
-#   constexpr    a COMPILE-TIME derivation (array sizing, a bound). Not in
-#                the handoff's D3 list, and added here on the evidence:
-#                gallery.hpp derives INDOOR_RADIUS_MAX from MOOD_TABLE's
-#                structural rows. A constexpr context CANNOT read a mutable
-#                inline bank — it is ill-formed, not merely awkward — and a
-#                value fixed at compile time is one the panel could never
-#                move, so calling it an incomplete graduation would be
-#                false. D7 already rules this case for the canvas: the
-#                constant stays on the design table. Printed always, never
-#                silent, and never a gate failure.
-#
-# --gate turns the witness into a check the harness family runs. The MAP
-# stays toothless (exit 0 always); only --gate can fail, and only on a
-# surviving reader — a judgement the tree makes, not one this tool makes.
-#
-# USAGE
-#   python3 tools/organ_gap.py            # the map
-#   python3 tools/organ_gap.py --brief    # counts only
-#   python3 tools/organ_gap.py --gate     # nonzero on a surviving reader
+# USAGE   organ_gap.py · --brief for counts · --gate to bite
 # ═══════════════════════════════════════════════════════════════════════
+
+# THE THREE BLIND SPOTS, said plainly rather than discovered later:
+#   1. IT CANNOT SEE HOMELESS CONSTANTS — an `inline constexpr` with no
+#      live home has no struct member to be missing from. This measures
+#      the gap between the HOMES and the panel; the ledger measures the
+#      gap between the PROGRAM and the panel, which is larger.
+
+#   2. IT TRUSTS ITS OWN FILE TABLE. HOMES below maps each enrolled struct
+#      to its declaring file by hand, and a bank with no row there is not
+#      scanned — silence that reads like health. So the tool PRINTS ITS
+#      TABLE on every run. Update it when a bank is born.
+
+#   3. IT REPORTS AT THE GRANULARITY THE ENROLLMENT ADDRESSES. A line
+#      spelling `fog.gain` names the top-level member `fog`, so a partly
+#      enrolled nested aggregate reads as fully named. The ledger carries
+#      the per-field truth.
+
+# THE READER WITNESS — the one thing here that CAN fail. A GRADUATION IS
+# COMPLETE when the design table's only remaining readers are its seed and
+# its asserts. Every word-boundary mention of a DESIGN symbol in src/ is
+# classified, and anything outside the five lawful classes below is a
+# surviving runtime reader. --gate is nonzero on one.
+
+#   definition     the declaring statement itself
+#   seed           a statement that also names the LIVE bank
+#   static_assert  a proof about the authored table — its second job
+#   comment        prose, including a mention inside a message string
+#   constexpr      a compile-time derivation: a constexpr context cannot
+#                  read a mutable bank, so the constant stays on the table
 
 import os
 import re
@@ -104,12 +67,12 @@ HOMES = {
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
     "IndoorSurface":         "src/cartridges/the_board/contracts/indoor_module.hpp",
     "CanvasSurface":         "src/coupling/canvas_surface.hpp",
-    # ORGAN_4 P3d — the two destructive banks the Wave-3 row was holding.
+    # the two destructive banks
     "WorldDrawSurface":      "src/cartridges/the_board/contracts/mood_constants.hpp",
     "RibbonSpawnSurface":    "src/cartridges/the_board/contracts/ribbon_surface.hpp",
 }
 
-# ─── THE GRADUATED PAIRS (ORGAN_3c — the reader witness) ──────────────
+# ─── THE GRADUATED PAIRS (the reader witness) ─────────────────────────
 # home struct -> (DESIGN symbol, LIVE bank symbol). A home with no pair
 # (the three GPU rooms) was never a graduation and has nothing to witness.
 PAIRS = {
@@ -199,7 +162,7 @@ def classify(code, kind, at, design, live):
     if re.search(r"constexpr\b[^;=]*\b" + re.escape(design) + r"\s*(\[[^\]]*\])?\s*=", stmt):
         return "definition"
     if re.search(r"\bconstexpr\b", stmt):
-        return "constexpr"        # D7: a compile-time consumer keeps its source
+        return "constexpr"        # a compile-time consumer keeps its source
     return "violation"
 
 
@@ -230,19 +193,17 @@ def reader_census():
     return found
 
 
-# ─── THE ENROLLMENT LIST ──────────────────────────────────────────────
-# The macro forms, and where the STRUCT and FIELD sit in each:
-#   ORGAN_PARAM        (BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL)
-#   ORGAN_PARAM_GEN    (the same, declared generational — ORGAN_3b)
-#   ORGAN_PARAM_DEF    (BLOCK, STRUCT, FIELD, ... , DEFKIND, DEFSTRUCT, DEFFIELD)
-#   ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL, DEFKIND, DEFSTRUCT, DEFFIELD)
-#   ORGAN_PARAM_RO     (BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
-#
-# ORGAN_3b P2 gave every form an `_NS` twin whose FIRST argument is the
-# enrolled struct's namespace. The two shapes are otherwise identical, so
-# this parser reads the suffix and shifts its indices by one rather than
-# carrying a second table — a namespace parameter that is invisible to the
-# enrollment lines should be nearly invisible here too.
+# ─── THE ENROLLMENT LIST — the macro forms, and where STRUCT and FIELD sit
+#   ORGAN_PARAM     (BLOCK, STRUCT, FIELD, TYPE, MIN, MAX, STEP, GROUP, LABEL)
+#   _GEN            the same, declared generational
+#   _DEF            the same, + DEFKIND, DEFSTRUCT, DEFFIELD
+#   _DEFONLY        (TYPE, MIN, MAX, STEP, GROUP, LABEL, DEFKIND, DEFSTRUCT, DEFFIELD)
+#   _RO             (BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
+
+# Every form has an `_NS` twin whose FIRST argument is the enrolled
+# struct's namespace. The two shapes are otherwise identical, so this
+# parser reads the suffix and shifts its indices by one rather than
+# carrying a second table.
 MACRO = re.compile(
     r"^(ORGAN_PARAM(?:_GEN|_DEF|_DEFONLY|_RO)?)(_NS)?\s*\((.*)\)\s*$")
 
@@ -416,13 +377,13 @@ def main():
     print("live home — cannot appear above. This tool measures the gap between")
     print("the HOMES and the panel; the ledger measures the gap between the")
     print("PROGRAM and the panel, which is larger.")
-    # ─── THE READER WITNESS (ORGAN_3c) ───────────────────────────────
+    # ─── THE READER WITNESS ──────────────────────────────────────────
     census = reader_census()
     print()
     print("THE READER WITNESS — every mention of a DESIGN symbol, classified.")
     print("A graduation is complete when the design table's only readers are")
     print("its seed and its asserts. Anything else is a surviving runtime")
-    print("reader, and the reason ORGAN_3 shipped seven dead dials.")
+    print("reader — the class of defect this witness exists to catch.")
     print()
     ORDER = ["definition", "seed", "static_assert", "constexpr", "comment", "violation"]
     violations = []
@@ -434,7 +395,7 @@ def main():
         print("  %-20s %-42s %s%s" % (design, counts or "(no mention anywhere)",
                                       "", flag))
         for path, ln, line in hits.get("constexpr", []):
-            print("        constexpr derivation (D7)  %s:%d  %s" % (path, ln, line[:60]))
+            print("        constexpr derivation  %s:%d  %s" % (path, ln, line[:60]))
         for path, ln, line in hits.get("violation", []):
             print("        VIOLATION  %s:%d  %s" % (path, ln, line[:64]))
             violations.append((design, path, ln, line))

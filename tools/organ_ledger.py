@@ -1,49 +1,30 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════
-# THE ORGAN'S OWN BOOK (ORGAN_4 P5) — organ_ledger.py
+# THE ORGAN'S OWN BOOK — organ_ledger.py
 #
-# WHAT THIS IS. The audit family's FIFTH member. BINDING, COMMAND,
-# MANIFEST and MIRROR each keep a generated book about one of the
-# program's rooms; the organ had instruments (organ_gap, organ_readers)
-# and no book. This emits it: audit/ORGAN.md, one committed markdown
-# table over every enrolled row, the tallies that summarise it, and the
-# tails of both check tools underneath.
+# It emits audit/ORGAN.md: one committed markdown table over every
+# enrolled row, the tallies that summarise it, and the tails of both check
+# tools underneath. A book and not only the tools, for two reasons:
 #
-# WHY A BOOK AND NOT JUST THE TOOLS. Two reasons, and the second is the
-# larger one.
-#
-#   · SEARCHABILITY. `audit/MANIFEST.md` and `audit/BINDING_LEDGER.md`
-#     are law and stay searchable (CLAUDE.md). A question like "what is
-#     the range on the cohesion radius" should be answerable by grepping
-#     a file in the tree, not by building the program and opening a
-#     panel.
+#   · SEARCHABILITY. "What is the range on the cohesion radius" should be
+#     answerable by grepping the tree, not by opening a panel.
 #   · THE COUPLING MENU. A coupling is a parameter set into trajectory
 #     over time, so EVERY ROW WITH AN AUTHORED RANGE IS A TRAJECTORY
-#     DOMAIN. This table is the music campaign's target map — the (min,
-#     max) column is the domain a trajectory would play over, and the
-#     cadence column says whether playing it would be heard now, at a
-#     boundary, or at the author's next event.
+#     DOMAIN: this table is the music campaign's target map.
 #
-# THE PARSER IS THE ONE organ_gap.py AND organ_readers.py USE, for the
-# reason the compiled registry exists at all: three copies of the same
-# reading can drift, and the .inc is the one authority. What is added
-# here is the DERIVATION the C++ does — `derived_cadence()` restated
-# once, in Python, against the same rules organ_registry.hpp states in
-# C++, so the book and the manifest cannot disagree about what a row
-# means. If they ever do, this file is wrong and the header is where to
-# look first.
-#
-# THE DOOR TABLE is parsed out of organ_registry.hpp's `kOrganDoors`
-# rather than restated, for the same reason.
-#
-# USAGE
-#   python3 tools/organ_ledger.py              # write audit/ORGAN.md
-#   python3 tools/organ_ledger.py --check      # print, write nothing
-#   python3 tools/organ_ledger.py -o PATH      # write elsewhere
-#
-# LF, no BOM, single trailing newline — verified by read-back, the
-# binding_ledger G2-eol precedent.
+# USAGE   organ_ledger.py · --check to print · -o PATH to write elsewhere
 # ═══════════════════════════════════════════════════════════════════════
+
+# THE PARSER IS tools/organ_parse.py, the one organ_gap.py and
+# organ_readers.py import, because three copies of one reading can drift.
+# What is added here is the DERIVATION the C++ does: `derived_cadence()`
+# restated once, against the rules organ_registry.hpp states in C++, so
+# the book and the manifest cannot disagree about what a row means. If
+# they ever do, this file is wrong.
+
+# THE DOOR TABLE is parsed out of organ_registry.hpp's `kOrganDoors`
+# rather than restated, for the same reason. LF, no BOM, single trailing
+# newline — pinned by the writer and proved by a byte-level read-back.
 
 import os
 import re

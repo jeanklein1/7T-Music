@@ -1,58 +1,39 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════
-# THE SHELL GATE (ORGAN_6 P7) — the seam between the C++ organ and its
-# panel, proved per commit
+# THE SHELL GATE — the seam between the C++ organ and its panel, proved
+# per commit. Both sides are parsed from the tree; neither is trusted.
+# TOOTHED (L33, gates under tools/gates/): any violation exits nonzero.
 #
-# WHY THIS EXISTS. The C++ organ is proved by five instruments and a
-# compiled registry: organ_gap maps what the panel does not name,
-# organ_readers finds a declared reader for every enrolled field,
-# organ_ledger keeps the book, console_gate type-checks the translation
-# units, and the native harness runs the table. The SHELL was proved by
-# nothing that outlived a campaign — a shim written to answer one round's
-# question and thrown away with it.
-#
-# So when ORGAN_3b P3 minted a SECOND definition-only sentinel (254,
-# beside 255) and web/organ_panel.js kept one number, nothing in the tree
-# could say so. Nineteen orb dials died the moment the operator pressed
-# `preview`, the panel printed `rejected 19` with no name attached, and
-# the defect sat behind that live counter for two campaigns. Not because
-# a witness was weak — because there was no witness at all.
-#
-# WHAT IT PROVES. Six claims, each a FACT the C++ owns and the shell
-# copies. Both sides are parsed from the tree; neither is trusted.
-#
-#   1. the shell names no block sentinel      — P1's defect, caught the day it is made
+# THE SIX CHECKS, each a FACT the C++ owns and the shell copies:
+#   1. the shell names no block sentinel      — it asks the manifest instead
 #   2. the type enum agrees                   — ORGAN_F32 … ORGAN_VEC4
 #   3. the cadence table is the right length  — a fifth ORGAN_CAD_* fails here
-#   4. the scope constants agree              — ORGAN_SCOPE_WORLD, the one number P2 leaves
-#   5. RULE_NAMES is the right length         — the ORGAN_5 P2b ruled exception, now proven
-#   6. every cwrap reaches a real export      — at the matching arity (a P3-shaped
-#                                               change made on one side only)
-#
+#   4. the scope constants agree              — ORGAN_SCOPE_WORLD, the one
+#                                               number the shell compares
+#   5. RULE_NAMES is the right length         — the one ruled exception to
+#                                               name-blindness, proven
+#   6. every cwrap reaches a real export      — at the matching arity
+# ═══════════════════════════════════════════════════════════════════════
+
 # WHAT IT DOES NOT PROVE, said plainly rather than discovered later:
-#
+
 #   · IT READS TEXT, NOT BEHAVIOUR. Nothing is compiled, nothing is run,
 #     no browser opens. A name that agrees can still be used wrongly.
-#
-#   · IT CANNOT SEE A VALUE PASSED WRONGLY. Check 6 counts parameters; it
+
+#   · IT CANNOT SEE A VALUE PASSED WRONGLY. Check 6 counts parameters and
 #     has no opinion about WHICH index or WHICH lane the shell puts in
-#     them. organ_get(block, offset) and organ_get(index, lane) are both
-#     two numbers, and only the first check-family — the C++'s own
-#     harness — can tell those apart.
-#
+#     them: organ_get(block, offset) and organ_get(index, lane) are both
+#     two numbers.
+
 #   · CHECK 1 READS A GRAMMAR, NOT AN INTEGER. It flags a sentinel value
 #     that is BOUND (`= 255`, `[255, 254]`) or COMPARED (`=== 255`), and
-#     not one reached by arithmetic or carried in a string. That is the
-#     price of not firing on `f * 255` in the shell's hex-colour helpers,
-#     which is the eight-bit colour maximum and not a block id.
-#
-#   · IT IS DELIBERATELY NARROW. It proves the SEAM, not the shell. The
+#     not one reached by arithmetic or carried in a string — the price of
+#     not firing on `f * 255` in the shell's hex-colour helpers.
+
+#   · IT IS DELIBERATELY NARROW. It proves the SEAM, not the shell: the
 #     panel's layout, its refresh, its export keying and every line of its
-#     DOM are outside this gate's claim; the web boot remains the witness
-#     of record for all of it (ATLAS_1revB).
-#
-# TOOTHED (L33, gates under tools/gates/): any violation exits nonzero.
-# ═══════════════════════════════════════════════════════════════════════
+#     DOM are outside this gate's claim, and the web boot remains the
+#     witness of record for all of it.
 import os
 import re
 import sys
@@ -71,10 +52,9 @@ def read(path):
 
 # ─── THE SHELL, WITH ITS PROSE REMOVED ────────────────────────────────
 # Check 1 asks whether the shell NAMES a number, and a comment that
-# discusses one is not the shell naming it. So comments, strings and
-# regex literals come out first — a scanner rather than a regex, because
-# `/[^a-z0-9]+/g` and `'it\'s'` both defeat the naive version and both
-# are in this file.
+# discusses one is not the shell naming it. So comments, strings and regex
+# literals come out first — a scanner rather than a regex, because
+# `/[^a-z0-9]+/g` and `'it\'s'` both defeat the naive version.
 def strip_js(src):
     out = []
     i, n = 0, len(src)
@@ -216,24 +196,19 @@ def main():
         if not ok:
             violations.append("%d. %s — %s" % (num, claim, detail))
 
-    print("── SHELL GATE (ORGAN_6 P7): the seam between organ_registry.hpp "
+    print("── SHELL GATE: the seam between organ_registry.hpp "
           "and organ_panel.js ──")
 
     # ── 1. THE SHELL NAMES NO BLOCK SENTINEL ──────────────────────────
-    # The check that would have caught P1 the day it was made. Every
-    # ORGAN_BLOCK_NONE* value is a C++ number, and the shell asks the
-    # manifest (`inst`) rather than holding one.
-    # NAMING is what this asks about, and naming has a grammar: the
+    # Every ORGAN_BLOCK_NONE* value is a C++ number, and the shell asks the
+    # manifest (`inst`) rather than holding one. NAMING has a grammar: the
     # number is BOUND to something (`var DEFONLY = 255`, `[255, 254]`) or
-    # COMPARED against something (`p.block === 255`). Both forms of P1's
-    # defect are here, and its P1-era fix — a list — is here too.
-    #
-    # Arithmetic is NOT naming: `f * 255` and `parseInt(...) / 255` are
-    # the eight-bit colour maximum in this file's hex helpers, and a
-    # check that reads those as block sentinels cries wolf on its first
-    # run and is turned off by its second. The blind spot is the cost and
-    # is stated in the header: a sentinel reached by arithmetic, or held
-    # as a string, is invisible here.
+    # COMPARED against something (`p.block === 255`).
+
+    # Arithmetic is NOT naming: `f * 255` and `parseInt(...) / 255` are the
+    # eight-bit colour maximum in this file's hex helpers, and a check that
+    # read those as block sentinels would cry wolf on its first run. The
+    # blind spot is the cost, and the header states it.
     sentinels = enum_values(hdr, "ORGAN_BLOCK_NONE")
     named = []
     for name, val in sorted(sentinels.items(), key=lambda kv: -kv[1]):
@@ -243,11 +218,8 @@ def main():
             after = shell[m.end():m.end() + 24]
             # BOUND: a lone `=` (assignment), or a container/argument
             # position. COMPARED: any relational or equality operator on
-            # either side. The lone-`=` lookbehind is what separates
-            # `var DEFONLY = 255` from `p.block === 255` — both are hits,
-            # but reading the first as the second is how this check
-            # reported GREEN on `var SENTINEL = 255;` the first time it
-            # was asked to bite.
+            # either side. The lone-`=` lookbehind separates
+            # `var DEFONLY = 255` from `p.block === 255`; both are hits.
             CMP = r"(?:[=!]=+|[<>]=?)"
             bound = bool(re.search(r"(?<![=!<>])=\s*$", before)
                          or re.search(r"[\[,(]\s*$", before))
@@ -293,7 +265,7 @@ def main():
           % (len(cads), "absent" if js_cad is None else js_cad))
 
     # ── 4. THE SCOPE CONSTANTS AGREE ──────────────────────────────────
-    # ORGAN_SCOPE_WORLD is the one number P2 leaves the shell comparing
+    # ORGAN_SCOPE_WORLD is the one number the shell still compares
     # against, so it is the one number that can drift.
     scopes = enum_values(hdr, "ORGAN_SCOPE_")
     world = scopes.get("ORGAN_SCOPE_WORLD")
@@ -306,10 +278,8 @@ def main():
           % (world, js_cmp if js_cmp else "nothing"))
 
     # ── 5. RULE_NAMES IS THE RIGHT LENGTH ─────────────────────────────
-    # ORGAN_5 P2b's ONE ruled exception to name-blindness: four strings
-    # whose ORDER is the contract with bodies/orbs.hpp and world.wgsl.
-    # The ORGAN_5 report named this as a thing a successor should not
-    # trust silently. Now it does not have to.
+    # THE ONE RULED EXCEPTION to name-blindness: four strings whose ORDER
+    # is the contract with bodies/orbs.hpp and world.wgsl.
     rules = enum_values(orbs, "ORB_RULE_")
     js_rules = js_array_len(shell, "RULE_NAMES")
     check(bool(rules) and js_rules == len(rules), 5,
@@ -318,9 +288,9 @@ def main():
           % (len(rules), "absent" if js_rules is None else js_rules))
 
     # ── 6. EVERY CWRAP REACHES A REAL EXPORT, AT THE RIGHT ARITY ──────
-    # This one would have caught a P3-shaped change made on one side
-    # only: organ_get lost a parameter in the header, and a shell still
-    # spelling three would have failed here rather than in Jean's build.
+    # A change made on one side only — an export losing a parameter while
+    # the shell still spells the old count — fails here rather than in the
+    # build.
     arity = keepalive_arity(hdr)
     wraps = []
     for m in re.finditer(

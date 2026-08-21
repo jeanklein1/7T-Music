@@ -1,94 +1,55 @@
 // ═══════════════════════════════════════════════════════════════════════
-// ORGAN — THE PANEL SHELL (ORGAN_0c)
+// ORGAN — THE PANEL SHELL
 //
-// A VIEW of the program (docs/ORGAN.md). Every row here is drawn from the
-// manifest the C++ registry emits, so this file knows no parameter names,
-// no ranges and no offsets — enroll a dial in organ_params.inc and it
-// appears; remove one and it stops. There is nothing to keep in step.
-//
-// ACCESS. Without ?organ=1 AND without ?preset=<name> this file returns on
-// its first statement: no DOM, no stylesheet, no timer, no ccall. The
-// audience path is byte-identical, and that is why the file may ship
-// unconditionally. ORGAN_4 P6 added the second flag and kept that promise:
-// an exhibition boot names a scene and gets no panel, a plain visit names
-// neither and pays nothing.
-//
-// DEFINITION OR PREVIEW (O1b). A dial marked * has a mood DEFINITION
-// behind its home. In definition mode — the default — writing it changes
-// what the live mood MEANS and lets the program's own mood apply produce
-// the picture; the edit survives the next mood change. In preview mode the
-// write goes to the instance, which is immediate and temporary. Dials
-// without a * have no definition to write and behave the same either way.
-//
-// CONTEST MARKERS (O1a). Every row carries the C++ instrument's reading of
-// whether the panel's last word on that dial still stands — free / event /
-// frame, with the number of frames it stood. The panel does not compute
-// this and cannot: only the program can see its own homes between frames.
-// A row shows a dot until this session has written it, because an unasked
-// question has no answer.
-//
-// AESTHETIC BOUND. This is an instrument, not the art. Monospace, one dark
-// column, no animation, no branding. The art stays on the canvas.
+// A VIEW of the program (docs/ORGAN.md). Every row is drawn from the
+// manifest the C++ registry emits, so THE SHELL IS NAME-BLIND: no parameter,
+// range, offset, block or kind. Enroll a dial and it appears; remove one and
+// it stops. ACCESS: without ?organ=1 AND without ?preset=<name> this file
+// returns on its second statement — no DOM, no stylesheet, no timer, no
+// ccall — so the audience path is byte-identical. NO STORAGE OF ANY KIND:
+// width, open sections, lens and preset choice are session state, and the
+// URL carries a choice between sessions. This is an instrument, not the art.
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
   'use strict';
-  // ORGAN_4 P6 — TWO REASONS TO WAKE, NOT ONE. `?organ=1` opens the panel;
+  // TWO REASONS TO WAKE, NOT ONE. `?organ=1` opens the panel;
   // `?preset=<name>` applies a scene. An EXHIBITION boots with the second
-  // and not the first — São Paulo wants the design, not the instrument —
-  // so gating the whole file on `organ=1` would have made the preset layer
-  // reachable only by someone already holding the panel open, which is the
-  // opposite of what it is for. A plain visitor still pays nothing: with
-  // neither flag this file returns on its second statement, as before.
+  // and not the first, so the preset layer must not be gated on the panel.
   var Q = new URLSearchParams(location.search);
   var WANT_PANEL = Q.get('organ') === '1';
   var WANT_PRESET = Q.get('preset');
   if (!WANT_PANEL && !WANT_PRESET) return;
 
   var F32 = 0, U32 = 1, BOOL = 2, VEC3 = 3, VEC4 = 4;
-  // ORGAN_6 — THE SHELL KNOWS NO NUMBERS. It asked two questions of the
-  // manifest's raw columns and answered them here, in JS, from copies of
-  // C++ enum values: which blocks are def-only sentinels, and which kinds
-  // are world-scoped. Both are now DERIVED in organ_registry.hpp and
-  // EMITTED — `inst` and `scope` — the same move derived_cadence already
-  // made for `cad`, and for the same reason: a rule with two homes drifts,
-  // and this one did. A sixth definition family costs one line there and
-  // none here.
+  // THE SHELL KNOWS NO NUMBERS: which blocks are def-only sentinels and
+  // which kinds are world-scoped are DERIVED in organ_registry.hpp and
+  // emitted, as `cad` already is. A rule with two homes drifts.
   //
   //   p.inst   1 the panel may address an instance · 0 definition only
   //   p.scope  0 no definition · 1 mood-selected · 2 the world's
 
-  // ORGAN_3b — CADENCE. The manifest's "cad" says WHEN a stop sounds; the
-  // C++ derives it, this file only prints it. Live is SILENT on purpose:
-  // silence is the default state of a working dial, and a chip on every
-  // row would be noise rather than information. The other three each
-  // answer a question the operator would otherwise have to ask the source.
+  // CADENCE. The manifest's "cad" says WHEN a stop sounds; the C++ derives
+  // it and this file only prints it. LIVE is silent on purpose: silence is
+  // a working dial's default, and a chip on every row would be noise.
   var CAD = [null, 'on respawn', 'boundary', 'driven'];
 
-  // ── ORGAN_5 P2b — THE ONE RULED EXCEPTION TO NAME-BLINDNESS (D3) ──
-  // Four strings. THE AUTHORITY IS bodies/orbs.hpp — `RULE_NAMES` beside
-  // cycle_orb_motion_rule, and the ORB_RULE_* constants the kernel's own
-  // dispatch tests (`orb_config.motion_rule == 0u` … in world.wgsl).
-  // Their ORDER is the contract; a fifth rule adds a string here and a
-  // branch there, and both fail loudly rather than silently.
-  //
+  // ── THE ONE RULED EXCEPTION TO NAME-BLINDNESS ─────────────────────
+  // Four strings, and THE AUTHORITY IS bodies/orbs.hpp — `RULE_NAMES`
+  // beside cycle_orb_motion_rule, and the ORB_RULE_* constants world.wgsl
+  // dispatches on. Their ORDER is the contract.
+
   // Everything else about the rule readout stays name-blind: which GROUPS
-  // are rule-scoped is derived from the group's own name below, not
-  // listed, and which DOORS cycle the rule is never asked — the readout
-  // sits under the whole door bar, so renumbering a door cannot move it
-  // onto the wrong button.
+  // are rule-scoped is derived from the group's own name below, and which
+  // DOORS cycle the rule is never asked — the readout sits under the whole
+  // bar, so renumbering a door cannot move it onto the wrong button.
   var RULE_NAMES = ['brownian', 'orbital', 'frozen', 'flocking'];
 
-  // ── ORGAN_5 P5b — WHICH BUILD IS THIS? ────────────────────────────
+  // ── WHICH BUILD IS THIS? ──────────────────────────────────────────
   // index.html sets window.T7_BUILD_ID from the same `BUILD` variable it
-  // versions every script URL with (BUILDID_0), so the footer names the
-  // bytes the visitor is actually running. Two devices showing different
-  // ids are not the same program, and "count works here and not there"
-  // stops being a mystery and becomes a fact one glance settles.
-  //
-  // ABSENT IS NOT AN ERROR. Opening web/index.html directly leaves the
-  // placeholder unsubstituted, and a page that predates this line has no
-  // global at all; either way the footer simply says nothing rather than
-  // printing a lie about provenance.
+  // versions every script URL with, so the footer names the bytes the
+  // visitor is running. ABSENT IS NOT AN ERROR: opening web/index.html
+  // directly leaves the placeholder unsubstituted, and the footer then
+  // says nothing rather than printing a lie about provenance.
   var BUILD_ID = (typeof window !== 'undefined' && window.T7_BUILD_ID) || '';
   var BUILD_OK = BUILD_ID && BUILD_ID.indexOf('_') < 0;   // not the placeholder
   var BUILD_TAG = BUILD_OK ? ('build ' + BUILD_ID + '  \u00b7  ') : '';
@@ -102,27 +63,25 @@
     if (!m) return -1;
     return RULE_NAMES.indexOf(m[2].toLowerCase());
   }
-  // ATMOS_1b/2 — a group whose name ends "Regime N" is scoped to that
-  // regime, read from the name as ruleOfGroup reads its rule. N is the
-  // label's number; the draw's regime is the Atmosphere.regime[] index,
-  // so "Regime 1" -> 0. Adding a regime group in the .inc needs no edit
-  // here; the operator never sees the index.
+  // A group whose name ends "Regime N" is scoped to that regime, read from
+  // the name as ruleOfGroup reads its rule. N is the label's number and the
+  // draw's regime is the Atmosphere.regime[] index, so "Regime 1" -> 0:
+  // the operator never sees the index.
   function regimeOfGroup(name) {
     var m = /\bRegime (\d)$/.exec(name || '');
     return m ? parseInt(m[1], 10) - 1 : -1;
   }
-  var SEP = ' \u00b7 ';         // ORGAN_3 — the group path's separator
+  var SEP = ' \u00b7 ';         // the group path's separator
   var lanes = function (t) { return t === VEC3 ? 3 : t === VEC4 ? 4 : 1; };
 
-  // ── ORGAN_3c P0 — THE GRID'S FIXED PARTS, IN ONE HOME ─────────────
+  // ── THE GRID'S FIXED PARTS, IN ONE HOME ───────────────────────────
   // Every fixed width the row grid uses is a CSS custom property on
-  // #organ, and W_MIN below is COMPUTED from the same numbers. The
-  // stylesheet and the resize clamp therefore cannot disagree, which is
-  // the only way "nothing overlaps at any lawful width" stays true (D2)
-  // — a hardcoded minimum is a guess, and a guess is how overlap returns.
+  // #organ, and W_MIN below is COMPUTED from the same numbers, so the
+  // stylesheet and the resize clamp cannot disagree. A hardcoded minimum
+  // is a guess, and a guess is how overlap returns.
   var G = {
     pad:    10,   // #organ horizontal padding, per side
-    grip:    6,   // ORGAN_3d — the resize gutter, ADDED to the left padding
+    grip:    6,   // the resize gutter, ADDED to the left padding
     border:  1,   // #organ border-left — inside the width, see box-sizing
     body:    2,   // details.sec .body padding-left
     hdgap:   4,   // line 1 column gap
@@ -135,21 +94,16 @@
     val:     56   // the value box: ~7ch, right-aligned, plus border+padding
   };
   // Line 1 governs the minimum; line 2 is narrower by construction.
-  //
-  // ORGAN_3d — THE MODEL IS NOW EXACT, NOT MERELY CONSERVATIVE. #organ is
-  // box-sizing:border-box, so `width` is the whole panel: border, both
-  // paddings and the content column. Before this the panel was content-box
-  // and `width` named only the column, which is why the grip — positioned
-  // off `width` — landed 21px inside the content it was meant to sit
-  // beside, and why `min(640, 50vw)` was quietly a 661px panel. The grip
-  // gutter is ADDED to the left padding rather than replacing it, so the
-  // rows keep the breathing room the right side has.
+  // #organ is box-sizing:border-box, so `width` is the WHOLE panel:
+  // border, both paddings and the content column. The grip gutter is ADDED
+  // to the left padding rather than replacing it, so the rows keep the
+  // breathing room the right side has.
   var W_MIN = G.border + (G.pad + G.grip) + G.pad + G.body
                        + G.lblmin + 3 * G.hdgap + G.sw + G.mk + G.chip;
   var W_DEF = 330;
   function wMax() {
     var half = Math.floor((window.innerWidth || 1280) / 2);
-    return Math.max(W_MIN, Math.min(640, half));   // D2
+    return Math.max(W_MIN, Math.min(640, half));
   }
   var px = function (n) { return n + 'px'; };
 
@@ -163,16 +117,16 @@
     'max-height:100vh;overflow-y:auto;' +
     'background:#0d0f12;color:#c8ccd2;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;' +
     'border-left:' + px(G.border) + ' solid #262b33;z-index:9999;' +
-    // ORGAN_3d — the gutter is the grip's alone. The left padding carries
-    // it in ADDITION to the panel's own inset, so the content column is
-    // never under the strip and the rows keep the right side's margin.
+    // The gutter is the grip's alone: the left padding carries it in
+    // ADDITION to the panel's own inset, so the content column is never
+    // under the strip and the rows keep the right side's margin.
     'padding:8px var(--pad) 14px calc(var(--pad) + var(--grip-w))}' +
     '#organ.hidden{display:none}' +
     '#organ h1{font-size:11px;letter-spacing:.14em;color:#7d8894;margin:2px 0 10px;font-weight:400}' +
     '#organ h2{font-size:10px;letter-spacing:.1em;color:#5c93c4;margin:12px 0 4px;font-weight:400;' +
     'border-bottom:1px solid #1d222a;padding-bottom:2px}' +
-    // ORGAN_3 — SECTIONS. Native <details>, so the open/closed state is the
-    // browser's and this file keeps none: no JS, no animation, no third level.
+    // SECTIONS. Native <details>, so the open/closed state is the browser's
+    // and this file keeps none: no JS, no animation, no third level.
     '#organ details.sec{margin:10px 0 0;border-top:1px solid #262b33;padding-top:4px}' +
     '#organ details.sec>summary{font-size:11px;letter-spacing:.16em;color:#8fa3b8;' +
     'cursor:pointer;padding:2px 0;text-transform:uppercase;outline:none}' +
@@ -181,14 +135,12 @@
     '#organ details.sec>summary .n{color:#4f5761;letter-spacing:0;font-size:10px}' +
     '#organ details.sec .body{padding-left:2px}' +
     '#organ details.sec .body h2:first-child{margin-top:6px}' +
-    // ── ORGAN_3c P0 — THE ROW GRID ───────────────────────────────────
-    // Two lines, both grids, columns placed EXPLICITLY so a row with no
-    // swatch and no chip still lines its markers up with the row above.
+    // ── THE ROW GRID. Two lines, both grids, columns placed EXPLICITLY,
+    // so a row with no swatch and no chip lines its markers up with the row
+    // above. The label ellipsis is the only thing that gives, and it hands
+    // what it hid to the title.
     //   line 1  [ label ……………………………  sw  mk  chip ]
     //   line 2  [ slider ——————————————————— | value ]
-    // The label ellipsis is the only thing that gives, and it hands what
-    // it hid to the title. Nothing else may shrink past its floor, so a
-    // slider can never end up behind the number — Jean's acceptance test.
     '#organ .hd{display:grid;align-items:center;column-gap:var(--hdgap);margin:5px 0 0;' +
     'grid-template-columns:minmax(var(--lblmin),1fr) var(--sw) var(--mk) var(--chip)}' +
     '#organ .ln{display:grid;align-items:center;column-gap:var(--gap);margin:1px 0 2px;' +
@@ -205,10 +157,9 @@
     'background:#14181d;border:1px solid #262b33;padding:0}' +
     '#organ .ro{grid-column:2;text-align:right;color:#8fa3b8;' +
     'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    // ORGAN_3b — the cadence chip. One rule, three modifiers, no colour
-    // louder than the existing accent; the panel is an instrument.
-    // ORGAN_3c moved it to the label line: it never again competes with
-    // a control for width, so it costs the slider nothing.
+    // The cadence chip. One rule, three modifiers, no colour louder than
+    // the existing accent; the panel is an instrument. It rides the label
+    // line, so it never competes with a control for width.
     '#organ .cad{grid-column:4;box-sizing:border-box;width:var(--chip);text-align:center;' +
     'font-size:9px;letter-spacing:.06em;color:#4f5761;overflow:hidden;white-space:nowrap;' +
     'border:1px solid #262b33;border-radius:2px;padding:0 2px}' +
@@ -221,24 +172,15 @@
     '#organ .mk.event{color:#b0954e}' +
     '#organ .mk.frame{color:#b0644e}' +
     '#organ .legend{color:#4f5761;margin-top:3px}' +
-    // ── ORGAN_3d — THE GRIP TAKES ITS OWN GUTTER ─────────────────────
+    // ── THE GRIP TAKES ITS OWN GUTTER ────────────────────────────────
     // THE VISIBLE LINE IS THE PANEL'S OWN BORDER. The grip draws nothing:
     // it is an invisible hit strip flush inside that border, in a gutter
-    // the padding reserves for it, so it shares no pixel with any control.
-    // ORGAN_3c positioned it off `width` while the panel was content-box,
-    // which put it 21px into the content column — it ate the sliders'
-    // leftmost pixels and clipped every label's first glyph. Nothing is
-    // computed here any more; CSS puts it where it belongs.
-    //
-    // IT STAYS FIXED, and that is deliberate. #organ scrolls (263 rows of
-    // two lines), and an absolutely-positioned child of a scroll container
-    // rides the scrolled content — the gutter would be grabbable only near
-    // the top. Fixed keeps it whole at every scroll position, which is the
-    // one thing ORGAN_3c's grip did get right. Under box-sizing:border-box
-    // its horizontal placement is no longer a guess: the panel spans
-    // viewport-right 0..width, the border owns the last pixel of that, and
-    // the gutter is the --grip-w beneath it. #organ is already
-    // position:fixed, so it needs no position:relative to hold a child.
+    // the padding reserves, so it shares no pixel with any control.
+
+    // IT STAYS FIXED. #organ scrolls, and an absolutely-positioned child of
+    // a scroll container rides the scrolled content — the gutter would be
+    // grabbable only near the top. #organ is itself position:fixed, so it
+    // needs no position:relative to hold a child.
     '#organ .grip{position:fixed;top:0;bottom:0;width:var(--grip-w);' +
     'cursor:ew-resize;z-index:10000;background:transparent}' +
     // The affordance is the border brightening, plus the cursor. One line,
@@ -249,37 +191,33 @@
     '#organ button:hover{border-color:#5c93c4}' +
     '#organ button.on{background:#1d2a36;border-color:#5c93c4;color:#cfe0ef}' +
     '#organ .star{color:#5c93c4}' +
-    // LENS_1 — the kin marker: under ALL, a label whose regimes disagree.
+    // The kin marker: under ALL, a label whose regimes disagree.
     '#organ .hd.kin .lbl::after{content:" \\2260";color:#5c93c4}' +
     '#organ .foot{margin-top:12px;padding-top:6px;border-top:1px solid #1d222a;color:#6b7480}' +
     '#organ .bar{display:flex;gap:6px;margin-bottom:6px}' +
     '#organ .bar.doors{margin:-2px 0 8px;flex-wrap:wrap}' +
     '#organ .bar.doors button{color:#9fb3c8;border-color:#2c3a46}' +
     '#organ .bar.doors button:hover{border-color:#5c93c4;color:#cfe0ef}' +
-    // ORGAN_3b P4 — NAVIGATION. A filter field and a per-section export
-    // affordance; nothing else, because a dev instrument that grows a
-    // chrome grows a maintenance bill the artwork never asked for.
+    // NAVIGATION. A filter field and a per-section export affordance;
+    // nothing else, because a dev instrument that grows a chrome grows a
+    // maintenance bill the artwork never asked for.
     '#organ .find{display:block;width:100%;box-sizing:border-box;margin:0 0 6px;' +
     'background:#14181d;color:#c8ccd2;border:1px solid #262b33;font:inherit;padding:3px 5px}' +
     '#organ .find:focus{outline:none;border-color:#5c93c4}' +
     '#organ details.sec>summary .sx{float:right;background:none;border:0;color:#4f5761;' +
     'font:inherit;padding:0 2px;cursor:pointer;letter-spacing:0}' +
     '#organ details.sec>summary .sx:hover{color:#5c93c4}' +
-    // ORGAN_4 P6 — a select in a bar, dressed as the buttons beside it so
-    // the bar reads as one row rather than as a native control dropped in.
-    // ATMOS_1 — the law was always about a select in a bar, not about
-    // presets, so the selector says that and the mood door inherits it.
+    // A select in a bar, dressed as the buttons beside it so the bar reads
+    // as one row rather than a native control dropped in. The selector is
+    // written for any select in a bar, so the mood door inherits it.
     '#organ .bar select{background:#14181d;color:#c8ccd2;' +
     'border:1px solid #303742;font:inherit;padding:3px 6px;cursor:pointer}' +
     '#organ .bar select:hover{border-color:#5c93c4}' +
-    // ORGAN_5 P2b — THE RULE READOUT. Two shapes, one voice: a line under
-    // the door bar (the sky's live rule, beside the buttons that cycle
-    // it) and a line under each rule-scoped group's header (which rule
-    // or regime THESE rows act in, and whether it is the live one —
-    // the regime line since ATMOS_1b). Dim when the group is dormant, lit
-    // when it is the rule in force — the operator
-    // learns "nothing is moving because this rule is not on" at a glance,
-    // which is the whole defect this phase exists to end.
+    // THE RULE READOUT. Two shapes, one voice: a line under the door bar
+    // (the sky's live rule, beside the buttons that cycle it) and a line
+    // under each rule- or regime-scoped group's header. Dim when the group
+    // is dormant, lit when it is in force, so the operator learns "nothing
+    // is moving because this rule is not on" at a glance.
     '#organ .rulenow{margin:-4px 0 8px;color:#7d8894;font-size:10px;' +
     'letter-spacing:.04em}' +
     '#organ .rulenow b{color:#cfe0ef;font-weight:400}' +
@@ -287,11 +225,10 @@
     'color:#5b636d;letter-spacing:.03em}' +
     '#organ .rulescope.on{color:#8fb98f}' +
     '#organ .rulescope.off{color:#6b7480}' +
-    // ── ORGAN_5 P4 — MINIMIZED IS A STATE, NOT A SCROLL ──────────────
-    // The header becomes a row so the title and the minimize button share
-    // one line; the button is 44x44 because that is the smallest target a
-    // thumb hits reliably, and the panel is now used on a phone. Its GLYPH
-    // is small — the target is generous, the mark is quiet.
+    // ── MINIMIZED IS A STATE, NOT A SCROLL ───────────────────────────
+    // The header is a row, so the title and the minimize button share one
+    // line. The button is 44x44 because that is the smallest target a thumb
+    // hits reliably; its glyph is small — generous target, quiet mark.
     '#organ .head{display:flex;align-items:center;gap:6px;margin:2px 0 10px}' +
     '#organ .head h1{margin:0;flex:1 1 auto;overflow:hidden;' +
     'text-overflow:ellipsis;white-space:nowrap}' +
@@ -312,19 +249,19 @@
 
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
-  var MANIFEST = null;          // ORGAN_4 P6 — bound at boot, panel or not
+  var MANIFEST = null;          // bound at boot, panel or not
   var rowsById = {};            // id -> row, filled by build() when it runs
-  // LENS_1 — the regime lens. `lens` is 'live', 'all' or a regime index;
-  // `regimeKin` maps "<group sans Regime N>|<label>" to the rows that are
-  // the same dial in every regime (filled by build()); `lensAll` is the
-  // fan-out switch push() reads. Session state, never storage.
+  // The regime lens. `lens` is 'live', 'all' or a regime index; `regimeKin`
+  // maps "<group sans Regime N>|<label>" to the rows that are the same dial
+  // in every regime (filled by build()); `lensAll` is the fan-out switch
+  // push() reads. Session state, never storage.
   var lens = 'live';
   var lensAll = false;
   var regimeKin = {};
   var importNote = '';
   var touched = {};             // manifest index -> this session has written it
   var CLASS = ['free', 'event', 'frame'];   // organ_contest's three readings
-  var definitionMode = true;    // O1b — the durable write is the default one
+  var definitionMode = true;    // the durable write is the default one
 
   function clamp(v, p) { return v < p.min ? p.min : v > p.max ? p.max : v; }
   // %.4g, so a meter reads like the manifest's own numbers. JS has no printf:
@@ -362,47 +299,33 @@
   // C++ — the panel does not need to know which, and asking here would put
   // the routing in two places.
   function push(p, v) {
-    // The write is also the question the contest instrument answers: until
-    // the panel has said something, there is nothing for another author to
-    // contradict. A definition write is NOT that question — it never
-    // touches the instance — so only the preview path marks the dial.
-    //
-    // A DEFINITION-ONLY DIAL HAS NO PREVIEW (ORGAN_2b, block NONE): there
-    // is no instance for one to show, and −1 would only ring the reject
-    // counter. It targets the live mood whatever the toggle says.
+    // The write is also the question the contest instrument answers: a
+    // definition write never touches the instance, so only the preview path
+    // marks the dial. A DEFINITION-ONLY DIAL HAS NO PREVIEW — there is no
+    // instance for one to show, and −1 would only ring the reject counter,
+    // so it targets the live mood whatever the toggle says.
     var target = (!p.inst || definitionMode) ? C.mood() : -1;
-    // ORGAN_6 CODA — THE MARK IS organ_set's OWN LINE, TRANSCRIBED. The
-    // contest question is asked by an INSTANCE write and by nothing else,
-    // and the C++ decides that in one statement:
-    //
+    // THE MARK IS organ_set's OWN LINE, TRANSCRIBED — the contest question
+    // is asked by an INSTANCE write and by nothing else:
     //     if (target >= 0 && write_definition(...)) return;   // no instance
-    //
     // `p.scope > 0` is exactly when write_definition succeeds, so the
-    // predicate below IS that line rather than a second rule that agrees
-    // with it — which is why the two can no longer disagree.
-    //
-    // P2 wrote `target < 0` here and called it the instance write. It is
-    // not: a row with NO definition in definition mode carries a mood
-    // target, write_definition refuses it on ORGAN_DEF_NONE, and the write
-    // falls through to the instance. 172 rows the old form marked and that
-    // one did not.
-    //
-    // A witness is never marked either: organ_set refuses it (ORGAN_2a).
+    // predicate below IS that line rather than a second rule beside it. A
+    // witness is never marked either: organ_set refuses it.
     if (!(target >= 0 && p.scope) && !p.ro) touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           target);
-    fanRegimes(p, v);   // LENS_1 — under ALL, every regime
+    fanRegimes(p, v);   // under ALL, every regime
   }
   function pushDef(p, v, mood) {
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           mood);
   }
 
-  // ── LENS_1 — KIN: the same dial in every regime, found by NAME ────
+  // ── KIN: the same dial in every regime, found by NAME ─────────────
   // A regime row's siblings are the rows whose group is the same with
   // "Regime N" struck out and whose label is the same. Derived from the
   // group string and the label — the shell's one permitted kind of
-  // knowledge about a dial (ORGAN_5 P2b, ATMOS_1b) — never from the id.
+  // knowledge about a dial — never from the id.
   function kinKey(p) {
     var m = /^(.*)\bRegime \d+$/.exec(p.group || '');
     return m ? (m[1] + '|' + p.label) : null;
@@ -424,9 +347,9 @@
   // Every row is built the same way at the end: show() moves the widgets,
   // apply() moves them and writes wherever the mode points, setDef() writes
   // one named mood's definition and only shows it when that mood is live.
-  // ORGAN_3b P4 — `nodes` is every element this row put in the section body
-  // (a VEC3 is a header plus one line per lane), so the filter hides a row
-  // by hiding what it built rather than by guessing at the DOM's shape.
+  // `nodes` is every element this row put in the section body (a VEC3 is a
+  // header plus one line per lane), so the filter hides a row by hiding
+  // what it built rather than by guessing at the DOM's shape.
   function finish(r, nodes) {
     r.nodes = nodes || [];
     r.apply = function (nv) { r.show(nv); push(r.p, nv); };
@@ -442,7 +365,7 @@
     var nodes = [];
     var add = function (el) { nodes.push(el); host.appendChild(el); return el; };
 
-    // ── ORGAN_3c P0a — LINE 1: the label, and the markers pinned right ──
+    // ── LINE 1: the label, and the markers pinned right ──────────────
     var hd = document.createElement('div'); hd.className = 'hd';
     var lbl = document.createElement('span'); lbl.className = 'lbl';
     lbl.textContent = p.label;
@@ -464,9 +387,9 @@
     mk.textContent = '\u00b7';
     mk.title = 'contest: does the panel\u2019s last word on this dial still stand?';
 
-    // ORGAN_3b — the cadence chip rides beside the contest marker, because
-    // the two answer the operator's two questions about one row: WHEN does
-    // my edit land, and DOES it still stand.
+    // The cadence chip rides beside the contest marker, because the two
+    // answer the operator's two questions about one row: WHEN does my edit
+    // land, and DOES it still stand.
     var cad = null;
     if (CAD[p.cad]) {
       cad = document.createElement('span');
@@ -491,13 +414,11 @@
       return add(ln);
     };
 
-    // ORGAN_2a — A WITNESS IS A METER, NOT A DIAL. A driven value carries no
-    // input of any kind: the dials that move it are its driver's, enrolled
-    // above it in the same group. The 250 ms loop below fills this span, so
-    // the operator watches the driven value breathe beside the rests and
-    // gains that shape it. No star either — a witness has no definition to
-    // write, and organ_set would refuse the write anyway. The meter sits in
-    // the VALUE column, so a witness reads down the same edge as a dial.
+    // A WITNESS IS A METER, NOT A DIAL: a driven value carries no input of
+    // any kind, and the dials that move it are its driver's, enrolled above
+    // it in the same group. The 250 ms loop fills this span. No star
+    // either — a witness has no definition to write. The meter sits in the
+    // VALUE column, so a witness reads down the same edge as a dial.
     if (p.ro) {
       closeHead();
       var meter = document.createElement('span'); meter.className = 'ro';
@@ -520,8 +441,8 @@
 
     if (n > 1) {
       // A colour when the range says so. The swatch sits on the LABEL line
-      // beside the markers (ORGAN_3c) and the fine sliders stack below it,
-      // full width, because a colour input alone cannot be nudged one step.
+      // beside the markers and the fine sliders stack below it, full width,
+      // because a colour input alone cannot be nudged one step.
       var col = document.createElement('input'); col.type = 'color';
       var isCol = (p.min === 0 && p.max === 1);
       if (isCol) {
@@ -568,33 +489,21 @@
     sl.min = p.min; sl.max = p.max; sl.step = p.step; sl.value = v[0];
     var nm = document.createElement('input'); nm.type = 'number';
     nm.min = p.min; nm.max = p.max; nm.step = p.step; nm.value = v[0];
-    // ── ORGAN_5 P5c — AN EMPTY BOX IS NOT A VALUE ───────────────────
-    //
-    // The old form was `clamp(parseFloat(src.value) || 0, p)`, and it
-    // committed p.min for an EMPTY field: '' parses NaN, `|| 0` makes it
-    // 0, and clamp snaps to the floor. Clearing a number box before
-    // typing is the ordinary way to enter a value on a touch keyboard, so
-    // the FIRST keystroke of every phone edit wrote the minimum. On
-    // `count` (min 0) that is count = 0, and configure_orbs early-returns
-    // on `os.count == 0` — the dome goes dark mid-edit and every later
-    // keystroke lands on a dead sky. This is the most economical
-    // explanation the tree can give for "count works on desktop but not
-    // his phone", and the harness reproduces the C++ half natively.
-    //
-    // A non-numeric box now commits NOTHING and the program keeps its
-    // last good value.
-    //
-    // AND THE HANDLER NO LONGER WRITES BACK INTO THE ELEMENT UNDER THE
-    // FINGER. Reassigning a focused number input on every keystroke
-    // fights the caret on touch keyboards; the OTHER widget is synced, so
-    // the slider still follows the box and the box still follows the
-    // slider, but neither overwrites the one being used.
-    //
+    // ── AN EMPTY BOX IS NOT A VALUE ─────────────────────────────────
+    // A non-numeric box commits NOTHING and the program keeps its last
+    // good value. Clearing a number box before typing is the ordinary way
+    // to enter a value on a touch keyboard, so committing the floor for an
+    // empty field would write the minimum on the first keystroke.
+
+    // THE HANDLER DOES NOT WRITE BACK INTO THE ELEMENT UNDER THE FINGER:
+    // reassigning a focused number input on every keystroke fights the
+    // caret on touch keyboards. The OTHER widget is synced, so each still
+    // follows the other and neither overwrites the one in use.
+
     // TWO COMMIT PATHS, ONE PUSH. `input` is the live one — the drag and
     // the keystroke — and `change` is the settle: it fires on blur and on
-    // Enter, and it NORMALISES the box to the value that actually landed,
-    // so a clamp becomes visible the moment the hand lets go instead of
-    // silently disagreeing with the program.
+    // Enter and NORMALISES the box to the value that landed, so a clamp
+    // becomes visible the moment the hand lets go.
     var commit = function (src) {
       return function () {
         var raw = parseFloat(src.value);
@@ -617,43 +526,34 @@
              read: function () { return v; } }, nodes);
   }
 
-  // ── ORGAN_4 P6 — THE PRESET LAYER ──────────────────────────────────
-  //
-  // A SCENE IS A FILE, A BOOT IS A CHOICE. `web/presets/index.json` lists
-  // what is on the shelf; `?preset=<name>` picks one at boot and the
-  // panel's select picks one by hand. Both walk the SAME import path — a
-  // partial file applies exactly what it carries, definitions raise their
-  // flags and instances write and mark — so ZERO new write machinery
-  // exists here and none was needed.
-  //
-  // IT LIVES AT MODULE SCOPE, NOT INSIDE build(), and that is the whole
-  // point: an exhibition boots with `?preset=` and NO panel. A preset
-  // reachable only from an open panel would be an instrument feature
-  // wearing an exhibition's name.
-  //
-  // NO STORAGE OF ANY KIND. The artifact rule, and the same law the width
-  // and the openMap already follow: a dev instrument that remembers is a
-  // dev instrument that surprises. A preset is chosen per boot or per
-  // click, and the URL is the only thing that carries a choice between
-  // sessions.
-  //
-  // AN UNKNOWN ID IS NOT AN ERROR. The import path counts it and the
-  // status line names the count — the standing behaviour, which is why a
-  // preset cut against another build degrades instead of failing.
+  // ── THE PRESET LAYER ───────────────────────────────────────────────
+  // A SCENE IS A FILE, A BOOT IS A CHOICE. `web/presets/index.json` is the
+  // shelf; `?preset=<name>` picks one at boot and the panel's select picks
+  // one by hand. Both walk the SAME import path, so there is no second
+  // write machinery here.
 
-  // THE IMPORT WALK, LIFTED OUT OF THE FILE READER. It reads the MANIFEST
-  // rather than the panel's rows, so it works with the panel closed; when
-  // a row does exist, the widget is moved too, exactly as `r.apply` and
-  // `r.setDef` would have.
+  // IT LIVES AT MODULE SCOPE, NOT INSIDE build(), because an exhibition
+  // boots with `?preset=` and NO panel: a preset reachable only from an
+  // open panel would be an instrument feature wearing an exhibition's name.
+
+  // NO STORAGE OF ANY KIND — a dev instrument that remembers is a dev
+  // instrument that surprises. A preset is chosen per boot or per click,
+  // and the URL is the only thing that carries a choice between sessions.
+  // AN UNKNOWN ID IS NOT AN ERROR: the import path counts it and the status
+  // line names the count.
+
+  // THE IMPORT WALK. It reads the MANIFEST rather than the panel's rows,
+  // so it works with the panel closed; when a row does exist, the widget is
+  // moved too, exactly as `r.apply` and `r.setDef` would have.
   function applyFile(obj, what) {
     var applied = 0, skipped = 0, witnesses = 0;
     if (!MANIFEST) { importNote = what + ': the registry is not bound'; return importNote; }
     var byId = {};
     MANIFEST.forEach(function (p) { byId[p.id] = p; });
-    // IMPORT KNOWS WHAT EXPORT KNOWS (ORGAN_2b): a witness is not a
-    // setting. A file cut before ORGAN_2a still carries the four driven
-    // values by id; sending them would only be refused in the C++, so they
-    // are counted and named instead of rung up as rejections.
+    // IMPORT KNOWS WHAT EXPORT KNOWS: a witness is not a setting. A file
+    // that carries a driven value by id would only be refused in the C++,
+    // so witnesses are counted and named rather than rung up as
+    // rejections.
     Object.keys(obj).forEach(function (k) {
       var cut = k.indexOf('/');
       var scope = cut > 0 ? k.slice(0, cut) : null;
@@ -752,21 +652,19 @@
     bd.addEventListener('click', function () { setMode(true); });
     bp.addEventListener('click', function () { setMode(false); });
     setMode(true);
-    // ── ORGAN_3b — THE DOOR STRIP ────────────────────────────────────
+    // ── THE DOOR STRIP ───────────────────────────────────────────────
     // One button per door the build carries, read from the program rather
-    // than named here: the shell stays name-blind about doors exactly as
-    // it is about dials. No confirmation dialogs — the labels carry the
-    // warning, and this is an instrument for an operator, not a consumer
-    // UI. Presses coalesce in the C++ bitmask, so a double-click is one
-    // raise.
-    // ORGAN_5 P2b — declared HERE and not beside the section loop: the
-    // door bar below assigns ruleNow, and a `var` further down would be
-    // hoisted and then overwrite it with null when execution reached it.
+    // than named here: the shell stays name-blind about doors as it is
+    // about dials. Presses coalesce in the C++ bitmask.
+
+    // These are declared HERE and not beside the section loop: the door bar
+    // below assigns ruleNow, and a `var` further down would be hoisted and
+    // then overwrite it with null when execution reached it.
     var ruleScopes = [];      // {el, rule} per rule-scoped group
-    var regimeScopes = [];    // {el, regime} per regime-scoped group (ATMOS_1b/2)
+    var regimeScopes = [];    // {el, regime} per regime-scoped group
     var ruleNow = null;       // the line under the door bar
     var ruleNowVal = null;    // its <b>, the only part that changes
-    var domeLine = null;      // ORGAN_6 — the dome's own line, beside it
+    var domeLine = null;      // the dome's own line, beside it
 
     var doorRoster = [];
     try { doorRoster = JSON.parse(C.doors()); } catch (e) { doorRoster = []; }
@@ -785,23 +683,20 @@
                   'it adds no author';
         b.addEventListener('click', function () {
           C.door(d.i);
-          // ORGAN_5 P2b — a door is consumed at the NEXT frame boundary,
-          // so the window it moves is one frame behind this click. 60ms
-          // beats the 250ms poll to the operator's eye without racing the
-          // program: at 60fps the boundary has run three times by then,
-          // and on a 15fps phone it has run once. Every door refreshes,
-          // name-blind — RESPEAK moves no rule and the refresh is a
-          // no-op, which is cheaper than asking which door this is.
+          // A door is consumed at the NEXT frame boundary, so the window
+          // it moves is one frame behind this click. 60ms beats the 250ms
+          // poll to the operator's eye without racing the program. Every
+          // door refreshes, name-blind: a refresh that moves nothing is
+          // cheaper than asking which door this is.
           setTimeout(refreshRule, 60);
         });
         doorBar.appendChild(b);
       });
       root.appendChild(doorBar);
-      // ORGAN_5 P2b — the live rule, under the bar that cycles it. NOT on
-      // the buttons themselves: which door is the rule door is a C++
-      // NUMBER, and a shell that hardcoded it would silently move this
-      // readout onto the wrong button the day the roster is renumbered.
-      // Under the bar the association is unambiguous and stays so.
+      // The live rule, under the bar that cycles it and NOT on the buttons
+      // themselves: which door is the rule door is a C++ NUMBER, and a
+      // shell holding it would move this readout onto the wrong button the
+      // day the roster is renumbered.
       ruleNow = document.createElement('div');
       ruleNow.className = 'rulenow';
       // Built once; the refresh moves TEXT and never nodes. At four
@@ -815,15 +710,12 @@
                     + 'doors above); the panel reads them, it does not own them';
       root.appendChild(ruleNow);
 
-      // ── ORGAN_6 — IS THE DOME LIT? ───────────────────────────────────
+      // ── IS THE DOME LIT? ─────────────────────────────────────────────
       // configure_orbs early-returns on !active || count == 0, so with the
-      // dome dark every other orb dial is inert and the panel said nothing —
-      // the operator drags a cohesion radius against an empty sky and reads
-      // it as a broken panel. That is the defect the rule readout and the
-      // regime readout each answer; this is the third place that needed one.
-      // It rides beside the rule readout rather than under a group, because
-      // deriving WHICH groups are orb groups would be a fourth name-string
-      // in a file whose whole argument is that it holds none.
+      // dome dark every other orb dial is inert. The rule readout's law
+      // again. It rides beside that readout rather than under a group,
+      // because deriving WHICH groups are orb groups would be a fourth
+      // name-string in a file whose argument is that it holds none.
       domeLine = document.createElement('div');
       domeLine.className = 'rulescope';
       domeLine.title = 'configure_orbs returns early on enabled 0 or count 0, '
@@ -832,12 +724,12 @@
       root.appendChild(domeLine);
     }
 
-    // ── ATMOS_1 — THE MOOD DOOR: a door with a parameter ──────────────
+    // ── THE MOOD DOOR: a door with a parameter ────────────────────────
     // Which mood is the program's to say: names from organ_mood_names(),
-    // id = index, so a new mood appears here with zero JS edits. The
-    // press walks request_mood_transition (keys 5-9's own door) at the
-    // next boundary. Editing a non-live mood's definition-only rows needs
-    // you IN it — this select is the road there.
+    // id = index, so a new mood appears here with no JS edit. The press
+    // walks request_mood_transition at the next boundary. Editing a
+    // non-live mood's definition-only rows needs you IN it, and this select
+    // is the road there.
     var moodSel = null;
     if (C.goMood && C.moodNames) {
       var names = [];
@@ -857,30 +749,28 @@
       }
     }
 
-    // ── ORGAN_3b P4a — THE FILTER ────────────────────────────────────
+    // ── THE FILTER ───────────────────────────────────────────────────
     // The manifest is a library, not a page. One field, matched against
     // id + label + group lowercased, so the operator can reach a stop by
-    // any of the three names it already has. No debounce: this is a dev
-    // instrument and a keystroke's worth of work is one substring test
-    // per row (audit/ORGAN.md carries the count).
+    // any of the three names it has. No debounce: a keystroke's worth of
+    // work is one substring test per row.
     var find = document.createElement('input');
     find.type = 'text'; find.className = 'find';
     find.placeholder = 'filter \u2014 id, label or section';
     root.appendChild(find);
 
-    // ── ORGAN_3: the group string is a PATH ──────────────────────────
+    // ── the group string is a PATH ───────────────────────────────────
     // "Section · Group". The first token is the operator's VOICE and becomes
-    // a collapsible block; the remainder is the group header inside it, as
-    // before. A group with no separator is a section of its own — the shell
-    // stays name-blind either way, and Jean renames by editing group strings.
-    // Two levels, never three: only the FIRST separator splits.
+    // a collapsible block; the remainder is the group header inside it. A
+    // group with no separator is a section of its own. Two levels, never
+    // three: only the FIRST separator splits.
     var group = null, section = null, host = root, count = 0, tally = null;
     var secs = [], cur = null, curGroup = null;
     var filtering = false;    // true while a needle is in the field
-    var regimeCount = 0;      // LENS_1 — read from the group names, not declared
+    var regimeCount = 0;      // read from the group names, not declared
     var openMap = {};         // section name -> the operator's own choice
-    var width = W_DEF;        // ORGAN_3c P0b — the hand's width, same law:
-                              // a session variable, never storage
+    var width = W_DEF;        // the hand's width: a session variable,
+                              // never storage
     manifest.forEach(function (p, i) {
       p.i = i;   // the manifest is emitted in registry order: index IS the key
       var cut = p.group.indexOf(SEP);
@@ -889,14 +779,14 @@
       if (sec !== section) {
         section = sec; group = null; curGroup = null;
         var det = document.createElement('details'); det.className = 'sec';
-        det.open = false;      // ORGAN_3b P4b — the panel opens as a table of
-                               // contents; the filter and the hand open it
+        det.open = false;      // the panel opens as a table of contents;
+                               // the filter and the hand open it
         var sum = document.createElement('summary'); sum.textContent = sec;
         tally = document.createElement('span'); tally.className = 'n';
         count = 0; sum.appendChild(tally);
-        // ORGAN_3b P4c — a voice is a file. The section's own export writes
-        // only its rows; import needs nothing new, because a partial file
-        // has always applied exactly what it carries.
+        // A voice is a file: the section's own export writes only its
+        // rows, and import needs nothing new because a partial file applies
+        // exactly what it carries.
         var sx = document.createElement('button'); sx.className = 'sx';
         sx.textContent = '\u2913';
         sx.title = 'export this section alone \u2014 imports back as what it carries';
@@ -914,10 +804,10 @@
         det.appendChild(host); root.appendChild(det);
         cur = { name: sec, det: det, tally: tally, rows: [], groups: [] };
         secs.push(cur);
-        // ORGAN_3b P4b — the operator's own choice, remembered for the
-        // session only. The filter opens what it finds; when the filter
-        // clears, this map is what the panel goes back to, so a search
-        // never silently rearranges the desk.
+        // The operator's own choice, remembered for the session only. The
+        // filter opens what it finds; when the filter clears, this map is
+        // what the panel goes back to, so a search never rearranges the
+        // desk.
         (function (s2, d2) {
           d2.addEventListener('toggle', function () {
             if (!filtering) openMap[s2] = !!d2.open;
@@ -931,10 +821,9 @@
         host.appendChild(h2);
         curGroup = { h2: h2, rows: [] };
         cur.groups.push(curGroup);
-        // ORGAN_5 P2b — a group whose name ends "<rule> rule" says so,
-        // and says whether that rule is the live one. Derived from the
-        // group's own name, so renaming or adding a rule group in the
-        // .inc needs no edit here.
+        // A group whose name ends "<rule> rule" says so, and says whether
+        // that rule is the live one. Derived from the group's own name, so
+        // renaming or adding a rule group in the .inc needs no edit here.
         var gr = ruleOfGroup(grp);
         if (gr >= 0) {
           var rs = document.createElement('div');
@@ -943,15 +832,15 @@
           curGroup.scope = rs;     // the filter hides it with its header
           ruleScopes.push({ el: rs, rule: gr });
         }
-        // ATMOS_1b/2 — the same line for a regime-scoped group. It wears
-        // the rule line's dress: the class names a scope line, not a rule.
+        // The same line for a regime-scoped group. It wears the rule
+        // line's dress: the class names a scope line, not a rule.
         var gg = regimeOfGroup(grp);
         if (gg >= 0) {
           var gs = document.createElement('div');
           gs.className = 'rulescope';
           host.appendChild(gs);
           curGroup.scope = gs;
-          curGroup.regime = gg;                       // LENS_1 — the lens hides by this
+          curGroup.regime = gg;                       // the lens hides by this
           if (gg + 1 > regimeCount) regimeCount = gg + 1;
           regimeScopes.push({ el: gs, regime: gg });
         }
@@ -963,24 +852,23 @@
       cur.rows.push(r);
       if (curGroup) curGroup.rows.push(r);
       rows.push(r);
-      rowsById[p.id] = r;   // ORGAN_4 P6 — the preset road moves widgets too
-      // LENS_1 — a row in a regime group carries its regime (−1 otherwise)
-      // and joins its kin across regimes.
+      rowsById[p.id] = r;   // the preset road moves widgets too
+      // A row in a regime group carries its regime (−1 otherwise) and
+      // joins its kin across regimes.
       r.regime = (curGroup && curGroup.regime !== undefined) ? curGroup.regime : -1;
       var kk = kinKey(p);
       if (kk) (regimeKin[kk] = regimeKin[kk] || []).push(r);
     });
 
-    // ── ORGAN_3b P4a/P4b — the filter, applied ───────────────────────
+    // ── the filter, applied ──────────────────────────────────────────
     // A row hides when its haystack lacks the needle; a group header hides
     // when it has no visible row; a section hides when it has none either.
-    // The section tally reads `hits/total` while filtering, so the operator
-    // can see how much of a voice a word touches without opening it.
+    // The section tally reads `hits/total` while filtering.
     function vis(node, on) { node.style.display = on ? '' : 'none'; }
-    // LENS_1 — the lens is a second predicate, AND-ed with the needle.
-    // A row outside any regime group is always admitted. LIVE and ALL
-    // admit the regime this world is drawn into; a number admits that
-    // regime, live or dormant — the scope line says which.
+    // The lens is a second predicate, AND-ed with the needle. A row outside
+    // any regime group is always admitted; LIVE and ALL admit the regime
+    // this world is drawn into, and a number admits that regime live or
+    // dormant, the scope line saying which.
     function lensAdmits(regime) {
       if (regime < 0) return true;
       if (lens === 'live' || lens === 'all') return regime === (C.regime ? C.regime() : 0);
@@ -1000,30 +888,27 @@
           var any = false;
           g.rows.forEach(function (r) { if (r.on) any = true; });
           vis(g.h2, any);
-          // ORGAN_5 P2b — a scope line — rule or tier — is part of its
-          // header, so it hides and shows with it. A scope line over no
-          // rows would be an answer to a question the filter just took
-          // away.
+          // A scope line is part of its header, so it hides and shows
+          // with it: a scope line over no rows would answer a question the
+          // filter just took away.
           if (g.scope) vis(g.scope, any);
         });
         vis(s2.det, live > 0);
         s2.det.open = filtering ? live > 0 : !!openMap[s2.name];
-        // LENS_1 — shown/total whenever they differ, whichever instrument
-        // hid the rest: a section that says 73 while showing 25 is a lie.
+        // shown/total whenever they differ, whichever instrument hid the
+        // rest: a section that says 73 while showing 25 is a lie.
         s2.tally.textContent = '  ' +
           (live !== s2.rows.length ? live + '/' + s2.rows.length : String(s2.rows.length));
       });
     }
     find.addEventListener('input', applyFilter);
 
-    // ── LENS_1 — THE REGIME LENS ─────────────────────────────────────
+    // ── THE REGIME LENS ──────────────────────────────────────────────
     // A regime is an AXIS, not a group: four groups of twelve rows are one
-    // set of twelve looked at four ways. The lens picks the way. LIVE
-    // follows the world's draw; a number is the operator's word; ALL
-    // shows the live regime's rows and fans a write to every regime. It
-    // is built after the loop because the count is read from the group
-    // names (regimeOfGroup), not declared here. Beside the mood select
-    // when there is one: the two selects are the panel's two axes.
+    // set of twelve looked at four ways, and the lens picks the way. LIVE
+    // follows the world's draw, a number is the operator's word, and ALL
+    // shows the live regime's rows and fans a write to every regime. Built
+    // after the loop because the count is read from the group names.
     var lensSel = null;
     if (regimeCount > 0 && C.regime) {
       lensSel = document.createElement('select'); lensSel.className = 'mood';
@@ -1066,15 +951,12 @@
     root.appendChild(foot);
     document.body.appendChild(root);
 
-    // ── ORGAN_3c P0b — THE RESIZE ────────────────────────────────────
+    // ── THE RESIZE ───────────────────────────────────────────────────
     // A grip in the panel's own gutter, pointer events, vanilla. Width
-    // clamps to [W_MIN, wMax()] — W_MIN computed from the grid's own
-    // fixed parts (D2), so every width inside the clamp is a width the
-    // grid can lay out without hiding anything. Narrow squeezes the
-    // sliders toward their floor; wide gives them the room. Double-click
-    // is home. The width lives beside openMap and dies with the session,
-    // because a dev instrument that remembers is a dev instrument that
-    // surprises.
+    // clamps to [W_MIN, wMax()], W_MIN computed from the grid's own fixed
+    // parts, so every width inside the clamp is one the grid can lay out
+    // without hiding anything. Double-click is home, and the width dies
+    // with the session.
     var grip = document.createElement('div'); grip.className = 'grip';
     root.appendChild(grip);
     function setWidth(w) {
@@ -1110,24 +992,21 @@
 
     // ── export / import ──────────────────────────────────────────────
     // A DEFINITION BELONGS TO A MOOD, so its key names one: "<mood>/<id>".
-    // An instance value has no mood and keys by id alone. One file can
-    // therefore carry several moods' definitions, and importing it puts
-    // each back where it came from rather than into whichever mood happens
-    // to be live at the time.
-    //
-    // A WORLD DEFINITION BELONGS TO NO MOOD (ORGAN_2b), so it keys
-    // "world/<id>" and appears once. Reading it still goes through defGet:
-    // the C++ switch sends a TIER entry to the one bank and lets the mood
-    // argument fall on the floor, so the panel needs no second reader.
-    //
-    // ORGAN_3b P4c — one walk, an optional predicate. A section export is
-    // the same walk narrowed, so witnesses stay skipped and the world/mood
-    // keying stays identical: a partial file is a real file, not a dialect.
+    // An instance value has no mood and keys by id alone, so one file can
+    // carry several moods' definitions and importing it puts each back
+    // where it came from.
+
+    // A WORLD DEFINITION BELONGS TO NO MOOD, so it keys "world/<id>" and
+    // appears once; reading it still goes through defGet, the C++ switch
+    // letting the mood argument fall on the floor.
+
+    // ONE WALK, AN OPTIONAL PREDICATE. A section export is that walk
+    // narrowed, so a partial file is a real file, not a dialect.
     function collect(pred) {
       var m = C.mood();
       var out = {};
       rows.forEach(function (r) {
-        if (r.p.ro) return;   // witnesses export nothing: a meter is not a setting (ORGAN_2a)
+        if (r.p.ro) return;   // A WITNESS IS A METER, NOT A DIAL: export skips it
         if (pred && !pred(r)) return;
         if (r.p.scope) {
           var n = lanes(r.p.type), d = [];
@@ -1167,10 +1046,10 @@
       f.click();
     });
 
-    // ── ORGAN_4 P6b — THE SHELF, IN THE HEADER ───────────────────────
+    // ── THE SHELF, IN THE HEADER ─────────────────────────────────────
     // A small select beside export/import, filled from the same index the
-    // boot reads. Choosing walks the same road `?preset=` walks, which is
-    // the same road `import` walks — one write path, three doors onto it.
+    // boot reads. Choosing walks the road `?preset=` walks, which is the
+    // road `import` walks — one write path, three doors onto it.
     var sel = document.createElement('select');
     sel.className = 'preset';
     sel.title = 'apply a preset \u2014 the same import path, so a partial file '
@@ -1196,14 +1075,12 @@
       });
     });
 
-    // ── ORGAN_5 P2b — THE RULE READOUT, refreshed from the window ────
-    // One reader, two shapes. `organ_orb_rule()` packs `rule | gesture<<8`
-    // — one ABI call, because the operator reads a rule and its gesture
-    // as one fact and two calls could disagree between them.
-    //
-    // A rule the shell has no name for prints its NUMBER rather than
-    // guessing: the four names are a ruled duplication (D3), and a
-    // duplication that has fallen behind should say so, not invent.
+    // ── THE RULE READOUT, refreshed from the window ──────────────────
+    // One reader, two shapes. `organ_orb_rule()` packs the rule and its
+    // gesture into one ABI call, because the operator reads them as one
+    // fact and two calls could disagree. A rule the shell has no name for
+    // prints its NUMBER rather than guessing: a ruled duplication that has
+    // fallen behind should say so, not invent.
     function ruleName(r) {
       return RULE_NAMES[r] || ('rule ' + r);
     }
@@ -1239,20 +1116,18 @@
     }
     refreshRule();
 
-    // ── ATMOS_1b/2 — THE REGIME READOUT, the rule readout's law again ─
+    // ── THE REGIME READOUT, the rule readout's law again ─────────────
     // A dial whose effect depends on a mode stands next to a truthful
-    // readout of that mode. The fifty-two regime rows are mode-scoped: a
-    // world is drawn into ONE regime by its seed, and the other regimes'
-    // centres and spreads move nothing here until a world lands in them.
-    // organ_regime() reads the spine's own field through the pointer
-    // organ_mood() follows; the text shows the LABEL's number, never the
-    // index.
-    var lastLensRegime = -1;   // LENS_1 — the regime the lens last followed
+    // readout of that mode. A world is drawn into ONE regime by its seed,
+    // and the other regimes move nothing until a world lands in them.
+    // organ_regime() reads through the pointer organ_mood() follows, and
+    // the text shows the LABEL's number, never the index.
+    var lastLensRegime = -1;   // the regime the lens last followed
     function refreshRegime() {
       if (!C.regime) return;
       var g = C.regime();
-      // LENS_1 — the lens follows the draw at LIVE and ALL: a transition
-      // or a weight edit that re-rolls moves the shown groups on this tick.
+      // The lens follows the draw at LIVE and ALL: a transition or a
+      // weight edit that re-rolls moves the shown groups on this tick.
       if (g !== lastLensRegime) {
         lastLensRegime = g;
         if (lens === 'live' || lens === 'all') applyFilter();
@@ -1277,10 +1152,9 @@
             + 'world\u2019s roll lands, and can bring this world here.';
       });
 
-      // LENS_1 — ≠: under ALL the shown row carries the live regime's
-      // value; if its kin disagree, the label says so and the hover lists
-      // them. Read from the rows' caches (kept true by show/setDef and the
-      // follow-the-mood refresh), so this is arithmetic, not ABI calls.
+      // ≠: under ALL the shown row carries the live regime's value, and
+      // if its kin disagree the label says so and the hover lists them.
+      // Read from the rows' caches, so this is arithmetic, not ABI calls.
       Object.keys(regimeKin).forEach(function (k) {
         var kin = regimeKin[k];
         kin.forEach(function (r) {
@@ -1301,16 +1175,11 @@
     refreshRegime();
 
     // ── the panel carries its own witnesses ──────────────────────────
-    // ATMOS_1 — and it follows the MOOD. A mood-selected definition row
-    // shows the LIVE mood's definition, so a transition (this select, a
-    // key, a portal) leaves it showing the mood the panel was built in.
-    // The manifest's `scope` is the one home for "is this row
-    // mood-selected", so TIER and BEHAVIOR — one bank, the target ignored
-    // — are correctly left alone. r.show() reassigns each row's cached
-    // lane vector as well as its widgets, so the next drag starts from the
-    // shown value with nothing further to update. Instance rows refresh too
-    // (ATMOS_1b): the apply re-authors the sun's homes at every entry,
-    // and a panel that is a VIEW shows what the program wrote.
+    // AND IT FOLLOWS THE MOOD. A mood-selected definition row shows the
+    // LIVE mood's definition, so a transition re-reads it; the manifest's
+    // `scope` is the one home for "is this row mood-selected". Instance
+    // rows refresh too, because a panel that is a VIEW shows what the
+    // program wrote.
     var lastMood = C.mood();
     setInterval(function () {
       var contested = 0;
@@ -1327,11 +1196,9 @@
             r.show(d);
           } else {
             // An instance: the apply may have re-authored its home, so
-            // read the HOME, not the row's cache. r.read() returns the
-            // cached lane vector (`v`) — the same value already shown —
-            // so it could not carry the new mood's numbers. C.get is the
-            // reader the witness poll below already uses, and it reads
-            // through the registry to the home itself (ATMOS_1b).
+            // read the HOME and not the row's cache. C.get is the reader
+            // the witness poll below uses, reading through the registry to
+            // the home itself.
             var ni = lanes(r.p.type), iv = [];
             for (var li = 0; li < ni; li++) iv.push(C.get(r.p.i, li));
             r.show(iv);
@@ -1367,26 +1234,21 @@
                            (importNote ? '  ·  ' + importNote : '');
     }, 250);
 
-    // ── ORGAN_5 P4 — THE PILL, and the one state behind both doors ───
-    //
-    // MINIMIZED IS A STATE, NOT A SCROLL. `hidden` already existed and
-    // the backtick already toggled it; what was missing was a way BACK on
-    // a device with no backtick. The pill is that way, and it is the same
-    // state — one variable, three ways to move it (the button, the pill,
-    // the key), so they can never disagree about whether the panel is up.
-    //
-    // SESSION ONLY, like the width and the openMap: no storage of any
-    // kind (the artifact rule). A dev instrument that remembers is a dev
-    // instrument that surprises.
-    //
+    // ── THE PILL, and the one state behind both doors ────────────────
+    // MINIMIZED IS A STATE, NOT A SCROLL. The pill is the way back on a
+    // device with no backtick, and it is the SAME state: one variable and
+    // three ways to move it — the button, the pill, the key — so they
+    // cannot disagree about whether the panel is up. SESSION ONLY, like
+    // the width and the openMap: no storage of any kind.
+
     // The pill lives on <body> and not inside #organ, because #organ is
     // what gets hidden — a pill inside it would vanish with the thing it
     // is meant to bring back.
     var pill = document.createElement('div');
     pill.id = 'organ-pill';
     pill.textContent = 'organ';
-    // ORGAN_5 P5b — the build id rides the pill's hover as well as the
-    // footer: on a phone the footer is a scroll away and the pill never is.
+    // The build id rides the pill's hover as well as the footer: on a
+    // phone the footer is a scroll away and the pill never is.
     pill.title = 'restore the panel' + (BUILD_OK ? '  \u00b7  build ' + BUILD_ID : '');
     document.body.appendChild(pill);
 
@@ -1456,10 +1318,10 @@
       build(manifest);
       console.log('[ORGAN] panel up — ' + manifest.length + ' dials');
     }
-    // ORGAN_4 P6 — THE BOOT CHOICE, read once from the URL and applied
-    // through the same road the select and the import button walk. It runs
-    // whether or not the panel is up, because an exhibition boots with the
-    // scene and not the instrument.
+    // THE BOOT CHOICE, read once from the URL and applied through the road
+    // the select and the import button walk. It runs whether or not the
+    // panel is up, because an exhibition boots with the scene and not the
+    // instrument.
     if (WANT_PRESET) {
       shelf().then(function (byName) {
         if (byName[WANT_PRESET]) return loadPreset(byName[WANT_PRESET]);
