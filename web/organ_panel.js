@@ -1149,43 +1149,54 @@
     }
     refreshRegime();
 
-    // ── the panel carries its own witnesses ──────────────────────────
-    // AND IT FOLLOWS THE MOOD. A mood-selected definition row shows the
-    // LIVE mood's definition, so a transition re-reads it; the manifest's
-    // `scope` is the one home for "is this row mood-selected". Instance
-    // rows refresh too, because a panel that is a VIEW shows what the
-    // program wrote.
+    // ── the panel carries its own witnesses, AND IT FOLLOWS THE PROGRAM ──
+    // A PANEL THAT IS A VIEW SHOWS WHAT THE PROGRAM HOLDS. Every tick, every
+    // row that is not under the hand re-reads its home: a witness reads the
+    // instance; a dial reads the live mood's definition (scope) or the
+    // instance (none) — the same readers export walks. So a value the program
+    // moved inside a mood — a re-speak, a transition, a driver, a reseed, an
+    // import under another lens — reaches the slider on the next tick rather
+    // than waiting for a nudge. The mood select follows the mood the same way.
+
+    // UNDER THE HAND means one of the row's own inputs holds focus: a drag, a
+    // caret, a touch keyboard. That row is left alone until the focus leaves,
+    // and then it shows what landed — the settle, for every widget at once.
     var lastMood = C.mood();
+    function inHand(r) {
+      var a = document.activeElement;
+      if (!a || a === document.body) return false;
+      for (var i = 0; i < r.nodes.length; i++)
+        if (r.nodes[i] === a || r.nodes[i].contains(a)) return true;
+      return false;
+    }
+    // float32 in the home, double in the cache: equal within a hair IS equal,
+    // so a quiet row is never re-shown and a moved one always is.
+    function same(a, b) {
+      if (a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        var s = Math.max(1, Math.abs(a[i]), Math.abs(b[i]));
+        if (Math.abs(a[i] - b[i]) > 1e-6 * s) return false;
+      }
+      return true;
+    }
     setInterval(function () {
       var m = C.mood();
-      if (m !== lastMood) {
-        lastMood = m;
-        if (moodSel) moodSel.value = String(m);
-        rows.forEach(function (r) {
-          if (r.p.ro) return;                    // witnesses refresh every tick below
-          if (r.p.scope) {
-            if (r.p.scope === 2) return;         // TIER/BEHAVIOR: one bank, the mood ignored
-            var n = lanes(r.p.type), d = [];     // a mood-selected definition: the new mood's
-            for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
-            r.show(d);
-          } else {
-            // An instance: the apply may have re-authored its home, so
-            // read the HOME and not the row's cache. C.get is the reader
-            // the witness poll below uses, reading through the registry to
-            // the home itself.
-            var ni = lanes(r.p.type), iv = [];
-            for (var li = 0; li < ni; li++) iv.push(C.get(r.p.i, li));
-            r.show(iv);
-          }
-        });
-      }
+      if (m !== lastMood) { lastMood = m; if (moodSel) moodSel.value = String(m); }
       rows.forEach(function (r) {
-        // A witness reads the home itself, every tick — that IS the row.
+        var n = lanes(r.p.type), l, hv = [];
         if (r.ro) {
-          var n = lanes(r.p.type), out = [];
-          for (var l = 0; l < n; l++) out.push(g4(C.get(r.p.i, l)));
-          r.ro.textContent = out.join(' ');
+          // A witness reads the home itself, every tick — that IS the row.
+          for (l = 0; l < n; l++) hv.push(g4(C.get(r.p.i, l)));
+          r.ro.textContent = hv.join(' ');
+          return;
         }
+        if (r.p.ro || inHand(r)) return;
+        if (r.p.scope) { for (l = 0; l < n; l++) hv.push(C.defGet(r.p.i, m, l)); }
+        else           { for (l = 0; l < n; l++) hv.push(C.get(r.p.i, l)); }
+        if (same(hv, r.read())) return;
+        // Shown as a number, not as a float32's tail.
+        for (l = 0; l < n; l++) hv[l] = +hv[l].toPrecision(7);
+        r.show(hv);
       });
       refreshRule();
       refreshRegime();

@@ -168,6 +168,11 @@ string and its label.
   last boundary, the build id.
 - No storage of any kind. Width, open sections, lens and mode are session
   state; the URL carries a choice between sessions.
+- The panel follows the program: every tick, each row not under the hand
+  re-reads its home — a definition row the live mood's definition, an instance
+  row the instance — and moves its widgets when the program moved the value. A
+  row under the hand (one of its own inputs holding focus) is left alone until
+  the hand leaves, then shows what landed.
 
 ## Presets
 
