@@ -120,8 +120,3 @@
                     orbs_state_.active, orbs_state_.count);
                 gpuState_.organ_flush(queue);
             }
-
-            // The contested-dial observation, forwarded the same way. It
-            // reads the homes and writes nothing but its own counters, so it
-            // needs no queue and cannot disturb the frame it measures.
-            void organ_observe() { t7::organ::observe_frame(); }

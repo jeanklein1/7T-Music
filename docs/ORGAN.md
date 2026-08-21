@@ -138,9 +138,8 @@ whoever turned the rule.
 `organ_door`, `organ_go_mood` (writes); `organ_get`, `organ_def_get`,
 `organ_mood`, `organ_regime`, `organ_orb_rule` (reads, by manifest index);
 `organ_param_count`, `organ_rejected_count`, `organ_last_reject`,
-`organ_flush_count` (the status line); `organ_contest`, `organ_contest_frames`
-(the contest instrument). The manifest is emitted in table order, so its index
-is the row's index. The ABI is inert until `bind_home` and `bind_mood` run at
+`organ_flush_count` (the status line). The manifest is emitted in table order,
+so its index is the row's index. The ABI is inert until `bind_home` and `bind_mood` run at
 the end of cartridge init; every entry point returns harmlessly before that,
 and the shell polls until `organ_param_count` is nonzero.
 
@@ -203,13 +202,6 @@ The destination law is one weighted table, `WORLD_DRAW_LIVE.mood_weights`,
 walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to open
 shapes — the triad's way out of a room). A weight of 0 shuts a door without
 unmaking the mood.
-
-## The contested-dial instrument
-
-`organ_set` shadows the bytes that land in an instance and `observe_frame`
-re-reads the home once per frame. Never disagreed is FREE; stood, then lost, is
-EVENT; lost at once is PER-FRAME. The shell shows the reading beside the cadence
-chip for rows this session has written.
 
 ## Instruments
 

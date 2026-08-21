@@ -88,7 +88,6 @@
     gap:     6,   // line 2 column gap
     lblmin: 110,  // the label column's floor — below this an ellipsis lies
     sw:      28,  // the colour swatch, when a row has one
-    mk:      58,  // the contest column ("event 1200" at 10px monospace)
     chip:    62,  // the cadence chip ("on respawn" at 9px, plus its pill)
     slmin:   90,  // the slider's floor — THIS is the acceptance test
     val:     56   // the value box: ~7ch, right-aligned, plus border+padding
@@ -99,7 +98,7 @@
   // to the left padding rather than replacing it, so the rows keep the
   // breathing room the right side has.
   var W_MIN = G.border + (G.pad + G.grip) + G.pad + G.body
-                       + G.lblmin + 3 * G.hdgap + G.sw + G.mk + G.chip;
+                       + G.lblmin + 2 * G.hdgap + G.sw + G.chip;
   var W_DEF = 330;
   function wMax() {
     var half = Math.floor((window.innerWidth || 1280) / 2);
@@ -110,7 +109,7 @@
   var CSS =
     '#organ{' +
     '--hdgap:' + px(G.hdgap) + ';--gap:' + px(G.gap) + ';' +
-    '--lblmin:' + px(G.lblmin) + ';--sw:' + px(G.sw) + ';--mk:' + px(G.mk) + ';' +
+    '--lblmin:' + px(G.lblmin) + ';--sw:' + px(G.sw) + ';' +
     '--chip:' + px(G.chip) + ';--slmin:' + px(G.slmin) + ';--val:' + px(G.val) + ';' +
     '--pad:' + px(G.pad) + ';--grip-w:' + px(G.grip) + ';' +
     'box-sizing:border-box;position:fixed;top:0;right:0;width:' + px(W_DEF) + ';' +
@@ -139,10 +138,10 @@
     // so a row with no swatch and no chip lines its markers up with the row
     // above. The label ellipsis is the only thing that gives, and it hands
     // what it hid to the title.
-    //   line 1  [ label ……………………………  sw  mk  chip ]
+    //   line 1  [ label ……………………………  sw  chip ]
     //   line 2  [ slider ——————————————————— | value ]
     '#organ .hd{display:grid;align-items:center;column-gap:var(--hdgap);margin:5px 0 0;' +
-    'grid-template-columns:minmax(var(--lblmin),1fr) var(--sw) var(--mk) var(--chip)}' +
+    'grid-template-columns:minmax(var(--lblmin),1fr) var(--sw) var(--chip)}' +
     '#organ .ln{display:grid;align-items:center;column-gap:var(--gap);margin:1px 0 2px;' +
     'grid-template-columns:minmax(var(--slmin),1fr) var(--val)}' +
     '#organ .lbl{grid-column:1;min-width:0;color:#96a0ab;' +
@@ -160,17 +159,12 @@
     // The cadence chip. One rule, three modifiers, no colour louder than
     // the existing accent; the panel is an instrument. It rides the label
     // line, so it never competes with a control for width.
-    '#organ .cad{grid-column:4;box-sizing:border-box;width:var(--chip);text-align:center;' +
+    '#organ .cad{grid-column:3;box-sizing:border-box;width:var(--chip);text-align:center;' +
     'font-size:9px;letter-spacing:.06em;color:#4f5761;overflow:hidden;white-space:nowrap;' +
     'border:1px solid #262b33;border-radius:2px;padding:0 2px}' +
     '#organ .cad.gen{color:#b0954e;border-color:#3a3226}' +
     '#organ .cad.boundary{color:#5c93c4;border-color:#24313d}' +
     '#organ .cad.driven{color:#8fa3b8;border-color:#262b33}' +
-    '#organ .mk{grid-column:3;width:var(--mk);text-align:right;font-size:10px;color:#4f5761;' +
-    'overflow:hidden;white-space:nowrap}' +
-    '#organ .mk.free{color:#5f8f6a}' +
-    '#organ .mk.event{color:#b0954e}' +
-    '#organ .mk.frame{color:#b0644e}' +
     '#organ .legend{color:#4f5761;margin-top:3px}' +
     // ── THE GRIP TAKES ITS OWN GUTTER ────────────────────────────────
     // THE VISIBLE LINE IS THE PANEL'S OWN BORDER. The grip draws nothing:
@@ -259,8 +253,6 @@
   var lensAll = false;
   var regimeKin = {};
   var importNote = '';
-  var touched = {};             // manifest index -> this session has written it
-  var CLASS = ['free', 'event', 'frame'];   // organ_contest's three readings
   var definitionMode = true;    // the durable write is the default one
 
   function clamp(v, p) { return v < p.min ? p.min : v > p.max ? p.max : v; }
@@ -299,19 +291,10 @@
   // C++ — the panel does not need to know which, and asking here would put
   // the routing in two places.
   function push(p, v) {
-    // The write is also the question the contest instrument answers: a
-    // definition write never touches the instance, so only the preview path
-    // marks the dial. A DEFINITION-ONLY DIAL HAS NO PREVIEW — there is no
-    // instance for one to show, and −1 would only ring the reject counter,
-    // so it targets the live mood whatever the toggle says.
+    // A DEFINITION-ONLY DIAL HAS NO PREVIEW — there is no instance for one
+    // to show, and −1 would only ring the reject counter, so it targets the
+    // live mood whatever the toggle says.
     var target = (!p.inst || definitionMode) ? C.mood() : -1;
-    // THE MARK IS organ_set's OWN LINE, TRANSCRIBED — the contest question
-    // is asked by an INSTANCE write and by nothing else:
-    //     if (target >= 0 && write_definition(...)) return;   // no instance
-    // `p.scope > 0` is exactly when write_definition succeeds, so the
-    // predicate below IS that line rather than a second rule beside it. A
-    // witness is never marked either: organ_set refuses it.
-    if (!(target >= 0 && p.scope) && !p.ro) touched[p.i] = 1;
     C.set(p.block, p.offset, p.type, v[0] || 0, v[1] || 0, v[2] || 0, v[3] || 0,
           target);
     fanRegimes(p, v);   // under ALL, every regime
@@ -383,13 +366,8 @@
       lbl.appendChild(star);
     }
     hd.appendChild(lbl);
-    var mk = document.createElement('span'); mk.className = 'mk';
-    mk.textContent = '\u00b7';
-    mk.title = 'contest: does the panel\u2019s last word on this dial still stand?';
 
-    // The cadence chip rides beside the contest marker, because the two
-    // answer the operator's two questions about one row: WHEN does my edit
-    // land, and DOES it still stand.
+    // The cadence chip: WHEN does my edit land.
     var cad = null;
     if (CAD[p.cad]) {
       cad = document.createElement('span');
@@ -404,7 +382,6 @@
     // Called once per row, after any arm-specific header content (the
     // colour swatch) so the markers stay in their own columns.
     var closeHead = function () {
-      hd.appendChild(mk);
       if (cad) hd.appendChild(cad);
       add(hd);
     };
@@ -423,7 +400,7 @@
       closeHead();
       var meter = document.createElement('span'); meter.className = 'ro';
       line().appendChild(meter);
-      return finish({ p: p, mk: mk, ro: meter,
+      return finish({ p: p, ro: meter,
                show: function (nv) { v = nv.slice(); },
                read: function () { return v; } }, nodes);
     }
@@ -434,7 +411,7 @@
       cb.checked = v[0] > 0.5;
       cb.addEventListener('input', function () { v[0] = cb.checked ? 1 : 0; push(p, v); });
       line().appendChild(cb);
-      return finish({ p: p, mk: mk,
+      return finish({ p: p,
                show: function (nv) { v = nv.slice(); cb.checked = v[0] > 0.5; },
                read: function () { return v; } }, nodes);
     }
@@ -478,7 +455,7 @@
         for (var k = 0; k < n; k++) { sliders[k].s.value = v[k]; sliders[k].num.value = v[k]; }
         if (isCol) col.value = hex(v);
       };
-      return finish({ p: p, mk: mk,
+      return finish({ p: p,
                show: function (nv) { v = nv.slice(); sync(); },
                read: function () { return v; } }, nodes);
     }
@@ -521,7 +498,7 @@
       nm.value = v[0];                   // the settle: show what landed
     });
     ln1.appendChild(sl); ln1.appendChild(nm);
-    return finish({ p: p, mk: mk,
+    return finish({ p: p,
              show: function (nv) { v = nv.slice(); sl.value = v[0]; nm.value = v[0]; },
              read: function () { return v; } }, nodes);
   }
@@ -942,11 +919,9 @@
     var status = document.createElement('div');
     var legend = document.createElement('div'); legend.className = 'legend';
     legend.textContent =
-      'contest: free = the panel\u2019s word stands  \u00b7  ' +
-      'event = lost on an occasion  \u00b7  frame = lost at once  ' +
-      '(n = frames it stood). Only PREVIEW writes ask the question \u2014 a ' +
-      'definition write never touches the instance, so a starred dial reads ' +
-      '\u00b7 until you drag it in preview.';
+      'a starred dial has a DEFINITION behind its home: in definition mode a '
+      + 'write changes what the live mood means, in preview mode it writes '
+      + 'the instance and the next author may take it back.';
     foot.appendChild(status); foot.appendChild(legend);
     root.appendChild(foot);
     document.body.appendChild(root);
@@ -1182,7 +1157,6 @@
     // program wrote.
     var lastMood = C.mood();
     setInterval(function () {
-      var contested = 0;
       var m = C.mood();
       if (m !== lastMood) {
         lastMood = m;
@@ -1212,15 +1186,6 @@
           for (var l = 0; l < n; l++) out.push(g4(C.get(r.p.i, l)));
           r.ro.textContent = out.join(' ');
         }
-        var k = C.contest(r.p.i);
-        if (k > 0) contested++;
-        // An untouched dial reads as free because nothing has contradicted
-        // it, which is not the same as knowing it holds. Say so with a dot
-        // rather than claiming a reading the program was never asked for.
-        r.mk.className = 'mk' + (touched[r.p.i] ? ' ' + CLASS[k] : '');
-        r.mk.textContent = touched[r.p.i]
-          ? CLASS[k] + ' ' + C.contestFrames(r.p.i)
-          : '\u00b7';
       });
       refreshRule();
       refreshRegime();
@@ -1230,7 +1195,6 @@
                            '  ·  reconciled ' + C.flushes() +
                            '  ·  rejected ' + C.rejects() +
                            (C.rejects() ? '  ·  last: ' + C.lastReject() : '') +
-                           '  ·  contested ' + contested + '/' + rows.length +
                            (importNote ? '  ·  ' + importNote : '');
     }, 250);
 
@@ -1296,8 +1260,6 @@
         lastReject:    M.cwrap('organ_last_reject', 'string', []),
         flushes:  M.cwrap('organ_flush_count', 'number', []),
         count:    M.cwrap('organ_param_count', 'number', []),
-        contest:       M.cwrap('organ_contest', 'number', ['number']),
-        contestFrames: M.cwrap('organ_contest_frames', 'number', ['number']),
         mood:          M.cwrap('organ_mood', 'number', []),
         defGet:        M.cwrap('organ_def_get', 'number', ['number','number','number']),
         get:           M.cwrap('organ_get', 'number', ['number','number']),

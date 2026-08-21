@@ -412,81 +412,6 @@ inline float read_lane(const OrganParam& e, int lane) {
     return v;
 }
 
-// ─── THE CONTESTED-DIAL INSTRUMENT ────────────────────────────────────
-// A dial the panel CAN write is not yet a dial the panel OWNS: some homes
-// have a second author, and where one exists the panel's word is not wrong
-// but temporary. ONE QUESTION, ASKED ONCE A FRAME — organ_set records the
-// bytes that landed in the home, observe_frame re-reads the home at the
-// boundary and asks whether it still says that.
-
-// THE THREE READINGS follow from when the disagreement first appears:
-// never disagreed is FREE; stood, then lost it is EVENT; lost at once is
-// PER-FRAME. The evidence is the SURVIVAL COUNT — frames the panel's last
-// word stood. THE PER-FRAME THRESHOLD IS ONE, NOT ZERO, because the
-// observer sits at the head of the frame: a write arriving between frames
-// is seen intact once before the frame's own authors run.
-
-// IT REPORTS AND DOES NOT ACT: no write path changes, no dial is
-// withdrawn, no author is edited.
-enum : uint8_t {
-    ORGAN_CONTEST_FREE      = 0,
-    ORGAN_CONTEST_EVENT     = 1,
-    ORGAN_CONTEST_PER_FRAME = 2,
-};
-
-struct OrganContest {
-    float    written[4];   // re-read from the home, so it is what LANDED
-    uint32_t survived;     // frames the write stood before the first disagreement
-    uint32_t disagreed;    // frames observed in disagreement since that write
-    uint8_t  seen;         // the panel has written this dial at least once
-};
-
-inline OrganContest g_contest[kOrganParamCount] = {};
-
-// THE SHADOW IS READ BACK, NOT COPIED FORWARD. organ_set clamps and a u32
-// dial narrows, so taking the shadow from the home rather than from the
-// argument compares against the bytes actually there: a clamp can never
-// masquerade as a rival author.
-inline void note_write(const OrganParam& e) {
-    const size_t i = static_cast<size_t>(&e - kOrganParams);
-    OrganContest& c = g_contest[i];
-    const int n = lanes_of(e.type);
-    for (int l = 0; l < 4; ++l) c.written[l] = (l < n) ? read_lane(e, l) : 0.0f;
-    c.survived  = 0;
-    c.disagreed = 0;
-    c.seen      = 1;
-}
-
-// Exact comparison, deliberately. The shadow holds the very bytes the write
-// left behind, so any difference at all is another hand; a tolerance here
-// would hide precisely the small corrections worth seeing.
-inline bool home_agrees(const OrganParam& e, const OrganContest& c) {
-    const int n = lanes_of(e.type);
-    for (int l = 0; l < n; ++l)
-        if (read_lane(e, l) != c.written[l]) return false;
-    return true;
-}
-
-// Once a frame, at the boundary, beside the flush. Untouched dials cost a
-// branch: a dial the panel has never written has nothing to be contested.
-inline void observe_frame() {
-    for (size_t i = 0; i < kOrganParamCount; ++i) {
-        OrganContest& c = g_contest[i];
-        if (!c.seen) continue;
-        if (home_agrees(kOrganParams[i], c)) {
-            if (c.disagreed == 0) ++c.survived;   // still standing
-        } else {
-            ++c.disagreed;
-        }
-    }
-}
-
-inline int contest_class(size_t i) {
-    const OrganContest& c = g_contest[i];
-    if (!c.seen || c.disagreed == 0) return ORGAN_CONTEST_FREE;
-    return c.survived <= 1 ? ORGAN_CONTEST_PER_FRAME : ORGAN_CONTEST_EVENT;
-}
-
 // ─── THE DEFINITION WRITE PATH ────────────────────────────────────────
 // Writing a definition does NOT write the instance: the panel says what
 // the mood MEANS and the mood's own apply turns that into an instance, so
@@ -842,10 +767,8 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
 
     const float lanes_in[4] = { x, y, z, w };
     if (target >= 0 && write_definition(*e, (uint32_t)target, lanes_in)) {
-        // Deliberately no instance write, no dirty bit and no note_write:
-        // the instance is the mood apply's to produce, and the contest
-        // instrument must keep measuring the instance rather than a value
-        // the panel put there on the definition's behalf.
+        // Deliberately no instance write and no dirty bit: the instance is
+        // the applier's to produce.
         return;
     }
 
@@ -871,7 +794,6 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     // write succeed, keyed on the block, and never in the shell.
     if (block == ORGAN_BLOCK_ORBS)
         g_orb_console_dirty |= (1u << (e->offset / 4u));
-    note_write(*e);   // the shadow, read back from the home
 }
 
 // BY INDEX, LIKE ITS SIBLINGS. The manifest index IS the index in
@@ -904,23 +826,6 @@ EMSCRIPTEN_KEEPALIVE inline int organ_param_count(void) {
     return (int)t7::organ::kOrganParamCount;
 }
 
-// The contest reading for one manifest entry, by its index.
-// 0 free, 1 event, 2 per-frame.
-EMSCRIPTEN_KEEPALIVE inline int organ_contest(int index) {
-    using namespace t7::organ;
-    if (index < 0 || (size_t)index >= kOrganParamCount)
-        return ORGAN_CONTEST_FREE;
-    return contest_class((size_t)index);
-}
-
-// The evidence behind that reading: frames the panel's last write STOOD
-// before the home first disagreed. For a dial still standing this keeps
-// climbing, and a large number is how a FREE reading earns confidence.
-EMSCRIPTEN_KEEPALIVE inline int organ_contest_frames(int index) {
-    using namespace t7::organ;
-    if (index < 0 || (size_t)index >= kOrganParamCount) return 0;
-    return (int)g_contest[index].survived;
-}
 
 // The mood the program is in. The panel needs it to address a definition
 // and to key an export, and it keeps no copy of its own.
