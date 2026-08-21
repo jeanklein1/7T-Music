@@ -47,6 +47,11 @@ import os
 import re
 import sys
 
+# tools/ is sys.path[0] when a tool runs as a script; the insert is for the
+# ledger's subprocess runs and for any caller importing a tool from elsewhere.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from organ_parse import MACRO, split_args
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INC  = os.path.join(ROOT, "src", "console", "organ_params.inc")
 
@@ -204,31 +209,6 @@ def reader_census():
 # struct's namespace. The two shapes are otherwise identical, so this
 # parser reads the suffix and shifts its indices by one rather than
 # carrying a second table.
-MACRO = re.compile(
-    r"^(ORGAN_PARAM(?:_GEN|_DEF|_DEFONLY|_RO)?)(_NS)?\s*\((.*)\)\s*$")
-
-
-def split_args(s):
-    """Top-level comma split — brackets and quotes are not separators."""
-    out, depth, quo, cur = [], 0, False, []
-    for ch in s:
-        if quo:
-            cur.append(ch)
-            if ch == '"':
-                quo = False
-            continue
-        if ch == '"':
-            quo = True; cur.append(ch); continue
-        if ch in "([{":
-            depth += 1
-        elif ch in ")]}":
-            depth -= 1
-        if ch == "," and depth == 0:
-            out.append("".join(cur).strip()); cur = []
-        else:
-            cur.append(ch)
-    out.append("".join(cur).strip())
-    return out
 
 
 def base_member(field):
