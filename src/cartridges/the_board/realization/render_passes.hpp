@@ -477,8 +477,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // ATLAS_1revB G2 — group 0 is NOT rebound here any more. The two shadow
     // artwork pipelines take the RENDER-ENTITY layout at group 0 now (they
     // need frame_r.lighting, which the gallery entity layout does not
-    // carry; the shadow_slot light index rides the pipeline layout as
-    // immediate data since B6), and the pass head already bound it. Only
+    // carry), and the pass head already bound it. Only
     // the texture group changes. One fewer bind per light, and group 0
     // no longer moves mid-tile.
     // LOOM_2: the artwork shadow draws are SHADOW family — their strata

@@ -588,16 +588,6 @@ namespace t7 {
             // run from it is not evidence. Compatibility stands on its
             // own; do not re-argue this line with a number from this
             // laptop.
-            // DOMESDAY_2 F3-b — THE LIMIT STAYS, THE WRONG ENUM GOES.
-            // F2-a asked the adapter for a device feature that does not
-            // exist at this revision (the header probe: the immediate
-            // address space is a WGSL LANGUAGE feature, instance-scoped
-            // — F3-a). What remains true, and what this modest request
-            // must still carry, is the LIMIT: the shadow family's
-            // pipeline layouts declare 4 immediate bytes, and a core
-            // defaults request grants 0 unless asked. The byte count is
-            // the NEEDS table's own seventh row (limits_floor.gen.inc),
-            // so the request and the testimony share one home.
             //
             // THE REQUEST CARRIES NO EXCEPTION. Every limit this program
             // stands on is a WebGPU core default (NEEDS, limits_floor.gen.inc),
@@ -2005,9 +1995,6 @@ namespace t7 {
         // acquire_surface_texture, read by the attachments and the aspect.
         uint32_t acquiredWidth_ = 0;
         uint32_t acquiredHeight_ = 0;
-        // F3-a: the instance's answer on the immediate dialect, asked
-        // once at instance creation and read later by the device
-        // request's testimony and its loud line. One query, one home.
         // DOMESDAY_1 B7 (R4) — the reconfigure settle window: a changed
         // framebuffer size must hold still this many consecutive frames
         // before the surface reconfigures (begin_frame). Boot configures

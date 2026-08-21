@@ -1632,11 +1632,6 @@ namespace t7 {
         inline constexpr wgpu::TextureFormat kShadowDepthFormat =
             wgpu::TextureFormat::Depth16Unorm;
 
-        // DOMESDAY_1 B6 (R3): SHADOW_SLOT_STRIDE / SHADOW_SLOT_SIZE are
-        // retired with the dynamic-offset machinery they measured — the
-        // shadow light index is immediate data now (one u32, no buffer,
-        // no window, no offset arithmetic).
-
         struct MeshVertex {
             float pos[3];
             float normal[3];
@@ -3987,11 +3982,6 @@ namespace t7 {
                         METER_QUERY_COUNT * sizeof(uint64_t),
                         wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 }
-                // PROBATE_I: "Patch Params" (32 B) and "Patch Params
-                // Staging" (225 × 32 B) are no longer created — the
-                // immediates lane carries the struct, so the budget
-                // stops paying for a buffer pair the pass encoder
-                // replaces.
                 tileGridBuffer_ = makeBuffer("Tile Grid", sizeof(GPUTileGrid), UU);
                 patchInstancesBuffer_ = makeBuffer("Patch Instances",
                     sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES,
