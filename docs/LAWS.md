@@ -1020,3 +1020,45 @@ first visit was mismeasured.
 
 The rule: before attributing a cost to the phase whose timer moved, ask
 what that phase is the first thing to WAIT on.
+
+## L44 — THE TEMPERAMENT LAW
+
+An idempotent author — one whose re-speak reproduces the same state from its
+definitions — re-speaks at the frame boundary when its bank changes. A
+destructive author — one whose re-speak tears down live state — does not: its
+definitions take effect at its next natural event, and the bank's group banner
+says so. Where one fact has both temperaments, the stricter governs — no
+boundary wiring at all.
+
+*Paid for by:* ORGAN_3/3b. `INDOOR_HEIGHT_CAP_FRACTION` has one idempotent
+reader and nine destructive ones, so its bank has none.
+
+## L45 — AN ENROLLMENT STATES A BELIEF; ONLY THE READER PROVES IT
+
+A graduation from a design table to a live bank is complete when the table's
+only remaining readers are its seed and its asserts. A bank that is built,
+enrolled and left unread is worse than no bank: the dial writes, the write
+lands, the world does not move, and the instrument reads as broken.
+`tools/organ_gap.py --gate` is the standing witness.
+
+*Paid for by:* ORGAN_3 w2 (`PANEL_LIVE`: seven dials over a bank nothing read)
+and ORGAN_4 (eight of the sky's twenty-seven rows dead behind a green harness).
+
+## L46 — A RULE RESTATED IN A SECOND LANGUAGE IS A RULE WITH TWO HOMES
+
+Across a two-language seam the side that owns a fact derives it and emits it;
+the other side asks. A number copied across the seam drifts, and the copy is
+the one that is wrong.
+
+*Paid for by:* ORGAN_6. The shell kept one definition-only sentinel after the
+C++ minted a second; nineteen dials died in preview mode for two campaigns
+behind a live reject counter.
+
+## L47 — A COUNT IS NOT A DIAGNOSIS
+
+A witness that counts refusals, drops or failures also names the last one —
+which subject, and why. A bare count says that something happened and never
+what.
+
+*Paid for by:* ORGAN_6. `rejected 19` printed for two campaigns and carried no
+information; `organ_last_reject` is the cure.
