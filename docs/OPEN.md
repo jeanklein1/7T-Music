@@ -55,14 +55,14 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   the existing gate flags. Cure is one stub line; adding to the pinned stub
   set is a gates decision. Origin: RECENSION_2 FLAG-U5c. Unblocked by the
   gates sitting.
-- FIREFOX REGAIN, HELD: naga 30 lacks immediate_address_space, so the module
-  does not compile there; the audience card is the boundary. Priced: a
-  generated no-immediates module (the wgsl_gate transform as generator) plus,
-  on that path only, the per-patch staging machinery PROBATE_I retired — two
-  boot paths, doubled witnesses. Origin: world.wgsl COMPILER FLOOR block,
-  PROBATE_E3. Unblocked by naga shipping the extension — watched
-  automatically by tools/wgsl_gate.py ARM 4, which prints when it happens —
-  or by an exhibition that pays for the spend.
+- FIREFOX BOOT WITNESS, owed: COMPAT_1 removed the immediate lane and naga
+  validates the raw module at the gate; no Firefox boot has yet testified.
+  The COMPILER FLOOR banner says PENDING until one does. Origin: COMPAT_1.
+  Unblocked by Jean opening everexpandingboard.com in Firefox on Windows.
+- iOS BOOT WITNESS, owed: the same round removed every Chromium-only surface
+  the floor named (immediate_address_space, setImmediates, maxImmediateSize);
+  what WebKit's WGSL compiler says about the module is unknown until a Safari
+  26 boot. Origin: COMPAT_1. Unblocked by an iPhone.
 - In-place same-shape atmosphere transition (sunset → night without a
   teardown, the sky re-drawn over a standing world): priced at ATMOS_1,
   not built — the spawns' population row is per mood, so a "same shape"
@@ -88,17 +88,9 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   every regime at a stroke, which is the gesture form of the same relief;
   the flag remains the one-home form. Unblocked by Jean's tuning asking
   for any of them. Origin: ATMOS_2 §0.5.
-- CC's container lacks naga, so `tools/wgsl_gate.py` (the immediate shim)
-  cannot run there; ATMOS_1 stood in with a diff-emptiness check because
-  it touched no WGSL. A campaign that touches WGSL needs naga in the
-  container (cargo install naga-cli, priced at the sitting) or Jean
-  running the gate before merge. Origin: ATMOS_1 report, FLAG 12.
-- wgsl_gate.py TypeError in the directive-removed branch: the two-line note at
-  "DIRECTIVE not in src" splits a %s from its operand, so the branch raises
-  instead of printing. Unreachable while world.wgsl carries requires
-  immediate_address_space; fires the day it does not — i.e. exactly when the
-  gate should announce its own retirement. Reproduced 2026-08-18. Origin:
-  RECENSION rider FLAG-R1. Cure is one line; unblocked by the gates sitting.
+- naga is installed per session in CC's container with `cargo install
+  naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
+  raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 
