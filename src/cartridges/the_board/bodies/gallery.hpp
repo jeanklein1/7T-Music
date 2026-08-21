@@ -1506,10 +1506,9 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // terrain fork AND every table draw below (the helpers no longer
     // bind their own). Bound before the first draw so the terrain fork
     // keeps its own bindings byte-for-byte.
-    // REGAIN_1: no group here binds with an offset argument. The
-    // photographer's pipelines take sceneStateLayout_ at group 2, which
-    // carries no dynamic-offset seat — those live on the PATCHGEN and
-    // SHADOW families' layouts (g2:40, g2:201) and nowhere else.
+    // DOMESDAY_1 B6 (R3): FRAME binds with no offset argument — the
+    // dynamic-offset machinery left the program; the photographer's
+    // pipelines carry no immediate.
     pass.SetBindGroup(0, c->gpuState_.world_group());
     pass.SetBindGroup(1, c->gpuState_.frame_photographer_group());
     pass.SetBindGroup(2, c->gpuState_.scene_state_group());   // B5 (R2): the one scene group

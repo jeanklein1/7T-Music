@@ -180,21 +180,16 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
 
 // ── Patch generation ───────────────────────────────────────────────
 
-// REGAIN_1 — the storm path on a dynamic offset. `patch_params` is a
-// uniform at g2:40 (world.wgsl §7.0a), one 256-byte window per pool
-// slot, and the whole batch's windows are filled by ONE WriteBuffer
-// before the loop opens. Inside the loop nothing is written: the patch
-// index rides the OFFSET at each group-2 bind.
+// PROBATE_I — the storm path on the immediates lane. `patch_params` is
+// `var<immediate>` now (world.wgsl §7.0a), so this patch's 32 bytes are
+// set on the pass encoder and the round trip they used to take is gone:
+// the one WriteBuffer into a 225-slot staging ladder, the per-patch
+// CopyBufferToBuffer from staging slot into the active params buffer,
+// and both buffers with them. The precedent is DOMESDAY_1 B6's
+// shadow_slot, set the same way on the shadow render passes.
 //
-// This is not the ladder PROBATE_I retired coming back. That ladder was
-// two buffers and a CopyBufferToBuffer per patch, and it existed only
-// because a binding could not change inside an encoder — which is
-// exactly what a dynamic offset can do. One write per batch, no copy,
-// one buffer. The precedent is DOMESDAY_1 B6's shadow_slot, which rides
-// the same mechanism on the shadow render passes.
-//
-// A BOUND GROUP IS PASS STATE, so each pass binds it — the two passes
-// below name the same window for the same patch, not two values.
+// IMMEDIATE DATA IS PASS STATE, so each pass sets it — the two passes
+// below carry the same 32 bytes for the same patch, not two values.
 //
 // THE PER-PATCH PASS PAIR STAYS, and it is not the churn the copy left
 // behind. `patch_height_scratch` is ONE patch's worth of scratch
@@ -205,15 +200,9 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
 inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count) {
     if (count == 0) return;
-    // REGAIN_1: every window this batch will bind, in one write, before
-    // the first pass opens. queue is a parameter again — PROBATE_I left
-    // it standing behind a (void) cast. The door returns the windows it
-    // actually wrote, and the loop walks those: an offset is never
-    // handed to a bind the buffer cannot honour.
-    const uint32_t written = c->gpuState_.upload_patch_params_batch(queue, params, count);
+    (void)queue;   // the params no longer travel through a buffer
 
-    for (uint32_t i = 0; i < written; i++) {
-        const uint32_t off = i * PATCH_PARAMS_STRIDE;
+    for (uint32_t i = 0; i < count; i++) {
         // Pass 1: heights only (one ground_formed_with_complexity per texel)
         {
             wgpu::ComputePassDescriptor cpd{};
@@ -223,7 +212,8 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
             { cp.SetBindGroup(0, c->gpuState_.world_group());
               cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-            c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups(), off);   // REGAIN_1: this patch's window
+            cp.SetImmediates(0, &params[i], sizeof(GPUPatchParams));   // PROBATE_I: this patch's params
+            c->renderer_.dispatch_generate_patch_heights(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
             cp.End();
         }
 
@@ -236,8 +226,9 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
             // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
             { cp.SetBindGroup(0, c->gpuState_.world_group());
               cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-            c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups(), off);   // REGAIN_1: the same window, this pass's bind
-            c->renderer_.dispatch_generate_patch_cells(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups(), off);
+            cp.SetImmediates(0, &params[i], sizeof(GPUPatchParams));   // PROBATE_I: the same 32 bytes, this pass's copy
+            c->renderer_.dispatch_generate_patch_gradients(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
+            c->renderer_.dispatch_generate_patch_cells(cp, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups());
             cp.End();
         }
     }

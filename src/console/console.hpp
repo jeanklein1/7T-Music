@@ -588,17 +588,48 @@ namespace t7 {
             // run from it is not evidence. Compatibility stands on its
             // own; do not re-argue this line with a number from this
             // laptop.
-            // REGAIN_1 — THE REQUEST CARRIES NO EXCEPTION AT ALL NOW.
-            // DOMESDAY_2 F3-b's one exception was maxImmediateSize, and
-            // F3-f wrapped it in a gate because requestDevice REJECTS any
-            // required limit better than the adapter's own value, and a
-            // rejected modest request reissues as FULL PASSTHROUGH — the
-            // one shape the paragraph above forbids as a design. The
-            // immediates lane is retired, NEEDS r7 with it, so there is
-            // no exception left to ask for, no gate needed to protect the
-            // asking, and no adapter that can refuse this request for a
-            // limit reason. The core-defaults ground above is untouched
-            // and is what carries the compatibility claim.
+            // DOMESDAY_2 F3-b — THE LIMIT STAYS, THE WRONG ENUM GOES.
+            // F2-a asked the adapter for a device feature that does not
+            // exist at this revision (the header probe: the immediate
+            // address space is a WGSL LANGUAGE feature, instance-scoped
+            // — F3-a). What remains true, and what this modest request
+            // must still carry, is the LIMIT: the shadow family's
+            // pipeline layouts declare 4 immediate bytes, and a core
+            // defaults request grants 0 unless asked. The byte count is
+            // the NEEDS table's own seventh row (limits_floor.gen.inc),
+            // so the request and the testimony share one home.
+            //
+            // DOMESDAY_2 F3-f — ASK ONLY FOR WHAT THIS ADAPTER REPORTS.
+            // requestDevice REJECTS any required limit better than the
+            // adapter's own value, and a rejected modest request
+            // reissues as FULL PASSTHROUGH (the failure branch below) —
+            // which is the one shape PORT_6c/L14 forbids as a design,
+            // three paragraphs up. Worse, the granted-vs-floor census
+            // lives under `if (!passthrough)` and is skipped on that
+            // reissue, so the boot would lose the immediate lane's only
+            // printed number on exactly the device whose lane is in
+            // question. F3-b asked unconditionally and carried that
+            // risk; the gate below retires it.
+            //
+            // The Pixel reports maxImmediateSize=64 (A3's row, read at
+            // the DOMESDAY_1 boot), so this gate stands open there. It
+            // exists for the adapter that reports 0 — which cannot run
+            // the post-B6 shader anyway, and should say so through the
+            // census rather than through a silent fall to passthrough.
+            bool askedImmediate = false;
+            if (!passthrough) {
+                wgpu::Limits adapterLimits{};
+                adapter_.GetLimits(&adapterLimits);
+                if (adapterLimits.maxImmediateSize >= FLOOR_MAX_IMMEDIATE_SIZE) {
+                    limits.maxImmediateSize = FLOOR_MAX_IMMEDIATE_SIZE;   // NEEDS r7
+                    askedImmediate = true;
+                } else {
+                    std::cout << "[Device] maxImmediateSize ask WITHHELD — adapter reports "
+                        << adapterLimits.maxImmediateSize << ", NEEDS r7 wants "
+                        << FLOOR_MAX_IMMEDIATE_SIZE << "; asking would reject the modest"
+                           " request and cost the compatibility path (L14)\n";
+                }
+            }
             deviceDesc.requiredLimits = &limits;
 
             // PORT_6a (1) — the request being issued, with its exceptions.
@@ -606,15 +637,26 @@ namespace t7 {
                 std::cout << "[Device] requesting FULL ADAPTER PASSTHROUGH limits"
                              " (fallback path)\n";
             } else {
-                // REGAIN_1: the line still prints, and now it prints
-                // the shortest true sentence there is. It used to carry
-                // two halves — the bytes this request asked for, and the
-                // instance's WGSL dialect, which cannot be requested at a
-                // device at all and so was REPORTED beside it. Neither
-                // half has a subject any more.
-                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried:"
-                             " none (REGAIN_1 — the program uses no limit above"
-                             " the core default)\n";
+                // TWO HALVES, AND ONLY ONE OF THEM IS THIS REQUEST'S TO
+                // CARRY. The bytes are carried here (the limit above).
+                // The dialect is the INSTANCE's and cannot be requested
+                // at a device at all — so it is REPORTED, present or
+                // absent, never claimed as carried. A line that claimed
+                // the dialect and then denied it two lines later would
+                // be worse than a silent one.
+                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried: ";
+                if (askedImmediate) {
+                    std::cout << "maxImmediateSize=" << FLOOR_MAX_IMMEDIATE_SIZE
+                              << " (NEEDS r7)";
+                } else {
+                    std::cout << "none (maxImmediateSize withheld, see above)";
+                }
+                std::cout << "; wgsl:immediate_address_space (instance) "
+                    << (wgslImmediate_ ? "present" : "ABSENT") << "\n";
+            }
+            if (!wgslImmediate_) {
+                std::cout << "[Device] immediate_address_space NOT in the instance's WGSL"
+                             " dialect — the post-B6 shader cannot compile here (R3 floor)\n";
             }
 
             // PROBATE_F — THE REQUEST READS THE WALLET, NOT A LITERAL.
@@ -684,17 +726,18 @@ namespace t7 {
                         // behavior change, not an instrument, and this
                         // campaign prints only.
                         //
+                        // DOMESDAY_0 A3 — one probe row: maxImmediateSize.
+                        //   The program spends nothing in the immediates
+                        //   lane today, so its floor is 0 and the row can
+                        //   never trip the nets. It exists because the
+                        //   statute says 64 default and the courthouse is
+                        //   Chrome-on-Android — the shadow_slot→immediate
+                        //   ruling waits on this printed grant, and we
+                        //   print before we spend.
                         // DOMESDAY_2 A12 — the floors read the NEEDS table's
-                        // emitted constants; the literals left the C++.
-                        // REGAIN_1 — the maxImmediateSize row is gone with
-                        // the lane. A3 added it as a PROBE, before anything
-                        // spent in that lane, so that the shadow_slot ruling
-                        // could stand on a printed grant rather than on a
-                        // spec sentence; B6 spent, PROBATE_I spent again,
-                        // and this campaign unspent both. The row measured
-                        // something the program no longer has, and a floor
-                        // of 0 printed against a granted number is not a
-                        // census line, it is furniture.
+                        // emitted constants; the literals left the C++. A13's
+                        // truthing rode along: the immediate row's floor is 4
+                        // since B6's first spend, and 'unused' died with it.
                         std::cout << "[Device] granted vs floor:"
                             << " maxTextureDimension2D=" << got.maxTextureDimension2D
                             << "/" << FLOOR_MAX_TEXTURE_DIMENSION_2D
@@ -710,7 +753,9 @@ namespace t7 {
                             << got.maxUniformBufferBindingSize
                             << "/" << FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE
                             << " maxBindGroups=" << got.maxBindGroups
-                            << "/" << FLOOR_MAX_BIND_GROUPS << " (floor)\n";
+                            << "/" << FLOOR_MAX_BIND_GROUPS
+                            << " maxImmediateSize=" << got.maxImmediateSize
+                            << "/" << FLOOR_MAX_IMMEDIATE_SIZE << " (floor)\n";
                         bool below = false;
                         if (got.maxTextureDimension2D < FLOOR_MAX_TEXTURE_DIMENSION_2D) {
                             std::cerr << "[Device] BELOW FLOOR: maxTextureDimension2D granted "
@@ -851,18 +896,36 @@ namespace t7 {
                 });
         }
 
-        // REGAIN_1 — THE DIALECT'S TESTIMONY (DOMESDAY_2 F3-a) is
-        // retired with its subject. It probed the instance for
-        // ImmediateAddressSpace and printed the quadrant it put us in,
-        // because the lane's true gate was a WGSL LANGUAGE feature and
-        // not, as F2-a first had it, a device feature. The module asks
-        // for no language feature now, so there is no dialect question
-        // to put to the instance and nothing for a boot line to answer.
+        // ═══ THE DIALECT'S TESTIMONY (DOMESDAY_2 F3-a) ═══════════════
         //
-        // The rule that shaped that line outlives it and is recorded
-        // here because it is general: credit the knob the implementation
-        // reads, never the struct beside it — a boot log must not
-        // testify to a switch that never fired (P6, DOMESDAY_2 F5-d).
+        // THE LANE'S TRUE GATE, asked at the registry that holds it.
+        // F2-a specified a device feature; Jean's header probe settled
+        // that there is none — ImmediateAddressSpace exists ONLY as
+        // wgpu::WGSLLanguageFeatureName (webgpu_cpp.h:939), and the API
+        // half (SetImmediates, PipelineLayoutDescriptor::immediateSize,
+        // Limits::maxImmediateSize) is unconditional in the header. So
+        // the gate is the WGSL LANGUAGE feature, enabled at the
+        // INSTANCE and never requested at the device.
+        //
+        // From the instance's own mouth. This line IS the quadrant answer
+        // the Pixel boot owes us: Chrome's wgslLanguageFeatures surfaces
+        // through the same call.
+        void report_wgsl_language_features(const wgpu::Instance& inst) {
+            wgslImmediate_ = static_cast<bool>(inst.HasWGSLLanguageFeature(
+                wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace));
+            // The verdict names the instance it measured. SUNSET_0: the
+            // one instance left is a stock browser's and this twin
+            // enables nothing, so the qualifier says exactly that and
+            // credits no knob. The rule that shaped it stands and outlived
+            // its subject: credit the knob the implementation reads, never
+            // the struct beside it, because a boot log must not testify to
+            // a switch that never fired (P6). The chain that taught it is
+            // gone with the native arm (SUNSET_1); the record is
+            // DOMESDAY_2 F5-d.
+            std::cout << "[Device] wgsl language features: immediate-address-space="
+                << (wgslImmediate_ ? "YES" : "no")
+                << " (browser default — this twin enables nothing)\n";
+        }
 
         bool initWebGPU() {
             // ── PORT_1b Region 2 (web): the async boot grammar ────
@@ -883,6 +946,10 @@ namespace t7 {
             // adds a second one that outlives every object in the
             // program. Both are external references by Dawn's counting.
             g_instanceAnchor = instance_;
+            // F3-a — the dialect's testimony, before anything asks the
+            // adapter for anything. On this twin the browser owns the
+            // allow-list; we only report which quadrant it put us in.
+            report_wgsl_language_features(instance_);
             bootState_ = BootState::RequestingAdapter;
             // SHIP_0 U2 — ASK FOR THE REAL GPU. Harmless on single-GPU
             // phones (the only adapter is the only answer); correct for a
@@ -2022,6 +2089,10 @@ namespace t7 {
         // acquire_surface_texture, read by the attachments and the aspect.
         uint32_t acquiredWidth_ = 0;
         uint32_t acquiredHeight_ = 0;
+        // F3-a: the instance's answer on the immediate dialect, asked
+        // once at instance creation and read later by the device
+        // request's testimony and its loud line. One query, one home.
+        bool wgslImmediate_ = false;
         // DOMESDAY_1 B7 (R4) — the reconfigure settle window: a changed
         // framebuffer size must hold still this many consecutive frames
         // before the surface reconfigures (begin_frame). Boot configures

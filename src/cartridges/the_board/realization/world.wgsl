@@ -11,33 +11,26 @@
 //
 // THE LAWS THAT GOVERN THIS FILE — docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
-// ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12; recut by REGAIN_1) ═══
+// ═══ COMPILER FLOOR (PIVOT_0, 2026-08-12) ══════════════════
 // The web twin is the program (SUNSET_0; native archived at tag
-// native-sunset). THIS MODULE IS CORE WGSL — no `requires`, no
-// language extension, nothing outside the statute every conforming
-// implementation must carry. So the floor of record is no longer a
-// named trio of compilers: it is WebGPU itself. Tint→DXC (SM6.0+),
-// Tint→MSL, Tint→SPIR-V and naga all read this file.
-//
-// REGAIN_1 is why. The floor was the Tint trio because DOMESDAY_2
-// F3-a declared `requires immediate_address_space;` and naga 30
-// does not know it — which refused Firefox at line one, and Safari
-// and iOS with it. Regaining them was priced at a second generated
-// module and doubled witnesses; the price turned out to be a
-// binding change instead, and the two immediates are dynamic-offset
-// uniforms now. FXC is unsupported; its retired laws live in
-// docs/FXC_LAWS_RECORD.md.
-//
-// NO ENGINE IS REFUSED BY THIS FILE ANY MORE. None outside Chromium
-// has been WITNESSED running the program either — that is a boot, and
-// a boot is Jean's to take (docs/OPEN.md).
-//
-// naga gates the module WHOLE and UNMODIFIED (tools/wgsl_gate.py).
-// The shim that stood between them from DOMESDAY_2 F3-a until
-// REGAIN_1 is retired, and with it the blind spot it created: what
-// naga reads is now the file the browser is served. The web build +
-// boot is still the witness of record for everything below; the
-// [Pipeline] timer prices compile time per kernel.
+// native-sunset). Supported compilers: Tint→DXC (SM6.0+) on
+// Windows Chrome,
+// Tint→MSL, Tint→SPIR-V. Firefox: PENDING — naga 30 lacks
+// immediate_address_space; the floor of record is the Tint trio
+// until a Firefox boot witnesses otherwise (Jean's witness,
+// queued). Regaining Firefox is priced: a generated no-immediates
+// module (the wgsl_gate transform as generator) plus, on that path
+// only, the per-patch staging machinery PROBATE_I retired — two
+// boot paths, doubled witnesses. HELD until naga ships the
+// extension or an exhibition demands the spend; the card is the
+// boundary meanwhile (Jean's gate). FXC is unsupported;
+// its retired laws live in docs/FXC_LAWS_RECORD.md. naga gates
+// the module THROUGH THE IMMEDIATE SHIM (tools/wgsl_gate.py; the
+// transform is the gate's pinned half). The immediate address
+// space itself is witnessed by boots alone — one generation wider
+// than the blind spot this block already names. The web build +
+// boot is the witness of
+// record; the [Pipeline] timer prices compile time per kernel.
 // NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance and
 // minBindingSize are Dawn's checks at pipeline creation, so the web boot
 // witnesses them and naga cannot. ATLAS_1revB caught two defects of
@@ -157,23 +150,25 @@
 // §1 FOUNDATIONS
 
 // ── Language extensions (WGSL §4.1.2) ───────────────────────────────
-// THIS MODULE NAMES NO DEPENDENCY, and that is the point. REGAIN_1
-// retired the immediates lane: the shadow tile's light index and the
-// patch generator's params are DYNAMIC-OFFSET UNIFORMS now (§7.0's two
-// declarations), so nothing here reaches outside core WGSL and there is
-// no `requires` line to fail on.
+// THE SHADER NAMES ITS OWN DEPENDENCY. `var<immediate>` (the shadow
+// light index, §7.0's declaration — DOMESDAY_1 B6) is the immediate
+// address space, WGSL §14.3, reached through the standard language
+// extension below. Declaring it here is the statute's own mechanism
+// for exactly this: an implementation that lacks the extension fails
+// the shader HERE, by name, instead of failing later at a var it does
+// not understand.
 //
-// DOMESDAY_2 F3-a put `requires immediate_address_space;` here and it
-// stood until this campaign. It was the statute's own mechanism working
-// correctly — an implementation lacking the extension failed the shader
-// HERE, by name — but naming a dependency is only free when every
-// implementation has it, and this one refused every engine outside the
-// Tint trio. The dependency is gone, so the sentence that declared it
-// is gone with it.
+// Directives precede every declaration in a WGSL module, so this is
+// the earliest legal line in the file and must stay above the first
+// `override`.
 //
-// A directive precedes every declaration in a WGSL module. If a future
-// campaign ever needs one, this is where it goes: above the first
-// `override`, the earliest legal line in the file.
+// Generation note (DOMESDAY_2 F5): at the pinned emdawnwebgpu
+// generation this extension is STANDARD and Tint reports it
+// FeatureStatus::kShipped — exposed by default, no instance control.
+// Older generations gate it at a tier an instance has to open, which
+// is why the pin is a pin and not a preference. See
+// third_party/emdawnwebgpu/PINNED.md.
+requires immediate_address_space;
 
 // ── Pipeline specialization overrides (set at pipeline creation) ────
 // Controls which VS path is used (direct patch access vs indirection through
@@ -6345,30 +6340,26 @@ struct FrameR {
 }
 @group(1) @binding(1) var<uniform> frame_r: FrameR;
 
-// ─── THE SHADOW TILE'S LIGHT INDEX (REGAIN_1) ──────────────────────
-// One u32, read from a DYNAMIC-OFFSET UNIFORM: MAX_SPOT_LIGHTS windows
-// of 256 bytes, window i holding the literal i, written once at
-// GPU-state init and never again. The shadow pass moves the OFFSET per
-// light inside a single pass (render_passes.hpp), so the per-frame
-// traffic on this fact is nothing at all.
-//
-// This is the ATLAS_1revB D3" shape, which DOMESDAY_1 B6 traded for
-// immediate data and REGAIN_1 takes back — on the SHADOW family's own
-// stratum this time, not the frame group eleven other pipelines share.
-//
-// WHY THE VALUE MUST BE ABLE TO CHANGE INSIDE A PASS, the load-bearing
-// half and true under either carrier: one pass serves several lights,
-// and a buffer write cannot be recorded inside a render pass. A
-// dynamic offset is a bind, not a write. That is what keeps the
-// one-pass-per-light split retired.
+// ─── THE SHADOW TILE'S LIGHT INDEX (DOMESDAY_1 B6, R3) ─────────────
+// One u32, delivered as IMMEDIATE DATA: the shadow pass sets it per
+// light inside a single pass (SetImmediates, render_passes.hpp), and
+// the whole dynamic-offset machinery this replaces — the 256-byte
+// window buffer, the strided boot writes, the offset argument at
+// every bind of the FRAME group — has left the program. A3 printed
+// the grant (the Pixel gave maxImmediateSize=64); this is the first
+// spend in that lane.
 //
 // WHY AN INDEX AND NOT THE MATRIX (D2', unchanged by the carrier). A
-// pushed matrix would need the SUN's matrix on the outdoor path, and
-// the sun VP's only writer is compute_vp — on the GPU, every frame; a
-// CPU-authored matrix would give it two owners at two cadences. An
-// index has no owners and no cadence. Its failure mode is a validation
-// error, not a wrong pixel.
-@group(2) @binding(201) var<uniform> shadow_slot: u32;
+// matrix immediate would need the SUN's matrix on the outdoor path,
+// and the sun VP's only writer is compute_vp — on the GPU, every
+// frame; a CPU-pushed matrix would give it two owners at two
+// cadences. An index has no owners and no cadence. Its failure mode
+// is a validation error, not a wrong pixel. Requires the WGSL
+// LANGUAGE feature immediate_address_space — instance-scoped, enabled
+// at instance creation (F3-a, console.hpp: the enablement site is this
+// fact's home) and never a device feature, which is what F2-a got
+// wrong — plus maxImmediateSize >= 4 (NEEDS r7).
+var<immediate> shadow_slot: u32;
 
 // D2' — the shadow VS's light matrix, from where it already lives.
 // Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by
@@ -6396,21 +6387,14 @@ fn shadow_light_vp() -> mat4x4<f32> {
 // --- Patch heightfield generation (Group 0: bindings 23-24)
 // Separate pipeline layout. Dispatched per-patch when a new patch enters
 // the active set. Writes to one layer of the patch heightfield array.
-// REGAIN_1 — PatchParams LEAVES the immediates lane and takes the
-// g2:40 seat back. One uniform buffer of Dim::MAX_ACTIVE_PATCHES
-// 256-byte windows, one WriteBuffer per batch, and a DYNAMIC OFFSET
-// carrying the patch index: window i is this dispatch's 32 bytes.
-//
-// THIS IS NOT THE PRE-PROBATE_I LADDER RETURNING. That ladder — a
-// 225-slot staging buffer plus a CopyBufferToBuffer per patch into a
-// one-patch params buffer — existed because a binding could not change
-// inside an encoder. A dynamic offset IS that ability, so the copy has
-// nothing left to do: one buffer where there were two, one write where
-// there was a write plus a copy per patch.
-//
-// Every read below is untouched — the address space moved, the name
-// did not, and a uniform reads exactly as an immediate did.
-@group(2) @binding(40) var<uniform> patch_params: PatchParams;
+// PROBATE_I — PatchParams rides the immediates lane (the lane's second
+// spend; shadow_slot, DOMESDAY_1 B6, was the first). One struct, one
+// dispatch cadence, 32 of the 64-byte grant. The g2:40 seat, the params
+// buffer and the 225-slot staging ladder left the program with it; the
+// storm path sets these bytes on the pass encoder instead of copying
+// them between buffers. Every read below is untouched — the address
+// space moved, the name did not.
+var<immediate> patch_params: PatchParams;
 // .a = the terrain's reserve field — 28.125 MiB pre-paid, nine consumers wired, write nothing until a campaign names it (LOOM ruling).
 @group(3) @binding(40) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(1) var<uniform> tile_grid: TileGrid;

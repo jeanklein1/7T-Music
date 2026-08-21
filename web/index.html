@@ -463,9 +463,8 @@
       terminal = true;
       showCard(
         'This piece needs WebGPU, and this browser cannot give it one.',
-        'It runs in any current browser with WebGPU — Chrome, Edge, Firefox, ' +
-        'and Safari on iOS 26 and macOS. A recording lives above. If you want ' +
-        'to see it on the machine you have, ' + CONTACT + '.',
+        'It runs today in Chrome and Edge on Android and desktop, and in Safari on iOS 26. ' +
+        'A recording lives above. If you want to see it on the machine you have, ' + CONTACT + '.',
         false
       );
       record('[shell] FALLBACK: ' + reason);
@@ -476,39 +475,30 @@
     // Distinct from fallback(), and the distinction is the point.
     // fallback() fires when the SHELL cannot find WebGPU at all. This
     // fires when WebGPU is present, the wasm booted, and the program's
-    // own floor stopped it.
+    // own floor found the one thing it cannot do without — the immediate
+    // address space, its granted size, the encoder method that sets it,
+    // or a shader whose bytes match the ones this build shipped.
     //
-    // REGAIN_1 LEFT THIS CARD ONE REASON TO FIRE, and it is no longer
-    // about browsers. The floor had four arms; three asked whether this
-    // engine spoke the immediates lane, and the lane is retired. What
-    // remains is the SEAL2 digest: the shader this device received is
-    // not the shader this build shipped — a truncated fetch, a stale
-    // the_board.data, a half-written CDN object, a cache serving last
-    // week's bytes.
+    // Until now that verdict was a console line the program printed and
+    // then ignored: it went on to compile a shader it had just said
+    // could not compile, ran a frame loop against a dead device, and
+    // filled the log with thousands of validation errors while the
+    // visitor watched a black canvas. On Firefox the missing JS surface
+    // threw uncaught, every frame. The card is what a person should have
+    // been meeting for all of it.
     //
-    // WHICH IS WHY RELOAD IS OFFERED NOW. It was withheld before on a
-    // sound argument that no longer covers this card: a browser does not
-    // grow a feature between two presses of the same button, so the
-    // retry would have been the interface lying. A truncated fetch is
-    // the opposite case — it CAN succeed on a second try, and usually
-    // does. The button is honest here for the first time.
-    //
-    // Until PROBATE_SEAL3 the verdict was a console line the program
-    // printed and then ignored: it went on to compile a shader it had
-    // just said could not compile, ran a frame loop against a dead
-    // device, and filled the log with thousands of validation errors
-    // while the visitor watched a black canvas. The card is what a
-    // person should have been meeting for all of it.
-    //
-    // Jean gates the exact wording and the look.
+    // Jean gates the exact wording and the look; this is the sober
+    // default. Reload is NOT offered — a browser does not grow a feature
+    // between two presses of the same button, and offering the retry
+    // would be the interface lying about what went wrong.
     function floor(reason) {                // STATE 2b — ruled out by the program
       if (terminal) return;
       terminal = true;
       showCard(
-        'The world arrived damaged.',
-        'The piece did not finish downloading, or arrived altered on the way. ' +
-        'Opening it again usually fixes it; if it never does, ' + CONTACT + '.',
-        true
+        'THE EVER EXPANDING BOARD — This work runs on WebGPU immediates, which this browser does not yet speak. Open it in Chrome, Edge, or any current Chromium browser.',
+        'It runs today in Chrome and Edge on Android and desktop. A recording lives ' +
+        'above. If you want to see it on the machine you have, ' + CONTACT + '.',
+        false
       );
       record('[shell] FLOOR: ' + reason);
     }

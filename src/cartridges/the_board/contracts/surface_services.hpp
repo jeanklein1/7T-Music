@@ -229,11 +229,8 @@ void request_recenter(WorldState& ws);
 void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);
-// REGAIN_1: still no stagingOffset — the ladder PROBATE_I retired is
-// not back. The batch's params reach the shader through one uniform
-// buffer of per-patch windows, written once before the pass loop and
-// selected by a dynamic offset at each bind (state.hpp,
-// upload_patch_params_batch).
+// PROBATE_I: the stagingOffset parameter left with the ladder — the
+// params ride the pass encoder as immediate data now.
 void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count);
 GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer);

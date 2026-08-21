@@ -855,12 +855,12 @@ def rewrite_wgsl(schema, raw):
 
 MANIFEST_MD = os.path.join(REPO, "audit", "MANIFEST.md")
 
-# (lane, per-stage Core limit) in emission order. REGAIN_1 retired the
-# immediates lane and its column with it: a byte budget that reads 0 on
-# every row of every table is not a wallet line, and witness M-2 is what
-# holds the lane at zero now.
+# (lane, per-stage Core limit) in emission order. The immediates lane is
+# carried separately: a byte budget, not a seat count — it reads 0
+# everywhere today and exists so the lane is visible.
 MANIFEST_LANES = (("uniform", 12), ("storage", 8), ("sampled", 16),
                   ("samplers", 16), ("storagetex", 4))
+IMMEDIATE_LANE_BYTES = 64
 
 
 def decl_channel(d):
@@ -908,12 +908,16 @@ def manifest_facts(schema):
                 stop("witness M-1: lane sums %r != per-seat count %d on "
                      "(%s, %s)" % (lanes, total, pm, st))
             rows.append({"member": pm, "label": p["label"], "stage": st,
-                         "lanes": lanes, "total": total})
+                         "lanes": lanes, "total": total,
+                         "imm": p.get("immediate_size", 0)})
     worst = {}
     for ln, cap in MANIFEST_LANES:
         peak = max(r["lanes"][ln] for r in rows)
         at = [r for r in rows if r["lanes"][ln] == peak]
         worst[ln] = {"used": peak, "cap": cap, "rows": at}
+    imm_peak = max(r["imm"] for r in rows)
+    worst["immediates"] = {"used": imm_peak, "cap": IMMEDIATE_LANE_BYTES,
+                           "rows": [r for r in rows if r["imm"] == imm_peak]}
     return {"rows": rows, "worst": worst}
 
 
@@ -934,19 +938,21 @@ def emit_manifest(schema):
     L.append("## Lane table — one row per (pipeline, stage)")
     L.append("")
     L.append("Each cell reads `used / free` against the per-stage Core limit in")
-    L.append("the header. REGAIN_1 retired the immediates column: the program")
-    L.append("spends nothing in that lane and declares nothing in the immediate")
-    L.append("address space, so every cell read `0 / 64`. Witness M-2 keeps it")
-    L.append("that way — it fails the run if a `var<immediate>` reappears.")
+    L.append("the header. The immediates lane is a byte budget, per pipeline")
+    L.append("layout rather than per stage — the schema's `immediate_size` fact")
+    L.append("(DOMESDAY_2 A10), captured from the pipeline-layout creation")
+    L.append("sites and cross-checked against the WGSL by witness M-2.")
     L.append("")
     hdr = ["pipeline", "member", "stage"]
     hdr += ["%s /%d" % (ln, cap) for ln, cap in MANIFEST_LANES]
+    hdr += ["immediates(bytes) /%d" % IMMEDIATE_LANE_BYTES]
     L.append("| " + " | ".join(hdr) + " |")
     L.append("|" + "---|" * len(hdr))
     for r in F["rows"]:
         cells = [r["label"], "`%s`" % r["member"], r["stage"]]
         for ln, cap in MANIFEST_LANES:
             cells.append("%d / %d" % (r["lanes"][ln], cap - r["lanes"][ln]))
+        cells.append("%d / %d" % (r["imm"], IMMEDIATE_LANE_BYTES - r["imm"]))
         L.append("| " + " | ".join(cells) + " |")
     L.append("")
     L.append("## Wallet summary — worst row per lane, program-wide")
@@ -961,6 +967,14 @@ def emit_manifest(schema):
             at += " (+%d more)" % (len(w["rows"]) - 1)
         L.append("| %s | %d / %d | %d | %s |"
                  % (ln, w["used"], cap, cap - w["used"], at))
+    iw = F["worst"]["immediates"]
+    ifirst = iw["rows"][0]
+    iat = ("`%s` %s" % (ifirst["member"], ifirst["stage"])
+           + (" (+%d more)" % (len(iw["rows"]) - 1) if len(iw["rows"]) > 1 else "")
+           if iw["used"] else "(unused everywhere)")
+    L.append("| immediates(bytes) | %d / %d | %d | %s |"
+             % (iw["used"], IMMEDIATE_LANE_BYTES,
+                IMMEDIATE_LANE_BYTES - iw["used"], iat))
     L.append("")
     L.append("## Table A's shape, with the channel column")
     L.append("")

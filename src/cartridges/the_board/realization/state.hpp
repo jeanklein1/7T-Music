@@ -1590,14 +1590,6 @@ namespace t7 {
         inline constexpr uint32_t FC_LIST_BYTES  = 2048;
         inline constexpr uint32_t FC_ARGS_BYTES  = 15 * sizeof(uint32_t);  // 3 x 5-u32 draw-args slots
 
-        // ─── REGAIN_1 — the patch params windows ──────────────────
-        // One 256-byte window per pool slot; window i holds patch i's
-        // GPUPatchParams. The STRIDE is the binding offset alignment,
-        // not the payload: 32 bytes are used and the rest is what the
-        // alignment demands. The legality argument is the one the
-        // ATLAS_1revB D3" paragraph below makes for the same number.
-        inline constexpr uint32_t PATCH_PARAMS_STRIDE = 256;
-
         // ─── ATLAS_1revB D3" — the shadow tile's light-index windows ──
         // One 256-byte window per spot light; window i holds the literal
         // i. 256 is minUniformBufferOffsetAlignment's core default and
@@ -1605,14 +1597,6 @@ namespace t7 {
         // (the limit is "better is lower", so an adapter's own value is a
         // power of two <= 256 and divides 256). The payload is 4 bytes;
         // the rest of each window is padding the alignment demands.
-        //
-        // REGAIN_1 restores the two constants B6 retired with the
-        // machinery they measured. SIZE is honestly 4 now, not the 16 it
-        // carried before: shadow_slot is a bare u32 in the shader, not a
-        // struct, so nothing rounds it up to a 16-byte alignment and the
-        // minimum binding size is the payload itself.
-        inline constexpr uint32_t SHADOW_SLOT_STRIDE = 256;
-        inline constexpr uint32_t SHADOW_SLOT_SIZE   = 4;
         // ─── FORMAT_1 D1 — THE ONE AUTHORITY FOR THE SHADOW DEPTH FORMAT ──
         //
         // PASS_0 F1 found this format spelled at four coupled sites with no
@@ -1641,6 +1625,11 @@ namespace t7 {
         // 96 this era began with.
         inline constexpr wgpu::TextureFormat kShadowDepthFormat =
             wgpu::TextureFormat::Depth16Unorm;
+
+        // DOMESDAY_1 B6 (R3): SHADOW_SLOT_STRIDE / SHADOW_SLOT_SIZE are
+        // retired with the dynamic-offset machinery they measured — the
+        // shadow light index is immediate data now (one u32, no buffer,
+        // no window, no offset arithmetic).
 
         struct MeshVertex {
             float pos[3];
@@ -2041,11 +2030,6 @@ namespace t7 {
             // member where three storage buffers used to be.
             wgpu::Buffer frameRMainBuffer_;
             wgpu::Buffer frameRPhotoBuffer_;
-            // REGAIN_1 (ATLAS_1revB D3"): MAX_SPOT_LIGHTS × 256 B windows,
-            // window i holding the literal i. Written once at init. It sits
-            // beside the frame block because that is the group it rode
-            // before B6; it is seated on the SHADOW stratum now.
-            wgpu::Buffer lightSlotBuffer_;
             // ORGAN_0b — THE LIGHTING HOME. CHORD_3 gave lighting two GPU
             // windows but left its CPU side composed on the stack at the
             // authoring site (upload_lights, mood.hpp), so there was nothing
@@ -2072,16 +2056,11 @@ namespace t7 {
             uint32_t meterPairCount_ = 0;
             uint32_t meterNextIndex_ = 0;
 
-            // REGAIN_1: ONE buffer, not the two PROBATE_I retired.
-            // patchParamsBuffer_ is Dim::MAX_ACTIVE_PATCHES windows at
-            // PATCH_PARAMS_STRIDE, bound at g2:40 with a dynamic offset;
-            // patchParamsWindows_ is the CPU side of the single
-            // WriteBuffer that fills a batch's windows (57,600 B, sized
-            // to the pool because the boot pregen's batch is not bounded
-            // by PATCH_BUDGET_MAX). There is no staging buffer and no
-            // copy — see the banner at the creation site.
-            wgpu::Buffer patchParamsBuffer_;
-            uint8_t patchParamsWindows_[Dim::MAX_ACTIVE_PATCHES * PATCH_PARAMS_STRIDE] = {};
+            // PROBATE_I: patchParamsBuffer_ and patchStagingBuffer_ are
+            // retired. `patch_params` is `var<immediate>` (world.wgsl
+            // §7.0a) and GPUPatchParams is the value type handed to
+            // SetImmediates at the dispatch site — no seat, no backing,
+            // no 225-slot ladder to take turns in.
             wgpu::Buffer patchInstancesBuffer_;
             // OIL_1 U10: shadow of the last-uploaded instance packing +
             // first-upload flag — the upload_patch_instances gate.
@@ -2521,9 +2500,9 @@ namespace t7 {
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
-            // REGAIN_1: the params door is a BATCH door now and lives
-            // with the other batch machinery — upload_patch_params_batch,
-            // below, under "Batch patch generation".
+            // PROBATE_I: upload_patch_params is retired with its buffer —
+            // the params reach the shader through SetImmediates on the
+            // patchgen compute passes (surface/patch_system.hpp).
 
             void upload_tile_grid(wgpu::Queue& queue, const GPUTileGrid& grid) {
                 writeStruct(queue, tileGridBuffer_, grid);
@@ -3670,41 +3649,10 @@ namespace t7 {
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
 
             // --- Batch patch generation ---
-            // REGAIN_1 — ONE WRITE PER BATCH. Every window a batch will
-            // bind is filled here, in a single WriteBuffer, before the
-            // pass loop opens; inside the loop nothing is written at all,
-            // only an offset moves. That is strictly less traffic than
-            // the ladder PROBATE_I retired (one write plus one copy per
-            // patch) and one buffer fewer than it needed.
-            //
-            // THE CLAMP IS FOR THE BOOT PREGEN. Its batch size is not
-            // bounded by PATCH_BUDGET_MAX, so a pool-sized window array
-            // is the honest allocation and a count past it is a caller
-            // defect, said out loud rather than scribbled past the end.
-            //
-            // IT RETURNS WHAT IT WROTE so the clamp is one fact in one
-            // place: the caller's dispatch loop walks the windows that
-            // exist, and no offset can be handed to a bind that the
-            // buffer does not contain. A void door would have left the
-            // guard decorative and the loop free to walk past the end.
-            uint32_t upload_patch_params_batch(wgpu::Queue& queue,
-                const GPUPatchParams* params, uint32_t count) {
-                if (count == 0 || !patchParamsBuffer_) return 0;
-                if (count > Dim::MAX_ACTIVE_PATCHES) {
-                    std::cerr << "[GPUState] upload_patch_params_batch: count "
-                        << count << " exceeds the window array ("
-                        << Dim::MAX_ACTIVE_PATCHES << ") — clamped. The batch "
-                           "the caller asked for cannot be generated whole.\n";
-                    count = Dim::MAX_ACTIVE_PATCHES;
-                }
-                for (uint32_t i = 0; i < count; i++) {
-                    std::memcpy(patchParamsWindows_ + i * PATCH_PARAMS_STRIDE,
-                                &params[i], sizeof(GPUPatchParams));
-                }
-                queue.WriteBuffer(patchParamsBuffer_, 0, patchParamsWindows_,
-                    static_cast<size_t>(count) * PATCH_PARAMS_STRIDE);
-                return count;
-            }
+            // PROBATE_I: the three staging doors — patch_params_buffer,
+            // patch_staging_buffer and upload_patch_staging — are retired
+            // with the two buffers behind them. A batch's params are CPU
+            // values now, set per patch on the pass encoder.
 
         private:
 
@@ -3985,25 +3933,9 @@ namespace t7 {
                 // is that it stops spending F-stage storage seats.
                 frameRMainBuffer_  = makeBuffer("Frame R (Main)", sizeof(GPUFrameR), UU);
                 frameRPhotoBuffer_ = makeBuffer("Frame R (Photographer)", sizeof(GPUFrameR), UU);
-                // ─── REGAIN_1 (ATLAS_1revB D3") — the light-index
-                // windows. Written ONCE, here, and never again: window i
-                // holds the constant i, so the buffer has no owner, no
-                // cadence and no way to go stale. The whole mechanism is
-                // the OFFSET moving, not the bytes — which is why this
-                // costs strictly less per frame than the immediates path
-                // it replaces, where four bytes went out per light per
-                // frame to say the same thing.
-                //
-                // No per-frame door exists and none should be added. If a
-                // later campaign needs one it can add it then.
-                lightSlotBuffer_ = makeBuffer("Shadow Light Slot Windows",
-                    MAX_SPOT_LIGHTS * SHADOW_SLOT_STRIDE, UU);
-                if (lightSlotBuffer_) {
-                    auto q = device_.GetQueue();
-                    for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
-                        q.WriteBuffer(lightSlotBuffer_, i * SHADOW_SLOT_STRIDE,
-                                      &i, sizeof(uint32_t));
-                }
+                // DOMESDAY_1 B6 (R3): the ATLAS_1revB D3" light-index
+                // window buffer is retired — the shadow light index rides
+                // immediate data now (SetImmediates, render_passes.hpp).
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
                 // usage; the descriptor was hand-rolled only because
@@ -4036,27 +3968,11 @@ namespace t7 {
                         METER_QUERY_COUNT * sizeof(uint64_t),
                         wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 }
-                // ─── REGAIN_1 — THE PATCH PARAMS WINDOWS ──────────
-                //
-                // ONE buffer: Dim::MAX_ACTIVE_PATCHES windows at
-                // PATCH_PARAMS_STRIDE (57,600 B), uniform, bound at g2:40
-                // with a DYNAMIC OFFSET that carries the patch index. One
-                // WriteBuffer per batch fills every window the batch will
-                // bind; nothing is written inside the pass loop.
-                //
-                // THIS IS NOT THE PRE-PROBATE_I LADDER. That was TWO
-                // buffers — a 225-slot staging ladder and a one-patch
-                // params buffer — plus a CopyBufferToBuffer per patch,
-                // and it existed for one reason: a binding could not
-                // change inside an encoder, so the bytes had to move
-                // instead. A dynamic offset is precisely that ability, so
-                // the copy has nothing left to do. One buffer where there
-                // were two; one write where there was a write plus a copy
-                // per patch; and the 32 bytes of budget the lane carried
-                // become 57,600 of window, which is not a number worth a
-                // second thought against a 225-layer heightfield array.
-                patchParamsBuffer_ = makeBuffer("Patch Params Windows",
-                    Dim::MAX_ACTIVE_PATCHES * PATCH_PARAMS_STRIDE, UU);
+                // PROBATE_I: "Patch Params" (32 B) and "Patch Params
+                // Staging" (225 × 32 B) are no longer created — the
+                // immediates lane carries the struct, so the budget
+                // stops paying for a buffer pair the pass encoder
+                // replaces.
                 tileGridBuffer_ = makeBuffer("Tile Grid", sizeof(GPUTileGrid), UU);
                 patchInstancesBuffer_ = makeBuffer("Patch Instances",
                     sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES,
@@ -4134,7 +4050,6 @@ namespace t7 {
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
-                    lightSlotBuffer_ && patchParamsBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
                     patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
