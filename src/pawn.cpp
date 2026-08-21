@@ -177,15 +177,13 @@ static void frame() {
     }
 
     float dt = app->console.begin_frame();
-    // ORGAN_0b — THE DIRTY FLUSH, at the frame boundary and nowhere else.
-    // begin_frame has just polled events and run CAP_2's reconcile, so every
-    // writer for this frame has spoken; the panel's edits since the last
-    // frame are bits, and this turns them into at most one WriteBuffer per
-    // block. A slider drag is many events and one upload (docs/ORGAN.md).
-    // O1a — ask, before flushing, whether the panel's last word still
-    // stands. The observer belongs HERE and not inside the flush: the flush
-    // runs on dirty blocks only, and a dial that has been overwritten by
-    // another author is precisely a dial nobody marked dirty.
+    // ORGAN — THE DIRTY FLUSH, at the frame boundary and nowhere else.
+    // begin_frame has polled events and reconciled, so every writer for this
+    // frame has spoken and the panel's edits are bits: this turns them into
+    // at most one WriteBuffer per block (docs/ORGAN.md).
+    // The observer runs BEFORE the flush and outside it, because the flush
+    // runs on dirty blocks only and a dial another author overwrote is
+    // precisely a dial nobody marked dirty.
     app->render.organ_observe();
     app->render.organ_flush(app->queue);
     if constexpr (t7::INSTRUMENTS.frame_meter)

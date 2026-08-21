@@ -1974,19 +1974,13 @@ namespace t7 {
             // ORGAN — one bit per panel-writable block, raised by
             // organ_mark_dirty and cleared by organ_flush.
             //
-            // TOUCHED, NOT DIRTY (O1d). For lightingStage_ and
-            // agentRoomStage_ this bit IS the dirty bit, because organ_flush
-            // is their only upload path. For config_ it is only the witness's
-            // record: config_ already HAS a dirty bit — configDirty_, the
-            // flag upload_config actually tests and the spine's own
-            // per-frame upload consumes — and a fact's home has one dirty
-            // bit. So organ_mark_dirty raises THAT one for config_ and keeps
-            // no second flag beside it; the bit here is left to the witness,
-            // and organ_flush's config arm writes nothing. The drivers' room
-            // (ORGAN_2a, block 3) is a third case: it has no GPU block and so
-            // no dirty bit anywhere — its bit is the witness's record and
-            // nothing else, because the seams that read it each tick are its
-            // flush.
+            // TOUCHED, NOT DIRTY. For lightingStage_ and agentRoomStage_
+            // this bit IS the dirty bit, organ_flush being their only upload
+            // path. For config_ it is the witness's record alone: config_
+            // has its own dirty bit — configDirty_, which upload_config
+            // tests — and a fact's home has one. The drivers' room (block 3)
+            // has no GPU block and so no dirty bit anywhere: the seams that
+            // read it each tick are its flush.
             uint32_t organTouched_ = 0;
             uint32_t organLastFlush_ = 0;
             bool configDirty_ = true;      // true at boot → first frame always uploads
@@ -2030,13 +2024,10 @@ namespace t7 {
             // member where three storage buffers used to be.
             wgpu::Buffer frameRMainBuffer_;
             wgpu::Buffer frameRPhotoBuffer_;
-            // ORGAN_0b — THE LIGHTING HOME. CHORD_3 gave lighting two GPU
-            // windows but left its CPU side composed on the stack at the
-            // authoring site (upload_lights, mood.hpp), so there was nothing
-            // for a dial to hold. This is that home: upload_lighting stores
-            // through it, so it always carries what the GPU last received,
-            // and the panel edits it in place. A mood change re-authors it,
-            // which is correct — a mood is a bigger authority than a dial.
+            // ORGAN — THE LIGHTING HOME. upload_lighting stores through it,
+            // so it always carries what the GPU last received and the panel
+            // edits it in place. A mood change re-authors it, which is
+            // correct: a mood is a bigger authority than a dial.
             GPULighting lightingStage_{};
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
@@ -2377,7 +2368,7 @@ namespace t7 {
 
             // Upload the agent behavior + tier registries to the GPU.
             // Called at world-init from the cartridge, and again at the
-            // frame boundary when the panel edits the tier bank (ORGAN_2b).
+            // frame boundary when the panel edits the tier bank.
             // Behaviors are constexpr-equivalent (AGENT_BEHAVIORS,
             // bodies/agents.hpp) and never change during a session; the
             // tiers come from TIER_LIVE (contracts/agent_tiers.hpp), the
@@ -2450,7 +2441,7 @@ namespace t7 {
             // so the block is composed there and written whole; the
             // offset-write alternative at 0/48/320 was not needed.
             void upload_lighting(wgpu::Queue& queue, const GPULighting& lighting) {
-                lightingStage_ = lighting;   // ORGAN_0b: the home records what shipped
+                lightingStage_ = lighting;   // the home records what shipped
                 // CHORD_3: two windows, one home. The block sits at offset 0
                 // of both instances, and the photographer lights the same
                 // world the main camera does.
@@ -3497,12 +3488,10 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, force_radial), &radial, sizeof(float));
             }
-            // ORGAN_4 P1a — REVIVED. This writer was orphaned when the
-            // gen-1 noise coupling retired and the floor became a
-            // constant; its living caller is now the PANEL, through the
-            // cartridge's console-mask block. The kernel reads noise_amp
-            // every frame, so a targeted 4-byte partial is the whole cost
-            // of a dial that moves under the finger.
+            // The PANEL's writer, reached through the cartridge's
+            // console-mask block. The kernel reads noise_amp every frame, so
+            // a targeted 4-byte partial is the whole cost of a dial that
+            // moves under the finger.
             void upload_orb_noise(wgpu::Queue& queue, float noise) {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, noise_amp), &noise, sizeof(float));
@@ -3750,27 +3739,23 @@ namespace t7 {
 
         public:
             // ═══ ORGAN — THE PANEL'S WRITE SURFACE ═══════════════════════
-            //
-            // Exactly these three homes, named one at a time, and nothing
-            // else. This IS the sovereignty boundary from docs/ORGAN.md,
-            // written as code rather than as a promise: a home the panel may
-            // write has an accessor here, and a home it may not has none. GPU
-            // truth — positions, vp, camera, simulation state — is absent by
-            // construction, not by discipline.
-            //
-            // Returning raw pointers is deliberate. The registry addresses
-            // members by compiler-sworn offsetof from the block's base, so
-            // the base is all it needs; and the ABI refuses any (block,
+            // Exactly these three homes and nothing else: the sovereignty
+            // boundary written as code. A home the panel may write has an
+            // accessor here; a home it may not has none, so GPU truth —
+            // positions, vp, camera, simulation state — is absent by
+            // construction.
+
+            // Raw pointers are deliberate: the registry addresses members by
+            // offsetof from the block's base, and the ABI refuses any (block,
             // offset, type) triple the registry does not carry, so the
             // pointer is never a general-purpose door.
             GPUDesignConfig*       organ_config_home()     { return &config_; }
             GPULighting*           organ_lighting_home()   { return &lightingStage_; }
             GPUAgentRoomConstants* organ_agent_room_home() { return &agentRoomStage_; }
 
-            // The panel's one door for "this home changed". It raises the
-            // home's OWN dirty flag where the home has one, and the witness
-            // bit always — routing lives here, in the home, because which
-            // flag a home uses is the home's knowledge and not the panel's.
+            // The panel's one door for "this home changed": it raises the
+            // home's OWN dirty flag where there is one, and the witness bit
+            // always. Which flag a home uses is the home's knowledge.
             void organ_mark_dirty(uint32_t block) {
                 organTouched_ |= (1u << block);
                 if (block == 0) configDirty_ = true;   // config_'s one dirty bit
@@ -3779,21 +3764,16 @@ namespace t7 {
 
             // The frame-boundary flush (docs/ORGAN.md, "The write path").
             // A slider drag is many events and one WriteBuffer: the events
-            // only set bits, and this runs once a frame through the SAME
-            // upload paths CHORD built. Nothing here duplicates an upload.
+            // only set bits, and this runs once a frame through the program's
+            // own upload paths. Nothing here duplicates an upload.
             void organ_flush(wgpu::Queue& queue) {
                 organLastFlush_ = 0;
                 if (!organTouched_) return;
                 if (organTouched_ & (1u << 0)) {        // DesignConfig
-                    // NO UPLOAD HERE, on purpose (O1d). config_ is staged,
-                    // not composed: upload_config sends the struct exactly as
-                    // it stands, and the spine runs it every frame off
-                    // configDirty_ — which organ_mark_dirty has already
-                    // raised. A second upload at this site would be a second
-                    // writer for one fact with nothing new to say. The count
-                    // still rises because the panel's edit WAS reconciled;
-                    // the witness reports what the panel caused, not which
-                    // function did the writing.
+                    // NO UPLOAD HERE, on purpose: config_ is staged, and
+                    // the spine sends it every frame off configDirty_, which
+                    // organ_mark_dirty has already raised. The count still
+                    // rises because the panel's edit WAS reconciled.
                     ++organLastFlush_;
                 }
                 if (organTouched_ & (1u << 1)) {        // Lighting
@@ -3801,9 +3781,9 @@ namespace t7 {
                     ++organLastFlush_;
                 }
                 if (organTouched_ & (1u << 2)) {        // the agents' room
-                    // tier_gains is ONE home with TWO windows (CHORD's ruling):
-                    // agent_room's and scene_constants'. The authoring site
-                    // writes every window it owns, so both go here.
+                    // tier_gains is ONE home with TWO windows, agent_room's
+                    // and scene_constants'; the authoring site writes every
+                    // window it owns, so both go here.
                     queue.WriteBuffer(agentRoomBuffer_,
                         offsetof(GPUAgentRoomConstants, tier_gains),
                         agentRoomStage_.tier_gains,
@@ -3815,21 +3795,16 @@ namespace t7 {
                     ++organLastFlush_;
                 }
                 if (organTouched_ & (1u << 3)) {        // the drivers' room
-                    // DRIVERS (block 3) — no upload and no flag: the home is
-                    // CPU-read, and the seams that read it each tick ARE its
-                    // flush. The count still rises: the panel's edit was
-                    // reconciled the moment it landed.
+                    // DRIVERS (block 3) — no upload and no flag: the seams
+                    // that read it each tick ARE its flush. The count still
+                    // rises, the edit having been reconciled where it landed.
                     ++organLastFlush_;
                 }
-                // ORGAN_3 w2 / ORGAN_3b P2 — THE GRADUATED BANKS (blocks
-                // 4..9: pawn aura, orb console, the panel's beacon+camera,
-                // the ribbon's head law, the indoor pair, the canvas's
-                // envelopes). Every one is CPU-read by its own module each
-                // tick, so block 3's rule covers them all: no upload, no
-                // flag, and the count rises once per block whose edit was
-                // reconciled. Counted in one branch because they share one
-                // reason — if a bank ever needs an upload it earns its own
-                // arm and its own sentence.
+                // THE GRADUATED BANKS (blocks 4 and up). Every one is
+                // CPU-read by its own module each tick, so block 3's rule
+                // covers them all: no upload, no flag, and the count rises
+                // once per block whose edit was reconciled. One branch,
+                // because they share one reason.
                 {
                     uint32_t banks = organTouched_ >> 4;
                     while (banks) { banks &= banks - 1u; ++organLastFlush_; }

@@ -61,10 +61,10 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
-#include "cartridges/the_board/contracts/driver_surface.hpp"       // ORGAN_2a — THE DRIVERS' ROOM: rests and gains at the seams; phase_motion_drivers reads DRIVER_LIVE.fog
+#include "cartridges/the_board/contracts/driver_surface.hpp"       // THE DRIVERS' ROOM: rests and gains at the seams; phase_motion_drivers reads DRIVER_LIVE.fog
 #include "cartridges/the_board/contracts/floaters.hpp"   // floater TYPES (ActiveSphere/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "console/organ_registry.hpp"   // ORGAN_0b — the compiled dial registry + its C ABI (needs the home types above)
+#include "console/organ_registry.hpp"   // the compiled dial registry + its C ABI (needs the home types above)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
 #include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/Dim::PATCH_EXTENT
@@ -688,9 +688,9 @@ namespace t7 {
                 // bank TIER_LIVE (contracts/agent_tiers.hpp), uploaded to
                 // GPU storage buffers at bindings 110 + 111. Behaviors are
                 // constexpr-equivalent, so for them this stays a one-shot
-                // write at boot; the bank is a live surface, and ORGAN_2b's
-                // frame boundary re-speaks this same author whenever the
-                // panel edits it.
+                // write at boot; the bank is a live surface, and the frame
+                // boundary re-speaks this same author whenever the panel
+                // edits it.
                 {
                     wgpu::Queue q = device_.GetQueue();
                     upload_agent_registries_to_gpu(&agents_deps_, q);
@@ -740,16 +740,10 @@ namespace t7 {
                 // block's claim to be the cartridge's last init line
                 // stays true.
                 gpuState_.report_gpu_budget();
-                // ORGAN_0b — the panel's homes exist by now, so bind them.
-                // One pointer, set once; the ABI is inert until this runs,
-                // which is why organ_manifest may be called by a page that
-                // loaded before the program finished booting.
+                // ORGAN — the homes exist by now, so bind them; the ABI is
+                // inert until this runs. The mood organ is BORROWED, so the
+                // panel cannot name a state the program has left.
                 t7::organ::bind_home(&gpuState_);
-                // O1b — and the live mood, borrowed rather than copied:
-                // a definition is addressed BY mood, and the panel must
-                // never be editing a mood the program has left. ATMOS_1b/2
-                // — the whole organ, not one field: the panel's regime
-                // readout reads mood_state_.regime through the same pointer.
                 t7::organ::bind_mood(&mood_state_);
 
                 if constexpr (!ROSTER.all_enabled()) {
@@ -1052,19 +1046,18 @@ namespace t7 {
             void phase_motion_drivers(UpdateCtx& c) {
                 auto& signal = c.signal;
                 visual_canvas_.tick(signal);
-                // ORGAN_2a / ATMOS_1 — the drivers' room sits at this seam:
-                // out = rest + gain·deviation. The REST is the mood's
-                // (rung 3: drawn per world into mood_state_.fog_rest_* by
-                // apply_mood_lighting); the DEVIATION is the canvas's,
+                // ORGAN — the drivers' room sits at this seam:
+                // out = rest + gain·deviation. The REST is the mood's,
+                // drawn per world into mood_state_.fog_rest_* by
+                // apply_mood_lighting; the DEVIATION is the canvas's,
                 // measured from its anchor row. Gain 1 is the coupling
-                // verbatim — for the sunset, whose rest IS the anchor,
-                // byte-for-byte the pre-ATMOS_1 picture; gain 0 is the
-                // mood's own fog. With no bindings the rest alone speaks,
-                // so the dial works headless too.
+                // verbatim, gain 0 is the mood's own fog, and with no
+                // bindings the rest alone speaks — so the dial works
+                // headless too.
                 //
-                // D2: set_fog GUARDS — it compares all four lanes and
-                // dirties only on a change — so both arms call it
-                // unconditionally and the silent case costs no dirty.
+                // set_fog GUARDS — it compares all four lanes and dirties
+                // only on a change — so both arms call it unconditionally
+                // and the silent case costs no dirty.
                 {
                     const auto& drv = DRIVER_LIVE.fog;
                     const auto& ms  = mood_state_;
@@ -1082,7 +1075,7 @@ namespace t7 {
                 }
                 // CHECKER-REBUILD: the pc-color field's flush — one setter,
                 // the fan (resultant rgb + music amount + music variance).
-                // ORGAN_3 w4 — the drivers' room sits at this seam too:
+                // ORGAN — the drivers' room sits at this seam too:
                 // out = rest + gain·(driven − rest), the fog recipe verbatim.
                 // Gain 1 is the coupling byte-for-byte; gain 0 is the rest,
                 // which terrain_looks calls law — amount 0 returns each cell
@@ -1121,8 +1114,8 @@ namespace t7 {
                     }
                 } else {
                     // No bindings: the rest alone speaks, so the dials still
-                    // reach the picture with the music silent — the same
-                    // headless arm the fog seam grew at ORGAN_2a.
+                    // reach the picture with the music silent — the fog
+                    // seam's headless arm again.
                     // set_checker_color_field guards, so this costs no dirty.
                     const auto& ck = DRIVER_LIVE.checker;
                     gpuState_.set_checker_color_field(ck.rest_resultant,
@@ -1156,19 +1149,18 @@ namespace t7 {
                     } else {
                         py = estimate_terrain_height(tile_world_state_, point_.x, point_.z);
                     }
-                    // ORGAN_3b — the beacon reads its BANK, not the design
-                    // table. ORGAN_3 w2 built PANEL_LIVE and enrolled it and
-                    // then left these four reading the constexprs, so seven
-                    // dials wrote a bank nothing read. Repaired here.
+                    // ORGAN — the beacon reads its BANK, PANEL_LIVE, and
+                    // not the design table: a bank nothing reads is a dial
+                    // that writes nothing.
                     const auto& bcn = PANEL_LIVE.beacon;
-                    // ORGAN_3b P5 — THE RING SELF-SPACES, AT RUNTIME TOO.
+                    // THE RING SELF-SPACES, AT RUNTIME TOO.
                     // control_panel.hpp's static_assert proves the AUTHORED
-                    // pair; this clamp guards the DIALED one. It reads
-                    // config's LIVE field_k rather than the constexpr,
-                    // because field_k is a dial as well and lowering it is
-                    // the second way to break the same ruling — and it sits
-                    // at the writer, not at the panel, so every future
-                    // author (a coupling included) is guarded by it.
+                    // pair; this clamp guards the DIALED one, reading
+                    // config's LIVE field_k rather than the constexpr
+                    // because field_k is a dial too and lowering it breaks
+                    // the same ruling from the other end. It sits at the
+                    // writer, not at the panel, so every author is
+                    // guarded by it.
                     const float ceiling = gpuState_.config().field_k - 1.0f;
                     float s = bcn.s;
                     if (s > ceiling) s = ceiling;
@@ -1398,63 +1390,33 @@ namespace t7 {
             }
 
             // ── THE CONDUCTOR (update) — a LOOP over UPDATE_SPINE (§1a) ─────
-            // ORGAN_0b — the panel's frame-boundary flush, forwarded. The
-            // cartridge owns gpuState_, so the loop asks the cartridge; the
-            // panel never reaches past this into the homes.
-            //
-            // O1b — and the DEFINITION re-apply, which belongs here for the
-            // same reason: this is the layer that owns both the mood deps
-            // and the queue, and the registry knows neither. The panel wrote
-            // what the mood MEANS; apply_mood_regime and apply_mood_lighting
-            // are the program's own authors, run unchanged, and they are what
-            // turns that into the instance. One re-apply per frame however
-            // many edits arrived.
-            //
-            // Only for the LIVE mood. An edit to another mood's definition
-            // is stored and takes effect the next time the program enters
-            // it — re-applying it now would paint this world with another
-            // world's sun.
+            // ORGAN — the frame boundary. This layer owns the mood deps and
+            // the queue and the registry owns neither, so doors, definition
+            // re-speaks and the flush are taken here, for the LIVE mood only.
             void organ_flush(wgpu::Queue& queue) {
-                // ORGAN_3b — DOOR 0, Re-speak definitions. A door is the
-                // panel pressing the program's OWN boundary: it raises the
-                // definition flags the lines below already consume, and
-                // then those lines do exactly what they do every frame.
-                // Four boolean writes, no fan-calling code, no new author —
-                // which is the entire reason a door is lawful.
-                //
-                // WHY IT EARNS A BUTTON. A definition write is durable but
-                // NOT immediate: the mood's own apply produces the instance
-                // the next time it runs. Most of the time that is right —
-                // the panel is a view, not a second author. But an operator
-                // who has just edited a definition and wants to SEE it has,
-                // until now, had to leave the mood and come back. The door
-                // is that round trip, without the trip.
+                // DOOR 0, Re-speak definitions: it raises the flags the
+                // lines below already consume, so the boundary then does
+                // what it does every frame. A definition write is durable
+                // but not immediate, and this is that round trip.
                 const uint32_t doors = t7::organ::take_doors_pending();
                 if (doors & (1u << t7::organ::ORGAN_DOOR_RESPEAK)) {
                     t7::organ::g_def_dirty      = true;
                     t7::organ::g_def_dirty_mood = mood_state_.active;
                     t7::organ::g_tier_def_dirty = true;
-                    // ORGAN_6 — the door promises to re-speak the LIVE
-                    // definitions, so it names the live mood.
+                    // The door promises the LIVE definitions, so it names
+                    // the live mood.
                     t7::organ::raise_orb_definition(mood_state_.active);
                 }
-                // ORGAN_4 P1c — THE SKY'S TWO PLAYER-OWNED FACTS. Both
-                // are the program's OWN commands, the same two KP_8/KP_7
-                // presses; the panel reaches them as doors because a
-                // player-owned fact cannot honestly wear a dial. Neither
-                // adds an author, invents a behavior or opens a write
-                // path: each calls the function its key calls, with its
-                // own guards and its own partial upload unchanged.
+                // THE SKY'S TWO PLAYER-OWNED FACTS, reached as doors: each
+                // calls the function its key calls — the same KP_8 / KP_7
+                // commands, guards and partial upload unchanged.
                 if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_RULE))
                     cycle_orb_motion_rule(orbs_state_, &orbs_deps_, queue);
                 if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_GESTURE))
                     cycle_orb_gesture(orbs_state_, &orbs_deps_, queue);
 
-                // ATMOS_1 — THE MOOD DOOR. The panel asked to go somewhere.
-                // This is the same request door keys 5-9 press, with its
-                // own guards (a transition in flight ignores the press,
-                // ROSTER.transitions gates it): a parametrised door, taken
-                // once.
+                // THE MOOD DOOR — the same request keys 5-9 press, with its
+                // own guards. A door with a parameter, taken once.
                 {
                     uint32_t go = 0;
                     if (t7::organ::take_go_mood(go))
@@ -1465,91 +1427,61 @@ namespace t7 {
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {
-                    // REGIME_1 — the roll, then the sky: a weight dial
-                    // moves this world's regime under the same seed, and
-                    // the sky is re-drawn from the regime it landed in.
+                    // The roll, then the sky: a weight dial moves this
+                    // world's regime under the same seed, and the sky is
+                    // re-drawn from the regime it landed in.
                     apply_mood_regime(&mood_deps_, mood_def(def_mood));
                     apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
                 }
-                // ORGAN_2b — the tier bank changed: the author re-speaks,
-                // whole registry, its own voice (behaviors and figures ride
-                // along unchanged — idempotent by construction). Once per
-                // frame however many edits arrived, like the mood re-apply
-                // above.
+                // The tier bank changed, so its author re-speaks the whole
+                // registry in its own voice — idempotent by construction.
+                // Once per frame however many edits arrived.
                 if (t7::organ::take_tier_definition_dirty()) {
                     upload_agent_registries_to_gpu(&agents_deps_, queue);
                 }
-                // ORGAN_4 P1a — THE DOME DIALS LAND BY THEIR READERS'
-                // CADENCES. dome and noise are per-frame GPU reads, so
-                // they take targeted partials and stay smooth under the
-                // finger; base size is baked into orb_state at init, so
-                // it raises the orb re-speak instead. This sits
-                // IMMEDIATELY BEFORE the take_orb_definition_dirty()
-                // block so a base-size raise is consumed the same frame
-                // rather than the next one.
-                //
-                // ORGAN_5 P1 — AND THE CONSOLE CARRIES ITS OWN HEAVY
-                // REASON DOWN. base_size is init-baked, so its raise must
-                // re-seed; but it is an OrbConsole field, and its offset
-                // means nothing in OrbMoodConfig's bit space, so it can
-                // raise the FLAG and no touched bit. Without this local
-                // the light test below would read a same-frame flock drag
-                // as "nothing heavy touched" and swallow the size edit.
-                // One bool, declared where the reason is found.
+                // THE CONSOLE DIALS LAND BY THEIR READERS' CADENCES: dome,
+                // noise and speed take targeted partials, base size raises
+                // the orb re-speak. This sits IMMEDIATELY BEFORE the
+                // take_orb_definition_dirty() block.
+
+                // base_size is an OrbConsole field, so its offset means
+                // nothing in OrbMoodConfig's bit space: it raises the FLAG
+                // with no touched bit, and this local is what keeps a
+                // same-frame flock drag from swallowing it.
                 bool console_reseed = false;
                 if (const uint32_t cm = t7::organ::take_orb_console_dirty()) {
                     if (cm & 1u) gpuState_.upload_orb_dome_radius(queue,
                                      ORB_CONSOLE_LIVE.dome_radius);
                     if (cm & 4u) gpuState_.upload_orb_noise(queue,
                                      ORB_CONSOLE_LIVE.noise_floor);
-                    // ORGAN_5 P3a — the master motion strength: a
-                    // per-frame GPU read like dome and noise, so a
-                    // targeted 4-byte partial and NO re-seed. The dial
-                    // scales the sky's energy under the finger, from
-                    // stillness to 4x, without replacing one orb.
+                    // The master motion strength: a per-frame GPU read
+                    // like dome and noise, so a targeted 4-byte partial and
+                    // NO re-seed — it scales the sky's energy under the
+                    // finger without replacing one orb.
                     if (cm & 8u) gpuState_.upload_orb_speed_mult(queue,
                                      ORB_CONSOLE_LIVE.speed_mult);
-                    // ORGAN_6 — a console edit is about the sky we are
-                    // looking at, so the live mood is the honest answer.
+                    // A console edit is about the sky we are looking at,
+                    // so the live mood is the honest answer.
                     if (cm & 2u) {
                         t7::organ::raise_orb_definition(mood_state_.active);
                         console_reseed = true;
                     }
                 }
-                // ORGAN_3b P3 — the orb mood bank changed: its applier
-                // re-speaks, for the LIVE mood only. Same shape as the
-                // mood re-apply above and for the same reason — applying
-                // another mood's orb definition now would populate this
-                // sky from a world we are not in. The call mirrors the
-                // mood fan's own site (direction/mood.hpp) exactly; only
-                // the table it reads moved, from ORB_MOOD_TABLE to the
-                // bank. Once per frame however many edits arrived.
+                // The orb mood bank changed, so its applier re-speaks — for
+                // the LIVE mood only, because applying another mood's orb
+                // definition would populate this sky from a world we are
+                // not in. The call mirrors the mood fan's own site.
                 uint32_t orb_mood = 0;
                 if (t7::organ::take_orb_definition_dirty(orb_mood)) {
-                    // ORGAN_5 P1 — AN AUTHOR RE-SPEAKS NO MORE THAN THE
-                    // EDIT REQUIRES. Four of the nineteen orb-mood facts
-                    // are baked into orb_state by the init kernel
-                    // (enabled, count, palette, drag): touching any of
-                    // them re-seeds. The other fifteen are per-frame GPU
-                    // reads — the uniform upload alone carries them, and
-                    // velocities and positions persist under the finger,
-                    // which is the whole point: a flock radius should
-                    // STEER the flock, not replace it.
-                    //
-                    // A raise with NO touched bits is the RESPEAK door,
-                    // or a future caller that did not say. Either way the
-                    // answer is everything: the door promises a full
-                    // re-speak, and a caller that says nothing must not
-                    // be given the light path by default.
-                    //
-                    // ORGAN_6 — AND ONLY WHEN THE EDIT WAS ABOUT THIS
-                    // WORLD. The mask is taken either way, so a dormant
-                    // mood's bits can never reach the live sky's reseed
-                    // decision; the write itself already landed in its own
-                    // row and waits there for the mood that owns it. The
-                    // same rule the mood re-apply above has always kept:
-                    // populating this sky from a world we are not in is not
-                    // a preview, it is a wrong answer.
+                    // AN AUTHOR RE-SPEAKS NO MORE THAN THE EDIT REQUIRES.
+                    // Four of the nineteen orb-mood facts are baked into
+                    // orb_state at init, so touching any of them re-seeds;
+                    // the other fifteen ride the uniform upload.
+
+                    // A RAISE WITH NO TOUCHED BITS MEANS EVERYTHING — the
+                    // RESPEAK door, or a caller that did not say. AND ONLY
+                    // WHEN THIS WORLD'S: the mask is taken either way, so a
+                    // dormant mood's bits cannot reach the live reseed.
                     const uint32_t tm = t7::organ::take_orb_def_touched();
                     if (orb_mood == mood_state_.active) {
                         const bool reseed = console_reseed
@@ -1560,21 +1492,14 @@ namespace t7 {
                             reseed);
                     }
                 }
-                // ORGAN_5 P2a — THE RULE WINDOW, refreshed here and
-                // nowhere else. The sky's rule and gesture are
-                // player-owned and live in OrbsState; the panel needs to
-                // READ them so its fifteen rule-scoped rows can say which
-                // mode they are acting in.
-                //
-                // ONE WRITER, ONE SITE, AND IT IS THIS ONE RATHER THAN
-                // THE DOOR HANDLERS. cycle_orb_motion_rule has two
-                // callers — the door above and KP_8 in direction/input.hpp
-                // — and cycle_orb_gesture likewise has KP_7. Writing the
-                // view beside the doors would leave the readout stale for
-                // exactly the path Jean tested with. A refresh at the
-                // boundary cannot go stale whoever turned the rule, and
-                // costs two masks and a store on a frame where nothing
-                // moved.
+                // THE RULE WINDOW, refreshed here and nowhere else. The
+                // sky's rule and gesture are player-owned and live in
+                // OrbsState; the panel READS them.
+
+                // ONE WRITER, ONE SITE — the boundary, not the door
+                // handlers: cycle_orb_motion_rule answers to the door above
+                // and to KP_8, cycle_orb_gesture to KP_7, and a refresh
+                // here cannot go stale whoever turned the rule.
                 t7::organ::set_orb_rule_view(
                     orbs_state_.current_motion_rule,
                     orbs_state_.gesture_idx[orbs_state_.current_motion_rule & 3u],
@@ -1582,9 +1507,9 @@ namespace t7 {
                 gpuState_.organ_flush(queue);
             }
 
-            // O1a — the contested-dial observation, forwarded the same way.
-            // It reads the homes and writes nothing but its own counters, so
-            // it needs no queue and cannot disturb the frame it measures.
+            // The contested-dial observation, forwarded the same way. It
+            // reads the homes and writes nothing but its own counters, so it
+            // needs no queue and cannot disturb the frame it measures.
             void organ_observe() { t7::organ::observe_frame(); }
 
             void update(const AnalysisSignal& signal,
