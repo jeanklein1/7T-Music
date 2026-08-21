@@ -1661,11 +1661,15 @@ inline constexpr const char* EXHIBITION_MANIFEST_URL = "exhibition.json";
 // decides the layout; tools/web_dist.py writes to the same one.
 inline constexpr const char* EXHIBITION_PAINTINGS_DIR = "paintings/";
 
-// HOW MANY PAINTINGS MAY BE IN THE AIR AT ONCE. Above this the browser
-// queues them anyway, and every request past the browser's own limit
-// only makes the FIRST one land later — which is the one a gallery is
-// waiting on. The rest wait here instead, in a queue this file can see.
-inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 4;
+// ONE PAINTING IN THE AIR AT A TIME. Each arrival is one decode and one
+// 1 MiB WriteTexture, and with one lane the arrivals pace themselves at the
+// network's round trip — one upload every few frames instead of several to
+// a frame. That spacing is what keeps the browser's staging footprint at one
+// painting: Firefox's WebGPU serves uploads from blocks it sub-allocates and
+// a burst opens blocks the per-frame trickle never lets empty (OPEN.md,
+// FIREFOX STAGING RATCHET). It also turns the boot's painting hitch into a
+// trickle. The rest wait here, in a queue this file can see.
+inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 1;
 
 // A request that never answers holds its lane forever, so every request
 // is given an end. Generous, because a phone on a slow connection
@@ -1772,8 +1776,8 @@ inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
     //     the LOST card: console.hpp's loss callback prints
     //     "[Device] LOST", and web/index.html treats that line as
     //     terminal and replaces the world with the card.
-    //   · The exposure is bounded by AUTHORED_FETCH_INFLIGHT_CAP —
-    //     at most four uploads, once, into a page that is already over.
+    //   · The exposure is bounded by AUTHORED_FETCH_INFLIGHT_CAP — one
+    //     upload, once, into a page that is already over.
     //
     // So: NO SIGNAL, NO PLUMBING. Carrying a device-lost flag down to
     // this callback would add a second source of truth about the
@@ -1808,10 +1812,10 @@ inline void start_authored_fetch(GalleryState& gs, GPUState& gpu, wgpu::Queue& q
     // A LANE MUST ALWAYS COME BACK. With no timeout a request that is
     // accepted and then stalls — a captive portal, a proxy holding the
     // connection open — never calls either callback, so its lane and its
-    // slot are gone for the session. Four of those and the cap is
-    // exhausted with the rest of the exhibition sitting in the queue,
-    // silently, forever. The timeout routes to onerror, which is a path
-    // that already frees everything.
+    // slot are gone for the session. One of those and the lane is gone
+    // with the rest of the exhibition sitting in the queue, silently,
+    // forever. The timeout routes to onerror, which is a path that
+    // already frees everything.
     attr.timeoutMSecs = AUTHORED_FETCH_TIMEOUT_MS;
     attr.onsuccess = authored_image_onsuccess;
     attr.onerror = authored_image_onerror;
