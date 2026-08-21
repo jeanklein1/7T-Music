@@ -328,7 +328,7 @@ PARAM = re.compile(r"[(,]\s*(?:const\s+)?(\w+)\s*[&*]?\s*&?\s*(\w+)\s*(?=[,)])")
 def handles_in(sig_and_body, live, struct):
     """Every identifier inside this body that IS the bank.
 
-    `struct` is a name or a tuple of names (REGIME_1): a family whose
+    `struct` is a name or a tuple of names: a family whose
     leaves live at two depths — MoodProfile.regime_weight beside
     MoodProfile.atmos.* — is held by two handle types.
     """

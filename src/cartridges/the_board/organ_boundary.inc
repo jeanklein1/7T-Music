@@ -4,9 +4,8 @@
 // organ_registry.hpp owns the flags and masks consumed here and knows neither
 // the deps nor the queue, which is why the consumption lives at this tier.
 
-            // ORGAN — the frame boundary. This layer owns the mood deps and
-            // the queue and the registry owns neither, so doors, definition
-            // re-speaks and the flush are taken here, for the LIVE mood only.
+            // ORGAN — the frame boundary: doors, definition re-speaks and
+            // the flush, taken once per frame for the LIVE mood only.
             void organ_flush(wgpu::Queue& queue) {
                 // DOOR 0, Re-speak definitions: it raises the flags the
                 // lines below already consume, so the boundary then does
