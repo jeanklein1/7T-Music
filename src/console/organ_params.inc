@@ -49,15 +49,19 @@
 // whenever the first token changes.
 
 // ─── THE SUN ─────────────────────────────────────────────────────────
-// GPULighting::sun is the fragment shader's window; apply_mood_lighting
-// re-draws it at every mood change, so the instance rows are previews.
+// GPULighting::sun is the fragment shader's window, and apply_mood_lighting
+// DRAWS it — from the live regime's row, under the world's seed — at every
+// mood entry and at every MOOD definition re-speak. So its four rows are
+// witnesses: what the draw produced. The sun's BEARING is the mood's and is
+// authored here (centre + spreads); its colour, intensity and ambient are the
+// regime's and are authored under Atmosphere · Regime N, through the lens.
 ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction (centre)", MOOD, MoodProfile, atmos.sun_direction)
 ORGAN_PARAM_DEFONLY(F32, 0.0f, 180.0f, 1.0f, "Sky & Light · Sun", "azimuth spread (±deg)",   MOOD, MoodProfile, atmos.sun_az_spread_deg)
 ORGAN_PARAM_DEFONLY(F32, 0.0f, 45.0f,  0.5f, "Sky & Light · Sun", "elevation spread (±deg)", MOOD, MoodProfile, atmos.sun_el_spread_deg)
-ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sky & Light · Sun", "direction (instance)")
-ORGAN_PARAM(LIGHTING, GPULighting, sun.color,     VEC3,  0.0f, 1.0f, 0.01f,  "Sky & Light · Sun", "colour (instance)")
-ORGAN_PARAM(LIGHTING, GPULighting, sun.intensity, F32,   0.0f, 4.0f, 0.01f,  "Sky & Light · Sun", "intensity (instance)")
-ORGAN_PARAM(LIGHTING, GPULighting, sun.ambient,   F32,   0.0f, 1.0f, 0.005f, "Sky & Light · Sun", "ambient (instance)")
+ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sky & Light · Sun", "direction (drawn)")
+ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.color,     VEC3, "Sky & Light · Sun", "colour (drawn)")
+ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.intensity, F32,  "Sky & Light · Sun", "intensity (drawn)")
+ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.ambient,   F32,  "Sky & Light · Sun", "ambient (drawn)")
 
 // ═══ THE RULE CONSOLE ════════════════════════════════════════════
 // A SECTION IS ORGANIZED FOR THE HAND THAT PLAYS IT, NOT THE STRUCT THAT

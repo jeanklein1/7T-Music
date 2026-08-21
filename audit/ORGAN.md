@@ -26,10 +26,10 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Sun | direction (centre) | `MoodProfile.atmos.sun_direction` | NONE (255) | VEC3 | -1 … 1 | 0.01 | boundary | mood |  |
 | Sky & Light · Sun | azimuth spread (±deg) | `MoodProfile.atmos.sun_az_spread_deg` | NONE (255) | F32 | 0 … 180 | 1 | boundary | mood |  |
 | Sky & Light · Sun | elevation spread (±deg) | `MoodProfile.atmos.sun_el_spread_deg` | NONE (255) | F32 | 0 … 45 | 0.5 | boundary | mood |  |
-| Sky & Light · Sun | direction (instance) | `LIGHTING.sun.direction` | LIGHTING | VEC3 | — | — | driven | none | • |
-| Sky & Light · Sun | colour (instance) | `LIGHTING.sun.color` | LIGHTING | VEC3 | 0 … 1 | 0.01 | live | none |  |
-| Sky & Light · Sun | intensity (instance) | `LIGHTING.sun.intensity` | LIGHTING | F32 | 0 … 4 | 0.01 | live | none |  |
-| Sky & Light · Sun | ambient (instance) | `LIGHTING.sun.ambient` | LIGHTING | F32 | 0 … 1 | 0.005 | live | none |  |
+| Sky & Light · Sun | direction (drawn) | `LIGHTING.sun.direction` | LIGHTING | VEC3 | — | — | driven | none | • |
+| Sky & Light · Sun | colour (drawn) | `LIGHTING.sun.color` | LIGHTING | VEC3 | — | — | driven | none | • |
+| Sky & Light · Sun | intensity (drawn) | `LIGHTING.sun.intensity` | LIGHTING | F32 | — | — | driven | none | • |
+| Sky & Light · Sun | ambient (drawn) | `LIGHTING.sun.ambient` | LIGHTING | F32 | — | — | driven | none | • |
 | Sky & Light · Dome | dome radius | `ORBS.dome_radius` | ORBS | F32 | 0 … 2000 | 5 | boundary | none |  |
 | Sky & Light · Dome | base size | `ORBS.base_size` | ORBS | F32 | 0 … 12 | 0.05 | boundary | none |  |
 | Sky & Light · Orbs | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
@@ -395,10 +395,10 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | --- | --- |
 | entries | **365** |
 | by section | Agents 109 · Atmosphere 73 · Ribbon 56 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 |
-| by cadence | boundary 180 · driven 17 · gen 46 · live 122 |
-| by macro form | PARAM 126 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 46 · PARAM_RO 17 |
+| by cadence | boundary 180 · driven 20 · gen 46 · live 119 |
+| by macro form | PARAM 123 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 46 · PARAM_RO 20 |
 | definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 189 · ORB_MOOD 19 · TIER 32 |
-| witnesses (`ro`) | 17 |
+| witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
 | namespaces | canvas 15 · the_board 350 |
 
@@ -469,8 +469,8 @@ THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
   proved    287   a declared reader names the field
   SUSPECT     0   no declared reader names it
-  witness    17   an _RO meter: the question is inverted (blind spot 5)
-  scope      61   GPU-side or whole-struct (blind spots 2, 3)
+  witness    20   an _RO meter: the question is inverted (blind spot 5)
+  scope      58   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

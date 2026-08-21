@@ -72,6 +72,12 @@ PREVIEW writes the instance; the next author may take it back. A row with no
 definition writes the instance under either mode; a definition-only row refuses
 preview.
 
+An instance row whose home an applier re-produces is a window, not a dial:
+it is enrolled as a witness (`_RO`), and the authored dial sits on the
+applier's INPUT. The sun is the case of record — `GPULighting::sun` is drawn
+by `apply_mood_lighting` at every mood entry and every MOOD re-speak, so its
+four rows are witnesses and its brightness is authored at `Atmosphere · Regime N`.
+
 | kind | struct · bank | scope | raises | applier at the boundary |
 | --- | --- | --- | --- | --- |
 | `MOOD` | `MoodProfile` · `MOOD_LIVE` | mood-selected | `g_def_dirty` + mood | `apply_mood_regime`, `apply_mood_lighting` — live mood only |
