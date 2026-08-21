@@ -17,12 +17,13 @@
 // directive, no immediate address space, so naga reads it raw
 // and tools/wgsl_gate.py is that read, per commit.
 // The floor of record is the Tint trio — Tint→DXC (SM6.0+),
-// Tint→MSL, Tint→SPIR-V. Firefox and Safari are PENDING BOOT
-// WITNESSES, not supported: naga accepting the module at the
-// gate is not a browser accepting it at a boot, and no compiler
-// this program has never seen accept it is claimed
-// (docs/OPEN.md owes both). FXC is unsupported; its retired
-// laws live in docs/FXC_LAWS_RECORD.md.
+// Tint→MSL, Tint→SPIR-V; FXC is unsupported and its retired
+// laws live in docs/FXC_LAWS_RECORD.md. Firefox and Safari:
+// WITNESSED 2026-08-21. Firefox on Windows compiles the module
+// with no diagnostics and runs; Safari 26 on an iPad runs 10+
+// min with transitions. Firefox's later device loss is staging
+// memory (OPEN.md, FIREFOX STAGING RATCHET), not the compiler:
+// the supported set is the Tint trio and naga.
 // NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance,
 // minBindingSize and every dynamic-offset alignment are Dawn's
 // checks at pipeline creation and at bind, so the web boot

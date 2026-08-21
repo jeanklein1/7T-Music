@@ -55,14 +55,28 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   the existing gate flags. Cure is one stub line; adding to the pinned stub
   set is a gates decision. Origin: RECENSION_2 FLAG-U5c. Unblocked by the
   gates sitting.
-- FIREFOX BOOT WITNESS, owed: COMPAT_1 removed the immediate lane and naga
-  validates the raw module at the gate; no Firefox boot has yet testified.
-  The COMPILER FLOOR banner says PENDING until one does. Origin: COMPAT_1.
-  Unblocked by Jean opening everexpandingboard.com in Firefox on Windows.
-- iOS BOOT WITNESS, owed: the same round removed every Chromium-only surface
-  the floor named (immediate_address_space, setImmediates, maxImmediateSize);
-  what WebKit's WGSL compiler says about the module is unknown until a Safari
-  26 boot. Origin: COMPAT_1. Unblocked by an iPhone.
+- FIREFOX STAGING RATCHET (bounded; Firefox-side; the cheap cure landed, its
+  witness owed): Firefox on Windows compiles the module with no diagnostics,
+  boots, runs 30–56 fps on the Kepler, and loses the device with
+  `[Device] LOST reason=1 : Out of memory` after several world transitions —
+  rapid keyed transitions reach it in under a minute, a calm session in many
+  minutes or never. about:memory, GPU process, across ONE keyed transition:
+  gpu-committed 1003 → 1308 MiB; private write-combined commit 858 → 1089 MiB
+  in 37 → 43 segments; a second transition +15 MiB, 46 segments; flat for
+  minutes on either side. The program's own GPU budget is 251 MiB throughout
+  and creates nothing after boot. Reading: Firefox's wgpu serves
+  WriteBuffer/WriteTexture from upload-heap blocks it sub-allocates; a
+  transition's upload burst — the paintings re-staged at teardown, 1 MiB
+  WriteTextures landing several to a frame — opens blocks the per-frame trickle
+  then keeps from emptying. Chrome's Dawn and WebKit recycle differently: an
+  iPad (Safari 26) ran 10+ min with transitions. ORGAN_8 P3 paced the paintings
+  to one lane (AUTHORED_FETCH_INFLIGHT_CAP = 1); its witness is a before/after
+  about:memory pair across one keyed transition, Jean's. If the step survives:
+  the structural cure is that the program owns its staging — a fixed ring of
+  MAP_WRITE buffers made at boot, mapped, filled, unmapped and copied from, so
+  the browser allocates no staging at all — priced at one round over
+  GPUState's upload doors, not built. Origin: COMPAT_1's witness runs,
+  2026-08-21.
 - In-place same-shape atmosphere transition (sunset → night without a
   teardown, the sky re-drawn over a standing world): priced at ATMOS_1,
   not built — the spawns' population row is per mood, so a "same shape"
