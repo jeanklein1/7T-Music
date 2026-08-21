@@ -2944,20 +2944,6 @@ namespace t7 {
                 return true;
             }
 
-            // Mode presets
-            void enter_design_mode() {
-                if (config_.mute_signal != 1 || config_.mute_couplings != Coupling::ALL) {
-                    config_.mute_signal = 1; config_.mute_couplings = Coupling::ALL;
-                    configDirty_ = true;
-                }
-            }
-            void enter_performance_mode() {
-                if (config_.mute_signal != 0 || config_.mute_couplings != Coupling::NONE) {
-                    config_.mute_signal = 0; config_.mute_couplings = Coupling::NONE;
-                    configDirty_ = true;
-                }
-            }
-
             // Muting
             void set_mute_coupling(uint32_t b, bool m) {
                 uint32_t prev = config_.mute_couplings;
@@ -3167,11 +3153,9 @@ namespace t7 {
             GPUDesignConfig& config() { return config_; }
 
             // ── Staged config writes (the poke idiom). Deliberately
-            // NO configDirty_: these fields ride
-            // targeted sub-range uploads (
-            // upload_placement_patch_count / upload_lod_point) or the
-            // next dirty/dynamic full upload (floater_coordination) —
-            // exactly the raw config() pokes they replace, identical
+            // NO configDirty_: these fields ride targeted sub-range
+            // uploads (upload_placement_patch_count / upload_lod_point)
+            // — exactly the raw config() pokes they replace, identical
             // in upload behavior.
             void stage_placement_patch_count(uint32_t n) { config_.placement_patch_count = n; }
             void stage_lod_point(float x, float z)       { config_.lod_point_x = x; config_.lod_point_z = z; }
@@ -3188,7 +3172,6 @@ namespace t7 {
             }
             float veil_ring()   const { return config_.veil_ring; }
             float lod0_radius() const { return config_.lod0_radius; }
-            void stage_floater_coordination(float v)     { config_.floater_coordination = v; }
             const GPUDesignConfig& config() const { return config_; }
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
 

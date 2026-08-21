@@ -555,8 +555,8 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, point_fly_speed,     F32, 0.0f, 120.0f, 0.5
 ORGAN_PARAM(CONFIG, GPUDesignConfig, cube_plasticity,     F32, 0.0f, 1.0f,   0.005f, "Interaction · Cubes",  "plasticity λ")
 
 // ─── Interaction · Cubes — the floater synchrony knob ───────
-// TWO AUTHORS, ONE HOME — this dial and cube_behaviors.hpp's
-// cycle_floater_coordination — and neither applies, so LAST WRITER WINS.
+// ONE AUTHOR: this dial. The cycler that shared the home retired
+// unreachable (ORGAN_9); cartridge.hpp's floater step is the reader.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, floater_coordination, F32, 0.0f, 1.0f, 0.005f, "Interaction · Cubes", "floater coordination")
 
 // ─── Interaction · Beacon / Camera ──────────────────────────────────

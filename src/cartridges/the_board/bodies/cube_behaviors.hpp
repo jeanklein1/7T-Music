@@ -60,10 +60,6 @@ inline constexpr const char* CUBE_BEHAVIOR_NAMES[CUBE_BEHAVIOR_COUNT] = {
 inline constexpr float CUBE_DEFAULT_SPRING_STIFFNESS = 4.0f;   // 1/s², ~0.5s settle
 inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle damping
 
-// ─ Diagnostics (coordination cycle) ─────────────────────────────
-
-inline constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
-
 // ─ WGSL kernel constants (NOT here, but documented) ─────────────
 //
 //   cube_force_phasewave (world.wgsl):
@@ -249,7 +245,6 @@ struct ZoetropeCell {
 };
 
 struct CubeBehaviorsState {
-    uint32_t   coordination_step  = 0;
     uint32_t   behavior_override  = CUBE_BEHAVIOR_STATIONARY;
     bool       kite_mode          = false;
     ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
@@ -309,7 +304,6 @@ bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, Enti
 bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Player commands
-void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue, bool on);  // the ONE kite home (G3)
@@ -400,13 +394,6 @@ inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& que
         cbs.settled[i] = false;
         cbs.walk_[i]   = {};
     }
-}
-
-inline void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c) {
-    cbs.coordination_step = (cbs.coordination_step + 1) % 3;
-    float v = FLOATER_COORDINATION_STEPS[cbs.coordination_step];
-    c->gpuState_.stage_floater_coordination(v);
-    std::cout << "[Floaters] coordination: " << v << "\n";
 }
 
 inline void apply_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
