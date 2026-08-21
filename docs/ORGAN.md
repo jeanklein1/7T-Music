@@ -248,5 +248,19 @@ is.
 
 ## The tally
 
-[Re-cut in P7 from audit/ORGAN.md: N entries (N dials, N witnesses), the
-by-section table, the by-cadence line, the definition-kind line.]
+**365 entries — 348 dials and 17 witnesses.** Cut from `audit/ORGAN.md`, which
+`tools/organ_ledger.py` regenerates from the enrollment list.
+
+| section | rows |
+| --- | --- |
+| Agents | 109 |
+| Atmosphere | 73 |
+| Ribbon | 56 |
+| Terrain | 42 |
+| Sky & Light | 41 |
+| Interaction | 22 |
+| Pawn | 18 |
+| Debug | 4 |
+
+By cadence: `boundary` 180 · `live` 122 · `gen` 46 · `driven` 17.
+By definition kind: none 189 · BEHAVIOR 70 · MOOD 55 · TIER 32 · ORB_MOOD 19.

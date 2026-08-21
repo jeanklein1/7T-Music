@@ -425,20 +425,20 @@ of its run, verbatim:
 THE READER WITNESS — every mention of a DESIGN symbol, classified.
 A graduation is complete when the design table's only readers are
 its seed and its asserts. Anything else is a surviving runtime
-reader, and the reason ORGAN_3 shipped seven dead dials.
+reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
-  AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=7 
+  AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=6 static_assert=28 constexpr=4 comment=29 
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
-        constexpr derivation (D7)  src/cartridges/the_board/bodies/gallery.hpp:349  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
+  MOOD_TABLE           definition=1 seed=6 static_assert=28 constexpr=4 comment=28 
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:346  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:347  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:348  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:349  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       definition=1 seed=6 comment=7              
+  ORB_MOOD_TABLE       definition=1 seed=6 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=4        
