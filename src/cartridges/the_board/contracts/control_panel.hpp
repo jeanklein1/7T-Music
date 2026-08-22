@@ -75,11 +75,12 @@ inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 // not touch what floaters and agents feel.
 //
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
-// S rides config.floater_coordination (F5): 0 / 0.5 / 1.0 — the
-// knob's first visible meaning in open_sunset. R0 sits outside the
-// point's bubble (20). The runtime transport is already the
-// authored table (the g2:5 uniform), so these are rests the writer
-// reads, not a second wire.
+// S rides config.floater_coordination: strength is s * coord, and
+// coord == 0 turns the emitter off. Its one author is the
+// Interaction · Cubes dial, 0…1 continuous. R0 sits outside the
+// point's bubble (20). The runtime transport is already the authored
+// table (the g2:5 uniform), so these are rests the writer reads, not
+// a second wire.
 inline constexpr float FIELD_BEACON_R0   = 25.0f;
 inline constexpr float FIELD_BEACON_R    = 120.0f;
 inline constexpr float FIELD_BEACON_S    = 200.0f;

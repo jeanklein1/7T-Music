@@ -100,9 +100,14 @@
                         const bool reseed = console_reseed
                             || (tm == 0u)
                             || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
-                        configure_orbs(orbs_state_, &orbs_deps_,
-                            ORB_MOOD_LIVE[orb_mood % MOOD_COUNT], queue,
-                            reseed);
+                        // THE MASK DRAINS EITHER WAY — take_orb_def_touched
+                        // above is unconditional, so a dormant mood's bits
+                        // cannot outlive a disabled piece; only the applier
+                        // is gated.
+                        if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b) — sky dome never configured
+                            configure_orbs(orbs_state_, &orbs_deps_,
+                                ORB_MOOD_LIVE[orb_mood % MOOD_COUNT], queue,
+                                reseed);
                     }
                 }
                 // THE RULE WINDOW, refreshed here and nowhere else. The
