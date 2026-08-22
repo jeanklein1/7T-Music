@@ -55,6 +55,7 @@
 #include <cstdint>   // (impl, merged)
 #include <cstring>     // std::memcpy (placement color copy)   // (impl, merged)
 #include <iostream>    // the spawn log   // (impl, merged)
+#include "core/instruments.hpp"   // RIBBON_4 — INSTRUMENTS.stream_witness gates the steady path's witness lines
 
 namespace t7 { class VisualCanvas; struct TargetBinding; }  // coupling face (t7 scope)
 
@@ -897,14 +898,17 @@ inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
 
     ar.active = true;
     rs.active_count++;
-    // SEAM[ribbon:L1] unconditional stdout — exhibition guard
-    //   candidate, still open. (The DIAG_RIBBON this once named was
-    //   never defined anywhere; deleted PRUNING_1 P1 Step 4.)
-    std::cout << "[Ribbon] SPAWN slot=" << s << " at (" << plan.cx << ", " << plan.cz
-        << ") tier=" << plan.tier_idx
-        << " len=" << total_length
-        << " near=(" << ar.near_tip_gx << "," << ar.near_tip_gz
-        << ") far=(" << ar.far_tip_gx << "," << ar.far_tip_gz << ")\n";
+    // SEAM[ribbon:L1] CLOSED at RIBBON_4: this fires whenever a patch
+    //   spawns, which under a rider is several times a second, and a
+    //   blocking console write inside those frames is one of the blocks
+    //   the steady world exists to remove. It rides the dial now.
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        std::cout << "[Ribbon] SPAWN slot=" << s << " at (" << plan.cx << ", " << plan.cz
+            << ") tier=" << plan.tier_idx
+            << " len=" << total_length
+            << " near=(" << ar.near_tip_gx << "," << ar.near_tip_gz
+            << ") far=(" << ar.far_tip_gx << "," << ar.far_tip_gz << ")\n";
+    }
 }
 
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
@@ -951,8 +955,10 @@ inline void dispatch_commit_ribbon(MachineCtx* self,
     }
 
     if (refs == 0) {
-        std::cout << "[Ribbon] REJECT slot=" << slot
-            << " — no tip patches alive\n";
+        if constexpr (t7::INSTRUMENTS.stream_witness) {
+            std::cout << "[Ribbon] REJECT slot=" << slot
+                << " — no tip patches alive\n";
+        }
         // Corollary 3: a rejecting phase releases what earlier phases
         // reserved. place_ribbon_from_selection registered through
         // negotiate_position; nothing here freed it, and the host key it was
@@ -1011,7 +1017,9 @@ inline void evict_ribbon(MachineCtx* self,
         // Successor ribbons reuse this slot — force re-seed.
         self->gpuState_.reset_ribbon_body(queue);
     }
-    std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
+    }
 }
 
 // ─── The dismount (owner verb) ────────────────────────────────────

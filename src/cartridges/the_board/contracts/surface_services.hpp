@@ -102,6 +102,10 @@ enum class PatchPhase : uint8_t {
                     //   before this heightfield existed; Y-correction is
                     //   additive and lands later (compute_entity_placement).
     NEEDS_REGEN,    // heightfield stale (new pyramid in range)
+    BAKING,         // RIBBON_4 — heights being encoded a row band at a time.
+                    //   Between SPAWNED and GENERATED, and never drawn: the
+                    //   grid and the band both gate on GENERATED|NEEDS_REGEN,
+                    //   so a half-baked layer cannot reach the eye.
 };
 
 struct ActivePatch {
@@ -110,6 +114,11 @@ struct ActivePatch {
     uint32_t layer = 0;
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
+    // THE SLICED BAKE (RIBBON_4). bake_slices is how many row bands this
+    // bake was cut into (1 = whole, the urgent case); bake_slice is the next
+    // band to encode. Meaningful only while phase == BAKING.
+    uint8_t bake_slice = 0;
+    uint8_t bake_slices = 1;
 
     // Entity ownership (recorded at commit, read at eviction)
     struct EntityRef {
@@ -152,9 +161,29 @@ struct ActivePatch {
 
 // ── Dynamic budgets ────────────────────────────────────────────────
 
-inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
-inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
-inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
+// THE STEADY WORLD (RIBBON_4). The conductor paces itself by CADENCE, not
+// by backlog: a deep backlog used to make it work harder per frame, which
+// is exactly when the point is moving fastest. Now no frame carries more
+// than one patch's spawning, two evictions, and one SLICE of one bake
+// (generate_patch_sliced). Transitions keep their bursts: a regen is a
+// stall by doctrine (P6), and patches_budget_this_frame serves it alone.
+inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 1;    // was 4
+inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // allocation is bookkeeping; it stays
+inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 2;    // was 4
+inline constexpr uint32_t PATCH_BAKE_SLICES      = 2;    // a leisurely bake's heights pass, in row bands across frames
+inline constexpr float    PATCH_URGENT_MARGIN    = 1.0f; // × PATCH_EXTENT beyond lod0_radius: inside this, bake whole
+
+// THE LOOK-AHEAD (RIBBON_4): how far along the flight the spawn and bake
+// scans order their candidates from, under a rider. Zero in every other
+// host — a walker's point IS where the work is.
+inline constexpr float    PATCH_LOOK_AHEAD       = 100.0f;  // wu
+
+// THE REGEN PATH'S OWN, and no longer anyone else's. These five feed
+// patches_budget_this_frame, whose single caller since RIBBON_4 is the
+// NEEDS_REGEN arm of the conductor — a patch whose heights went stale
+// under a dropped pyramid, which is a transition's debris and keeps a
+// transition's burst. A SPAWNED patch is the steady state's and goes to
+// generate_patch_sliced instead, one slice a frame; it is not counted here.
 inline constexpr uint32_t PATCH_BUDGET_MIN = 1;
 inline constexpr uint32_t PATCH_BUDGET_MAX = 6;
 inline constexpr uint32_t PATCH_PENDING_TIER_1 = 3;

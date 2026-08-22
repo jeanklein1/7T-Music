@@ -53,6 +53,7 @@ namespace t7 {
         bool checker_witness;  // the [CHECKER] line, one per checker read (~every 4 beats)
         bool zoetrope_witness; // the [ZOETROPE] strike line, one per strike-frame
         bool watcher_ticks;    // the harness's hot-reload progress dot (a flushed write, 2×/s)
+        bool stream_witness;   // RIBBON_4 — the streaming path's spawn/evict lines
     };
 
     // THE COLUMNS. `off` is the shipped frame. `meter` is the timing arm
@@ -68,11 +69,21 @@ namespace t7 {
         // inside a frame the meter is trying to measure; the 2026-08-13
         // boot read census_dumps max 1051 ms. `full` keeps everything,
         // because `full` is the pre-dial behaviour exactly.
-        case InstrumentCol::meter: return { true,  true,  false, false, false, false };
-        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true  };
+        //
+        // RIBBON_4 — stream_witness is the seventh, and it is the reason the
+        // steady state can be silent. `[Ribbon] SPAWN/REJECT/EVICT`,
+        // `[Gallery] slot=` and `[Agents] Respawn` fire whenever a patch
+        // spawns or evicts, which under a rider is several times a second
+        // and rises with speed — blocking console writes inside exactly the
+        // frames the conductor is trying to keep even. `full` keeps them,
+        // because `full` is the pre-dial behaviour exactly; `meter` drops
+        // them for the same reason it drops the entity text; `off` — the
+        // shipped frame — is silent on the steady path.
+        case InstrumentCol::meter: return { true,  true,  false, false, false, false, false };
+        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true,  true  };
         case InstrumentCol::off:   break;
         }
-        return { false, false, false, false, false, false };
+        return { false, false, false, false, false, false, false };
     }
 
 } // namespace t7

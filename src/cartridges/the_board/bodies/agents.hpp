@@ -19,6 +19,7 @@
 #include <algorithm>  // std::min   // (impl, merged)
 #include <iostream>   // census + event logs   // (impl, merged)
 #include <iomanip>    // std::fixed, std::setprecision   // (impl, merged)
+#include "core/instruments.hpp"   // RIBBON_4 — INSTRUMENTS.stream_witness gates the steady path's witness lines
 
 namespace t7 {
 namespace the_board {
@@ -496,9 +497,14 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
         respawned++;
     }
 
-    if (respawned > 0) {
-        std::cout << "[Agents] Respawn " << respawned
-                  << " around (" << px << "," << pz << ")\n";
+    // RIBBON_4: respawn_evicted_agents is a per-frame spine row, and under a
+    // fast point agents are evicted and respawned continuously — steady-state
+    // chatter, not a transition witness. The mood-spawn line above stays.
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        if (respawned > 0) {
+            std::cout << "[Agents] Respawn " << respawned
+                      << " around (" << px << "," << pz << ")\n";
+        }
     }
 }
 
