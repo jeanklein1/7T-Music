@@ -33,9 +33,18 @@
 // NEXT spawn rather than this one, which is why they are a second bank
 // with a second temperament and not four more fields on the first.
 //
-// STILL NOT HERE: the MOUNT_* frame-law mirrors. Those are LOCKSTEP
-// MIRRORS of world.wgsl and a dial on one half of a hand-kept mirror is
-// the L3 hazard the panel exists to avoid.
+// THE DIALS REACH THE GPU THROUGH `config` (RIBBON_1). The head and the
+// body are kernels now; they read config.ribbon_* and nothing else. The
+// boot pins this table into GPUDesignConfig's tail (GROWTH LAW,
+// state.hpp) and the organ edits it there — one home authors, one
+// transport carries, and the rooms cannot drift.
+//
+// THE FRAME-LAW MIRRORS ARE GONE, not withheld. RIBBON_1 deleted the CPU
+// head that carried this room's half of them: the frame law is the body
+// kernel's alone, so there is no second half to keep in lockstep and no
+// hazard to keep a dial out of. RIBBON_BANK_GAIN / RIBBON_BANK_MAX stay
+// WGSL consts — hot-reloadable by save, tuned on screen — until a round
+// asks for them on the panel.
 // ────────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -53,6 +62,10 @@ struct RibbonSurface {
     float mount_setback;    // pawn seat setback toward the tail
     float sky_yaw_tau;      // s — first-order ease on the player's yaw hand
     float reference_bpm;    // the tempo at which the tiers' sway is DEFINED
+    // ── The Sky Rule (RIBBON_1) — self-preservation, two readers ──
+    float lookahead;        // wu ahead of the nose where the head reads the rule
+    float clear_head;       // wu of clearance the HEAD keeps from a shell
+    float clear_body;       // wu of clearance the BODY keeps from a shell
     // ── Wander steering (the per-frame half; the rolls are w3) ────
     float wander_steer_soft;    // rad of heading error for full deflection
     float wander_yaw_max;       // yaw cap — radius >= r_min / this
@@ -71,6 +84,9 @@ inline constexpr RibbonSurface RIBBON_TABLE = {
     1.5f,     // mount_setback
     0.6f,     // sky_yaw_tau — short tau keeps the yaw hand immediate
     100.0f,   // reference_bpm
+    120.0f,   // lookahead — three seconds of flight at full throttle
+    25.0f,    // clear_head — the nose gives a shaft the floor_margin's berth
+    8.0f,     // clear_body — the body flows closer than the head steers
     0.5f,     // wander_steer_soft
     0.15f,    // wander_yaw_max — radius >= r_min/0.15 (~270 u), body-scale arcs
     2.0f,     // wander_yaw_tau — curvature stays continuous

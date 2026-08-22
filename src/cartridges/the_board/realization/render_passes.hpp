@@ -182,11 +182,13 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     { compute.SetBindGroup(0, c->gpuState_.world_group());
       compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
 
-    // The ribbon rings run FIRST and on their OWN group0 (the ribbon
-    // compute group) — outside the pass-head contract below, which is
-    // why it stays ahead of those binds.
+    // The ribbon room runs FIRST and on its OWN group 2 (the ribbon state
+    // group) — outside the pass-head contract below, which is why it stays
+    // ahead of those binds. Head then body, one pair of binds; running first
+    // is also what makes the read-only agent/floater windows it binds a
+    // one-frame-old read, which is what the Sky Rule wants.
     if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
-        c->renderer_.dispatch_compute_ribbon_rings(
+        c->renderer_.dispatch_ribbon(
             compute,
             c->gpuState_.ribbon_state_group(), c->gpuState_.empty_group(),
             GPUState::ribbon_ring_workgroups()
@@ -459,7 +461,8 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
 
     // The drawable table — shadow members, canonical order.
     DrawBind b{ /*shadow=*/true,
-                c->ribbon_state_.rendered_slot != UINT32_MAX };
+                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                ribbon_draw_verts(c->ribbon_state_) };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 
     // FORKS — the artworks, on their OWN gallery bind groups, as in the
@@ -592,7 +595,8 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // depth-tested, so order among them is immaterial; this is where the
     // ribbon's ordinal drift dies (it now draws with the entities, not late).
     DrawBind b{ /*shadow=*/false,
-                c->ribbon_state_.rendered_slot != UINT32_MAX };
+                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                ribbon_draw_verts(c->ribbon_state_) };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
     // FORKS — the specials, kept explicit. Wall paintings + gallery frames use

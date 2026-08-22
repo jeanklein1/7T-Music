@@ -103,8 +103,11 @@ READERS = {
         ("src/cartridges/the_board/direction/input.hpp", "on_scroll"),
         ("src/cartridges/the_board/bodies/agents.hpp", "try_possess_nearest"),
     ]),
+    # RIBBON_1: the head mover left for the GPU, so the bank's reader for the
+    # flight dials is the BOOT PIN that carries them into config.ribbon_* —
+    # blind spot 3, said at the table instead of reported as eleven suspects.
     "RIBBON": ("RIBBON_LIVE", "RibbonSurface", [
-        ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_advance_head"),
+        ("src/cartridges/the_board/realization/state.hpp", "initializeState"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),

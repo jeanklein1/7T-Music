@@ -620,16 +620,10 @@ namespace t7 {
                     gpuState_.mark_config_dirty();
                 }
 
-                // E-3 (mechanized): boot-neutral the sky_* block ONCE. The signal
-                // drain no longer carries these words (upload_signal skips the
-                // trailing 32 bytes), so their sole per-frame author is
-                // resync_sky_head (R7, ribbon on). This one write covers the
-                // ribbon-OFF case: the block stays neutral 0 forever, matching the
-                // old per-frame sky-neutral placeholder exactly. One writer, one
-                // region — the neutral-then-overwrite relay is gone.
-                wgpu::Queue q = device_.GetQueue();
-                gpuState_.resync_sky_head(q, 0u,
-                    0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f);
+                // RIBBON_1: the mount block rides the whole-struct signal drain
+                // like every other word, so there is no boot-neutral to write —
+                // MountState rests at phase 1, kind 0 (arrived, nothing in
+                // flight) and the first frame ships that.
             }
 
             bool init_renderer(
@@ -849,17 +843,14 @@ namespace t7 {
             //     consumes it NEXT frame (update precedes render within a frame).
             //     A portal step is render N arms -> update N+1 advances; the
             //     one-frame readback lag (E-4) stacks on top.
-            //   E-3 (sky write-order) — MECHANIZED, NO LONGER A LAW. It was
-            //     a three-writer relay: U2 wrote neutral sky words, U8 uploaded
-            //     the whole signal, R7's tail (resync_sky_head) overwrote them,
-            //     and correctness rode submission order across update()->render().
-            //     Now the sky_* words are the TRAILING 32 bytes and upload_signal
-            //     skips them, so resync_sky_head is their SOLE author (R7 per
-            //     frame; a boot-neutral in initialize() covers ribbon-off). The
-            //     drain and the sky author write DISJOINT regions — there is no
-            //     ordering to preserve, so there is no law. Structure replaced the
-            //     paragraph. (E-1 dies with it on the signal side: a setter can no
-            //     longer land in the sky window and be clobbered by the relay.)
+            //   E-3 (sky write-order) — DEAD WITH ITS SUBJECT (RIBBON_1). It
+            //     was a three-writer relay over a POSE the ribbon tick had to
+            //     re-write after the drain; the split drain that mechanized it
+            //     was the second cure. The pose is the GPU's now
+            //     (ribbon_body_read.saddle) and the trailing words carry only
+            //     the mount EDGE, which the signal's one author fills like any
+            //     other word. One writer, one whole-struct write, no ordering to
+            //     preserve and nothing left to say.
             //
             // Gates are ROW COLUMNS: a disabled family's row is skipped at
             // runtime (row.enabled folds from its constexpr ROSTER bit). Runtime
@@ -1014,11 +1005,6 @@ namespace t7 {
                 }
             }
 
-            // The sky block is NOT part of the signal drain: upload_signal
-            // skips the trailing 32 bytes, so its SOLE author is
-            // resync_sky_head (the ribbon tick's tail), with a boot-neutral
-            // covering the ribbon-off case. One writer, one disjoint region.
-
             // U3 — ADVANCE CLOCK (music+wall-clock). The tempo follower; bumps
             // prev_beats (the O-5a partner of U1's dt_beats read).
             void phase_advance_clock(UpdateCtx& c) {
@@ -1135,17 +1121,17 @@ namespace t7 {
                 // ── THE BEACON (FIELD_4): row 0, rewritten hot each
                 // frame — the point moved. point y is DERIVED (the
                 // point's house carries no y): host-routed — pawn
-                // mirror y / ribbon head y / ground under the point
-                // (the camera has no CPU y mirror; the harvest
+                // mirror y (PAWN and RIBBON alike — the possessed body IS
+                // where the point is in both, riding the seat in one and
+                // walking in the other) / ground under the point in
+                // camera-host (the camera has no CPU y mirror; the harvest
                 // discards cam pos[1]).
                 {
                     GPUFieldAuthored fa{};
                     const float coord = gpuState_.config().floater_coordination;
                     float py;
-                    if (point_.host == PointHost::PAWN) {
+                    if (point_.host != PointHost::CAMERA) {
                         py = agent_state_.slots[player_.possessed_slot].pos_y;
-                    } else if (point_.host == PointHost::RIBBON) {
-                        py = ribbon_state_.head.pos[1];
                     } else {
                         py = estimate_terrain_height(tile_world_state_, point_.x, point_.z);
                     }
@@ -1397,7 +1383,7 @@ namespace t7 {
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
-                GPUFrameSignal gpuSignal{};   // sky_* stay zero — upload_signal skips them (E-3); resync_sky_head owns the block
+                GPUFrameSignal gpuSignal{};   // the mount block is filled below, with the rest of the signal — one author, one write
                 UpdateCtx ctx{ signal, aspect_ratio, queue, gpuSignal };
                 for (const URow& row : UPDATE_SPINE) {
                     if (!row.enabled) continue;   // gated-off rows are never timed
@@ -1482,6 +1468,13 @@ namespace t7 {
                                         if (self->point_.host != PointHost::CAMERA) {
                                             self->point_.x = p.pos_x;
                                             self->point_.z = p.pos_z;
+                                            // RIBBON_1: y and heading join the
+                                            // mirror. possess() captures the EDGE
+                                            // from them — where the body was when
+                                            // the host changed — and the GPU eases
+                                            // the trajectory from there.
+                                            self->point_.y = p.pos_y;
+                                            self->point_.heading = p.heading;
                                         }
                                         self->point_.portal_trigger = p.portal_trigger;
                                     }
@@ -2382,12 +2375,11 @@ namespace t7 {
             // cannot be static_asserted inside its own incomplete class.
             // update laws:
             static_assert((uint32_t)UPhase::FillSignal < (uint32_t)UPhase::AdvanceClock, "O-5a: dt_beats reads prev_beats before the clock advances it");
-            // E-3 (sky write-order) is now MECHANIZED, not an ordering assert:
-            // update writes the sky block NOWHERE (upload_signal skips it), so its
-            // sole author is resync_sky_head (R7). Structure replaced the paragraph.
+            // E-3 (sky write-order) died with the sky block (RIBBON_1): the
+            // signal has one author and one whole-struct write again.
             static_assert((uint32_t)UPhase::ClearInputDeltas + 1 == (uint32_t)UPhase::COUNT, "O-5e: clear_input_deltas is dead-last");
             // render laws:
-            static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the sky resync (R7 tail) precedes the compute that reads it");
+            static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the ribbon's state write precedes the compute that reads it");
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
             static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");

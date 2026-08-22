@@ -35,6 +35,7 @@
 #include "cartridges/the_board/bodies/pawn_figures.hpp"            // typed figure registry (H1: PawnFigureDef / PAWN_FIGURES) — constexpr-only, self-contained
 #include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS — source of truth for the CONTACT_2 boot pin
 #include "cartridges/the_board/contracts/control_panel.hpp"         // THE PANEL — the field dials' rests, boot-pinned into the config
+#include "cartridges/the_board/contracts/ribbon_surface.hpp"        // RIBBON_1 — RIBBON_LIVE: the ribbon's dials, boot-pinned into the config beside the field's
 #include <webgpu/webgpu_cpp.h>
 #include <cstdio>    // the params ring's clamp report
 #include <cstring>
@@ -64,7 +65,22 @@ namespace t7 {
             constexpr uint32_t RIBBON_MAX_RINGS = 400;
             constexpr uint32_t RIBBON_TUBE_VERTS_PER_SEG = 24;    // 4 faces × 2 tri × 3 verts
             constexpr uint32_t RIBBON_CAP_VERTS = 12;    // 2 caps × 2 tri × 3 verts
-            constexpr uint32_t RIBBON_VERTEX_COUNT = (RIBBON_MAX_RINGS - 1) * RIBBON_TUBE_VERTS_PER_SEG + RIBBON_CAP_VERTS;
+            // RIBBON_1 — the body's own dimensions. The spine is a CHORD ring:
+            // ring k reads slot head−k, so the ring needs one slot per ring plus
+            // the head's own, plus the one the head writes next and no ring reads
+            // this frame. The emit table is the field's coarse view of the tube;
+            // the deform table is two ping-pong halves of (offset, velocity).
+            constexpr uint32_t RIBBON_SPINE_SLOTS  = RIBBON_MAX_RINGS + 2;     // 402
+            constexpr uint32_t RIBBON_EMIT_STRIDE  = 4;
+            constexpr uint32_t RIBBON_EMIT_SLOTS   = RIBBON_MAX_RINGS / RIBBON_EMIT_STRIDE;   // 100
+            constexpr uint32_t RIBBON_DEFORM_SLOTS = 4 * RIBBON_MAX_RINGS;     // 2 halves × (offset, velocity) × rings
+            // THE DRAW IS THE LIVE COUNT (RIBBON_1): the ribbon draws the rings it
+            // has, not the rings it could have. RIBBON_VERTEX_COUNT stays as the
+            // ceiling the buffers are sized against.
+            constexpr uint32_t ribbon_vertex_count_for(uint32_t rings) {
+                return (rings - 1) * RIBBON_TUBE_VERTS_PER_SEG + RIBBON_CAP_VERTS;
+            }
+            constexpr uint32_t RIBBON_VERTEX_COUNT = ribbon_vertex_count_for(RIBBON_MAX_RINGS);
 
 
             // Patch streaming system
@@ -470,20 +486,18 @@ namespace t7 {
             float dt_beats;       // beats elapsed since last frame; mirrors
                                   // world.wgsl GPUFrameSignal.dt_beats,
                                   // consumed by step_trigger.
-            // Sky block: ribbon head POSE handed to the GPU pawn update so the
-            // possessed pawn snaps onto the flown head. MODE routing lives on
-            // the host machine (config.point_host, RESIDUE_3) — the sky_mode
-            // word below has no GPU reader; it survives as the block's leading
-            // word (the drain/resync boundary) under this batch's layout law,
-            // written from the host fact.
-            uint32_t sky_mode;       // consumer-free; 1 while the RIBBON hosts (debug mirror of the host)
-            float    sky_head_x;
-            float    sky_head_y;
-            float    sky_head_z;
-            float    sky_heading;
-            float    sky_yaw_off;    // tangent-align yaw deflection (rad)
-            float    sky_pitch;      // tangent-align pitch (rad)
-            float    sky_roll;       // bank into the lateral swing (rad, clamped)
+            // THE MOUNT BLOCK (RIBBON_1) — a TRAJECTORY, not a pose. The pose
+            // is the GPU's (ribbon_body_read.saddle, written by the body kernel
+            // the same pass); the CPU authors only the EDGE — where the body was
+            // when the host changed, and how far along the ease it is. The whole
+            // signal drains in one write again: the split drain went with the
+            // sky block it existed for.
+            float    mount_phase;         // 48  0→1 over the trajectory; 1 = arrived
+            uint32_t mount_kind;          // 52  0 none, 1 boarding (→ saddle), 2 landing (→ the walked pose)
+            float    mount_from_heading;  // 56
+            uint32_t _mp0;                // 60
+            float    mount_from[3];       // 64  the pose the body left, CPU-captured at the host edge
+            float    _mp1;                // 76
         };
 
         // Field ORDER is the cross-room contract — world.wgsl's
@@ -713,7 +727,33 @@ namespace t7 {
             // 624 UNMOVED (the fpv_eye_height / veil_dither precedent).
             // Was _pad624_0.
             float pawn_body_radius;
-            float _pad624_1;
+            // ─── THE RIBBON'S DIALS (RIBBON_1) — GROWTH LAW, same commit, same
+            // order, same types as world.wgsl DesignConfig. THE PANEL
+            // (contracts/ribbon_surface.hpp RIBBON_LIVE) authors the rests; the
+            // boot pins them here; the organ edits them. The ribbon's kernels
+            // read these and nothing else — the CPU head that used to read
+            // RIBBON_LIVE directly is gone, so the panel reaches the flight
+            // through this transport and the rooms cannot drift.
+            // _pad624_1 consumed, eleven appended, one fresh pad to the
+            // boundary: sizeof 624 -> 672.
+            float ribbon_max_speed;        // 620
+            float ribbon_yaw_rate;         // 624
+            float ribbon_r_min;            // 628
+            float ribbon_floor_margin;     // 632
+            float ribbon_alt_smooth_dist;  // 636
+            float ribbon_alt_stiff;        // 640
+            float ribbon_climb_rate;       // 644
+            float ribbon_mount_setback;    // 648
+            float ribbon_lookahead;        // 652
+            float ribbon_clear_head;       // 656
+            float ribbon_clear_body;       // 660
+            // THE HANDS' TAU. It was RIBBON_LIVE.sky_yaw_tau, read by the CPU
+            // head's eased yaw; RIBBON_1 moved the easing into the head kernel
+            // and would have left the dial writing nothing. It rides here
+            // instead, so the panel's word still reaches the hand it names —
+            // and now eases the throttle beside the yaw.
+            float ribbon_hands_tau;        // 664
+            float _pad672_0;               // 668
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -999,33 +1039,60 @@ namespace t7 {
             uint32_t is_visible;                                                // 68
             float orientation;                                                  // 72 (heading radians)
             uint32_t color_mode;                                                // 76
-            uint32_t is_roaming;                                                // 80 (0 = stationary spine = today; 1 = head roams, wired stage 1b)
-            float _pad1;                                                        // 84
-            float _pad2;                                                        // 88
+            uint32_t is_wander;                                                 // 80 — 1: the wander brain authors intent (the two fields below); 0: parked. Ridden when config.point_host == 2, whoever authored.
+            float wander_yaw_in;                                                // 84 — [-1, 1]
+            float wander_throttle;                                              // 88 — [0, 1]
             float _pad3;                                                        // 92
             float color_b[3];                                                   // 96 — second checker median (CONTRAST)
             float hue_spread;                                                   // 108 — radians; per-cell hue rotation amplitude (CONTRAST skin; 0 = CB-1 look)
         };                                                                      // 112 total (mirrors world.wgsl RibbonState)
 
-        // Pre-computed per-ring transform (compute_ribbon_rings output;
-        // ribbon_vs + shadow_ribbon_vs input via render_ring_xforms)
+        // Per-ring pose, written by ribbon_body, read by ribbon_vs /
+        // shadow_ribbon_vs through g2:143. 48 B stride (vec4, vec4, vec3 +
+        // alignment).
         struct alignas(16) GPURibbonRingTransform {
             float motor_p0[4];         // PGA motor rotor part        (16)
             float motor_p1[4];         // PGA motor translator part   (16)
             float center[3];           // ring world-space center     (12)
-            float _pad0;               // ( 4) = 48 — explicit padding. Was
-                                       // `terrain_y`, always 0.0 since ribbons
-                                       // stopped following terrain: two writers
-                                       // in world.wgsl, zero readers anywhere.
-                                       // The 48 bytes are REQUIRED — this is the
-                                       // array stride of a storage buffer the VS
-                                       // indexes (bindings 121 / 361), and the
-                                       // readback sizes off sizeof(). The shader
-                                       // still zeroes it so unused slots read
-                                       // clean; that write is now honest about
-                                       // what it is zeroing.
         };
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
+
+        // ── THE RIBBON'S BODY (RIBBON_1) — GPU-sovereign. The CPU writes the 48-B
+        // head once, zeroed, at commit (seeded = 0); the head kernel seeds itself
+        // and nothing is ever read back. Mirrors world.wgsl's RibbonHeadState /
+        // RibbonSaddle / RibbonBody BYTE-FOR-BYTE (L3).
+        struct alignas(16) GPURibbonHeadState {
+            float    pos[3];          //  0  the pen (the live integrated head)
+            float    heading;         // 12  unbounded; tailward = +dir(heading), flight = −dir(heading)
+            float    y_vel;           // 16
+            float    alt_target;      // 20
+            uint32_t head_slot;       // 24  spine slot of the newest chord sample
+            uint32_t seeded;          // 28  0 = lay the spawn arc on the next tick
+            uint32_t tick;            // 32  frames since seed; parity selects the deform half
+            float    yaw_eased;       // 36  the hands, low-passed
+            float    throttle_eased;  // 40
+            float    _pad0;           // 44
+        };                            // 48
+        struct alignas(16) GPURibbonSaddle {
+            float pos[3];             //  0  ring 0's top face, set back toward the tail
+            float heading;            // 12  the flight heading
+            float yaw_off;            // 16  drawn-tangent yaw minus heading, wrapped
+            float pitch;              // 20
+            float roll;               // 24
+            float _pad0;              // 28
+        };                            // 32
+        struct alignas(16) GPURibbonBody {
+            GPURibbonHeadState head;                         //     0
+            GPURibbonSaddle    saddle;                       //    48
+            float emit[Dim::RIBBON_EMIT_SLOTS][4];           //    80  every EMIT_STRIDE-th ring: xyz center, w radius — the field's view
+            float deform[Dim::RIBBON_DEFORM_SLOTS][4];       //  1680  [half][ring][offset|velocity], ping-pong by tick parity
+        };                                                   // 27280
+        static_assert(sizeof(GPURibbonHeadState) == 48);
+        static_assert(sizeof(GPURibbonSaddle) == 32);
+        static_assert(sizeof(GPURibbonBody) == 27280);
+        static_assert(offsetof(GPURibbonBody, saddle) == 48);
+        static_assert(offsetof(GPURibbonBody, emit) == 80);
+        static_assert(offsetof(GPURibbonBody, deform) == 1680);
 
         struct alignas(16) GPUArchGroundEntry {
             float pier_left_x;
@@ -1683,11 +1750,17 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 80, "GPUFrameSignal must be 80 bytes (CUT_1f: the 256 B dead stats mirror left both rooms)");
+        static_assert(offsetof(GPUFrameSignal, mount_phase) == 48,
+            "RIBBON_1: the mount block took the sky block's trailing 32 bytes, "
+            "same total, same boundary — the WGSL twin mirrors it field for field");
         // FIELD_2b: the field's eight dials graduated from WGSL consts to
         // this struct (the panel authors their rests). Eight floats where
         // two tail pads stood, plus two fresh pads to land the 16-byte
         // boundary: 592 - 8 + 32 + 8 = 624. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 624,
+        // RIBBON_1: the ribbon's eleven dials land at that same tail — one pad
+        // consumed, ten floats appended, two fresh pads to the boundary;
+        // 624 -> 672. Both rooms, same commit.
+        static_assert(sizeof(GPUDesignConfig) == 672,
             "GPUDesignConfig must be 624 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
@@ -1698,7 +1771,9 @@ namespace t7 {
             "MOSAIC_2 re-cut that tail from six dials + two pads to FIVE + "
             "THREE — still 8 floats, so 592 is unmoved. FIELD_2b: the "
             "field's eight dials land at the tail — two pads consumed, six "
-            "floats appended, two fresh pads to the boundary; 592 -> 624.)");
+            "floats appended, two fresh pads to the boundary; 592 -> 624. "
+            "RIBBON_1: the ribbon's twelve dials at the same tail — one pad "
+            "consumed, eleven appended, one fresh pad; 624 -> 672.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -1781,24 +1856,26 @@ namespace t7 {
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
 
         // ── THE FIELD BUS (CHORD_2) ───────────────────────────────────
-        // The field's three uniform windows in one block: the ring poses
-        // in, the ribbon state in, the authored emitter table in. Frame
-        // cadence — the fastest member governs. Mirrors
-        // world.wgsl::FieldBus BYTE-FOR-BYTE (L3).
+        // The field's two uniform windows in one block: the ribbon state
+        // in, the authored emitter table in. Frame cadence — the fastest
+        // member governs. Mirrors world.wgsl::FieldBus BYTE-FOR-BYTE (L3).
+        //
+        // RIBBON_1 TOOK THE RINGS OUT. The 6400 B of head poses was a CPU
+        // walk uploaded twice a frame; the body is GPU-resident now and the
+        // field reads its emit table through ribbon_body_read (g2:145). The
+        // block went 6656 B to 256.
         //
         // WINDOWS, NOT HOMES (docs/CHORD.md): every member's home is
-        // elsewhere and stays there. head_poses and ribbon are also seated
-        // by the ribbon pipeline (g2:142, g2:140) and the render rooms
-        // (g2:201) on the SAME buffers; those seats are other windows, not
-        // other facts, and each authoring site writes every window it owns.
+        // elsewhere and stays there. `ribbon` is also seated by the ribbon
+        // room (g2:140) and the render rooms (g2:200) on the SAME buffers;
+        // those seats are other windows, not other facts, and each
+        // authoring site writes every window it owns.
         struct alignas(16) GPUFieldBus {
-            float            head_poses[Dim::RIBBON_MAX_RINGS][4];  //    0
-            GPURibbonState   ribbon;                                // 6400
-            GPUFieldAuthored authored;                              // 6512
+            GPURibbonState   ribbon;     //   0
+            GPUFieldAuthored authored;   // 112
         };
-        static_assert(sizeof(GPUFieldBus) == 6656);
-        static_assert(offsetof(GPUFieldBus, ribbon)   == 6400);
-        static_assert(offsetof(GPUFieldBus, authored) == 6512);
+        static_assert(sizeof(GPUFieldBus) == 256);
+        static_assert(offsetof(GPUFieldBus, authored) == 112);
 
         // ── FRAME R (CHORD_3) ─────────────────────────────────────────
         // The render frame's block: lighting, the view-projection matrix,
@@ -2015,7 +2092,8 @@ namespace t7 {
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
-            wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
+            wgpu::Buffer ribbonSpineBuffer_;  // RIBBON_1: the chord ring — one vec4 per chord of flight, written by ribbon_head, read by ribbon_body
+            wgpu::Buffer ribbonBodyBuffer_;   // RIBBON_1: head + saddle + emit + deform — GPU-sovereign; the CPU writes only the zeroed 48-B head at commit
             wgpu::Buffer fieldForcesBuffer_;  // FIELD_2: vec4<f32>[FIELD_SUBSCRIBER_CAP] — the field's one output, GPU-only (g2:3)
             // CHORD_2 — THE FIELD BUS, one buffer where three stood
             // (head poses, ribbon state, authored table). Each window's
@@ -2323,9 +2401,10 @@ namespace t7 {
             //                 that precedes the slot array)
             //   writeArray  — Shape C: COUNT-DRIVEN array writes
             // The frame's PER-FRAME HOT fields are NOT here: they are the bespoke
-            // offsetof field-writers (resync_sky_head, the config sub-writers,
-            // upload_ribbon_time/color/wave_amps, upload_*_frame, zone header/life).
-            // A third tempo — left bespoke, offsetof asserts undisturbed.
+            // offsetof field-writers (the config sub-writers, upload_*_frame,
+            // zone header/life). A third tempo — left bespoke, offsetof asserts
+            // undisturbed. (RIBBON_1 retired the ribbon's four: one whole-struct
+            // upload_ribbon a frame says everything they said.)
             template <class T>
             void writeStruct(wgpu::Queue& queue, const wgpu::Buffer& buf, const T& v) {
                 queue.WriteBuffer(buf, 0, &v, sizeof(T));
@@ -2341,39 +2420,14 @@ namespace t7 {
                 queue.WriteBuffer(buf, 0, data, (size_t)sizeof(T) * count);
             }
 
-            // E-3 (mechanized): the eight contiguous sky_* words — the TRAILING
-            // 32 bytes of GPUFrameSignal — have ONE author, resync_sky_head, so
-            // they are NOT part of the whole-signal drain. The drain uploads
-            // everything UP TO the sky block; the sky block's sole per-frame
-            // writer is R7 (the ribbon tick), with a boot-neutral covering the
-            // ribbon-off case. No neutral-then-overwrite relay, no cross-function
-            // submission-order dance: the drain and the sky author write DISJOINT
-            // regions of the buffer.
+            // RIBBON_1: THE SIGNAL DRAINS WHOLE AGAIN. E-3's split existed because
+            // the sky block carried a POSE the ribbon tick had to re-write after
+            // the drain, so the two authors wrote disjoint regions. The mount
+            // block that replaced it carries only the EDGE — captured by
+            // possess(), advanced by the CPU, read by the GPU — so the frame's
+            // one signal author says all of it in one write.
             void upload_signal(wgpu::Queue& queue, const GPUFrameSignal& signal) {
-                static_assert(offsetof(GPUFrameSignal, sky_mode) == 48,
-                    "sky_* must be the trailing 32 bytes for the split (sky-less) signal drain");
-                queue.WriteBuffer(signalBuffer_, 0, &signal, offsetof(GPUFrameSignal, sky_mode));
-            }
-
-            // Re-write only the sky_* block of the frame signal. Used to re-sync the
-            // pawn mount after advance_ribbon_head so the pawn is sampled at the same
-            // frame as the ribbon it rides (removes the one-frame mount lag). The eight
-            // sky_* words are contiguous in GPUFrameSignal — a targeted sub-range write,
-            // the same idiom as upload_ribbon_time. The last three words carry the
-            // saddle's frame angles. The local block mirrors that field
-            // order exactly; the static_assert guards the 8-word size.
-            void resync_sky_head(wgpu::Queue& queue, uint32_t sky_mode,
-                                 float head_x, float head_y, float head_z, float heading,
-                                 float yaw_off, float pitch, float roll) {
-                struct SkyBlock {
-                    uint32_t sky_mode;
-                    float head_x, head_y, head_z, heading;
-                    float yaw_off, pitch, roll;
-                } block{ sky_mode, head_x, head_y, head_z, heading, yaw_off, pitch, roll };
-                static_assert(sizeof(SkyBlock) == 32,
-                    "SkyBlock must mirror GPUFrameSignal's eight contiguous sky_* words");
-                queue.WriteBuffer(signalBuffer_, offsetof(GPUFrameSignal, sky_mode),
-                                  &block, sizeof(block));
+                writeStruct(queue, signalBuffer_, signal);
             }
 
             // Upload the agent behavior + tier registries to the GPU.
@@ -2558,31 +2612,19 @@ namespace t7 {
                 writeStruct(queue, patchGridBuffer_, grid);
             }
 
-            // ── CHORD_2: the ribbon state wears TWO windows ───────────
-            // ribbonBuffer_ is the home the ribbon pipeline and the render
-            // rooms read (g2:140, g2:201); field_bus.ribbon is the agents
-            // room's window onto the same fact. Every writer below writes
-            // both at the same field offset — that is the charter's rule,
-            // and it is why no CPU stage copy is needed here. RIBBON_WINDOW
-            // is the one place the second address is computed.
+            // ── CHORD_2: the ribbon state wears THREE windows ─────────
+            // ribbonBuffer_ is the home the ribbon room and the render rooms
+            // read (g2:140, g2:200); field_bus.ribbon is the agents room's
+            // window onto the same fact. RIBBON_1 left ONE writer — the whole
+            // struct, three windows, once a frame — so the rule the partial
+            // writers obeyed field by field is now obeyed by construction.
+            // RIBBON_WINDOW is the one place the second address is computed;
+            // it is 0 today and named anyway, because a window is an address
+            // and not a coincidence.
             static constexpr uint64_t RIBBON_WINDOW = offsetof(GPUFieldBus, ribbon);
             // CHORD_4 gave the same fact a third window: the render room's
             // (scene + shadow bind it at g2:200). Same rule, one more address.
             static constexpr uint64_t RIBBON_SCENE_WINDOW = offsetof(GPUSceneConstants, ribbon);
-
-            void upload_ribbon_time(wgpu::Queue& queue, float time) {
-                // Only update the time field (offset 12 = after anchor[3])
-                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, time), &time, sizeof(float));
-                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, time), &time, sizeof(float));
-                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, time), &time, sizeof(float));
-            }
-
-            void upload_ribbon_color(wgpu::Queue& queue, const float (&color)[3]) {
-                // Only update the color[3] field (offset 32 — see GPURibbonState layout)
-                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, color), color, sizeof(color));
-                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, color), color, sizeof(color));
-                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, color), color, sizeof(color));
-            }
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 writeStruct(queue, ribbonBuffer_, ribbon);
@@ -2590,21 +2632,12 @@ namespace t7 {
                 queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW, &ribbon, sizeof(GPURibbonState));
             }
 
-            void upload_ribbon_wave_amps(wgpu::Queue& queue, float lateral_amp, float vertical_amp) {
-                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
-                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
-                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
-                queue.WriteBuffer(fieldBusBuffer_, RIBBON_WINDOW + offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
-                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
-                queue.WriteBuffer(sceneConstantsBuffer_, RIBBON_SCENE_WINDOW + offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
-            }
-
-            // Same pairing for the ring poses: headPosesBuffer_ is the
-            // ribbon pipeline's storage face (g2:142); field_bus.head_poses
-            // sits at offset 0 of the block.
-            void upload_ribbon_head_poses(wgpu::Queue& queue, const float* data, size_t bytes) {
-                queue.WriteBuffer(headPosesBuffer_, 0, data, bytes);
-                queue.WriteBuffer(fieldBusBuffer_, offsetof(GPUFieldBus, head_poses), data, bytes);
+            // RIBBON_1: the CPU's only word to the body — "you are unseeded".
+            // The head kernel lays the spawn arc and seeds itself; the body
+            // kernel zeroes its deformation on its first tick after a seed.
+            void reset_ribbon_body(wgpu::Queue& queue) {
+                GPURibbonHeadState zero{};
+                queue.WriteBuffer(ribbonBodyBuffer_, 0, &zero, sizeof(zero));
             }
 
             void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
@@ -3895,17 +3928,24 @@ namespace t7 {
                     // uniform binding ceiling, which is a wall on entity
                     // growth rather than a saving. Same buffer, same bytes,
                     // no repack (behaviour preservation, L3).
-                // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + readback staging droppable, but ribbonBuffer_/ringTransformsBuffer_ are exclusive-in-Render-Entity + Photographer. Retire = re-section those groups.
+                // LATENT[gate-a-shared] ribbon (SH·mb): the two ribbon kernels are
+                // droppable with the family, but ribbonBuffer_/ringTransformsBuffer_
+                // are exclusive-in-Render-Entity + Photographer. Retire = re-section
+                // those groups. (RIBBON_1: no ring readback staging was ever built,
+                // so there is none to drop with them.)
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
-                    sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
+                // RIBBON_1 — the chord spine and the body. Both GPU-sovereign:
+                // CopyDst is here for the one CPU word (reset_ribbon_body's zeroed
+                // head) and for nothing else. Boot-allocated, never reallocated.
+                ribbonSpineBuffer_ = makeBuffer("Ribbon Spine",
+                    sizeof(float) * 4 * Dim::RIBBON_SPINE_SLOTS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                    // CHORD_2: Uniform dropped — C6's g2 field_head_poses
-                    // window rides fieldBusBuffer_ now; the ribbon
-                    // pipeline's storage face is all that is left here.
+                ribbonBodyBuffer_ = makeBuffer("Ribbon Body",
+                    sizeof(GPURibbonBody),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 fieldForcesBuffer_ = makeBuffer("Field Forces",
                     sizeof(float) * 4 * Dim::FIELD_SUBSCRIBER_CAP,
                     wgpu::BufferUsage::Storage);
@@ -4043,7 +4083,7 @@ namespace t7 {
 
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
-                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
+                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && ribbonSpineBuffer_ && ribbonBodyBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
                     shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
@@ -4895,6 +4935,22 @@ namespace t7 {
                 config_.field_gain_cube     = FIELD_GAIN_CUBE;
                 config_.field_gain_sphere   = FIELD_GAIN_SPHERE;
                 config_.field_gain_agent    = FIELD_GAIN_AGENT;
+                // RIBBON_1 — the ribbon's dials, boot-pinned from THE PANEL
+                // (contracts/ribbon_surface.hpp RIBBON_LIVE) by the same idiom
+                // and at the same site. The head and the body are kernels: this
+                // is the ONLY road from the panel to the flight.
+                config_.ribbon_max_speed       = RIBBON_LIVE.max_speed;
+                config_.ribbon_yaw_rate        = RIBBON_LIVE.yaw_rate;
+                config_.ribbon_r_min           = RIBBON_LIVE.r_min;
+                config_.ribbon_floor_margin    = RIBBON_LIVE.floor_margin;
+                config_.ribbon_alt_smooth_dist = RIBBON_LIVE.alt_smooth_dist;
+                config_.ribbon_alt_stiff       = RIBBON_LIVE.alt_stiff;
+                config_.ribbon_climb_rate      = RIBBON_LIVE.climb_rate;
+                config_.ribbon_mount_setback   = RIBBON_LIVE.mount_setback;
+                config_.ribbon_lookahead       = RIBBON_LIVE.lookahead;
+                config_.ribbon_clear_head      = RIBBON_LIVE.clear_head;
+                config_.ribbon_clear_body      = RIBBON_LIVE.clear_body;
+                config_.ribbon_hands_tau       = RIBBON_LIVE.sky_yaw_tau;
                 config_.freeze_sphere = 0;
                 config_.fpv_mode = 0;
                 config_.world_seed = 42;

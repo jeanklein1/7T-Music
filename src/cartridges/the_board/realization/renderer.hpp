@@ -36,7 +36,8 @@ namespace t7 {
             constexpr const char* GENERATE_PATCH_HEIGHTS = "generate_patch_heights";          // 2D -- per-patch, pass 1
             constexpr const char* GENERATE_PATCH_GRADIENTS = "generate_patch_gradients";      // 2D -- per-patch, pass 2
             constexpr const char* GENERATE_PATCH_CELLS = "generate_patch_cells";              // 2D -- per-patch
-            constexpr const char* COMPUTE_RIBBON_RINGS = "compute_ribbon_rings";              // 1D -- per ring
+            constexpr const char* RIBBON_HEAD = "ribbon_head";                                // 0D -- one thread: intent, the Sky Rule, flight, the spine
+            constexpr const char* RIBBON_BODY = "ribbon_body";                                // 1D -- per ring: rest, gesture, tension, frame, motor
             constexpr const char* COMPUTE_PAWN_AURA = "compute_pawn_aura";                  // 2D -- toroidal grid
             constexpr const char* WRITE_LIVE_CARD_HEIGHTS = "write_live_card_heights";      // 2D -- card pass 1 (TRUEBAND_CONTACT_1)
             constexpr const char* WRITE_LIVE_CARD_RESOLVE = "write_live_card_resolve";      // 2D -- card pass 2 (gradients + store)
@@ -227,7 +228,8 @@ namespace t7 {
             wgpu::ComputePipeline generatePatchHeightsPipeline_;     // 2D -- pass 1: heights only
             wgpu::ComputePipeline generatePatchGradientsPipeline_;   // 2D -- pass 2: gradients + complexity
             wgpu::ComputePipeline generatePatchCellsPipeline_;        // 2D
-            wgpu::ComputePipeline ribbonRingPipeline_;                    // 1D -- ribbon ring transforms
+            wgpu::ComputePipeline ribbonHeadPipeline_;                    // 0D -- the ribbon's head: intent, the Sky Rule, flight, the spine
+            wgpu::ComputePipeline ribbonBodyPipeline_;                    // 1D -- the ribbon's body: one thread per ring
 
             // Render pipelines
             wgpu::RenderPipeline pawnPipeline_;          // Chess pawn entity
@@ -487,17 +489,22 @@ namespace t7 {
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
-            void dispatch_compute_ribbon_rings(
+            // THE RIBBON ROOM, both kernels, one pair of binds (RIBBON_1). The
+            // head runs first and alone: the body reads the spine and the head
+            // state it just wrote, and dispatches within a pass are ordered.
+            void dispatch_ribbon(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups
+                uint32_t body_workgroups
             ) {
-                if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(ribbonRingPipeline_);
+                if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipelines never created; the holder tolerates
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(workgroups, 1, 1);
+                pass.SetPipeline(ribbonHeadPipeline_);
+                pass.DispatchWorkgroups(1, 1, 1);
+                pass.SetPipeline(ribbonBodyPipeline_);
+                pass.DispatchWorkgroups(body_workgroups, 1, 1);
             }
 
             void dispatch_compute_photographer_vp(
@@ -1623,12 +1630,15 @@ namespace t7 {
                         pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
                 }
 
-                // Pipeline: compute_ribbon_rings (1D, per frame when ribbon active)
+                // Pipelines: the ribbon room's two kernels (RIBBON_1) — the head
+                // (one thread) then the body (one per ring), on ONE layout.
                 if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
                     wgpu::PipelineLayout pl = strataLayoutFor("ribbonComputeLayout", frameCLayout_, ribbonStateLayout_, emptyLayout_);
                     if (!pl) return false;
-                    if (!makeComputePipeline("compute_ribbon_rings", "Compute Ribbon Rings (1D, per frame)",
-                        pl, Entry::COMPUTE_RIBBON_RINGS, ribbonRingPipeline_)) return false;
+                    if (!makeComputePipeline("ribbon_head", "Ribbon Head (0D, 1 thread, per frame)",
+                        pl, Entry::RIBBON_HEAD, ribbonHeadPipeline_)) return false;
+                    if (!makeComputePipeline("ribbon_body", "Ribbon Body (1D, per ring, per frame)",
+                        pl, Entry::RIBBON_BODY, ribbonBodyPipeline_)) return false;
                 }
 
                 // Photographer VP compute pipeline (0D, reads pawn → writes VP)

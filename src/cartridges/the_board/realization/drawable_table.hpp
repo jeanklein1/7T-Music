@@ -56,6 +56,7 @@ enum DrawPass : uint32_t { DRAW_SHADOW = 1u, DRAW_MAIN = 2u, DRAW_SNAPSHOT = 4u 
 struct DrawBind {
     bool shadow;                // shadow pass -> draw_shadow_X ; else draw_X
     bool ribbon_active;         // ribbon_state_.rendered_slot != UINT32_MAX
+    uint32_t ribbon_verts;      // RIBBON_1: the LIVE vertex count (ribbon_draw_verts)
 };
 
 struct Drawable {
@@ -80,9 +81,12 @@ inline void dt_monolith(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, co
 }
 inline void dt_ribbon(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     (void)g;
-    if (!b.ribbon_active) return;
-    if (b.shadow) r.draw_shadow_ribbon(p, GPUState::ribbon_vertex_count());
-    else          r.draw_ribbon       (p, GPUState::ribbon_vertex_count());
+    // RIBBON_1: the draw is the LIVE count. It used to be the 400-ring
+    // ceiling with the VS early-out retiring four fifths of it twice a pass;
+    // the guard stays as the guard and the count is now the ribbon's own.
+    if (!b.ribbon_active || b.ribbon_verts == 0u) return;
+    if (b.shadow) r.draw_shadow_ribbon(p, b.ribbon_verts);
+    else          r.draw_ribbon       (p, b.ribbon_verts);
 }
 inline void dt_arch(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());

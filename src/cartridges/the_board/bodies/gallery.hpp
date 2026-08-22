@@ -1525,7 +1525,8 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // own entity group). Terrain above is the per-pass FORK (a single direct
     // draw over render_patch_count, no LOD split). Zone is not a snapshot member.
     DrawBind b{ /*shadow=*/false,
-                c->ribbon_state_.rendered_slot != UINT32_MAX };
+                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                ribbon_draw_verts(c->ribbon_state_) };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SNAPSHOT);
 
     // FORKS — the artworks, on the gallery layout bound to the

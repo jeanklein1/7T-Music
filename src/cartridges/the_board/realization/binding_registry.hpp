@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (88 declarations over 73 slots;
+// The WGSL @binding literals in world.wgsl (90 declarations over 75 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -57,7 +57,7 @@ namespace t7 {
                 inline constexpr uint32_t floating_entities           = 2;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
-                inline constexpr uint32_t field_bus                   = 9;  // FieldBus — CHORD_2: head_poses + ribbon + authored, one uniform block at frame cadence (6656 B; the fastest member governs)
+                inline constexpr uint32_t field_bus                   = 9;  // FieldBus — CHORD_2: ribbon + authored, one uniform block at frame cadence (256 B; RIBBON_1 took the ring poses out — the field reads the body through g2:145)
                 inline constexpr uint32_t field_forces                = 10;  // vec4<f32>[FIELD_SUBSCRIBER_CAP] — read_write, the field's one output
 
                 // AURA (20–39)
@@ -107,8 +107,10 @@ namespace t7 {
                 // RIBBON (140–159)
                 inline constexpr uint32_t ribbon_state                = 140;
                 inline constexpr uint32_t ring_xforms                 = 141;
-                inline constexpr uint32_t head_poses                  = 142;
+                inline constexpr uint32_t ribbon_spine                = 142;  // the chord ring — one vec4 per cube_size of flight; ring k reads slot head−k
                 inline constexpr uint32_t render_ring_xforms          = 143;
+                inline constexpr uint32_t ribbon_body_rw              = 144;  // RibbonBody — head + saddle + emit + deform; the ribbon room writes
+                inline constexpr uint32_t ribbon_body_read            = 145;  // the agents' room's read of the same home: the mount reads .saddle, the field reads .emit
 
                 // GALLERY (160–179)
                 inline constexpr uint32_t photographer_config         = 160;

@@ -96,6 +96,13 @@ struct PointState {
     //    PlayerState — the point's CPU face, in the point's house) ──
     float   x = 0.0f;                     // THE POINT's world X (host-authored)
     float   z = 0.0f;                     // THE POINT's world Z (host-authored)
+    // RIBBON_1 — y and heading join the mirror, for one reason: possess()
+    // captures the EDGE from them. A host change hands the GPU the pose the
+    // body LEFT, and the trajectory is eased from there onto the saddle (or
+    // off it onto the walked pose). Body hosts author both; camera-host
+    // leaves them held-last, as it leaves x/z.
+    float   y = 0.0f;                     // THE POINT's world Y (body hosts author it)
+    float   heading = 0.0f;               // THE POINT's heading (radians)
     // ── The bubble sensor, on the possessed slot's wire in both hosts ──
     int32_t portal_trigger = -1;
 
