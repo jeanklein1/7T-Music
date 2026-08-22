@@ -1085,11 +1085,11 @@ namespace t7 {
             uint32_t tick;            // 32  frames since seed; parity selects the deform half
             float    yaw_eased;       // 36  the hands, low-passed
             float    throttle_eased;  // 40
-            float    _pad1;           // 44  RIBBON_2 §3.5 branch 1: the gesture clock stayed on the CPU
+            float    yaw_cmd;         // 44  RIBBON_3 — the one command (hands + rule), slew-limited
             float    wander_tx;       // 48  the wander brain's target (RIBBON_2 — the brain came home)
             float    wander_tz;       // 52
             uint32_t wander_seq;      // 56  targets drawn so far (0 = none yet)
-            float    _pad0;           // 60
+            float    rule_eased;      // 60  RIBBON_3 — the rule's lateral word, low-passed
         };                            // 64
         struct alignas(16) GPURibbonSaddle {
             float pos[3];             //  0  ring 0's top face, set back toward the tail

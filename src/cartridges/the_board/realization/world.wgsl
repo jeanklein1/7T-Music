@@ -5729,7 +5729,7 @@ const RIBBON_BANK_MAX: f32 = 0.6;            // rad, clamp
 const RIBBON_BODY_K: f32 = 6.0;              // 1/s^2 — the return spring
 const RIBBON_BODY_ZETA: f32 = 1.0;           // damping ratio (1 = critical; 0.7 for a hint of overshoot)
 const RIBBON_BODY_TENSION: f32 = 60.0;       // 1/s^2 — neighbor coupling; a bulge reaches ~sqrt(TENSION/K) rings past the thing. Keep < 600 (explicit-step stability at DT_MAX)
-const RIBBON_BODY_PUSH: f32 = 900.0;         // wu/s^2 at full shell depth
+const RIBBON_BODY_PUSH: f32 = 600.0;         // wu/s^2 at full shell depth (RIBBON_3: the wall carries the guarantee; the shell can be gentle)
 const RIBBON_BODY_DMAX: f32 = 60.0;          // wu — the deformation's leash
 const RIBBON_BODY_FLOOR: f32 = 12.0;         // wu above local ground the body refuses to go under
 const RIBBON_BODY_BANK: f32 = 0.0;           // rad per (wu/s) of lateral deform velocity — roll into the dodge (0 = off)
@@ -5740,12 +5740,17 @@ const RIBBON_WALL_HALF: f32 = 0.75;          // × cube_size — the tube's half
 const RIBBON_SELF_NECK: u32 = 24u;           // rings around a reader that are its own tube, not a thing
 const RIBBON_CLEAR_SELF: f32 = 30.0;         // the head's shell against its body
 const RIBBON_CLEAR_SELF_BODY: f32 = 10.0;    // a ring's shell against the rest of the body
-const RIBBON_SELF_LIFT: f32 = 60.0;          // wu of altitude bias per unit of the body's vertical push
+const RIBBON_LIFT_GAIN: f32 = 60.0;          // wu of altitude bias per unit of vertical push — the body's word and the world's (arches, movers)
 const RIBBON_SELF_BODY_W: f32 = 0.5;         // body-on-body push, as a fraction of RIBBON_BODY_PUSH
 const RIBBON_CHASE_BOARD_TAU: f32 = 0.35;    // s — the camera turns to the flight over the boarding
-const RIBBON_CHASE_ELEVATION: f32 = 0.25;    // rad — the chase pose
-const RIBBON_CHASE_TAU: f32 = 2.5;           // s — an idle mouse lets the azimuth settle behind the flight (0 = never)
+const RIBBON_CHASE_ELEVATION: f32 = 0.6;     // rad — the chase pose, ~35° to the ribbon's surface (Jean)
+const RIBBON_CHASE_TAU: f32 = 0.0;           // s — set once at boarding; 0 = the mouse owns the camera from then on (Jean). > 0 re-centers on an idle mouse
 const RIBBON_CHASE_AZ_OFFSET: f32 = 0.0;     // rad — 3.14159 if the camera lands in front (screen gate)
+// RIBBON_3
+const RIBBON_RULE_TAU: f32 = 0.35;           // s — the rule's lateral word, low-passed before it steers
+const RIBBON_YAW_SLEW: f32 = 1.5;            // command units per second — the heading's RATE never jumps faster than this
+const RIBBON_CLEAR_MOVER: f32 = 20.0;        // the head's shell against the big movers (spheres, walkers); cubes are the body's
+const RIBBON_ARCH_SEGS: u32 = 8u;            // capsules along an arch's rib
 
 struct RibbonHeadState {          // 64 B — mirrors GPURibbonHeadState
     pos: vec3<f32>,               //  0  the pen
@@ -5757,11 +5762,11 @@ struct RibbonHeadState {          // 64 B — mirrors GPURibbonHeadState
     tick: u32,                    // 32  frames since seed; parity selects the deform half and the emit half
     yaw_eased: f32,               // 36
     throttle_eased: f32,          // 40
-    _pad1: f32,                   // 44  RIBBON_2 §3.5 branch 1: the gesture clock stayed on the CPU
+    yaw_cmd: f32,                 // 44  the one command (hands + rule), slew-limited
     wander_tx: f32,               // 48  the wander brain's target
     wander_tz: f32,               // 52
     wander_seq: u32,              // 56  targets drawn so far (0 = none yet)
-    _pad0: f32,                   // 60
+    rule_eased: f32,              // 60  the rule's lateral word, low-passed
 }
 struct RibbonSaddle {             // 32 B — mirrors GPURibbonSaddle
     pos: vec3<f32>,               //  0
@@ -5821,14 +5826,80 @@ fn sky_sphere(p: vec3<f32>, c: vec3<f32>, r: f32, clear: f32) -> vec3<f32> {
     return dir * (s * s);
 }
 
-// The rule, summed at p. agl = p.y - ribbon_ground(p.xz), computed once by
-// the caller. skip_agent: the rider's own body — it sits on the saddle and
-// the body must not flee its rider (32u = skip nobody).
-fn sky_push(p: vec3<f32>, agl: f32, clear: f32, skip_agent: u32) -> vec3<f32> {
+// Closest point on the segment ab to p.
+fn seg_closest(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
+    let ab = b - a;
+    let t = saturate(dot(p - a, ab) / max(dot(ab, ab), 1e-6));
+    return a + ab * t;
+}
+
+// THE DOORWAY (RIBBON_3): an arch is not a disc. Two piers and a rib — the
+// rib a parabola from pier top to apex to pier top (the catenary within a
+// few wu; the shell is wider than the error), walked as RIBBON_ARCH_SEGS
+// capsules; the piers two vertical capsules. Legs at center ± half_span
+// along (cos rotation, sin rotation), radius half the larger cross-section
+// — occupier_contact's own law. A reader passes under, over or around.
+fn arch_rib_point(am: ArchMeshParams, g: f32, u: f32) -> vec3<f32> {
+    let along = vec2(cos(am.rotation), sin(am.rotation)) * (u * am.half_span);
+    return vec3(am.center_x + along.x,
+                g + am.pier_height - am.burial + am.rise * (1.0 - u * u),
+                am.center_z + along.y);
+}
+
+fn sky_arch_push(p: vec3<f32>, g: f32, am: ArchMeshParams, clear: f32) -> vec3<f32> {
     var f = vec3(0.0);
-    // Shafts — columns 0-15, antennas 16-31. The disc is the widest thing
-    // on the post: shaft + the larger overhang (an antenna's drums live in
-    // base_overhang; the field's 0.30-radius post is not the geometry).
+    let r = max(am.thickness, am.depth) * 0.5;
+    var prev = arch_rib_point(am, g, -1.0);
+    for (var s = 1u; s <= RIBBON_ARCH_SEGS; s++) {
+        let cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
+        f += sky_sphere(p, seg_closest(p, prev, cur), r, clear);
+        prev = cur;
+    }
+    let pa = arch_rib_point(am, g, -1.0);
+    let pb = arch_rib_point(am, g, 1.0);
+    f += sky_sphere(p, seg_closest(p, vec3(pa.x, g, pa.z), pa), r, clear);
+    f += sky_sphere(p, seg_closest(p, vec3(pb.x, g, pb.z), pb), r, clear);
+    return f;
+}
+
+// The wall's arch: the same capsules, projected out of, sequentially.
+fn sky_arch_wall(q_in: vec3<f32>, g: f32, am: ArchMeshParams, half: f32) -> vec3<f32> {
+    var q = q_in;
+    let r = max(am.thickness, am.depth) * 0.5 + half;
+    var prev = arch_rib_point(am, g, -1.0);
+    for (var s = 1u; s <= RIBBON_ARCH_SEGS + 2u; s++) {
+        var cur = prev;
+        var a = prev;
+        if (s <= RIBBON_ARCH_SEGS) {
+            cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
+        } else if (s == RIBBON_ARCH_SEGS + 1u) {
+            a = arch_rib_point(am, g, -1.0); cur = vec3(a.x, g, a.z);
+        } else {
+            a = arch_rib_point(am, g, 1.0);  cur = vec3(a.x, g, a.z);
+        }
+        let c = seg_closest(q, a, cur);
+        let d = q - c;
+        let len = length(d);
+        if (len < r) {
+            var od = vec3(0.0, 1.0, 0.0);
+            if (len > 1e-3) { od = d / len; }
+            q += od * (r - len);
+        }
+        prev = cur;
+    }
+    return q;
+}
+
+// The rule, summed at p. agl = p.y − ribbon_ground(p.xz), computed once by
+// the caller. clear is the shell against standing things, clear_mover
+// against movers; movers is how many floating slots the reader hears —
+// SPHERE_SLOT_COUNT for the head (the big movers), all of them for the body.
+// skip_agent: the rider's own body (32u = skip nobody).
+fn sky_push(p: vec3<f32>, agl: f32, clear: f32, clear_mover: f32, movers: u32, skip_agent: u32) -> vec3<f32> {
+    var f = vec3(0.0);
+    let g = p.y - agl;
+    // Shafts — columns 0–15, antennas 16–31: a disc and a top. The disc is
+    // the widest thing on the post (an antenna's drums live in base_overhang).
     for (var i = 0u; i < 32u; i++) {
         let cm = agent_room.occupier_cmg[i];
         if (cm.is_active == 0u) { continue; }
@@ -5836,13 +5907,11 @@ fn sky_push(p: vec3<f32>, agl: f32, clear: f32, skip_agent: u32) -> vec3<f32> {
                        cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang),
                        cm.height - cm.burial, clear);
     }
-    // Arches — one disc spanning both legs; the top is the catenary apex.
+    // Arches — doorways.
     for (var i = 0u; i < 16u; i++) {
         let am = agent_room.occupier_amg[i];
         if (am.is_active == 0u) { continue; }
-        f += sky_shell(p, agl, vec2(am.center_x, am.center_z),
-                       am.half_span + max(am.thickness, am.depth),
-                       am.pier_height + am.rise - am.burial, clear);
+        f += sky_arch_push(p, g, am, clear);
     }
     // Walkers — spheres of their tier's contact radius.
     for (var i = 0u; i < 32u; i++) {
@@ -5850,19 +5919,21 @@ fn sky_push(p: vec3<f32>, agl: f32, clear: f32, skip_agent: u32) -> vec3<f32> {
         let a = render_agents[i];
         if (a.is_active == 0u) { continue; }
         f += sky_sphere(p, vec3(a.pos_x, a.pos_y, a.pos_z),
-                        agent_room.tier_gains[min(a.tier_idx, 3u)].contact_radius, clear);
+                        agent_room.tier_gains[min(a.tier_idx, 3u)].contact_radius, clear_mover);
     }
-    // Floaters — spheres of their body radius.
-    for (var i = 0u; i < 264u; i++) {
+    // Floaters — spheres of their body radius; the head hears the first
+    // SPHERE_SLOT_COUNT, the body all of them.
+    for (var i = 0u; i < movers; i++) {
         let fe = render_floating.entities[i];
         if (fe.is_active == 0u) { continue; }
-        f += sky_sphere(p, fe.pos, fe.body_radius, clear);
+        f += sky_sphere(p, fe.pos, fe.body_radius, clear_mover);
     }
     return f;
 }
 
 // The roofline under a disc at xz: the highest (top + CLEAR_Y), above local
-// ground, of the standing things whose shell covers xz. 0 when the sky is open.
+// ground, of the SHAFTS whose shell covers xz (arches are doorways: their
+// word is the push's vertical, not a roof). 0 when the sky is open.
 fn sky_roof(xz: vec2<f32>, clear: f32) -> f32 {
     var roof = 0.0;
     for (var i = 0u; i < 32u; i++) {
@@ -5871,14 +5942,6 @@ fn sky_roof(xz: vec2<f32>, clear: f32) -> f32 {
         let r = cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang) + clear;
         if (distance(xz, vec2(cm.center_x, cm.center_z)) < r) {
             roof = max(roof, cm.height - cm.burial + RIBBON_CLEAR_Y);
-        }
-    }
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        let r = am.half_span + max(am.thickness, am.depth) + clear;
-        if (distance(xz, vec2(am.center_x, am.center_z)) < r) {
-            roof = max(roof, am.pier_height + am.rise - am.burial + RIBBON_CLEAR_Y);
         }
     }
     return roof;
@@ -5915,11 +5978,12 @@ fn sky_self(p: vec3<f32>, k_reader: u32, n: u32, cs: f32, emit_half: u32, clear:
     return f;
 }
 
-// THE WALL (RIBBON_2) — the shell was advice; this is law. After the string
-// has moved: no ring center inside a standing thing's disc (widened by half)
-// while under its top — the cheaper exit wins, out or up; none inside a
-// mover's sphere; none under ground + half. Returns the displacement that
-// restores the law. Applied after the leash: law outranks leash.
+// THE WALL — the shell was advice; this is law. After the string has moved:
+// no ring center inside a shaft's disc (widened by half) while under its
+// top — the cheaper exit wins, out or up; none inside an arch's capsules;
+// none inside a mover's sphere; none under ground + half. Returns the
+// displacement that restores the law. Applied after the leash: law
+// outranks leash.
 fn sky_wall(p: vec3<f32>, g: f32, half: f32, skip_agent: u32) -> vec3<f32> {
     var q = p;
     for (var i = 0u; i < 32u; i++) {
@@ -5945,22 +6009,7 @@ fn sky_wall(p: vec3<f32>, g: f32, half: f32, skip_agent: u32) -> vec3<f32> {
     for (var i = 0u; i < 16u; i++) {
         let am = agent_room.occupier_amg[i];
         if (am.is_active == 0u) { continue; }
-        let r = am.half_span + max(am.thickness, am.depth) + half;
-        let d = q.xz - vec2(am.center_x, am.center_z);
-        let len = length(d);
-        let top = g + am.pier_height + am.rise - am.burial + half;
-        if (len < r && q.y < top) {
-            let out = r - len;
-            let up = top - q.y;
-            if (out <= up) {
-                var od = vec2(1.0, 0.0);
-                if (len > 1e-3) { od = d / len; }
-                q.x += od.x * out;
-                q.z += od.y * out;
-            } else {
-                q.y = top;
-            }
-        }
+        q = sky_arch_wall(q, g, am, half);
     }
     for (var i = 0u; i < 32u; i++) {
         if (i == skip_agent) { continue; }
@@ -6117,10 +6166,11 @@ fn ribbon_head(@builtin(global_invocation_id) gid: vec3<u32>) {
         hd.tick = 0u;
         hd.yaw_eased = 0.0;
         hd.throttle_eased = 0.0;
-        hd._pad1 = 0.0;
         hd.wander_tx = ribbon.anchor.x;
         hd.wander_tz = ribbon.anchor.z;
         hd.wander_seq = 0u;
+        hd.yaw_cmd = 0.0;
+        hd.rule_eased = 0.0;
         let tail = vec3(cos(hd.heading), 0.0, sin(hd.heading));
         for (var j = 0u; j < RIBBON_SPINE_SLOTS; j++) {
             let slot = (RIBBON_SPINE_SLOTS - j) % RIBBON_SPINE_SLOTS;
@@ -6162,39 +6212,54 @@ fn ribbon_head(@builtin(global_invocation_id) gid: vec3<u32>) {
     hd.yaw_eased += (yaw_in - hd.yaw_eased) * ease;
     hd.throttle_eased += (throttle - hd.throttle_eased) * ease;
 
-    // The Sky Rule at the probe: the world, then the body. lateral =
-    // (−sin h, 0, cos h); d(flight)/d(heading) = −lateral, so a push toward
-    // +lateral asks for LESS heading. Derived; the screen is the gate.
+    // The Sky Rule at the probe: the world at the head's own scale (standing
+    // things; the spheres and the walkers — the cubes are the body's
+    // business), then the body. lateral = (−sin h, 0, cos h);
+    // d(flight)/d(heading) = −lateral, so a push toward +lateral asks for
+    // LESS heading. Derived; the screen is the gate.
     let dir_h = vec3(cos(hd.heading), 0.0, sin(hd.heading));
     let lateral = vec3(-dir_h.z, 0.0, dir_h.x);
     let probe = hd.pos - dir_h * config.ribbon_lookahead;
     let ground_here = ribbon_ground(hd.pos.xz);
     let ground_probe = ribbon_ground(probe.xz);
     let skip = select(32u, config.possessed_slot, point_ribbon_hosted());
-    let push_world = sky_push(probe, probe.y - ground_probe, config.ribbon_clear_head, skip);
+    let push_world = sky_push(probe, probe.y - ground_probe, config.ribbon_clear_head,
+                              RIBBON_CLEAR_MOVER, SPHERE_SLOT_COUNT, skip);
     var push_self = vec3(0.0);
     if (has_body) { push_self = sky_self(probe, 0u, n, cs, emit_prev, RIBBON_CLEAR_SELF); }
-    let yaw_cmd = clamp(hd.yaw_eased - RIBBON_STEER_GAIN * dot(push_world + push_self, lateral), -1.0, 1.0);
-    // Over or under its own body: over, unless the body is clearly above.
-    var lift = push_self.y;
-    if (push_self.y >= -0.2) { lift = max(push_self.y, length(push_self.xz)); }
+
+    // ONE COMMAND, C2 (RIBBON_3): the rule's word is low-passed, the total —
+    // hands and rule — is slew-limited, so the heading's RATE never jumps.
+    // A dodge begins and ends as a curve; the rider feels a turn, not a wall.
+    let rule_lat = dot(push_world + push_self, lateral);
+    hd.rule_eased += (rule_lat - hd.rule_eased) * (1.0 - exp(-dt / RIBBON_RULE_TAU));
+    let want = clamp(hd.yaw_eased - RIBBON_STEER_GAIN * hd.rule_eased, -1.0, 1.0);
+    hd.yaw_cmd += clamp(want - hd.yaw_cmd, -RIBBON_YAW_SLEW * dt, RIBBON_YAW_SLEW * dt);
+
+    // Over or under: the world's vertical word (a doorway's rib, a mover)
+    // and the body's (over unless clearly above), both through the pen.
+    var lift_self = push_self.y;
+    if (push_self.y >= -0.2) { lift_self = max(push_self.y, length(push_self.xz)); }
+    let lift = lift_self + push_world.y;
 
     // Flight.
     let speed = hd.throttle_eased * config.ribbon_max_speed;
     let yaw_avail = min(config.ribbon_yaw_rate, speed / max(config.ribbon_r_min, 1e-3));
-    hd.heading += yaw_cmd * yaw_avail * dt;
+    hd.heading += hd.yaw_cmd * yaw_avail * dt;
     let step = speed * dt;
     hd.pos.x -= cos(hd.heading) * step;
     hd.pos.z -= sin(hd.heading) * step;
 
     // The pen owns altitude (B0, kept): the birth altitude, biased by the
-    // body's word; never under the floor here or ahead; never under a
-    // roofline here or ahead; low-passed by travel; critically damped;
-    // climb-capped. The floor is a guarantee.
+    // vertical word above — the body's and the world's; never under the
+    // floor here or ahead; never under a SHAFT's roofline here or ahead (an
+    // arch has no roof: it is a doorway, and its word is in the bias);
+    // low-passed by travel; critically damped; climb-capped. The floor is
+    // a guarantee.
     let floor_y = max(ground_here, ground_probe) + config.ribbon_floor_margin;
     let roof_y = max(ground_probe + sky_roof(probe.xz, config.ribbon_clear_head),
                      ground_here + sky_roof(hd.pos.xz, config.ribbon_clear_head));
-    let raw_target = max(max(birth_y + lift * RIBBON_SELF_LIFT, floor_y), roof_y);
+    let raw_target = max(max(birth_y + lift * RIBBON_LIFT_GAIN, floor_y), roof_y);
     let alpha = 1.0 - exp(-step / max(config.ribbon_alt_smooth_dist, 1e-3));
     hd.alt_target += (raw_target - hd.alt_target) * alpha;
     hd.alt_target = max(hd.alt_target, floor_y);
@@ -6301,7 +6366,7 @@ fn ribbon_body(@builtin(global_invocation_id) gid: vec3<u32>) {
     let p_now = p_rest + d0;
     let g = ribbon_ground(p_now.xz);
     let skip = select(32u, config.possessed_slot, point_ribbon_hosted());
-    var force = sky_push(p_now, p_now.y - g, config.ribbon_clear_body, skip) * RIBBON_BODY_PUSH;
+    var force = sky_push(p_now, p_now.y - g, config.ribbon_clear_body, config.ribbon_clear_body, 264u, skip) * RIBBON_BODY_PUSH;
     if (!fresh) {
         force += sky_self(p_now, k, n, cs, emit_prev, RIBBON_CLEAR_SELF_BODY) * (RIBBON_BODY_PUSH * RIBBON_SELF_BODY_W);
     }
