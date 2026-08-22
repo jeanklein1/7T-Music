@@ -16,18 +16,21 @@
 // THE CPU AUTHORS INTENT AND READS NOTHING BACK (RIBBON_1). What this
 // module says, once per frame, is a single 112-byte RibbonState: the
 // spawn draw, the tier, the colors, the wave amplitudes the canvas
-// drives, and — when the ribbon is a wanderer — the brain's two
-// numbers, a yaw command and a throttle. The head integrates them; the
-// body is drawn where the head has been. There is no CPU head, no
-// propagation history, and no readback: the GPU's answer never comes
-// home, so nothing here can disagree with it.
+// drives, and — when the ribbon is a wanderer — one standing fact and
+// one number, is_wander and the cruise it was drawn with. The head
+// integrates them; the body is drawn where the head has been. There is
+// no CPU head, no propagation history, and no readback: the GPU's
+// answer never comes home, so nothing here can disagree with it.
 //
-// THE WANDER BRAIN IS AN AUTOPILOT, NOT A MIRROR. It keeps its OWN
-// dead reckoning (ActiveRibbon::plan_*) under the same flight law it
-// commands, picks waypoints in that frame, and emits the same two
-// inputs a rider's hands would. The Sky Rule bends the real head away
-// from the plan; nothing reads the plan's position but the plan, so the
-// GESTURE — a sequence of gentle turns — survives the divergence intact.
+// THE WANDERER STEERS ITSELF, IN THE ROOM WHERE IT FLIES (RIBBON_2).
+// The wander brain used to live here and could not see the head it
+// commanded, so it kept a private copy of the flight law to steer
+// against. It is the head kernel's now: the waypoint is drawn from the
+// ribbon's own seed, held in RibbonHeadState, and compared against the
+// position the kernel just integrated. The disc it roams and the
+// softness of its turn are config.ribbon_* dials, so the brain reads
+// the same rests a rider's hands are eased by, and the Sky Rule bends
+// a heading that was aimed at a target the brain can still see.
 //
 // The impl additionally reaches the spawn-engine services
 // (run_spawn_preamble, negotiate_position — spawn_engine.hpp),
@@ -111,8 +114,8 @@ inline constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around aw
 // min(RIBBON_LIVE.yaw_rate, speed / RIBBON_LIVE.r_min), so the heading can only
 // change while moving and the flown path can never be tighter than
 // the minimum turn radius. Consumed by the HEAD KERNEL (world.wgsl
-// ribbon_head) since RIBBON_1, and by the wander brain's dead reckoning
-// here. All control-panel material — and since ORGAN_3 w2 it IS a
+// ribbon_head) since RIBBON_1 — for the rider's hands and, since
+// RIBBON_2, for the wanderer's alike. All control-panel material — and since ORGAN_3 w2 it IS a
 // control panel: the values graduated to contracts/ribbon_surface.hpp,
 // where RIBBON_TABLE is the design and RIBBON_LIVE is what this module
 // reads. The boot pins the same rests into config.ribbon_* — the
@@ -362,8 +365,8 @@ struct ActiveRibbon {
     // kernel — target, bearing, cap and cruise all live there now — so what
     // the CPU still says about a wanderer is the throttle it was drawn with.
     // The waypoint, its retarget clock, its xorshift and the eased steering
-    // output left with the brain; so did the dead reckoning that stood in for
-    // a head the CPU could not read.
+    // output left with the brain; so did the private copy of the flight law
+    // it steered against, which stood in for a head the CPU could not read.
     float    wander_cruise = 0.0f;      // throttle fraction of config.ribbon_max_speed
 };
 
