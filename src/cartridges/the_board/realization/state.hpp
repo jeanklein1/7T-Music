@@ -3960,9 +3960,13 @@ namespace t7 {
                 // those groups. (RIBBON_1: no ring readback staging was ever built,
                 // so there is none to drop with them.)
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
+                // RIBBON_2: CopySrc dropped. It was allocated for a ring
+                // readback that was never built, and the LATENT note above
+                // says so in the same breath — a usage bit that names a
+                // reader nobody wrote is false authority (L30).
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 // RIBBON_1 — the chord spine and the body. Both GPU-sovereign:
                 // CopyDst is here for the one CPU word (reset_ribbon_body's zeroed
                 // head) and for nothing else. Boot-allocated, never reallocated.
