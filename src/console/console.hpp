@@ -1262,7 +1262,7 @@ namespace t7 {
 
             // Delta time
             auto currentTime = std::chrono::high_resolution_clock::now();
-            float dt = std::chrono::duration<float>(currentTime - lastTime_).count();
+            float measured = std::chrono::duration<float>(currentTime - lastTime_).count();
             lastTime_ = currentTime;
 
             // PORT_1b: the dt clamp, lifted verbatim from the dormant
@@ -1270,7 +1270,33 @@ namespace t7 {
             // spiral of death", cap 0.1f (100 ms). Inert at native frame
             // rates; essential across a browser tab-suspend, where rAF
             // hands back a multi-second gap.
-            dt = std::clamp(dt, 0.0f, 0.1f);
+            const float raw = std::clamp(measured, 0.0f, 0.1f);
+
+            // THE STEADY CLOCK (RIBBON_3). The display presents frames at a
+            // steady cadence; a dt that jitters with the callback's arrival
+            // puts that jitter into every integrator and the eye reads it as
+            // judder — worst on the fastest mover with the camera bolted to
+            // it. The frame's dt is the running mean of recent frames while
+            // the measurement lies within the band, and the measurement
+            // itself when it does not — a real hitch is a real hitch. One
+            // clock: the beat clock and the signal read this value.
+            //
+            // THE RELOCK is not decoration. Out-of-band frames do NOT move
+            // the mean, so a display that genuinely changes cadence (60 Hz
+            // to 30, a monitor swap, a throttled tab that settles) would sit
+            // outside the band forever and never be steadied again. After
+            // STEADY_CLOCK_RELOCK consecutive strangers the mean adopts the
+            // measurement: a sustained cadence is not a hitch.
+            const bool in_band =
+                std::fabs(raw - dtMean_) < STEADY_CLOCK_BAND * dtMean_;
+            if (in_band) {
+                dtMean_ += (raw - dtMean_) * STEADY_CLOCK_GAIN;
+                dtStrangers_ = 0;
+            } else if (++dtStrangers_ >= STEADY_CLOCK_RELOCK) {
+                dtMean_ = raw;
+                dtStrangers_ = 0;
+            }
+            const float dt = in_band ? dtMean_ : raw;
 
             // CAP_2 — the last word, at the frame boundary. glfwPollEvents at
             // the head of this function is where the port applies any queued
@@ -2003,6 +2029,17 @@ namespace t7 {
         uint32_t pendingWidth_ = 0;
         uint32_t pendingHeight_ = 0;
         uint32_t stableFrames_ = 0;
+
+        // RIBBON_3 — THE STEADY CLOCK's three numbers and its two words.
+        // BAND: how far from the mean a measurement may sit and still be
+        // called the same cadence (fraction of the mean). GAIN: how fast
+        // the mean follows an in-band measurement. RELOCK: how many
+        // consecutive out-of-band frames adopt the new cadence outright.
+        static constexpr float    STEADY_CLOCK_BAND   = 0.2f;
+        static constexpr float    STEADY_CLOCK_GAIN   = 0.05f;
+        static constexpr uint32_t STEADY_CLOCK_RELOCK = 8;
+        float    dtMean_      = 1.0f / 60.0f;
+        uint32_t dtStrangers_ = 0;
 
         // ── Gpu Device ───────────────────────────────────────────
         wgpu::Instance instance_;   // portable handle; owns the async request chain

@@ -218,6 +218,12 @@ static void frame() {
     if constexpr (t7::INSTRUMENTS.frame_meter) s_t0 = std::chrono::steady_clock::now();
     wgpu::CommandBuffer commands = encoder.Finish(&cmdDesc);
     app->queue.Submit(1, &commands);
+    // RIBBON_2 P0 1.2b: an updated-but-unrendered frame adds its dt to the
+    // next rendered one — a dropped acquire stretches a step, never deletes
+    // it. This is the moment the GPU has actually been handed the time the
+    // cartridge was holding, and the only place the accumulator may clear.
+    // The early return at acquire_surface_texture() above never reaches it.
+    app->render.frame_submitted();
     if constexpr (t7::INSTRUMENTS.frame_meter)
         s_submit = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - s_t0).count();

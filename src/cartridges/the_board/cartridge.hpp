@@ -293,6 +293,13 @@ namespace t7 {
             // because a host change is what raises it. possess() writes it;
             // FillSignal ships and advances it; nothing reads it back.
             MountState mount_{};
+            // THE PENDING dt (RIBBON_3) — the frame's dt as the GPU will see
+            // it: the sum of every update since the last submitted frame,
+            // capped at the same 100 ms the measurement is. Written by
+            // phase_fill_signal, cleared by frame_submitted(); nothing else
+            // touches it. time_state_.dt keeps the per-update value, because
+            // the CPU's own integrators run on every update, rendered or not.
+            float dtPending_ = 0.0f;
 
             // ═══ THE MACHINE FACE ═══════════════════════════════════════
             // The one declared context the dispatch contract hands the
@@ -940,7 +947,16 @@ namespace t7 {
                 auto aspect_ratio = c.aspect_ratio;
                 gpuSignal.t_seconds = signal.t_seconds;
                 gpuSignal.t_beats = signal.t_beats;
-                gpuSignal.dt = signal.dt;
+                // RIBBON_2 P0 1.2b — THE PENDING dt (RIBBON_3). The signal is
+                // written every update; the compute pass that consumes it is
+                // encoded only on a RENDERED frame. Writing signal.dt here
+                // meant a dropped acquire's dt was overwritten by the next
+                // update and DELETED from the GPU's integrators. It
+                // accumulates instead, and is cleared by frame_submitted().
+                // The same 100 ms ceiling the raw measurement carries applies
+                // to the sum: a stretch is a stretch, a teleport is not.
+                dtPending_ = std::min(dtPending_ + signal.dt, 0.1f);
+                gpuSignal.dt = dtPending_;
                 gpuSignal.aspect_ratio = aspect_ratio;
 
                 gpuSignal.move_x = inputState_.move_x;
@@ -2610,6 +2626,13 @@ namespace t7 {
             // there). The lighting-scheme tables stay impl-side. See §1.
 
         public:
+
+            // RIBBON_2 P0 1.2b: an updated-but-unrendered frame adds its dt to
+            // the next rendered one — a dropped acquire stretches a step,
+            // never deletes it. The host calls this once the frame's command
+            // buffer is submitted, which is the only moment the GPU is known
+            // to have been given the time this accumulator was holding.
+            void frame_submitted() { dtPending_ = 0.0f; }
 
             void on_input(const InputEvent& event) override {
                 switch (event.type) {
