@@ -19,8 +19,7 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   corrected by RECENSION_4 when the gates were first read whole. Unblocked
   by the gates sitting.
 - L26 docket — fields marked dead, awaiting the sitting that next opens their
-  struct: `RibbonState.is_roaming`, `RibbonRingTransform._pad0`,
-  `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
+  struct: `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
   went with the FileWatcher at SUNSET_1; `pawn.cpp:60` still names the dial),
   `OrbMoodConfig.base_hue` / `.hue_variance` (dead BY CONSTRUCTION — every
   ORB_PALETTES row carries count ≥ 1, so `pack_palette_` never leaves
@@ -105,6 +104,51 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
 - naga is installed per session in CC's container with `cargo install
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
+
+## RIBBON_1 — the witnesses Jean owes the campaign
+
+No gate can see any of these; they are the eye's, and the campaign is not
+closed until they are looked at. Origin: RIBBON_1 (three commits on
+`claude/ribbon-1`, base `fd53316`).
+
+- THE FLOWN BODY FOLLOWS ITS TRACK. The spine became a SPACE law: one
+  sample per chord of flight, so the body is drawn where the head has been.
+  Tier 0 at full throttle and every parked ribbon are unchanged; tiers 1
+  and 2 and every wanderer are visibly different from `fd53316` — where the
+  body used to whip, laying rings at `cube_size` regardless of how far the
+  head actually travelled, it now trails the path. This is the ruling to
+  overturn if the old whip was the beauty.
+- THE SKY RULE, both readers. The head should bank away from a shaft and
+  climb a roofline before it reaches one (COLOSSAL antennas are the test:
+  125 m of post with drums 20 m wide at the top). The body should bulge
+  around what it meets and flow through the bulge — the bulge stays where
+  the thing is — and lift over a pyramid rather than enter it.
+- THE SEAT. `R` boards and lands on an ease, never a teleport. The saddle
+  sits on ring 0's top face through roll and pitch; the nose faces where it
+  swims and the tube does not shear at the neck.
+- THE DIALS MOVE THE FLIGHT LIVE. Twelve `Ribbon · Head` / `Ribbon · Sky
+  Rule` rows on the organ reach the kernels through `config.ribbon_*`;
+  turning one mid-flight should change the flight without a respawn.
+- FIREFOX. Three `WriteBuffer`s a frame per ribbon, where fifteen stood,
+  and 6.4 KB of ring poses no longer uploaded twice per frame. The staging
+  ratchet above reads against this.
+
+### Priced at RIBBON_1, not built
+
+- THE GESTURE RING. `[SEAM:ribbon-displacement]` (world.wgsl §6.5) now names
+  its own shape: to let music drive the head's displacement, record the
+  head's lateral/vertical into a GESTURE ring beside the spine —
+  time-cadenced where the spine is chord-cadenced — and read the delayed
+  samples in `ribbon_displacement_at`. Unblocked by the music-coupling
+  campaign.
+- THE SKY RULE'S COST. `sky_push` walks 344 emitters (32 shafts, 16 arches,
+  32 walkers, 264 floaters) per reader, and `ribbon_body` runs one reader
+  per ring — up to 400 — plus `ribbon_ground`'s analytic terrain per ring.
+  No measurement exists; `the-board-web-meter`'s `ribbon_body` row is the
+  first one to read. The cures if it bites, in order of cheapness: an
+  EMIT_STRIDE-style stride on the body's rule reads, a broad-phase cull by
+  the ribbon's own bounding box, or a shared per-frame shortlist the head
+  builds once.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 

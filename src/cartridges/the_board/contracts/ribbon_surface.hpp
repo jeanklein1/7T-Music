@@ -7,10 +7,17 @@
 // says of these constants, in its own banner: "All control-panel
 // material." This is that panel.
 //
-// RIBBON_TABLE is the DESIGN; RIBBON_LIVE is what ribbon_advance_head
-// and the wander steering read every frame. Values carried verbatim
-// from the module's tuning console, which keeps its banner and loses
-// its numbers — one fact, one home.
+// RIBBON_TABLE is the DESIGN; RIBBON_LIVE is what the boot reads. Values
+// carried verbatim from the module's tuning console, which keeps its
+// banner and loses its numbers — one fact, one home.
+//
+// TWO TEMPERAMENTS SINCE RIBBON_1. The FLIGHT rows (yaw_rate … clear_body)
+// are BOOT RESTS: the head is a kernel, the boot pins them into
+// config.ribbon_*, and THAT is where the organ turns them — exactly what
+// FIELD_SLACK and its siblings are to the field (contracts/control_panel.hpp).
+// The rows below them — reference_bpm, the four wander_* and the mount's two
+// eases — are read on the CPU every frame and are enrolled HERE. A row's
+// enrollment names its live home; there is never a dial on both.
 //
 // THE STEERING LAW IS A `min`, NOT AN ASSERT, and that is why both of
 // its terms may go live. ribbon.hpp states it:
@@ -33,11 +40,13 @@
 // NEXT spawn rather than this one, which is why they are a second bank
 // with a second temperament and not four more fields on the first.
 //
-// THE DIALS REACH THE GPU THROUGH `config` (RIBBON_1). The head and the
-// body are kernels now; they read config.ribbon_* and nothing else. The
-// boot pins this table into GPUDesignConfig's tail (GROWTH LAW,
-// state.hpp) and the organ edits it there — one home authors, one
-// transport carries, and the rooms cannot drift.
+// THE FLIGHT DIALS REACH THE GPU THROUGH `config` (RIBBON_1). The head and
+// the body are kernels; they read config.ribbon_* and nothing else. The
+// boot pins this table into GPUDesignConfig's tail (GROWTH LAW, state.hpp)
+// and the organ edits it there — one home authors, one transport carries,
+// and the rooms cannot drift. The wander brain's dead reckoning reads the
+// same config for the same reason: a plan flown under yesterday's boot
+// rests would diverge from the head for a reason that is not the Sky Rule.
 //
 // THE FRAME-LAW MIRRORS ARE GONE, not withheld. RIBBON_1 deleted the CPU
 // head that carried this room's half of them: the frame law is the body

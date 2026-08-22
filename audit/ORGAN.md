@@ -197,16 +197,21 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Pawn · Figure (driven) | tilt tau | `CONFIG.pawn_tilt_tau` | CONFIG | F32 | — | — | driven | none | • |
 | Pawn · Figure (driven) | body radius | `CONFIG.pawn_body_radius` | CONFIG | F32 | — | — | driven | none | • |
 | Pawn · Figure (driven) | eye height | `CONFIG.fpv_eye_height` | CONFIG | F32 | — | — | driven | none | • |
-| Ribbon · Head | yaw rate (rad/s) | `RIBBON.yaw_rate` | RIBBON | F32 | 0 … 4 | 0.02 | live | none |  |
-| Ribbon · Head | max speed | `RIBBON.max_speed` | RIBBON | F32 | 0 … 160 | 0.5 | live | none |  |
-| Ribbon · Head | min turn radius | `RIBBON.r_min` | RIBBON | F32 | 1 … 160 | 0.5 | live | none |  |
-| Ribbon · Head | climb rate | `RIBBON.climb_rate` | RIBBON | F32 | 0 … 60 | 0.25 | live | none |  |
-| Ribbon · Head | floor margin | `RIBBON.floor_margin` | RIBBON | F32 | 0 … 100 | 0.5 | live | none |  |
-| Ribbon · Head | altitude smoothing | `RIBBON.alt_smooth_dist` | RIBBON | F32 | 0 … 720 | 2.5 | live | none |  |
-| Ribbon · Head | altitude stiffness | `RIBBON.alt_stiff` | RIBBON | F32 | 0 … 1.44 | 0.005 | live | none |  |
-| Ribbon · Head | mount setback | `RIBBON.mount_setback` | RIBBON | F32 | 0 … 6 | 0.02 | live | none |  |
-| Ribbon · Head | sky yaw tau (s) | `RIBBON.sky_yaw_tau` | RIBBON | F32 | 0 … 2.4 | 0.01 | live | none |  |
+| Ribbon · Head | yaw rate (rad/s) | `CONFIG.ribbon_yaw_rate` | CONFIG | F32 | 0 … 4 | 0.02 | live | none |  |
+| Ribbon · Head | max speed | `CONFIG.ribbon_max_speed` | CONFIG | F32 | 0 … 160 | 0.5 | live | none |  |
+| Ribbon · Head | min turn radius | `CONFIG.ribbon_r_min` | CONFIG | F32 | 1 … 160 | 0.5 | live | none |  |
+| Ribbon · Head | climb rate | `CONFIG.ribbon_climb_rate` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
+| Ribbon · Head | floor margin | `CONFIG.ribbon_floor_margin` | CONFIG | F32 | 0 … 100 | 0.5 | live | none |  |
+| Ribbon · Head | altitude smoothing | `CONFIG.ribbon_alt_smooth_dist` | CONFIG | F32 | 0 … 720 | 2.5 | live | none |  |
+| Ribbon · Head | altitude stiffness | `CONFIG.ribbon_alt_stiff` | CONFIG | F32 | 0 … 1.44 | 0.005 | live | none |  |
+| Ribbon · Head | mount setback | `CONFIG.ribbon_mount_setback` | CONFIG | F32 | 0 … 6 | 0.02 | live | none |  |
+| Ribbon · Head | hands tau (s) | `CONFIG.ribbon_hands_tau` | CONFIG | F32 | 0 … 2.4 | 0.01 | live | none |  |
+| Ribbon · Sky Rule | lookahead | `CONFIG.ribbon_lookahead` | CONFIG | F32 | 0 … 400 | 2 | live | none |  |
+| Ribbon · Sky Rule | head clearance | `CONFIG.ribbon_clear_head` | CONFIG | F32 | 0 … 100 | 0.5 | live | none |  |
+| Ribbon · Sky Rule | body clearance | `CONFIG.ribbon_clear_body` | CONFIG | F32 | 0 … 50 | 0.25 | live | none |  |
 | Ribbon · Head | reference BPM | `RIBBON.reference_bpm` | RIBBON | F32 | 40 … 240 | 1 | live | none |  |
+| Ribbon · Mount | board ease (s) | `RIBBON.board_seconds` | RIBBON | F32 | 0.05 … 6 | 0.02 | live | none |  |
+| Ribbon · Mount | land ease (s) | `RIBBON.land_seconds` | RIBBON | F32 | 0.05 … 6 | 0.02 | live | none |  |
 | Ribbon · Wander | steer softness | `RIBBON.wander_steer_soft` | RIBBON | F32 | 0 … 2 | 0.01 | live | none |  |
 | Ribbon · Wander | yaw cap | `RIBBON.wander_yaw_max` | RIBBON | F32 | 0 … 0.6 | 0.005 | live | none |  |
 | Ribbon · Wander | yaw tau (s) | `RIBBON.wander_yaw_tau` | RIBBON | F32 | 0 … 8 | 0.04 | live | none |  |
@@ -393,14 +398,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **365** |
-| by section | Agents 109 · Atmosphere 73 · Ribbon 56 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 |
-| by cadence | boundary 180 · driven 20 · gen 46 · live 119 |
-| by macro form | PARAM 123 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 46 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 189 · ORB_MOOD 19 · TIER 32 |
+| entries | **370** |
+| by section | Agents 109 · Atmosphere 73 · Ribbon 61 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 |
+| by cadence | boundary 180 · driven 20 · gen 46 · live 124 |
+| by macro form | PARAM 128 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 46 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 194 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 350 |
+| namespaces | canvas 15 · the_board 355 |
 
 ### Doors
 
@@ -467,10 +472,10 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    287   a declared reader names the field
+  proved    280   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
-  scope      58   GPU-side or whole-struct (blind spots 2, 3)
+  scope      70   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

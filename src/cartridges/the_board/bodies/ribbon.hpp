@@ -467,15 +467,19 @@ inline float wander_rand01(uint32_t& s) {
 // and nothing corrects it; that is by design, because the only consumer of
 // the plan's POSITION is the plan, and what leaves this function is a
 // sequence of gentle yaw commands — the gesture, which survives intact.
-inline void ribbon_wander_inputs(ActiveRibbon& ar, float dt,
-                                 float& yaw_in, float& thr_in)
+inline void ribbon_wander_inputs(ActiveRibbon& ar, const GPUDesignConfig& cfg,
+                                 float dt, float& yaw_in, float& thr_in)
 {
     // Advance the plan first, so the bearing below is chased from where the
-    // brain believes it now is.
+    // brain believes it now is. THE FLIGHT LAW'S NUMBERS COME FROM CONFIG,
+    // not from the panel bank: config.ribbon_* is the LIVE home the organ
+    // edits and the head kernel reads, and a plan flown under yesterday's
+    // boot rests would diverge from the head for a reason that is not the
+    // Sky Rule. The wander_* dials below are this room's own and stay here.
     {
-        const float speed = ar.wander_cruise * RIBBON_LIVE.max_speed;
-        const float yaw_avail = std::min(RIBBON_LIVE.yaw_rate,
-                                         speed / std::max(RIBBON_LIVE.r_min, 1e-3f));
+        const float speed = ar.wander_cruise * cfg.ribbon_max_speed;
+        const float yaw_avail = std::min(cfg.ribbon_yaw_rate,
+                                         speed / std::max(cfg.ribbon_r_min, 1e-3f));
         ar.plan_heading += ar.wander_yaw_state * yaw_avail * dt;
         ar.plan_x -= std::cos(ar.plan_heading) * speed * dt;
         ar.plan_z -= std::sin(ar.plan_heading) * speed * dt;
@@ -622,7 +626,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         // WHO AUTHORS WHEN NOBODY RIDES, and the ride outranks it.
         if (ar.wander) {
             float wy = 0.0f, wt = 0.0f;
-            ribbon_wander_inputs(ar, c->time_state_.dt, wy, wt);
+            ribbon_wander_inputs(ar, c->gpuState_.config(), c->time_state_.dt, wy, wt);
             g.is_wander      = 1u;
             g.wander_yaw_in  = wy;
             g.wander_throttle = wt;

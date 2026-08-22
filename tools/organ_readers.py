@@ -108,6 +108,7 @@ READERS = {
     # blind spot 3, said at the table instead of reported as eleven suspects.
     "RIBBON": ("RIBBON_LIVE", "RibbonSurface", [
         ("src/cartridges/the_board/realization/state.hpp", "initializeState"),
+        ("src/cartridges/the_board/cartridge.hpp", "phase_fill_signal"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),

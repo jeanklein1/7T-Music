@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `44588cca13a388a39bbb9a1a9f6ef89d8ed279d3` |
-| | ORGAN_9 P2: delete cycle_floater_coordination, stage_floater_coordination, FLOATER_COORDINATION_STEPS, CubeBehaviorsState::coordination_step, enter_design_mode, enter_performance_mode — unreachable, proven; the floater banner no longer claims two authors |
+| source commit | `f10477f53e08cf9d563aef80c9c0a07acf97c23e` |
+| | RIBBON_1 P1: the ribbon comes home — GPU head, chord spine, body under tension; the CPU authors intent |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:8101e2bd1c41ad057c983acaaa0ed2374bf572847878f170eb0c04e23e8adede` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:5e0919bea59256304a953d5192aefcd2da88a2d3a115b96b93df20d941d65e9f` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
@@ -33,8 +33,8 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `714c342065cb479bb5eb5b3706ea6ff75182bb13aa3aff32f701a9e61d23e68a` |
-| `src/cartridges/the_board/contracts/spine_state.hpp` | `d30ff0579195e6281a08c678d8169412a15b08139a19f30ab5ddfbddf1d3a745` |
+| `src/cartridges/the_board/cartridge.hpp` | `d6d7d88eb5ddb2acdd45bc80f0c7e9f7fa31c1e455b0981d641dde3dbd6b24f1` |
+| `src/cartridges/the_board/contracts/spine_state.hpp` | `c56581e714225e7e646acfb3bd24be66e309b8ae3ce9dbd18dbce71bf12dae13` |
 | `src/cartridges/the_board/direction/mood.hpp` | `e7e9b5aa58497628b4855df1a5f6eacecb11aee4e2844173eae833adda0e390a` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `724a0149882de9cdc5b910c8671d9e10b6a59317d0febd8fd85fe07c86f363ff` |
