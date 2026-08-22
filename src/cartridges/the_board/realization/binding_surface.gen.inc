@@ -300,7 +300,7 @@
 
                 // Frame K State Layout — stratum 2 (Frame_K family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -321,6 +321,16 @@
                     entries[4].binding = bind::g2::camera_state;
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // THE CHASE (RIBBON_2) reads the head it follows. update_camera turns
+                    // the azimuth to the flight while the point rides the ribbon, so this
+                    // room needs the ribbon body’s READ face for one word —
+                    // head.heading. Same home as g2:144, another window, never co-bound
+                    // with it (L23-prime): the ribbon room binds the rw face in its own
+                    // dispatch, this one binds the ro face in its own.
+                    entries[5].binding = bind::g2::ribbon_body_read;  // ribbon_body_read (storage, read — the chase reads head.heading)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frame K State Layout";
@@ -1255,7 +1265,7 @@
 
                 // Projected from: computeEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].buffer = agentStateBuffer_;
@@ -1276,6 +1286,10 @@
                     entries[4].binding = bind::g2::camera_state;
                     entries[4].buffer = cameraBuffer_;
                     entries[4].size = sizeof(GPUCameraState);
+
+                    entries[5].binding = bind::g2::ribbon_body_read;
+                    entries[5].buffer = ribbonBodyBuffer_;
+                    entries[5].size = sizeof(GPURibbonBody);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame K State BindGroup";

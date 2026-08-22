@@ -359,15 +359,19 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_hands_tau,       F32, 0.0f, 2.4f,   
 ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_lookahead,       F32, 0.0f, 400.0f, 2.0f,  "Ribbon · Sky Rule", "lookahead")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_clear_head,      F32, 0.0f, 100.0f, 0.5f,  "Ribbon · Sky Rule", "head clearance")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_clear_body,      F32, 0.0f, 50.0f,  0.25f, "Ribbon · Sky Rule", "body clearance")
-// Read on the CPU, so they stay on the bank: the phase clock's anchor,
-// the wander brain's steering, and the mount's two eases.
+// ─── Ribbon · Wander (RIBBON_2) ── the brain came home to the head kernel,
+// so its dials took the flight dials' road: config.ribbon_wander_*, boot-
+// pinned from the bank. The eased-steering dial went with the CPU brain —
+// the command passes through the hands' own tau now, which is the hand it is.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_wander_soft,     F32, 0.05f, 2.0f,   0.01f, "Ribbon · Wander", "steer softness")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_wander_yaw_max,  F32, 0.0f,  1.0f,   0.005f,"Ribbon · Wander", "yaw cap")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_wander_arrive,   F32, 10.0f, 400.0f, 2.0f,  "Ribbon · Wander", "arrive radius")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, ribbon_roam_radius,     F32, 50.0f, 1500.0f, 5.0f, "Ribbon · Wander", "roam radius")
+// Read on the CPU, so they stay on the bank: the phase clock's anchor and
+// the mount's two eases.
 ORGAN_PARAM(RIBBON, RibbonSurface, reference_bpm,   F32, 40.0f, 240.0f, 1.0f, "Ribbon · Head", "reference BPM")
 ORGAN_PARAM(RIBBON, RibbonSurface, board_seconds,   F32, 0.05f, 6.0f,   0.02f, "Ribbon · Mount", "board ease (s)")
 ORGAN_PARAM(RIBBON, RibbonSurface, land_seconds,    F32, 0.05f, 6.0f,   0.02f, "Ribbon · Mount", "land ease (s)")
-ORGAN_PARAM(RIBBON, RibbonSurface, wander_steer_soft,    F32, 0.0f, 2.0f,   0.01f, "Ribbon · Wander", "steer softness")
-ORGAN_PARAM(RIBBON, RibbonSurface, wander_yaw_max,       F32, 0.0f, 0.6f,   0.005f,"Ribbon · Wander", "yaw cap")
-ORGAN_PARAM(RIBBON, RibbonSurface, wander_yaw_tau,       F32, 0.0f, 8.0f,   0.04f, "Ribbon · Wander", "yaw tau (s)")
-ORGAN_PARAM(RIBBON, RibbonSurface, wander_arrive_radius, F32, 0.0f, 480.0f, 2.0f,  "Ribbon · Wander", "arrive radius")
 
 // ─── Ribbon · Swell / Tint envelope ─────────────────────────────
 // CANVAS_LIVE, under RIBBON because a dial sits under its SUBJECT. The
@@ -403,12 +407,6 @@ ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_base,  F32, 0.0f
 ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_sigma, F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise sigma")
 ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_min,   F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise floor")
 ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_cruise_max,   F32, 0.0f,   1.0f,   0.005f, "Ribbon · Spawn", "cruise ceiling")
-ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_leg_min,      F32, 0.0f,   2000.0f, 5.0f,  "Ribbon · Spawn", "leg min (u)")
-ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_leg_max,      F32, 0.0f,   2000.0f, 5.0f,  "Ribbon · Spawn", "leg max (u)")
-ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_spread,       F32, 0.0f,   3.1416f, 0.01f, "Ribbon · Spawn", "bearing spread (rad)")
-ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_retarget_min, F32, 0.0f,   60.0f,  0.25f,  "Ribbon · Spawn", "retarget min (s)")
-ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_retarget_var, F32, 0.0f,   60.0f,  0.25f,  "Ribbon · Spawn", "retarget spread (s)")
-ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, wander_hatch_leg,    F32, 0.0f,   1200.0f, 5.0f,  "Ribbon · Spawn", "hatch leg (u)")
 // ─── Ribbon · Colour — EDITS THE NEXT RIBBON ────────────────────
 // The three weights are probabilities select_tier normalises; the palette
 // is four base colours the SMOOTH draw varies around, its bias signed.

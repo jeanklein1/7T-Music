@@ -209,13 +209,13 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Ribbon · Sky Rule | lookahead | `CONFIG.ribbon_lookahead` | CONFIG | F32 | 0 … 400 | 2 | live | none |  |
 | Ribbon · Sky Rule | head clearance | `CONFIG.ribbon_clear_head` | CONFIG | F32 | 0 … 100 | 0.5 | live | none |  |
 | Ribbon · Sky Rule | body clearance | `CONFIG.ribbon_clear_body` | CONFIG | F32 | 0 … 50 | 0.25 | live | none |  |
+| Ribbon · Wander | steer softness | `CONFIG.ribbon_wander_soft` | CONFIG | F32 | 0.05 … 2 | 0.01 | live | none |  |
+| Ribbon · Wander | yaw cap | `CONFIG.ribbon_wander_yaw_max` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
+| Ribbon · Wander | arrive radius | `CONFIG.ribbon_wander_arrive` | CONFIG | F32 | 10 … 400 | 2 | live | none |  |
+| Ribbon · Wander | roam radius | `CONFIG.ribbon_roam_radius` | CONFIG | F32 | 50 … 1500 | 5 | live | none |  |
 | Ribbon · Head | reference BPM | `RIBBON.reference_bpm` | RIBBON | F32 | 40 … 240 | 1 | live | none |  |
 | Ribbon · Mount | board ease (s) | `RIBBON.board_seconds` | RIBBON | F32 | 0.05 … 6 | 0.02 | live | none |  |
 | Ribbon · Mount | land ease (s) | `RIBBON.land_seconds` | RIBBON | F32 | 0.05 … 6 | 0.02 | live | none |  |
-| Ribbon · Wander | steer softness | `RIBBON.wander_steer_soft` | RIBBON | F32 | 0 … 2 | 0.01 | live | none |  |
-| Ribbon · Wander | yaw cap | `RIBBON.wander_yaw_max` | RIBBON | F32 | 0 … 0.6 | 0.005 | live | none |  |
-| Ribbon · Wander | yaw tau (s) | `RIBBON.wander_yaw_tau` | RIBBON | F32 | 0 … 8 | 0.04 | live | none |  |
-| Ribbon · Wander | arrive radius | `RIBBON.wander_arrive_radius` | RIBBON | F32 | 0 … 480 | 2 | live | none |  |
 | Ribbon · Swell | ceiling (× idle) | `CANVAS.swell_ceiling` | CANVAS | F32 | 1 … 4 | 0.01 | live | none |  |
 | Ribbon · Swell | ramp (beats) | `CANVAS.swell_ramp` | CANVAS | F32 | 0 … 32 | 0.25 | live | none |  |
 | Ribbon · Swell | attack (beats) | `CANVAS.swell_attack` | CANVAS | F32 | 0.01 … 8 | 0.04 | live | none |  |
@@ -239,12 +239,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Ribbon · Spawn | cruise sigma | `RIBBON_SPAWN.wander_cruise_sigma` | RIBBON_SPAWN | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Ribbon · Spawn | cruise floor | `RIBBON_SPAWN.wander_cruise_min` | RIBBON_SPAWN | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Ribbon · Spawn | cruise ceiling | `RIBBON_SPAWN.wander_cruise_max` | RIBBON_SPAWN | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Ribbon · Spawn | leg min (u) | `RIBBON_SPAWN.wander_leg_min` | RIBBON_SPAWN | F32 | 0 … 2000 | 5 | gen | none |  |
-| Ribbon · Spawn | leg max (u) | `RIBBON_SPAWN.wander_leg_max` | RIBBON_SPAWN | F32 | 0 … 2000 | 5 | gen | none |  |
-| Ribbon · Spawn | bearing spread (rad) | `RIBBON_SPAWN.wander_spread` | RIBBON_SPAWN | F32 | 0 … 3.1416 | 0.01 | gen | none |  |
-| Ribbon · Spawn | retarget min (s) | `RIBBON_SPAWN.wander_retarget_min` | RIBBON_SPAWN | F32 | 0 … 60 | 0.25 | gen | none |  |
-| Ribbon · Spawn | retarget spread (s) | `RIBBON_SPAWN.wander_retarget_var` | RIBBON_SPAWN | F32 | 0 … 60 | 0.25 | gen | none |  |
-| Ribbon · Spawn | hatch leg (u) | `RIBBON_SPAWN.wander_hatch_leg` | RIBBON_SPAWN | F32 | 0 … 1200 | 5 | gen | none |  |
 | Ribbon · Colour | weight smooth | `RIBBON_SPAWN.color_weights[0]` | RIBBON_SPAWN | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Ribbon · Colour | weight tinted | `RIBBON_SPAWN.color_weights[1]` | RIBBON_SPAWN | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Ribbon · Colour | weight contrast | `RIBBON_SPAWN.color_weights[2]` | RIBBON_SPAWN | F32 | 0 … 1 | 0.005 | gen | none |  |
@@ -398,14 +392,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **370** |
-| by section | Agents 109 · Atmosphere 73 · Ribbon 61 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 |
-| by cadence | boundary 180 · driven 20 · gen 46 · live 124 |
-| by macro form | PARAM 128 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 46 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 194 · ORB_MOOD 19 · TIER 32 |
+| entries | **364** |
+| by section | Agents 109 · Atmosphere 73 · Ribbon 55 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 |
+| by cadence | boundary 180 · driven 20 · gen 40 · live 124 |
+| by macro form | PARAM 128 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 40 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 188 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 355 |
+| namespaces | canvas 15 · the_board 349 |
 
 ### Doors
 
@@ -446,8 +440,8 @@ reader — the class of defect this witness exists to catch.
   ORB_MOOD_TABLE       definition=1 seed=6 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
-  RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=4        
-  RIBBON_TABLE         definition=1 seed=1 static_assert=1 comment=2 
+  RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
+  RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
   WORLD_DRAW_TABLE     definition=1 seed=1 comment=2              
 
 SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
@@ -472,10 +466,10 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    280   a declared reader names the field
+  proved    270   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
-  scope      70   GPU-side or whole-struct (blind spots 2, 3)
+  scope      74   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

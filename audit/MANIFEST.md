@@ -18,10 +18,10 @@ the header.
 |---|---|---|---|---|---|---|---|
 | Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
-| Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
-| Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 5 / 3 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
@@ -99,7 +99,7 @@ the header.
 | lane | worst used / limit | free | at |
 |---|---|---|---|
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
-| storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+3 more) |
+| storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+5 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
 | storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |

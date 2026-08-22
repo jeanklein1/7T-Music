@@ -73,6 +73,11 @@ namespace t7 {
             constexpr uint32_t RIBBON_SPINE_SLOTS  = RIBBON_MAX_RINGS + 2;     // 402
             constexpr uint32_t RIBBON_EMIT_STRIDE  = 4;
             constexpr uint32_t RIBBON_EMIT_SLOTS   = RIBBON_MAX_RINGS / RIBBON_EMIT_STRIDE;   // 100
+            // RIBBON_2: the emit table is TWO halves. The body writes half
+            // (tick & 1); the head and every ring read the other, so the body
+            // can be a thing in the Sky Rule without reading its own frame;
+            // the field, which runs after the body, reads the written one.
+            constexpr uint32_t RIBBON_EMIT_TABLE   = 2 * RIBBON_EMIT_SLOTS;                   // 200
             constexpr uint32_t RIBBON_DEFORM_SLOTS = 4 * RIBBON_MAX_RINGS;     // 2 halves × (offset, velocity) × rings
             // THE DRAW IS THE LIVE COUNT (RIBBON_1): the ribbon draws the rings it
             // has, not the rings it could have. RIBBON_VERTEX_COUNT stays as the
@@ -753,7 +758,16 @@ namespace t7 {
             // instead, so the panel's word still reaches the hand it names —
             // and now eases the throttle beside the yaw.
             float ribbon_hands_tau;        // 664
-            float _pad672_0;               // 668
+            // ─── THE WANDER BRAIN'S DIALS (RIBBON_2) — GROWTH LAW, same
+            // commit, same order, same types as the WGSL twin. The brain
+            // lives in the head kernel now, so its dials travel the same road
+            // the flight's do: _pad672_0 consumed, three appended, one fresh
+            // pad to the boundary; sizeof 672 -> 688.
+            float ribbon_wander_soft;      // 668
+            float ribbon_wander_yaw_max;   // 672
+            float ribbon_wander_arrive;    // 676
+            float ribbon_roam_radius;      // 680
+            float _pad688_0;               // 684
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1040,7 +1054,7 @@ namespace t7 {
             float orientation;                                                  // 72 (heading radians)
             uint32_t color_mode;                                                // 76
             uint32_t is_wander;                                                 // 80 — 1: the wander brain authors intent (the two fields below); 0: parked. Ridden when config.point_host == 2, whoever authored.
-            float wander_yaw_in;                                                // 84 — [-1, 1]
+            float _pad1;                                                        // 84 — RIBBON_2: the brain moved to the head kernel; nothing writes a yaw here
             float wander_throttle;                                              // 88 — [0, 1]
             float _pad3;                                                        // 92
             float color_b[3];                                                   // 96 — second checker median (CONTRAST)
@@ -1071,8 +1085,12 @@ namespace t7 {
             uint32_t tick;            // 32  frames since seed; parity selects the deform half
             float    yaw_eased;       // 36  the hands, low-passed
             float    throttle_eased;  // 40
-            float    _pad0;           // 44
-        };                            // 48
+            float    _pad1;           // 44  RIBBON_2 §3.5 branch 1: the gesture clock stayed on the CPU
+            float    wander_tx;       // 48  the wander brain's target (RIBBON_2 — the brain came home)
+            float    wander_tz;       // 52
+            uint32_t wander_seq;      // 56  targets drawn so far (0 = none yet)
+            float    _pad0;           // 60
+        };                            // 64
         struct alignas(16) GPURibbonSaddle {
             float pos[3];             //  0  ring 0's top face, set back toward the tail
             float heading;            // 12  the flight heading
@@ -1083,16 +1101,20 @@ namespace t7 {
         };                            // 32
         struct alignas(16) GPURibbonBody {
             GPURibbonHeadState head;                         //     0
-            GPURibbonSaddle    saddle;                       //    48
-            float emit[Dim::RIBBON_EMIT_SLOTS][4];           //    80  every EMIT_STRIDE-th ring: xyz center, w radius — the field's view
-            float deform[Dim::RIBBON_DEFORM_SLOTS][4];       //  1680  [half][ring][offset|velocity], ping-pong by tick parity
-        };                                                   // 27280
-        static_assert(sizeof(GPURibbonHeadState) == 48);
+            GPURibbonSaddle    saddle;                       //    64
+            float emit[Dim::RIBBON_EMIT_TABLE][4];           //    96  [half][slot]: every EMIT_STRIDE-th ring,
+                                                             //        xyz center, w radius. The body writes half
+                                                             //        (tick & 1); the head and every ring read the
+                                                             //        other; the field, after the body, reads the
+                                                             //        written one.
+            float deform[Dim::RIBBON_DEFORM_SLOTS][4];       //  3296  [half][ring][offset|velocity], ping-pong by tick parity
+        };                                                   // 28896
+        static_assert(sizeof(GPURibbonHeadState) == 64);
         static_assert(sizeof(GPURibbonSaddle) == 32);
-        static_assert(sizeof(GPURibbonBody) == 27280);
-        static_assert(offsetof(GPURibbonBody, saddle) == 48);
-        static_assert(offsetof(GPURibbonBody, emit) == 80);
-        static_assert(offsetof(GPURibbonBody, deform) == 1680);
+        static_assert(sizeof(GPURibbonBody) == 28896);
+        static_assert(offsetof(GPURibbonBody, saddle) == 64);
+        static_assert(offsetof(GPURibbonBody, emit) == 96);
+        static_assert(offsetof(GPURibbonBody, deform) == 3296);
 
         struct alignas(16) GPUArchGroundEntry {
             float pier_left_x;
@@ -1760,7 +1782,9 @@ namespace t7 {
         // RIBBON_1: the ribbon's eleven dials land at that same tail — one pad
         // consumed, ten floats appended, two fresh pads to the boundary;
         // 624 -> 672. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 672,
+        // RIBBON_2: the wander brain's four join them — one pad consumed,
+        // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
+        static_assert(sizeof(GPUDesignConfig) == 688,
             "GPUDesignConfig must be 624 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
@@ -1773,7 +1797,9 @@ namespace t7 {
             "field's eight dials land at the tail — two pads consumed, six "
             "floats appended, two fresh pads to the boundary; 592 -> 624. "
             "RIBBON_1: the ribbon's twelve dials at the same tail — one pad "
-            "consumed, eleven appended, one fresh pad; 624 -> 672.)");
+            "consumed, eleven appended, one fresh pad; 624 -> 672. RIBBON_2: "
+            "the wander brain's four at the same tail — one pad consumed, "
+            "three appended, one fresh pad; 672 -> 688.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -4951,6 +4977,11 @@ namespace t7 {
                 config_.ribbon_clear_head      = RIBBON_LIVE.clear_head;
                 config_.ribbon_clear_body      = RIBBON_LIVE.clear_body;
                 config_.ribbon_hands_tau       = RIBBON_LIVE.sky_yaw_tau;
+                // RIBBON_2 — the wander brain's dials, same road, same site.
+                config_.ribbon_wander_soft     = RIBBON_LIVE.wander_soft;
+                config_.ribbon_wander_yaw_max  = RIBBON_LIVE.wander_yaw_max;
+                config_.ribbon_wander_arrive   = RIBBON_LIVE.wander_arrive;
+                config_.ribbon_roam_radius     = RIBBON_LIVE.roam_radius;
                 config_.freeze_sphere = 0;
                 config_.fpv_mode = 0;
                 config_.world_seed = 42;

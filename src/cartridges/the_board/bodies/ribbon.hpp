@@ -246,8 +246,7 @@ struct RibbonProp {
     static constexpr uint32_t MEDIAN_VALUE_ROLL   = 474u;
     static constexpr uint32_t MEDIAN_HUE_ROLL     = 475u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
-    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_LIVE.max_speed
-    static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
+    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of config.ribbon_max_speed
 };
 
 // ═══ TIER PROFILE + MATRIX ═══════════════════════════════════════
@@ -359,20 +358,13 @@ struct ActiveRibbon {
     // same yaw/throttle inputs the player does, through the same steering
     // integrator.
     bool     wander = false;
-    float    wander_cruise = 0.0f;      // throttle fraction of RIBBON_LIVE.max_speed
-    float    wander_tx = 0.0f;          // current waypoint (world XZ)
-    float    wander_tz = 0.0f;
-    float    wander_retarget = 0.0f;    // seconds until a new waypoint
-    uint32_t wander_rng = 1u;           // self-contained xorshift state
-    float    wander_yaw_state = 0.0f;   // eased steering output (curvature continuity)
-    // ── The brain's DEAD RECKONING (RIBBON_1) ── the autopilot's own model
-    // of where it is flying, integrated under the same law it commands. It
-    // is NOT a mirror of the GPU head: the Sky Rule bends the real head away
-    // from it and nothing corrects the drift, because nothing but the brain
-    // reads the plan. Seeded at commit from the anchor and the spawn heading.
-    float    plan_x = 0.0f;
-    float    plan_z = 0.0f;
-    float    plan_heading = 0.0f;
+    // THE WANDERER'S ONE WORD (RIBBON_2). The brain came home to the head
+    // kernel — target, bearing, cap and cruise all live there now — so what
+    // the CPU still says about a wanderer is the throttle it was drawn with.
+    // The waypoint, its retarget clock, its xorshift and the eased steering
+    // output left with the brain; so did the dead reckoning that stood in for
+    // a head the CPU could not read.
+    float    wander_cruise = 0.0f;      // throttle fraction of config.ribbon_max_speed
 };
 
 // ── Ribbon module state ──────────────────────────────────────────
@@ -446,84 +438,13 @@ void fill_ribbon_selection_geometry(uint32_t seed, uint32_t tier_idx,
 
 // ═══ AUTHOR SEATS ════════════════════════════════════════════════
 //
-// The steering integrator lives in the head kernel now, and it has
-// three seats, all writing the same two inputs (yaw_in, throttle_in):
-// the PLAYER (the rider's hands, through signal.move_x/move_z — the
-// kernel reads them itself), the WANDERER below (the idle script,
-// whose two numbers ride the ribbon state), and one EMPTY SEAT
-// reserved for the musical canvas. One control law, many authors.
-
-inline float wander_rand01(uint32_t& s) {
-    // xorshift32 → [0,1)
-    s ^= s << 13; s ^= s >> 17; s ^= s << 5;
-    return (float)(s & 0x00FFFFFFu) / 16777216.0f;
-}
-
-// THE BRAIN, AND ITS OWN DEAD RECKONING (RIBBON_1). The head is the GPU's
-// and never comes home, so the autopilot flies a PLAN: plan_x/plan_z/
-// plan_heading, integrated here under the same law the kernel runs —
-// speed = cruise x max_speed, yaw available = min(yaw_rate, speed / r_min),
-// flight along -dir(heading). The Sky Rule bends the real head off the plan
-// and nothing corrects it; that is by design, because the only consumer of
-// the plan's POSITION is the plan, and what leaves this function is a
-// sequence of gentle yaw commands — the gesture, which survives intact.
-inline void ribbon_wander_inputs(ActiveRibbon& ar, const GPUDesignConfig& cfg,
-                                 float dt, float& yaw_in, float& thr_in)
-{
-    // Advance the plan first, so the bearing below is chased from where the
-    // brain believes it now is. THE FLIGHT LAW'S NUMBERS COME FROM CONFIG,
-    // not from the panel bank: config.ribbon_* is the LIVE home the organ
-    // edits and the head kernel reads, and a plan flown under yesterday's
-    // boot rests would diverge from the head for a reason that is not the
-    // Sky Rule. The wander_* dials below are this room's own and stay here.
-    {
-        const float speed = ar.wander_cruise * cfg.ribbon_max_speed;
-        const float yaw_avail = std::min(cfg.ribbon_yaw_rate,
-                                         speed / std::max(cfg.ribbon_r_min, 1e-3f));
-        ar.plan_heading += ar.wander_yaw_state * yaw_avail * dt;
-        ar.plan_x -= std::cos(ar.plan_heading) * speed * dt;
-        ar.plan_z -= std::sin(ar.plan_heading) * speed * dt;
-    }
-    const float head_x = ar.plan_x;
-    const float head_z = ar.plan_z;
-    const float heading = ar.plan_heading;
-
-    // Free roam: waypoints are picked AHEAD of the current motion — a bearing
-    // spread around where the ribbon is already going, a leg of 200-500 units.
-    // No leash: a rendered wanderer is pinned against eviction instead, and
-    // the yaw cap below keeps every turn at body scale (radius >= RIBBON_LIVE.r_min /
-    // RIBBON_LIVE.wander_yaw_max). Gorgeous, contemplative arcs by construction.
-    ar.wander_retarget -= dt;
-    const float wdx = ar.wander_tx - head_x;
-    const float wdz = ar.wander_tz - head_z;
-    if (ar.wander_retarget <= 0.0f
-        || wdx * wdx + wdz * wdz < RIBBON_LIVE.wander_arrive_radius * RIBBON_LIVE.wander_arrive_radius) {
-        const float move_dir = heading + 3.14159265f;           // movement = -heading
-        const float spread = (wander_rand01(ar.wander_rng) * 2.0f - 1.0f) * RIBBON_SPAWN_LIVE.wander_spread;
-        const float leg = RIBBON_SPAWN_LIVE.wander_leg_min
-                        + (RIBBON_SPAWN_LIVE.wander_leg_max - RIBBON_SPAWN_LIVE.wander_leg_min)
-                          * wander_rand01(ar.wander_rng);
-        const float b = move_dir + spread;
-        ar.wander_tx = head_x + leg * std::cos(b);
-        ar.wander_tz = head_z + leg * std::sin(b);
-        ar.wander_retarget = RIBBON_SPAWN_LIVE.wander_retarget_min
-                           + RIBBON_SPAWN_LIVE.wander_retarget_var * wander_rand01(ar.wander_rng);
-    }
-
-    const float bearing = std::atan2(ar.wander_tz - head_z, ar.wander_tx - head_x);
-    const float desired = bearing + 3.14159265f;                // movement = -heading
-    const float err = std::remainder(desired - heading, 6.2831853f);
-    float cmd = err / RIBBON_LIVE.wander_steer_soft;
-    cmd = (cmd >  RIBBON_LIVE.wander_yaw_max) ?  RIBBON_LIVE.wander_yaw_max :
-          (cmd < -RIBBON_LIVE.wander_yaw_max) ? -RIBBON_LIVE.wander_yaw_max : cmd;
-    // Ease the steering: the body is drawn on the head's track, and bang-bang
-    // commands print elbows. First-order toward the command keeps curvature
-    // continuous — turns enter and exit as curves, never as joints.
-    const float ease = 1.0f - std::exp(-dt / RIBBON_LIVE.wander_yaw_tau);
-    ar.wander_yaw_state += (cmd - ar.wander_yaw_state) * ease;
-    yaw_in = ar.wander_yaw_state;
-    thr_in = ar.wander_cruise;
-}
+// The steering integrator lives in the head kernel, and so, since
+// RIBBON_2, does every seat at it: the PLAYER (the rider's hands, through
+// signal.move_x/move_z), the WANDERER (a target on the anchor's disc,
+// drawn by hash and steered toward through the hands' own cap), and one
+// EMPTY SEAT reserved for the musical canvas. One control law, many
+// authors, and none of them on this side of the wire — what leaves this
+// room is the standing fact of WHO authors, and the wanderer's cruise.
 
 // ═══ FRAME ORCHESTRATION ═════════════════════════════════════════
 //
@@ -619,22 +540,14 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
     if (current_alive) {
         auto& g  = rs.gpu[rs.rendered_slot];
         auto& ar = rs.active[rs.rendered_slot];
-        // THE WANDER BRAIN'S TWO NUMBERS, into the state the kernel reads.
-        // The rider's hands do not come through here at all: the head kernel
-        // reads signal.move_x/move_z itself, gated on config.point_host. A
+        // THE WANDERER'S ONE WORD, into the state the kernel reads. Neither
+        // the rider's hands nor the brain's steering come through here: the
+        // head kernel reads signal.move_x/move_z itself, gated on
+        // config.point_host, and draws its own target when nobody rides. A
         // wanderer under a rider is still marked is_wander — the flag says
         // WHO AUTHORS WHEN NOBODY RIDES, and the ride outranks it.
-        if (ar.wander) {
-            float wy = 0.0f, wt = 0.0f;
-            ribbon_wander_inputs(ar, c->gpuState_.config(), c->time_state_.dt, wy, wt);
-            g.is_wander      = 1u;
-            g.wander_yaw_in  = wy;
-            g.wander_throttle = wt;
-        } else {
-            g.is_wander      = 0u;
-            g.wander_yaw_in  = 0.0f;
-            g.wander_throttle = 0.0f;
-        }
+        g.is_wander       = ar.wander ? 1u : 0u;
+        g.wander_throttle = ar.wander ? ar.wander_cruise : 0.0f;
         // THE ONE WRITE (RIBBON_1). The whole 112-byte state, three windows,
         // once a frame. It carries the phase clock, the canvas-driven wave
         // amplitudes and the line tint the flush loop above computed, and the
@@ -957,16 +870,6 @@ inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
         ar.wander_cruise = (cr < RIBBON_SPAWN_LIVE.wander_cruise_min) ? RIBBON_SPAWN_LIVE.wander_cruise_min
                          : (cr > RIBBON_SPAWN_LIVE.wander_cruise_max) ? RIBBON_SPAWN_LIVE.wander_cruise_max : cr;
     }
-    ar.wander_rng = 1u + (uint32_t)(cpu_hash_f(plan.seed, RibbonProp::WANDER_RNG)
-                                    * 16777215.0f);
-    ar.wander_tx = plan.cx - RIBBON_SPAWN_LIVE.wander_hatch_leg * std::cos(r.orientation);
-    ar.wander_tz = plan.cz - RIBBON_SPAWN_LIVE.wander_hatch_leg * std::sin(r.orientation);
-    ar.wander_retarget = RIBBON_SPAWN_LIVE.wander_retarget_min;
-    ar.wander_yaw_state = 0.0f;
-    // The brain's dead reckoning starts where the ribbon does.
-    ar.plan_x = plan.cx;
-    ar.plan_z = plan.cz;
-    ar.plan_heading = r.orientation;
     // THE CPU'S ONE WORD TO THE BODY: you are unseeded. The head kernel
     // lays the spawn arc from this state on its next tick and seeds itself;
     // the body kernel drops the previous ribbon's bulges on the tick after.
@@ -1142,10 +1045,10 @@ inline void ribbon_on_dismount(MachineCtx* self, wgpu::Queue& queue) {
     auto& ar = rs.active[s];
     // The brain takes the seat. Its cruise is drawn the way commit_ribbon
     // draws it — the same seed, the same clamp, so a ribbon dismounted twice
-    // cruises the same both times — and its dead reckoning restarts from the
-    // ANCHOR, because that is the one position the CPU still knows. The plan
-    // is not a mirror (it never was), so starting it wrong costs nothing but
-    // the first waypoint's bearing.
+    // cruises the same both times. Its TARGET is the head kernel's own:
+    // wander_seq is already past 0 for a ribbon that ever wandered, and a
+    // ribbon ridden from birth draws its first target on the tick the flag
+    // comes back — from the head's true position, which the CPU never knew.
     ar.wander = true;
     {
         float cr = cpu_sample_gaussian(rs.gpu[s].seed, RibbonProp::WANDER_CRUISE,
@@ -1154,11 +1057,6 @@ inline void ribbon_on_dismount(MachineCtx* self, wgpu::Queue& queue) {
         ar.wander_cruise = (cr < RIBBON_SPAWN_LIVE.wander_cruise_min) ? RIBBON_SPAWN_LIVE.wander_cruise_min
                          : (cr > RIBBON_SPAWN_LIVE.wander_cruise_max) ? RIBBON_SPAWN_LIVE.wander_cruise_max : cr;
     }
-    ar.wander_yaw_state = 0.0f;
-    ar.wander_retarget = 0.0f;          // pick a waypoint on the next tick
-    ar.plan_x = ar.anchor_x;
-    ar.plan_z = ar.anchor_z;
-    ar.plan_heading = rs.gpu[s].orientation;
     std::cout << "[Ribbon] DISMOUNT slot=" << s << " -> wander\n";
 }
 
