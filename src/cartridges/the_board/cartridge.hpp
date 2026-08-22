@@ -289,6 +289,10 @@ namespace t7 {
             // GPU mirror is config.point_host; the toggle is input's
             // point-host command (key 4).
             PointState point_{};
+            // The mount's edge and its ease (RIBBON_1) — beside the point,
+            // because a host change is what raises it. possess() writes it;
+            // FillSignal ships and advances it; nothing reads it back.
+            MountState mount_{};
 
             // ═══ THE MACHINE FACE ═══════════════════════════════════════
             // The one declared context the dispatch contract hands the
@@ -498,7 +502,7 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, sunDirection_, clearColor_ }
-                , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, camera_ }
+                , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
@@ -739,6 +743,7 @@ namespace t7 {
                 // panel cannot name a state the program has left.
                 t7::organ::bind_home(&gpuState_);
                 t7::organ::bind_mood(&mood_state_);
+                t7::organ::bind_point(&point_);   // RIBBON_1 — the panel's host row
 
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
@@ -946,6 +951,24 @@ namespace t7 {
                 gpuSignal.pan_x_delta = inputState_.pan_x_delta;
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
                 gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
+
+                // THE MOUNT BLOCK (RIBBON_1) — ship the edge, then advance the
+                // ease. Shipping FIRST is the point: the frame the host changed
+                // on must reach the GPU at phase 0, or the body starts the
+                // trajectory already partway along it. possess() authored the
+                // edge; this is its only carrier; nothing reads it back.
+                gpuSignal.mount_phase        = mount_.phase;
+                gpuSignal.mount_kind         = mount_.kind;
+                gpuSignal.mount_from[0]      = mount_.from[0];
+                gpuSignal.mount_from[1]      = mount_.from[1];
+                gpuSignal.mount_from[2]      = mount_.from[2];
+                gpuSignal.mount_from_heading = mount_.from_heading;
+                if (mount_.kind != 0u) {
+                    const float secs = (mount_.kind == 1u) ? RIBBON_LIVE.board_seconds
+                                                           : RIBBON_LIVE.land_seconds;
+                    mount_.phase += signal.dt / (secs > 1e-3f ? secs : 1e-3f);
+                    if (mount_.phase >= 1.0f) { mount_.phase = 1.0f; mount_.kind = 0u; }
+                }
 
                 // Possessed body's tilt lag rides the config's slow-dial cadence
                 // (CLOSURE_PAWN [6]). Idempotent: set_pawn_tilt_tau only dirties on a
@@ -1784,7 +1807,7 @@ namespace t7 {
                 auto& queue = c.queue;
                 // The sky-exit death first — it releases the ground, so it
                 // takes the machine face the tick below does not carry.
-                release_sky_exit_ribbon(&machine_ctx_, queue);
+                ribbon_on_dismount(&machine_ctx_, queue);
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
             }
 

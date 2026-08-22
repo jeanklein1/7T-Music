@@ -54,12 +54,15 @@ struct TimeState {
 //     config.possessed_slot. The ONE sanctioned window: in
 //     CAMERA-HOST the P5 harvest reads camera pos.xz back as the
 //     point's position (PointState.x/z) — a two-float harvest, not a
-//     mirror. There is still NO point y (the witness altitude is
-//     GPU-only); it is not to be invented.
+//     mirror. RIBBON_1 added PointState.y/heading, and they are the
+//     BODY hosts' alone: the possessed slot's readback authors them, so
+//     possess() can capture the pose the body left. The camera still has
+//     no y — the witness altitude is GPU-only and is not to be invented.
 //   · the rider state LEFT this record per Option A — it lives in
-//     RibbonState.sky (yaw_eased + the possess()-staged release
-//     request); riding ROUTES on the host machine (point_.host ==
-//     RIBBON — RESIDUE_3, closed player-side).
+//     RibbonState.sky, which RIBBON_1 reduced to the possess()-staged
+//     release request (the eased hand went to the head kernel, where the
+//     hand it eases is read); riding ROUTES on the host machine
+//     (point_.host == RIBBON — RESIDUE_3, closed player-side).
 //
 // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
 //   are explicit latent infrastructure: aura_presence is live here;

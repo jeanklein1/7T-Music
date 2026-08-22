@@ -109,5 +109,23 @@ struct PointState {
     PointBubble bubble{};                 // declared whole; first sensor above
 };
 
+// ═══ THE MOUNT (RIBBON_1) ══════════════════════════════════════════
+// A HOST CHANGE IS A TRAJECTORY, NOT A TELEPORT. The POSE at the far end
+// is the GPU's — the saddle the ribbon's body kernel writes, or the
+// walked pose the pawn kernel computes — and the CPU has no business
+// knowing either. What the CPU owns is the EDGE: where the body was at
+// the instant the host changed, and how far along the ease it is now.
+// possess() captures the edge from the point's mirror; the frame carries
+// the phase; the kernels do the mixing.
+//
+// CPU-only: this record rides the signal's mount block and comes back
+// from nowhere.
+struct MountState {
+    float    phase = 1.0f;          // 0 -> 1; 1 = arrived (the rest: nothing in flight)
+    uint32_t kind  = 0;             // 0 none, 1 boarding (-> the saddle), 2 landing (-> the walked pose)
+    float    from[3] = { 0.0f, 0.0f, 0.0f };
+    float    from_heading = 0.0f;
+};
+
 } // namespace the_board
 } // namespace t7

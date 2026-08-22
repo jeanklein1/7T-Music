@@ -290,10 +290,17 @@ inline void note_reject(const char* id, const char* why) {
 // the world was drawn into — two windows, one home, no copy.
 inline const the_board::MoodState* g_mood = nullptr;
 
+// The live HOST, borrowed the same way and for the same reason (RIBBON_1):
+// the panel's host row must never name a host the program has left. The
+// point's house is the spine's (contracts/point.hpp).
+inline const the_board::PointState* g_point = nullptr;
+
 inline void bind_home(the_board::GPUState* s) { g_home = s; }
 inline void bind_mood(const the_board::MoodState* ms) { g_mood = ms; }
+inline void bind_point(const the_board::PointState* p) { g_point = p; }
 inline uint32_t current_mood()       { return g_mood ? g_mood->active     : 0u; }
 inline uint32_t current_regime()     { return g_mood ? g_mood->regime     : 0u; }
+inline uint32_t current_host()       { return g_point ? (uint32_t)g_point->host : 0u; }
 
 inline void* block_base(uint8_t block) {
     if (!g_home) return nullptr;
@@ -628,6 +635,21 @@ inline bool take_go_mood(uint32_t& mood) {
     return true;
 }
 
+// ─── THE HOST DOOR (RIBBON_1) ────────────────────────────────────
+// The same shape as the mood door: a door with a parameter. The shell asks
+// the program to hand the point to a host; the frame boundary presses
+// possess() — the ONE transaction key R also presses, with its own guards
+// (no ribbon to ride is a refusal, not a crash). One pending id, last press
+// wins, taken once; HOST_NONE is "no request" and no host has that id.
+inline constexpr uint32_t HOST_NONE = 0xFFFFFFFFu;
+inline uint32_t g_go_host_pending = HOST_NONE;
+inline bool take_go_host(uint32_t& host) {
+    if (g_go_host_pending == HOST_NONE) return false;
+    host = g_go_host_pending;
+    g_go_host_pending = HOST_NONE;
+    return true;
+}
+
 // The tier bank's re-apply, taken once by the frame boundary (the
 // cartridge, which owns the agents' deps and the queue — this file
 // knows neither).
@@ -866,6 +888,20 @@ EMSCRIPTEN_KEEPALIVE inline void organ_go_mood(int mood) {
     using namespace t7::organ;
     if (mood >= 0 && (uint32_t)mood < t7::the_board::MOOD_COUNT)
         g_go_mood_pending = (uint32_t)mood;
+}
+
+// Which host the point is on: 0 pawn, 1 camera, 2 ribbon. The panel's host
+// row reads it so the row can never show a host the program has left —
+// through the same borrowed pointer organ_mood() reads the mood through.
+EMSCRIPTEN_KEEPALIVE inline int organ_host(void) {
+    return (int)t7::organ::current_host();
+}
+
+// Ask the program to hand the point to a host by id. Out of range is
+// ignored, for organ_door's own reason.
+EMSCRIPTEN_KEEPALIVE inline void organ_go_host(int host) {
+    using namespace t7::organ;
+    if (host >= 0 && host <= 2) g_go_host_pending = (uint32_t)host;
 }
 
 // The names, positional by id: a JSON array the shell builds its mood

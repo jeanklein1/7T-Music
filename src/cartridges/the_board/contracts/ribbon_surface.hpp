@@ -66,6 +66,10 @@ struct RibbonSurface {
     float lookahead;        // wu ahead of the nose where the head reads the rule
     float clear_head;       // wu of clearance the HEAD keeps from a shell
     float clear_body;       // wu of clearance the BODY keeps from a shell
+    // ── The mount's two eases (RIBBON_1) ── panel-side, not config: the
+    // CPU integrates the phase, the GPU only reads how far along it is.
+    float board_seconds;    // s — the ease onto the saddle
+    float land_seconds;     // s — the ease off it onto the walked pose
     // ── Wander steering (the per-frame half; the rolls are w3) ────
     float wander_steer_soft;    // rad of heading error for full deflection
     float wander_yaw_max;       // yaw cap — radius >= r_min / this
@@ -87,6 +91,8 @@ inline constexpr RibbonSurface RIBBON_TABLE = {
     120.0f,   // lookahead — three seconds of flight at full throttle
     25.0f,    // clear_head — the nose gives a shaft the floor_margin's berth
     8.0f,     // clear_body — the body flows closer than the head steers
+    1.2f,     // board_seconds
+    1.5f,     // land_seconds
     0.5f,     // wander_steer_soft
     0.15f,    // wander_yaw_max — radius >= r_min/0.15 (~270 u), body-scale arcs
     2.0f,     // wander_yaw_tau — curvature stays continuous

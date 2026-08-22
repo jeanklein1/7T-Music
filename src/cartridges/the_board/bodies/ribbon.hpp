@@ -431,8 +431,8 @@ inline uint32_t ribbon_draw_verts(const RibbonState& rs) {
 }
 void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
 void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
-// Sky-exit death — machine-faced, because it releases the ground.
-void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue);
+// The dismount — machine-faced; RIBBON_1 made it a handover, not a death.
+void ribbon_on_dismount(MachineCtx* self, wgpu::Queue& queue);
 struct ActivePatch;  // fwd (patch_system.hpp follows this header in the cohort)
 void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz);
 // Shared geometry helper (single entry: the dispatch path)
@@ -579,9 +579,9 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         }
     }
 
-    // (The dismount release ran at the head of this phase — it hands the
-    // ribbon back to the wander brain and needs the machine face this tick
-    // does not carry: release_sky_exit_ribbon.)
+    // (The dismount ran at the head of this phase — it hands the ribbon back
+    // to the wander brain and needs the machine face this tick does not
+    // carry: ribbon_on_dismount.)
 
     // Render one ribbon: hold the current slot until it's evicted,
     // then pick the nearest active ribbon as the new rendered slot.
@@ -1066,13 +1066,14 @@ inline void evict_ribbon(MachineCtx* self,
     // The RIBBON host: the flown ribbon is pinned for the flight's
     // duration. Its anchor patches stream out as the player flies away,
     // but the ribbon must persist — skip eviction entirely while it is
-    // the mounted, rendered ribbon. release_sky_exit_ribbon (below)
-    // frees it on dismount, ground included — and it must, precisely
-    // because returning HERE skips the ref_count decrement below, so
-    // the refcount protocol cannot finish a flown ribbon's death.
-    // A rendered WANDERER is pinned the same way:
-    // it drifts freely off its spawn patch, and with one slot the
+    // the mounted, rendered ribbon. A rendered WANDERER is pinned the same
+    // way: it drifts freely off its spawn patch, and with one slot the
     // world's ribbon persists — a contemplative object should.
+    // RIBBON_1: the two pins are now ONE object's whole life. A dismount
+    // sets ar.wander (ribbon_on_dismount), so the ribbon crosses from the
+    // first pin to the second without ever passing through the ref_count
+    // decrement below — which is exactly why the old dismount had to free
+    // it by hand, and exactly why this one does not.
     if (slot == self->ribbon_state_.rendered_slot
         && (self->point_.host == PointHost::RIBBON || ar.wander)) {
         return;
@@ -1103,68 +1104,59 @@ inline void evict_ribbon(MachineCtx* self,
     std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
 }
 
-// ─── Sky-exit release (owner verb) ─────────────────────────────────
-// The RIBBON host was released — free the pinned (now anchor-less)
-// ribbon so a fresh one can spawn.
+// ─── The dismount (owner verb) ────────────────────────────────────
+// THE RIBBON FLIES ON (RIBBON_1's ruling). The rider steps off; the ribbon
+// does not die with the ride. It is handed to the WANDER BRAIN — which is
+// the same seat the rider just left, filled by the idle script instead of a
+// pair of hands — so a flight the player abandoned becomes a flight the
+// world continues, and the ribbon the player rode is still there to be
+// looked at, and to be ridden again.
 //
-// THE HAND THAT CLAIMS IS THE HAND THAT FREES. This is a ribbon DEATH,
-// so it owes the ground back: place_ribbon_from_selection registered a
-// footprint through negotiate_position (grounded — the anchor ribbon's
-// tips touch ground), and nothing here freed it. A dismount is a
-// mid-world keypress, not a transition, so no reset_surface sweep
-// follows to cover the miss.
+// WHY THIS IS NOT A DEATH ANY MORE. The verb it replaces freed the ribbon:
+// footprint, mirror, count, render slot. That existed because a dismounted
+// ribbon was an anchor-less object nothing would evict — the flown pin in
+// evict_ribbon spares the rendered slot while the RIBBON hosts, and that
+// pin also spares a rendered WANDERER. Making the dismount a handover
+// lands the object under the pin that already exists, so nothing leaks and
+// nothing has to be freed: the ground it registered is still the ground it
+// stands on.
 //
-// NOT routed through evict_ribbon, and the reason is structural: the
-// evictor's pin spares a rendered WANDERER, and every anchor-patch
-// eviction during the flight returned AT that pin — before the
-// ref_count decrement — so ref_count arrives here stale-high and the
-// evictor would decrement it instead of releasing. This is the minimal
-// owner-release instead: footprint, mirror, count, render slot.
-// (Tip refs need nothing: they are patch-side and evict_ribbon does
-// not touch them either.)
-//
-// It takes the MACHINE FACE because unregister_footprint_for does, and
-// ribbon_frame_tick's RibbonDeps cannot reach it. The dismount EDGE
-// lives in possess() (RESIDUE_3): the transaction stages
-// sky.release_pending when the RIBBON host is released; this verb —
-// the request's sole consumer — executes today's outcome unchanged.
-inline void release_sky_exit_ribbon(MachineCtx* self, wgpu::Queue& queue) {
+// It keeps the MACHINE FACE it needed for unregister_footprint_for, because
+// the brain's re-seed reads the anchor from the machine's own record and
+// because a future ruling that DOES free here should not have to re-plumb.
+// The dismount EDGE lives in possess(): the transaction stages
+// sky.release_pending when the RIBBON host is released; this verb is the
+// request's sole consumer.
+inline void ribbon_on_dismount(MachineCtx* self, wgpu::Queue& queue) {
+    (void)queue;
     auto& rs = self->ribbon_state_;
-    if (rs.sky.release_pending) {
-        rs.sky.release_pending = false;
-        uint32_t s = rs.rendered_slot;
-        if (s != UINT32_MAX && rs.active[s].active) {
-            unregister_footprint_for(self, PopFamily::RIBBON, s);
-            // Release-by-owner completes for RECORDS (REQUEST_1 rider):
-            // this death can leave tip records on still-alive patches —
-            // the ONE path that can (patch-driven eviction wipes its own
-            // records; REJECT records nothing; release_finite follows
-            // the registry wipe). A stale {RIBBON, slot} record would
-            // later misdirect an eviction at the successor in this slot
-            // — one death, one patch-eviction early. Scrub both tips;
-            // a dead patch took its record with it. Safe here: this
-            // verb runs at phase_ribbon_tick, outside any patch loop.
-            auto& ar = rs.active[s];
-            if (ar.near_tip_registered) {
-                if (auto* p = find_patch(self, ar.near_tip_gx, ar.near_tip_gz))
-                    p->unrecord_entity(PopFamily::RIBBON, s);
-            }
-            if (ar.far_tip_registered) {
-                if (auto* p = find_patch(self, ar.far_tip_gx, ar.far_tip_gz))
-                    p->unrecord_entity(PopFamily::RIBBON, s);
-            }
-            rs.active[s] = ActiveRibbon{};
-            rs.gpu[s] = GPURibbonState{};
-            if (rs.active_count > 0) rs.active_count--;
-            GPURibbonState empty{};
-            self->gpuState_.upload_ribbon(queue, empty);
-            rs.rendered_slot = UINT32_MAX;
-            // Successor ribbons reuse this slot — force re-seed.
-            self->gpuState_.reset_ribbon_body(queue);
-        }
-    }
-}
+    if (!rs.sky.release_pending) return;
+    rs.sky.release_pending = false;
+    const uint32_t s = rs.rendered_slot;
+    if (s == UINT32_MAX || !rs.active[s].active) return;
 
+    auto& ar = rs.active[s];
+    // The brain takes the seat. Its cruise is drawn the way commit_ribbon
+    // draws it — the same seed, the same clamp, so a ribbon dismounted twice
+    // cruises the same both times — and its dead reckoning restarts from the
+    // ANCHOR, because that is the one position the CPU still knows. The plan
+    // is not a mirror (it never was), so starting it wrong costs nothing but
+    // the first waypoint's bearing.
+    ar.wander = true;
+    {
+        float cr = cpu_sample_gaussian(rs.gpu[s].seed, RibbonProp::WANDER_CRUISE,
+                                       RIBBON_SPAWN_LIVE.wander_cruise_base,
+                                       RIBBON_SPAWN_LIVE.wander_cruise_sigma);
+        ar.wander_cruise = (cr < RIBBON_SPAWN_LIVE.wander_cruise_min) ? RIBBON_SPAWN_LIVE.wander_cruise_min
+                         : (cr > RIBBON_SPAWN_LIVE.wander_cruise_max) ? RIBBON_SPAWN_LIVE.wander_cruise_max : cr;
+    }
+    ar.wander_yaw_state = 0.0f;
+    ar.wander_retarget = 0.0f;          // pick a waypoint on the next tick
+    ar.plan_x = ar.anchor_x;
+    ar.plan_z = ar.anchor_z;
+    ar.plan_heading = rs.gpu[s].orientation;
+    std::cout << "[Ribbon] DISMOUNT slot=" << s << " -> wander\n";
+}
 
 // ─── Teardown (owner verb) ────────────────────────────────────────
 inline void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) {
