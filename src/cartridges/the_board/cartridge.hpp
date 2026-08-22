@@ -289,6 +289,17 @@ namespace t7 {
             // GPU mirror is config.point_host; the toggle is input's
             // point-host command (key 4).
             PointState point_{};
+            // The mount's edge and its ease (RIBBON_1) — beside the point,
+            // because a host change is what raises it. possess() writes it;
+            // FillSignal ships and advances it; nothing reads it back.
+            MountState mount_{};
+            // THE PENDING dt (RIBBON_3) — the frame's dt as the GPU will see
+            // it: the sum of every update since the last submitted frame,
+            // capped at the same 100 ms the measurement is. Written by
+            // phase_fill_signal, cleared by frame_submitted(); nothing else
+            // touches it. time_state_.dt keeps the per-update value, because
+            // the CPU's own integrators run on every update, rendered or not.
+            float dtPending_ = 0.0f;
 
             // ═══ THE MACHINE FACE ═══════════════════════════════════════
             // The one declared context the dispatch contract hands the
@@ -498,7 +509,7 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, sunDirection_, clearColor_ }
-                , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, camera_ }
+                , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
@@ -620,16 +631,10 @@ namespace t7 {
                     gpuState_.mark_config_dirty();
                 }
 
-                // E-3 (mechanized): boot-neutral the sky_* block ONCE. The signal
-                // drain no longer carries these words (upload_signal skips the
-                // trailing 32 bytes), so their sole per-frame author is
-                // resync_sky_head (R7, ribbon on). This one write covers the
-                // ribbon-OFF case: the block stays neutral 0 forever, matching the
-                // old per-frame sky-neutral placeholder exactly. One writer, one
-                // region — the neutral-then-overwrite relay is gone.
-                wgpu::Queue q = device_.GetQueue();
-                gpuState_.resync_sky_head(q, 0u,
-                    0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f);
+                // RIBBON_1: the mount block rides the whole-struct signal drain
+                // like every other word, so there is no boot-neutral to write —
+                // MountState rests at phase 1, kind 0 (arrived, nothing in
+                // flight) and the first frame ships that.
             }
 
             bool init_renderer(
@@ -745,6 +750,7 @@ namespace t7 {
                 // panel cannot name a state the program has left.
                 t7::organ::bind_home(&gpuState_);
                 t7::organ::bind_mood(&mood_state_);
+                t7::organ::bind_point(&point_);   // RIBBON_1 — the panel's host row
 
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
@@ -849,17 +855,14 @@ namespace t7 {
             //     consumes it NEXT frame (update precedes render within a frame).
             //     A portal step is render N arms -> update N+1 advances; the
             //     one-frame readback lag (E-4) stacks on top.
-            //   E-3 (sky write-order) — MECHANIZED, NO LONGER A LAW. It was
-            //     a three-writer relay: U2 wrote neutral sky words, U8 uploaded
-            //     the whole signal, R7's tail (resync_sky_head) overwrote them,
-            //     and correctness rode submission order across update()->render().
-            //     Now the sky_* words are the TRAILING 32 bytes and upload_signal
-            //     skips them, so resync_sky_head is their SOLE author (R7 per
-            //     frame; a boot-neutral in initialize() covers ribbon-off). The
-            //     drain and the sky author write DISJOINT regions — there is no
-            //     ordering to preserve, so there is no law. Structure replaced the
-            //     paragraph. (E-1 dies with it on the signal side: a setter can no
-            //     longer land in the sky window and be clobbered by the relay.)
+            //   E-3 (sky write-order) — DEAD WITH ITS SUBJECT (RIBBON_1). It
+            //     was a three-writer relay over a POSE the ribbon tick had to
+            //     re-write after the drain; the split drain that mechanized it
+            //     was the second cure. The pose is the GPU's now
+            //     (ribbon_body_read.saddle) and the trailing words carry only
+            //     the mount EDGE, which the signal's one author fills like any
+            //     other word. One writer, one whole-struct write, no ordering to
+            //     preserve and nothing left to say.
             //
             // Gates are ROW COLUMNS: a disabled family's row is skipped at
             // runtime (row.enabled folds from its constexpr ROSTER bit). Runtime
@@ -944,7 +947,16 @@ namespace t7 {
                 auto aspect_ratio = c.aspect_ratio;
                 gpuSignal.t_seconds = signal.t_seconds;
                 gpuSignal.t_beats = signal.t_beats;
-                gpuSignal.dt = signal.dt;
+                // RIBBON_2 P0 1.2b — THE PENDING dt (RIBBON_3). The signal is
+                // written every update; the compute pass that consumes it is
+                // encoded only on a RENDERED frame. Writing signal.dt here
+                // meant a dropped acquire's dt was overwritten by the next
+                // update and DELETED from the GPU's integrators. It
+                // accumulates instead, and is cleared by frame_submitted().
+                // The same 100 ms ceiling the raw measurement carries applies
+                // to the sum: a stretch is a stretch, a teleport is not.
+                dtPending_ = std::min(dtPending_ + signal.dt, 0.1f);
+                gpuSignal.dt = dtPending_;
                 gpuSignal.aspect_ratio = aspect_ratio;
 
                 gpuSignal.move_x = inputState_.move_x;
@@ -955,6 +967,24 @@ namespace t7 {
                 gpuSignal.pan_x_delta = inputState_.pan_x_delta;
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
                 gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
+
+                // THE MOUNT BLOCK (RIBBON_1) — ship the edge, then advance the
+                // ease. Shipping FIRST is the point: the frame the host changed
+                // on must reach the GPU at phase 0, or the body starts the
+                // trajectory already partway along it. possess() authored the
+                // edge; this is its only carrier; nothing reads it back.
+                gpuSignal.mount_phase        = mount_.phase;
+                gpuSignal.mount_kind         = mount_.kind;
+                gpuSignal.mount_from[0]      = mount_.from[0];
+                gpuSignal.mount_from[1]      = mount_.from[1];
+                gpuSignal.mount_from[2]      = mount_.from[2];
+                gpuSignal.mount_from_heading = mount_.from_heading;
+                if (mount_.kind != 0u) {
+                    const float secs = (mount_.kind == 1u) ? RIBBON_LIVE.board_seconds
+                                                           : RIBBON_LIVE.land_seconds;
+                    mount_.phase += signal.dt / (secs > 1e-3f ? secs : 1e-3f);
+                    if (mount_.phase >= 1.0f) { mount_.phase = 1.0f; mount_.kind = 0u; }
+                }
 
                 // Possessed body's tilt lag rides the config's slow-dial cadence
                 // (CLOSURE_PAWN [6]). Idempotent: set_pawn_tilt_tau only dirties on a
@@ -1013,11 +1043,6 @@ namespace t7 {
                     }
                 }
             }
-
-            // The sky block is NOT part of the signal drain: upload_signal
-            // skips the trailing 32 bytes, so its SOLE author is
-            // resync_sky_head (the ribbon tick's tail), with a boot-neutral
-            // covering the ribbon-off case. One writer, one disjoint region.
 
             // U3 — ADVANCE CLOCK (music+wall-clock). The tempo follower; bumps
             // prev_beats (the O-5a partner of U1's dt_beats read).
@@ -1135,17 +1160,17 @@ namespace t7 {
                 // ── THE BEACON (FIELD_4): row 0, rewritten hot each
                 // frame — the point moved. point y is DERIVED (the
                 // point's house carries no y): host-routed — pawn
-                // mirror y / ribbon head y / ground under the point
-                // (the camera has no CPU y mirror; the harvest
+                // mirror y (PAWN and RIBBON alike — the possessed body IS
+                // where the point is in both, riding the seat in one and
+                // walking in the other) / ground under the point in
+                // camera-host (the camera has no CPU y mirror; the harvest
                 // discards cam pos[1]).
                 {
                     GPUFieldAuthored fa{};
                     const float coord = gpuState_.config().floater_coordination;
                     float py;
-                    if (point_.host == PointHost::PAWN) {
+                    if (point_.host != PointHost::CAMERA) {
                         py = agent_state_.slots[player_.possessed_slot].pos_y;
-                    } else if (point_.host == PointHost::RIBBON) {
-                        py = ribbon_state_.head.pos[1];
                     } else {
                         py = estimate_terrain_height(tile_world_state_, point_.x, point_.z);
                     }
@@ -1397,7 +1422,7 @@ namespace t7 {
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
-                GPUFrameSignal gpuSignal{};   // sky_* stay zero — upload_signal skips them (E-3); resync_sky_head owns the block
+                GPUFrameSignal gpuSignal{};   // the mount block is filled below, with the rest of the signal — one author, one write
                 UpdateCtx ctx{ signal, aspect_ratio, queue, gpuSignal };
                 for (const URow& row : UPDATE_SPINE) {
                     if (!row.enabled) continue;   // gated-off rows are never timed
@@ -1482,6 +1507,13 @@ namespace t7 {
                                         if (self->point_.host != PointHost::CAMERA) {
                                             self->point_.x = p.pos_x;
                                             self->point_.z = p.pos_z;
+                                            // RIBBON_1: y and heading join the
+                                            // mirror. possess() captures the EDGE
+                                            // from them — where the body was when
+                                            // the host changed — and the GPU eases
+                                            // the trajectory from there.
+                                            self->point_.y = p.pos_y;
+                                            self->point_.heading = p.heading;
                                         }
                                         self->point_.portal_trigger = p.portal_trigger;
                                     }
@@ -1791,7 +1823,7 @@ namespace t7 {
                 auto& queue = c.queue;
                 // The sky-exit death first — it releases the ground, so it
                 // takes the machine face the tick below does not carry.
-                release_sky_exit_ribbon(&machine_ctx_, queue);
+                ribbon_on_dismount(&machine_ctx_, queue);
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
             }
 
@@ -2382,12 +2414,11 @@ namespace t7 {
             // cannot be static_asserted inside its own incomplete class.
             // update laws:
             static_assert((uint32_t)UPhase::FillSignal < (uint32_t)UPhase::AdvanceClock, "O-5a: dt_beats reads prev_beats before the clock advances it");
-            // E-3 (sky write-order) is now MECHANIZED, not an ordering assert:
-            // update writes the sky block NOWHERE (upload_signal skips it), so its
-            // sole author is resync_sky_head (R7). Structure replaced the paragraph.
+            // E-3 (sky write-order) died with the sky block (RIBBON_1): the
+            // signal has one author and one whole-struct write again.
             static_assert((uint32_t)UPhase::ClearInputDeltas + 1 == (uint32_t)UPhase::COUNT, "O-5e: clear_input_deltas is dead-last");
             // render laws:
-            static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the sky resync (R7 tail) precedes the compute that reads it");
+            static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the ribbon's state write precedes the compute that reads it");
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
             static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");
@@ -2595,6 +2626,13 @@ namespace t7 {
             // there). The lighting-scheme tables stay impl-side. See §1.
 
         public:
+
+            // RIBBON_2 P0 1.2b: an updated-but-unrendered frame adds its dt to
+            // the next rendered one — a dropped acquire stretches a step,
+            // never deletes it. The host calls this once the frame's command
+            // buffer is submitted, which is the only moment the GPU is known
+            // to have been given the time this accumulator was holding.
+            void frame_submitted() { dtPending_ = 0.0f; }
 
             void on_input(const InputEvent& event) override {
                 switch (event.type) {

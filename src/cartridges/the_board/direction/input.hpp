@@ -97,6 +97,12 @@ struct KeyState {
     bool backward = false;
     bool left = false;
     bool right = false;
+    // RIBBON_1 — the ride key's held flag. The console raises KeyDown on
+    // GLFW_REPEAT as well as GLFW_PRESS (console.hpp inject_key_event), and a
+    // toggle that flip-flops under an autorepeat is a toggle that cannot be
+    // held. The four above already carry held state; this is the fifth, and
+    // it exists to make R a DOWN EDGE.
+    bool ride_held = false;
 };
 
 // Mouse drag state — on_mouse_move reads these to decide which
@@ -139,10 +145,11 @@ struct InputDeps {
     TouchMoveState& touch_;       // SHIP_1 — the stick's analog vector (zero on native)
     PlayerState&  player_;        // fpv — the anchor toggle (v3 §9 Act III)
     WorldState&   world_state_;   // active_radius — the radius command
-    RibbonState&  ribbon_state_;  // unused since CUT_1e — the possession door (possess()) is retired; member kept: aggregate shape
+    RibbonState&  ribbon_state_;  // the rider fixture: possess() stages the RIBBON release here
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
-    PointState&   point_;         // unused since CUT_1e — the host toggle (key 4) died with the camera host; member kept: aggregate shape
+    PointState&   point_;         // the point — the host, and the mirror possess() captures the edge from
+    MountState&   mount_;         // the mount's edge + ease (RIBBON_1); possess() writes it, FillSignal ships it
     CameraControls& camera_;      // the first live panel dial (KP_+/KP_-)
 };
 
@@ -177,6 +184,7 @@ void update_movement_intent(InputDeps* c);
 void clear_input_deltas(InputDeps* c);
 // Camera / view commands
 void toggle_fpv_mode(InputDeps* c);
+void possess(InputDeps* c, PointHost next);   // THE ONE TRANSACTION — capture the edge, flip the host both rooms, start the ease
 void set_render_radius(InputDeps* c, uint32_t r);
 void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
 void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multiplicative, clamped
@@ -223,6 +231,9 @@ void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multipl
 #endif
 #ifndef GLFW_KEY_D
 #define GLFW_KEY_D  68
+#endif
+#ifndef GLFW_KEY_R
+#define GLFW_KEY_R  82
 #endif
 #ifndef GLFW_KEY_V
 #define GLFW_KEY_V  86
@@ -280,6 +291,16 @@ inline void on_key_down(InputDeps* c, int key,
         toggle_fpv_mode(c);
         break;
     case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(agent_state, &agents_deps, q);  break;
+    // R RIDES. Down edge only — the held flag above is why. From the ribbon
+    // it dismounts back to the pawn; from anywhere else it boards, if there
+    // is a ribbon to board. CAMERA stays reachable through the panel row.
+    case GLFW_KEY_R:
+        if (!c->keys_.ride_held) {
+            c->keys_.ride_held = true;
+            possess(c, c->point_.host == PointHost::RIBBON
+                       ? PointHost::PAWN : PointHost::RIBBON);
+        }
+        break;
     }
     update_movement_intent(c);
 }
@@ -290,6 +311,7 @@ inline void on_key_up(InputDeps* c, int key) {
     case GLFW_KEY_S: c->keys_.backward = false; break;
     case GLFW_KEY_A: c->keys_.left = false;     break;
     case GLFW_KEY_D: c->keys_.right = false;    break;
+    case GLFW_KEY_R: c->keys_.ride_held = false; break;
     }
     update_movement_intent(c);
 }
@@ -443,6 +465,53 @@ inline void toggle_fpv_mode(InputDeps* c) {
     c->gpuState_.set_fpv_mode(c->player_.fpv_mode ? 1 : 0);
     std::cout << "[the_board] Camera mode: "
         << (c->player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
+}
+
+// THE ONE TRANSACTION (RESIDUE_3, re-authored at RIBBON_1): capture the
+// EDGE, flip the host in both rooms, start the ease. Nothing else writes
+// the host.
+//
+//   PAWN   — the kite: the body walks (W/A/S/D), the camera follows.
+//   CAMERA — free-fly: input moves only the camera; the body idles.
+//   RIBBON — sky-flight: the move channel (W = throttle, A/D = yaw) steers
+//     the rendered ribbon's head under its own forward-biased grammar; the
+//     altitude is held by a critically damped pen, not fixed; the possessed
+//     body rides the saddle the ribbon's body kernel writes, and the camera
+//     kites onto it.
+//
+// A HOST CHANGE IS A TRAJECTORY. The far pose belongs to a kernel — the
+// saddle when boarding, the walked pose when landing — so this captures
+// only where the body WAS, from the point's mirror, and hands the GPU a
+// phase to ease along. No teleport, and no CPU opinion about the far end.
+//
+// release(RIBBON) = the ribbon is handed back to the wander brain rather
+// than freed (RIBBON_1's ruling): the transaction STAGES the request
+// (sky.release_pending) and the one owning verb — ribbon_on_dismount, which
+// carries the machine face this door does not — consumes it next tick.
+// release(CAMERA) = the host set below, whole. release(PAWN) = nothing: the
+// body idles when not hosting, by construction.
+inline void possess(InputDeps* c, PointHost next) {
+    const PointHost cur = c->point_.host;
+    if (cur == next) return;
+    if (next == PointHost::RIBBON
+        && c->ribbon_state_.rendered_slot == UINT32_MAX) {
+        std::cout << "[Point] no ribbon to ride\n";
+        return;
+    }
+    c->mount_.from[0] = c->point_.x;
+    c->mount_.from[1] = c->point_.y;
+    c->mount_.from[2] = c->point_.z;
+    c->mount_.from_heading = c->point_.heading;
+    c->mount_.phase = 0.0f;
+    c->mount_.kind  = (next == PointHost::RIBBON) ? 1u
+                    : (cur == PointHost::RIBBON) ? 2u : 0u;
+    if (cur == PointHost::RIBBON) c->ribbon_state_.sky.release_pending = true;
+    c->point_.host = next;
+    c->gpuState_.set_point_host(static_cast<uint32_t>(next));
+    std::cout << "[Point] Host: "
+        << (next == PointHost::RIBBON ? "RIBBON (W throttle, A/D steer, R dismount)"
+            : next == PointHost::CAMERA ? "CAMERA (free-fly)"
+            : "PAWN (the kite)") << "\n";
 }
 
 inline void set_render_radius(InputDeps* c, uint32_t r) {

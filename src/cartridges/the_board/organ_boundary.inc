@@ -37,6 +37,16 @@
                                                 mood_state_, world_state_, go);
                 }
 
+                // THE HOST DOOR (RIBBON_1) — the same transaction key R
+                // presses, with its own guards. A door with a parameter,
+                // taken once; possess() early-returns on a no-op and on a
+                // RIBBON request with no ribbon to ride.
+                {
+                    uint32_t host = 0;
+                    if (t7::organ::take_go_host(host))
+                        possess(&input_deps_, static_cast<PointHost>(host));
+                }
+
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {

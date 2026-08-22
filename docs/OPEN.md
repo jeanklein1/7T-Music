@@ -19,8 +19,7 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   corrected by RECENSION_4 when the gates were first read whole. Unblocked
   by the gates sitting.
 - L26 docket — fields marked dead, awaiting the sitting that next opens their
-  struct: `RibbonState.is_roaming`, `RibbonRingTransform._pad0`,
-  `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
+  struct: `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
   went with the FileWatcher at SUNSET_1; `pawn.cpp:60` still names the dial),
   `OrbMoodConfig.base_hue` / `.hue_variance` (dead BY CONSTRUCTION — every
   ORB_PALETTES row carries count ≥ 1, so `pack_palette_` never leaves
@@ -105,6 +104,205 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
 - naga is installed per session in CC's container with `cargo install
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
+
+## RIBBON_1 — the witnesses Jean owes the campaign
+
+No gate can see any of these; they are the eye's, and the campaign is not
+closed until they are looked at. Origin: RIBBON_1 (three commits on
+`claude/ribbon-1`, base `fd53316`). Three were looked at, and RIBBON_2's
+charter is what came back; the finding is noted under each. None is closed
+here — the sign-off is Jean's, and RIBBON_2 has its own list below.
+
+- THE FLOWN BODY FOLLOWS ITS TRACK. The spine became a SPACE law: one
+  sample per chord of flight, so the body is drawn where the head has been.
+  Tier 0 at full throttle and every parked ribbon are unchanged; tiers 1
+  and 2 and every wanderer are visibly different from `fd53316` — where the
+  body used to whip, laying rings at `cube_size` regardless of how far the
+  head actually travelled, it now trails the path. This is the ruling to
+  overturn if the old whip was the beauty.
+  LOOKED AT (RIBBON_2 §0.3): the space law stands — the whip was not asked
+  back. What was owed was the settling the time law's delay line used to
+  give when the hands went still, which a space law has no version of. THE
+  SWEEP is that version; witness (2) below.
+- THE SKY RULE, both readers. The head should bank away from a shaft and
+  climb a roofline before it reaches one (COLOSSAL antennas are the test:
+  125 m of post with drums 20 m wide at the top). The body should bulge
+  around what it meets and flow through the bulge — the bulge stays where
+  the thing is — and lift over a pyramid rather than enter it.
+  LOOKED AT (RIBBON_2 §0.1), the BODY's arm only: it still entered things,
+  and the reason was structural, not a tuning — a critically damped string
+  settles INSIDE a shell that only pushes it. The shell became advice and
+  stands wider; THE WALL became law; witness (1) below. The HEAD's arm —
+  banking away from a shaft and climbing a roofline before it reaches one
+  — is still owed as written.
+- THE SEAT. `R` boards and lands on an ease, never a teleport. The saddle
+  sits on ring 0's top face through roll and pitch; the nose faces where it
+  swims and the tube does not shear at the neck.
+  LOOKED AT (RIBBON_2 §0.5): the ease and the saddle drew no finding. What
+  came back was the camera, which kept the orbit the pawn had left it in
+  instead of turning behind the rider; THE CHASE answers it, witness (4)
+  below. The seat itself stays owed a verdict.
+- THE DIALS MOVE THE FLIGHT LIVE. Sixteen `Ribbon · Head` / `Ribbon · Sky
+  Rule` / `Ribbon · Wander` rows on the organ (twelve at RIBBON_1, four
+  more at RIBBON_2) reach the kernels through `config.ribbon_*`; turning
+  one mid-flight should change the flight without a respawn.
+- FIREFOX. Three `WriteBuffer`s a frame per ribbon, where fifteen stood,
+  and 6.4 KB of ring poses no longer uploaded twice per frame. The staging
+  ratchet above reads against this.
+
+### Priced at RIBBON_1, not built
+
+- THE GESTURE RING. `[SEAM:ribbon-displacement]` (world.wgsl §6.5) now names
+  its own shape: to let music drive the head's displacement, record the
+  head's lateral/vertical into a GESTURE ring beside the spine —
+  time-cadenced where the spine is chord-cadenced — and read the delayed
+  samples in `ribbon_displacement_at`. Unblocked by the music-coupling
+  campaign.
+- THE SKY RULE'S COST. `sky_push` walks 344 emitters (32 shafts, 16 arches,
+  32 walkers, 264 floaters) per reader, and `ribbon_body` runs one reader
+  per ring — up to 400 — plus `ribbon_ground`'s analytic terrain per ring.
+  No measurement exists; `the-board-web-meter`'s `ribbon_body` row is the
+  first one to read. The cures if it bites, in order of cheapness: an
+  EMIT_STRIDE-style stride on the body's rule reads, a broad-phase cull by
+  the ribbon's own bounding box, or a shared per-frame shortlist the head
+  builds once.
+  RIBBON_2 RAISED IT, and the price is stated rather than measured, since
+  no meter row exists to measure with: `sky_self` adds up to 200 capsule
+  tests per reader on top of the 344 emitters, `sky_wall` adds a second
+  walk of the standing things per ring, and the head — still ONE thread —
+  now also sweeps the spine, ≤ 401 serial steps a frame. The sweep is the
+  one of the three that is structurally parallelizable (each chord reads
+  only its predecessor, so it is a scan), and it is the first thing the
+  optimization sitting should look at.
+  RIBBON_3 MOVED IT BOTH WAYS, still unmeasured. Up: an arch costs 8 rib
+  capsules plus 2 piers per arch per reader where it cost one disc — 16
+  arches, so up to 160 capsule tests added to every `sky_push` and every
+  `sky_wall` call. Down, and by more: the head now hears 8 floating slots
+  instead of 264, which removes up to 256 sphere tests from the head's
+  reader every frame, and `sky_roof` lost its arch loop entirely. The head
+  is still ONE thread. The body's reader is where the arch rib is actually
+  paid, once per ring.
+
+## RIBBON_2 — the witnesses Jean owes the campaign
+
+Six, in Jean's own order from RIBBON_2 §0. No gate can see any of them.
+Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
+
+- THE WALL. No ring center stands inside a drum, a pyramid, a walker or a
+  floater — nor under ground plus half a tube. (An arch is no longer a solid
+  in this law: RIBBON_3 made it a doorway, so the wall keeps rings out of
+  its rib and its piers and leaves the SPAN open.) The shell is
+  advice now and stands wider (`clear_head` 25 → 40, `clear_body` 8 → 16);
+  `sky_wall` runs AFTER the leash, because law outranks leash, and it kills
+  only the velocity that points into the wall. The test case is a COLOSSAL
+  antenna: 125 m of post with a drum 20 m wide at the top, which the old
+  soft push let a ring settle 18 wu inside.
+- THE SWEEP. Hands still → the body settles straight behind the head, and
+  the settling FRONT should be seen travelling tailward at `propagation_
+  speed`, not the whole body straightening at once. At full throttle the
+  track is kept near the head instead. RULING TO OVERTURN WITH ONE WORD:
+  the sweep runs at 1.0 × P idle and 0.15 × P at full throttle
+  (`RIBBON_SPINE_RELAX_IDLE` / `_FLY`, world.wgsl §6.5).
+- THE BODY IS A THING. A tight turn → the head goes OVER its own body and
+  the body bulges off itself, both through the same Sky Rule that reads the
+  world. The body it reads is last frame's emit half, minus a
+  `RIBBON_SELF_NECK` of 24 rings so the neck does not fight itself. RULING
+  TO OVERTURN WITH ONE WORD: over, not under, unless the body is clearly
+  above.
+- THE CHASE. `R` turns the camera behind the rider over the boarding ease,
+  looking along the flight. OVERTURNED BY JEAN, and landed at RIBBON_3 P1:
+  it does NOT re-center afterwards — the pose is taken once, at boarding,
+  and the mouse owns the camera from then on (`RIBBON_CHASE_TAU` 0.0; > 0
+  restores the idle-mouse settling). The elevation is his too:
+  `RIBBON_CHASE_ELEVATION` 0.25 → 0.6, about 35° to the ribbon's surface.
+  What is still owed is the look of that one pose — witness (4) below.
+- THE WANDERER STEERS ITSELF. A wanderer should cross its anchor's disc
+  target to target and come back, not drift away and never return. The
+  brain is the head kernel's now — the target is drawn from the ribbon's
+  own seed on a `roam_radius` disc, steered toward through the same yaw cap
+  a rider's hands pass through, re-drawn inside `wander_arrive`. Four dials
+  (`Ribbon · Wander`) move it live.
+- IF THE MOTION STILL READS STEPPED. The polyline is gone (the spine is a
+  C1 Hermite arc on each sample's own tangent), so if it still steps the
+  cause is one of the three cadence facts, which are recorded here so the
+  next sitting does not re-derive them:
+  (a) `signal.dt` WAS a `std::chrono::high_resolution_clock` difference
+  across `begin_frame()` (`console.hpp`), clamped to `[0, 0.1]` s, with no
+  smoothing; `signal.t_seconds` is the running sum of that same clamped dt
+  (`beat_clock.hpp`, `BeatClock::update`) — one clock, one integration.
+  Under Emscripten that clock is `performance.now()`, which the browser
+  coarsens. ANSWERED (RIBBON_3 P2): the measurement is made the same way and
+  is still the only clock, but the value handed on is THE STEADY CLOCK's.
+  Witness (5) below is what to check if judder survives it.
+  (b) `dispatch_compute` is an unconditional row of `RENDER_SPINE`
+  (`cartridge.hpp`), so it is recorded on EVERY rendered frame. But
+  `update()` runs on frames that are never rendered — `pawn.cpp` returns
+  before the encoder when `acquire_surface_texture()` fails — and
+  `phase_fill_signal` has already written that frame's dt, which the next
+  update overwrites. A dropped acquire therefore does not stretch the
+  head's step; it DELETES one. LANDED (RIBBON_3 P2): the ruling went the
+  carry's way. `phase_fill_signal` accumulates into `dtPending_` and the
+  host clears it only once the frame's command buffer is submitted, so an
+  updated-but-unrendered frame now stretches the next rendered step instead
+  of deleting itself. The sum carries the same 100 ms ceiling the raw
+  measurement does — a stretch is a stretch, a teleport is not.
+  (c) The web main loop is `requestAnimationFrame`
+  (`emscripten_set_main_loop(frame, 0, true)`, `pawn.cpp`).
+  The gesture clock is NOT a suspect: `ribbon_frame_tick` advances
+  `par.phase += beat_rate × (60 / reference_bpm) × dt` every frame — a
+  smooth per-frame float, never a beat-quantized tick — which is why §3.5
+  took its first branch and the clock did not come home.
+
+## RIBBON_3 — the witnesses Jean owes the campaign
+
+Five. No gate can see any of them. Origin: RIBBON_3 (two commits on
+`claude/ribbon-1`, base `92d58c6`), answering Jean's witness from the
+saddle: *the flight accelerates almost smoothly, then breaks — like hitting
+many blocks along the way, a few times a second, worse with speed.*
+
+- NO BLOCKS. From the saddle, at speed, near things: the flight should read
+  as ONE curve. Two causes were closed for it. THE STEADY CLOCK (P2) makes
+  the frame's dt the display's cadence rather than the callback's arrival —
+  the running mean while the measurement stays within ±20% of it, the
+  measurement itself when it does not. ONE COMMAND, C2 (P1) low-passes the
+  Sky Rule's lateral word (`RIBBON_RULE_TAU` 0.35 s) and slew-limits the
+  total command (`RIBBON_YAW_SLEW` 1.5/s), so the heading's RATE is
+  continuous where it used to step every time the probe crossed a shell.
+  The head also stopped listening to the 256 cubes, each of which was a
+  42-wu bubble at `clear_head` 40; it hears the standing things, the 32
+  walkers and the 8 spheres, at `RIBBON_CLEAR_MOVER` 20. The cubes are the
+  body's business.
+- A DODGE IS A CURVE. An antenna is the test Jean already named as the one
+  that looked RIGHT: it should now begin and end as a curve rather than
+  snapping into and out of the avoidance. If it now reads too lazy instead,
+  the two numbers are `RIBBON_RULE_TAU` (lower = quicker to hear a thing)
+  and `RIBBON_YAW_SLEW` (higher = quicker to act on it).
+- AN ARCH IS A DOORWAY. Jean's word was that the arch dodge looked STRANGE.
+  It was: `sky_shell` gave every arch a disc of `half_span + max(thickness,
+  depth)` and a top at the apex — for a MONUMENTAL a 70-wu drum 88 wu tall,
+  which the head had to skirt or climb entire and the body was thrown out
+  of. The tree's own law said the opposite all along (`occupier_contact`:
+  *the SPAN stays open — walking through the doorway is the arch's whole
+  meaning; only the legs push*). The ribbon should now pass UNDER, over or
+  around, and the body should never be thrown out of a drum that is not
+  there. The roofline is shafts-only for the same reason: a roof says the
+  sky is closed at this xz, and an arch never closes it.
+- THE CHASE POSE, ONCE. `R` → the camera takes its pose over the boarding
+  ease, about 35° above the ribbon's surface, and then the mouse owns it —
+  no drift back, ever. Both numbers are Jean's (`RIBBON_CHASE_ELEVATION`
+  0.6, `RIBBON_CHASE_TAU` 0.0).
+- IF JUDDER SURVIVES THE STEADY CLOCK, the next fact is not in this tree: it
+  is the resolution of `performance.now()` on the machine in question, which
+  is what `high_resolution_clock` becomes under Emscripten. Browsers coarsen
+  it deliberately — commonly to 1 ms without cross-origin isolation, and
+  Firefox with `privacy.resistFingerprinting` set coarsens it all the way to
+  100 ms, which would quantize every frame's dt to a multiple far larger
+  than a frame. That is a line for the optimization sitting, and it is
+  measured in the browser, not read out of the source. THE IN-BAND SHARE, on
+  the other hand, is readable here: at 60 Hz with ±2 ms of jitter the band
+  is ±20% of a 16.67 ms mean, i.e. ±3.33 ms, so EVERY frame is in band and
+  every frame is served the mean — the steady clock is fully engaged, not
+  half of it.
 
 ## Harvested at WINNOW-2 W2 (from files that died this campaign)
 

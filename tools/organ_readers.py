@@ -103,9 +103,12 @@ READERS = {
         ("src/cartridges/the_board/direction/input.hpp", "on_scroll"),
         ("src/cartridges/the_board/bodies/agents.hpp", "try_possess_nearest"),
     ]),
+    # RIBBON_1: the head mover left for the GPU, so the bank's reader for the
+    # flight dials is the BOOT PIN that carries them into config.ribbon_* —
+    # blind spot 3, said at the table instead of reported as eleven suspects.
     "RIBBON": ("RIBBON_LIVE", "RibbonSurface", [
-        ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_advance_head"),
-        ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
+        ("src/cartridges/the_board/realization/state.hpp", "initializeState"),
+        ("src/cartridges/the_board/cartridge.hpp", "phase_fill_signal"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),
     "INDOOR": ("INDOOR_LIVE", "IndoorSurface", [
@@ -138,7 +141,9 @@ READERS = {
         ("src/cartridges/the_board/bodies/ribbon.hpp", "place_ribbon_from_selection"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "fill_ribbon_selection_geometry"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "commit_ribbon"),
-        ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_wander_inputs"),
+        # RIBBON_2: the cruise is redrawn when a rider steps off, so the
+        # dismount is a reader of the draw's four dials in its own right.
+        ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_on_dismount"),
     ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
     # Two handles: the regime law is MoodProfile's own field (read by

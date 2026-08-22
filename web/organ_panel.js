@@ -726,6 +726,43 @@
       }
     }
 
+    // ── THE HOST DOOR: where the point lives ────────────────────
+    // Three hosts, one press each: the pawn (the kite), the camera
+    // (free-fly), the ribbon (sky-flight). The press walks possess() at the
+    // next boundary — the same transaction key R presses, with the same
+    // guards, so a ribbon request with no ribbon to ride is a refusal and
+    // not a jump. The row shows the LIVE host through organ_host(), which
+    // reads the point's own house; a refused press simply leaves it where
+    // it was.
+    var hostBtns = null;
+    if (C.goHost && C.host) {
+      var hostBar = document.createElement('div'); hostBar.className = 'bar doors';
+      var hostLbl = document.createElement('span'); hostLbl.className = 'k';
+      hostLbl.textContent = 'host';
+      hostBar.appendChild(hostLbl);
+      hostBtns = ['pawn', 'camera', 'ribbon'].map(function (name, i) {
+        var b = document.createElement('button');
+        b.textContent = name;
+        b.title = i === 2
+          ? 'ride the rendered ribbon \u2014 W throttle, A/D steer; the same door key R presses. Ignored when no ribbon is drawn.'
+          : (i === 1 ? 'free-fly: the camera hosts the point, the body idles'
+                     : 'the kite: the body walks, the camera follows');
+        b.addEventListener('click', function () { C.goHost(i); });
+        hostBar.appendChild(b);
+        return b;
+      });
+      root.appendChild(hostBar);
+    }
+    // The live host, lit on the panel's own tick beside the rule and regime
+    // readouts — one home, borrowed, never copied. A refused press simply
+    // leaves the lamp where it was, which is the honest report.
+    function refreshHost() {
+      if (!hostBtns) return;
+      var h = C.host();
+      hostBtns.forEach(function (b, i) { b.classList.toggle('on', i === h); });
+    }
+    refreshHost();
+
     // ── THE FILTER ───────────────────────────────────────────────────
     // The manifest is a library, not a page. One field, matched against
     // id + label + group lowercased, so the operator can reach a stop by
@@ -1200,6 +1237,7 @@
       });
       refreshRule();
       refreshRegime();
+      refreshHost();
       status.textContent = BUILD_TAG + rows.length + ' dials  ·  mood ' + C.mood() +
                            (C.regime ? '  ·  regime ' + (C.regime() + 1) : '') +
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
@@ -1279,6 +1317,8 @@
         door:          M.cwrap('organ_door', null, ['number']),
         goMood:        M.cwrap('organ_go_mood', null, ['number']),
         moodNames:     M.cwrap('organ_mood_names', 'string', []),
+        host:          M.cwrap('organ_host', 'number', []),
+        goHost:        M.cwrap('organ_go_host', null, ['number']),
         regime:        M.cwrap('organ_regime', 'number', [])
       };
       if (C.count() <= 0) return;          // registry not bound yet

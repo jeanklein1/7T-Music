@@ -2373,7 +2373,7 @@ RECUT_COMPUTE_FAMILY = {
     "write_live_card_heights": "ZONES", "write_live_card_resolve": "ZONES",
     "orb_init": "ORBS", "orb_dynamics": "ORBS", "orb_recolor": "ORBS",
     "orb_state_prev_copy": "ORBS",
-    "compute_ribbon_rings": "RIBBON",
+    "ribbon_head": "RIBBON", "ribbon_body": "RIBBON",
     "compute_photographer_vp": "PHOTO_K",   # A7: was GALLERY pre-split
     "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
     "palm_mesh_gen": "MESHGEN", "cactus_mesh_gen": "MESHGEN",

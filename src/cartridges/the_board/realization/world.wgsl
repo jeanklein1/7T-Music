@@ -785,17 +785,15 @@ struct FrameSignal {
     pan_x_delta: f32,
     pan_y_delta: f32,
     dt_beats: f32,        // beat-time delta (currentBeats_ - prevBeats_)
-    sky_mode: u32,        // consumer-free (RESIDUE_3): mount gates read config.point_host; kept as the pose block's leading word
-    sky_head_x: f32,
-    sky_head_y: f32,
-    sky_head_z: f32,
-    sky_heading: f32,
-    // The saddle's FRAME — CPU-computed beside the mount point
-    // (bodies/ribbon.hpp MOUNT_* mirrors); composed into the possessed agent's
-    // quaternion in behavior_player_controlled. Zeros = level.
-    sky_yaw_off: f32,     // tangent-align yaw deflection (rad)
-    sky_pitch: f32,       // tangent-align pitch (rad)
-    sky_roll: f32,        // bank into the lateral swing (rad, clamped)
+    // THE MOUNT BLOCK (RIBBON_1) — a trajectory, not a pose. The pose is the
+    // GPU's (ribbon_body_read.saddle); the CPU authors only the edge: where the
+    // body was when the host changed, and how far along the ease it is.
+    mount_phase: f32,          // 48  0→1; 1 = arrived
+    mount_kind: u32,           // 52  0 none, 1 boarding, 2 landing
+    mount_from_heading: f32,   // 56
+    _mp0: u32,                 // 60
+    mount_from: vec3<f32>,     // 64  the pose the body left
+    _mp1: f32,                 // 76
 }
 
 // --- [STATE:agent] AgentState
@@ -1043,23 +1041,20 @@ struct RibbonState {
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
-    is_roaming: u32,        // constant 1 (analytic stationary spine removed); field retained until the next struct relayout
-    _pad1: f32,
-    _pad2: f32,
+    is_wander: u32,         // 1: the wander brain authors intent (the two fields below); 0: parked. Ridden when config.point_host == 2.
+    _pad1: f32,             // RIBBON_2: the brain moved to the head kernel; nothing writes a yaw here
+    wander_throttle: f32,   // [0, 1]
     _pad3: f32,
     color_b: vec3<f32>,     // second checker median (CONTRAST)
     hue_spread: f32,        // radians — per-cell hue rotation amplitude (CONTRAST skin; 0 = CB-1 look)
 }
 
-// Pre-computed per-ring transform (compute pass → VS + pawn overlay)
+// Per-ring pose — written by ribbon_body, read by ribbon_vs / shadow_ribbon_vs
+// through render_ring_xforms (g2:143). 48 B stride (vec4, vec4, vec3 + alignment).
 struct RibbonRingTransform {
     motor_p0: vec4<f32>,    // PGA motor rotor part
     motor_p1: vec4<f32>,    // PGA motor translator part
-    center: vec3<f32>,      // ring world-space center (extracted from motor)
-    _pad0: f32,             // explicit padding — mirrors GPURibbonRingTransform.
-                            // Was `terrain_y`, always 0.0 since ribbons stopped
-                            // following terrain; written below only so unused
-                            // slots read clean.
+    center: vec3<f32>,      // ring world-space center
 }
 
 // --- [STATE:patch] PatchParams
@@ -1734,7 +1729,34 @@ struct DesignConfig {
     // sizeof 624 is unmoved. Read by behavior_player_controlled's box clamp.
     // Was _pad624_0.
     pawn_body_radius: f32,
-    _pad624_1: f32,
+    // ─── THE RIBBON'S DIALS (RIBBON_1) — GROWTH LAW, same commit, same
+    // order, same types as GPUDesignConfig (state.hpp). THE PANEL
+    // (contracts/ribbon_surface.hpp RIBBON_LIVE) authors the rests; the
+    // boot pins them here; the organ edits them. The ribbon's two kernels
+    // read these and nothing else — the CPU head that used to read the
+    // panel directly is gone, so this is the ONE road from the panel to
+    // the flight and the rooms cannot drift.
+    // _pad624_1 consumed, eleven appended, one fresh pad to the boundary:
+    // sizeof 624 -> 672 (state.hpp carries the witness).
+    ribbon_max_speed: f32,
+    ribbon_yaw_rate: f32,
+    ribbon_r_min: f32,
+    ribbon_floor_margin: f32,
+    ribbon_alt_smooth_dist: f32,
+    ribbon_alt_stiff: f32,
+    ribbon_climb_rate: f32,
+    ribbon_mount_setback: f32,
+    ribbon_lookahead: f32,
+    ribbon_clear_head: f32,
+    ribbon_clear_body: f32,
+    ribbon_hands_tau: f32,
+    // RIBBON_2 — the wander brain's dials, GROWTH LAW: _pad672_0 consumed,
+    // three appended, one fresh pad: 672 -> 688 (state.hpp carries the witness).
+    ribbon_wander_soft: f32,        // 668  rad of heading error at which the brain asks full yaw
+    ribbon_wander_yaw_max: f32,     // 672  the brain's share of the hands' cap, [0, 1]
+    ribbon_wander_arrive: f32,      // 676  wu — a target is reached here; the next is drawn
+    ribbon_roam_radius: f32,        // 680  wu — the anchor's disc the targets are drawn on
+    _pad688_0: f32,                 // 684
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -2557,12 +2579,10 @@ struct FieldAuthored {
     _p2: u32,
     rows: array<vec4<f32>, 8>,
 }
-// THE FIELD BUS (CHORD_2) — the field's three windows, one block,
-// one write per frame. Mirrors GPUFieldBus in state.hpp
-// BYTE-FOR-BYTE (6656 B). Offsets: head_poses 0, ribbon 6400,
-// authored 6512.
+// THE FIELD BUS (CHORD_2; RIBBON_1 took the rings out — the field reads
+// the body's emit table through ribbon_body_read). Mirrors GPUFieldBus in
+// state.hpp BYTE-FOR-BYTE (256 B). Offsets: ribbon 0, authored 112.
 struct FieldBus {
-    head_poses: array<vec4<f32>, 400>,
     ribbon: RibbonState,
     authored: FieldAuthored,
 }
@@ -5669,27 +5689,388 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
     return out;
 }
 
-// §6.5 SKY RIBBON ENTITY
-// A continuous square-section tube whose body is the TRAIL of a harmonic-
-// oscillator head, sampled at progressively older head positions along its
-// length:
+// §6.5 THE RIBBON ENTITY (RIBBON_1; RIBBON_2 — the wall, the sweep, the body as a thing)
+// ONE ENTITY, ONE ROOM: head, spine, body and frame live here. The CPU
+// authors INTENT — spawn, tier, colors, wave amplitudes, the wanderer's
+// cruise, the rider's hands through the signal — and reads nothing back.
 //
-// TRAIL-FRAME shape: each ring at parameter t shows the head's state at
-//    age = t × total_length / propagation_speed seconds ago:
-//      sin(freq × (time − t × total_length / propagation_speed))
-//    Visible cycles emerge from freq × travel_time (preserving the authored
-//    per-tier cycle counts); crests propagate head → tail at the single
-//    propagation_speed (uniform across all three axes).
-// The ribbon's centerline at parameter t, before the wave is layered on:
-// lerp over head_poses, the CPU-rebuilt propagation body. A parked head has
-// a constant past, so this reads as the straight spawn arc.
-fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
-    let span = max(ribbon.cube_count, 2u) - 1u;
-    let fidx = clamp(t, 0.0, 1.0) * f32(span);
-    let i0 = u32(floor(fidx));
-    let i1 = min(i0 + 1u, span);
-    let frac = fidx - f32(i0);
-    return mix(head_poses[i0].xyz, head_poses[i1].xyz, frac);
+// TWO CLOCKS.
+//   The SPINE is a SPACE law: a ring of samples the head lays down once
+//   per chord (cube_size) of flight, C1 between samples (a Hermite arc on
+//   the samples' own tangents). The body is drawn where the head has been.
+//   THE SWEEP returns it to rest: each chord turns toward the one before
+//   it at up to propagation_speed when the hands are idle, so a turn
+//   travels down the body at P and the body settles straight behind the
+//   head — the old time law's settling, kept, without the whip.
+//   The GESTURE is a TIME law: the transverse wave, analytic at phase_age
+//   (ribbon_displacement_at, unchanged).
+//
+// THE SKY RULE — self-preservation, one law, two readers, three voices.
+//   Standing things are cylinders (a disc and a top); moving things are
+//   spheres; the ribbon's own body is a chain of capsules minus the neck.
+//   THE SHELL is advice: a quadratic push, read ahead by the head (lateral
+//   -> yaw through the hands' own cap; vertical -> the altitude target) and
+//   at every ring by the body (a string under tension). THE WALL is law:
+//   after the string has moved, no ring center stands inside a thing.
+//   Pyramids are ground: both readers climb them through the floor.
+//
+// Hot-reloadable; tune by save. Units: wu, s, rad.
+const RIBBON_SPINE_SLOTS: u32 = 402u;        // Dim::RIBBON_SPINE_SLOTS
+const RIBBON_EMIT_STRIDE: u32 = 4u;          // Dim::RIBBON_EMIT_STRIDE
+const RIBBON_EMIT_SLOTS: u32 = 100u;         // Dim::RIBBON_EMIT_SLOTS — one half; the table is two
+const RIBBON_CLEAR_Y: f32 = 20.0;            // vertical clearance above a standing thing's top
+const RIBBON_PUSH_OUT: f32 = 1.0;            // weight of the out-of-disc component
+const RIBBON_PUSH_UP: f32 = 0.6;             // weight of the over-the-top component
+const RIBBON_STEER_GAIN: f32 = 3.0;          // head: lateral push -> yaw command (saturates at |push.lateral| = 1/gain)
+const RIBBON_YAW_SIGN: f32 = 1.0;            // the rider's A/D sign; flip if the hands feel mirrored
+const RIBBON_DT_MAX: f32 = 0.0333333;        // 1/30 s — the integrators never see a hitch longer than this
+const RIBBON_BANK_GAIN: f32 = 0.9;           // BNK-1: roll into the lateral swing
+const RIBBON_BANK_MAX: f32 = 0.6;            // rad, clamp
+const RIBBON_BODY_K: f32 = 6.0;              // 1/s^2 — the return spring
+const RIBBON_BODY_ZETA: f32 = 1.0;           // damping ratio (1 = critical; 0.7 for a hint of overshoot)
+const RIBBON_BODY_TENSION: f32 = 60.0;       // 1/s^2 — neighbor coupling; a bulge reaches ~sqrt(TENSION/K) rings past the thing. Keep < 600 (explicit-step stability at DT_MAX)
+const RIBBON_BODY_PUSH: f32 = 600.0;         // wu/s^2 at full shell depth (RIBBON_3: the wall carries the guarantee; the shell can be gentle)
+const RIBBON_BODY_DMAX: f32 = 60.0;          // wu — the deformation's leash
+const RIBBON_BODY_FLOOR: f32 = 12.0;         // wu above local ground the body refuses to go under
+const RIBBON_BODY_BANK: f32 = 0.0;           // rad per (wu/s) of lateral deform velocity — roll into the dodge (0 = off)
+// RIBBON_2
+const RIBBON_SPINE_RELAX_IDLE: f32 = 1.0;    // × propagation_speed — the sweep when the hands are idle
+const RIBBON_SPINE_RELAX_FLY: f32 = 0.15;    // × propagation_speed — at full throttle (0 = the pure track)
+const RIBBON_WALL_HALF: f32 = 0.75;          // × cube_size — the tube's half-diagonal; the wall's thickness
+const RIBBON_SELF_NECK: u32 = 24u;           // rings around a reader that are its own tube, not a thing
+const RIBBON_CLEAR_SELF: f32 = 30.0;         // the head's shell against its body
+const RIBBON_CLEAR_SELF_BODY: f32 = 10.0;    // a ring's shell against the rest of the body
+const RIBBON_LIFT_GAIN: f32 = 60.0;          // wu of altitude bias per unit of vertical push — the body's word and the world's (arches, movers)
+const RIBBON_SELF_BODY_W: f32 = 0.5;         // body-on-body push, as a fraction of RIBBON_BODY_PUSH
+const RIBBON_CHASE_BOARD_TAU: f32 = 0.35;    // s — the camera turns to the flight over the boarding
+const RIBBON_CHASE_ELEVATION: f32 = 0.6;     // rad — the chase pose, ~35° to the ribbon's surface (Jean)
+const RIBBON_CHASE_TAU: f32 = 0.0;           // s — set once at boarding; 0 = the mouse owns the camera from then on (Jean). > 0 re-centers on an idle mouse
+const RIBBON_CHASE_AZ_OFFSET: f32 = 0.0;     // rad — 3.14159 if the camera lands in front (screen gate)
+// RIBBON_3
+const RIBBON_RULE_TAU: f32 = 0.35;           // s — the rule's lateral word, low-passed before it steers
+const RIBBON_YAW_SLEW: f32 = 1.5;            // command units per second — the heading's RATE never jumps faster than this
+const RIBBON_CLEAR_MOVER: f32 = 20.0;        // the head's shell against the big movers (spheres, walkers); cubes are the body's
+const RIBBON_ARCH_SEGS: u32 = 8u;            // capsules along an arch's rib
+
+struct RibbonHeadState {          // 64 B — mirrors GPURibbonHeadState
+    pos: vec3<f32>,               //  0  the pen
+    heading: f32,                 // 12  unbounded; tailward = +dir(heading), flight = -dir(heading)
+    y_vel: f32,                   // 16
+    alt_target: f32,              // 20
+    head_slot: u32,               // 24  spine slot of the newest chord sample
+    seeded: u32,                  // 28
+    tick: u32,                    // 32  frames since seed; parity selects the deform half and the emit half
+    yaw_eased: f32,               // 36
+    throttle_eased: f32,          // 40
+    yaw_cmd: f32,                 // 44  the one command (hands + rule), slew-limited
+    wander_tx: f32,               // 48  the wander brain's target
+    wander_tz: f32,               // 52
+    wander_seq: u32,              // 56  targets drawn so far (0 = none yet)
+    rule_eased: f32,              // 60  the rule's lateral word, low-passed
+}
+struct RibbonSaddle {             // 32 B — mirrors GPURibbonSaddle
+    pos: vec3<f32>,               //  0
+    heading: f32,                 // 12
+    yaw_off: f32,                 // 16
+    pitch: f32,                   // 20
+    roll: f32,                    // 24
+    _pad0: f32,                   // 28
+}
+struct RibbonBody {               // 28896 B — mirrors GPURibbonBody
+    head: RibbonHeadState,        //     0  written by ribbon_head
+    saddle: RibbonSaddle,         //    64  written by ribbon_body (ring 0)
+    emit: array<vec4<f32>, 200>,  //    96  [half][slot]: every EMIT_STRIDE-th ring, xyz center, w radius.
+                                  //        The body writes half (tick & 1); the head and every ring read
+                                  //        the other; the field, after the body, reads the written one.
+    deform: array<vec4<f32>, 1600>, // 3296  [half][ring][offset|velocity], ping-pong by tick parity
+}
+
+fn wrap_pi(a: f32) -> f32 { return a - 6.2831853 * round(a / 6.2831853); }
+fn mix_heading(a: f32, b: f32, t: f32) -> f32 { return a + wrap_pi(b - a) * t; }
+fn mount_ease(t: f32) -> f32 { let x = saturate(t); return x * x * (3.0 - 2.0 * x); }
+
+// The ground both readers stand on: the baked heightfield's contributor
+// set, evaluated analytically (static base + tile modifiers + pyramids) —
+// no textures, so the ribbon room needs only tile_grid and
+// pyramid_instances beside the config it already binds.
+fn ribbon_ground(xz: vec2<f32>) -> f32 {
+    return ground_formed_with_complexity(xz).x;
+}
+
+// One standing thing: a disc of radius r and a top at top_agl above local
+// ground. Inside r + clear and under top + CLEAR_Y it pushes OUT (quadratic
+// shell) and UP (fading as the reader clears the top). Zero elsewhere.
+fn sky_shell(p: vec3<f32>, agl: f32, c_xz: vec2<f32>, r: f32, top_agl: f32, clear: f32) -> vec3<f32> {
+    let shell = r + clear;
+    let d = p.xz - c_xz;
+    let len = length(d);
+    if (len >= shell) { return vec3(0.0); }
+    let u = saturate((top_agl + RIBBON_CLEAR_Y - agl) / RIBBON_CLEAR_Y);
+    if (u <= 0.0) { return vec3(0.0); }
+    var out_dir = vec2(1.0, 0.0);
+    if (len > 1e-3) { out_dir = d / len; }
+    let s = 1.0 - len / shell;
+    let mag = s * s * u;
+    return vec3(out_dir.x * mag * RIBBON_PUSH_OUT, mag * RIBBON_PUSH_UP, out_dir.y * mag * RIBBON_PUSH_OUT);
+}
+
+// One moving thing: a sphere of radius r. Radial quadratic shell.
+fn sky_sphere(p: vec3<f32>, c: vec3<f32>, r: f32, clear: f32) -> vec3<f32> {
+    let shell = r + clear;
+    let d = p - c;
+    let len = length(d);
+    if (len >= shell) { return vec3(0.0); }
+    var dir = vec3(0.0, 1.0, 0.0);
+    if (len > 1e-3) { dir = d / len; }
+    let s = 1.0 - len / shell;
+    return dir * (s * s);
+}
+
+// Closest point on the segment ab to p.
+fn seg_closest(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
+    let ab = b - a;
+    let t = saturate(dot(p - a, ab) / max(dot(ab, ab), 1e-6));
+    return a + ab * t;
+}
+
+// THE DOORWAY (RIBBON_3): an arch is not a disc. Two piers and a rib — the
+// rib a parabola from pier top to apex to pier top (the catenary within a
+// few wu; the shell is wider than the error), walked as RIBBON_ARCH_SEGS
+// capsules; the piers two vertical capsules. Legs at center ± half_span
+// along (cos rotation, sin rotation), radius half the larger cross-section
+// — occupier_contact's own law. A reader passes under, over or around.
+fn arch_rib_point(am: ArchMeshParams, g: f32, u: f32) -> vec3<f32> {
+    let along = vec2(cos(am.rotation), sin(am.rotation)) * (u * am.half_span);
+    return vec3(am.center_x + along.x,
+                g + am.pier_height - am.burial + am.rise * (1.0 - u * u),
+                am.center_z + along.y);
+}
+
+fn sky_arch_push(p: vec3<f32>, g: f32, am: ArchMeshParams, clear: f32) -> vec3<f32> {
+    var f = vec3(0.0);
+    let r = max(am.thickness, am.depth) * 0.5;
+    var prev = arch_rib_point(am, g, -1.0);
+    for (var s = 1u; s <= RIBBON_ARCH_SEGS; s++) {
+        let cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
+        f += sky_sphere(p, seg_closest(p, prev, cur), r, clear);
+        prev = cur;
+    }
+    let pa = arch_rib_point(am, g, -1.0);
+    let pb = arch_rib_point(am, g, 1.0);
+    f += sky_sphere(p, seg_closest(p, vec3(pa.x, g, pa.z), pa), r, clear);
+    f += sky_sphere(p, seg_closest(p, vec3(pb.x, g, pb.z), pb), r, clear);
+    return f;
+}
+
+// The wall's arch: the same capsules, projected out of, sequentially.
+fn sky_arch_wall(q_in: vec3<f32>, g: f32, am: ArchMeshParams, half: f32) -> vec3<f32> {
+    var q = q_in;
+    let r = max(am.thickness, am.depth) * 0.5 + half;
+    var prev = arch_rib_point(am, g, -1.0);
+    for (var s = 1u; s <= RIBBON_ARCH_SEGS + 2u; s++) {
+        var cur = prev;
+        var a = prev;
+        if (s <= RIBBON_ARCH_SEGS) {
+            cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
+        } else if (s == RIBBON_ARCH_SEGS + 1u) {
+            a = arch_rib_point(am, g, -1.0); cur = vec3(a.x, g, a.z);
+        } else {
+            a = arch_rib_point(am, g, 1.0);  cur = vec3(a.x, g, a.z);
+        }
+        let c = seg_closest(q, a, cur);
+        let d = q - c;
+        let len = length(d);
+        if (len < r) {
+            var od = vec3(0.0, 1.0, 0.0);
+            if (len > 1e-3) { od = d / len; }
+            q += od * (r - len);
+        }
+        prev = cur;
+    }
+    return q;
+}
+
+// The rule, summed at p. agl = p.y − ribbon_ground(p.xz), computed once by
+// the caller. clear is the shell against standing things, clear_mover
+// against movers; movers is how many floating slots the reader hears —
+// SPHERE_SLOT_COUNT for the head (the big movers), all of them for the body.
+// skip_agent: the rider's own body (32u = skip nobody).
+fn sky_push(p: vec3<f32>, agl: f32, clear: f32, clear_mover: f32, movers: u32, skip_agent: u32) -> vec3<f32> {
+    var f = vec3(0.0);
+    let g = p.y - agl;
+    // Shafts — columns 0–15, antennas 16–31: a disc and a top. The disc is
+    // the widest thing on the post (an antenna's drums live in base_overhang).
+    for (var i = 0u; i < 32u; i++) {
+        let cm = agent_room.occupier_cmg[i];
+        if (cm.is_active == 0u) { continue; }
+        f += sky_shell(p, agl, vec2(cm.center_x, cm.center_z),
+                       cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang),
+                       cm.height - cm.burial, clear);
+    }
+    // Arches — doorways.
+    for (var i = 0u; i < 16u; i++) {
+        let am = agent_room.occupier_amg[i];
+        if (am.is_active == 0u) { continue; }
+        f += sky_arch_push(p, g, am, clear);
+    }
+    // Walkers — spheres of their tier's contact radius.
+    for (var i = 0u; i < 32u; i++) {
+        if (i == skip_agent) { continue; }
+        let a = render_agents[i];
+        if (a.is_active == 0u) { continue; }
+        f += sky_sphere(p, vec3(a.pos_x, a.pos_y, a.pos_z),
+                        agent_room.tier_gains[min(a.tier_idx, 3u)].contact_radius, clear_mover);
+    }
+    // Floaters — spheres of their body radius; the head hears the first
+    // SPHERE_SLOT_COUNT, the body all of them.
+    for (var i = 0u; i < movers; i++) {
+        let fe = render_floating.entities[i];
+        if (fe.is_active == 0u) { continue; }
+        f += sky_sphere(p, fe.pos, fe.body_radius, clear_mover);
+    }
+    return f;
+}
+
+// The roofline under a disc at xz: the highest (top + CLEAR_Y), above local
+// ground, of the SHAFTS whose shell covers xz (arches are doorways: their
+// word is the push's vertical, not a roof). 0 when the sky is open.
+fn sky_roof(xz: vec2<f32>, clear: f32) -> f32 {
+    var roof = 0.0;
+    for (var i = 0u; i < 32u; i++) {
+        let cm = agent_room.occupier_cmg[i];
+        if (cm.is_active == 0u) { continue; }
+        let r = cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang) + clear;
+        if (distance(xz, vec2(cm.center_x, cm.center_z)) < r) {
+            roof = max(roof, cm.height - cm.burial + RIBBON_CLEAR_Y);
+        }
+    }
+    return roof;
+}
+
+// The spine is C1 between samples: a cubic Hermite on the samples' own
+// tailward tangents (.w), scaled to the chord; Y takes the chord's slope so
+// a steady climb stays a line.
+fn ribbon_spine_arc(a: vec4<f32>, b: vec4<f32>, t: f32) -> vec3<f32> {
+    let len = length(b.xyz - a.xyz);
+    let dy = b.y - a.y;
+    let ta = vec3(cos(a.w) * len, dy, sin(a.w) * len);
+    let tb = vec3(cos(b.w) * len, dy, sin(b.w) * len);
+    let t2 = t * t;
+    let t3 = t2 * t;
+    return a.xyz * (2.0 * t3 - 3.0 * t2 + 1.0) + ta * (t3 - 2.0 * t2 + t)
+         + b.xyz * (3.0 * t2 - 2.0 * t3)       + tb * (t3 - t2);
+}
+
+// THE BODY AS A THING (RIBBON_2): the ribbon's own body enters the rule as
+// capsules between emit samples (the half written last frame), minus the
+// neck — the NECK rings around the reader, which are its own tube.
+fn sky_self(p: vec3<f32>, k_reader: u32, n: u32, cs: f32, emit_half: u32, clear: f32) -> vec3<f32> {
+    var f = vec3(0.0);
+    let seg_n = (n - 1u) / RIBBON_EMIT_STRIDE;
+    for (var i = 0u; i < seg_n; i++) {
+        let ring_a = i * RIBBON_EMIT_STRIDE;
+        if (ring_a + RIBBON_EMIT_STRIDE + RIBBON_SELF_NECK > k_reader && k_reader + RIBBON_SELF_NECK > ring_a) { continue; }
+        let a = ribbon_body_rw.emit[emit_half + i].xyz;
+        let ab = ribbon_body_rw.emit[emit_half + i + 1u].xyz - a;
+        let t = saturate(dot(p - a, ab) / max(dot(ab, ab), 1e-6));
+        f += sky_sphere(p, a + ab * t, cs * 0.5, clear);
+    }
+    return f;
+}
+
+// THE WALL — the shell was advice; this is law. After the string has moved:
+// no ring center inside a shaft's disc (widened by half) while under its
+// top — the cheaper exit wins, out or up; none inside an arch's capsules;
+// none inside a mover's sphere; none under ground + half. Returns the
+// displacement that restores the law. Applied after the leash: law
+// outranks leash.
+fn sky_wall(p: vec3<f32>, g: f32, half: f32, skip_agent: u32) -> vec3<f32> {
+    var q = p;
+    for (var i = 0u; i < 32u; i++) {
+        let cm = agent_room.occupier_cmg[i];
+        if (cm.is_active == 0u) { continue; }
+        let r = cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang) + half;
+        let d = q.xz - vec2(cm.center_x, cm.center_z);
+        let len = length(d);
+        let top = g + cm.height - cm.burial + half;
+        if (len < r && q.y < top) {
+            let out = r - len;
+            let up = top - q.y;
+            if (out <= up) {
+                var od = vec2(1.0, 0.0);
+                if (len > 1e-3) { od = d / len; }
+                q.x += od.x * out;
+                q.z += od.y * out;
+            } else {
+                q.y = top;
+            }
+        }
+    }
+    for (var i = 0u; i < 16u; i++) {
+        let am = agent_room.occupier_amg[i];
+        if (am.is_active == 0u) { continue; }
+        q = sky_arch_wall(q, g, am, half);
+    }
+    for (var i = 0u; i < 32u; i++) {
+        if (i == skip_agent) { continue; }
+        let a = render_agents[i];
+        if (a.is_active == 0u) { continue; }
+        let r = agent_room.tier_gains[min(a.tier_idx, 3u)].contact_radius + half;
+        let d = q - vec3(a.pos_x, a.pos_y, a.pos_z);
+        let len = length(d);
+        if (len < r) {
+            var od = vec3(0.0, 1.0, 0.0);
+            if (len > 1e-3) { od = d / len; }
+            q += od * (r - len);
+        }
+    }
+    for (var i = 0u; i < 264u; i++) {
+        let fe = render_floating.entities[i];
+        if (fe.is_active == 0u) { continue; }
+        let r = fe.body_radius + half;
+        let d = q - fe.pos;
+        let len = length(d);
+        if (len < r) {
+            var od = vec3(0.0, 1.0, 0.0);
+            if (len > 1e-3) { od = d / len; }
+            q += od * (r - len);
+        }
+    }
+    q.y = max(q.y, g + half);
+    return q - p;
+}
+
+// Ring k's place on the spine: k chords behind the head (ring 0 = the head).
+// slot (head_slot - j) mod S holds the sample j chords tailward; the head
+// sits a fraction f of a chord past the newest sample.
+fn ribbon_rest(k: u32, hd: RibbonHeadState, cs: f32) -> vec3<f32> {
+    if (k == 0u) { return hd.pos; }
+    let last = ribbon_spine[hd.head_slot].xyz;
+    let f = length(hd.pos - last) / cs;
+    let u = max(f32(k) - f, 0.0);
+    let j = u32(floor(u));
+    let t = u - f32(j);
+    let a = ribbon_spine[(hd.head_slot + RIBBON_SPINE_SLOTS - j) % RIBBON_SPINE_SLOTS];
+    let b = ribbon_spine[(hd.head_slot + RIBBON_SPINE_SLOTS - j - 1u) % RIBBON_SPINE_SLOTS];
+    return ribbon_spine_arc(a, b, t);
+}
+
+// Ring k's drawn rest: the spine's place plus the gesture in the ring's own
+// frame — lateral on (-sin w, 0, cos w) of the spine's tailward tangent,
+// vertical on world-up. One convention, as before.
+fn ribbon_drawn_rest(k: u32, n: u32, hd: RibbonHeadState, ribbon: RibbonState) -> vec3<f32> {
+    let cs = max(ribbon.cube_size, 1e-3);
+    let km = select(k - 1u, k, k == 0u);
+    let kp = min(k + 1u, n - 1u);
+    let rest = ribbon_rest(k, hd, cs);
+    let tan_xz = ribbon_rest(kp, hd, cs).xz - ribbon_rest(km, hd, cs).xz;   // tailward
+    var txz = vec2(cos(hd.heading), sin(hd.heading));
+    let tl = length(tan_xz);
+    if (tl > 1e-4) { txz = tan_xz / tl; }
+    let lateral = vec3(-txz.y, 0.0, txz.x);
+    let t = f32(k) / f32(n - 1u);
+    let d = ribbon_displacement_at(ribbon_phase_age(t, ribbon), ribbon);
+    return rest + lateral * d.x + vec3(0.0, d.y, 0.0);
 }
 
 // The head's transverse displacement (the choreography) at echo time
@@ -5698,8 +6079,9 @@ fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 // ANALYTIC: the body re-evaluates the head's timetable at a delayed time —
 // honest only while the script is a pure function of time.
 // [SEAM:ribbon-displacement] To let music drive displacement at the head,
-// record lat/vert into the propagation history beside heading and Y and read
-// the delayed samples here. Coupling amp/freq parameters directly would move
+// record the head's lateral/vertical into a GESTURE ring beside the spine
+// (time-cadenced, like the spine is chord-cadenced) and read the delayed
+// samples here. Coupling amp/freq parameters directly would move
 // the whole body at once — a teleport, not a gesture.
 fn ribbon_displacement_at(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
     let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
@@ -5724,100 +6106,6 @@ fn ribbon_wave_slopes(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
 fn ribbon_phase_age(t: f32, ribbon: RibbonState) -> f32 {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     return ribbon.time - t * total_length / max(ribbon.propagation_speed, 1e-6);
-}
-
-fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
-    // Trail-frame phase: shared across all axes so crests stay synchronized.
-    let phase_age = ribbon_phase_age(t, ribbon);
-
-    // The body is the head's displacement echoed along the ruler. Place the
-    // sway in the ring's OWN frame — the CPU-authored yaw channel
-    // (head_poses[i].w; unwrapped, so plain lerp between rings is safe). The
-    // SAME channel orients the ring motor and the pawn mount, so the three
-    // never diverge: lateral on right = (-sin yaw, 0, cos yaw), vertical on
-    // world-up.
-    let d = ribbon_displacement_at(phase_age, ribbon);
-    let center = ribbon_centerline_at(t, ribbon);
-    let span_u = max(ribbon.cube_count, 2u) - 1u;
-    let fidx = clamp(t, 0.0, 1.0) * f32(span_u);
-    let i0 = u32(floor(fidx));
-    let i1 = min(i0 + 1u, span_u);
-    let yaw = mix(head_poses[i0].w, head_poses[i1].w, fidx - f32(i0));
-    let right = vec3(-sin(yaw), 0.0, cos(yaw));
-    return center + d.x * right + d.y * vec3(0.0, 1.0, 0.0);
-}
-
-// ── The frame law (BNK-1) ── how each ring's FRAME answers the wave.
-// ALIGN: 0 = frames ignore the wave (the old yaw-only law); 1 = the nose
-//   and every ring aim along the true instantaneous motion — heading
-//   deflected by the wave's slope (the head faces where it swims).
-// BANK: roll into the lateral swing — max lean crossing center, level at
-//   the extremes, clamped. Slope scales with amplitude, so the sustain
-//   swell deepens the carve and the lean with no extra pipe.
-// Identity at 0/0. Hot-reloadable; tune by save.
-// MIRRORED in bodies/ribbon.hpp (MOUNT_*) — keep in lockstep; the rider is the drift test.
-const RIBBON_TANGENT_ALIGN: f32 = 1.0;
-const RIBBON_BANK_GAIN: f32 = 0.9;
-const RIBBON_BANK_MAX: f32 = 0.6;   // radians, clamp
-
-// Build a PGA motor that places and orients one cross-section ring.
-// Composes: orient * translate — rotate the local frame, then place it.
-fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
-    let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
-    let center = ribbon_spine_at(t, ribbon);
-
-    // The ring yaw is CPU-AUTHORED — head_poses[i].w carries the unwrapped
-    // per-ring tailward heading (ring 0 = the live flight heading). Adjacent
-    // values are continuous by construction — the CPU unwraps while walking
-    // the rings in order — so per-ring flips are impossible and no finite
-    // difference is needed. One channel feeds ring orient, wave frame, and
-    // pawn mount. Pure yaw about world-up: the path is planar; the wave
-    // rides as displacement, not as frame pitch.
-    // Negated: rotor+sw_mp map +X to (cos θ, −sin θ) (hand-verified), while
-    // the channel — like the whole analytic codebase — speaks dir(θ) =
-    // (cos θ, +sin θ). rotor(Y, −w) lands the tube axis on tailward exactly,
-    // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
-    // spine wave's explicit right and the mount's right. One convention,
-    // three consumers, coherent.
-    // The saddle wears the full frame (CPU mount angles composed in
-    // the sky branch), no longer gimbal-level.
-
-    // Phase age for THIS ring: the exact expression ribbon_spine_at uses,
-    // shared via ribbon_phase_age (refactored to a helper, not mirrored,
-    // so the frame answers the very wave the spine draws — no drift).
-    let phase_age = ribbon_phase_age(t, ribbon);
-    let slopes = ribbon_wave_slopes(phase_age, ribbon);
-    let p = max(ribbon.propagation_speed, 1e-3);
-
-    // Deflections of the frame toward the true tangent — NEGATED: the
-    // tube axis runs TAILWARD (dir(w)), and the tailward tangent is
-    // exactly dir(w − atan(slopes.x/p)), pitched −atan(slopes.y/p).
-    // With a plus the nose crabs OUTWARD of the swing and dives on the
-    // rise (the gate-4 failure): caught on screen (BNK-1 sweep),
-    // confirmed by derivation — the apparent ring velocity equals
-    // −p × the tailward tangent, so nose-along-motion and
-    // axis-along-tangent impose the same sign.
-    let yaw_off   = -RIBBON_TANGENT_ALIGN * atan(slopes.x / p);
-    let pitch_off = -RIBBON_TANGENT_ALIGN * atan(slopes.y / p);
-    let roll      = clamp(RIBBON_BANK_GAIN * (slopes.x / p),
-                          -RIBBON_BANK_MAX, RIBBON_BANK_MAX);
-
-    // Compose: base yaw (the CPU-authored heading, negated per the
-    // convention note above) → pitch about the ring's LATERAL axis →
-    // roll about the tube AXIS. Local axes in ring space before the
-    // base yaw: tube axis = +X, lateral = +Z, up = +Y (per tube_corner /
-    // tube_face_normal). Apply the local rotors FIRST, then the base
-    // yaw, then translate — gp_mm order per the existing comment (first
-    // argument applies first). Sign convention: RESOLVED — the
-    // tangent-align terms enter negated (see above); the bank's sign
-    // is aesthetic and stands as authored.
-    let base_yaw = rotor(vec3(0.0, 1.0, 0.0), -(head_poses[ring_idx].w) - yaw_off);
-    let r_pitch  = rotor(vec3(0.0, 0.0, 1.0), pitch_off);
-    let r_roll   = rotor(vec3(1.0, 0.0, 0.0), roll);
-    let orient   = gp_mm(gp_mm(r_roll, r_pitch), base_yaw);
-
-    let trans = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(-0.5 * center, 0.0));
-    return gp_mm(orient, trans);
 }
 
 // --- Square Tube Geometry
@@ -5851,33 +6139,307 @@ fn tube_face_corners(face: u32) -> vec2<u32> {
     }
 }
 
-// --- Compute ribbon ring transforms (flying ribbons; no terrain follow)
-@compute @workgroup_size(64)
-fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let ring_idx = gid.x;
+// ── THE HEAD ─────────────────────────────────────────────────────────────
+// One thread. Seed, intent (the hands or the brain), the Sky Rule at the
+// probe (the world, then the body), flight, the pen's altitude, the spine's
+// emission, the sweep. The flight law is the CPU's, kept: speed = throttle ×
+// max_speed; yaw available = min(yaw_rate, speed / r_min); flight along
+// −dir(heading).
+@compute @workgroup_size(1)
+fn ribbon_head(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x != 0u) { return; }
     let ribbon = ribbon_state;
+    if (ribbon.is_visible == 0u || ribbon.cube_count < 2u) { return; }
+    var hd = ribbon_body_rw.head;
+    let n = min(ribbon.cube_count, 400u);
+    let cs = max(ribbon.cube_size, 1e-3);
+    let dt = min(signal.dt, RIBBON_DT_MAX);
+    let birth_y = ribbon_ground(ribbon.anchor.xz) + ribbon.height;
 
-    // Early-out for unused rings
-    if (ring_idx >= ribbon.cube_count || ribbon.is_visible == 0u || ribbon.cube_count < 2u) {
-        // Zero out unused slots so VS reads clean data
-        if (ring_idx < 400u) {
-            ring_xforms[ring_idx].motor_p0 = vec4(1.0, 0.0, 0.0, 0.0);
-            ring_xforms[ring_idx].motor_p1 = vec4(0.0);
-            ring_xforms[ring_idx].center = vec3(0.0);
-            ring_xforms[ring_idx]._pad0 = 0.0;
+    // Seed: the straight spawn arc, laid once, here. Tailward = +dir(heading).
+    if (hd.seeded == 0u) {
+        hd.pos = vec3(ribbon.anchor.x, birth_y, ribbon.anchor.z);
+        hd.heading = ribbon.orientation;
+        hd.y_vel = 0.0;
+        hd.alt_target = birth_y;
+        hd.head_slot = 0u;
+        hd.tick = 0u;
+        hd.yaw_eased = 0.0;
+        hd.throttle_eased = 0.0;
+        hd.wander_tx = ribbon.anchor.x;
+        hd.wander_tz = ribbon.anchor.z;
+        hd.wander_seq = 0u;
+        hd.yaw_cmd = 0.0;
+        hd.rule_eased = 0.0;
+        let tail = vec3(cos(hd.heading), 0.0, sin(hd.heading));
+        for (var j = 0u; j < RIBBON_SPINE_SLOTS; j++) {
+            let slot = (RIBBON_SPINE_SLOTS - j) % RIBBON_SPINE_SLOTS;
+            ribbon_spine[slot] = vec4(hd.pos + tail * (f32(j) * cs), hd.heading);
         }
-        return;
+        hd.seeded = 1u;
+    }
+    hd.tick += 1u;
+    let emit_prev = ((hd.tick + 1u) & 1u) * RIBBON_EMIT_SLOTS;   // the half the body wrote last frame
+    let has_body = hd.tick > 1u;                                  // last frame's half exists
+
+    // Intent: the rider's hands, the wander brain, or nothing (parked).
+    var yaw_in = 0.0;
+    var throttle = 0.0;
+    if (point_ribbon_hosted()) {
+        yaw_in = clamp(signal.move_x, -1.0, 1.0) * RIBBON_YAW_SIGN;
+        throttle = saturate(-signal.move_z);               // W is forward-negative (input.hpp:117)
+    } else if (ribbon.is_wander == 1u) {
+        // THE WANDER BRAIN (RIBBON_2) — lives with the head it steers. A
+        // target on the anchor's disc, drawn by hash; aim at it through the
+        // hands' own cap; cruise; a new draw on arrival. No dead reckoning.
+        if (hd.wander_seq == 0u
+            || distance(vec2(hd.wander_tx, hd.wander_tz), hd.pos.xz) < config.ribbon_wander_arrive) {
+            hd.wander_seq += 1u;
+            let u1 = hash_property(ribbon.seed, 2000u + 2u * hd.wander_seq);
+            let u2 = hash_property(ribbon.seed, 2001u + 2u * hd.wander_seq);
+            let r = config.ribbon_roam_radius * sqrt(u1);
+            let a = 6.2831853 * u2;
+            hd.wander_tx = ribbon.anchor.x + r * cos(a);
+            hd.wander_tz = ribbon.anchor.z + r * sin(a);
+        }
+        let to = vec2(hd.wander_tx, hd.wander_tz) - hd.pos.xz;
+        let want = atan2(-to.y, -to.x);                    // flight is −dir(heading): point dir(heading) away from the target
+        let err = wrap_pi(want - hd.heading);
+        yaw_in = clamp(err / max(config.ribbon_wander_soft, 1e-3), -1.0, 1.0) * config.ribbon_wander_yaw_max;
+        throttle = saturate(ribbon.wander_throttle);
+    }
+    let ease = 1.0 - exp(-dt / max(config.ribbon_hands_tau, 1e-3));
+    hd.yaw_eased += (yaw_in - hd.yaw_eased) * ease;
+    hd.throttle_eased += (throttle - hd.throttle_eased) * ease;
+
+    // The Sky Rule at the probe: the world at the head's own scale (standing
+    // things; the spheres and the walkers — the cubes are the body's
+    // business), then the body. lateral = (−sin h, 0, cos h);
+    // d(flight)/d(heading) = −lateral, so a push toward +lateral asks for
+    // LESS heading. Derived; the screen is the gate.
+    let dir_h = vec3(cos(hd.heading), 0.0, sin(hd.heading));
+    let lateral = vec3(-dir_h.z, 0.0, dir_h.x);
+    let probe = hd.pos - dir_h * config.ribbon_lookahead;
+    let ground_here = ribbon_ground(hd.pos.xz);
+    let ground_probe = ribbon_ground(probe.xz);
+    let skip = select(32u, config.possessed_slot, point_ribbon_hosted());
+    let push_world = sky_push(probe, probe.y - ground_probe, config.ribbon_clear_head,
+                              RIBBON_CLEAR_MOVER, SPHERE_SLOT_COUNT, skip);
+    var push_self = vec3(0.0);
+    if (has_body) { push_self = sky_self(probe, 0u, n, cs, emit_prev, RIBBON_CLEAR_SELF); }
+
+    // ONE COMMAND, C2 (RIBBON_3): the rule's word is low-passed, the total —
+    // hands and rule — is slew-limited, so the heading's RATE never jumps.
+    // A dodge begins and ends as a curve; the rider feels a turn, not a wall.
+    let rule_lat = dot(push_world + push_self, lateral);
+    hd.rule_eased += (rule_lat - hd.rule_eased) * (1.0 - exp(-dt / RIBBON_RULE_TAU));
+    let want = clamp(hd.yaw_eased - RIBBON_STEER_GAIN * hd.rule_eased, -1.0, 1.0);
+    hd.yaw_cmd += clamp(want - hd.yaw_cmd, -RIBBON_YAW_SLEW * dt, RIBBON_YAW_SLEW * dt);
+
+    // Over or under: the world's vertical word (a doorway's rib, a mover)
+    // and the body's (over unless clearly above), both through the pen.
+    var lift_self = push_self.y;
+    if (push_self.y >= -0.2) { lift_self = max(push_self.y, length(push_self.xz)); }
+    let lift = lift_self + push_world.y;
+
+    // Flight.
+    let speed = hd.throttle_eased * config.ribbon_max_speed;
+    let yaw_avail = min(config.ribbon_yaw_rate, speed / max(config.ribbon_r_min, 1e-3));
+    hd.heading += hd.yaw_cmd * yaw_avail * dt;
+    let step = speed * dt;
+    hd.pos.x -= cos(hd.heading) * step;
+    hd.pos.z -= sin(hd.heading) * step;
+
+    // The pen owns altitude (B0, kept): the birth altitude, biased by the
+    // vertical word above — the body's and the world's; never under the
+    // floor here or ahead; never under a SHAFT's roofline here or ahead (an
+    // arch has no roof: it is a doorway, and its word is in the bias);
+    // low-passed by travel; critically damped; climb-capped. The floor is
+    // a guarantee.
+    let floor_y = max(ground_here, ground_probe) + config.ribbon_floor_margin;
+    let roof_y = max(ground_probe + sky_roof(probe.xz, config.ribbon_clear_head),
+                     ground_here + sky_roof(hd.pos.xz, config.ribbon_clear_head));
+    let raw_target = max(max(birth_y + lift * RIBBON_LIFT_GAIN, floor_y), roof_y);
+    let alpha = 1.0 - exp(-step / max(config.ribbon_alt_smooth_dist, 1e-3));
+    hd.alt_target += (raw_target - hd.alt_target) * alpha;
+    hd.alt_target = max(hd.alt_target, floor_y);
+    let damp = 2.0 * sqrt(max(config.ribbon_alt_stiff, 1e-6));
+    hd.y_vel += ((hd.alt_target - hd.pos.y) * config.ribbon_alt_stiff - damp * hd.y_vel) * dt;
+    hd.y_vel = clamp(hd.y_vel, -config.ribbon_climb_rate, config.ribbon_climb_rate);
+    hd.pos.y += hd.y_vel * dt;
+
+    // The spine: one sample per chord, exactly cs apart, along the flight.
+    // A sample's .w is its tailward tangent: the newest carries its one
+    // chord; the one before it learns the mean of its two.
+    var last = ribbon_spine[hd.head_slot].xyz;
+    var emitted = 0u;
+    loop {
+        let dv = hd.pos - last;
+        let dl = length(dv);
+        if (dl < cs || emitted >= 8u) { break; }
+        let tail_w = atan2(-dv.z, -dv.x);
+        let prev_slot = hd.head_slot;
+        let prev_w = ribbon_spine[prev_slot].w;
+        ribbon_spine[prev_slot].w = prev_w + 0.5 * wrap_pi(tail_w - prev_w);
+        last = last + dv * (cs / dl);
+        hd.head_slot = (hd.head_slot + 1u) % RIBBON_SPINE_SLOTS;
+        ribbon_spine[hd.head_slot] = vec4(last, tail_w);
+        emitted += 1u;
     }
 
-    // Compute PGA motor (translate + orient along spine).
-    let motor = ribbon_ring_motor(ring_idx, ribbon);
-    let center = sw_mp(motor, vec3(0.0));
+    // THE SWEEP (RIBBON_2): each chord turns toward the one before it — the
+    // head's own heading leads — lengths kept, at relax × P per chord. A
+    // turn travels tailward at that speed and the body settles straight
+    // behind the head. Only the n + 1 samples the rings read are swept; the
+    // tangents (.w) follow, each the mean of its two chords.
+    let relax = mix(RIBBON_SPINE_RELAX_IDLE, RIBBON_SPINE_RELAX_FLY, hd.throttle_eased)
+              * max(ribbon.propagation_speed, 0.0);
+    if (relax > 0.0) {
+        let w = min(relax * dt / cs, 1.0);
+        var prev_p = hd.pos;      // where the previous sample now IS (swept)
+        var prev_old = hd.pos;    // where it WAS — the chord is measured here
+        var prev_dir = vec3(cos(hd.heading), 0.0, sin(hd.heading));
+        var prev_slot = RIBBON_SPINE_SLOTS;                           // none yet
+        for (var j = 0u; j <= n; j++) {
+            let slot = (hd.head_slot + RIBBON_SPINE_SLOTS - j) % RIBBON_SPINE_SLOTS;
+            let old_p = ribbon_spine[slot].xyz;
+            // LENGTHS KEPT means kept: the chord is the one that WAS there,
+            // measured old-to-old, and only its DIRECTION relaxes. Measuring
+            // it from the swept predecessor instead would let every chord's
+            // length wander a little each frame with nothing to restore it,
+            // and the body's arc length — n × cube_size, the thing the ring
+            // count means — would drift out from under the draw.
+            let seg = old_p - prev_old;
+            let len = length(seg);
+            var dir = prev_dir;
+            if (len > 1e-4) { dir = normalize(mix(seg / len, prev_dir, w)); }
+            let dir_w = atan2(dir.z, dir.x);
+            if (prev_slot < RIBBON_SPINE_SLOTS) {
+                let wa = ribbon_spine[prev_slot].w;
+                ribbon_spine[prev_slot].w = wa + 0.5 * wrap_pi(dir_w - wa);
+            }
+            let q = prev_p + dir * len;
+            ribbon_spine[slot] = vec4(q, dir_w);                       // provisional: its arriving chord
+            prev_old = old_p;
+            prev_p = q;
+            prev_dir = dir;
+            prev_slot = slot;
+        }
+    }
+    ribbon_body_rw.head = hd;
+}
 
+// ── THE BODY ─────────────────────────────────────────────────────────────
+// One thread per ring. Rest from the spine, gesture from the wave, the Sky
+// Rule at the ring (the world, the body, the floor), a string under tension,
+// the leash, the wall, the frame from what is drawn, the motor, the field's
+// sample, the saddle.
+@compute @workgroup_size(64)
+fn ribbon_body(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let k = gid.x;
+    if (k >= 400u) { return; }
+    let ribbon = ribbon_state;
+    let hd = ribbon_body_rw.head;
+    let n = min(ribbon.cube_count, 400u);
+    let emit_now = (hd.tick & 1u) * RIBBON_EMIT_SLOTS;              // the half this frame writes
+    let emit_prev = RIBBON_EMIT_SLOTS - emit_now;                    // the half everyone reads this frame
+    if (k >= n || ribbon.is_visible == 0u || n < 2u || hd.seeded == 0u) {
+        ring_xforms[k] = RibbonRingTransform(vec4(1.0, 0.0, 0.0, 0.0), vec4(0.0), vec3(0.0));
+        if (k % RIBBON_EMIT_STRIDE == 0u) { ribbon_body_rw.emit[emit_now + k / RIBBON_EMIT_STRIDE] = vec4(0.0); }
+        return;
+    }
+    let cs = max(ribbon.cube_size, 1e-3);
+    let dt = min(signal.dt, RIBBON_DT_MAX);
+    let km = select(k - 1u, k, k == 0u);
+    let kp = min(k + 1u, n - 1u);
+    let fresh = hd.tick == 1u;                  // first body tick after a seed: the previous ribbon's bulges die here
+    let rd = (hd.tick & 1u) * 400u;             // last frame's deformation
+    let wr = 400u - rd;                         // this frame's
 
-    ring_xforms[ring_idx].motor_p0 = motor.p0;
-    ring_xforms[ring_idx].motor_p1 = motor.p1;
-    ring_xforms[ring_idx].center = center;
-    ring_xforms[ring_idx]._pad0 = 0.0;   // pad, kept zeroed for clean readback
+    let p_rest = ribbon_drawn_rest(k, n, hd, ribbon);
+    let d0 = select(ribbon_body_rw.deform[(rd + k) * 2u].xyz, vec3(0.0), fresh);
+    let v0 = select(ribbon_body_rw.deform[(rd + k) * 2u + 1u].xyz, vec3(0.0), fresh);
+    let dm = select(ribbon_body_rw.deform[(rd + km) * 2u].xyz, vec3(0.0), fresh);
+    let dp = select(ribbon_body_rw.deform[(rd + kp) * 2u].xyz, vec3(0.0), fresh);
+
+    // The Sky Rule at this ring: the world, the body, the floor (ground includes pyramids).
+    let p_now = p_rest + d0;
+    let g = ribbon_ground(p_now.xz);
+    let skip = select(32u, config.possessed_slot, point_ribbon_hosted());
+    var force = sky_push(p_now, p_now.y - g, config.ribbon_clear_body, config.ribbon_clear_body, 264u, skip) * RIBBON_BODY_PUSH;
+    if (!fresh) {
+        force += sky_self(p_now, k, n, cs, emit_prev, RIBBON_CLEAR_SELF_BODY) * (RIBBON_BODY_PUSH * RIBBON_SELF_BODY_W);
+    }
+    let under = saturate((g + RIBBON_BODY_FLOOR - p_now.y) / RIBBON_BODY_FLOOR);
+    force.y += under * under * RIBBON_BODY_PUSH;
+
+    // A string under tension: spring home, damped, coupled to its neighbors, leashed.
+    let accel = force
+              - RIBBON_BODY_K * d0
+              - 2.0 * RIBBON_BODY_ZETA * sqrt(RIBBON_BODY_K) * v0
+              + RIBBON_BODY_TENSION * (dm + dp - 2.0 * d0);
+    var v1 = v0 + accel * dt;
+    var d1 = d0 + v1 * dt;
+    let dl = length(d1);
+    if (dl > RIBBON_BODY_DMAX) { d1 *= RIBBON_BODY_DMAX / dl; }
+
+    // THE WALL: law outranks leash. The velocity into the wall dies; the rest lives.
+    let wall = sky_wall(p_rest + d1, g, cs * RIBBON_WALL_HALF, skip);
+    if (dot(wall, wall) > 0.0) {
+        d1 += wall;
+        let nrm = normalize(wall);
+        v1 -= min(dot(v1, nrm), 0.0) * nrm;
+    }
+    ribbon_body_rw.deform[(wr + k) * 2u]      = vec4(d1, 0.0);
+    ribbon_body_rw.deform[(wr + k) * 2u + 1u] = vec4(v1, 0.0);
+
+    // The drawn centerline and its frame: the tangent of what is drawn
+    // (spine + gesture + deformation; the neighbors' deformation one frame old).
+    let center = p_rest + d1;
+    let c_m = select(ribbon_drawn_rest(km, n, hd, ribbon) + dm, center, k == 0u);
+    let c_p = select(ribbon_drawn_rest(kp, n, hd, ribbon) + dp, center, k == n - 1u);
+    let tangent = c_p - c_m;                                   // tailward
+    var tn = vec3(cos(hd.heading), 0.0, sin(hd.heading));
+    let tl = length(tangent);
+    if (tl > 1e-4) { tn = tangent / tl; }
+    let yaw   = atan2(tn.z, tn.x);                             // the tailward heading w' (a wrap is harmless: the rotor double-covers)
+    let pitch = atan2(tn.y, max(length(tn.xz), 1e-4));         // elevation of the tailward tangent — BNK-1 passes rotor(Z, elevation)
+    let t = f32(k) / f32(n - 1u);
+    let slopes = ribbon_wave_slopes(ribbon_phase_age(t, ribbon), ribbon);
+    let p_speed = max(ribbon.propagation_speed, 1e-3);
+    let lateral = vec3(-tn.z, 0.0, tn.x);
+    let roll = clamp(RIBBON_BANK_GAIN * (slopes.x / p_speed) + RIBBON_BODY_BANK * dot(v1, lateral),
+                     -RIBBON_BANK_MAX, RIBBON_BANK_MAX);
+    // Compose as BNK-1 verified: roll about the tube axis, pitch about the
+    // lateral axis, then the base yaw (negated: rotor+sw_mp map +X to
+    // (cos θ, −sin θ)), then translate. First argument applies first.
+    // The tangent-align law is now structural: the frame IS the drawn tangent.
+    let base_yaw = rotor(vec3(0.0, 1.0, 0.0), -yaw);
+    let r_pitch  = rotor(vec3(0.0, 0.0, 1.0), pitch);
+    let r_roll   = rotor(vec3(1.0, 0.0, 0.0), roll);
+    let orient   = gp_mm(gp_mm(r_roll, r_pitch), base_yaw);
+    let motor    = gp_mm(orient, Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(-0.5 * center, 0.0)));
+    ring_xforms[k] = RibbonRingTransform(motor.p0, motor.p1, center);
+
+    // The field's view, and the body's view of itself next frame: one sample
+    // every EMIT_STRIDE rings into this frame's half.
+    if (k % RIBBON_EMIT_STRIDE == 0u) {
+        ribbon_body_rw.emit[emit_now + k / RIBBON_EMIT_STRIDE] = vec4(center, cs * 0.5);
+    }
+
+    // The saddle (ring 0): set back toward the tail, half a tube up, in the
+    // ring's own frame — the same motor the tube is drawn with, so rider and
+    // ring cannot disagree.
+    if (k == 0u) {
+        var sd: RibbonSaddle;
+        sd.pos = sw_mp(motor, vec3(config.ribbon_mount_setback, cs * 0.5, 0.0));
+        sd.heading = hd.heading;
+        sd.yaw_off = wrap_pi(yaw - hd.heading);
+        sd.pitch = pitch;
+        sd.roll = roll;
+        sd._pad0 = 0.0;
+        ribbon_body_rw.saddle = sd;
+    }
 }
 
 // Chroma constants for the checker skin's CB-1e reconstruction: DIR is
@@ -5988,9 +6550,8 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
-        // Pre-compute frame (rare): identity motor. The inline spine recompute
-        // was retired so render/shadow don't reference head_poses; compute writes
-        // the rings before render reads them, so this branch doesn't fire in
+        // Pre-compute frame (rare): identity motor. ribbon_body writes the
+        // rings before render reads them, so this branch doesn't fire in
         // normal operation.
         motor = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(0.0));
     }
@@ -6258,7 +6819,7 @@ fn render_pawn_vel_xz() -> vec2<f32> {
     return vec2(a.vel_x, a.vel_z);
 }
 
-// --- Ribbon (Group 0: render, binding 360)
+// --- Ribbon (the render rooms' read of ring_xforms)
 @group(2) @binding(143) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
 // Entity ground atlas — VS reads ground_y via textureLoad (r32float, 256×1)
 @group(3) @binding(81) var entity_ground_atlas: texture_2d<f32>;
@@ -6272,15 +6833,15 @@ const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
 const GROUND_ATLAS_BLADE: i32    = 100;
 
-// --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
-// Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
+// --- The ribbon room (ribbonStateLayout_; RIBBON_1)
+// ring_xforms: written by ribbon_body, read by the render rooms as 143.
 @group(2) @binding(141) var<storage, read_write> ring_xforms: array<RibbonRingTransform, 400>;
-
-// Ribbon body — rebuilt each frame from the propagation history (heading +
-// Y replayed at P, XZ integrated tailward). .xyz = ring position, .w = the
-// ring's unwrapped yaw; read by ribbon_centerline_at / ribbon_spine_at /
-// ribbon_ring_motor.
-@group(2) @binding(142) var<storage, read> head_poses: array<vec4<f32>, 400>;
+// ribbon_spine: the chord ring. .xyz = a head sample, .w = the heading at emission.
+@group(2) @binding(142) var<storage, read_write> ribbon_spine: array<vec4<f32>, 402>;
+// ribbon_body_rw: head (ribbon_head writes), saddle + emit + deform (ribbon_body writes).
+@group(2) @binding(144) var<storage, read_write> ribbon_body_rw: RibbonBody;
+// The agents' room's read of the same buffer: the mount reads .saddle, the field reads .emit.
+@group(2) @binding(145) var<storage, read> ribbon_body_read: RibbonBody;
 
 // --- Light system (Group 0: render, bindings 320-339)
 // WALLET_1revA: one uniform block, not three storage bindings. 321 and
@@ -7125,30 +7686,28 @@ fn agent_settle(agent_in: AgentState) -> AgentState {
 fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     var agent = agent_in;
 
-    // RIBBON host: the pawn is mounted on the ribbon head. Snap to the head
-    // pose (delivered per-frame in the signal) and skip walking, ground-resolve,
-    // and terrain tilt entirely. The gate reads the host machine (RESIDUE_3);
-    // the signal's sky block carries the pose.
+    // RIBBON host: the pawn rides the saddle the body kernel wrote this pass
+    // (ribbon_body_read.saddle — the ring-0 frame the tube is drawn with, so
+    // rider and ring cannot disagree). Boarding is a trajectory: from the pose
+    // the body left (signal.mount_from, captured at the edge) to the saddle,
+    // eased over mount_phase; pitch and roll arrive with the ease.
     if (point_ribbon_hosted()) {
-        agent.pos_x = signal.sky_head_x;
-        agent.pos_y = signal.sky_head_y;
-        agent.pos_z = signal.sky_head_z;
-        agent.heading = signal.sky_heading;
+        let sd = ribbon_body_read.saddle;
+        var e = 1.0;
+        if (signal.mount_kind == 1u) { e = mount_ease(signal.mount_phase); }
+        agent.pos_x = mix(signal.mount_from.x, sd.pos.x, e);
+        agent.pos_y = mix(signal.mount_from.y, sd.pos.y, e);
+        agent.pos_z = mix(signal.mount_from.z, sd.pos.z, e);
+        agent.heading = mix_heading(signal.mount_from_heading, sd.heading, e);
         agent.vel_x = 0.0;
         agent.vel_y = 0.0;
         agent.vel_z = 0.0;
-        // The saddle joins the frame law: the rider wears the FULL
-        // frame — heading deflected by the tangent-align yaw, pitch with
-        // the vertical wave, roll into the bank. Angles arrive CPU-computed
-        // in the sky block (bodies/ribbon.hpp MOUNT_* mirrors); composed here in
-        // ribbon_ring_motor's verified order — roll first, then pitch,
-        // then yaw (quat_multiply applies its SECOND argument first).
-        // Negated: quat_rotate maps +X to (cos θ, −sin θ); the heading speaks
-        // dir(θ) = (cos θ, +sin θ). Same mirror as the ring motor, same fix.
-        let q_yaw   = quat_from_axis_angle(vec3(0.0, 1.0, 0.0),
-                                           -signal.sky_heading - signal.sky_yaw_off);
-        let q_pitch = quat_from_axis_angle(vec3(0.0, 0.0, 1.0), signal.sky_pitch);
-        let q_roll  = quat_from_axis_angle(vec3(1.0, 0.0, 0.0), signal.sky_roll);
+        // Composed in the ring motor's verified order — roll, then pitch,
+        // then yaw (quat_multiply applies its SECOND argument first). Negated:
+        // quat_rotate maps +X to (cos θ, −sin θ); the heading speaks dir(θ).
+        let q_yaw   = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), -agent.heading - sd.yaw_off * e);
+        let q_pitch = quat_from_axis_angle(vec3(0.0, 0.0, 1.0), sd.pitch * e);
+        let q_roll  = quat_from_axis_angle(vec3(1.0, 0.0, 0.0), sd.roll * e);
         let sky_q   = quat_multiply(q_yaw, quat_multiply(q_pitch, q_roll));
         agent.orient_x = sky_q.x;
         agent.orient_y = sky_q.y;
@@ -7333,6 +7892,16 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
             agent.portal_trigger = i32(p.arch_index);
             break;
         }
+    }
+
+    // LANDING (no-teleportation): after a dismount the body eases from the
+    // saddle it left (signal.mount_from) onto the walked pose computed above.
+    if (signal.mount_kind == 2u && signal.mount_phase < 1.0) {
+        let e = mount_ease(signal.mount_phase);
+        agent.pos_x = mix(signal.mount_from.x, agent.pos_x, e);
+        agent.pos_y = mix(signal.mount_from.y, agent.pos_y, e);
+        agent.pos_z = mix(signal.mount_from.z, agent.pos_z, e);
+        agent.heading = mix_heading(signal.mount_from_heading, agent.heading, e);
     }
 
     return agent;
@@ -8079,16 +8648,19 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
         if (fe.is_active == 0u) { continue; }
         f += field_pair(sub_pos, fe.pos, r_s, fe.body_radius, sub_i, 40u + k);
     }
-    // Rings emit — every subscriber. CPU-authored centerline poses
-    // through the g2 window; liveness is the ring kernel's own
-    // predicate; the bound is a uniform (banner rule 2). Ring radius:
-    // field_bus.ribbon.cube_size * 0.5 — the mount's half-extent reading
-    // of the one cube_size home (bodies/ribbon.hpp, cube_size * 0.5f).
+    // The ribbon emits — every subscriber — as CAPSULES between the body's
+    // emit samples (one ring in EMIT_STRIDE; ribbon_body wrote them this
+    // pass). Liveness and the count are the ribbon's own words; the radius is
+    // the tube's half-extent. 296u + i keeps the tiebreak index.
     if (field_bus.ribbon.is_visible == 1u && field_bus.ribbon.cube_count >= 2u) {
-        let ring_n = min(field_bus.ribbon.cube_count, 400u);
-        for (var k = 0u; k < ring_n; k++) {
-            f += field_pair(sub_pos, field_bus.head_poses[k].xyz, r_s,
-                            field_bus.ribbon.cube_size * 0.5, sub_i, 296u + k);
+        let seg_n = (min(field_bus.ribbon.cube_count, 400u) - 1u) / RIBBON_EMIT_STRIDE;
+        let eh = (ribbon_body_read.head.tick & 1u) * RIBBON_EMIT_SLOTS;   // the half the body wrote this pass
+        let rr = field_bus.ribbon.cube_size * 0.5;
+        for (var i = 0u; i < seg_n; i++) {
+            let a = ribbon_body_read.emit[eh + i].xyz;
+            let ab = ribbon_body_read.emit[eh + i + 1u].xyz - a;
+            let t = saturate(dot(sub_pos - a, ab) / max(dot(ab, ab), 1e-6));
+            f += field_pair(sub_pos, a + ab * t, r_s, rr, sub_i, 296u + i);
         }
     }
     // Standing geometry emits (FIELD_3; FIELD_B4a: EVERY subscriber).
@@ -8417,6 +8989,26 @@ fn update_camera() {
 
     if (coupling_active(COUPLING_INPUT_ZOOMS_CAMERA) && !fpv_mode_active()) {
         camera = coupling_input_to_camera_distance(signal.zoom_delta, camera);
+    }
+
+    // ─── THE CHASE (RIBBON_2) ────────────────────────────────────
+    // Boarding turns the camera to the flight: azimuth behind the rider,
+    // looking along −dir(heading), at a standard elevation, eased over the
+    // boarding. While riding, an idle mouse lets the azimuth settle back
+    // behind the flight (RIBBON_CHASE_TAU; 0 = never). Derivation: the
+    // orbit's forward is (−sin az, ·, −cos az) and its offset sits opposite
+    // (compose_camera_position_from_orbit); flight is (−cos h, ·, −sin h);
+    // equal when az = π/2 − h. The screen gates the sign (AZ_OFFSET).
+    if (point_ribbon_hosted()) {
+        let chase_az = 1.5707963 - ribbon_body_read.head.heading + RIBBON_CHASE_AZ_OFFSET;
+        if (signal.mount_kind == 1u && signal.mount_phase < 1.0) {
+            let w = 1.0 - exp(-signal.dt / RIBBON_CHASE_BOARD_TAU);
+            camera.azimuth = mix_heading(camera.azimuth, chase_az, w);
+            camera.elevation = mix(camera.elevation, RIBBON_CHASE_ELEVATION, w);
+        } else if (RIBBON_CHASE_TAU > 0.0 && abs(signal.look_az_delta) < 1e-6) {
+            let w = 1.0 - exp(-signal.dt / RIBBON_CHASE_TAU);
+            camera.azimuth = mix_heading(camera.azimuth, chase_az, w);
+        }
     }
 
     // Damped aim point — third-person orbit tracks aim_point rather

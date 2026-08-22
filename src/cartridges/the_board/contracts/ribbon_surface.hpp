@@ -7,10 +7,17 @@
 // says of these constants, in its own banner: "All control-panel
 // material." This is that panel.
 //
-// RIBBON_TABLE is the DESIGN; RIBBON_LIVE is what ribbon_advance_head
-// and the wander steering read every frame. Values carried verbatim
-// from the module's tuning console, which keeps its banner and loses
-// its numbers — one fact, one home.
+// RIBBON_TABLE is the DESIGN; RIBBON_LIVE is what the boot reads. Values
+// carried verbatim from the module's tuning console, which keeps its
+// banner and loses its numbers — one fact, one home.
+//
+// TWO TEMPERAMENTS SINCE RIBBON_1. The FLIGHT rows (yaw_rate … clear_body)
+// are BOOT RESTS: the head is a kernel, the boot pins them into
+// config.ribbon_*, and THAT is where the organ turns them — exactly what
+// FIELD_SLACK and its siblings are to the field (contracts/control_panel.hpp).
+// The rows below them — reference_bpm, the four wander_* and the mount's two
+// eases — are read on the CPU every frame and are enrolled HERE. A row's
+// enrollment names its live home; there is never a dial on both.
 //
 // THE STEERING LAW IS A `min`, NOT AN ASSERT, and that is why both of
 // its terms may go live. ribbon.hpp states it:
@@ -33,9 +40,20 @@
 // NEXT spawn rather than this one, which is why they are a second bank
 // with a second temperament and not four more fields on the first.
 //
-// STILL NOT HERE: the MOUNT_* frame-law mirrors. Those are LOCKSTEP
-// MIRRORS of world.wgsl and a dial on one half of a hand-kept mirror is
-// the L3 hazard the panel exists to avoid.
+// THE FLIGHT DIALS REACH THE GPU THROUGH `config` (RIBBON_1). The head and
+// the body are kernels; they read config.ribbon_* and nothing else. The
+// boot pins this table into GPUDesignConfig's tail (GROWTH LAW, state.hpp)
+// and the organ edits it there — one home authors, one transport carries,
+// and the rooms cannot drift. The wander brain's dead reckoning reads the
+// same config for the same reason: a plan flown under yesterday's boot
+// rests would diverge from the head for a reason that is not the Sky Rule.
+//
+// THE FRAME-LAW MIRRORS ARE GONE, not withheld. RIBBON_1 deleted the CPU
+// head that carried this room's half of them: the frame law is the body
+// kernel's alone, so there is no second half to keep in lockstep and no
+// hazard to keep a dial out of. RIBBON_BANK_GAIN / RIBBON_BANK_MAX stay
+// WGSL consts — hot-reloadable by save, tuned on screen — until a round
+// asks for them on the panel.
 // ────────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -53,11 +71,23 @@ struct RibbonSurface {
     float mount_setback;    // pawn seat setback toward the tail
     float sky_yaw_tau;      // s — first-order ease on the player's yaw hand
     float reference_bpm;    // the tempo at which the tiers' sway is DEFINED
-    // ── Wander steering (the per-frame half; the rolls are w3) ────
-    float wander_steer_soft;    // rad of heading error for full deflection
-    float wander_yaw_max;       // yaw cap — radius >= r_min / this
-    float wander_yaw_tau;       // s — first-order ease on the steering
-    float wander_arrive_radius; // u — arrival = retarget
+    // ── The Sky Rule (RIBBON_1) — self-preservation, two readers ──
+    float lookahead;        // wu ahead of the nose where the head reads the rule
+    float clear_head;       // wu of clearance the HEAD keeps from a shell
+    float clear_body;       // wu of clearance the BODY keeps from a shell
+    float roam_radius;      // wu — the disc around the anchor the wanderer's targets are drawn on
+    // ── The mount's two eases (RIBBON_1) ── panel-side, not config: the
+    // CPU integrates the phase, the GPU only reads how far along it is.
+    float board_seconds;    // s — the ease onto the saddle
+    float land_seconds;     // s — the ease off it onto the walked pose
+    // ── Wander steering (RIBBON_2: the brain came home to the head
+    //    kernel, so these are BOOT RESTS for config.ribbon_wander_* —
+    //    the same shape the flight dials took at RIBBON_1). The ease that
+    //    used to smooth the brain's own output is gone: its command now
+    //    passes through the hands' own tau, which is the hand it is.
+    float wander_soft;          // rad of heading error at which the brain asks full yaw
+    float wander_yaw_max;       // the brain's share of the hands' cap, [0, 1]
+    float wander_arrive;        // wu — a target is reached here; the next is drawn
 };
 
 inline constexpr RibbonSurface RIBBON_TABLE = {
@@ -71,13 +101,21 @@ inline constexpr RibbonSurface RIBBON_TABLE = {
     1.5f,     // mount_setback
     0.6f,     // sky_yaw_tau — short tau keeps the yaw hand immediate
     100.0f,   // reference_bpm
-    0.5f,     // wander_steer_soft
-    0.15f,    // wander_yaw_max — radius >= r_min/0.15 (~270 u), body-scale arcs
-    2.0f,     // wander_yaw_tau — curvature stays continuous
-    120.0f,   // wander_arrive_radius — inside this the bearing chase degenerates
+    120.0f,   // lookahead — three seconds of flight at full throttle
+    40.0f,    // clear_head — RIBBON_2: wider, because the shell now only advises
+    16.0f,    // clear_body — RIBBON_2: the shell is advice now, so it stands wider; the wall is what holds
+    400.0f,   // roam_radius — the anchor's disc; a wanderer crosses it target to target and comes back
+    1.2f,     // board_seconds
+    1.5f,     // land_seconds
+    0.5f,     // wander_soft
+    0.15f,    // wander_yaw_max — the brain asks at most this much of the hands' cap
+    120.0f,   // wander_arrive — inside this the bearing chase degenerates; draw the next
 };
 
 inline RibbonSurface RIBBON_LIVE = RIBBON_TABLE;
+static_assert(RIBBON_TABLE.roam_radius > RIBBON_TABLE.wander_arrive,
+    "a roam disc smaller than the arrival radius would count every target "
+    "reached at the instant it is drawn, and the brain would spin the hash");
 static_assert(RIBBON_TABLE.r_min > 0.0f,
     "r_min is a divisor in the steering law's min(); the design value must "
     "be positive and the enrollment line must floor the dial above zero");
@@ -110,12 +148,13 @@ struct RibbonSpawnSurface {
     float wander_cruise_sigma;   // gaussian sigma
     float wander_cruise_min;     // the draw's clamp, low
     float wander_cruise_max;     // the draw's clamp, high
-    float wander_leg_min;        // waypoint leg length (units)
-    float wander_leg_max;
-    float wander_spread;         // rad of bearing spread around current motion
-    float wander_retarget_min;   // seconds between waypoints
-    float wander_retarget_var;
-    float wander_hatch_leg;      // the newborn's opening stride (units)
+    // THE WAYPOINT ROLLS LEFT WITH THE BRAIN (RIBBON_2). Six dials described
+    // a walk the CPU no longer takes: a leg of 200-500 units on a bearing
+    // spread around the current motion, re-drawn on a timer, opened by a
+    // hatch stride. The head kernel draws a uniform point on the anchor's
+    // disc and goes — config.ribbon_roam_radius is the disc, and
+    // config.ribbon_wander_arrive is when the next one is drawn. There is no
+    // leg, no spread, no timer and no hatch to dial.
     // ── The colour vocabulary ────────────────────────────────────
     float color_weights[RIBBON_COLOR_MODE_COUNT];   // SMOOTH / TINTED / CONTRAST
     float smooth_palette[RIBBON_SMOOTH_PALETTE_COUNT][3];
@@ -135,12 +174,6 @@ inline constexpr RibbonSpawnSurface RIBBON_SPAWN_TABLE = {
     0.15f,    // wander_cruise_sigma
     0.15f,    // wander_cruise_min
     0.80f,    // wander_cruise_max
-    200.0f,   // wander_leg_min
-    500.0f,   // wander_leg_max
-    1.0f,     // wander_spread
-    10.0f,    // wander_retarget_min
-    15.0f,    // wander_retarget_var
-    300.0f,   // wander_hatch_leg — sized inside the LEG_MIN/MAX band
     { 0.40f, 0.35f, 0.25f },   // color_weights — SMOOTH / TINTED / CONTRAST
     {
         { 0.82f, 0.75f, 0.62f },   // warm sandstone
@@ -158,7 +191,7 @@ inline constexpr RibbonSpawnSurface RIBBON_SPAWN_TABLE = {
 
 inline RibbonSpawnSurface RIBBON_SPAWN_LIVE = RIBBON_SPAWN_TABLE;
 static_assert(sizeof(RibbonSpawnSurface)
-              == (13 + RIBBON_COLOR_MODE_COUNT
+              == (7 + RIBBON_COLOR_MODE_COUNT
                      + RIBBON_SMOOTH_PALETTE_COUNT * 3 + 4 + 3 + 3) * sizeof(float),
     "RIBBON_SPAWN_LIVE is a whole-struct copy of the design row: a field "
     "added to one is added to the other by construction");
@@ -166,9 +199,6 @@ static_assert(RIBBON_SPAWN_TABLE.wander_cruise_min
               <= RIBBON_SPAWN_TABLE.wander_cruise_max,
     "the cruise draw clamps low-then-high; an inverted pair would pin every "
     "wanderer to the low bound and read as a dead gaussian");
-static_assert(RIBBON_SPAWN_TABLE.wander_leg_min <= RIBBON_SPAWN_TABLE.wander_leg_max,
-    "the leg draw is min + (max - min) * u; an inverted pair would walk the "
-    "waypoint backwards");
 
 } // namespace the_board
 } // namespace t7

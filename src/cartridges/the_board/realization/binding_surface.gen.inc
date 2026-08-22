@@ -119,7 +119,7 @@
 
                 // Agents State Layout — stratum 2 (Agents family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -144,14 +144,15 @@
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // THE FIELD BUS (CHORD_2) — the field's three windows in one
-                    // block: the ring poses, the ribbon state, the authored
-                    // emitter table. Frame cadence, because the fastest member
-                    // governs. It replaced bindings 9, 11 and 12; the room’s
-                    // uniform row went 7 of 12 to 5 of 12. The ribbon pipeline
-                    // keeps its OWN seats on the same homes (g2:140, g2:142) —
-                    // other windows, not other facts.
-                    entries[3].binding = bind::g2::field_bus;  // field_bus (uniform, 6656 B — CHORD_2)
+                    // THE FIELD BUS (CHORD_2) — the field's two windows in one
+                    // block: the ribbon state, the authored emitter table. Frame
+                    // cadence, because the fastest member governs. It replaced
+                    // bindings 9, 11 and 12; the room’s uniform row went 7 of 12 to
+                    // 5 of 12. The ribbon room keeps its OWN seat on the same home
+                    // (g2:140) — another window, not another fact.
+                    // RIBBON_1 took the ring poses out: 6656 B became 256, and the
+                    // field reads the body’s emit table through g2:145 instead.
+                    entries[3].binding = bind::g2::field_bus;  // field_bus (uniform, 256 B — CHORD_2)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
@@ -166,6 +167,16 @@
                     entries[6].binding = bind::g2::camera_state;
                     entries[6].visibility = wgpu::ShaderStage::Compute;
                     entries[6].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // THE RIBBON'S BODY, read (RIBBON_1). The ribbon room writes this
+                    // home at g2:144 in its own dispatch; this is the agents room’s
+                    // WINDOW on it — the mount reads .saddle (the ring-0 frame the tube
+                    // is drawn with) and the field reads .emit (the tube as capsules).
+                    // Mixed writability never shares a layout and never shares a scope
+                    // (L23-prime): ring_xforms / render_ring_xforms is the precedent.
+                    entries[7].binding = bind::g2::ribbon_body_read;  // ribbon_body_read (storage, read — the saddle and the emit table)
+                    entries[7].visibility = wgpu::ShaderStage::Compute;
+                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Agents State Layout";
@@ -289,7 +300,7 @@
 
                 // Frame K State Layout — stratum 2 (Frame_K family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -310,6 +321,16 @@
                     entries[4].binding = bind::g2::camera_state;
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // THE CHASE (RIBBON_2) reads the head it follows. update_camera turns
+                    // the azimuth to the flight while the point rides the ribbon, so this
+                    // room needs the ribbon body’s READ face for one word —
+                    // head.heading. Same home as g2:144, another window, never co-bound
+                    // with it (L23-prime): the ribbon room binds the rw face in its own
+                    // dispatch, this one binds the ro face in its own.
+                    entries[5].binding = bind::g2::ribbon_body_read;  // ribbon_body_read (storage, read — the chase reads head.heading)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frame K State Layout";
@@ -670,7 +691,7 @@
 
                 // Ribbon State Layout — stratum 2 (Ribbon family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::ribbon_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -680,9 +701,44 @@
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g2::head_poses;  // head_poses (storage, read) — ribbon head-path
+                    entries[2].binding = bind::g2::ribbon_spine;  // ribbon_spine (storage, rw) — the chord ring the head lays and the body reads
                     entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[3].binding = bind::g2::ribbon_body_rw;  // ribbon_body_rw (storage, rw) — head, saddle, emit, deform
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // THE SKY RULE reads what STANDS: agent_room carries the two
+                    // occupier windows (occupier_cmg 0–15 columns, 16–31 antennas;
+                    // occupier_amg the arches) and the tier registry the walkers’
+                    // contact radii come from. A WINDOW, not a home — the same block
+                    // the agents’ room binds at g2:1.
+                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 6928 B — the shafts, the arches, the tiers)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // PYRAMIDS ARE GROUND, not shells: both readers climb them through
+                    // the floor. ribbon_ground() is ground_formed_with_complexity —
+                    // static base + tile modifiers + pyramids, analytic, no textures —
+                    // so this seat and worldLayout_’s tile_grid are the whole terrain
+                    // reach of the ribbon room.
+                    entries[5].binding = bind::g2::pyramid_instances;  // pyramid_instances (uniform — the ground under the rule)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // THE SKY RULE reads what MOVES: walkers and floaters as spheres.
+                    // The read-only faces (g2:5 / g2:6) of agent_state / floating
+                    // entities — the ribbon dispatch runs FIRST in the compute pass, so
+                    // a one-frame-old position is what it reads and that is harmless at
+                    // a shell of clear_body.
+                    entries[6].binding = bind::g2::render_agents;  // render_agents (storage, read — the walkers)
+                    entries[6].visibility = wgpu::ShaderStage::Compute;
+                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[7].binding = bind::g2::render_floating;  // render_floating (storage, read — the spheres and the cubes)
+                    entries[7].visibility = wgpu::ShaderStage::Compute;
+                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Ribbon State Layout";
@@ -1065,7 +1121,7 @@
 
                 // Projected from: computeEntityBindGroup_, roomBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].buffer = agentStateBuffer_;
@@ -1094,6 +1150,10 @@
                     entries[6].binding = bind::g2::camera_state;
                     entries[6].buffer = cameraBuffer_;
                     entries[6].size = sizeof(GPUCameraState);
+
+                    entries[7].binding = bind::g2::ribbon_body_read;
+                    entries[7].buffer = ribbonBodyBuffer_;
+                    entries[7].size = sizeof(GPURibbonBody);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Agents State BindGroup";
@@ -1205,7 +1265,7 @@
 
                 // Projected from: computeEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::agent_state;
                     entries[0].buffer = agentStateBuffer_;
@@ -1226,6 +1286,10 @@
                     entries[4].binding = bind::g2::camera_state;
                     entries[4].buffer = cameraBuffer_;
                     entries[4].size = sizeof(GPUCameraState);
+
+                    entries[5].binding = bind::g2::ribbon_body_read;
+                    entries[5].buffer = ribbonBodyBuffer_;
+                    entries[5].size = sizeof(GPURibbonBody);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame K State BindGroup";
@@ -1668,7 +1732,7 @@
 
                 // Projected from: ribbonComputeBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g2::ribbon_state;
                     entries[0].buffer = ribbonBuffer_;
@@ -1678,9 +1742,29 @@
                     entries[1].buffer = ringTransformsBuffer_;
                     entries[1].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[2].binding = bind::g2::head_poses;
-                    entries[2].buffer = headPosesBuffer_;
-                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+                    entries[2].binding = bind::g2::ribbon_spine;
+                    entries[2].buffer = ribbonSpineBuffer_;
+                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_SPINE_SLOTS;
+
+                    entries[3].binding = bind::g2::ribbon_body_rw;
+                    entries[3].buffer = ribbonBodyBuffer_;
+                    entries[3].size = sizeof(GPURibbonBody);
+
+                    entries[4].binding = bind::g2::agent_room;
+                    entries[4].buffer = agentRoomBuffer_;
+                    entries[4].size = sizeof(GPUAgentRoomConstants);
+
+                    entries[5].binding = bind::g2::pyramid_instances;
+                    entries[5].buffer = pyramidInstancesBuffer_;
+                    entries[5].size = sizeof(GPUPyramidArray);
+
+                    entries[6].binding = bind::g2::render_agents;
+                    entries[6].buffer = agentStateBuffer_;
+                    entries[6].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+
+                    entries[7].binding = bind::g2::render_floating;
+                    entries[7].buffer = floatingEntityBuffer_;
+                    entries[7].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Ribbon State BindGroup";

@@ -24,12 +24,13 @@
 // phase_motion_drivers) read these names directly; the WGSL room
 // reads them as DesignConfig fields staged from these rests.
 //
-// EXHIBIT TWO, NOT YET MOVED (carried in the inventory, untouched
-// by FIELD_2): the ribbon's own consumption dials
-// (RIBBON_FIELD_GAIN_XZ / _GAIN_Y / _LOOKAHEAD) and the frame-law
-// mirrors (MOUNT_TANGENT_ALIGN / MOUNT_BANK_GAIN / MOUNT_BANK_MAX,
-// ribbon.hpp:156-158). Single-homed today, so no L3 hazard — they
-// join when the panel proper is designed.
+// EXHIBIT TWO IS CLOSED (RIBBON_1). It carried the ribbon's own
+// consumption dials and the three frame-law mirrors it kept in lockstep
+// with the shader, both "not yet moved". Neither is here to move: the
+// consumption dials went with the CPU head's field reader, and the frame
+// law is the body kernel's alone now, so the mirror has one half and
+// nothing to drift from. The ribbon's live dials are
+// contracts/ribbon_surface.hpp, boot-pinned into config.ribbon_*.
 //
 // RUNTIME TUNABILITY ARRIVED (ORGAN_3). The field's eight dials reach
 // the panel through the config uniform they were already boot-pinned

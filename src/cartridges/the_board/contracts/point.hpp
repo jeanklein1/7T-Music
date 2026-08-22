@@ -96,10 +96,35 @@ struct PointState {
     //    PlayerState — the point's CPU face, in the point's house) ──
     float   x = 0.0f;                     // THE POINT's world X (host-authored)
     float   z = 0.0f;                     // THE POINT's world Z (host-authored)
+    // RIBBON_1 — y and heading join the mirror, for one reason: possess()
+    // captures the EDGE from them. A host change hands the GPU the pose the
+    // body LEFT, and the trajectory is eased from there onto the saddle (or
+    // off it onto the walked pose). Body hosts author both; camera-host
+    // leaves them held-last, as it leaves x/z.
+    float   y = 0.0f;                     // THE POINT's world Y (body hosts author it)
+    float   heading = 0.0f;               // THE POINT's heading (radians)
     // ── The bubble sensor, on the possessed slot's wire in both hosts ──
     int32_t portal_trigger = -1;
 
     PointBubble bubble{};                 // declared whole; first sensor above
+};
+
+// ═══ THE MOUNT (RIBBON_1) ══════════════════════════════════════════
+// A HOST CHANGE IS A TRAJECTORY, NOT A TELEPORT. The POSE at the far end
+// is the GPU's — the saddle the ribbon's body kernel writes, or the
+// walked pose the pawn kernel computes — and the CPU has no business
+// knowing either. What the CPU owns is the EDGE: where the body was at
+// the instant the host changed, and how far along the ease it is now.
+// possess() captures the edge from the point's mirror; the frame carries
+// the phase; the kernels do the mixing.
+//
+// CPU-only: this record rides the signal's mount block and comes back
+// from nowhere.
+struct MountState {
+    float    phase = 1.0f;          // 0 -> 1; 1 = arrived (the rest: nothing in flight)
+    uint32_t kind  = 0;             // 0 none, 1 boarding (-> the saddle), 2 landing (-> the walked pose)
+    float    from[3] = { 0.0f, 0.0f, 0.0f };
+    float    from_heading = 0.0f;
 };
 
 } // namespace the_board
