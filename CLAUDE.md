@@ -42,7 +42,7 @@ build artifacts; only dist/ ships.
 | `audit/ORGAN.md` | `tools/organ_ledger.py` | `python3 tools/organ_ledger.py` |
 | `audit/BINDING_LEDGER.md` | `tools/binding_ledger.py` | `python3 tools/binding_ledger.py` |
 | `audit/COMMAND_LEDGER.md` | `tools/command_census.py` | `python3 tools/command_census.py` |
-| `audit/MIRROR_LEDGER.md` | `tools/mirror_census.py` | `python3 tools/mirror_census.py` — writes nothing while ML-1 is RED |
+| `audit/MIRROR_LEDGER.md` | `tools/mirror_census.py` | `python3 tools/mirror_census.py` |
 | `audit/MANIFEST.md` + `binding_surface.gen.inc`, `binding_registry.hpp`, `limits_floor.gen.inc`, `features_wallet.gen.inc` | `tools/binding_gen.py` (authority: `tools/binding_schema.py`) | `python3 tools/binding_gen.py --write` |
 
 ## The gates
@@ -61,14 +61,9 @@ python3 and clang++ do.
 | binding surface | `python3 tools/binding_gen.py --check` | schema ↔ tree ↔ emitters agree; S-6 also wants a clean tree at the pushed tip | PASS |
 | organ gap | `python3 tools/organ_gap.py --gate` | no graduated pair kept a surviving runtime reader | PASS |
 | organ ledger | `python3 tools/organ_ledger.py --check` | every enrolled dial's field is named by a declared reader | PASS |
-| mirror census | `python3 tools/mirror_census.py` | the C++↔WGSL mirror and the binding idioms hold | **RED, standing: ML-1** |
+| mirror census | `python3 tools/mirror_census.py` | the C++↔WGSL mirror and the binding idioms hold | GREEN |
 
-**One standing RED, known and not new.** `mirror_census.py` fails ML-1, and
-one root explains most of it: `strataLayoutFor` gained a `const char* label`
-at DOMESDAY_2 F2-b1 and FOUR regexes still carry the three-argument form — the
-P instance pattern and the `hm` helper-span search, so every `PipelineLayout`
-token falls outside every span, and the `P-help` and `P-for` idioms, so the
-helper and all 27 labelled call sites would match no idiom once the spans do
-find them. Beside it, the `L-min` idiom's RHS is a bare `\w+` while COMPAT_1's
-two dynamic-offset seats write `sizeof(...)`. While ML-1 is RED the census
-writes no ledger, so `audit/MIRROR_LEDGER.md` is older than the tree.
+**Every row green, and the room rebuilds.** Delete the five files in `audit/`,
+run the five tools above, and the tree is byte-identical again (L33's standing
+witness, run at this commit). A red row here is news: read the gate before the
+tree, and check `docs/OPEN.md` for anything already ruled.

@@ -427,8 +427,9 @@ LAYOUT_IDIOMS = [
      r"entries\[\d+\]\.buffer\.type = wgpu::BufferBindingType::\w+;"),
     ("L-dyn", "dynamic-offset flag",
      r"entries\[\d+\]\.buffer\.hasDynamicOffset = (?:true|false);"),
-    ("L-min", "minBindingSize (the one dynamic-offset window)",
-     r"entries\[\d+\]\.buffer\.minBindingSize = \w+;"),
+    ("L-min", "minBindingSize — a named constant or the size of a named "
+              "struct (COMPAT_1's two dynamic-offset seats write sizeof)",
+     r"entries\[\d+\]\.buffer\.minBindingSize = (?:\w+|sizeof\(\w+\));"),
     ("L-smp", "sampler binding type",
      r"entries\[\d+\]\.sampler\.type = wgpu::SamplerBindingType::\w+;"),
     ("L-txs", "texture sample type",
@@ -569,10 +570,12 @@ def census_state_blocks(w):
 
 PIPE_IDIOMS = [
     ("P-help", "strataLayoutFor — the shared four-strata wrapper (LOOM_2: "
-               "WORLD implicit, then frame / state / textures; its inner "
-               "statements are censused as part of this idiom)",
-     r"wgpu::PipelineLayout strataLayoutFor\(wgpu::BindGroupLayout \w+, "
-     r"wgpu::BindGroupLayout \w+, wgpu::BindGroupLayout \w+\) \{.*"),
+               "WORLD implicit, then frame / state / textures; DOMESDAY_2 "
+               "F2-b1 named it, so the label leads; its inner statements are "
+               "censused as part of this idiom)",
+     r"wgpu::PipelineLayout strataLayoutFor\(const char\* \w+, "
+     r"wgpu::BindGroupLayout \w+, wgpu::BindGroupLayout \w+, "
+     r"wgpu::BindGroupLayout \w+\) \{.*"),
     ("P-arr", "the ordered layout list",
      r"std::array<wgpu::BindGroupLayout, \d+> \w+ = \{[^}]*\};"),
     ("P-desc", "pipeline layout descriptor declaration",
@@ -583,8 +586,8 @@ PIPE_IDIOMS = [
      r"\w+\.bindGroupLayouts = \w+\.data\(\);"),
     ("P-new", "pipeline layout creation, named local",
      r"wgpu::PipelineLayout \w+ = device_\.CreatePipelineLayout\(&\w+\);"),
-    ("P-for", "pipeline layout via the shared wrapper",
-     r"wgpu::PipelineLayout \w+ = strataLayoutFor\(\w+, \w+, \w+\);"),
+    ("P-for", "pipeline layout via the shared wrapper, named at creation",
+     r"wgpu::PipelineLayout \w+ = strataLayoutFor\(\"[^\"]*\", \w+, \w+, \w+\);"),
     ("P-prm", "PipelineLayout as a builder parameter (makeComputePipeline; "
               "makeShadow's nullptr-sentinel default)",
      r"wgpu::PipelineLayout \w+( = nullptr\) -> bool \{)?,?"),
@@ -610,8 +613,9 @@ def census_renderer(w):
     s = Surface("P", PIPE_IDIOMS)
     spans = []
 
-    hm = re.search(r"wgpu::PipelineLayout\s+strataLayoutFor\s*\(\s*wgpu::BindGroupLayout\s+\w+\s*,"
-                   r"\s*wgpu::BindGroupLayout\s+\w+\s*,\s*wgpu::BindGroupLayout\s+\w+\s*\)\s*\{",
+    hm = re.search(r"wgpu::PipelineLayout\s+strataLayoutFor\s*\(\s*const\s+char\s*\*\s*\w+\s*,"
+                   r"\s*wgpu::BindGroupLayout\s+\w+\s*,\s*wgpu::BindGroupLayout\s+\w+\s*,"
+                   r"\s*wgpu::BindGroupLayout\s+\w+\s*\)\s*\{",
                    src)
     helper_span = None
     if hm:
@@ -637,7 +641,8 @@ def census_renderer(w):
                 r"\w+\.bindGroupLayoutCount\s*=\s*[^;]+;",
                 r"\w+\.bindGroupLayouts\s*=\s*[^;]+;",
                 r"wgpu::PipelineLayout\s+\w+\s*=\s*device_\.CreatePipelineLayout\(\s*&\w+\s*\)\s*;",
-                r"wgpu::PipelineLayout\s+\w+\s*=\s*strataLayoutFor\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*\)\s*;",
+                r"wgpu::PipelineLayout\s+\w+\s*=\s*strataLayoutFor\(\s*\"(?:[^\"\\\\]|\\\\.)*\"\s*,"
+                r"\s*\w+\s*,\s*\w+\s*,\s*\w+\s*\)\s*;",
                 r"wgpu::PipelineLayout\s+\w+\s*(?:=\s*nullptr\s*\)\s*->\s*bool\s*\{|,)"):
         for m in re.finditer(pat, src):
             if masked(m.start()):
