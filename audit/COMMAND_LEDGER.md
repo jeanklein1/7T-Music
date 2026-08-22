@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `ee970995d6ff0cae861419353955efcbabda9198`
-(COMPAT_1 P1-P3: the immediate lane leaves the program — schema, module and C++ in one commit; shadow_slot and patch_params ride dynamic uniform seats; naga reads the raw module)
+Last commit touching any scanned file: `aa3dc79927121f66d518b8bbcf0d9125f06027c2`
+(ORGAN_8 P3: one painting in the air at a time — uploads pace themselves at the network's round trip)
 
 | file scanned | sha256 |
 |---|---|
@@ -16,7 +16,7 @@ Last commit touching any scanned file: `ee970995d6ff0cae861419353955efcbabda9198
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:724a0149882de9cdc5b910c8671d9e10b6a59317d0febd8fd85fe07c86f363ff` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:f3bbd6d4ed600ff8350c1f32a28dfffeea3d62af40ead23bac9c67e3b61eda86` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:f2f873a5e34a439b8a4afc6b81e745e090d87ce28ee6bf719889bcd21774cd9e` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/pawn.cpp` | `sha256:d8da6e3de0c3337105ea572d8e016263a891c2482363a070ec6e85d7e35bb313` |
 | `src/console/console.hpp` | `sha256:28c417f0b665567ab615f1678c1f4341b70cb5b023cd20744b015eff4e94bf91` |

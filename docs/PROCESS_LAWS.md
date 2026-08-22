@@ -326,6 +326,29 @@ of the disagreement. The handoff author quotes; the census proves.
 
 ---
 
+## P16 — A CENSUS RECIPE STATES WHAT IT CANNOT SEE
+
+A recipe that walks the tree and returns a count is making a claim about
+everything it did not return. That claim is only as good as the recipe's
+reach, so the recipe must NAME its blind spots beside its count. A recipe
+that names them is a census; one that does not is a grep wearing a census's
+authority, and its silence reads as coverage.
+
+*Paid for by:* ORGAN_9. The handoff's recipe matched writes to twelve home
+identifiers and was blind to three shapes it never mentioned — `memcpy` into
+an array member, a write through a non-const accessor, and a reference alias.
+The first of those is `upload_agent_registries`, the author of 102 of the 271
+subject rows: the largest single writer in the program, invisible to the
+recipe that was counting writers. The executor found all three by hand and
+reported them; a recipe that had named its reach would have made that
+finding the recipe's, not the executor's luck.
+
+It is P11 turned on the instrument. There an absence claims something about
+a whole file and must be proved over the file; here a count claims something
+about a whole tree and must declare the shapes it cannot reach.
+
+---
+
 ## SCHEDULING RECORD
 
 > DRIFT NOTE (RECENSION_3, 2026-08-18; L28): the DAWN RELEASE BUILD entry

@@ -56,17 +56,19 @@ python3 and clang++ do.
 | TU gate | `python3 tools/gates/console_gate/run.py` | `cartridge.hpp` and `console.hpp` type-check with zero diagnostics | PASS |
 | shell gate | `python3 tools/gates/shell_gate/run.py` | the seam between `organ_registry.hpp` and `web/organ_panel.js` agrees | GREEN |
 | sha256 gate | `python3 tools/gates/sha256_gate/run.py` | `src/core/sha256.hpp` agrees with hashlib, `world.wgsl` included | PASS |
-| score census | `python3 tools/gates/score/run.py` | roster ↔ frame-spine bijection | **RED, standing: 4 FAIL** |
+| score census | `python3 tools/gates/score/run.py` | roster ↔ frame-spine bijection | GREEN |
 | WGSL gate | `python3 tools/wgsl_gate.py` | naga parses, scopes and validates the raw module | PASS |
 | binding surface | `python3 tools/binding_gen.py --check` | schema ↔ tree ↔ emitters agree; S-6 also wants a clean tree at the pushed tip | PASS |
 | organ gap | `python3 tools/organ_gap.py --gate` | no graduated pair kept a surviving runtime reader | PASS |
 | organ ledger | `python3 tools/organ_ledger.py --check` | every enrolled dial's field is named by a declared reader | PASS |
 | mirror census | `python3 tools/mirror_census.py` | the C++↔WGSL mirror and the binding idioms hold | **RED, standing: ML-1** |
 
-**The two standing REDs are known and are not new.** The score census fails on
-four rows — cube `phase_motion_corral` missing from the spine, the ribbon F8
-door (D9), orbs boot config, and `phase_live_card_write` ungated without being
-FOUNDATIONAL. `mirror_census.py` fails ML-1 — two `minBindingSize` lines matching
-no idiom, and `strataLayoutFor`'s `PipelineLayout` boundary tokens sitting
-outside every instance span — and while it is RED it writes no ledger, so
-`audit/MIRROR_LEDGER.md` is older than the tree. Neither is diagnosed as new.
+**One standing RED, known and not new.** `mirror_census.py` fails ML-1, and
+one root explains most of it: `strataLayoutFor` gained a `const char* label`
+at DOMESDAY_2 F2-b1 and FOUR regexes still carry the three-argument form — the
+P instance pattern and the `hm` helper-span search, so every `PipelineLayout`
+token falls outside every span, and the `P-help` and `P-for` idioms, so the
+helper and all 27 labelled call sites would match no idiom once the spans do
+find them. Beside it, the `L-min` idiom's RHS is a bare `\w+` while COMPAT_1's
+two dynamic-offset seats write `sizeof(...)`. While ML-1 is RED the census
+writes no ledger, so `audit/MIRROR_LEDGER.md` is older than the tree.
