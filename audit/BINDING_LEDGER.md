@@ -33,11 +33,11 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `c332b325faa2596c77136f70363ca1444a24bf9b52e26ba3a421a7a61c23082a` |
+| `src/cartridges/the_board/cartridge.hpp` | `189bdcc8ae9dbbc41c4e7600e123491493208a6287c7881d84cfd855be01b2ad` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `c56581e714225e7e646acfb3bd24be66e309b8ae3ce9dbd18dbce71bf12dae13` |
 | `src/cartridges/the_board/direction/mood.hpp` | `e7e9b5aa58497628b4855df1a5f6eacecb11aee4e2844173eae833adda0e390a` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `13a625086ab40505b603d9930e0102e9ab7a121d75921305dc187cbf17f338ec` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `852b5118ada2f66e54e8ef4b9f591ea3fb3d110b355944155ff9132c012c0e51` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content

@@ -263,6 +263,47 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   smooth per-frame float, never a beat-quantized tick — which is why §3.5
   took its first branch and the clock did not come home.
 
+## RIBBON_5 — THE WORLD COMES BACK
+
+Origin: RIBBON_5 (two commits, base `b4fe1fb`). This one comes first: until
+the world rebuilds, no other witness in this file can be read at all.
+
+- THE WORLD COMES BACK. Walk through the door-fallback arch ON PURPOSE — it
+  stands ~60 wu from spawn by design, so it is a short walk. The world fades,
+  reseeds, and must **rebuild whole around the pawn within a few seconds**,
+  then keep streaming as he walks. In a meter build the `[STREAM]` line (1 Hz)
+  is the reading: `free` must return toward `MAX − active`, `young` must clear
+  as the window fills, and `ALLOC`/`SPAWN`/`GEN` must move every second. The
+  one-patch world is impossible while the conservation witness stays silent —
+  and that witness runs in EVERY build, not just a meter one, so if it ever
+  prints, that line is the whole diagnosis.
+- FOR JEAN, two lines that are not defects:
+  **The "mutation" moment was a door, not a bug.** Doors are arches; the
+  fallback arch stands near spawn by design; crossing one is a world
+  transition, and the patch underfoot changing IS the new seed's terrain
+  arriving. That part was the program working. What was broken is only that
+  the world never finished rebuilding afterwards.
+  **RIBBON_4's circle-vs-straight witness still stands** and is still unread —
+  it was never reachable, because the world under it was never whole. Read it
+  once the rebuild lands.
+- THREE RULINGS, each one word to overturn: the youth threshold (under HALF
+  the window built — raise it and the burst runs longer, lower it and the
+  steady cadence takes over sooner); the young budgets (4 spawn / 4 evict /
+  the backlog ladder — the pre-RIBBON_4 numbers, restored only while young);
+  and whether the conservation witness stays always-on (it costs one O(225)
+  walk a second and is the only thing standing between a layer leak and a
+  silent one-patch world — the recommendation is that it never moves behind a
+  dial).
+- WHAT THE AUDIT FOUND, recorded so the next round does not re-derive it: the
+  layer pool has NO leak. Every write in the tree to `ActivePatch::valid`,
+  `active_patch_count`, `free_layer_count` and `freeLayerStack_` was
+  enumerated — six sites, all in `patch_system.hpp` — and `valid + free ==
+  MAX_ACTIVE_PATCHES` holds at each. So the silent-recycle wedge could not
+  have been the mechanism; the starved rebuild was. The zero-headroom
+  equality is real and remains (`MAX_ACTIVE_PATCHES == 225 == the 15x15
+  window`): the pool has no slack by construction, which is why the witness
+  exists rather than a comment saying "this shouldn't happen".
+
 ## RIBBON_4 — the one witness that decides
 
 Origin: RIBBON_4 (two commits, base `5d17316`). This one comes FIRST,
