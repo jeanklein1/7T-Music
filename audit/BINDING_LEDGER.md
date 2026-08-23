@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `2f6bd5ffb846bc2bf0fee431ecb133f8e26ff383` |
-| | RIBBON_6 P1: one bake a frame — the slice and the ladder retire, youth is a latch set at a world's birth |
+| source commit | `705baec79404c84076eb29950271416aaa94ae49` |
+| | The four-mood desk lands: the two rooms stop being one sky, the night and the noon each collapse to one, and the point's bubble opens fourfold |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:77e634c84d10eb03254c1a04580e56e9baab09ca0edf5d36741d647537a25a38` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:893c70d921d05eef6a828f1a514d4204704dab766e67329610701ef1119ab023` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |

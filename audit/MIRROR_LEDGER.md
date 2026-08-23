@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d3b1f6dea649eeb3667909f22d4f31e69060604f` |
-| | The tuned desk lands in the tables: the night is one sky now, and three other dials came home with it |
+| source commit | `705baec79404c84076eb29950271416aaa94ae49` |
+| | The four-mood desk lands: the two rooms stop being one sky, the night and the noon each collapse to one, and the point's bubble opens fourfold |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:815a5de8a5f1582af5f6bdefd0dc41ae73b5206f26a24300baf27bdcb56ae08e` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:77e634c84d10eb03254c1a04580e56e9baab09ca0edf5d36741d647537a25a38` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:893c70d921d05eef6a828f1a514d4204704dab766e67329610701ef1119ab023` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:5f3c9f89be3e69b851f53651f7ad5935c6f8a16eb15a162e540e6b82d4297ec5` |
+| `audit/BINDING_LEDGER.md` | `sha256:8ff627ea0a73eb73a15e85f08d527f7577cb38a2596e3ebd797f4652f4498ceb` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
