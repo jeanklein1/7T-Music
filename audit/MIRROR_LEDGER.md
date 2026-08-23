@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `2f6bd5ffb846bc2bf0fee431ecb133f8e26ff383` |
-| | RIBBON_6 P1: one bake a frame — the slice and the ladder retire, youth is a latch set at a world's birth |
+| source commit | `32d47d09f281959077b7efaa3585b8673b0450d5` |
+| | RIBBON_6 P2: the presentation law — a frame integrates the refreshes it was shown for; [PRESENT] reads them |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:c1d167e5e29ab6cf853b7ec0ca053b6953faa6288f07575751f3696d6e574dbf` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b2965439fd291286b34b57545f02a16b5133ac98abb582f0966694ef676608dd` |

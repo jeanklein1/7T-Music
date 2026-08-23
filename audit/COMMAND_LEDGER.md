@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `2f6bd5ffb846bc2bf0fee431ecb133f8e26ff383`
-(RIBBON_6 P1: one bake a frame — the slice and the ladder retire, youth is a latch set at a world's birth)
+Last commit touching any scanned file: `32d47d09f281959077b7efaa3585b8673b0450d5`
+(RIBBON_6 P2: the presentation law — a frame integrates the refreshes it was shown for; [PRESENT] reads them)
 
 | file scanned | sha256 |
 |---|---|
@@ -19,7 +19,7 @@ Last commit touching any scanned file: `2f6bd5ffb846bc2bf0fee431ecb133f8e26ff383
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:4def862815d3e3e7d791a40e1361b8d5ba03f2b47884da00b5e795dc3f320f77` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/pawn.cpp` | `sha256:e7ae20cb9d84139e6f795bbe79c539d236bf0034f3d64617b56c5d2c53487ce4` |
-| `src/console/console.hpp` | `sha256:d9e3b4106a6aa947dd2eed1c951098d2aa4b5d02654a370ce35bdc079bf8ee41` |
+| `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the

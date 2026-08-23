@@ -294,6 +294,21 @@ two earlier rounds were built on, so read this entry before theirs.
   buys catch-up and spends evenness) and the youth threshold (three quarters
   of the window, cleared once and never re-armed by anything the player does).
 
+## The ledgers' provenance stamp can never name its own commit
+
+- STRUCTURAL, PRE-EXISTING, and recorded so no reviewer chases it: the ledger
+  tools stamp the last COMMITTED commit that touched a scanned file, so a
+  commit that both edits a scanned file and regenerates its ledger cannot
+  record itself — it records its predecessor. Verified across seven commits
+  in this campaign (`32d47d0`→`2f6bd5f`, `2f6bd5f`→`a516038`,
+  `a516038`→`d3bfe2d`, `1fce093`→`2e7c948`). Every census row and every file
+  `sha256` inside the ledgers is byte-identical on a rebuild; only the
+  provenance stanza moves, a four-line diff. CLAUDE.md's "delete the five
+  files and the tree is byte-identical again" is therefore literally true
+  only at a docs-only tip. The cure, if one is ever wanted, is for the tools
+  to stamp the WORKING TREE's hashes rather than a commit id; not built.
+  Origin: the RIBBON_6 deletion-safety audit, re-run adversarially.
+
 ## Found by the RIBBON_5 audit, still open
 
 - **THE POINT MIRROR CAN FREEZE, and nothing says so.** Every streaming

@@ -1310,10 +1310,25 @@ namespace t7 {
             const float model = k * refreshPeriod_;
             float dt;
             if (std::fabs(raw - model) < PRESENT_BAND * refreshPeriod_) {
-                // Only UNIT frames teach the period; a 2x frame would drag it
-                // upward until the model chased the drops instead of the panel.
-                if (k == 1.0f) refreshPeriod_ = std::max(
-                    refreshPeriod_ + (raw - refreshPeriod_) * PRESENT_GAIN,
+                // EVERY in-band frame teaches the period, and it teaches
+                // raw / k — the refresh this frame implies, not the frame.
+                //
+                // THE STUCK MULTIPLE, and it is why this is not `if (k == 1)`.
+                // Gating the gain on unit frames leaves a k >= 2 frame with NO
+                // feedback path at all: it does not move the period, and the
+                // in-band arm clears dtStrangers_, so it never relocks either.
+                // A display whose frame time lands anywhere in 29.2-37.5 ms —
+                // 26.7 to 34.3 Hz, which is exactly where a battery-saver phone
+                // capping rAF sits — then reads as a permanent 2x against a
+                // 16.67 ms period and is served 33.3 ms for every frame. At
+                // 34 Hz that is the world running 13.4% FAST, forever, with a
+                // clean meter. raw / k fixes it without costing anything: a
+                // GENUINE 30-on-60 has raw / k == the panel period exactly, so
+                // the term is zero and the model is untouched; a false multiple
+                // converges until served == raw. A no-op when it is not needed,
+                // which is the property the whole law is built on.
+                refreshPeriod_ = std::max(
+                    refreshPeriod_ + (raw / k - refreshPeriod_) * PRESENT_GAIN,
                     PRESENT_MIN_PERIOD);
                 dtStrangers_ = 0;
                 dt = model;
@@ -1324,6 +1339,15 @@ namespace t7 {
             } else {
                 dt = raw;
             }
+            // THE SERVED VALUE CARRIES THE CLAMP TOO. `model` is k x period and
+            // can exceed the 100 ms ceiling `raw` was clamped to: at a 57 ms
+            // period a 100 ms measurement reads k=2 in-band and would serve
+            // 114.3 ms. The CPU's beat clock would then advance t_seconds by
+            // 114 ms while dtPending_ clips the GPU's copy to 100 — two
+            // integrators handed different amounts of time for one frame, and
+            // the cartridge's own comment about "the same 100 ms ceiling"
+            // made false. One line, and the ceiling means what it says.
+            dt = std::min(dt, 0.1f);
 
             // THE PRESENT HISTOGRAM (meter builds, 1 Hz). k IS the reading
             // that settles the class: a 2x or 3x column is a DROPPED FRAME —
@@ -1331,8 +1355,12 @@ namespace t7 {
             // near-pure 1x column with judder on screen means the cause is
             // upstream in the integrators, not in presentation.
             if constexpr (t7::INSTRUMENTS.frame_meter) {
-                const uint32_t bucket = (uint32_t)k;
-                presentBuckets_[bucket < 4u ? bucket - 1u : 3u]++;
+                // The index is bounded on its own terms, not on the floor's:
+                // k is clamped to [1, 4] above, but an index derived from a
+                // float must not depend on that clamp being right (RIBBON_5's
+                // lesson — the array bound is stated, never derived).
+                const uint32_t bucket = (k >= 1.0f && k <= 4.0f) ? (uint32_t)k : 1u;
+                presentBuckets_[bucket <= 4u ? bucket - 1u : 3u]++;
                 if (dtStrangers_ != 0u || (dt == raw && k != 1.0f)) presentStrangers_++;
                 const float d = std::fabs(dt - raw) * 1000.0f;
                 presentDeltaSum_ += d;
