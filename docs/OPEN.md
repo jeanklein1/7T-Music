@@ -174,6 +174,16 @@ here — the sign-off is Jean's, and RIBBON_2 has its own list below.
   one of the three that is structurally parallelizable (each chord reads
   only its predecessor, so it is a scan), and it is the first thing the
   optimization sitting should look at.
+  RIBBON_4 IS THE ONE THAT MOVED THE FRAME, and it moved it DOWN without a
+  meter to prove it: the worst streaming frame used to be six whole bakes
+  plus four spawns plus four evictions, and is now one band of one bake plus
+  one spawn plus two evictions. The total work is unchanged — the same
+  patches are baked, spawned and evicted — so what this buys is evenness,
+  not throughput, and the cost is that a leisurely patch arrives
+  `PATCH_BAKE_SLICES` frames later than it used to. If terrain is ever seen
+  ARRIVING at the edge of the ring rather than being there, that is this
+  trade showing, and `PATCH_URGENT_MARGIN` is the dial that buys it back.
+
   RIBBON_3 MOVED IT BOTH WAYS, still unmeasured. Up: an arch costs 8 rib
   capsules plus 2 piers per arch per reader where it cost one disc — 16
   arches, so up to 160 capsule tests added to every `sky_push` and every
@@ -252,6 +262,45 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   `par.phase += beat_rate × (60 / reference_bpm) × dt` every frame — a
   smooth per-frame float, never a beat-quantized tick — which is why §3.5
   took its first branch and the clock did not come home.
+
+## RIBBON_4 — the one witness that decides
+
+Origin: RIBBON_4 (two commits, base `5d17316`). This one comes FIRST,
+before the five of RIBBON_3 below, because it settles a diagnosis the rest
+of the campaign now rests on. Jean's witness of RIBBON_3 was that a far
+wanderer is smooth while the ridden ribbon still stutters, and that the
+stutter arrives once it is moving — so the bet is that the ribbon's own
+motion is finished and what is left is the WORLD streaming behind a fast
+point.
+
+- THE STEADY WORLD (RIBBON_4). The diagnosis is a bet, and one ride settles
+  it before any other verdict is worth giving: **ride in a tight circle
+  inside terrain that is already generated** — a loop under 100 wu across,
+  for half a minute. (It is flyable at the shipped rests: `r_min` 40 makes
+  the tightest circle 80 wu across, so no dial needs touching.)
+  IF THAT IS SMOOTH, the ribbon is smooth and the stutter was the world
+  streaming behind a fast point. The straight flight that follows should
+  then read as one motion, with patches arriving a slice at a time instead
+  of a row at a time: no frame carries more than one patch's spawning, two
+  evictions and one band of one bake.
+  IF THE CIRCLE ITSELF STUTTERS, the cause is in the frame, not the
+  conductor, and this campaign has been treating a symptom. The next facts
+  are the `[METER]` rows for `DispatchCompute` and `StreamPatches`, which is
+  the optimization sitting's first reading — not this campaign's, and not
+  something to guess at from the source.
+  Three rulings, each one word to overturn: `PATCH_BAKE_SLICES` (2 — more
+  is gentler per frame and later to arrive; any count is safe, the band
+  plan tiles the patch exactly for all of them), `PATCH_URGENT_MARGIN`
+  (1 x `PATCH_EXTENT` beyond `lod0_radius` — inside it a patch bakes whole,
+  because a hole is worse than a hitch), and `PATCH_LOOK_AHEAD` (100 wu —
+  how far along the flight the spawn and bake scans order their candidates
+  from, under a rider only).
+
+- AND THE QUESTION ANSWERED, since it was asked: NO, the ribbon was not
+  made smaller. Length, ring count and tiers are untouched across RIBBON_1
+  through RIBBON_4. What self-collision does is the head going OVER its own
+  body and the rings pushing off it, with the 24-ring neck
+  (`RIBBON_SELF_NECK`) excluded so the neck does not fight itself.
 
 ## RIBBON_3 — the witnesses Jean owes the campaign
 

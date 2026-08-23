@@ -42,6 +42,7 @@
 #include <vector>      // manifest + pixel staging   // (impl, merged)
 #include <cstring>            // std::strncpy — emscripten_fetch_attr_t::requestMethod   (EXHIBIT_0)
 #include <emscripten/fetch.h> // the web twin's byte source: the network, not a filesystem (EXHIBIT_0)
+#include "core/instruments.hpp"   // RIBBON_4 — INSTRUMENTS.stream_witness gates the steady path's witness lines
 
 namespace t7 {
 namespace the_board {
@@ -1396,8 +1397,9 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
         unregister_footprint_for(c, PopFamily::GALLERY, plan.slot);
         gc.active = false;  // no paintings placed — release center
     }
-    else {
-        // Autonomous stdout — exhibition-guard candidate, still open.
+    else if constexpr (t7::INSTRUMENTS.stream_witness) {
+        // The exhibition guard, closed at RIBBON_4: a gallery is placed on the
+        // patch-spawn path, so this is steady-state chatter under a rider.
         std::cout << "[Gallery] slot=" << plan.slot
             << " at (" << gallery_cx << "," << gallery_cz << ")"
             << " host=(" << plan.host_gx << "," << plan.host_gz << ")"

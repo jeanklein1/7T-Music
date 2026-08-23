@@ -63,12 +63,14 @@ inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue&
 
 // ── Dynamic budgets ────────────────────────────────────────────────
 
+// RIBBON_4: NEEDS_REGEN alone. A SPAWNED patch is no longer this budget's
+// business — the sliced conductor owns it, one slice a frame — and counting
+// it here would inflate the regen burst with work that is already paced.
 inline uint32_t count_pending_patches(MachineCtx* c) {
     uint32_t n = 0;
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (!c->patch_system_state_.patches_[i].valid) continue;
-        if (c->patch_system_state_.patches_[i].phase == PatchPhase::SPAWNED ||
-            c->patch_system_state_.patches_[i].phase == PatchPhase::NEEDS_REGEN) n++;
+        if (c->patch_system_state_.patches_[i].phase == PatchPhase::NEEDS_REGEN) n++;
     }
     return n;
 }
@@ -227,6 +229,69 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
     }
 }
 
+// ── THE SLICED BAKE (RIBBON_4) ─────────────────────────────────────
+//
+// One patch's heights, one row band, one frame. The whole-bake pair
+// (generate_patch_batch) stays exactly as it was and still serves the
+// urgent case, the boot burst and the regen burst; this is the steady
+// state's own encoder.
+//
+// WHY A BAND AND NOT A PATCH. A bake is 65 536 texels of
+// ground_formed_with_complexity plus gradients plus cells. At 50 wu a
+// patch and a 15x15 window, every 50 wu of flight — 1.25 s at cruise,
+// 0.3 s at the top of the dial — demands a whole ROW of patches. The old
+// conductor answered a deep backlog by working harder per frame, which is
+// precisely when the rider is moving fastest. Cutting the heights pass
+// into bands spreads one patch's cost over PATCH_BAKE_SLICES frames and
+// makes the worst frame the same as the best one.
+//
+// WHY GRADIENTS AND CELLS ARE NOT SLICED. They are neighbour reads over
+// patch_height_scratch, which holds ONE patch — so they must run after
+// that patch's last height band and before any other patch's first. They
+// are cheap beside the heights pass, and keeping them whole is what makes
+// "one bake in flight" the only interlock this needs.
+inline void generate_patch_heights_band(MachineCtx* c, wgpu::CommandEncoder& encoder,
+    wgpu::Queue& queue, const GPUPatchParams& params, uint32_t& ringCursor,
+    uint32_t rowGroups, bool finish) {
+    const uint32_t base = ringCursor;
+    // ONE RECORD PER SLICE. The slices of a bake differ in row0, so each
+    // needs its own record: the ring's writes all land before the command
+    // buffer, and a rewritten record would hand every band the last band's
+    // row0. The ring is MAX_ACTIVE_PATCHES deep and this frame spends at
+    // most one record, so the cursor has room the batch path already needs.
+    if (c->gpuState_.upload_patch_params(queue, &params, 1, base) == 0) return;
+    ringCursor = base + 1;
+    const uint32_t paramsOffset = base * Dim::UNIFORM_DYNAMIC_STRIDE;
+
+    {
+        wgpu::ComputePassDescriptor cpd{};
+        cpd.label = "Patch Heights (sliced)";
+        cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
+        wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
+        { cp.SetBindGroup(0, c->gpuState_.world_group());
+          cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
+        c->renderer_.dispatch_generate_patch_heights(cp, paramsOffset,
+            c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(),
+            GPUState::patch_heightfield_workgroups(), rowGroups);
+        cp.End();
+    }
+    if (!finish) return;
+
+    // The last band: gradients + cells over the scratch this bake just
+    // filled, same pass shape as generate_patch_batch's pass 2.
+    {
+        wgpu::ComputePassDescriptor cpd{};
+        cpd.label = "Patch Gradients + Cells (sliced)";
+        cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
+        wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
+        { cp.SetBindGroup(0, c->gpuState_.world_group());
+          cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
+        c->renderer_.dispatch_generate_patch_gradients(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
+        c->renderer_.dispatch_generate_patch_cells(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups());
+        cp.End();
+    }
+}
+
 inline GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer) {
     GPUPatchParams p{};
     p.origin[0] = (gx + 0.5f) * Dim::PATCH_EXTENT;
@@ -236,7 +301,7 @@ inline GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, u
     p.master_seed = c->world_state_.active_seed;
     p.time = 0.0f;
     p.layer = layer;
-    p._pad1 = 0.0f;
+    p.row0 = 0u;      // RIBBON_4 — a whole bake; the sliced path overwrites it per band
     return p;
 }
 
@@ -363,6 +428,120 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
         c->patch_system_state_.patches_[pi].phase = PatchPhase::GENERATED;
     }
     c->world_state_.patch_instances_dirty = true;
+}
+
+// THE BAND ARITHMETIC, in WORKGROUP ROWS and not texel rows — because the
+// dispatch is the thing that must tile the patch exactly, and a band that
+// starts mid-workgroup cannot exist. rowGroups is the ceiling, so the last
+// band is the short one and every texel row is covered exactly once for ANY
+// slice count. The obvious formula (row0 = slice × N / slices, dispatch
+// workgroups / slices) is only exact when the slice count divides 16, and
+// PATCH_BAKE_SLICES is a one-word ruling: at 3 it would leave five unwritten
+// texel rows per band, which is a band of garbage terrain, silently.
+struct PatchBandPlan {
+    uint32_t row_groups;   // workgroup rows per band
+    uint32_t bands;        // how many bands actually result
+};
+inline PatchBandPlan patch_band_plan(uint32_t slices) {
+    const uint32_t wg = GPUState::patch_heightfield_workgroups();
+    const uint32_t s = (slices == 0u) ? 1u : (slices < wg ? slices : wg);
+    const uint32_t rg = (wg + s - 1u) / s;          // ceiling
+    return { rg, (wg + rg - 1u) / rg };             // ceiling again: the real count
+}
+// Workgroup rows this band dispatches (the last one is short), and where its
+// first texel row sits. WORKGROUP_SIZE is 16 in generate_patch_heights.
+inline uint32_t patch_band_rows(const PatchBandPlan& plan, uint32_t band) {
+    const uint32_t wg = GPUState::patch_heightfield_workgroups();
+    const uint32_t start = band * plan.row_groups;
+    return (start >= wg) ? 0u : std::min(plan.row_groups, wg - start);
+}
+inline uint32_t patch_band_row0(const PatchBandPlan& plan, uint32_t band) {
+    return band * plan.row_groups * 16u;
+}
+
+// ── THE STEADY WORLD's conductor (RIBBON_4) ────────────────────────
+//
+// One bake in flight, one slice a frame. A patch within
+// PATCH_URGENT_MARGIN × PATCH_EXTENT of lod0_radius bakes WHOLE this
+// frame — a hole is worse than a hitch; a leisurely one takes
+// PATCH_BAKE_SLICES frames for its heights, then gradients + cells the
+// frame after. The scratch holds one patch, which is why there is one.
+//
+// THE LAW IS STATE, not a queue: the BAKING phase on the patch itself is
+// the whole interlock. Eviction needs no special case (see the eviction
+// block: BAKING is treated as SPAWNED — the layer is freed and there is
+// nothing to finish), and a mid-bake mood transition resets the registry
+// like any other.
+inline void generate_patch_sliced(MachineCtx* c, wgpu::CommandEncoder& encoder,
+    wgpu::Queue& queue, bool& tileGridDirty,
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps,
+    uint32_t& ringCursor, float gen_cx, float gen_cz) {
+
+    // (1) A bake is in flight: carry it one band and no further.
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        auto& p = c->patch_system_state_.patches_[i];
+        if (!p.valid || p.phase != PatchPhase::BAKING) continue;
+
+        const PatchBandPlan plan = patch_band_plan(p.bake_slices);
+        GPUPatchParams params = make_patch_params(c, p.grid_x, p.grid_z, p.layer);
+        params.row0 = patch_band_row0(plan, p.bake_slice);
+        const bool last = (uint32_t(p.bake_slice) + 1u >= plan.bands);
+        generate_patch_heights_band(c, encoder, queue, params, ringCursor,
+                                    patch_band_rows(plan, p.bake_slice), last);
+        p.bake_slice++;
+        if (last) {
+            p.phase = PatchPhase::GENERATED;
+            p.bake_slice = 0;
+            c->world_state_.patch_instances_dirty = true;
+        }
+        return;   // one slice a frame, and it was this one
+    }
+
+    // (2) Nothing in flight: take the nearest SPAWNED patch, from the point
+    //     the look-ahead names.
+    PatchCandidate cands[Dim::MAX_ACTIVE_PATCHES];
+    uint32_t count = collect_sorted_patches(c, cands, gen_cx, gen_cz,
+        [](const ActivePatch& p) { return p.phase == PatchPhase::SPAWNED; }, true);
+    if (count == 0) return;
+
+    const uint32_t pi = cands[0].idx;
+    auto& p = c->patch_system_state_.patches_[pi];
+
+    // The tile grid must be current before ANY bake reads it — the whole
+    // path's precondition, lifted from generate_selected_patches.
+    if (tileGridDirty) {
+        upload_tile_grid_now(tile_world_state, &tile_world_deps, queue,
+                             c->world_state_.last_center_x, c->world_state_.last_center_z);
+        tileGridDirty = false;
+    }
+
+    // URGENCY. Inside lod0 plus a patch of margin the eye is about to be
+    // there, so it bakes whole this frame through the untouched batch path.
+    const float urgent = c->gpuState_.lod0_radius() + PATCH_URGENT_MARGIN * Dim::PATCH_EXTENT;
+    if (cands[0].dist2 <= urgent * urgent) {
+        GPUPatchParams whole = make_patch_params(c, p.grid_x, p.grid_z, p.layer);
+        generate_patch_batch(c, encoder, queue, &whole, 1, ringCursor);
+        p.phase = PatchPhase::GENERATED;
+        c->world_state_.patch_instances_dirty = true;
+        return;
+    }
+
+    // Leisurely: open the bake and encode its first band now.
+    const PatchBandPlan plan = patch_band_plan(PATCH_BAKE_SLICES);
+    p.bake_slices = uint8_t(plan.bands);
+    p.bake_slice = 0;
+    p.phase = PatchPhase::BAKING;
+    const bool single = (plan.bands == 1u);
+    GPUPatchParams params = make_patch_params(c, p.grid_x, p.grid_z, p.layer);
+    params.row0 = patch_band_row0(plan, 0u);
+    generate_patch_heights_band(c, encoder, queue, params, ringCursor,
+                                patch_band_rows(plan, 0u), /*finish*/ single);
+    p.bake_slice = 1;
+    if (single) {
+        p.phase = PatchPhase::GENERATED;
+        p.bake_slice = 0;
+        c->world_state_.patch_instances_dirty = true;
+    }
 }
 
 // ── band_patches (visibility/LOD → the draw-instance set) ──────────
@@ -656,6 +835,11 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     c->world_state_.last_center_x, c->world_state_.last_center_z);
             }, false);  // farthest first
 
+        // RIBBON_4: a BAKING patch evicts exactly as a SPAWNED one does —
+        // the layer is freed and there is nothing to finish, because a bake
+        // in flight owns no state outside the patch record itself. The
+        // sliced conductor re-finds its work by SCANNING for BAKING, not by
+        // index, so the compaction below may move any patch freely.
         uint32_t evictThisFrame = std::min(count, EVICT_BUDGET_PER_FRAME);
         for (uint32_t e = 0; e < evictThisFrame; e++) {
             evict_patch(c, candidates[e].idx, queue);
@@ -774,12 +958,23 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         c->world_state_.alloc_scan_pending = (candidateCount > allocThisFrame);
     }
 
+    // THE LOOK-AHEAD (RIBBON_4): under a rider the point moves at flight speed,
+    // and the patches that matter are the ones ahead. The spawn and bake scans
+    // order their candidates from a point PATCH_LOOK_AHEAD along the flight —
+    // the saddle's heading, from the same readback the point mirror is filled
+    // by. Flight is −dir(heading) (the ribbon's law). The allocation window and
+    // the eviction stay on the point itself: the window is the authority on
+    // what EXISTS, and only the order in which existing work is served moves.
+    const float look = (c->point_.host == PointHost::RIBBON) ? PATCH_LOOK_AHEAD : 0.0f;
+    const float gen_cx = c->point_.x - std::cos(c->point_.heading) * look;
+    const float gen_cz = c->point_.z - std::sin(c->point_.heading) * look;
+
     // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────
     //
     {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
-            c->point_.x, c->point_.z,
+            gen_cx, gen_cz,
             [](const ActivePatch& p) {
                 return p.phase == PatchPhase::ALLOCATED;
             }, true);
@@ -787,21 +982,29 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             std::min(count, SPAWN_BUDGET_PER_FRAME), queue, themes_state);
     }
 
-    // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
+    // ─── HEIGHTFIELD GENERATION, IN TWO ARMS ─────────────────────
     //
+    // REGEN is a transition's debris — a pyramid landed and stale heights
+    // must catch up — so it keeps its burst and its whole-bake path, which
+    // patches_budget_this_frame paces by backlog. Its patches are already
+    // drawn (the grid and the band gate on GENERATED|NEEDS_REGEN), so a
+    // slow answer here shows as stale ground, not as a hole.
     {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
-            c->point_.x, c->point_.z,
+            gen_cx, gen_cz,
             [](const ActivePatch& p) {
-                return p.phase == PatchPhase::SPAWNED ||
-                    p.phase == PatchPhase::NEEDS_REGEN;
+                return p.phase == PatchPhase::NEEDS_REGEN;
             }, true);
         generate_selected_patches(c, candidates,
             std::min(count, patches_budget_this_frame(c, inputState)),
             encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
             patchParamsCursor);
     }
+
+    // THE STEADY WORLD (RIBBON_4): one bake in flight, one slice a frame.
+    generate_patch_sliced(c, encoder, queue, tileGridDirty,
+        tile_world_state, tile_world_deps, patchParamsCursor, gen_cx, gen_cz);
 
     // The conductor tail as a sequence of named units (was one inline block).
     band_patches(c, queue);

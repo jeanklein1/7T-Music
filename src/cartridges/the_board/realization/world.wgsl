@@ -1065,7 +1065,7 @@ struct PatchParams {
     master_seed: u32,       // world seed — deterministic terrain from this
     time: f32,              // current time for animated wave phases
     layer: u32,             // which layer of the heightfield array to write
-    _pad1: f32,
+    row0: u32,              // RIBBON_4 — first texel row of this band (0 = whole bake)
 }
 
 // Per-patch rendering data. Storage buffer indexed by instance_index.
@@ -9570,17 +9570,22 @@ fn compute_vp() {
 @compute @workgroup_size(16, 16)
 fn generate_patch_heights(@builtin(global_invocation_id) id: vec3<u32>) {
     let res = patch_params.resolution;
-    if (id.x >= res || id.y >= res) { return; }
+    // THE SLICED BAKE (RIBBON_4): row0 offsets this dispatch's band into the
+    // patch. A whole bake passes 0 and the arithmetic is what it always was.
+    // The guard is on the OFFSET row, because the last band of an uneven cut
+    // dispatches past the edge.
+    let ty = id.y + patch_params.row0;
+    if (id.x >= res || ty >= res) { return; }
 
     let res_f = f32(res);
-    let uv = vec2<f32>(id.xy) / (res_f - 1.0);
+    let uv = vec2<f32>(f32(id.x), f32(ty)) / (res_f - 1.0);
     let world_xz = vec2<f32>(
         patch_params.origin.x + (uv.x - 0.5) * patch_params.extent,
         patch_params.origin.y + (uv.y - 0.5) * patch_params.extent
     );
 
     let hc = ground_formed_with_complexity(world_xz);
-    let base = (id.y * res + id.x) * 2u;
+    let base = (ty * res + id.x) * 2u;
     patch_height_scratch[base]      = hc.x;   // height (stride-2 layout kept; the
     // +1 complexity slot is no longer written — no reader)
 }
