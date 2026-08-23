@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `32c2f2c944331df9da48a661adf86e4ebdade944` |
-| | RIBBON_5 P2: OPEN carries the rebirth witness; ledgers follow the tree |
+| source commit | `2f6bd5ffb846bc2bf0fee431ecb133f8e26ff383` |
+| | RIBBON_6 P1: one bake a frame — the slice and the ladder retire, youth is a latch set at a world's birth |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:94e0fe7fabbd7ce0e68ed1627f3eaf392300ef56157dc45b1e8be7c3e7ed29cf` |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:230da02dd5aded05de6ef73e3d1795509932b1c156012d5c749347e2236eb526` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:c1d167e5e29ab6cf853b7ec0ca053b6953faa6288f07575751f3696d6e574dbf` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:b2965439fd291286b34b57545f02a16b5133ac98abb582f0966694ef676608dd` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:893c70d921d05eef6a828f1a514d4204704dab766e67329610701ef1119ab023` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f15d2090f646b29a342c190f19645e42739a379db8ad9e0785ac2774bf420be0` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:64cc3e9bf3d3001fc205c7f606b78ae762f01f384030711ad25c9c72ca9bcb48` |
+| `audit/BINDING_LEDGER.md` | `sha256:424a35f2542105340cfda83535da0a0a8bac5b05ea73e22ffe4a6fccb6f435b4` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -79,7 +79,7 @@ Census cardinalities, reconciled against the ledger by ML-0:
 | `M2-0` | **PASS** | 90 declarations partitioned into 27 contiguous runs; 30 carry an attached comment block (rule A), 11 are Table H defended sites |
 | `M3-0` | **PASS** | every fifth-home hit fits the table shape — (a) 0 outside-declaration site(s), (b) 0 literal RHS, 0 other RHS, (c) 0 code hit(s) outside the three homes |
 | `M5-0` | **PASS** | 35 struct types named by slot store types; 33 resolve to a C++ twin, 2 do not (FloatingEntityArray, UnifiedPaintingSlot) — findings, not STOPs |
-| `M7-0` | **PASS** | 116 SetBindGroup sites over 8 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
+| `M7-0` | **PASS** | 112 SetBindGroup sites over 8 files, every group expression resolves to a state member bound at exactly the index 0c-4 records for its layout; 0 GetBindGroupLayout use(s) |
 | `M4-h` | **PASS** | renderer handle field names derive from LAYOUTS.accessor by camel-casing, all 29 handles |
 | `ML-2w` | **PASS** | artifact writer pins `encoding="utf-8", newline="\n"`; a byte-level read-back runs after the write |
 
@@ -210,11 +210,11 @@ Boundary: every occurrence of a pipeline-layout token (`std::array<wgpu::BindGro
 |---|---|---|---|
 | `P-help` | strataLayoutFor — the shared four-strata wrapper (LOOM_2: WORLD implicit, then frame / state / textures; DOMESDAY_2 F2-b1 named it, so the label leads; its inner statements are censused as part of this idiom) | 1 | `wgpu::PipelineLayout strataLayoutFor(const char* label, wgpu::BindGroupLayout frame, wgpu::BindGroupLayout state, wgpu::BindGroupLayout tex) { ...` — renderer.hpp:194 |
 | `P-arr` | the ordered layout list | 0 | — |
-| `P-desc` | pipeline layout descriptor declaration | 3 | `wgpu::PipelineLayoutDescriptor pld{};` — renderer.hpp:2189 |
+| `P-desc` | pipeline layout descriptor declaration | 3 | `wgpu::PipelineLayoutDescriptor pld{};` — renderer.hpp:2184 |
 | `P-cnt` | bindGroupLayoutCount from the array, never a literal | 0 | — |
 | `P-dat` | bindGroupLayouts pointer | 0 | — |
 | `P-new` | pipeline layout creation, named local | 0 | — |
-| `P-for` | pipeline layout via the shared wrapper, named at creation | 27 | `wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);` — renderer.hpp:1555 |
+| `P-for` | pipeline layout via the shared wrapper, named at creation | 27 | `wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);` — renderer.hpp:1550 |
 | `P-prm` | PipelineLayout as a builder parameter (makeComputePipeline; makeShadow's nullptr-sentinel default) | 2 | `wgpu::PipelineLayout layout,` — renderer.hpp:206 |
 
 Instances: 33 over 4 idioms. Ordering observed: array, descriptor, count, layouts-pointer, create, check — except 0 block(s) declare the descriptor before the array, and 0 create(s) carry no boot check (none). Count always precedes the data pointer. Shared lists are built before any pipeline; dedicated lists sit inline beside their pipelines.
@@ -247,20 +247,20 @@ emit-one-block vs patch-in-place — that call is LOOM_1's.
 | 11 | 6900–6926 | 13 | `bilinear_sampler` | `patch_cell_color_array_read` |
 | 12 | 7182–7198 | 12 | `zone_config` | `live_card_scratch` |
 | 13 | 7225–7225 | 1 | `zone_derive_requests` | `zone_derive_requests` |
-| 14 | 10432–10437 | 6 | `photographer_config` | `photo_sampler` |
-| 15 | 10449–10449 | 1 | `arch_ground` | `arch_ground` |
-| 16 | 10461–10461 | 1 | `column_ground` | `column_ground` |
-| 17 | 10471–10474 | 2 | `plant_ground` | `entity_ground_atlas_write` |
-| 18 | 10488–10488 | 1 | `patch_grid` | `patch_grid` |
-| 19 | 10804–10808 | 5 | `fc_config` | `fc_indirect` |
-| 20 | 10826–10826 | 1 | `fc_draw_plan` | `fc_draw_plan` |
-| 21 | 10983–10985 | 3 | `painting_slots` | `painting_sampler_filt` |
-| 22 | 11536–11538 | 3 | `amg_params` | `amg_indices` |
-| 23 | 11899–11906 | 5 | `cmg_params` | `cmg_column_ground` |
-| 24 | 12416–12418 | 3 | `palmg_params` | `palmg_indices` |
-| 25 | 12755–12757 | 3 | `cactusg_params` | `cactusg_indices` |
-| 26 | 13132–13134 | 3 | `bladeg_params` | `bladeg_indices` |
-| 27 | 13586–13598 | 5 | `orb_state` | `orb_state_prev_rw` |
+| 14 | 10427–10432 | 6 | `photographer_config` | `photo_sampler` |
+| 15 | 10444–10444 | 1 | `arch_ground` | `arch_ground` |
+| 16 | 10456–10456 | 1 | `column_ground` | `column_ground` |
+| 17 | 10466–10469 | 2 | `plant_ground` | `entity_ground_atlas_write` |
+| 18 | 10483–10483 | 1 | `patch_grid` | `patch_grid` |
+| 19 | 10799–10803 | 5 | `fc_config` | `fc_indirect` |
+| 20 | 10821–10821 | 1 | `fc_draw_plan` | `fc_draw_plan` |
+| 21 | 10978–10980 | 3 | `painting_slots` | `painting_sampler_filt` |
+| 22 | 11531–11533 | 3 | `amg_params` | `amg_indices` |
+| 23 | 11894–11901 | 5 | `cmg_params` | `cmg_column_ground` |
+| 24 | 12411–12413 | 3 | `palmg_params` | `palmg_indices` |
+| 25 | 12750–12752 | 3 | `cactusg_params` | `cactusg_indices` |
+| 26 | 13127–13129 | 3 | `bladeg_params` | `bladeg_indices` |
+| 27 | 13581–13593 | 5 | `orb_state` | `orb_state_prev_rw` |
 
 Line numbers are non-authoritative hints; cite symbols.
 
@@ -314,48 +314,48 @@ Line numbers are non-authoritative hints; cite symbols.
 | `live_card_write` | 7197 | 12 | — | — |
 | `live_card_scratch` | 7198 | 12 | yes | — |
 | `zone_derive_requests` | 7225 | 13 | — | — |
-| `photographer_config` | 10432 | 14 | — | — |
-| `photographer_vp` | 10433 | 14 | — | — |
-| `photographer_camera_out` | 10434 | 14 | — | — |
-| `photo_painting_slots` | 10435 | 14 | — | — |
-| `photo_heightfield` | 10436 | 14 | — | — |
-| `photo_sampler` | 10437 | 14 | — | — |
-| `arch_ground` | 10449 | 15 | — | — |
-| `column_ground` | 10461 | 16 | — | — |
-| `plant_ground` | 10471 | 17 | yes | — |
-| `entity_ground_atlas_write` | 10474 | 17 | yes | — |
-| `patch_grid` | 10488 | 18 | — | — |
-| `fc_config` | 10804 | 19 | yes | — |
-| `fc_vp` | 10805 | 19 | — | — |
-| `fc_patches` | 10806 | 19 | — | — |
-| `fc_visible` | 10807 | 19 | — | **yes** |
-| `fc_indirect` | 10808 | 19 | — | **yes** |
-| `fc_draw_plan` | 10826 | 20 | — | — |
-| `painting_slots` | 10983 | 21 | yes | — |
-| `painting_array` | 10984 | 21 | — | — |
-| `painting_sampler_filt` | 10985 | 21 | — | — |
-| `amg_params` | 11536 | 22 | yes | — |
-| `amg_vertices` | 11537 | 22 | — | — |
-| `amg_indices` | 11538 | 22 | — | — |
-| `cmg_params` | 11899 | 23 | yes | — |
-| `cmg_vertices` | 11900 | 23 | — | — |
-| `cmg_indices` | 11901 | 23 | — | — |
-| `cmg_config` | 11905 | 23 | yes | — |
-| `cmg_column_ground` | 11906 | 23 | — | — |
-| `palmg_params` | 12416 | 24 | — | — |
-| `palmg_vertices` | 12417 | 24 | — | — |
-| `palmg_indices` | 12418 | 24 | — | — |
-| `cactusg_params` | 12755 | 25 | — | — |
-| `cactusg_vertices` | 12756 | 25 | — | — |
-| `cactusg_indices` | 12757 | 25 | — | — |
-| `bladeg_params` | 13132 | 26 | — | — |
-| `bladeg_vertices` | 13133 | 26 | — | — |
-| `bladeg_indices` | 13134 | 26 | — | — |
-| `orb_state` | 13586 | 27 | — | **yes** |
-| `orb_config` | 13587 | 27 | — | — |
-| `orb_state_prev` | 13591 | 27 | yes | **yes** |
-| `orb_state_ro` | 13597 | 27 | yes | — |
-| `orb_state_prev_rw` | 13598 | 27 | — | — |
+| `photographer_config` | 10427 | 14 | — | — |
+| `photographer_vp` | 10428 | 14 | — | — |
+| `photographer_camera_out` | 10429 | 14 | — | — |
+| `photo_painting_slots` | 10430 | 14 | — | — |
+| `photo_heightfield` | 10431 | 14 | — | — |
+| `photo_sampler` | 10432 | 14 | — | — |
+| `arch_ground` | 10444 | 15 | — | — |
+| `column_ground` | 10456 | 16 | — | — |
+| `plant_ground` | 10466 | 17 | yes | — |
+| `entity_ground_atlas_write` | 10469 | 17 | yes | — |
+| `patch_grid` | 10483 | 18 | — | — |
+| `fc_config` | 10799 | 19 | yes | — |
+| `fc_vp` | 10800 | 19 | — | — |
+| `fc_patches` | 10801 | 19 | — | — |
+| `fc_visible` | 10802 | 19 | — | **yes** |
+| `fc_indirect` | 10803 | 19 | — | **yes** |
+| `fc_draw_plan` | 10821 | 20 | — | — |
+| `painting_slots` | 10978 | 21 | yes | — |
+| `painting_array` | 10979 | 21 | — | — |
+| `painting_sampler_filt` | 10980 | 21 | — | — |
+| `amg_params` | 11531 | 22 | yes | — |
+| `amg_vertices` | 11532 | 22 | — | — |
+| `amg_indices` | 11533 | 22 | — | — |
+| `cmg_params` | 11894 | 23 | yes | — |
+| `cmg_vertices` | 11895 | 23 | — | — |
+| `cmg_indices` | 11896 | 23 | — | — |
+| `cmg_config` | 11900 | 23 | yes | — |
+| `cmg_column_ground` | 11901 | 23 | — | — |
+| `palmg_params` | 12411 | 24 | — | — |
+| `palmg_vertices` | 12412 | 24 | — | — |
+| `palmg_indices` | 12413 | 24 | — | — |
+| `cactusg_params` | 12750 | 25 | — | — |
+| `cactusg_vertices` | 12751 | 25 | — | — |
+| `cactusg_indices` | 12752 | 25 | — | — |
+| `bladeg_params` | 13127 | 26 | — | — |
+| `bladeg_vertices` | 13128 | 26 | — | — |
+| `bladeg_indices` | 13129 | 26 | — | — |
+| `orb_state` | 13581 | 27 | — | **yes** |
+| `orb_config` | 13582 | 27 | — | — |
+| `orb_state_prev` | 13586 | 27 | yes | **yes** |
+| `orb_state_ro` | 13592 | 27 | yes | — |
+| `orb_state_prev_rw` | 13593 | 27 | — | — |
 
 ## M3 — the fifth-home grep
 
@@ -544,37 +544,37 @@ is LOOM_1 / panel work.
 |---|---|---|---|---|---|
 | `AgentRoomConstants` | 6758 | `agent_room` | `GPUAgentRoomConstants` | `src/cartridges/the_board/realization/state.hpp:1847` | 6 |
 | `AgentState` | 809 | `agent_state`, `render_agents` | `GPUAgentState` | `src/cartridges/the_board/realization/state.hpp:798` | 2 |
-| `ArchGroundEntry` | 10439 | `arch_ground` | `GPUArchGroundEntry` | `src/cartridges/the_board/realization/state.hpp:1119` | 1 |
-| `ArchMeshParams` | 11509 | `amg_params` | `GPUArchMeshParams` | `src/cartridges/the_board/realization/state.hpp:1170` | 1 |
-| `BladeClusterMeshParams` | 13114 | `bladeg_params` | `GPUBladeClusterMeshParams` | `src/cartridges/the_board/realization/state.hpp:1308` | 1 |
-| `CactusMeshParams` | 12733 | `cactusg_params` | `GPUCactusMeshParams` | `src/cartridges/the_board/realization/state.hpp:1275` | 1 |
+| `ArchGroundEntry` | 10434 | `arch_ground` | `GPUArchGroundEntry` | `src/cartridges/the_board/realization/state.hpp:1119` | 1 |
+| `ArchMeshParams` | 11504 | `amg_params` | `GPUArchMeshParams` | `src/cartridges/the_board/realization/state.hpp:1170` | 1 |
+| `BladeClusterMeshParams` | 13109 | `bladeg_params` | `GPUBladeClusterMeshParams` | `src/cartridges/the_board/realization/state.hpp:1308` | 1 |
+| `CactusMeshParams` | 12728 | `cactusg_params` | `GPUCactusMeshParams` | `src/cartridges/the_board/realization/state.hpp:1275` | 1 |
 | `CameraState` | 953 | `camera_state`, `photographer_camera_out` | `GPUCameraState` | `src/cartridges/the_board/realization/state.hpp:974` | 1 |
-| `ColumnGroundEntry` | 10451 | `cmg_column_ground`, `column_ground` | `GPUColumnGroundEntry` | `src/cartridges/the_board/realization/state.hpp:1133` | 1 |
-| `ColumnMeshParams` | 11867 | `cmg_params` | `GPUColumnMeshParams` | `src/cartridges/the_board/realization/state.hpp:1203` | 1 |
+| `ColumnGroundEntry` | 10446 | `cmg_column_ground`, `column_ground` | `GPUColumnGroundEntry` | `src/cartridges/the_board/realization/state.hpp:1133` | 1 |
+| `ColumnMeshParams` | 11862 | `cmg_params` | `GPUColumnMeshParams` | `src/cartridges/the_board/realization/state.hpp:1203` | 1 |
 | `DesignConfig` | 1563 | `cmg_config`, `config`, `fc_config` | `GPUDesignConfig` | `src/cartridges/the_board/realization/state.hpp:512` | 3 |
-| `DrawPlanParams` | 10819 | `fc_draw_plan` | `GPUDrawPlanParams` | `src/cartridges/the_board/realization/state.hpp:1668` | 2 |
+| `DrawPlanParams` | 10814 | `fc_draw_plan` | `GPUDrawPlanParams` | `src/cartridges/the_board/realization/state.hpp:1668` | 2 |
 | `FieldBus` | 2585 | `field_bus` | `GPUFieldBus` | `src/cartridges/the_board/realization/state.hpp:1899` | 2 |
 | `FloatingEntityArray` | 1021 | `floating_entities`, `render_floating` | **none found** under the prescribed names | — | 0 |
 | `FrameR` | 6864 | `frame_r` | `GPUFrameR` | `src/cartridges/the_board/realization/state.hpp:1924` | 4 |
 | `FrameSignal` | 775 | `signal` | `GPUFrameSignal` | `src/cartridges/the_board/realization/state.hpp:479` | 2 |
 | `GoLZoneArray` | 7082 | `zone_config`, `zone_params` | `GPUGoLZoneArray` | `src/cartridges/the_board/realization/state.hpp:1357` | 1 |
-| `OrbConfig` | 13424 | `orb_config` | `GPUOrbConfig` | `src/cartridges/the_board/realization/state.hpp:1448` | 2 |
-| `OrbState` | 13409 | `orb_state`, `orb_state_prev`, `orb_state_prev_rw`, `orb_state_ro` | `GPUOrbState` | `src/cartridges/the_board/realization/state.hpp:1432` | 1 |
-| `PalmGroundEntry` | 10463 | `plant_ground` | `GPUPalmGroundEntry` | `src/cartridges/the_board/realization/state.hpp:1260` | 1 |
-| `PalmMeshParams` | 12390 | `palmg_params` | `GPUPalmMeshParams` | `src/cartridges/the_board/realization/state.hpp:1239` | 1 |
-| `PatchGrid` | 10481 | `patch_grid` | `GPUPatchGrid` | `src/cartridges/the_board/realization/state.hpp:1766` | 1 |
+| `OrbConfig` | 13419 | `orb_config` | `GPUOrbConfig` | `src/cartridges/the_board/realization/state.hpp:1448` | 2 |
+| `OrbState` | 13404 | `orb_state`, `orb_state_prev`, `orb_state_prev_rw`, `orb_state_ro` | `GPUOrbState` | `src/cartridges/the_board/realization/state.hpp:1432` | 1 |
+| `PalmGroundEntry` | 10458 | `plant_ground` | `GPUPalmGroundEntry` | `src/cartridges/the_board/realization/state.hpp:1260` | 1 |
+| `PalmMeshParams` | 12385 | `palmg_params` | `GPUPalmMeshParams` | `src/cartridges/the_board/realization/state.hpp:1239` | 1 |
+| `PatchGrid` | 10476 | `patch_grid` | `GPUPatchGrid` | `src/cartridges/the_board/realization/state.hpp:1766` | 1 |
 | `PatchInstance` | 1073 | `fc_patches`, `patch_instances` | `GPUPatchInstance` | `src/cartridges/the_board/realization/state.hpp:1756` | 1 |
 | `PatchParams` | 1061 | `patch_params` | `GPUPatchParams` | `src/cartridges/the_board/realization/state.hpp:1746` | 1 |
 | `PawnAuraCell` | 7165 | `pawn_aura_cells` | `GPUPawnAuraCell` | `src/cartridges/the_board/realization/state.hpp:1413` | 1 |
 | `PawnAuraConfig` | 7096 | `pawn_aura_cfg` | `GPUPawnAuraConfig` | `src/cartridges/the_board/realization/state.hpp:1392` | 1 |
-| `PhotographerConfig` | 10419 | `photographer_config` | `GPUPhotographerConfig` | `src/cartridges/the_board/realization/state.hpp:2018` | 1 |
+| `PhotographerConfig` | 10414 | `photographer_config` | `GPUPhotographerConfig` | `src/cartridges/the_board/realization/state.hpp:2018` | 1 |
 | `PyramidArray` | 2923 | `pyramid_instances` | `GPUPyramidArray` | `src/cartridges/the_board/realization/state.hpp:1157` | 1 |
 | `RibbonBody` | 5779 | `ribbon_body_read`, `ribbon_body_rw` | `GPURibbonBody` | `src/cartridges/the_board/realization/state.hpp:1102` | 4 |
 | `RibbonRingTransform` | 1054 | `render_ring_xforms`, `ring_xforms` | `GPURibbonRingTransform` | `src/cartridges/the_board/realization/state.hpp:1067` | 1 |
 | `RibbonState` | 1027 | `ribbon_state` | `GPURibbonState` | `src/cartridges/the_board/realization/state.hpp:1039` | 5 |
 | `SceneConstants` | 942 | `scene_constants` | `GPUSceneConstants` | `src/cartridges/the_board/realization/state.hpp:1952` | 3 |
 | `TileGrid` | 1093 | `tile_grid` | `GPUTileGrid` | `src/cartridges/the_board/realization/state.hpp:787` | 1 |
-| `UnifiedPaintingSlot` | 10949 | `painting_slots`, `photo_painting_slots` | **none found** under the prescribed names; name cited at `src/cartridges/the_board/realization/state.hpp:1976` | — | 0 |
+| `UnifiedPaintingSlot` | 10944 | `painting_slots`, `photo_painting_slots` | **none found** under the prescribed names; name cited at `src/cartridges/the_board/realization/state.hpp:1976` | — | 0 |
 | `VPMatrix` | 3799 | `fc_vp`, `photographer_vp`, `vp_data` | `GPUVPMatrix` | `src/cartridges/the_board/realization/state.hpp:1589` | 1 |
 | `ZoneDeriveRequestArray` | 7217 | `zone_derive_requests` | `GPUZoneDeriveRequestArray` | `src/cartridges/the_board/realization/state.hpp:1379` | 1 |
 
@@ -1043,8 +1043,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:1912` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:1913` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:1934` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:1935` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `gallery.hpp:1447` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
 | `gallery.hpp:1448` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
 | `gallery.hpp:1513` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
@@ -1104,61 +1104,57 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `renderer.hpp:421` | `dispatch_update_camera` | 3 | `frameKTexturesGroup_` | — |
 | `renderer.hpp:442` | `dispatch_compute_vp` | 2 | `frameKStateGroup_` | — |
 | `renderer.hpp:443` | `dispatch_compute_vp` | 3 | `frameKTexturesGroup_` | — |
-| `renderer.hpp:463` | `dispatch_generate_patch_heights` | 2 | `patchgenStateGroup_` | `1, &paramsOffset` |
-| `renderer.hpp:464` | `dispatch_generate_patch_heights` | 3 | `patchgenTexturesGroup_` | — |
-| `renderer.hpp:478` | `dispatch_generate_patch_gradients` | 2 | `patchgenStateGroup_` | `1, &paramsOffset` |
-| `renderer.hpp:479` | `dispatch_generate_patch_gradients` | 3 | `patchgenTexturesGroup_` | — |
-| `renderer.hpp:492` | `dispatch_generate_patch_cells` | 2 | `patchgenStateGroup_` | `1, &paramsOffset` |
-| `renderer.hpp:493` | `dispatch_generate_patch_cells` | 3 | `patchgenTexturesGroup_` | — |
-| `renderer.hpp:507` | `dispatch_ribbon` | 2 | `ribbonStateGroup_` | — |
-| `renderer.hpp:508` | `dispatch_ribbon` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:522` | `dispatch_compute_photographer_vp` | 2 | `photoKStateGroup_` | — |
-| `renderer.hpp:523` | `dispatch_compute_photographer_vp` | 3 | `photoKTexturesGroup_` | — |
-| `renderer.hpp:533` | `dispatch_entity_placement` | 2 | `placeStateGroup_` | — |
-| `renderer.hpp:534` | `dispatch_entity_placement` | 3 | `placeTexturesGroup_` | — |
-| `renderer.hpp:544` | `dispatch_frustum_cull` | 2 | `cullStateGroup_` | — |
-| `renderer.hpp:545` | `dispatch_frustum_cull` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:560` | `dispatch_compute_pawn_aura` | 2 | `auraStateGroup_` | — |
-| `renderer.hpp:561` | `dispatch_compute_pawn_aura` | 3 | `auraTexturesGroup_` | — |
-| `renderer.hpp:573` | `dispatch_live_card_write` | 2 | `zonesStateGroup_` | — |
-| `renderer.hpp:574` | `dispatch_live_card_write` | 3 | `zonesTexturesGroup_` | — |
-| `renderer.hpp:590` | `dispatch_orb_init` | 2 | `orbsAStateGroup_` | — |
-| `renderer.hpp:591` | `dispatch_orb_init` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:603` | `dispatch_orb_dynamics` | 2 | `orbsAStateGroup_` | — |
-| `renderer.hpp:604` | `dispatch_orb_dynamics` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:616` | `dispatch_orb_recolor` | 2 | `orbsAStateGroup_` | — |
-| `renderer.hpp:617` | `dispatch_orb_recolor` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:629` | `dispatch_orb_copy_prev` | 2 | `orbsBStateGroup_` | — |
-| `renderer.hpp:630` | `dispatch_orb_copy_prev` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:663` | `dispatch_zone_gol_sync` | 2 | `zonesStateGroup_` | — |
-| `renderer.hpp:664` | `dispatch_zone_gol_sync` | 3 | `zonesTexturesGroup_` | — |
-| `renderer.hpp:682` | `dispatch_zone_gol_evolve` | 2 | `zonesStateGroup_` | — |
-| `renderer.hpp:683` | `dispatch_zone_gol_evolve` | 3 | `zonesTexturesGroup_` | — |
-| `renderer.hpp:697` | `dispatch_zone_derive_params` | 2 | `zonesStateGroup_` | — |
-| `renderer.hpp:698` | `dispatch_zone_derive_params` | 3 | `zonesTexturesGroup_` | — |
-| `renderer.hpp:711` | `dispatch_zone_seed_mask` | 2 | `zonesStateGroup_` | — |
-| `renderer.hpp:712` | `dispatch_zone_seed_mask` | 3 | `zonesTexturesGroup_` | — |
-| `renderer.hpp:728` | `dispatch_arch_mesh_gen` | 2 | `meshgenStateGroup_` | — |
-| `renderer.hpp:729` | `dispatch_arch_mesh_gen` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:741` | `dispatch_column_mesh_gen` | 2 | `meshgenStateColumnGroup_` | — |
-| `renderer.hpp:742` | `dispatch_column_mesh_gen` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:753` | `dispatch_palm_mesh_gen` | 2 | `meshgenStatePalmGroup_` | — |
-| `renderer.hpp:754` | `dispatch_palm_mesh_gen` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:765` | `dispatch_cactus_mesh_gen` | 2 | `meshgenStateCactusGroup_` | — |
-| `renderer.hpp:766` | `dispatch_cactus_mesh_gen` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:777` | `dispatch_blade_mesh_gen` | 2 | `meshgenStateBladeGroup_` | — |
-| `renderer.hpp:778` | `dispatch_blade_mesh_gen` | 3 | `emptyGroup_` | — |
-| `renderer.hpp:808` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
-| `renderer.hpp:832` | `draw_patch_terrain_direct` | 2 | `sceneStateGroup_` | — |
-| `renderer.hpp:833` | `draw_patch_terrain_direct` | 3 | `sceneTexturesGroup_` | — |
-| `patch_system.hpp:240` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:241` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:253` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:254` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:301` | `generate_patch_heights_band` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:302` | `generate_patch_heights_band` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:317` | `generate_patch_heights_band` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:318` | `generate_patch_heights_band` | 1 | `frameCGroup_` | — |
+| `renderer.hpp:458` | `dispatch_generate_patch_heights` | 2 | `patchgenStateGroup_` | `1, &paramsOffset` |
+| `renderer.hpp:459` | `dispatch_generate_patch_heights` | 3 | `patchgenTexturesGroup_` | — |
+| `renderer.hpp:473` | `dispatch_generate_patch_gradients` | 2 | `patchgenStateGroup_` | `1, &paramsOffset` |
+| `renderer.hpp:474` | `dispatch_generate_patch_gradients` | 3 | `patchgenTexturesGroup_` | — |
+| `renderer.hpp:487` | `dispatch_generate_patch_cells` | 2 | `patchgenStateGroup_` | `1, &paramsOffset` |
+| `renderer.hpp:488` | `dispatch_generate_patch_cells` | 3 | `patchgenTexturesGroup_` | — |
+| `renderer.hpp:502` | `dispatch_ribbon` | 2 | `ribbonStateGroup_` | — |
+| `renderer.hpp:503` | `dispatch_ribbon` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:517` | `dispatch_compute_photographer_vp` | 2 | `photoKStateGroup_` | — |
+| `renderer.hpp:518` | `dispatch_compute_photographer_vp` | 3 | `photoKTexturesGroup_` | — |
+| `renderer.hpp:528` | `dispatch_entity_placement` | 2 | `placeStateGroup_` | — |
+| `renderer.hpp:529` | `dispatch_entity_placement` | 3 | `placeTexturesGroup_` | — |
+| `renderer.hpp:539` | `dispatch_frustum_cull` | 2 | `cullStateGroup_` | — |
+| `renderer.hpp:540` | `dispatch_frustum_cull` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:555` | `dispatch_compute_pawn_aura` | 2 | `auraStateGroup_` | — |
+| `renderer.hpp:556` | `dispatch_compute_pawn_aura` | 3 | `auraTexturesGroup_` | — |
+| `renderer.hpp:568` | `dispatch_live_card_write` | 2 | `zonesStateGroup_` | — |
+| `renderer.hpp:569` | `dispatch_live_card_write` | 3 | `zonesTexturesGroup_` | — |
+| `renderer.hpp:585` | `dispatch_orb_init` | 2 | `orbsAStateGroup_` | — |
+| `renderer.hpp:586` | `dispatch_orb_init` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:598` | `dispatch_orb_dynamics` | 2 | `orbsAStateGroup_` | — |
+| `renderer.hpp:599` | `dispatch_orb_dynamics` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:611` | `dispatch_orb_recolor` | 2 | `orbsAStateGroup_` | — |
+| `renderer.hpp:612` | `dispatch_orb_recolor` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:624` | `dispatch_orb_copy_prev` | 2 | `orbsBStateGroup_` | — |
+| `renderer.hpp:625` | `dispatch_orb_copy_prev` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:658` | `dispatch_zone_gol_sync` | 2 | `zonesStateGroup_` | — |
+| `renderer.hpp:659` | `dispatch_zone_gol_sync` | 3 | `zonesTexturesGroup_` | — |
+| `renderer.hpp:677` | `dispatch_zone_gol_evolve` | 2 | `zonesStateGroup_` | — |
+| `renderer.hpp:678` | `dispatch_zone_gol_evolve` | 3 | `zonesTexturesGroup_` | — |
+| `renderer.hpp:692` | `dispatch_zone_derive_params` | 2 | `zonesStateGroup_` | — |
+| `renderer.hpp:693` | `dispatch_zone_derive_params` | 3 | `zonesTexturesGroup_` | — |
+| `renderer.hpp:706` | `dispatch_zone_seed_mask` | 2 | `zonesStateGroup_` | — |
+| `renderer.hpp:707` | `dispatch_zone_seed_mask` | 3 | `zonesTexturesGroup_` | — |
+| `renderer.hpp:723` | `dispatch_arch_mesh_gen` | 2 | `meshgenStateGroup_` | — |
+| `renderer.hpp:724` | `dispatch_arch_mesh_gen` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:736` | `dispatch_column_mesh_gen` | 2 | `meshgenStateColumnGroup_` | — |
+| `renderer.hpp:737` | `dispatch_column_mesh_gen` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:748` | `dispatch_palm_mesh_gen` | 2 | `meshgenStatePalmGroup_` | — |
+| `renderer.hpp:749` | `dispatch_palm_mesh_gen` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:760` | `dispatch_cactus_mesh_gen` | 2 | `meshgenStateCactusGroup_` | — |
+| `renderer.hpp:761` | `dispatch_cactus_mesh_gen` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:772` | `dispatch_blade_mesh_gen` | 2 | `meshgenStateBladeGroup_` | — |
+| `renderer.hpp:773` | `dispatch_blade_mesh_gen` | 3 | `emptyGroup_` | — |
+| `renderer.hpp:803` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
+| `renderer.hpp:827` | `draw_patch_terrain_direct` | 2 | `sceneStateGroup_` | — |
+| `renderer.hpp:828` | `draw_patch_terrain_direct` | 3 | `sceneTexturesGroup_` | — |
+| `patch_system.hpp:186` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:187` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:199` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:200` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
 
 ## Appendix — the renderer handle convention
 

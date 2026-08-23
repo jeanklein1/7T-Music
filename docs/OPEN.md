@@ -174,15 +174,17 @@ here — the sign-off is Jean's, and RIBBON_2 has its own list below.
   one of the three that is structurally parallelizable (each chord reads
   only its predecessor, so it is a scan), and it is the first thing the
   optimization sitting should look at.
-  RIBBON_4 IS THE ONE THAT MOVED THE FRAME, and it moved it DOWN without a
-  meter to prove it: the worst streaming frame used to be six whole bakes
-  plus four spawns plus four evictions, and is now one band of one bake plus
-  one spawn plus two evictions. The total work is unchanged — the same
-  patches are baked, spawned and evicted — so what this buys is evenness,
-  not throughput, and the cost is that a leisurely patch arrives
-  `PATCH_BAKE_SLICES` frames later than it used to. If terrain is ever seen
-  ARRIVING at the edge of the ring rather than being there, that is this
-  trade showing, and `PATCH_URGENT_MARGIN` is the dial that buys it back.
+  RIBBON_4 CLAIMED TO MOVE THE FRAME and RIBBON_6 WITHDREW THE CLAIM. It
+  priced its slicing without a meter; the meter, when it was finally read,
+  said streaming's worst frame was 2 ms of GPU and had never cost a frame at
+  all. The slicing, the urgency margin and the backlog ladder are gone, so
+  the dials that paragraph named no longer exist and it is not kept as a
+  record of them (L30). What stands in their place is one number:
+  **the streaming frame is one whole bake, ~2.4 ms of GPU, every frame the
+  same** — and 15 frames to a grid crossing against 18.75 available at the
+  top of the speed dial. Evenness by construction, adequacy by arithmetic.
+  If terrain is ever seen ARRIVING at the edge of the ring rather than being
+  there, `BAKE_BUDGET_PER_FRAME` is the one dial that buys it back.
 
   RIBBON_3 MOVED IT BOTH WAYS, still unmeasured. Up: an arch costs 8 rib
   capsules plus 2 piers per arch per reader where it cost one disc — 16
@@ -263,6 +265,52 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   smooth per-frame float, never a beat-quantized tick — which is why §3.5
   took its first branch and the clock did not come home.
 
+## RIBBON_6 — ONE BAKE A FRAME, AND THE PRESENTATION LAW
+
+Origin: RIBBON_6 (two commits, base `3493a05`). This round WITHDREW a premise
+two earlier rounds were built on, so read this entry before theirs.
+
+- **WHAT THE METER SAID ALL ALONG**, recorded so no future round re-derives
+  the streaming hypothesis: across three steady windows of Jean's own
+  recording, `stream_patches` never exceeded **2.00 ms of GPU** and its means
+  were 0.01–0.02 ms; `frame_total` never exceeded **2.21 ms of CPU**; fps
+  59.9 / 60.0 / 60.0. **Streaming never cost a frame.** RIBBON_4's charter
+  held that the conductor's bursts were the blocks along the way; they were
+  not, and everything built on that has been withdrawn. Origin: RIBBON_6 §0.
+- ONE BAKE A FRAME. Fly straight at the top of the speed dial for a minute.
+  The world should keep up without holes, and no frame should carry more than
+  one bake. In a meter build `[STREAM]` shows `young=0` throughout — **if
+  `young` ever flickers to 1 during ordinary flight, this round's diagnosis is
+  wrong and that flicker is the whole finding.**
+- THE PRESENTATION LAW. `[PRESENT]`, riding and walking, at the exhibition
+  canvas. A near-pure `1x` column with the ride reading smooth closes the
+  campaign. A fat `2x` column names the cost as GPU-side and hands the
+  optimization sitting its target — and the meter's own first window already
+  says where the budget goes: `main_pass` 7.4–11.7 ms and `shadow_pass`
+  2.2–5.2 ms of GPU. The `[METER]` line now carries the canvas and an `over`
+  count beside them, because a GPU budget read against an unknown resolution
+  is not a reading.
+- TWO RULINGS, each one word: `BAKE_BUDGET_PER_FRAME` (1 — the law; raising it
+  buys catch-up and spends evenness) and the youth threshold (three quarters
+  of the window, cleared once and never re-armed by anything the player does).
+
+## Found by the RIBBON_5 audit, still open
+
+- **THE POINT MIRROR CAN FREEZE, and nothing says so.** Every streaming
+  consumer reads `c->point_` — the window centre, the eviction sort, the alloc
+  box, the bake ordering, the draw band. TEARDOWN authors it and bumps
+  `world_gen`, dropping every in-flight readback callback. If
+  `pawnReadbackState_` ever wedges in MAPPING, `point_` never moves again:
+  `gridChanged` stays false, the box raiser never fires, and `stream_patches`
+  encodes nothing — a true 0.00 ms with a visibly moving player, which is the
+  one mechanism that produces that reading. **The test is already in the tree
+  and costs nothing to run:** in `[STREAM]`, `center=(cx,cz)` must equal
+  `floor(point/50)`. If they ever disagree, the readback is the fault and no
+  amount of conductor work will help. Unblocked by a meter-build session.
+- The readback's own recovery has no witness either: nothing prints if a
+  `MapAsync` never completes. Priced at one line beside the state machine,
+  not built. Origin: the RIBBON_5 conservation audit, re-run adversarially.
+
 ## RIBBON_5 — THE WORLD COMES BACK
 
 Origin: RIBBON_5 (two commits, base `b4fe1fb`). This one comes first: until
@@ -283,17 +331,14 @@ the world rebuilds, no other witness in this file can be read at all.
   transition, and the patch underfoot changing IS the new seed's terrain
   arriving. That part was the program working. What was broken is only that
   the world never finished rebuilding afterwards.
-  **RIBBON_4's circle-vs-straight witness still stands** and is still unread —
-  it was never reachable, because the world under it was never whole. Read it
-  once the rebuild lands.
-- THREE RULINGS, each one word to overturn: the youth threshold (under HALF
-  the window built — raise it and the burst runs longer, lower it and the
-  steady cadence takes over sooner); the young budgets (4 spawn / 4 evict /
-  the backlog ladder — the pre-RIBBON_4 numbers, restored only while young);
-  and whether the conservation witness stays always-on (it costs one O(225)
-  walk a second and is the only thing standing between a layer leak and a
-  silent one-patch world — the recommendation is that it never moves behind a
-  dial).
+  **RIBBON_4's circle-vs-straight witness is RETIRED**, not owed: RIBBON_6
+  withdrew the premise it was written to test, and it was never reachable
+  anyway.
+- ONE RULING LEFT FROM THIS ROUND: whether the conservation witness stays
+  always-on. It costs one O(225) walk a second and is the only thing standing
+  between a layer leak and a silent one-patch world — the recommendation is
+  that it never moves behind a dial. (The youth threshold and the young
+  budgets moved to RIBBON_6's entry, which rewrote both.)
 - WHAT THE AUDIT FOUND — and it found a real break, on the second pass. The
   first pass asked "does every site that clears `valid` return its layer?"
   The answer is yes, and the answer was useless, because the break runs the
@@ -323,45 +368,6 @@ the world rebuilds, no other witness in this file can be read at all.
   zero-headroom equality remains (`MAX_ACTIVE_PATCHES == 225 == the 15x15
   window`): the pool has no slack by construction, which is exactly why a
   comment saying "this shouldn't happen" was never enough.
-
-## RIBBON_4 — the one witness that decides
-
-Origin: RIBBON_4 (two commits, base `5d17316`). This one comes FIRST,
-before the five of RIBBON_3 below, because it settles a diagnosis the rest
-of the campaign now rests on. Jean's witness of RIBBON_3 was that a far
-wanderer is smooth while the ridden ribbon still stutters, and that the
-stutter arrives once it is moving — so the bet is that the ribbon's own
-motion is finished and what is left is the WORLD streaming behind a fast
-point.
-
-- THE STEADY WORLD (RIBBON_4). The diagnosis is a bet, and one ride settles
-  it before any other verdict is worth giving: **ride in a tight circle
-  inside terrain that is already generated** — a loop under 100 wu across,
-  for half a minute. (It is flyable at the shipped rests: `r_min` 40 makes
-  the tightest circle 80 wu across, so no dial needs touching.)
-  IF THAT IS SMOOTH, the ribbon is smooth and the stutter was the world
-  streaming behind a fast point. The straight flight that follows should
-  then read as one motion, with patches arriving a slice at a time instead
-  of a row at a time: no frame carries more than one patch's spawning, two
-  evictions and one band of one bake.
-  IF THE CIRCLE ITSELF STUTTERS, the cause is in the frame, not the
-  conductor, and this campaign has been treating a symptom. The next facts
-  are the `[METER]` rows for `DispatchCompute` and `StreamPatches`, which is
-  the optimization sitting's first reading — not this campaign's, and not
-  something to guess at from the source.
-  Three rulings, each one word to overturn: `PATCH_BAKE_SLICES` (2 — more
-  is gentler per frame and later to arrive; any count is safe, the band
-  plan tiles the patch exactly for all of them), `PATCH_URGENT_MARGIN`
-  (1 x `PATCH_EXTENT` beyond `lod0_radius` — inside it a patch bakes whole,
-  because a hole is worse than a hitch), and `PATCH_LOOK_AHEAD` (100 wu —
-  how far along the flight the spawn and bake scans order their candidates
-  from, under a rider only).
-
-- AND THE QUESTION ANSWERED, since it was asked: NO, the ribbon was not
-  made smaller. Length, ring count and tiers are untouched across RIBBON_1
-  through RIBBON_4. What self-collision does is the head going OVER its own
-  body and the rings pushing off it, with the 24-ring neck
-  (`RIBBON_SELF_NECK`) excluded so the neck does not fight itself.
 
 ## RIBBON_3 — the witnesses Jean owes the campaign
 

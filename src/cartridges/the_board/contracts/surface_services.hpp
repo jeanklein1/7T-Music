@@ -48,6 +48,14 @@ struct WorldState {
     int32_t last_center_x = INT32_MAX;  // force full regeneration on first frame
     int32_t last_center_z = INT32_MAX;
 
+    // A WORLD IS YOUNG ONCE (RIBBON_6). Set when a world BEGINS — a rebirth,
+    // a boot, a radius change — and cleared once, by the conductor, when the
+    // window it was given is three quarters built. It is an AGE, not an
+    // observation: nothing the player does sets it again, which is what stops
+    // a world that has merely fallen behind from being handed a rebirth's
+    // burst. Boot is a transition from nothing (L10), so it boots true.
+    bool world_young = true;
+
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
     uint32_t render_patch_count = 0;    // drawn patches (within the live RING — the draw authority)
@@ -102,10 +110,6 @@ enum class PatchPhase : uint8_t {
                     //   before this heightfield existed; Y-correction is
                     //   additive and lands later (compute_entity_placement).
     NEEDS_REGEN,    // heightfield stale (new pyramid in range)
-    BAKING,         // RIBBON_4 — heights being encoded a row band at a time.
-                    //   Between SPAWNED and GENERATED, and never drawn: the
-                    //   grid and the band both gate on GENERATED|NEEDS_REGEN,
-                    //   so a half-baked layer cannot reach the eye.
 };
 
 struct ActivePatch {
@@ -114,11 +118,6 @@ struct ActivePatch {
     uint32_t layer = 0;
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
-    // THE SLICED BAKE (RIBBON_4). bake_slices is how many row bands this
-    // bake was cut into (1 = whole, the urgent case); bake_slice is the next
-    // band to encode. Meaningful only while phase == BAKING.
-    uint8_t bake_slice = 0;
-    uint8_t bake_slices = 1;
 
     // Entity ownership (recorded at commit, read at eviction)
     struct EntityRef {
@@ -161,36 +160,25 @@ struct ActivePatch {
 
 // ── Dynamic budgets ────────────────────────────────────────────────
 
-// THE STEADY WORLD (RIBBON_4). The conductor paces itself by CADENCE, not
-// by backlog: a deep backlog used to make it work harder per frame, which
-// is exactly when the point is moving fastest. Now no frame carries more
-// than one patch's spawning, two evictions, and one SLICE of one bake
-// (generate_patch_sliced). Transitions keep their bursts: a regen is a
-// stall by doctrine (P6), and patches_budget_this_frame serves it alone.
-inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 1;    // was 4
-inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // allocation is bookkeeping; it stays
-inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 2;    // was 4
-inline constexpr uint32_t PATCH_BAKE_SLICES      = 2;    // a leisurely bake's heights pass, in row bands across frames
-inline constexpr float    PATCH_URGENT_MARGIN    = 1.0f; // × PATCH_EXTENT beyond lod0_radius: inside this, bake whole
+// ONE BAKE A FRAME (RIBBON_6). RIBBON_4 was right that the conductor must
+// pace by CADENCE and wrong about why: the meter shows streaming's worst
+// frame at 2 ms of GPU and frame_total at 2.2 ms of CPU, so it never cost a
+// frame — but a pace must still be EVEN, and it must be FAST ENOUGH. A grid
+// crossing demands 15 cells; at the top of the speed dial one arrives every
+// 19 frames. So the unit is one whole patch per frame — ~2.4 ms of GPU, the
+// same every streaming frame, and 15 frames to a crossing. Evenness by
+// construction, adequacy by arithmetic, and no ladder to make a deep backlog
+// work harder exactly when the point is moving fastest.
+inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 2;   // spawning is CPU and precedes the bake; two keeps the pipeline fed
+inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;   // bookkeeping
+inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;   // matched to ALLOC: the pool balances by symmetry as well as by refusal (RIBBON_5's FLAG-38)
+inline constexpr uint32_t BAKE_BUDGET_PER_FRAME  = 1;   // the law
+inline constexpr uint32_t BAKE_BUDGET_YOUNG      = 6;   // a world being born is a transition and keeps a transition's burst
 
 // THE LOOK-AHEAD (RIBBON_4): how far along the flight the spawn and bake
 // scans order their candidates from, under a rider. Zero in every other
 // host — a walker's point IS where the work is.
 inline constexpr float    PATCH_LOOK_AHEAD       = 100.0f;  // wu
-
-// THE REGEN PATH'S OWN, and no longer anyone else's. These five feed
-// patches_budget_this_frame, whose single caller since RIBBON_4 is the
-// NEEDS_REGEN arm of the conductor — a patch whose heights went stale
-// under a dropped pyramid, which is a transition's debris and keeps a
-// transition's burst. A SPAWNED patch is the steady state's and goes to
-// generate_patch_sliced instead, one slice a frame; it is not counted here.
-inline constexpr uint32_t PATCH_BUDGET_MIN = 1;
-inline constexpr uint32_t PATCH_BUDGET_MAX = 6;
-inline constexpr uint32_t PATCH_PENDING_TIER_1 = 3;
-inline constexpr uint32_t PATCH_PENDING_TIER_2 = 8;
-inline constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
-inline constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
-inline constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
 
 // ── Visibility — THE VEIL CHAIN (RING = draw authority) ────────────
 //
@@ -239,9 +227,6 @@ ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
 
 void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
-uint32_t count_pending_patches(MachineCtx* c, bool include_spawned);
-bool world_is_young(MachineCtx* c);
-uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState, bool young);
 
 // Root-called owner verb. CALLERS: boot (init_renderer) AND the transition
 // machine (root); OWNER: patch_system. One door, both paths — boot is a
@@ -283,7 +268,7 @@ void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, 
 // THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     TileWorldState& tile_world_state, ThemesState& themes_state,
-    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps, const InputState& inputState);
+    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps);
 
 } // namespace the_board
 } // namespace t7
