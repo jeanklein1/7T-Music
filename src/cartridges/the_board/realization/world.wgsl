@@ -1665,7 +1665,7 @@ struct DesignConfig {
     checker_resultant: vec3<f32>,
     checker_music_amount: f32,
     checker_music_variance: f32,
-    point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 20 = contracts/point.hpp)
+    point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 80 = contracts/point.hpp)
     cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 1.0 = Idle::CUBE_PLASTICITY_DEFAULT, raised at CONTACT_5 P2b)
     // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds (0 =
     // instant). Sits at offset 556 in BOTH rooms. (It WAS the struct's last
@@ -2242,7 +2242,7 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 //   patch .............. PATCH_EXTENT               50 wu
 //   pawn body (visual) . PAWN_FIGURES radius        ~0.5 wu
 //   cube altitude ...... orbit_height (Gaussian)    indoor <18.75, outdoor 25-75 wu
-//   the bubble ......... config.point_bubble_radius 20 wu
+//   the bubble ......... config.point_bubble_radius 80 wu
 //   possess reach ...... POSSESSION_RADIUS          20 wu (agents.hpp)
 //   agent eviction ..... AGENT_EVICTION_RADIUS      350 wu
 //   floater eviction ... FLOATER_EVICTION_RADIUS    800 wu

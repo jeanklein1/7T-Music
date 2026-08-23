@@ -89,7 +89,7 @@ inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
                                                     // to seat the two new skies (ATMOS_1)
     { 0.42f, 0.43f, 0.10f, 0.05f },
     {
-        { 0.72f, 0.45f, 0.85f },  // mood 0  open_sunset     — lilac
+        { 0.72f, 0.45f, 0.70f },  // mood 0  open_sunset     — lilac, deepened
         { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
         { 0.95f, 0.80f, 0.20f },  // mood 2  indoor_vault    — yellow
         { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red

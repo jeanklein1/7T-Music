@@ -61,8 +61,8 @@ struct CanvasSurface {
 // has moved since: fog_span was tuned on the desk and transcribed back
 // here at ship time, and says so.
 inline constexpr CanvasSurface CANVAS_TABLE = {
-    3.04f,     // fog_span — tuned on the desk and transcribed at ship
-               // time; the module's own value was 2.0
+    5.72f,     // fog_span — tuned on the desk; the module's own value was
+               // 2.0, and 3.04 was one desk ago
     2.00f,     // swell_ceiling — × idle (ruled)
     8.0f,      // swell_ramp — beats (ruled)
     0.35f,     // swell_attack
@@ -74,7 +74,7 @@ inline constexpr CanvasSurface CANVAS_TABLE = {
     0.5f,      // tint_mix_attack
     3.0f,      // tint_mix_release
     2.0f,      // tint_hue_span
-    4.0f,      // checker_read_span
+    3.25f,     // checker_read_span — tuned on the desk (was 4.0)
     2.0f,      // checker_attack
     8.0f,      // checker_release
 };

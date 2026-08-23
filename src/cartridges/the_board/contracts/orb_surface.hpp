@@ -50,9 +50,10 @@ struct OrbConsole {
 // TUNING CONSOLE, where they lived before ORGAN_3 w2.
 inline constexpr OrbConsole ORB_CONSOLE = {
     500.0f,   // dome_radius — 700 fell into the fog; 500 is the visible dial (Jean's dial)
-    3.0f,     // base_size
+    2.35f,    // base_size — tuned on the desk
     0.3f,     // noise_floor — rests at the floor (driverless since the gen-1 retirement)
-    1.0f,     // speed_mult — identity: the authored dance, unscaled (ORGAN_5 P3a)
+    3.33f,    // speed_mult — no longer identity: the desk turned ORGAN_5
+              // P3a's master up, so every rule's energy source is scaled
 };
 
 // The live surface — the panel's block and configure_orbs' read.
@@ -154,17 +155,16 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     // ATMOS_1 — the night is the sunset's field, fuller, brighter and slower
     // (256 stars, bri 0.95, a slow near-axial turn); the noon is the
     // indoor disabled row verbatim — no stars by day.
-    // THE NIGHT'S MOTION ROW CAME BACK FROM THE PANEL at the ship-time
-    // transcription: the four per-rule drag multipliers and the orbital
-    // speed left their SENTINEL ZEROES for real numbers, so neither
-    // pass-through (rule drag, ×1.0) nor ORB_DEFAULT_ORBITAL_SPEED
-    // (0.15 rad/s) is taken here any more. All five landed on their
-    // enrolled FLOOR, and that floor is DELIBERATE: organ_params.inc sets
-    // it one step off the sentinel on purpose ("the four rule drags floor
-    // one step off configure_orbs' sentinel"), so the desk can reach
-    // these values and never the sentinel. The way back to pass-through
-    // is a table edit here — the road this row came by.
-    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.95f, 0.4f,  3u,  0.004f, {0.05f, 0.99f, 0.05f},  0.005f, 0u,  0.08f, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.02f, 0.02f, 0.02f, 0.02f },
+    // THE NIGHT'S MOTION ROW, TUNED. Two of the four per-rule drags carry
+    // real multipliers now — BROWNIAN 1.22 and ORBITAL 1.64, both ABOVE 1,
+    // so those two rules damp HARDER than the row's own drag asks. FROZEN
+    // and FLOCKING keep the SENTINEL 0, which configure_orbs reads as
+    // pass-through (×1.0), and orbital_base_speed keeps its own sentinel,
+    // which falls back to ORB_DEFAULT_ORBITAL_SPEED (0.15 rad/s). A desk
+    // cannot dial a sentinel back — organ_params.inc floors these five one
+    // step off it on purpose — so a sentinel surviving in this row is a
+    // value the TABLE holds and the panel can only leave alone.
+    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.605f, 0.4f, 3u,  0.007010115f, {0.15f, 0.59f, 0.05f},  0.0f, 0u,  0.08f, 0u,     50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  1.22f, 1.64f, 0.0f, 0.0f },
     /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
