@@ -831,8 +831,12 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
                     bool found = existingPatches.count({ gx, gz }) > 0;
                     if (!found && c->world_state_.free_layer_count > 0) {
+                        // RIBBON_5: the array bound, stated not derived (see the
+                        // continuous loop for why). This loop's own guard is
+                        // per-iteration already, so the pool cannot empty under it.
+                        if (c->world_state_.active_patch_count >= Dim::MAX_ACTIVE_PATCHES) continue;
                         uint32_t layer = alloc_layer(c);
-                        if (layer == UINT32_MAX) continue;   // RIBBON_5: the pool refused
+                        if (layer == UINT32_MAX) continue;   // the pool refused
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
@@ -874,21 +878,13 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         }
     }
 
-    // ─── THE FRAME'S TWO FACTS (RIBBON_5) ─────────────────────────
+    // ─── THE FRAME'S PACE (RIBBON_5) ──────────────────────────────
     //
-    // ONE SCAN, three readers. `young` decides the whole frame's pace — the
-    // spawn budget, the eviction budget and which generation shape runs.
-    // `baking_idx` is the sliced conductor's work in flight, and it is the
-    // scratch's owner: patch_height_scratch holds ONE patch, and a whole bake
-    // run between a BAKING patch's bands would overwrite the rows already
-    // laid. Both are read below and neither is stored.
+    // `young` decides the whole frame: the spawn budget, the eviction budget,
+    // and which generation shape runs. It is read before the eviction block
+    // because that block spends it, and a patch evicted this frame does not
+    // change whether the window was mostly unbuilt when the frame began.
     const bool young = world_is_young(c);
-    uint32_t baking_idx = UINT32_MAX;
-    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-        if (!c->patch_system_state_.patches_[i].valid) continue;
-        if (c->patch_system_state_.patches_[i].phase == PatchPhase::BAKING) { baking_idx = i; break; }
-    }
-    const bool scratch_busy = (baking_idx != UINT32_MAX);
 
     // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
     //
@@ -1007,8 +1003,19 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
                 ensure_tile_padding(tile_world_state, &tile_world_deps, gx + dx, gz + dz);
             }
+            // RIBBON_5 — TWO GUARDS, AND THEY ARE INDEPENDENT ON PURPOSE.
+            // The capacity check that mattered used to sit in the CANDIDATE
+            // SCAN above, which decrements nothing: with free=2 and 15 vacant
+            // cells every cell became a candidate, allocThisFrame was
+            // min(15, ALLOC_BUDGET_PER_FRAME)=4, and iterations 2 and 3
+            // allocated against an empty pool. The second guard is the array
+            // bound, stated rather than derived: patches_ is exactly
+            // MAX_ACTIVE_PATCHES long and freeLayerStack_ is the member
+            // immediately after it, so an overrun here corrupts the free list
+            // itself. It must not rest on the pool arithmetic being right.
+            if (c->world_state_.active_patch_count >= Dim::MAX_ACTIVE_PATCHES) break;
             uint32_t layer = alloc_layer(c);
-            if (layer == UINT32_MAX) break;   // RIBBON_5: the pool refused; no patch on a stolen layer
+            if (layer == UINT32_MAX) break;   // the pool refused; no patch on a stolen layer
             c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
             c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
             c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
@@ -1067,6 +1074,21 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         // steady world's.
         spawn_selected_patches(c, candidates,
             std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue, themes_state);
+    }
+
+    // THE SCRATCH'S OWNER (RIBBON_5), read AFTER the eviction compaction and
+    // not before it: patch_height_scratch holds ONE patch, a BAKING patch
+    // fills it across frames, and a whole bake run between its bands would
+    // overwrite the rows already laid. Computed here because the compaction
+    // above can evict the baker itself — asking earlier would answer for a
+    // patch that no longer exists and cost the regen arm a frame for nothing.
+    // The answer is a BOOL, never an index: the compaction rewrites patches_
+    // by position, so an index taken before it is stale by construction (the
+    // hazard RIBBON_4's eviction comment names).
+    bool scratch_busy = false;
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        if (!c->patch_system_state_.patches_[i].valid) continue;
+        if (c->patch_system_state_.patches_[i].phase == PatchPhase::BAKING) { scratch_busy = true; break; }
     }
 
     // ─── HEIGHTFIELD GENERATION ──────────────────────────────────

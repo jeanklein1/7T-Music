@@ -294,15 +294,35 @@ the world rebuilds, no other witness in this file can be read at all.
   walk a second and is the only thing standing between a layer leak and a
   silent one-patch world — the recommendation is that it never moves behind a
   dial).
-- WHAT THE AUDIT FOUND, recorded so the next round does not re-derive it: the
-  layer pool has NO leak. Every write in the tree to `ActivePatch::valid`,
-  `active_patch_count`, `free_layer_count` and `freeLayerStack_` was
-  enumerated — six sites, all in `patch_system.hpp` — and `valid + free ==
-  MAX_ACTIVE_PATCHES` holds at each. So the silent-recycle wedge could not
-  have been the mechanism; the starved rebuild was. The zero-headroom
-  equality is real and remains (`MAX_ACTIVE_PATCHES == 225 == the 15x15
-  window`): the pool has no slack by construction, which is why the witness
-  exists rather than a comment saying "this shouldn't happen".
+- WHAT THE AUDIT FOUND — and it found a real break, on the second pass. The
+  first pass asked "does every site that clears `valid` return its layer?"
+  The answer is yes, and the answer was useless, because the break runs the
+  other way: **the continuous-allocation block checked pool capacity while
+  COLLECTING candidates and never again while spending them.** The scan
+  decrements nothing, so with `free == 2` and 15 vacant cells all 15 became
+  candidates, `allocThisFrame = min(15, ALLOC_BUDGET_PER_FRAME) = 4`, and
+  iterations 2 and 3 called `alloc_layer` against an empty pool — which
+  silently returned **layer 0**, already owned by a live patch, and still
+  wrote a valid record and incremented the count past the pool. Two records
+  sharing one heightfield layer is one patch's terrain mutating under
+  another, and `active_patch_count` past 225 writes `patches_[225]` — which
+  is `freeLayerStack_[0]`, the member immediately after it. The bookkeeping
+  error becomes memory corruption of the free list on the first frame it
+  fires.
+  **The trigger is ordinary and the regression is RIBBON_4's**: a built-out
+  world, the player crosses one patch boundary, 15 cells go vacant.
+  Before RIBBON_4, `EVICT` and `ALLOC` were both 4, so eviction always
+  supplied what allocation could spend. RIBBON_4 lowered `EVICT` to 2 for
+  the steady cadence and left `ALLOC` at 4 — and that gap is the hole. So the
+  handoff's second defect was right in substance and wrong in mechanism: the
+  pool did wedge and layer 0 did go to every comer, but by over-taking, not
+  by leaking.
+  Fixed at the site (`alloc_layer` refuses and says so; both loops honour the
+  refusal; both write sites carry an independent array-bound guard), and the
+  1 Hz conservation witness now proves it rather than assuming it. The
+  zero-headroom equality remains (`MAX_ACTIVE_PATCHES == 225 == the 15x15
+  window`): the pool has no slack by construction, which is exactly why a
+  comment saying "this shouldn't happen" was never enough.
 
 ## RIBBON_4 — the one witness that decides
 

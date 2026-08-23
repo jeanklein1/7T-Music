@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `9261e7ce04373e0a9b29832c7c58dd41bf46ed81` |
-| | RIBBON_4 P2: OPEN carries the steady world's witness; ledgers follow the tree |
+| source commit | `32c2f2c944331df9da48a661adf86e4ebdade944` |
+| | RIBBON_5 P2: OPEN carries the rebirth witness; ledgers follow the tree |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:94e0fe7fabbd7ce0e68ed1627f3eaf392300ef56157dc45b1e8be7c3e7ed29cf` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:230da02dd5aded05de6ef73e3d1795509932b1c156012d5c749347e2236eb526` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:893c70d921d05eef6a828f1a514d4204704dab766e67329610701ef1119ab023` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f15d2090f646b29a342c190f19645e42739a379db8ad9e0785ac2774bf420be0` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:2dbe9e2b15ba7ac169150d9a34c97f5092d0f278fe34b30ccc96fc2f77fe13d4` |
+| `audit/BINDING_LEDGER.md` | `sha256:64cc3e9bf3d3001fc205c7f606b78ae762f01f384030711ad25c9c72ca9bcb48` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

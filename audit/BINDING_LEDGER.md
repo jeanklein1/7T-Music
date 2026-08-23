@@ -37,7 +37,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `c56581e714225e7e646acfb3bd24be66e309b8ae3ce9dbd18dbce71bf12dae13` |
 | `src/cartridges/the_board/direction/mood.hpp` | `e7e9b5aa58497628b4855df1a5f6eacecb11aee4e2844173eae833adda0e390a` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `852b5118ada2f66e54e8ef4b9f591ea3fb3d110b355944155ff9132c012c0e51` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `7d688b90194cdabaf2b5f06814b41bee1192aad04abc2e6186f649265a002cac` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
