@@ -174,15 +174,17 @@ here — the sign-off is Jean's, and RIBBON_2 has its own list below.
   one of the three that is structurally parallelizable (each chord reads
   only its predecessor, so it is a scan), and it is the first thing the
   optimization sitting should look at.
-  RIBBON_4 IS THE ONE THAT MOVED THE FRAME, and it moved it DOWN without a
-  meter to prove it: the worst streaming frame used to be six whole bakes
-  plus four spawns plus four evictions, and is now one band of one bake plus
-  one spawn plus two evictions. The total work is unchanged — the same
-  patches are baked, spawned and evicted — so what this buys is evenness,
-  not throughput, and the cost is that a leisurely patch arrives
-  `PATCH_BAKE_SLICES` frames later than it used to. If terrain is ever seen
-  ARRIVING at the edge of the ring rather than being there, that is this
-  trade showing, and `PATCH_URGENT_MARGIN` is the dial that buys it back.
+  RIBBON_4 CLAIMED TO MOVE THE FRAME and RIBBON_6 WITHDREW THE CLAIM. It
+  priced its slicing without a meter; the meter, when it was finally read,
+  said streaming's worst frame was 2 ms of GPU and had never cost a frame at
+  all. The slicing, the urgency margin and the backlog ladder are gone, so
+  the dials that paragraph named no longer exist and it is not kept as a
+  record of them (L30). What stands in their place is one number:
+  **the streaming frame is one whole bake, ~2.4 ms of GPU, every frame the
+  same** — and 15 frames to a grid crossing against 18.75 available at the
+  top of the speed dial. Evenness by construction, adequacy by arithmetic.
+  If terrain is ever seen ARRIVING at the edge of the ring rather than being
+  there, `BAKE_BUDGET_PER_FRAME` is the one dial that buys it back.
 
   RIBBON_3 MOVED IT BOTH WAYS, still unmeasured. Up: an arch costs 8 rib
   capsules plus 2 piers per arch per reader where it cost one disc — 16
