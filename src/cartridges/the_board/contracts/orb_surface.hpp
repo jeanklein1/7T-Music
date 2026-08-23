@@ -158,10 +158,12 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     // transcription: the four per-rule drag multipliers and the orbital
     // speed left their SENTINEL ZEROES for real numbers, so neither
     // pass-through (rule drag, ×1.0) nor ORB_DEFAULT_ORBITAL_SPEED
-    // (0.15 rad/s) is taken here any more. 0.02 and 0.005 are also
-    // exactly the enrolled floors of those five dials — the panel cannot
-    // dial a sentinel back, which is the range's problem and not this
-    // row's.
+    // (0.15 rad/s) is taken here any more. All five landed on their
+    // enrolled FLOOR, and that floor is DELIBERATE: organ_params.inc sets
+    // it one step off the sentinel on purpose ("the four rule drags floor
+    // one step off configure_orbs' sentinel"), so the desk can reach
+    // these values and never the sentinel. The way back to pass-through
+    // is a table edit here — the road this row came by.
     /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.95f, 0.4f,  3u,  0.004f, {0.05f, 0.99f, 0.05f},  0.005f, 0u,  0.08f, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.02f, 0.02f, 0.02f, 0.02f },
     /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
