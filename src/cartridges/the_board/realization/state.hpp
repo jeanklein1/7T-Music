@@ -1750,7 +1750,7 @@ namespace t7 {
             uint32_t master_seed;      // master seed for terrain generation
             float time;                // for animated waves (0 for static generation)
             uint32_t layer;            // which layer of the heightfield array to write
-            uint32_t row0;             // RIBBON_4 — first texel row of this band (0 = whole bake)
+            float _pad1;
         };
 
         struct GPUPatchInstance {

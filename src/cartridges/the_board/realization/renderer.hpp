@@ -451,18 +451,13 @@ namespace t7 {
                 uint32_t paramsOffset,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups,
-                // RIBBON_4 — THE SLICED BAKE: rows of workgroups to cover this
-                // dispatch. A whole bake passes `workgroups` and is what it
-                // always was; a band passes fewer, and the kernel's row0 says
-                // which band. Defaulted so every other caller is unchanged.
-                uint32_t rowGroups = 0
+                uint32_t workgroups
             ) {
                 pass.SetPipeline(generatePatchHeightsPipeline_);
                 // The patch being generated: one dynamic offset into the params ring.
                 pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(workgroups, rowGroups ? rowGroups : workgroups, 1);
+                pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
 
             // Pass 2: read stored heights from neighbors, compute gradients + complexity.

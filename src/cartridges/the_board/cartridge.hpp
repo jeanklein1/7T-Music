@@ -1596,7 +1596,7 @@ namespace t7 {
             void phase_stream_patches(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
-                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_, inputState_);
+                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_);
             }
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
