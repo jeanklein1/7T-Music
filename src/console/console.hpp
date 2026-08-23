@@ -44,7 +44,8 @@
 #include <algorithm>
 #include <vector>
 #include <chrono>
-#include <cmath>       // std::sqrt — the stick's magnitude (SHIP_1)
+#include <cmath>       // std::sqrt — the stick's magnitude (SHIP_1); std::round/fabs — RIBBON_6's presentation law
+#include <cstdio>      // std::printf — RIBBON_6's [PRESENT] histogram (meter builds)
 #include <cstdint>     // uint64_t / UINT64_MAX — the touch table's birth counter (SHIP_1)
 #include <iostream>
 #include <string>
@@ -1272,31 +1273,85 @@ namespace t7 {
             // hands back a multi-second gap.
             const float raw = std::clamp(measured, 0.0f, 0.1f);
 
-            // THE STEADY CLOCK (RIBBON_3). The display presents frames at a
-            // steady cadence; a dt that jitters with the callback's arrival
-            // puts that jitter into every integrator and the eye reads it as
-            // judder — worst on the fastest mover with the camera bolted to
-            // it. The frame's dt is the running mean of recent frames while
-            // the measurement lies within the band, and the measurement
-            // itself when it does not — a real hitch is a real hitch. One
-            // clock: the beat clock and the signal read this value.
+            // THE PRESENTATION LAW (RIBBON_6). A frame is DISPLAYED for a
+            // whole number of refreshes, so it must be INTEGRATED for a whole
+            // number of refreshes. The steady clock (RIBBON_3) smoothed the
+            // callback's arrival, which is the right cure while every frame
+            // makes its refresh and the wrong one the moment a frame misses:
+            // a 25 ms frame is shown for two refreshes, and integrating 25 ms
+            // of world into 33.3 ms of display is a lurch the eye reads as a
+            // block.
             //
-            // THE RELOCK is not decoration. Out-of-band frames do NOT move
-            // the mean, so a display that genuinely changes cadence (60 Hz
-            // to 30, a monitor swap, a throttled tab that settles) would sit
-            // outside the band forever and never be steadied again. After
-            // STEADY_CLOCK_RELOCK consecutive strangers the mean adopts the
-            // measurement: a sustained cadence is not a hitch.
-            const bool in_band =
-                std::fabs(raw - dtMean_) < STEADY_CLOCK_BAND * dtMean_;
-            if (in_band) {
-                dtMean_ += (raw - dtMean_) * STEADY_CLOCK_GAIN;
+            // So: estimate the refresh period from the frames that make it;
+            // express the measurement as a multiple of it; serve that multiple
+            // exactly. Where nothing is ever dropped this is the steady clock,
+            // unchanged — every frame is 1x and the served value is the running
+            // mean. Where a frame is dropped it serves what the eye saw. A law
+            // that is a no-op when it is not needed.
+            //
+            // THE RELOCK (RIBBON_3 P2's, kept): a display that genuinely
+            // changes cadence must not sit outside the model forever. After
+            // STEADY_CLOCK_RELOCK consecutive strangers the period adopts the
+            // measurement.
+            //
+            // THE FLOOR IS NOT DECORATION, and it is the one line that is
+            // mine. The period is a DIVISOR now, which the mean never was, so
+            // a relock onto a zero measurement is not a degradation but a
+            // permanent NaN — and raw == 0 is not hypothetical. Under
+            // Emscripten this clock is performance.now(), which browsers
+            // coarsen on purpose; Firefox with privacy.resistFingerprinting
+            // coarsens it to 100 ms, so at 60 Hz most consecutive calls return
+            // the SAME value and the difference is exactly zero. Eight of those
+            // in a row is the common case there, not a corner: they would
+            // relock the period to 0 and every later frame would divide by it.
+            // A refresh period cannot be shorter than PRESENT_MIN_PERIOD.
+            const float k_raw = std::round(raw / refreshPeriod_);
+            const float k = std::clamp(k_raw, 1.0f, PRESENT_MAX_MULTIPLE);
+            const float model = k * refreshPeriod_;
+            float dt;
+            if (std::fabs(raw - model) < PRESENT_BAND * refreshPeriod_) {
+                // Only UNIT frames teach the period; a 2x frame would drag it
+                // upward until the model chased the drops instead of the panel.
+                if (k == 1.0f) refreshPeriod_ = std::max(
+                    refreshPeriod_ + (raw - refreshPeriod_) * PRESENT_GAIN,
+                    PRESENT_MIN_PERIOD);
                 dtStrangers_ = 0;
+                dt = model;
             } else if (++dtStrangers_ >= STEADY_CLOCK_RELOCK) {
-                dtMean_ = raw;
+                refreshPeriod_ = std::max(raw, PRESENT_MIN_PERIOD);
                 dtStrangers_ = 0;
+                dt = raw;
+            } else {
+                dt = raw;
             }
-            const float dt = in_band ? dtMean_ : raw;
+
+            // THE PRESENT HISTOGRAM (meter builds, 1 Hz). k IS the reading
+            // that settles the class: a 2x or 3x column is a DROPPED FRAME —
+            // a stutter with a mechanism outside the simulation — and a
+            // near-pure 1x column with judder on screen means the cause is
+            // upstream in the integrators, not in presentation.
+            if constexpr (t7::INSTRUMENTS.frame_meter) {
+                const uint32_t bucket = (uint32_t)k;
+                presentBuckets_[bucket < 4u ? bucket - 1u : 3u]++;
+                if (dtStrangers_ != 0u || (dt == raw && k != 1.0f)) presentStrangers_++;
+                const float d = std::fabs(dt - raw) * 1000.0f;
+                presentDeltaSum_ += d;
+                if (d > presentDeltaMax_) presentDeltaMax_ = d;
+                if (++presentFrames_ >= PRESENT_REPORT_FRAMES) {
+                    std::printf("[PRESENT] refresh %.2f ms | 1x %u  2x %u  3x %u  4x+ %u"
+                                "  strangers %u | served-raw |d| mean %.1f max %.1f ms\n",
+                                (double)(refreshPeriod_ * 1000.0f),
+                                presentBuckets_[0], presentBuckets_[1],
+                                presentBuckets_[2], presentBuckets_[3],
+                                presentStrangers_,
+                                (double)(presentDeltaSum_ / (float)presentFrames_),
+                                (double)presentDeltaMax_);
+                    presentBuckets_[0] = presentBuckets_[1] = 0;
+                    presentBuckets_[2] = presentBuckets_[3] = 0;
+                    presentStrangers_ = 0; presentFrames_ = 0;
+                    presentDeltaSum_ = 0.0f; presentDeltaMax_ = 0.0f;
+                }
+            }
 
             // CAP_2 — the last word, at the frame boundary. glfwPollEvents at
             // the head of this function is where the port applies any queued
@@ -1304,6 +1359,14 @@ namespace t7 {
             // Nothing between this line and the acquire touches the canvas:
             // the update phase is CPU state and the render phase has not begun.
             reassert_canvas_target();
+
+            // RIBBON_6: the canvas, published for the meter's window line.
+            // Written HERE rather than at the four sites that assign
+            // currentWidth_/currentHeight_, because by this point in the frame
+            // every one of them has spoken and the reassert above is the last
+            // word (CAP_2). One store a frame, no branch.
+            t7::g_canvas_w = currentWidth_;
+            t7::g_canvas_h = currentHeight_;
 
             return dt;
         }
@@ -2035,11 +2098,29 @@ namespace t7 {
         // called the same cadence (fraction of the mean). GAIN: how fast
         // the mean follows an in-band measurement. RELOCK: how many
         // consecutive out-of-band frames adopt the new cadence outright.
-        static constexpr float    STEADY_CLOCK_BAND   = 0.2f;
-        static constexpr float    STEADY_CLOCK_GAIN   = 0.05f;
-        static constexpr uint32_t STEADY_CLOCK_RELOCK = 8;
-        float    dtMean_      = 1.0f / 60.0f;
-        uint32_t dtStrangers_ = 0;
+        // RIBBON_6 — THE PRESENTATION LAW's numbers. BAND: how far from a
+        // whole multiple of the refresh a measurement may sit and still be
+        // called that multiple (fraction of one period). GAIN: how fast the
+        // period follows a UNIT frame. MAX_MULTIPLE: the deepest drop the law
+        // will model rather than pass through. MIN_PERIOD: the divisor's
+        // floor — 1 ms, far above any real display, and the only thing between
+        // a coarsened clock and a permanent NaN. RELOCK keeps RIBBON_3's name
+        // and value: it is the same idea, one layer down.
+        static constexpr float    PRESENT_BAND         = 0.25f;
+        static constexpr float    PRESENT_GAIN         = 0.05f;
+        static constexpr float    PRESENT_MAX_MULTIPLE = 4.0f;
+        static constexpr float    PRESENT_MIN_PERIOD   = 0.001f;   // s
+        static constexpr uint32_t STEADY_CLOCK_RELOCK  = 8;
+        static constexpr uint32_t PRESENT_REPORT_FRAMES = 60;
+        float    refreshPeriod_ = 1.0f / 60.0f;   // the panel's period; a divisor, so it is named as one
+        uint32_t dtStrangers_   = 0;
+        // The [PRESENT] histogram's counters (meter builds only; the arithmetic
+        // is gated at its site, these are four words that cost nothing).
+        uint32_t presentBuckets_[4] = {};
+        uint32_t presentStrangers_ = 0;
+        uint32_t presentFrames_    = 0;
+        float    presentDeltaSum_  = 0.0f;
+        float    presentDeltaMax_  = 0.0f;
 
         // ── Gpu Device ───────────────────────────────────────────
         wgpu::Instance instance_;   // portable handle; owns the async request chain

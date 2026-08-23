@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `218647efc29495604a9b9627e1b22e521224fb10` |
-| | RIBBON_5 P3: the audit was wrong and the leak is real — allocation checked capacity while collecting, never while spending |
+| source commit | `2f6bd5ffb846bc2bf0fee431ecb133f8e26ff383` |
+| | RIBBON_6 P1: one bake a frame — the slice and the ladder retire, youth is a latch set at a world's birth |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:c1d167e5e29ab6cf853b7ec0ca053b6953faa6288f07575751f3696d6e574dbf` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b2965439fd291286b34b57545f02a16b5133ac98abb582f0966694ef676608dd` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:893c70d921d05eef6a828f1a514d4204704dab766e67329610701ef1119ab023` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:64cc3e9bf3d3001fc205c7f606b78ae762f01f384030711ad25c9c72ca9bcb48` |
+| `audit/BINDING_LEDGER.md` | `sha256:424a35f2542105340cfda83535da0a0a8bac5b05ea73e22ffe4a6fccb6f435b4` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -1043,8 +1043,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:1912` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:1913` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:1934` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:1935` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `gallery.hpp:1447` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
 | `gallery.hpp:1448` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
 | `gallery.hpp:1513` | `render_snapshot_pass` | 0 | `worldGroup_` | — |

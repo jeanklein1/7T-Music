@@ -124,6 +124,16 @@ namespace t7 {
     // because a re-arm that hides a dropped frame is worse than the frame.
     inline uint32_t g_dropped_submits = 0;
 
+    // RIBBON_6 — THE CANVAS, crossing the console/cartridge boundary the same
+    // way dropped_submits does: an instruments global, written where the size
+    // is decided and read where the window line is composed. The cartridge is
+    // handed an aspect RATIO and never a pixel size, and the canvas is the one
+    // variable that changed silently between windows in the recording that
+    // opened RIBBON_6 — a GPU budget read against an unknown resolution is not
+    // a reading. Two words, written once per resize.
+    inline uint32_t g_canvas_w = 0;
+    inline uint32_t g_canvas_h = 0;
+
     // ── WIT_2b — AND IT GETS ITS OWN LINE ─────────────────────────────
     //
     // WIT_2 appended the count to the [METER] window header and it was

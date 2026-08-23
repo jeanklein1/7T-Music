@@ -1513,8 +1513,15 @@ namespace t7 {
                                         // POINT's position — the body authors it
                                         // whenever the body hosts (PAWN, or
                                         // RIBBON — the possessed body rides the
-                                        // seat); the camera harvest below authors
-                                        // it in camera-host. The portal trigger is
+                                        // seat). IN CAMERA-HOST NOTHING AUTHORS IT
+                                        // (RIBBON_6): this comment named a "camera
+                                        // harvest below" that does not exist
+                                        // anywhere in src/, and x/z are simply
+                                        // HELD-LAST while the witness hosts —
+                                        // which is what PointState's own contract
+                                        // says. The two writers are this block,
+                                        // gated off for CAMERA, and the teardown's
+                                        // authored present. The portal trigger is
                                         // the point's BUBBLE sensor, riding the
                                         // possessed slot's wire in every host.
                                         if (self->point_.host != PointHost::CAMERA) {
@@ -1716,10 +1723,17 @@ namespace t7 {
                         // one was lost: a hostile window (seven-digit frame
                         // counts, four-digit fps, a wide envelope) still renders
                         // 169. Sizing for the worst case retires the CLASS of
-                        // defect instead of this instance of it. A char[256] on
+                        // defect instead of this instance of it. A char[320] on
                         // the stack, once per 30 s window, costs nothing worth
                         // counting.
-                        char line[256];
+                        //
+                        // RIBBON_6 widened this line by two columns (canvas WxH
+                        // and the over count) — ~24 more characters at ordinary
+                        // values, ~40 at hostile ones. 256 would still have fit;
+                        // 320 is taken by the paragraph above's own argument,
+                        // whose whole point is not to re-audit the margin every
+                        // time a column is added.
+                        char line[320];
                         const float wall_s = std::chrono::duration<float>(
                             std::chrono::steady_clock::now() - meter_.window_start).count();
                         const float fps = wall_s > 0.0f
@@ -1732,11 +1746,19 @@ namespace t7 {
                                 // a multi-pass row's max can exceed any one pass
                                 // it contains. The accumulation site carries the
                                 // full note.
-                                "[METER] window %uf  fps %.1f  gpu sampled %uf | budget %.1f ms"
+                                "[METER] window %uf  fps %.1f  canvas %ux%u  gpu sampled %uf"
+                                " | budget %.1f ms | over %uf"
                                 " | envelope mean %.2f max %.2f ms -> purse %.2f ms"
                                 " | gpu mean/max (per-frame sum)\n",
-                                meter_.window_frames, fps, meter_.gpu_sampled_frames,
+                                meter_.window_frames, fps,
+                                // RIBBON_6: a GPU budget read against an unknown
+                                // resolution is not a reading, and the canvas was
+                                // the one variable that moved silently between
+                                // windows in the recording that opened the round.
+                                t7::g_canvas_w, t7::g_canvas_h,
+                                meter_.gpu_sampled_frames,
                                 FrameMeter::FRAME_BUDGET_MS,
+                                meter_.gpu_over_budget_frames,
                                 // HEADROOM_0 U1 — the purse. The envelope is a
                                 // per-frame SPAN, so its mean is over sampled
                                 // frames, not over the window's frames; and the
@@ -2344,6 +2366,7 @@ namespace t7 {
                 // Pure arithmetic over timestamps already resolved for the
                 // rows. Zero new queries, zero new GPU cost.
                 RowStat gpu_envelope;
+                uint32_t gpu_over_budget_frames = 0;   // RIBBON_6
                 // Snapshot of the armed pair table, taken at frame close
                 // and consumed by the mapped callback. NOT zeroed by
                 // reset() — a readback may be in flight across a window.
@@ -2355,6 +2378,7 @@ namespace t7 {
                     for (auto& s : s_rows) s = RowStat{};
                     for (auto& s : r_gpu) s = RowStat{};
                     gpu_envelope = RowStat{};
+                    gpu_over_budget_frames = 0;
                     window_frames = 0;
                     gpu_sampled_frames = 0;
                     window_start = std::chrono::steady_clock::now();
@@ -2552,6 +2576,14 @@ namespace t7 {
                                             auto& e = self->meter_.gpu_envelope;
                                             e.sum_ms += env_ms;
                                             if ((float)env_ms > e.max_ms) e.max_ms = (float)env_ms;
+                                            // RIBBON_6: the direct measure of what
+                                            // [PRESENT] sees downstream. A frame
+                                            // whose GPU span exceeded the refresh
+                                            // budget is a frame the panel may have
+                                            // shown twice; the mean and max cannot
+                                            // say how MANY, and the count can.
+                                            if (env_ms > FrameMeter::FRAME_BUDGET_MS)
+                                                self->meter_.gpu_over_budget_frames++;
                                         }
                                         // THE MAX ASYMMETRY (TIDY_0d, present
                                         // behavior). The discard above is
