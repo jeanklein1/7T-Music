@@ -7,6 +7,8 @@
 #include <cstring>        // std::memcpy (instance banding)   // (impl, merged)
 #include <unordered_set>  // the O(1) existence scan (continuous allocation)   // (impl, merged)
 #include <iostream>       // DIAG blocks (lifecycle audit + evict trace)   // (impl, merged)
+#include <cstdio>         // std::fprintf — RIBBON_5's conservation witness (always-on, every build)
+#include "core/instruments.hpp"   // RIBBON_5 — INSTRUMENTS.frame_meter gates the [STREAM] line
 
 // ─── patch_system.hpp (S2 · MERGED: the active-patch machine) ──────
 // The decl tier lives in contracts/surface_services.hpp; this file is the
@@ -66,17 +68,45 @@ inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue&
 // RIBBON_4: NEEDS_REGEN alone. A SPAWNED patch is no longer this budget's
 // business — the sliced conductor owns it, one slice a frame — and counting
 // it here would inflate the regen burst with work that is already paced.
-inline uint32_t count_pending_patches(MachineCtx* c) {
+inline uint32_t count_pending_patches(MachineCtx* c, bool include_spawned = false) {
     uint32_t n = 0;
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (!c->patch_system_state_.patches_[i].valid) continue;
-        if (c->patch_system_state_.patches_[i].phase == PatchPhase::NEEDS_REGEN) n++;
+        const PatchPhase ph = c->patch_system_state_.patches_[i].phase;
+        if (ph == PatchPhase::NEEDS_REGEN) n++;
+        else if (include_spawned && ph == PatchPhase::SPAWNED) n++;
     }
     return n;
 }
 
-inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState) {
-    uint32_t pending = count_pending_patches(c);
+// A YOUNG WORLD IS A TRANSITION (RIBBON_5). The steady cadence — one spawn,
+// one sliced bake — is for a world that is WHOLE. While the window is mostly
+// unbuilt (a rebirth, or the healing migration after one, when the point
+// mirror still echoed the dead world), the conductor runs at TRANSITION pace:
+// the old budgets, whole bakes, the backlog ladder. RIBBON_4 narrowed the
+// steady channels and, by narrowing them, narrowed the rebuild too — a world
+// that used to heal in a second crawled for a minute, and Jean walked through
+// the holes. The burst serves an EMPTY window; the slice serves a MOVING one.
+//
+// The predicate is the registry's own arithmetic — no new state, nothing to
+// keep in sync, and it clears itself the moment the window is half built.
+inline bool world_is_young(MachineCtx* c) {
+    uint32_t built = 0;
+    uint32_t cells = 2u * c->world_state_.active_radius + 1u;
+    cells *= cells;
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        if (!c->patch_system_state_.patches_[i].valid) continue;
+        if (c->patch_system_state_.patches_[i].phase == PatchPhase::GENERATED ||
+            c->patch_system_state_.patches_[i].phase == PatchPhase::NEEDS_REGEN) built++;
+    }
+    return built * 2u < cells;   // under half the window built = young
+}
+
+inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState, bool young = false) {
+    // RIBBON_5: while young the ladder counts BOTH pending phases, because the
+    // burst arm serves both — SPAWNED is the rebuild, and there is no sliced
+    // conductor running beside it to own that phase.
+    uint32_t pending = count_pending_patches(c, young);
     uint32_t budget = PATCH_BUDGET_MIN;
     if (pending >= PATCH_PENDING_TIER_4) budget = 6;
     else if (pending >= PATCH_PENDING_TIER_3) budget = 4;
@@ -309,14 +339,33 @@ inline GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, u
 
 inline uint32_t alloc_layer(MachineCtx* c) {
     if (c->world_state_.free_layer_count == 0) {
-        // Safety: no free layers — recycle layer 0 rather than crash.
-        // This shouldn't happen if eviction works correctly.
-        return 0;
+        // CONSERVATION BREAK (RIBBON_5): with MAX_ACTIVE_PATCHES equal to the
+        // full 15x15 window there is zero headroom by design, and a caller
+        // that reaches an empty pool is a caller the guards above failed.
+        // Recycling layer 0 silently is how one mutating patch could chase a
+        // player across an empty world — every comer writing the same
+        // heightfield layer, endlessly re-baked. Loud, always-on, rate-limited.
+        static uint32_t s_starved = 0;
+        if ((s_starved++ & 63u) == 0u)
+            std::fprintf(stderr, "[Patch] LAYER POOL EMPTY — alloc refused "
+                "(active=%u free=%u). A layer leaked or headroom is zero.\n",
+                c->world_state_.active_patch_count, c->world_state_.free_layer_count);
+        return UINT32_MAX;   // refuse: no patch on a stolen layer
     }
     return c->patch_system_state_.freeLayerStack_[--c->world_state_.free_layer_count];
 }
 
 inline void free_layer(MachineCtx* c, uint32_t layer) {
+    // CONSERVATION (RIBBON_5), the other end: a layer returned twice, or one
+    // returned that was never taken, overflows the stack and corrupts whatever
+    // follows it. The pool cannot hold more than it owns.
+    if (c->world_state_.free_layer_count >= Dim::MAX_ACTIVE_PATCHES ||
+        layer >= Dim::MAX_ACTIVE_PATCHES) {
+        std::fprintf(stderr, "[Patch] LAYER POOL OVERFLOW — free(%u) refused "
+            "(free=%u of %u). A layer was returned twice.\n",
+            layer, c->world_state_.free_layer_count, Dim::MAX_ACTIVE_PATCHES);
+        return;
+    }
     c->patch_system_state_.freeLayerStack_[c->world_state_.free_layer_count++] = layer;
 }
 
@@ -783,6 +832,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     bool found = existingPatches.count({ gx, gz }) > 0;
                     if (!found && c->world_state_.free_layer_count > 0) {
                         uint32_t layer = alloc_layer(c);
+                        if (layer == UINT32_MAX) continue;   // RIBBON_5: the pool refused
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
@@ -824,6 +874,22 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         }
     }
 
+    // ─── THE FRAME'S TWO FACTS (RIBBON_5) ─────────────────────────
+    //
+    // ONE SCAN, three readers. `young` decides the whole frame's pace — the
+    // spawn budget, the eviction budget and which generation shape runs.
+    // `baking_idx` is the sliced conductor's work in flight, and it is the
+    // scratch's owner: patch_height_scratch holds ONE patch, and a whole bake
+    // run between a BAKING patch's bands would overwrite the rows already
+    // laid. Both are read below and neither is stored.
+    const bool young = world_is_young(c);
+    uint32_t baking_idx = UINT32_MAX;
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        if (!c->patch_system_state_.patches_[i].valid) continue;
+        if (c->patch_system_state_.patches_[i].phase == PatchPhase::BAKING) { baking_idx = i; break; }
+    }
+    const bool scratch_busy = (baking_idx != UINT32_MAX);
+
     // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
     //
     {
@@ -840,7 +906,12 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         // in flight owns no state outside the patch record itself. The
         // sliced conductor re-finds its work by SCANNING for BAKING, not by
         // index, so the compaction below may move any patch freely.
-        uint32_t evictThisFrame = std::min(count, EVICT_BUDGET_PER_FRAME);
+        // RIBBON_5: a young world evicts at transition pace. The healing
+        // migration after a rebirth is EVICTION-BOUND — the wrong window must
+        // drain before the right one can allocate, and at two a frame a full
+        // 225-patch migration takes 113 frames before the first right patch
+        // even exists.
+        uint32_t evictThisFrame = std::min(count, young ? 4u : EVICT_BUDGET_PER_FRAME);
         for (uint32_t e = 0; e < evictThisFrame; e++) {
             evict_patch(c, candidates[e].idx, queue);
         }
@@ -894,12 +965,16 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         struct AllocCandidate { int32_t gx, gz; float dist2; };
         AllocCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t candidateCount = 0;
+        uint32_t vacancies_blocked = 0;   // RIBBON_5 — cells that wanted a layer and found none
 
         for (int32_t gz = pawnGZ - rr; gz <= pawnGZ + rr; gz++) {
             for (int32_t gx = pawnGX - rr; gx <= pawnGX + rr; gx++) {
                 // Must be within allocation window of grid center
                 if (!in_render_window(c, gx, gz, c->world_state_.last_center_x, c->world_state_.last_center_z)) continue;
                 bool found = activePatchSet.count({ gx, gz }) > 0;
+                // RIBBON_5: a vacancy the POOL refused is demand that still
+                // exists; the re-arm below needs to know it was seen.
+                if (!found && c->world_state_.free_layer_count == 0) vacancies_blocked++;
                 if (!found && c->world_state_.free_layer_count > 0 && candidateCount < Dim::MAX_ACTIVE_PATCHES) {
                     float ox = (gx + 0.5f) * Dim::PATCH_EXTENT;
                     float oz = (gz + 0.5f) * Dim::PATCH_EXTENT;
@@ -933,6 +1008,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 ensure_tile_padding(tile_world_state, &tile_world_deps, gx + dx, gz + dz);
             }
             uint32_t layer = alloc_layer(c);
+            if (layer == UINT32_MAX) break;   // RIBBON_5: the pool refused; no patch on a stolen layer
             c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
             c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
             c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
@@ -955,7 +1031,16 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         // counts no candidate and disarms too — the eviction that
         // eventually frees a layer is the raiser that re-arms (see the
         // eviction block above).
-        c->world_state_.alloc_scan_pending = (candidateCount > allocThisFrame);
+        // RIBBON_5 — THE RE-ARMER'S HOLE. A vacancy blocked by ZERO CAPACITY
+        // counted no candidate, so the line below disarmed the scan and left
+        // the only re-armer an eviction. If the registry ever sits with real
+        // vacancies and an empty pool, and nothing is evictable that frame,
+        // the scan sleeps and the world stops growing. Capacity is a
+        // TEMPORARY blocker, so it must not disarm: stay armed while a
+        // vacancy exists that only the pool refused.
+        c->world_state_.alloc_scan_pending =
+            (candidateCount > allocThisFrame) ||
+            (vacancies_blocked > 0 && c->world_state_.free_layer_count == 0);
     }
 
     // THE LOOK-AHEAD (RIBBON_4): under a rider the point moves at flight speed,
@@ -978,33 +1063,68 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             [](const ActivePatch& p) {
                 return p.phase == PatchPhase::ALLOCATED;
             }, true);
+        // RIBBON_5: the burst is the transition's, the one-a-frame is the
+        // steady world's.
         spawn_selected_patches(c, candidates,
-            std::min(count, SPAWN_BUDGET_PER_FRAME), queue, themes_state);
+            std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue, themes_state);
     }
 
-    // ─── HEIGHTFIELD GENERATION, IN TWO ARMS ─────────────────────
+    // ─── HEIGHTFIELD GENERATION ──────────────────────────────────
     //
-    // REGEN is a transition's debris — a pyramid landed and stale heights
-    // must catch up — so it keeps its burst and its whole-bake path, which
-    // patches_budget_this_frame paces by backlog. Its patches are already
-    // drawn (the grid and the band gate on GENERATED|NEEDS_REGEN), so a
-    // slow answer here shows as stale ground, not as a hole.
-    {
+    // THE BURST SERVES AN EMPTY WINDOW; THE SLICE SERVES A MOVING ONE
+    // (RIBBON_5). A world world_is_young() calls YOUNG takes the pre-RIBBON_4
+    // shape whole: one scan over both pending phases, whole bakes, the backlog
+    // ladder. A whole world takes RIBBON_4's steady shape: the regen arm at
+    // its own budget, then one band of one bake. In finite mode the predicate
+    // reads the CAPPED active_radius, so a small world is judged against the
+    // window it actually has.
+    //
+    // THE ONE GUARD youth needs is the scratch. If a bake was in flight when
+    // youth began — a transition that did not clear the registry, or a window
+    // that emptied around a patch mid-bake — the burst would run whole bakes
+    // through patch_height_scratch while that patch still owns it. So the
+    // carry finishes FIRST, through the sliced conductor, and the burst opens
+    // on the frame after. At two slices that costs one frame, once.
+    if (young && !scratch_busy) {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
             gen_cx, gen_cz,
             [](const ActivePatch& p) {
-                return p.phase == PatchPhase::NEEDS_REGEN;
+                return p.phase == PatchPhase::SPAWNED ||
+                    p.phase == PatchPhase::NEEDS_REGEN;
             }, true);
         generate_selected_patches(c, candidates,
-            std::min(count, patches_budget_this_frame(c, inputState)),
+            std::min(count, patches_budget_this_frame(c, inputState, /*young*/ true)),
             encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
             patchParamsCursor);
     }
+    else {
+        // REGEN is a transition's debris — a pyramid landed and stale heights
+        // must catch up — so it keeps its burst and its whole-bake path, which
+        // patches_budget_this_frame paces by backlog. Its patches are already
+        // drawn (the grid and the band gate on GENERATED|NEEDS_REGEN), so a
+        // slow answer here shows as stale ground, not as a hole.
+        //
+        // ONE SCRATCH, ONE WRITER (RIBBON_5): a BAKING patch owns
+        // patch_height_scratch across frames; a whole bake between its bands
+        // would overwrite the rows already laid. The regen arm waits its turn.
+        if (!scratch_busy) {
+            PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
+            uint32_t count = collect_sorted_patches(c, candidates,
+                gen_cx, gen_cz,
+                [](const ActivePatch& p) {
+                    return p.phase == PatchPhase::NEEDS_REGEN;
+                }, true);
+            generate_selected_patches(c, candidates,
+                std::min(count, patches_budget_this_frame(c, inputState, /*young*/ false)),
+                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
+                patchParamsCursor);
+        }
 
-    // THE STEADY WORLD (RIBBON_4): one bake in flight, one slice a frame.
-    generate_patch_sliced(c, encoder, queue, tileGridDirty,
-        tile_world_state, tile_world_deps, patchParamsCursor, gen_cx, gen_cz);
+        // THE STEADY WORLD (RIBBON_4): one bake in flight, one slice a frame.
+        generate_patch_sliced(c, encoder, queue, tileGridDirty,
+            tile_world_state, tile_world_deps, patchParamsCursor, gen_cx, gen_cz);
+    }
 
     // The conductor tail as a sequence of named units (was one inline block).
     band_patches(c, queue);
@@ -1031,6 +1151,47 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
 
     // ─── Deferred uploads (one per frame max) ────────────────
     if (tileGridDirty) upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
+
+    // ─── THE CONSERVATION WITNESS (RIBBON_5) ─────────────────
+    //
+    // Always-on, O(N), once a second: valid patches + free layers == the pool.
+    // A drift here IS the one-patch world — every comer on a recycled layer,
+    // one heightfield mutating under a moving player — and it used to say
+    // nothing. This is deliberately NOT behind the instruments dial: a broken
+    // world must say so in every build, including the shipped one. The
+    // [STREAM] line beside it is diagnosis and rides the meter; this is an
+    // alarm and rides nothing.
+    {
+        static uint32_t s_wit = 0;
+        if ((s_wit++ % 60u) == 0u) {
+            uint32_t valid_count = 0;
+            uint32_t ph[5] = {};
+            for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+                if (!c->patch_system_state_.patches_[i].valid) continue;
+                valid_count++;
+                ph[(uint32_t)c->patch_system_state_.patches_[i].phase]++;
+            }
+            if (valid_count + c->world_state_.free_layer_count != Dim::MAX_ACTIVE_PATCHES) {
+                std::fprintf(stderr,
+                    "[Patch] CONSERVATION BROKEN — valid=%u + free=%u != %u "
+                    "(active=%u). Layers leaked; the world will stop growing.\n",
+                    valid_count, c->world_state_.free_layer_count,
+                    Dim::MAX_ACTIVE_PATCHES, c->world_state_.active_patch_count);
+            }
+            if constexpr (t7::INSTRUMENTS.frame_meter) {
+                std::fprintf(stderr,
+                    "[STREAM] active=%u free=%u | ALLOC=%u SPAWN=%u BAKING=%u GEN=%u REGEN=%u | "
+                    "young=%d center=(%d,%d) point=(%.0f,%.0f)\n",
+                    c->world_state_.active_patch_count, c->world_state_.free_layer_count,
+                    ph[(uint32_t)PatchPhase::ALLOCATED], ph[(uint32_t)PatchPhase::SPAWNED],
+                    ph[(uint32_t)PatchPhase::BAKING], ph[(uint32_t)PatchPhase::GENERATED],
+                    ph[(uint32_t)PatchPhase::NEEDS_REGEN],
+                    young ? 1 : 0,
+                    c->world_state_.last_center_x, c->world_state_.last_center_z,
+                    (double)c->point_.x, (double)c->point_.z);
+            }
+        }
+    }
 
     // Restore radius if we capped it for finite mode
     if (c->world_state_.finite_mode) { c->world_state_.active_radius = savedRadius; }

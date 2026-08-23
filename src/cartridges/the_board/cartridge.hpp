@@ -1323,6 +1323,19 @@ namespace t7 {
                         // before the first fresh harvest reads the true point.
                         point_.x = Idle::PAWN_POS_X;
                         point_.z = Idle::PAWN_POS_Z;
+                        // THE WHOLE POSE, NOT HALF OF IT (RIBBON_5). POINT_1
+                        // authored x and z here; RIBBON_1 added y and heading
+                        // to the mirror and this block never grew to match, so
+                        // a rebirth carried the DEAD world's altitude and
+                        // bearing into the new one until the first live
+                        // readback. Heading is not cosmetic: RIBBON_4's
+                        // look-ahead reads it — gen_cx = x - cos(heading) x
+                        // look — so a stale bearing aims the first frames'
+                        // streaming up to PATCH_LOOK_AHEAD wu into a direction
+                        // the body is not facing. Both are the spawn pose now,
+                        // by the same argument POINT_1 made for x and z.
+                        point_.y = 0.0f;
+                        point_.heading = 0.0f;
                         uint32_t preserved_tier = agent_state_.slots[player_.possessed_slot].tier_idx;
                         float preserved_color_r = agent_state_.slots[player_.possessed_slot].color_r;
                         float preserved_color_g = agent_state_.slots[player_.possessed_slot].color_g;
