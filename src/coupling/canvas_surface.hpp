@@ -57,9 +57,12 @@ struct CanvasSurface {
 };
 
 // The authored design — values carried verbatim from the module's own
-// tuning rows, which keep their banners and lose their numbers.
+// tuning rows, which keep their banners and lose their numbers. One row
+// has moved since: fog_span was tuned on the desk and transcribed back
+// here at ship time, and says so.
 inline constexpr CanvasSurface CANVAS_TABLE = {
-    2.0f,      // fog_span
+    3.04f,     // fog_span — tuned on the desk and transcribed at ship
+               // time; the module's own value was 2.0
     2.00f,     // swell_ceiling — × idle (ruled)
     8.0f,      // swell_ramp — beats (ruled)
     0.35f,     // swell_attack

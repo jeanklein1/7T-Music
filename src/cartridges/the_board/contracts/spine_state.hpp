@@ -331,21 +331,25 @@ inline constexpr Atmosphere ATMOS_FINITE_DAY = {
       {}, {}, {} },
 };
 
-// ═══ THE TWO NEW SKIES (ATMOS_1, regimes at ATMOS_2) — sketches ═══
-// Every number below is a starting point Jean tunes from the Organ and
-// exports; none is a measurement. The night is four regimes — each a
-// light AND a fog, chosen together: moonless-and-clear, moonlit-and-
-// hazy, bright-moon-and-clear, moonless-and-thick. The noon is two,
-// tight and high.
+// ═══ THE TWO NEW SKIES (ATMOS_1, regimes at ATMOS_2) ═════════════
+// THE NIGHT IS TUNED NOW; THE NOON IS STILL A SKETCH — the noon's
+// numbers are a starting point Jean tunes from the Organ and exports,
+// none of them a measurement, and it is two regimes, tight and high.
+// The night's came back from the panel and were transcribed here at
+// SHIP TIME (docs/ORGAN.md, "Presets"): all four regime ROWS survive,
+// but only regime 0 carries weight (MOOD_TABLE, below), so the night
+// draws ONE sky — a bright moon over clear air. Regimes 1-3 are
+// ABSENT, not deleted; that is what a weight of 0 means, and giving
+// one weight back brings its row back unchanged.
 inline constexpr Atmosphere ATMOS_NIGHT = {
-    { 0.78f, -0.62f, -0.11f }, 180.0f, 14.0f,      // moon centre ~38° up; any bearing; ±14°
-    { { { 0.72f, 0.80f, 1.00f }, 0.05f, 0.14f, 0.04f, 0.08f, 0.02f,          // moonless & clear
-        0.0024f, 0.0006f, { 0.03f, 0.04f, 0.08f }, 0.15f, { 0.02f, 0.03f, 0.06f }, 0.15f },
-      { { 0.72f, 0.80f, 1.00f }, 0.05f, 0.30f, 0.08f, 0.10f, 0.03f,          // moonlit & hazy
+    { 0.05f, -0.08f, 0.09f }, 82.0f, 14.0f,        // moon centre ~38° up; ±82° of bearing; ±14°
+    { { { 0.72f, 0.80f, 0.75f }, 0.05f, 0.80f, 0.04f, 0.08f, 0.02f,          // THE DRAWN ROW — bright moon, clear air
+        0.0022f, 0.0006f, { 0.03f, 0.04f, 0.08f }, 0.15f, { 0.02f, 0.03f, 0.06f }, 0.15f },
+      { { 0.72f, 0.80f, 1.00f }, 0.05f, 0.67f, 0.00f, 0.10f, 0.03f,          // moonlit & hazy — weight 0
         0.0048f, 0.0010f, { 0.05f, 0.06f, 0.10f }, 0.15f, { 0.03f, 0.04f, 0.08f }, 0.15f },
-      { { 0.80f, 0.86f, 1.00f }, 0.05f, 0.55f, 0.10f, 0.14f, 0.03f,          // bright moon & clear
+      { { 0.80f, 0.86f, 1.00f }, 0.05f, 0.55f, 0.10f, 0.14f, 0.03f,          // bright moon & clear — weight 0
         0.0020f, 0.0005f, { 0.04f, 0.05f, 0.09f }, 0.10f, { 0.04f, 0.05f, 0.10f }, 0.10f },
-      { { 0.72f, 0.80f, 1.00f }, 0.05f, 0.12f, 0.03f, 0.07f, 0.02f,          // moonless & thick
+      { { 0.72f, 0.80f, 1.00f }, 0.05f, 0.12f, 0.03f, 0.07f, 0.02f,          // moonless & thick — weight 0
         0.0095f, 0.0020f, { 0.09f, 0.09f, 0.12f }, 0.10f, { 0.02f, 0.02f, 0.04f }, 0.10f } },
 };
 inline constexpr Atmosphere ATMOS_NOON = {
@@ -371,7 +375,7 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_INDOOR_FLAT        */  { SHAPE_ROOM_FLAT,  ATMOS_ROOM,       { 1.0f, 0.0f,  0.0f,  0.0f  } },
     /* MOOD_INDOOR_VAULT       */  { SHAPE_ROOM_VAULT, ATMOS_ROOM,       { 1.0f, 0.0f,  0.0f,  0.0f  } },
     /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY, { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 0.30f, 0.35f, 0.20f, 0.15f } },
+    /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 0.30f, 0.0f,  0.0f,  0.0f  } },   // one drawn regime; 1-3 absent (ATMOS_NIGHT's banner)
     /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON,       { 0.70f, 0.30f, 0.0f,  0.0f  } },
 };
 
@@ -411,7 +415,13 @@ static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos.regime[0].clear_color[2]    == 
 static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].fog_density        == 0.0095f, "Atmosphere column drift: regime[3].fog_density");
 static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].clear_color_spread == 0.10f,   "Atmosphere column drift: regime[3].clear_color_spread (tail)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].regime_weight[0]                == 1.0f,    "MoodProfile column drift: regime_weight (sunset, one regime)");
-static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].regime_weight[3]                 == 0.15f,   "MoodProfile column drift: regime_weight (night, tail)");
+// The night's weights collapsed to one drawn regime at the ship-time
+// transcription, so its tail lane is 0 and a shift could read 0 too.
+// The DISTINCTIVE lane moved to the noon, which still weights two
+// regimes; the night keeps the tail probe, and the two together are
+// what the one 0.15f used to be.
+static_assert(MOOD_TABLE[MOOD_OPEN_NOON].regime_weight[1]                  == 0.30f,   "MoodProfile column drift: regime_weight (noon, lane 1)");
+static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].regime_weight[3]                 == 0.0f,    "MoodProfile column drift: regime_weight (night, tail)");
 
 // The open family is one stage: three moods, one SHAPE_OPEN, stated once.
 static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)

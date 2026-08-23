@@ -58,7 +58,12 @@ struct DriverSurface {
 // contracts/spine_state.hpp).
 inline constexpr DriverSurface DRIVER_TABLE = {
     { 1.0f },                   // fog: gain 1, the coupling verbatim
-    { 0u, 1.0f, 1.5f, 1.0f },   // aura: intent off, the authored rates
+    { 1u, 1.0f, 1.5f, 1.0f },   // aura: intent ON — the ship-time
+                                // transcription of a tuned desk
+                                // (docs/ORGAN.md, "Presets"); the
+                                // rates are the authored ones. A mood
+                                // policy may still force it off, and
+                                // key 3 still toggles it.
     { { 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f, 1.0f },   // checker: a return to seed
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
 };

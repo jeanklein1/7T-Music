@@ -154,7 +154,15 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     // ATMOS_1 — the night is the sunset's field, fuller, brighter and slower
     // (256 stars, bri 0.95, a slow near-axial turn); the noon is the
     // indoor disabled row verbatim — no stars by day.
-    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.95f, 0.4f,  3u,  0.004f, {0.05f, 0.99f, 0.05f},  0.0f, 0u,  0.08f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    // THE NIGHT'S MOTION ROW CAME BACK FROM THE PANEL at the ship-time
+    // transcription: the four per-rule drag multipliers and the orbital
+    // speed left their SENTINEL ZEROES for real numbers, so neither
+    // pass-through (rule drag, ×1.0) nor ORB_DEFAULT_ORBITAL_SPEED
+    // (0.15 rad/s) is taken here any more. 0.02 and 0.005 are also
+    // exactly the enrolled floors of those five dials — the panel cannot
+    // dial a sentinel back, which is the range's problem and not this
+    // row's.
+    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.95f, 0.4f,  3u,  0.004f, {0.05f, 0.99f, 0.05f},  0.005f, 0u,  0.08f, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.02f, 0.02f, 0.02f, 0.02f },
     /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
