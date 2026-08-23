@@ -5,15 +5,15 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `d3bfe2dde75b133a52ab1fac8d723345a8f40027`
-(RIBBON_4 P1: the steady world — one slice, one spawn, two evictions a frame; the bake is sliced; the conductor looks where the rider looks)
+Last commit touching any scanned file: `a5160388bdfa7b1b940f27493d2f92918577b936`
+(RIBBON_5 P1: a young world bursts, the center is the body, the pool is conserved loudly, the scratch has one writer)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f15d2090f646b29a342c190f19645e42739a379db8ad9e0785ac2774bf420be0` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:c332b325faa2596c77136f70363ca1444a24bf9b52e26ba3a421a7a61c23082a` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:13a625086ab40505b603d9930e0102e9ab7a121d75921305dc187cbf17f338ec` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:189bdcc8ae9dbbc41c4e7600e123491493208a6287c7881d84cfd855be01b2ad` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:7d688b90194cdabaf2b5f06814b41bee1192aad04abc2e6186f649265a002cac` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:4def862815d3e3e7d791a40e1361b8d5ba03f2b47884da00b5e795dc3f320f77` |
@@ -40,11 +40,11 @@ in `console.hpp`.
 | 5 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:334` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
 | 6 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:378` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 7 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:550` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1897` | — | — | — |
-| 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:208` | — | — | — |
-| 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:221` | — | — | — |
-| 11 | Patch Heights (sliced) | compute | `generate_patch_heights_band` | `src/cartridges/the_board/surface/patch_system.hpp:270` | — | — | — |
-| 12 | Patch Gradients + Cells (sliced) | compute | `generate_patch_heights_band` | `src/cartridges/the_board/surface/patch_system.hpp:286` | — | — | — |
+| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1910` | — | — | — |
+| 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:238` | — | — | — |
+| 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:251` | — | — | — |
+| 11 | Patch Heights (sliced) | compute | `generate_patch_heights_band` | `src/cartridges/the_board/surface/patch_system.hpp:300` | — | — | — |
+| 12 | Patch Gradients + Cells (sliced) | compute | `generate_patch_heights_band` | `src/cartridges/the_board/surface/patch_system.hpp:316` | — | — | — |
 | 13 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:675` | — | — | — |
 | 14 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:763` | — | — | — |
 | 15 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:776` | — | — | — |

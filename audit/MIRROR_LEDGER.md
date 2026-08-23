@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d3bfe2dde75b133a52ab1fac8d723345a8f40027` |
-| | RIBBON_4 P1: the steady world — one slice, one spawn, two evictions a frame; the bake is sliced; the conductor looks where the rider looks |
+| source commit | `32c2f2c944331df9da48a661adf86e4ebdade944` |
+| | RIBBON_5 P2: OPEN carries the rebirth witness; ledgers follow the tree |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:94e0fe7fabbd7ce0e68ed1627f3eaf392300ef56157dc45b1e8be7c3e7ed29cf` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:230da02dd5aded05de6ef73e3d1795509932b1c156012d5c749347e2236eb526` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:893c70d921d05eef6a828f1a514d4204704dab766e67329610701ef1119ab023` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f15d2090f646b29a342c190f19645e42739a379db8ad9e0785ac2774bf420be0` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:b80fc0b52657d470d32fa44f43fe99929a48b641403d4a121b113146ebdac9d0` |
+| `audit/BINDING_LEDGER.md` | `sha256:64cc3e9bf3d3001fc205c7f606b78ae762f01f384030711ad25c9c72ca9bcb48` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -1043,8 +1043,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:1899` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:1900` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:1912` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:1913` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `gallery.hpp:1447` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
 | `gallery.hpp:1448` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
 | `gallery.hpp:1513` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
@@ -1151,14 +1151,14 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `renderer.hpp:808` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
 | `renderer.hpp:832` | `draw_patch_terrain_direct` | 2 | `sceneStateGroup_` | — |
 | `renderer.hpp:833` | `draw_patch_terrain_direct` | 3 | `sceneTexturesGroup_` | — |
-| `patch_system.hpp:210` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:211` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:223` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:224` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:271` | `generate_patch_heights_band` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:272` | `generate_patch_heights_band` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:287` | `generate_patch_heights_band` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:288` | `generate_patch_heights_band` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:240` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:241` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:253` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:254` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:301` | `generate_patch_heights_band` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:302` | `generate_patch_heights_band` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:317` | `generate_patch_heights_band` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:318` | `generate_patch_heights_band` | 1 | `frameCGroup_` | — |
 
 ## Appendix — the renderer handle convention
 

@@ -263,6 +263,67 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   smooth per-frame float, never a beat-quantized tick — which is why §3.5
   took its first branch and the clock did not come home.
 
+## RIBBON_5 — THE WORLD COMES BACK
+
+Origin: RIBBON_5 (two commits, base `b4fe1fb`). This one comes first: until
+the world rebuilds, no other witness in this file can be read at all.
+
+- THE WORLD COMES BACK. Walk through the door-fallback arch ON PURPOSE — it
+  stands ~60 wu from spawn by design, so it is a short walk. The world fades,
+  reseeds, and must **rebuild whole around the pawn within a few seconds**,
+  then keep streaming as he walks. In a meter build the `[STREAM]` line (1 Hz)
+  is the reading: `free` must return toward `MAX − active`, `young` must clear
+  as the window fills, and `ALLOC`/`SPAWN`/`GEN` must move every second. The
+  one-patch world is impossible while the conservation witness stays silent —
+  and that witness runs in EVERY build, not just a meter one, so if it ever
+  prints, that line is the whole diagnosis.
+- FOR JEAN, two lines that are not defects:
+  **The "mutation" moment was a door, not a bug.** Doors are arches; the
+  fallback arch stands near spawn by design; crossing one is a world
+  transition, and the patch underfoot changing IS the new seed's terrain
+  arriving. That part was the program working. What was broken is only that
+  the world never finished rebuilding afterwards.
+  **RIBBON_4's circle-vs-straight witness still stands** and is still unread —
+  it was never reachable, because the world under it was never whole. Read it
+  once the rebuild lands.
+- THREE RULINGS, each one word to overturn: the youth threshold (under HALF
+  the window built — raise it and the burst runs longer, lower it and the
+  steady cadence takes over sooner); the young budgets (4 spawn / 4 evict /
+  the backlog ladder — the pre-RIBBON_4 numbers, restored only while young);
+  and whether the conservation witness stays always-on (it costs one O(225)
+  walk a second and is the only thing standing between a layer leak and a
+  silent one-patch world — the recommendation is that it never moves behind a
+  dial).
+- WHAT THE AUDIT FOUND — and it found a real break, on the second pass. The
+  first pass asked "does every site that clears `valid` return its layer?"
+  The answer is yes, and the answer was useless, because the break runs the
+  other way: **the continuous-allocation block checked pool capacity while
+  COLLECTING candidates and never again while spending them.** The scan
+  decrements nothing, so with `free == 2` and 15 vacant cells all 15 became
+  candidates, `allocThisFrame = min(15, ALLOC_BUDGET_PER_FRAME) = 4`, and
+  iterations 2 and 3 called `alloc_layer` against an empty pool — which
+  silently returned **layer 0**, already owned by a live patch, and still
+  wrote a valid record and incremented the count past the pool. Two records
+  sharing one heightfield layer is one patch's terrain mutating under
+  another, and `active_patch_count` past 225 writes `patches_[225]` — which
+  is `freeLayerStack_[0]`, the member immediately after it. The bookkeeping
+  error becomes memory corruption of the free list on the first frame it
+  fires.
+  **The trigger is ordinary and the regression is RIBBON_4's**: a built-out
+  world, the player crosses one patch boundary, 15 cells go vacant.
+  Before RIBBON_4, `EVICT` and `ALLOC` were both 4, so eviction always
+  supplied what allocation could spend. RIBBON_4 lowered `EVICT` to 2 for
+  the steady cadence and left `ALLOC` at 4 — and that gap is the hole. So the
+  handoff's second defect was right in substance and wrong in mechanism: the
+  pool did wedge and layer 0 did go to every comer, but by over-taking, not
+  by leaking.
+  Fixed at the site (`alloc_layer` refuses and says so; both loops honour the
+  refusal; both write sites carry an independent array-bound guard), and the
+  1 Hz conservation witness now proves it rather than assuming it. The
+  zero-headroom equality remains (`MAX_ACTIVE_PATCHES == 225 == the 15x15
+  window`): the pool has no slack by construction, which is exactly why a
+  comment saying "this shouldn't happen" was never enough.
+
 ## RIBBON_4 — the one witness that decides
 
 Origin: RIBBON_4 (two commits, base `5d17316`). This one comes FIRST,

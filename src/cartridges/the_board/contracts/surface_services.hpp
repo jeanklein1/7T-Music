@@ -239,8 +239,9 @@ ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
 
 void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
-uint32_t count_pending_patches(MachineCtx* c);
-uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState);
+uint32_t count_pending_patches(MachineCtx* c, bool include_spawned);
+bool world_is_young(MachineCtx* c);
+uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState, bool young);
 
 // Root-called owner verb. CALLERS: boot (init_renderer) AND the transition
 // machine (root); OWNER: patch_system. One door, both paths — boot is a
