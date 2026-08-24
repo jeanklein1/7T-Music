@@ -211,7 +211,8 @@ struct GoLSelection {
     int32_t  zone_nx, zone_nz;     // lattice node
     float    corner_x, corner_z;   // zone corner (cell-grid-snapped)
     uint32_t algorithm;            // AlgorithmType::CONWAY or PULSE
-    uint32_t tier_idx;             // compound: Conway 0–6, Pulse 7–9
+    uint32_t tier_idx;             // compound: Conway 0..GOL_TIER_COUNT-1,
+                                   // Pulse GOL_TIER_COUNT.. (gol_tier_cells decodes)
     float    tick_period;
     float    initial_density;
     bool     height_enabled;

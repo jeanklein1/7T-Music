@@ -154,7 +154,7 @@ struct GoLColorMode {
 // ═══ CONWAY ALGORITHM ════════════════════════════════════════════
 
 // ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
-inline constexpr uint32_t GOL_TIER_COUNT = 7;
+inline constexpr uint32_t GOL_TIER_COUNT = 10;
 
 struct GoLTierProfile {
     // ─── Rule ────────────────────────────────────────────────
@@ -195,20 +195,38 @@ struct GoLTierProfile {
 // in its bind), so the order now reads 24,32,16,16,32,16,24. The column is
 // Jean-tunable per row and its VALUES are unchanged; only the descending-
 // rank pattern is gone. Re-author the cells if the pattern is wanted back.
+// (GOL_RULES_1 reweighted the seven again and appended three rows, so the
+//  seven-value list above describes the original rows only.)
 //                                     rule       dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h   cells
 inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-    /* 0: Pillars  */ { 0x1808u,  0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.14f, false, 16u },
-    /* 1: Sparse   */ { 0x1808u,  0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.22f, false, 32u },
-    /* 2: Moderate */ { 0x1808u,  0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.12f, false, 32u },
-    /* 3: Dense    */ { 0x1808u,  0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.04f, false, 16u },
+    /* 0: Pillars  */ { 0x1808u,  0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.11f, false, 16u },
+    /* 1: Sparse   */ { 0x1808u,  0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.17f, false, 32u },
+    /* 2: Moderate */ { 0x1808u,  0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.09f, false, 32u },
+    /* 3: Dense    */ { 0x1808u,  0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.03f, false, 16u },
     /* 4: Flash    */ { 0x1808u,  0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
-    /* 5: Monolith */ { 0x1808u,  0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.15f, false, 16u },
-    /* 6: Glacier  */ { 0x1808u,  0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.30f, false, 24u },
+    /* 5: Monolith */ { 0x1808u,  0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false, 16u },
+    /* 6: Glacier  */ { 0x1808u,  0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.21f, false, 24u },
+    // GOL_RULES_1. Three rules that are not Conway. The values are
+    // authored, not tuned-in-place — read them as intent, not as taste:
+    //  · Day&night is symmetric under state inversion, so 0.50 density is
+    //    its home; it stays legible at 16 cells. Mid height — it makes
+    //    broad plateaus, and tall would read as walls.
+    //  · Walled cities needs four neighbours to birth, so 0.50 density is
+    //    a hard requirement, not a preference. It is a TERMINAL rule: it
+    //    settles and stops. The slow tick and slow spring make the freeze
+    //    read as construction settling rather than as a stall. Tall, low
+    //    variance — walls should rise together.
+    //  · HighLife must be 32 cells or the replicator has no room and the
+    //    row reads as thin Conway. Brisk tick so replication is visible.
+    /* 7: Day&night*/ { 0x3B1C8u, 0.50f, 0.06f,   1.0f, 0.25f,  6.0f, 1.5f,   0.18f, 0.04f,  12.0f, 4.0f,  0.18f,  0.09f, false, 16u },
+    /* 8: Walled   */ { 0x79F0u,  0.50f, 0.05f,   6.0f, 1.5f,   1.2f, 0.3f,   0.06f, 0.015f, 34.0f, 9.0f,  0.08f,  0.08f, false, 24u },
+    /* 9: HighLife */ { 0x1848u,  0.30f, 0.05f,   0.6f, 0.15f,  9.0f, 2.0f,   0.20f, 0.04f,  10.0f, 3.0f,  0.22f,  0.07f, false, 32u },
 };
 
 inline constexpr const char* GOL_TIER_NAMES[] = {
     "Pillars", "Sparse", "Moderate", "Dense",
-    "Flash", "Monolith", "Glacier"
+    "Flash", "Monolith", "Glacier",
+    "Day & night", "Walled cities", "HighLife"
 };
 
 inline constexpr const char* GOL_COLOR_NAMES[] = {
@@ -490,7 +508,10 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
                     cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
                         pp.tick_period_mean, pp.tick_period_sigma));
                 initial_density = 0.0f;
-                tier_idx = GOL_TIER_COUNT + tier;  // Pulse: 7–9 (compound index)
+                // Compound index: GOL_TIER_COUNT .. GOL_TIER_COUNT +
+                // GOL_PULSE_TIER_COUNT - 1. Named, never a literal — the
+                // Conway count moves and every Pulse index moves with it.
+                tier_idx = GOL_TIER_COUNT + tier;
             }
 
             // Zone extent + corner (cell-grid-snapped), from the tier's
