@@ -173,10 +173,25 @@ struct GalleryConfig {
     // it buys erratic rather than common.
     static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.70f, 0.70f, 0.70f, 0.70f };
 
-    // Painting count per gallery: gaussian, median 5, σ 2
-    // Max varies by archetype — basin gets the largest galleries
-    static constexpr float PAINTINGS_MEAN = 5.0f;
-    static constexpr float PAINTINGS_SIGMA = 2.0f;
+    // Painting count per gallery: gaussian, median 3, σ 1.
+    //
+    // THE COUNT IS NOT A TASTE HERE, IT IS WHAT THE OTHER TWO RULINGS LEAVE.
+    // gallery_fan_radius goes as (count-1) * ROW_SPACING/2, so count and
+    // spacing MULTIPLY. SAND_1 raises ROW_SPACING to 26 for the larger
+    // artworks; at the old mean of 5 that is a fan of 81 wu, two of which
+    // need 162 — check_position would overtake MIN_GALLERY_DISTANCE and the
+    // 110 constant would go inert, spacing galleries FURTHER apart than
+    // before. At mean 3 the fan is 46.5 and two need 93, so 110 remains the
+    // live governor, which is the ruling.
+    //
+    // It also pays the layer ceiling: EXHIBITION_LAYERS 40 divided by 3 is
+    // thirteen resident galleries against eight, and three snapshots spent
+    // per site against five.
+    //
+    // σ 1 not 2: at mean 3 the old sigma put ~16% of draws under the
+    // PAINTINGS_MIN clamp, which would pile the distribution on its floor.
+    static constexpr float PAINTINGS_MEAN = 3.0f;
+    static constexpr float PAINTINGS_SIGMA = 1.0f;
     static constexpr uint32_t PAINTINGS_MIN = 2;
     static constexpr uint32_t PAINTINGS_MAX_BY_ARCHETYPE[4] = { 8, 10, 12, 12 };
 
