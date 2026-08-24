@@ -211,27 +211,40 @@ inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
     /* 4: Flash    */ { 0x1808u,  0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
     /* 5: Monolith */ { 0x1808u,  0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false, 16u },
     /* 6: Glacier  */ { 0x1808u,  0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.21f, false, 24u },
-    // GOL_RULES_1. Three rules that are not Conway. The values are
-    // authored, not tuned-in-place — read them as intent, not as taste:
+    // GOL_RULES_1 authored these three rules. GOL_ROWS_1 re-authored two
+    // of the row VALUES from the headless witness, which overturned the
+    // belief they had been tuned around: Cauldron never terminates and
+    // Day & night does — the opposite of the assumption. The masks were
+    // right; what was built on them was not. Read them as intent:
     //  · Day&night is symmetric under state inversion, so 0.50 density is
-    //    its home; it stays legible at 16 cells. Mid height — it makes
-    //    broad plateaus, and tall would read as walls.
-    //  · Walled cities needs four neighbours to birth, so 0.50 density is
-    //    a hard requirement, not a preference. It is a TERMINAL rule: it
-    //    settles and stops. The slow tick and slow spring make the freeze
-    //    read as construction settling rather than as a stall. Tall, low
-    //    variance — walls should rise together.
+    //    its home — but that same symmetry makes BOTH extremes stable, and
+    //    at 16 cells a zone just falls into one. 32 cells gives the
+    //    domains room to coexist. This is the TERMINAL rule of the three,
+    //    so it takes the treatment: a slow tick with a crisp rise inside
+    //    it (omega = 3 / (0.10 x 4.0) = 7.5) and low variance. Plateaus
+    //    that commit and then hold — and tall, now that they hold.
+    //  · Cauldron, once "Walled cities", builds no walls at any reachable
+    //    size: 0 of 32 seeds reached a fixed point in 4000 generations and
+    //    not one cell was static, at every size 24..128 and every density
+    //    0.25..0.65. It is a dense slow boil at ~53% live, and it is named
+    //    for what it does. Mask, density and cells are the rule's own
+    //    requirement and stay. LOW height is what makes a permanently
+    //    churning field a textured surface instead of a strobing forest,
+    //    and a deliberately smeared spring (omega = 3 / (0.20 x 6.0) =
+    //    2.5) makes it shimmer rather than strobe.
     //  · HighLife must be 32 cells or the replicator has no room and the
     //    row reads as thin Conway. Brisk tick so replication is visible.
-    /* 7: Day&night*/ { 0x3B1C8u, 0.50f, 0.06f,   1.0f, 0.25f,  6.0f, 1.5f,   0.18f, 0.04f,  12.0f, 4.0f,  0.18f,  0.09f, false, 16u },
-    /* 8: Walled   */ { 0x79F0u,  0.50f, 0.05f,   6.0f, 1.5f,   1.2f, 0.3f,   0.06f, 0.015f, 34.0f, 9.0f,  0.08f,  0.08f, false, 24u },
+    //    Untouched by GOL_ROWS_1 — the witness ran Hickerson's replicator
+    //    on this row's own grid and watched one 12-cell seed become two.
+    /* 7: Day&night*/ { 0x3B1C8u, 0.50f, 0.06f,   4.0f, 1.0f,   6.0f, 1.5f,   0.10f, 0.02f,  30.0f, 8.0f,  0.08f,  0.09f, false, 32u },
+    /* 8: Cauldron */ { 0x79F0u,  0.50f, 0.05f,   6.0f, 1.5f,   1.2f, 0.3f,   0.20f, 0.05f,   5.0f, 1.5f,  0.15f,  0.08f, false, 24u },
     /* 9: HighLife */ { 0x1848u,  0.30f, 0.05f,   0.6f, 0.15f,  9.0f, 2.0f,   0.20f, 0.04f,  10.0f, 3.0f,  0.22f,  0.07f, false, 32u },
 };
 
 inline constexpr const char* GOL_TIER_NAMES[] = {
     "Pillars", "Sparse", "Moderate", "Dense",
     "Flash", "Monolith", "Glacier",
-    "Day & night", "Walled cities", "HighLife"
+    "Day & night", "Cauldron", "HighLife"
 };
 
 inline constexpr const char* GOL_COLOR_NAMES[] = {
@@ -298,10 +311,18 @@ inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
     // GOL_RULES_1. The first Pulse row that is not BREATH, and the first
     // whose target is continuous rather than binary. Read the values as
     // intent:
-    //  · stiff spring (8.0) so the continuous target is TRACKED rather
-    //    than smeared;
-    //  · phase and tempo scatter near zero — coherence is the point; a
-    //    little shimmer, no more, or the arms come apart;
+    //  · the continuous target is TRACKED rather than smeared by
+    //    omega = 3 / (0.30 x 3.0) = 3.33. transition_fraction x
+    //    tick_period IS the spring; the spring_stiffness column beside it
+    //    is written and never read (docs/OPEN.md carries that);
+    //  · phase scatter stays at 0.03; TEMPO SCATTER IS ZERO (GOL_ROWS_1).
+    //    The two are not the same kind of term: tempo is a per-cell
+    //    FREQUENCY multiplier, so its phase error integrates in t_beats
+    //    and never saturates, while phase is a bounded static offset. At
+    //    tempo 0.02 the arms measured 0.99 correlation against a
+    //    scatter-free spiral at 20 beats, 0.66 at 75, and 0.02 by 150 —
+    //    gone inside a minute at 120bpm. Coherence is the point, and only
+    //    one of the two scatters could ever keep it;
     //  · wander_radius 0 — the spiral centre IS the zone centre and does
     //    not move; a wandering centre smears the arms;
     //  · 32 cells, because a spiral does not read at 16;
@@ -309,7 +330,7 @@ inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
     //    target: select_gol_zone forces height_enabled = false for such
     //    rows, so height never reads a fractional visual. Tint does, and
     //    that is the intent.
-    /* 3: Spiral   */ { PulseField::SPIRAL,  3.0f, 0.8f,   8.0f, 2.0f,   0.30f, 0.06f,   0.03f, 0.01f,   0.02f, 0.01f,   0.0f, 0.0f,   0.0f, 0.0f,   0.10f,  0.18f, true,  BoundaryMode::WRAP, 32u },
+    /* 3: Spiral   */ { PulseField::SPIRAL,  3.0f, 0.8f,   8.0f, 2.0f,   0.30f, 0.06f,   0.03f, 0.01f,    0.0f, 0.0f,   0.0f, 0.0f,   0.0f, 0.0f,   0.10f,  0.18f, true,  BoundaryMode::WRAP, 32u },
 };
 
 inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {

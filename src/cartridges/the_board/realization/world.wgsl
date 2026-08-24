@@ -2182,10 +2182,12 @@ const GOL_TIERS = array<GoLTierParams, GOL_TIER_COUNT>(
     /* 4: FLASH    */ GoLTierParams(0x1808u,  0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.03, 1u, 24u),
     /* 5: MONOLITH */ GoLTierParams(0x1808u,  0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.12, 0u, 16u),
     /* 6: GLACIER  */ GoLTierParams(0x1808u,  0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.21, 0u, 24u),
-    // GOL_RULES_1 — three rules that are not Conway. Rationale lives with
-    // the CPU twin in bodies/gol_zones.hpp; these are the same rows.
-    /* 7: DAY&NIGHT*/ GoLTierParams(0x3B1C8u, 0.50, 0.06,   1.0, 0.25,  6.0, 1.5,   0.18, 0.04,  12.0, 4.0,  0.18,  0.09, 0u, 16u),
-    /* 8: WALLED   */ GoLTierParams(0x79F0u,  0.50, 0.05,   6.0, 1.5,   1.2, 0.3,   0.06, 0.015, 34.0, 9.0,  0.08,  0.08, 0u, 24u),
+    // GOL_RULES_1 — three rules that are not Conway; GOL_ROWS_1 re-authored
+    // the Day&night and Cauldron values (Cauldron was named "Walled
+    // cities"). Rationale lives with the CPU twin in bodies/gol_zones.hpp;
+    // these are the same rows.
+    /* 7: DAY&NIGHT*/ GoLTierParams(0x3B1C8u, 0.50, 0.06,   4.0, 1.0,   6.0, 1.5,   0.10, 0.02,  30.0, 8.0,  0.08,  0.09, 0u, 32u),
+    /* 8: CAULDRON */ GoLTierParams(0x79F0u,  0.50, 0.05,   6.0, 1.5,   1.2, 0.3,   0.20, 0.05,   5.0, 1.5,  0.15,  0.08, 0u, 24u),
     /* 9: HIGHLIFE */ GoLTierParams(0x1848u,  0.30, 0.05,   0.6, 0.15,  9.0, 2.0,   0.20, 0.04,  10.0, 3.0,  0.22,  0.07, 0u, 32u),
 );
 
@@ -2249,7 +2251,7 @@ const GOL_PULSE_TIERS = array<GolPulseTierParams, GOL_PULSE_TIER_COUNT>(
     /* 2: Drift    */ GolPulseTierParams( PULSE_FIELD_BREATH,  4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.20, 0u, 1u, 8u ),
     // GOL_RULES_1 — the continuous field row. Rationale lives with the CPU
     // twin in bodies/gol_zones.hpp; this is the same row.
-    /* 3: Spiral   */ GolPulseTierParams( PULSE_FIELD_SPIRAL,  3.0, 0.8,   8.0, 2.0,   0.30, 0.06,   0.03, 0.01,   0.02, 0.01,   0.0, 0.0,   0.0, 0.0,   0.10,  0.18, 1u, 1u, 32u ),
+    /* 3: Spiral   */ GolPulseTierParams( PULSE_FIELD_SPIRAL,  3.0, 0.8,   8.0, 2.0,   0.30, 0.06,   0.03, 0.01,    0.0, 0.0,   0.0, 0.0,   0.0, 0.0,   0.10,  0.18, 1u, 1u, 32u ),
 );
 
 
