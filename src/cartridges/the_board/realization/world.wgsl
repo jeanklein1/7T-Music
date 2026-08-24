@@ -7170,8 +7170,11 @@ fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
         // was already zeroed at derive; tint does, which is the intent.
         // The two scatter terms above are reused verbatim at the same
         // placement BREATH gives them: tempo on the temporal rate, phase on
-        // the accumulated phase. (No TAU constant exists in this module;
-        // 2.0 * PI is the idiom already in this function.)
+        // the accumulated phase — and the rate carries
+        // config.mode_gol_tick_scale in the same shape BREATH gives it, so
+        // the mode tick dial reaches both Pulse fields alike the day it
+        // gets a driver. (No TAU constant exists in this module; 2.0 * PI
+        // is the idiom already in this function.)
         let n = f32(grid_size);
         let p = vec2<f32>(f32(cell_x) + 0.5 - n * 0.5, f32(cell_y) + 0.5 - n * 0.5);
         let r = length(p);
@@ -7179,7 +7182,8 @@ fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
         let arms = 2.0;
         let arm_wavelength = n * 0.5;
         let u = th * arms + r / arm_wavelength
-              - t_beats * tempo_jitter / max(tick_period, 0.01);
+              - t_beats * tempo_jitter
+                / max(tick_period * config.mode_gol_tick_scale, 0.01);
         return 0.5 + 0.5 * cos(u * 2.0 * PI + cell_phase);
     }
 
