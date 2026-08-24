@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `780bead0b09d416e50d81f6225c88ec86ca7de32`
-(GOL_RULES_1 C5: Spiral joins GOL_PULSE_TIERS)
+Last commit touching any scanned file: `153f3640beb145bf6ddcc747e1afe5cd72c50320`
+(GOL_RULES_1: the two count statements the FIND missed)
 
 | file scanned | sha256 |
 |---|---|
@@ -14,7 +14,7 @@ Last commit touching any scanned file: `780bead0b09d416e50d81f6225c88ec86ca7de32
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:7db7d8d6f48d11ed83b4bf0dd2ebfe3a108a5e117c337dabc533a0fd27833d69` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:e5b2a994ccf0d8586013fd3c89956d95d7b6156b4294340a175a4dc18fea1123` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:b4889ce03f3916864e54540e0aa4735bc898b6baf03105c5ce4012faea4b1b92` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:73ac86caba78aba4c1605613e21bbb55c4abd46069f9a2e2b0c58d622ca4ffd7` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:c9c654855f07bd0ea7fc6ef624bac49530b21788df1171d4a543c97aa278713e` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |

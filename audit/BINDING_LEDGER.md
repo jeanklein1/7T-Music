@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `780bead0b09d416e50d81f6225c88ec86ca7de32` |
-| | GOL_RULES_1 C5: Spiral joins GOL_PULSE_TIERS |
+| source commit | `153f3640beb145bf6ddcc747e1afe5cd72c50320` |
+| | GOL_RULES_1: the two count statements the FIND missed |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f451e5c1b5d709b1c7fabd486410055f2e270a05f3f6cf129a18382cdda8a0e4` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:e63862b9c2383f80e918e8998caede22559e3d440f11b7b7c17b277c62c327b3` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:9e7c6163cdfbd6c034353d34a642f805d91a9554e4a2d37048171445e29bd312` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:1bd660eb382cf0ed3869551c7cc0dfefe152d657b9548111a82071ff1292c02f` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -30,7 +30,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | caller file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/bodies/gallery.hpp` | `c9c654855f07bd0ea7fc6ef624bac49530b21788df1171d4a543c97aa278713e` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `b4889ce03f3916864e54540e0aa4735bc898b6baf03105c5ce4012faea4b1b92` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `73ac86caba78aba4c1605613e21bbb55c4abd46069f9a2e2b0c58d622ca4ffd7` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/cartridge.hpp` | `7db7d8d6f48d11ed83b4bf0dd2ebfe3a108a5e117c337dabc533a0fd27833d69` |
