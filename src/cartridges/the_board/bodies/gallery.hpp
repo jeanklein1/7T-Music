@@ -230,6 +230,17 @@ struct GalleryConfig {
     // old row carried at its own ceiling.
     static constexpr float GALLERY_SIZE_LO = 3.4f;   // smallest gallery mean
     static constexpr float GALLERY_SIZE_HI = 5.0f;   // largest gallery mean
+    // The authored monument's base canvas area — the analogue of
+    // PAINTING_AREA for the photographer's tiers, which run 18–30 wu².
+    // THE ONE PLACE THE MONUMENT PREMIUM IS STATED, and before SAND_2 it
+    // had no place at all: the authored branch multiplied gallery_size_mean
+    // into a HEIGHT off a bare 5.0f while snapshots took it into an AREA, so
+    // the ratio between Jean's paintings and the photographer's was not a
+    // number anyone had chosen — it ran 1.06x at the smallest sites to 3.75x
+    // at the largest, times the painting's own aspect. 48 stands a painting
+    // at 2.4x a MEDIUM snapshot's canvas, held at every size and aspect, and
+    // reproduces the growth factor SAND_1 gave the snapshots (2.18x).
+    static constexpr float AUTHORED_AREA = 48.0f;
     // A FRACTION OF THE SITE MEAN, NOT AN ABSOLUTE OFFSET (SAND_1) — see the
     // jitter site in commit_gallery. Additive, this was +-0.45 at every size:
     // a 1.6x spread of width on a small site and 1.14x on a large one, so
@@ -1373,7 +1384,8 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
                 float jitter = (cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_A)
                     + cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_B)
                     + cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_C) - 1.5f) * GalleryConfig::PAINTING_SIZE_SIGMA;
-                float height = std::max(2.0f, (5.0f + jitter) * gallery_size_mean);
+                float size_mult = std::max(0.5f, gallery_size_mean * (1.0f + jitter));
+                float height = std::sqrt((GalleryConfig::AUTHORED_AREA * size_mult) / img.aspect_ratio);
 
                 fill_slot_wall_frame(s,
                     paint_x, 0.0f, paint_z,
