@@ -33,6 +33,12 @@
   // a working dial's default, and a chip on every row would be noise.
   var CAD = [null, 'on respawn', 'boundary', 'driven'];
 
+  // PINNED TO ORGAN_DOOR_RESPEAK (src/console/organ_registry.hpp). The shell
+  // is otherwise door-blind — it renders the roster organ_doors() gives it —
+  // and this is the one press it makes on its own behalf, so the id gets a
+  // name here rather than a bare 0 at the call site.
+  var DOOR_RESPEAK = 0;
+
   // ── THE ONE RULED EXCEPTION TO NAME-BLINDNESS ─────────────────────
   // Four strings, and THE AUTHORITY IS bodies/orbs.hpp — `RULE_NAMES`
   // beside cycle_orb_motion_rule, and the ORB_RULE_* constants world.wgsl
@@ -527,7 +533,7 @@
   // so it works with the panel closed; when a row does exist, the widget is
   // moved too, exactly as `r.apply` and `r.setDef` would have.
   function applyFile(obj, what) {
-    var applied = 0, skipped = 0, witnesses = 0;
+    var applied = 0, skipped = 0, witnesses = 0, wroteDef = false;
     if (!MANIFEST) { importNote = what + ': the registry is not bound'; return importNote; }
     var byId = {};
     MANIFEST.forEach(function (p) { byId[p.id] = p; });
@@ -554,12 +560,25 @@
       var mood = (scope === 'world') ? C.mood() : parseInt(scope, 10);
       if (p.scope && mood >= 0) {
         pushDef(p, v, mood);
+        wroteDef = true;
         if (r && mood === C.mood()) r.show(v);
         applied++;
       } else skipped++;                      // no definition behind that dial
     });
+    // ONE PRESS, AFTER THE WALK — the door's bitmask coalesces, but a press
+    // per key would still be a lie about what happened: one file is one
+    // occasion.
+    //
+    // g_def_dirty_mood IS ONE SLOT, and every import is now a multi-mood
+    // import, so without this the slot holds whichever mood sorted last and
+    // the world in front of the operator does not move — which reads as "the
+    // import did not work". Every definition still lands in MOOD_LIVE; only
+    // the re-speak was being dropped. The boot path needs it most: loadPreset
+    // runs with WANT_PANEL false, so an exhibition has no button to press.
+    if (wroteDef) C.door(DOOR_RESPEAK);
     importNote = what + ': ' + applied + ' applied, ' + skipped + ' unknown'
-               + (witnesses ? ', skipped ' + witnesses + ' witnesses' : '');
+               + (witnesses ? ', skipped ' + witnesses + ' witnesses' : '')
+               + (wroteDef ? ', re-spoken' : '');
     return importNote;
   }
 
