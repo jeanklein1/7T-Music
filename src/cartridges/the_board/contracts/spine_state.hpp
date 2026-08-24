@@ -324,15 +324,21 @@ inline constexpr Atmosphere ATMOS_SUNSET = {
 // flat's bearing wanders ±14° and its fog has a spread, the vault's
 // light has one — which is why the carry witness below now names only
 // the two rows that still carry.
+//
+// BOTH SUNS CAME A LITTLE OFF AMBER on Jean's eye, after the export and
+// against it. RED DOES NOT MOVE — it is each colour's brightest channel
+// and already near the ceiling — and green and blue come about a third
+// of the way up to it, so the light DESATURATES rather than brightening.
+// The fog colours are untouched: the note was about the light.
 inline constexpr Atmosphere ATMOS_ROOM_FLAT = {
     { 0.34f, -0.10f, 0.06f }, 14.0f, 0.0f,          // low, ~16° up; ±14° of bearing, no elevation spread
-    { { { 0.9843137f, 0.7882353f, 0.5764706f }, 0.0f, 1.15f, 0.0f, 0.11f, 0.0f,
+    { { { 0.9843137f, 0.850f, 0.720f }, 0.0f, 1.15f, 0.0f, 0.11f, 0.0f,
         0.0024f, 0.0019f, { 0.85882354f, 0.58431375f, 0.36078432f }, 0.0f, { 0.15f, 0.12f, 0.10f }, 0.0f },
       {}, {}, {} },
 };
 inline constexpr Atmosphere ATMOS_ROOM_VAULT = {
     { -0.15f, -0.67f, -0.37f }, 0.0f, 0.0f,         // steep, ~59° up; one bearing, no spread
-    { { { 0.91764706f, 0.7058824f, 0.48235294f }, 0.0f, 0.69f, 0.16f, 0.115f, 0.0f,
+    { { { 0.91764706f, 0.780f, 0.650f }, 0.0f, 0.69f, 0.16f, 0.115f, 0.0f,
         0.0012f, 0.0009f, { 0.99607843f, 0.7490196f, 0.54509807f }, 0.0f, { 0.15f, 0.12f, 0.10f }, 0.0f },
       {}, {}, {} },
 };
@@ -353,14 +359,18 @@ inline constexpr Atmosphere ATMOS_FINITE_DAY = {
 // are ABSENT, not deleted; that is what a weight of 0 means, and giving
 // one weight back brings its row back unchanged.
 //
-// THE NIGHT'S FOG CENTRE IS 0 WITH A SPREAD OF 0.0022. The draw is
-// max(0, centre + jitter), so half the seeds get no fog at all and the
-// other half get up to 0.0022 — a rectified draw, and the only place in
-// the table where a centre sits on the floor of its own distribution.
+// THE NIGHT'S FOG CENTRE IS 0 WITH A SPREAD OF 0.0011. The draw is
+// max(0, centre + jitter) and the jitter is ±spread, so half the seeds
+// get no fog at all and the other half get up to 0.0011 — a rectified
+// draw, and the only place in the table where a centre sits on the floor
+// of its own distribution. THE SPREAD IS THE CEILING here: with the
+// centre at 0 it is the whole of what "how thick can this night get"
+// means, which is why halving the thickest night was halving this one
+// number (0.0022 -> 0.0011) and nothing else.
 inline constexpr Atmosphere ATMOS_NIGHT = {
     { 0.38f, -0.44f, 0.15f }, 3.0f, 3.0f,          // moon centre ~47° up; ±3° of bearing; ±3°
     { { { 0.76f, 0.80f, 0.79f }, 0.66f, 0.85f, 0.12f, 0.05f, 0.02f,          // THE DRAWN ROW — a hard moon over
-        0.0f,    0.0022f, { 0.11f, 0.12f, 0.15f }, 0.0f,  { 0.02f, 0.03f, 0.06f }, 0.25f },  // air that is clear by default
+        0.0f,    0.0011f, { 0.11f, 0.12f, 0.15f }, 0.0f,  { 0.02f, 0.03f, 0.06f }, 0.25f },  // air that is clear by default
       { { 0.72f, 0.80f, 1.00f }, 0.05f, 1.12f, 0.32f, 0.055f, 0.03f,         // moonlit & hazy — weight 0
         0.0048f, 0.0010f, { 0.05f, 0.06f, 0.10f }, 0.15f, { 0.03f, 0.04f, 0.08f }, 0.15f },
       { { 0.80f, 0.86f, 1.00f }, 0.05f, 0.55f, 0.10f, 0.14f, 0.03f,          // bright moon & clear — weight 0
