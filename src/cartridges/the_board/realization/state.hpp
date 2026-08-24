@@ -1366,8 +1366,13 @@ namespace t7 {
             uint32_t boundary_mode;
             float tempo_randomness;    // per-cell frequency scatter [0,1]
             float spring_variance;     // per-cell spring speed scatter [0,1]
-            float _zpad0;
-            float _zpad1;
+            // GOL_RULES_1: the two trailing pad words, renamed in place.
+            // Same offsets, same 80 bytes — the static_assert below is the
+            // witness that nothing grew. Each slot carries exactly one
+            // meaning: rule_mask is the Conway rows', field_fn the Pulse
+            // rows', and each is 0 on the other algorithm's rows.
+            uint32_t rule_mask;        // Conway B/S bitset: bit n birth, bit 9+n survival
+            uint32_t field_fn;         // Pulse field function id (PulseField::)
         };
         static_assert(sizeof(GPUGoLZoneConfig) == 80, "GPUGoLZoneConfig must be 80 bytes");
 

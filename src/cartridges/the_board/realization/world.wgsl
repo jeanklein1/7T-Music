@@ -7057,8 +7057,10 @@ struct GoLZoneConfig {
     boundary_mode: u32,
     tempo_randomness: f32,       // per-cell frequency scatter [0,1]
     spring_variance: f32,        // per-cell spring speed scatter [0,1]
-    _zpad0: f32,
-    _zpad1: f32,
+    // GOL_RULES_1: the two trailing pad words, renamed in place. Same
+    // offsets, same 80 bytes; the CPU twin's static_assert is the witness.
+    rule_mask: u32,              // Conway B/S bitset: bit n birth, bit 9+n survival
+    field_fn: u32,               // Pulse field function id (PULSE_FIELD_*)
 }
 
 // --- GoL Zone Visual Parameters
@@ -7395,6 +7397,10 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     var zc: GoLZoneConfig;
     zc.algorithm = req.algorithm;
+
+    // Each row's own slot; the other algorithm's stays 0.
+    zc.rule_mask = 0u;
+    zc.field_fn  = 0u;
 
     // Target colors (shared by both algorithms)
     zc.target_r = hash_property(seed, ZONE_PROP_TARGET_R) * ZONE_DERIVE_LENS_RANGE + ZONE_DERIVE_LENS_LO;
