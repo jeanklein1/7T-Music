@@ -123,12 +123,74 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## WALLS_2 — the rooms hang, and the one window it opens
+
+Origin: WALLS_2 (one commit on master, base `1191f60a`). `rotate_authored_staging`
+no longer throws a picture away at REQUEST time: `load_authored_image_to_staging`
+sets `pending` and the new `disk_index` and queues the fetch, but leaves `valid`
+standing, so a record keeps its image until `onsuccess` overwrites it. R0 was
+proved by reading rather than inferred — `drain_gallery_promotions` calls
+`promote_to_exhibition`, which issues `encoder.CopyTextureToTexture` from the
+staging array into `exhibitionTexture_`, an independent texture. A hung frame
+holds a copy and cannot flicker when its source is replaced.
+
+- THE ONE WINDOW THIS OPENS: A ROOM CAN HANG THE SAME PAINTING TWICE, RARELY.
+  `rotate_authored_staging` dedupes by CLAIM, not by picture — `disk_in_use` is
+  keyed on `disk_index`, and `disk_index` is written at REQUEST time while the
+  texture still holds the OUTGOING image. Before WALLS_2 that desync was
+  harmless because a pending record was `valid = false` and could not be
+  picked. Now it can. So a slot pending for image X while displaying image W
+  protects X and leaves W unclaimed, and once the disk cursor laps the
+  manifest (57 images against at most 32 rotated per teardown, so roughly two
+  rotations, longer when the queue backs up) another slot can be handed W
+  while the first is still showing it. Two records, one picture, and both
+  `usedAuthored` and the per-wall claim masks dedupe by RECORD. Reachable only
+  under sustained fast portalling with fetches still in flight across
+  teardowns — which is the recording scenario. THE REMEDY IS SMALL AND IS NOT
+  A ONE-LINE CHANGE: the record needs to carry its DISPLAYED disk index as
+  well as its claimed one, so the dedup can protect both, which is a field on
+  `AuthoredStagingRecord`. Jean's, and the same sitting as the flag split
+  below could take it. Unblocked by his word.
+- `authored_fetch_release_slot` — REPORTED AS THE CAMPAIGN ASKED, CHANGED
+  NOTHING. It sets `valid = false, consumed = true, disk_index = UINT32_MAX`,
+  and after WALLS_2 that discards a usable old image because a DIFFERENT one
+  failed to arrive; on bad wifi it is a bare wall for the world. It is not a
+  one-line deletion: the record's claim already names the painting that did
+  not arrive while its texture holds the previous one, and keeping `valid`
+  without restoring the old claim hands that picture to a second slot — the
+  same repeat defect as the item above, through the failure door. The old
+  `disk_index` is saved nowhere today. Same remedy, same sitting.
+- THE INVALIDATE WAS NOT WHERE THE CAMPAIGN PLACED IT, and the anchor it gave
+  matched nothing. The line lives in `load_authored_image_to_staging`, the
+  shared helper, not in `rotate_authored_staging`; at the stated eight-space
+  indent it had zero matches and at four spaces two (the other being
+  `authored_fetch_release_slot`). It was disambiguated by the comment block
+  above it, which is unique. That helper has a second caller — the boot fill —
+  which skips any slot already `valid || pending`, so it only ever loads into
+  records whose `valid` is already false and the deletion is a no-op there.
+- R1 AND R2, ANSWERED. Three writers of authored `valid`: the request site
+  (this commit's), `onsuccess` (arrival, `valid = true`), and
+  `authored_fetch_release_slot` (failure). No fourth. Readers run beyond the
+  five the campaign listed — the boot fill and `rotate_authored_staging`
+  itself also read `valid` — and those two DO reach a staging-texture write,
+  but each writes only into records that are not valid (boot) or are consumed
+  and not pending (rotation), so neither overwrites a texture another reader
+  is relying on. No reader assumes the texture is stable across frames; the
+  only assumption WALLS_2 breaks is `disk_index` ↔ picture identity, which is
+  the first item above.
+
 ## WALLS_1 — the dial landed, the fix did not: what recon disproved
 
 Origin: WALLS_1 (COMMIT 1 on master, base `41bda81`). COMMIT 1 landed. COMMIT 2
-is STOPPED and COMMIT 3 was not written, per R3's standing instruction. The
+was STOPPED and COMMIT 3 was not written, per R3's standing instruction. The
 campaign's diagnosis did not survive its own recon, and the fix as specified
-collides with the hazard R4 was written to catch.
+collided with the hazard R4 was written to catch.
+
+SUPERSEDED IN ITS OPERATIVE HALF BY WALLS_2 (`4b147afe`), which hung the rooms
+without touching `consumed` at all — so the trade this section describes was
+never paid, and the flag split it asks for is now owed only to the OUTDOOR
+leak below, not to the walls. The findings are kept because they are the
+reasoning WALLS_2 was built on.
 
 - THE STATED DEFECT CANNOT HAPPEN: A MOOD CHANGE IS ALWAYS A PORTAL CROSSING.
   `place_wall_paintings` ← `apply_mood_indoor_shell` ← `apply_mood`, and
