@@ -43,10 +43,13 @@
 
 // GROUP IS A PATH, "Section · Group": the shell splits on the FIRST
 // separator and renders two levels, never three. A dial sits under its
-// SUBJECT, never under its implementation home — there is no Camera
-// section because pose is GPU truth. KEEP THIS FILE ORDERED BY SECTION
-// PATH: a section must be CONTIGUOUS, because the shell opens a new block
-// whenever the first token changes.
+// SUBJECT, never under its implementation home. Pose is GPU truth and
+// carries no dial — but the WITNESS has behaviour of its own now (how it
+// holds a flight, what it pushes aside), and behaviour is a subject like
+// any body's, so CAMERA is a section. Its input GRAMMAR stays under
+// Interaction, beside the hand that moves it. KEEP THIS FILE ORDERED BY
+// SECTION PATH: a section must be CONTIGUOUS, because the shell opens a
+// new block whenever the first token changes.
 
 // ─── THE SUN ─────────────────────────────────────────────────────────
 // GPULighting::sun is the fragment shader's window, and apply_mood_lighting
@@ -589,6 +592,19 @@ ORGAN_PARAM(PANEL, PanelSurface, camera.scroll_zoom_scale, F32, 0.0f,  8.0f,  0.
 // console; the `_SQ` twin is derived at its one read from the live value.
 // The floor is one step, because a zero reach makes the search unwinnable.
 ORGAN_PARAM(PANEL, PanelSurface, possession.radius, F32, 0.5f, 80.0f, 0.5f, "Interaction · Possession", "reach")
+
+// ─── Camera · Chase ─────────────────────────────────────────────────
+// THE WITNESS'S OWN BEHAVIOUR, not its pose and not its input grammar
+// (those are Interaction's, above). Boot-pinned from contracts/point.hpp
+// CAMERA_CHASE_FF; update_camera is the one reader, RIBBON host only.
+//
+// THE RANGE IS EVIDENCE. The aim ease trails a constant-velocity target by
+// v·tau exactly, so 1.0 — the rest, and the shipped behaviour — adds back
+// exactly that and cancels the trail; 0.0 restores it, which is what makes
+// this dial the PROOF that the lock is the mechanism described rather than
+// a tuning. Past 1.0 the camera would lead the flight, which is not a
+// stance anyone asked for, so 1.0 is the ceiling.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_chase_ff, F32, 0.0f, 1.0f, 0.01f, "Camera · Chase", "feed-forward")
 
 // ─── Debug ──────────────────────────────────────────────────────────
 // Config's uint32_t toggle words enroll as BOOL directly; fpv_mode is
