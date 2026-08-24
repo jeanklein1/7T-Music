@@ -244,6 +244,10 @@
   var C = null;                 // the cwrap'd ABI
   var rows = [];                // {p, apply(values)} per manifest entry
   var MANIFEST = null;          // bound at boot, panel or not
+  // THE MOOD ROSTER, read once from the program. The shell holds no mood
+  // count of its own for the reason it holds no block or kind number: a new
+  // mood must cost zero JS edits, exactly as a new dial does.
+  var MOODS = [];
   var rowsById = {};            // id -> row, filled by build() when it runs
   // The regime lens. `lens` is 'live', 'all' or a regime index; `regimeKin`
   // maps "<group sans Regime N>|<label>" to the rows that are the same dial
@@ -708,22 +712,18 @@
     // non-live mood's definition-only rows needs you IN it, and this select
     // is the road there.
     var moodSel = null;
-    if (C.goMood && C.moodNames) {
-      var names = [];
-      try { names = JSON.parse(C.moodNames()); } catch (e) { names = []; }
-      if (names.length) {
-        var goBar = document.createElement('div'); goBar.className = 'bar doors';
-        moodSel = document.createElement('select'); moodSel.className = 'mood';
-        names.forEach(function (n, i) {
-          var o = document.createElement('option'); o.value = String(i); o.textContent = n; moodSel.appendChild(o);
-        });
-        moodSel.value = String(C.mood());
-        var go = document.createElement('button'); go.textContent = 'enter mood';
-        go.title = 'request a transition to the selected mood \u2014 the same door keys 5-9 press; ignored while one is in flight';
-        go.addEventListener('click', function () { C.goMood(parseInt(moodSel.value, 10)); });
-        goBar.appendChild(moodSel); goBar.appendChild(go);
-        root.appendChild(goBar);
-      }
+    if (C.goMood && MOODS.length) {
+      var goBar = document.createElement('div'); goBar.className = 'bar doors';
+      moodSel = document.createElement('select'); moodSel.className = 'mood';
+      MOODS.forEach(function (n, i) {
+        var o = document.createElement('option'); o.value = String(i); o.textContent = n; moodSel.appendChild(o);
+      });
+      moodSel.value = String(C.mood());
+      var go = document.createElement('button'); go.textContent = 'enter mood';
+      go.title = 'request a transition to the selected mood \u2014 the same door keys 5-9 press; ignored while one is in flight';
+      go.addEventListener('click', function () { C.goMood(parseInt(moodSel.value, 10)); });
+      goBar.appendChild(moodSel); goBar.appendChild(go);
+      root.appendChild(goBar);
     }
 
     // ── THE HOST DOOR: where the point lives ────────────────────
@@ -1008,22 +1008,37 @@
     // carry several moods' definitions and importing it puts each back
     // where it came from.
 
-    // A WORLD DEFINITION BELONGS TO NO MOOD, so it keys "world/<id>" and
-    // appears once; reading it still goes through defGet, the C++ switch
-    // letting the mood argument fall on the floor.
-
+    function readDef(r, m) {
+      var n = lanes(r.p.type), d = [];
+      for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
+      return d;
+    }
     // ONE WALK, AN OPTIONAL PREDICATE. A section export is that walk
     // narrowed, so a partial file is a real file, not a dialect.
+    //
+    // A MOOD DEFINITION HAS ONE VALUE PER MOOD, NOT ONE VALUE. The key
+    // already names which, and import routes by that key, so the live mood
+    // was never the interesting one — only the reachable one. The world's
+    // bank belongs to no mood and keys once; the C++ switch lets the mood
+    // argument fall on the floor.
     function collect(pred) {
-      var m = C.mood();
       var out = {};
       rows.forEach(function (r) {
-        if (r.p.ro) return;   // A WITNESS IS A METER, NOT A DIAL: export skips it
+        if (r.p.ro) return;   // A WITNESS IS A METER, NOT A DIAL
         if (pred && !pred(r)) return;
-        if (r.p.scope) {
-          var n = lanes(r.p.type), d = [];
-          for (var l = 0; l < n; l++) d.push(C.defGet(r.p.i, m, l));
-          out[(r.p.scope === 2 ? 'world' : m) + '/' + r.p.id] = d;
+        if (r.p.scope === 2) {
+          out['world/' + r.p.id] = readDef(r, C.mood());
+        } else if (r.p.scope) {
+          if (MOODS.length) {
+            for (var m = 0; m < MOODS.length; m++)
+              out[m + '/' + r.p.id] = readDef(r, m);
+          } else {
+            // The roster is the program's to give. An unread roster must not
+            // silently export ZERO definitions — that is worse than the one
+            // mood it used to export. The console line names the degradation.
+            var lm = C.mood();
+            out[lm + '/' + r.p.id] = readDef(r, lm);
+          }
         } else {
           out[r.p.id] = r.read();
         }
@@ -1034,6 +1049,8 @@
       return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     }
     function download(out, name) {
+      console.log('[ORGAN] export "' + name + '" — ' + Object.keys(out).length
+                  + ' keys across ' + (MOODS.length || 1) + ' mood(s)');
       var blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -1327,6 +1344,7 @@
     if (!manifest || !manifest.length) return;
     clearInterval(wait);
     MANIFEST = manifest;
+    try { MOODS = JSON.parse(C.moodNames()); } catch (e) { MOODS = []; }
     if (WANT_PANEL) {
       build(manifest);
       console.log('[ORGAN] panel up — ' + manifest.length + ' dials');
