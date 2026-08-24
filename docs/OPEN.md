@@ -869,3 +869,33 @@ many blocks along the way, a few times a second, worse with speed.*
   both have 0 hits in src/. Note the ledger's cost figure assumed EXHIBITION_LAYERS
   32; the tree now reads 40 (state.hpp:294), so "32 -> 256 = +896 MiB" wants
   recomputing before it is spent. Origin: SALON_1 (attic, 3b931ba).
+
+## GOL_RULES_1 — two facts the campaign's witness turned up
+
+- `pack_cell_tag`'s tier field is 3 bits and ten tiers no longer fit.
+  `world.wgsl` packs `tag = mode | ((tier & 0x7u) << 4u) | (height << 7u)`
+  into an `rgba8unorm` alpha, so Conway tiers 8 and 9 (Day & night,
+  HighLife) alias to 0 and 1. INERT ONLY while nothing reads the tier
+  payload — `unpack_cell_tag_mode` takes bits 0-3 and stops, and the height
+  bit is unread too — so the first reader of either republishes this as a
+  live defect rather than finding it. It cannot be widened in place:
+  4 bits of tier collide with the height bit at 7, and an 8-bit alpha has
+  no spare. The encoding is Jean's to gate. Origin: the line pre-dates the
+  campaign (`b84eb5f`, DEMO-1 s0); GOL_RULES_1 C4 is what made its premise
+  false, by taking GOL_TIER_COUNT past 8. Unblocked by a ruling on the tag
+  encoding — widen the alpha's budget, move the height bit, or retire the
+  payload.
+- `spring_stiffness` is written and never read. `zone_derive_params`
+  samples it into `zc.spring_stiffness` for both algorithms, and no shader
+  reads that field: `zone_gol_evolve` derives the whole spring from
+  `omega = 3.0 / (transition_fraction * tick_period)`. That is forty
+  authored floats across fourteen rows of two tables doing nothing, and
+  every one of them has to be re-read and discounted by whoever next opens
+  those tables — which is the cost, not the bytes. The real dial is
+  `transition_fraction x tick_period`. GOL_ROWS_1 authors its values
+  against the real formula and says so at each row. Origin: found by the
+  GOL_RULES_1 headless witness; the column pre-dates it. Unblocked by the
+  sitting that next opens GoLTierProfile / GolPulseTierProfile — either the
+  column gets a reader or it dies in that commit, both rooms together
+  (L26 docket rules: the braces are positional, so table and struct move
+  as one).
