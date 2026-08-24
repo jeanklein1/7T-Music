@@ -3068,6 +3068,7 @@ const POLICY_FLYER                : u32 = 1u;
 const POLICY_WALKER               : u32 = 2u;
 const POLICY_WALKER_TILT          : u32 = 3u;
 const POLICY_WALKER_AGENT         : u32 = 4u;
+const POLICY_WALKER_WITNESS       : u32 = 6u;
 
 
 
@@ -3383,6 +3384,50 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
          + contrib_pawn_aura_at_external(xz);
 }
 
+// POLICY_WALKER_WITNESS — THE CAMERA'S FLOOR (KITE_1).
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
+//   (external form) - CONTRIB_GOL_SUPPRESSION (subtractive, centered on
+//   qi.consumer_pos — the EYE — and height-faded).
+// Typical consumers: update_camera's clearance clamp.
+// Notes: contributor for contributor this is POLICY_WALKER. What differs is
+//   the REALIZATION, and both halves of the difference say the same thing —
+//   the consumer is the WITNESS, not the body.
+//
+//   THE AURA IS EXTERNAL, not the self scalar. The eye is not standing at
+//   the dome's peak; it is passing over the dome's SHAPE, and the shape is
+//   the one patch_terrain_vs extrudes. That is what makes the aura a floor
+//   exactly as terrain is: the camera rides the visual skin.
+//
+//   THE SUPPRESSION IS THE EYE'S, under the render carve's own height fade.
+//   THE FLOOR IS THE PICTURE: witness_gol_suppression flattens cells under
+//   the eye in the VS, and this flattens the same cells in the clamp. If
+//   only one of them did it, the eye would either hover a cell's height
+//   over a field the picture had already flattened, or sink into one the
+//   picture had left standing. The fade's datum is this xz's surface BEFORE
+//   the lift — the analytic twin of the VS's world_pos.y at the same point,
+//   aura included.
+//
+//   Only the pawn's center is absent, and it costs nothing where this
+//   function is read: the clamp samples at the EYE's own xz, where the
+//   eye's factor saturates at 1 inside ZONE_SUPPRESS_INNER and the render's
+//   max() of the two returns that same 1. The two rooms agree exactly at
+//   the one point the floor is asked about.
+//
+//   The stack is evaluated twice — once at gol 0 for the datum, once for
+//   the answer. This kernel is one invocation a frame; clarity is the right
+//   purchase, and the second evaluation keeps manifold_overlay_stack the
+//   single authored fold rather than open-coding a rival sum.
+fn query_ground_walker_witness(xz: vec2<f32>, qi: QueryInputs) -> f32 {
+    let aura   = contrib_pawn_aura_at_external(xz);
+    let ground = manifold_overlay_stack(xz, qi, 0.0) + aura;
+    let fade   = 1.0 - smoothstep(ZONE_SUPPRESS_OUTER, 2.0 * ZONE_SUPPRESS_OUTER,
+                                  qi.consumer_pos.y - ground);
+    let supp   = pawn_gol_suppression(xz, qi.consumer_pos.xz) * fade;
+    return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz) * (1.0 - supp))
+         + aura;
+}
+
 
 
 // ════════════════════════════════════════════════════════════════
@@ -3467,6 +3512,7 @@ fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
         case POLICY_WALKER:               { return query_ground_walker(xz, qi); }
         case POLICY_WALKER_TILT:          { return query_ground_walker_tilt(xz, qi); }
         case POLICY_WALKER_AGENT:         { return query_ground_walker_agent(xz, qi); }
+        case POLICY_WALKER_WITNESS:       { return query_ground_walker_witness(xz, qi); }
         // CELESTIAL/RENDER: baked-path fallback (GROUND_CARD_1 — the inline
         // contributor arm rewired per H5). WGSL requires a default arm.
         default:                          { return sample_terrain_y_at(xz); }
@@ -9126,32 +9172,27 @@ fn update_camera() {
     //
     // THE AURA IS A FLOOR EXACTLY AS TERRAIN IS (Jean's ruling): the eye
     // never passes under the visual skin, and the skin includes the pawn's
-    // aura dome. POLICY_WALKER_AGENT is the surface that says so — the
+    // aura dome. POLICY_WALKER_WITNESS is the surface that says so — the
     // shared world stack (static base + pyramids + GoL zones + terrain
     // waves + radial pulses) plus the EXTERNAL aura form, the same grid
-    // sample patch_terrain_vs extrudes the ground by, so the floor and the
-    // picture cannot disagree. No suppression: a consumer that is not the
-    // pawn does not flatten GoL under itself, so the eye CLIMBS a zone's
-    // lift as the pawn does.
+    // sample patch_terrain_vs extrudes the ground by, and the eye's own
+    // GoL suppression under the same height fade the render carve applies.
+    // Floor and picture are then the same surface, term for term.
     //
     // The query is at the COMPOSED EYE's xz (camera.pos, already the orbit
-    // eye at this point), and consumer_pos is the eye for the same reason —
-    // this consumer is the camera, not the body. Under WALKER_AGENT that
-    // field is inert (the policy carries no consumer-local term), so the
-    // change of anchor moves no value; it is the honest declaration the
-    // witness policy below will read for real.
+    // eye at this point), and consumer_pos is the eye too — the policy
+    // reads it for the suppression center and for the fade's height.
     //
-    // Reached through the manifold interface rather than by naming
-    // query_ground_walker_agent directly: the switch in manifold_height_hf
-    // is the ONE declared fold, and delegation is byte-identical to the
-    // named call by construction.
+    // The eye still CLIMBS a zone's lift as the pawn does: the suppression
+    // is the witness's own, so it flattens what is under the lens and
+    // leaves the rest of the field standing to lift the camera over.
     //
     // Free-fly is unaffected — the camera host returns above this point,
     // which IS its TERRAIN RULE = NONE (contracts/point.hpp).
     {
         let min_clearance = 1.5;  // minimum height above the visual skin
         let qi = QueryInputs(camera.pos, signal.t_seconds);  // the eye is the consumer
-        let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_AGENT, qi).y;
+        let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_WITNESS, qi).y;
         camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
     }
 

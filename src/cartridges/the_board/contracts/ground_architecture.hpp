@@ -41,7 +41,8 @@ enum PolicyId : uint32_t {
     POLICY_WALKER_TILT          = 3,   // walker minus the self aura; carries walker's pawn-centered GoL suppression
     POLICY_WALKER_AGENT         = 4,
     POLICY_TERRAIN_RENDER       = 5,   // the fused render set: baked + aura + waves + pulses + GoL-via-the-card (UNIFIED_GROUND_1)
-    POLICY_COUNT                = 6,
+    POLICY_WALKER_WITNESS       = 6,   // the camera's floor: walker's set, realized for a consumer that is not the pawn (KITE_1)
+    POLICY_COUNT                = 7,
 };
 
 // ═══ DEPENDENCY DAG ══════════════════════════════════════════════
@@ -173,8 +174,40 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_GOL_ZONES)   // realized as the card's .a, cell-nearest, pawn-suppressed — UNIFIED_GROUND_1 (DAG: GoL has no ancestors)
+        | (1u << CONTRIB_GOL_ZONES)   // realized as the card's .a, cell-nearest, suppressed under the pawn AND the eye — UNIFIED_GROUND_1 + KITE_1 (DAG: GoL has no ancestors)
         | (1u << CONTRIB_PAWN_AURA) },                  // realized in the fused VS (texture .yz + analytic wave gradient)
+
+    // Walker-witness — THE CAMERA'S FLOOR. Contributor for contributor this
+    // is POLICY_WALKER; what differs is the REALIZATION, because the
+    // consumer is the witness and not the body:
+    //   CONTRIB_PAWN_AURA        external form (grid sample at xz), not the
+    //                            self scalar — the eye is not standing at
+    //                            the dome's peak, it is flying over the
+    //                            dome's shape, and the shape is the one
+    //                            patch_terrain_vs extrudes. This is what
+    //                            makes the aura a FLOOR exactly as terrain
+    //                            is (Jean's ruling): the camera rides the
+    //                            visual skin, never under it.
+    //   CONTRIB_GOL_SUPPRESSION  centered on the EYE (qi.consumer_pos), not
+    //                            on the pawn, and multiplied by the same
+    //                            height fade the render carve applies — so
+    //                            the floor and the picture flatten the same
+    //                            cells. The camera mirrors the pawn's GoL
+    //                            dynamics: it suppresses extrusion under
+    //                            itself and climbs zone lift as the pawn
+    //                            does.
+    // The DAG is untouched: no contributor is new, and the mask is WALKER's
+    // exactly, so its closure proof is WALKER's proof.
+    // STATUS: REALIZED — update_camera's clearance clamp, via
+    // query_ground_walker_witness.
+    { POLICY_WALKER_WITNESS, "walker_witness",
+      GROUND_STATIC_BASE_MASK
+        | (1u << CONTRIB_PYRAMIDS)
+        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_TERRAIN_WAVES)
+        | (1u << CONTRIB_RADIAL_PULSES)
+        | (1u << CONTRIB_PAWN_AURA)          // external form — the witness is not the pawn
+        | (1u << CONTRIB_GOL_SUPPRESSION) }, // eye-centered, height-faded
 };
 inline constexpr uint32_t POLICY_COUNT_IN_TABLE =
     sizeof(POLICIES) / sizeof(POLICIES[0]);
@@ -210,6 +243,7 @@ ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER,               "POLICY_WALKER");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_TILT,          "POLICY_WALKER_TILT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_AGENT,         "POLICY_WALKER_AGENT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_TERRAIN_RENDER,       "POLICY_TERRAIN_RENDER");
+ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_WITNESS,       "POLICY_WALKER_WITNESS");
 
 #undef ASSERT_POLICY_DAG_CLOSED
 
