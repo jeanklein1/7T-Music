@@ -1045,14 +1045,14 @@ wrapper, 18 wrapper calls) and are not recounted here.
 |---|---|---|---|---|
 | `cartridge.hpp:1934` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
 | `cartridge.hpp:1935` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
-| `gallery.hpp:1447` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
-| `gallery.hpp:1448` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
-| `gallery.hpp:1513` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
-| `gallery.hpp:1514` | `render_snapshot_pass` | 1 | `framePhotographerGroup_` | `1, &kFrameSlotZero` |
-| `gallery.hpp:1515` | `render_snapshot_pass` | 2 | `sceneStateGroup_` | — |
-| `gallery.hpp:1516` | `render_snapshot_pass` | 3 | `sceneTexturesGroup_` | — |
-| `gallery.hpp:1544` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
-| `gallery.hpp:1545` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
+| `gallery.hpp:1505` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
+| `gallery.hpp:1506` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
+| `gallery.hpp:1571` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
+| `gallery.hpp:1572` | `render_snapshot_pass` | 1 | `framePhotographerGroup_` | `1, &kFrameSlotZero` |
+| `gallery.hpp:1573` | `render_snapshot_pass` | 2 | `sceneStateGroup_` | — |
+| `gallery.hpp:1574` | `render_snapshot_pass` | 3 | `sceneTexturesGroup_` | — |
+| `gallery.hpp:1602` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
+| `gallery.hpp:1603` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
 | `gol_zones.hpp:677` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
 | `gol_zones.hpp:678` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:765` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
