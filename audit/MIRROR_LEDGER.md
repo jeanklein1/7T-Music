@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `2c840cd8f248e68d90d6602d676669d2064db4b5` |
-| | GOL_ROWS_3: the ledgers re-stamp against the moved lines |
+| source commit | `a9454eecc7c375ec7930b344ca597da6354a4fd4` |
+| | GOL_TEMPO_1: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:eee3a9b187663f99f922257167806c5609372b81f409a0f4cdb968e8129ca44a` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:952fb36a55a3efed85582471739a8be58c83f96b08e5762c0732102012bf7987` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f451e5c1b5d709b1c7fabd486410055f2e270a05f3f6cf129a18382cdda8a0e4` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:e63862b9c2383f80e918e8998caede22559e3d440f11b7b7c17b277c62c327b3` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:5035bd4068db000b23bb750d79b4388aacf68f5b3ad9eb128ab5aec884706e29` |
+| `audit/BINDING_LEDGER.md` | `sha256:397e27f7138dd24c1e1cbb773eb7c6e526c473d9cc0d2ca131ff5b654e469a92` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -1053,12 +1053,12 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `gallery.hpp:1615` | `render_snapshot_pass` | 3 | `sceneTexturesGroup_` | — |
 | `gallery.hpp:1643` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
 | `gallery.hpp:1644` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
-| `gol_zones.hpp:788` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
-| `gol_zones.hpp:789` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
-| `gol_zones.hpp:876` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
-| `gol_zones.hpp:877` | `dispatch_zone_sync` | 1 | `frameCGroup_` | — |
-| `gol_zones.hpp:889` | `dispatch_zone_evolve` | 0 | `worldGroup_` | — |
-| `gol_zones.hpp:890` | `dispatch_zone_evolve` | 1 | `frameCGroup_` | — |
+| `gol_zones.hpp:809` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
+| `gol_zones.hpp:810` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
+| `gol_zones.hpp:897` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
+| `gol_zones.hpp:898` | `dispatch_zone_sync` | 1 | `frameCGroup_` | — |
+| `gol_zones.hpp:910` | `dispatch_zone_evolve` | 0 | `worldGroup_` | — |
+| `gol_zones.hpp:911` | `dispatch_zone_evolve` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:745` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:746` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:766` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |
