@@ -216,13 +216,21 @@ inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
     // belief they had been tuned around: Cauldron never terminates and
     // Day & night does — the opposite of the assumption. The masks were
     // right; what was built on them was not. Read them as intent:
-    //  · Day&night is symmetric under state inversion, so 0.50 density is
-    //    its home — but that same symmetry makes BOTH extremes stable, and
-    //    at 16 cells a zone just falls into one. 32 cells gives the
-    //    domains room to coexist. This is the TERMINAL rule of the three,
-    //    so it takes the treatment: a slow tick with a crisp rise inside
-    //    it (omega = 3 / (0.10 x 4.0) = 7.5) and low variance. Plateaus
-    //    that commit and then hold — and tall, now that they hold.
+    //  · Day&night is symmetric under state inversion, and 0.50 sits on
+    //    its critical point — which is exactly why a zone seeded there
+    //    falls to one extreme or the other. 32 cells gives the domains
+    //    room to coexist; GOL_ROWS_2 then biased the SEED above the point
+    //    (0.50/0.06 -> 0.58/0.04), using the symmetry rather than fighting
+    //    it. The two extremes are not the same outcome: a saturated zone
+    //    is 32x32 fully live at height 30, which is a mesa and a
+    //    legitimate ground object, while a DARK zone renders nothing and
+    //    still holds its footprint against every other zone — dead real
+    //    estate, and the only failure. The bias trades the second for the
+    //    first: measured over the same 32 zone seeds, dark 12 -> 5 and
+    //    saturated 7 -> 15. This is the TERMINAL rule of the three, so it
+    //    takes the treatment: a slow tick with a crisp rise inside it
+    //    (omega = 3 / (0.10 x 4.0) = 7.5) and low variance. Plateaus that
+    //    commit and then hold — and tall, now that they hold.
     //  · Cauldron, once "Walled cities", builds no walls at any reachable
     //    size: 0 of 32 seeds reached a fixed point in 4000 generations and
     //    not one cell was static, at every size 24..128 and every density
@@ -240,7 +248,7 @@ inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
     //    row reads as thin Conway. Brisk tick so replication is visible.
     //    Untouched by GOL_ROWS_1 — the witness ran Hickerson's replicator
     //    on this row's own grid and watched one 12-cell seed become two.
-    /* 7: Day&night*/ { 0x3B1C8u, 0.50f, 0.06f,   4.0f, 1.0f,   6.0f, 1.5f,   0.10f, 0.02f,  30.0f, 8.0f,  0.08f,  0.09f, false, 32u },
+    /* 7: Day&night*/ { 0x3B1C8u, 0.58f, 0.04f,   4.0f, 1.0f,   6.0f, 1.5f,   0.10f, 0.02f,  30.0f, 8.0f,  0.08f,  0.09f, false, 32u },
     /* 8: Cauldron */ { 0x79F0u,  0.50f, 0.05f,   2.5f, 0.6f,   1.2f, 0.3f,   0.40f, 0.08f,   5.0f, 1.5f,  0.15f,  0.08f, false, 24u },
     /* 9: HighLife */ { 0x1848u,  0.30f, 0.05f,   0.6f, 0.15f,  9.0f, 2.0f,   0.20f, 0.04f,  10.0f, 3.0f,  0.22f,  0.07f, false, 32u },
 };
