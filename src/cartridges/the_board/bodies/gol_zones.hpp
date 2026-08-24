@@ -204,13 +204,23 @@ struct GoLTierProfile {
 //  seven-value list above describes the original rows only.)
 //                                     rule       dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h   cells
 inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-    /* 0: Pillars  */ { 0x1808u,  0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.11f, false, 16u },
-    /* 1: Sparse   */ { 0x1808u,  0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.17f, false, 32u },
-    /* 2: Moderate */ { 0x1808u,  0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.09f, false, 32u },
-    /* 3: Dense    */ { 0x1808u,  0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.03f, false, 16u },
-    /* 4: Flash    */ { 0x1808u,  0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
-    /* 5: Monolith */ { 0x1808u,  0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false, 16u },
-    /* 6: Glacier  */ { 0x1808u,  0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.21f, false, 24u },
+    /* 0: Pillars  */ { 0x1808u,  0.30f, 0.05f,  16.0f, 4.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.11f, false, 16u },
+    /* 1: Sparse   */ { 0x1808u,  0.15f, 0.05f,   4.0f, 1.0f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.17f, false, 32u },
+    /* 2: Moderate */ { 0x1808u,  0.30f, 0.08f,   2.0f, 0.6f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.09f, false, 32u },
+    /* 3: Dense    */ { 0x1808u,  0.45f, 0.10f,   1.0f,  0.3f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.03f, false, 16u },
+    /* 4: Flash    */ { 0x1808u,  0.35f, 0.10f,   0.5f,  0.1f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
+    /* 5: Monolith */ { 0x1808u,  0.20f, 0.03f,  24.0f, 6.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false, 16u },
+    /* 6: Glacier  */ { 0x1808u,  0.12f, 0.03f,   8.0f, 2.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.21f, false, 24u },
+    // GOL_TEMPO_1 doubled tick_period_mean and _sigma on EVERY row of both
+    // tables — the whole board at half rate. It is one column because
+    // transition_fraction is a FRACTION: the extrusion lasts
+    // transition_fraction x tick_period, so doubling the period doubles
+    // the update interval and the rise-and-sink time together and leaves
+    // every row's duty cycle where its author put it. Do not reach for
+    // config.mode_gol_tick_scale to do this: that dial is read only by
+    // pulse_cell_target, so it would slow the Pulse fields and leave both
+    // Conway's tick gate and every spring at speed.
+    //
     // GOL_RULES_1 authored these three rules. GOL_ROWS_1 re-authored two
     // of the row VALUES from the headless witness, which overturned the
     // belief they had been tuned around: Cauldron never terminates and
@@ -239,7 +249,7 @@ inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
     //    from tools/gol_census.py. The treatment was authored for a
     //    terminal, structured, tall row, and this is the first mask that
     //    is one: a slow tick with a crisp rise inside it
-    //    (omega = 3 / (0.10 x 4.0) = 7.5) and low variance. Plateaus that
+    //    (omega = 3 / (0.10 x 8.0) = 3.75) and low variance. Plateaus that
     //    commit and then hold.
     //  · Cauldron, once "Walled cities", builds no walls at any reachable
     //    size: 0 of 32 seeds reached a fixed point in 4000 generations and
@@ -248,19 +258,24 @@ inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
     //    what it does. Mask, density and cells are the rule's own
     //    requirement and stay. LOW height is what makes a permanently
     //    churning field a textured surface instead of a strobing forest.
-    //    GOL_ROWS_2: the 6.0 tick was authored for a freeze that never
-    //    comes, and at 120bpm it was three seconds a generation — slower
-    //    than a boil can be seen to be. At 2.5 with transition 0.40 the
-    //    cell spends about two fifths of its tick in transit
-    //    (omega = 3 / (0.40 x 2.5) = 3.0), so the field shimmers
-    //    continuously instead of stepping.
+    //    The transition 0.40 is the load-bearing number: the cell spends
+    //    about two fifths of its tick in transit, so the field shimmers
+    //    continuously instead of stepping. THE TICK HAS BEEN BOTH WAYS.
+    //    GOL_ROWS_2 took it 6.0 -> 2.5 because at 120bpm 6.0 was three
+    //    seconds a generation, slower than a boil can be seen to be;
+    //    GOL_TEMPO_1 then halved the whole board's rate and carried this
+    //    row with it, 2.5 -> 5.0, which is two and a half seconds a
+    //    generation and back within reach of the argument that rejected
+    //    6.0 (omega = 3 / (0.40 x 5.0) = 1.5). If the boil stops reading
+    //    as one, this row is the first place to look and 2.5 is where it
+    //    was.
     //  · HighLife must be 32 cells or the replicator has no room and the
     //    row reads as thin Conway. Brisk tick so replication is visible.
     //    Untouched by GOL_ROWS_1 — the witness ran Hickerson's replicator
     //    on this row's own grid and watched one 12-cell seed become two.
-    /* 7: Plateau  */ { 0x3E1E0u, 0.50f, 0.06f,   4.0f, 1.0f,   6.0f, 1.5f,   0.10f, 0.02f,  30.0f, 8.0f,  0.08f,  0.09f, false, 32u },
-    /* 8: Cauldron */ { 0x79F0u,  0.50f, 0.05f,   2.5f, 0.6f,   1.2f, 0.3f,   0.40f, 0.08f,   5.0f, 1.5f,  0.15f,  0.08f, false, 24u },
-    /* 9: HighLife */ { 0x1848u,  0.30f, 0.05f,   0.6f, 0.15f,  9.0f, 2.0f,   0.20f, 0.04f,  10.0f, 3.0f,  0.22f,  0.07f, false, 32u },
+    /* 7: Plateau  */ { 0x3E1E0u, 0.50f, 0.06f,   8.0f, 2.0f,   6.0f, 1.5f,   0.10f, 0.02f,  30.0f, 8.0f,  0.08f,  0.09f, false, 32u },
+    /* 8: Cauldron */ { 0x79F0u,  0.50f, 0.05f,   5.0f, 1.2f,   1.2f, 0.3f,   0.40f, 0.08f,   5.0f, 1.5f,  0.15f,  0.08f, false, 24u },
+    /* 9: HighLife */ { 0x1848u,  0.30f, 0.05f,   1.2f,  0.3f,  9.0f, 2.0f,   0.20f, 0.04f,  10.0f, 3.0f,  0.22f,  0.07f, false, 32u },
 };
 
 inline constexpr const char* GOL_TIER_NAMES[] = {
@@ -327,24 +342,30 @@ struct GolPulseTierProfile {
 // mirror — when tuning, change both sides.
 //                                     field                  tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd                    cells
 inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
-    /* 0: Breathe  */ { PulseField::BREATH,  2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.38f, false, BoundaryMode::REFLECT, 32u },
-    /* 1: Sparkle  */ { PulseField::BREATH,  0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.24f, true,  BoundaryMode::REFLECT, 16u },
-    /* 2: Drift    */ { PulseField::BREATH,  4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.20f, false, BoundaryMode::WRAP, 8u },
+    /* 0: Breathe  */ { PulseField::BREATH,  4.0f, 1.0f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.38f, false, BoundaryMode::REFLECT, 32u },
+    /* 1: Sparkle  */ { PulseField::BREATH,  1.0f,  0.3f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.24f, true,  BoundaryMode::REFLECT, 16u },
+    /* 2: Drift    */ { PulseField::BREATH,  8.0f, 2.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.20f, false, BoundaryMode::WRAP, 8u },
     // GOL_RULES_1. The first Pulse row that is not BREATH, and the first
     // whose target is continuous rather than binary. Read the values as
     // intent:
     //  · the continuous target is TRACKED rather than smeared by
-    //    omega = 3 / (0.30 x 3.0) = 3.33. transition_fraction x
-    //    tick_period IS the spring; the spring_stiffness column beside it
-    //    is written and never read (docs/OPEN.md carries that);
+    //    omega = 3 / (0.30 x 6.0) = 1.67. transition_fraction x
+    //    tick_period IS the spring, so GOL_TEMPO_1's doubling of the tick
+    //    halved the rotation AND halved the rise in one edit — which is
+    //    why the fraction was the column that must not move. The
+    //    spring_stiffness column beside it is written and never read
+    //    (docs/OPEN.md carries that);
     //  · phase scatter stays at 0.03; TEMPO SCATTER IS ZERO (GOL_ROWS_1).
     //    The two are not the same kind of term: tempo is a per-cell
     //    FREQUENCY multiplier, so its phase error integrates in t_beats
     //    and never saturates, while phase is a bounded static offset. At
     //    tempo 0.02 the arms measured 0.99 correlation against a
     //    scatter-free spiral at 20 beats, 0.66 at 75, and 0.02 by 150 —
-    //    gone inside a minute at 120bpm. Coherence is the point, and only
-    //    one of the two scatters could ever keep it;
+    //    gone inside a minute at 120bpm. (Those beat counts were measured
+    //    at the then-current 3.0 tick; the decoherence scales with the
+    //    period, so at 6.0 the same collapse takes twice as long. The
+    //    value is 0 and none of it happens.) Coherence is the point, and
+    //    only one of the two scatters could ever keep it;
     //  · wander_radius 0 — the spiral centre IS the zone centre and does
     //    not move; a wandering centre smears the arms;
     //  · 32 cells, because a spiral does not read at 16;
@@ -352,7 +373,7 @@ inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
     //    target: select_gol_zone forces height_enabled = false for such
     //    rows, so height never reads a fractional visual. Tint does, and
     //    that is the intent.
-    /* 3: Spiral   */ { PulseField::SPIRAL,  3.0f, 0.8f,   8.0f, 2.0f,   0.30f, 0.06f,   0.03f, 0.01f,    0.0f, 0.0f,   0.0f, 0.0f,   0.0f, 0.0f,   0.10f,  0.18f, true,  BoundaryMode::WRAP, 32u },
+    /* 3: Spiral   */ { PulseField::SPIRAL,  6.0f, 1.6f,   8.0f, 2.0f,   0.30f, 0.06f,   0.03f, 0.01f,    0.0f, 0.0f,   0.0f, 0.0f,   0.0f, 0.0f,   0.10f,  0.18f, true,  BoundaryMode::WRAP, 32u },
 };
 
 inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {
