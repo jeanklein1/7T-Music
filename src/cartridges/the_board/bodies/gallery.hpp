@@ -161,9 +161,17 @@ struct PhotographerCaptureConfig {
 };
 
 struct GalleryConfig {
-    // Spawn probability per terrain archetype id — galleries favor calm
-    // ground:                                     mountain varied basin  pool
-    static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.12f, 0.24f, 0.70f, 0.85f };
+    // Spawn probability per terrain archetype id. FLAT (SAND_1): galleries
+    // are the program's subject and the audience must not have to hunt them.
+    //
+    // 0.70 SATURATES. One placed gallery excludes a disc of pi*110^2, about
+    // fifteen patches at PATCH_EXTENT 50, so ten of those fifteen roll a hit
+    // and exactly one can win — the exclusion sets the density and the roll
+    // only picks which patch. That is not a defect here, it is the mechanism:
+    // an exclusion-limited packing IS an even distribution, which is what was
+    // asked for. The value would only start governing below ~0.07, and there
+    // it buys erratic rather than common.
+    static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.70f, 0.70f, 0.70f, 0.70f };
 
     // Painting count per gallery: gaussian, median 5, σ 2
     // Max varies by archetype — basin gets the largest galleries
