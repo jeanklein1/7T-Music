@@ -123,6 +123,83 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## SAND_1 — the finding the campaign could not rule on, and what it parked
+
+Origin: SAND_1 (five commits on master, base `9d6250d`). All five landed; the
+recon turned up one thing the handoff had not modelled, and it is layout
+authority, so it is here rather than in the tree.
+
+- THE AUTHORED BRANCH READS `gallery_size_mean` AS A LINEAR DIAL, AND E4.3
+  MOVED IT AS AN AREA ONE. `commit_gallery` has two sizing sites, not two
+  copies of one. The snapshot branch is an AREA path — `area =
+  PAINTING_AREA * size_mult`, `scale_x = sqrt(area * aspect)` — so E4.3's
+  0.85→3.4 floor is the x4-area/x2-linear the ruling asked for. The authored
+  branch is a LINEAR path — `height = (5.0f + jitter) * gallery_size_mean`,
+  `scale_x = height * aspect`, no square root — so the same dial move is x4
+  ON THE CANVAS. Authored outdoor works go from [3.87, 16.35] wu tall to
+  [15.47, 27.25]: four times the smallest where the ruling says twice. And
+  the width follows: measured over the 57 files in `assets/paintings`
+  (aspect 0.449 to 2.530, median 0.994), the top of the new height range is
+  27.1 wu wide AT THE MEDIAN ASPECT against `ROW_SPACING` 26 — VISUAL GATE 7
+  fails at the middle of the library, not in its tail. E4.4 was NOT applied
+  here and that is deliberate: R1's premise (a second copy of the jitter
+  arithmetic) is false, and the authored jitter is ALREADY fractional in
+  E4.4's sense — it rides inside the `* gallery_size_mean` product, ±9% of
+  height at every scale, so `* (1.0f + jitter)` there would widen the spread
+  five-fold, which nobody ruled. Note the two paths were never sized alike:
+  read linearly the old dial spanned 3.53x, the snapshot path's own linear
+  span was 1.88x. That is why no mechanical cure fits — sqrt'ing the
+  authored read gives the floor its x2 but SHRINKS the ceiling, which
+  "all artworks larger" forbids. Unblocked by Jean's ruling on what the
+  authored path's own range should be, or by a ruling that the two paths
+  stop sharing one dial.
+- `PAINTING_AREA`'s block comment still names the retired multiplier
+  ("before the right-skewed multiplier [0.85, 3.0]", gallery.hpp above the
+  table). False since E4.3; outside COMMIT 5's stated scope, which was the
+  `OUTDOOR_SLOT_RESERVE` block only. Dies in the commit that next opens the
+  shot-parameter block.
+- `PAINTINGS_MAX_BY_ARCHETYPE` IS INERT (R3): at mean 3 σ 1 the raw count
+  spans [1.5, 4.5) and the smallest table entry is 8, so the `std::min`
+  never binds. Kept because a dead table and a behaviour change do not share
+  a commit. Unblocked by any commit that is not itself a behaviour change.
+- `size_mult`'s `0.5f` FLOOR IS A DEAD GUARD (E4.4 rider): `1.0f + jitter`
+  bottoms at 0.55 and `GALLERY_SIZE_LO` is 3.4, so the product bottoms at
+  1.87 and the floor is unreachable. Left standing; deleting it is its own
+  ruling. Dies in the commit that reopens the site.
+- `PHOTO_PACE_BY_ARCHETYPE` IS A FLAT TABLE, hence a dead mechanism, and the
+  row says so itself. If the even distribution reads right at VISUAL GATE 2,
+  the 0.6 folds into `TRIGGER_DISTANCE_MEAN` and the table goes. Unblocked by
+  Jean's stamp on that gate.
+- `TRIGGER_DISTANCE_FLOOR` HAS BECOME A SHAPER, NOT A GUARD (COMMIT 1
+  rider): at `TRIGGER_DISTANCE_MEAN * 0.6 = 30` against σ 8, the 20 wu floor
+  clamps 10.6% of draws, where the old fastest tier clamped 3.0% and sand
+  0.0%. Reported, not changed — lowering the floor is Jean's. Unblocked by
+  his word.
+- HELD FOR A LATER ROUND, ON JEAN'S WORD: `MIN_GALLERY_DISTANCE` below 110,
+  and `EXHIBITION_LAYERS` above 40 at +24 MiB GPU (gated separately against
+  the Firefox staging ratchet above and the Pixel 8 Pro floor). VISUAL GATE
+  4 and GATE 3 respectively are the readings that decide whether either is
+  needed.
+
+### The eight readings SAND_1 is not closed without
+
+Jean's eye, no gate can see them. Deploy with `?seed=N` pinned so two walks
+are comparable. (1) COMMON — galleries arrive across sand without being
+hunted; count over ~1000 wu against the same seed before the campaign.
+(2) EVEN — they appear on mountain and varied ground too; this is COMMIT 2's
+whole subject and the one thing the flat table can be falsified by.
+(3) FED — `[Gallery]` stdout reads `paintings=N/N`; a run of `paintings=1/3`
+means supply still lags and COMMIT 1's pace must go below 0.6. (4) SPACED BY
+THE CONSTANT, NOT THE REGISTRY — no two centres closer than 110 wu and the
+typical gap near 110, not well above it. (5) LARGER — the smallest works at
+roughly twice their former width, felt on approach at pawn height.
+(6) STILL VARIED — works within one gallery visibly different sizes.
+(7) NO OVERLAP — no canvas intersects its neighbour at the top of the range;
+a panoramic pair on a large-mean site is the case to look for, AND the
+authored finding above predicts this one fails until it is ruled on.
+(8) INDOOR UNCHANGED — wall art hangs exactly as before; nothing in this
+campaign may reach it.
+
 ## RIBBON_1 — the witnesses Jean owes the campaign
 
 No gate can see any of these; they are the eye's, and the campaign is not
