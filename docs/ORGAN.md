@@ -168,8 +168,12 @@ string and its label.
   every fixed width is a CSS custom property on `#organ` and the resize minimum
   is computed from them. A witness keeps its meter in the value column.
 - Export — the whole desk or one section — keys `<id>` for instances and
-  `<mood>/<id>` or `world/<id>` for definitions; witnesses export nothing.
-  Import applies exactly what a file carries and counts unknown ids.
+  `<mood>/<id>` or `world/<id>` for definitions; witnesses export nothing. A
+  mood definition has one value per mood, so the walk covers EVERY mood and
+  the file carries all of them; the world's bank belongs to no mood and keys
+  once. Import applies exactly what a file carries, counts unknown ids, and
+  presses RESPEAK when any definition landed — one press per file, so the
+  world the operator is looking at moves to what arrived.
 - The status line: refusals with the last one named, blocks reconciled at the
   last boundary, the build id.
 - No storage of any kind. Width, open sections, lens and mode are session
@@ -196,9 +200,10 @@ the first world only through the tables.
 
 `?organ=1&mood=N&seed=N` boots into a mood under a pinned seed; the lens
 follows the regime the seed drew. Export, shelve, and
-`?preset=<name>&mood=N&seed=N` boots the tuned sky. The `[Atmos]` witness
-prints `(mood, seed, regime)` once per regime, so a drag is silent and a regime
-change under a weight dial is announced.
+`?preset=<name>&mood=N&seed=N` boots EVERY tuned sky: one file carries every
+mood's definitions, so a walk across the mood keys finds each one as it was
+shelved. The `[Atmos]` witness prints `(mood, seed, regime)` once per regime,
+so a drag is silent and a regime change under a weight dial is announced.
 
 ## Moods
 
