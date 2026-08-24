@@ -339,6 +339,22 @@ the tree states or implies `fill_slot_wall_frame`'s `base_height` is an
 authored rather than a derived height, and `state.hpp`'s `scale_x`/`scale_y`
 ("width/height in world units") stayed true across the change.
 
+- THE SIZING CENSUS, SETTLED (SAND_2's R0, run against the tree at
+  `26117317` when the campaign was re-issued with a falsification item). Four
+  campaigns in a row returned a different site count than their handoff
+  predicted, so this is the census rather than a prediction. EXACTLY THREE
+  sites write a painting slot's `scale_x`/`scale_y` in the whole tree, all in
+  `bodies/gallery.hpp`: `fill_slot_wall_frame` (`scale_x = base_height *
+  aspect`, `scale_y = base_height`), and `commit_gallery`'s snapshot branch
+  writing both inline. No compound assignment, no post-hoc clamp or
+  Y-correction mutates a slot's scale after the fill, and `world.wgsl` only
+  READS the two fields — the shader never resizes. `ContentSource::AUTHORED`
+  appears at exactly TWO call sites, both through `fill_slot_wall_frame`:
+  `commit_gallery`'s authored branch, which SAND_2 rewrote, and
+  `place_wall_paintings`'s, which passes an INDOOR `WallArtScaleBucket`
+  height and is a separate sizing authority SAND_2 correctly never reached.
+  So the premise held: `fill_slot_wall_frame` is the only consumer of the
+  outdoor authored height. Recorded so the next campaign does not re-ask.
 - THE ROW BUDGET IS AN ASPECT CEILING FOR BOTH CONTENT KINDS, not an authored
   defect. Width goes as `sqrt(area * aspect)` on both paths now, so a wide
   enough painting overruns `ROW_SPACING` 26 whatever it holds: the crossing
