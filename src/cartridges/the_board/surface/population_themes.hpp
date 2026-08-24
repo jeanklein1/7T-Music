@@ -136,7 +136,7 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 0: TRANSITION — sparse connective tissue ─────────────────
     {   { 0.4f, 0.75f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.5f, 0.5f, 0.5f },  // spawn_weight [pyr..sph, ribn, cube, gol, gall]
         { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
-        { 1.0f, 0.3f, 1.0f },                                       // tier_arch
+        { 1.233f, 0.3f, 1.0f },                                     // tier_arch
         { 0.1f, 0.2f, 0.3f },                                       // tier_col
         { 0.1f, 2.0f, 0.7f },                                       // tier_ant
         { 1.0f, 1.0f, 1.0f },                                       // tier_palm
@@ -151,7 +151,7 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
     {   { 1.5f, 0.75f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f, 0.3f, 1.0f, 0.3f, 0.3f, 0.3f },
         { 0.2f, 0.5f, 3.0f },
-        { 2.0f, 0.1f, 3.0f },
+        { 2.941f, 0.1f, 3.0f },
         { 0.01f, 0.01f, 1.0f },
         { 0.5f, 1.5f, 0.5f },
         { 1.0f, 1.0f, 1.0f },
@@ -166,7 +166,7 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 2: COLONNADE — dense columns, moderate arches ────────────
     {   { 0.3f, 0.75f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.3f, 0.5f, 0.4f },
         { 1.0f, 1.0f, 1.0f },
-        { 3.0f, 0.5f, 1.0f },
+        { 1.423f, 0.5f, 1.0f },
         { 0.3f, 3.0f, 5.0f },
         { 0.2f, 0.1f, 0.1f },
         { 1.0f, 1.0f, 1.0f },
@@ -181,7 +181,7 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
     {   { 0.5f, 0.75f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f, 0.3f, 1.0f, 0.3f, 0.3f, 0.3f },
         { 1.0f, 0.05f, 2.0f },
-        { 1.0f, 0.2f, 0.8f },
+        { 0.949f, 0.2f, 0.8f },
         { 0.1f, 0.3f, 0.3f },
         { 0.5f, 3.5f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
@@ -196,7 +196,7 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 4: BARREN — near-empty ───────────────────────────────────
     {   { 0.4f, 0.75f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.3f, 1.0f, 0.1f, 0.2f, 0.6f },
         { 2.0f, 0.5f, 0.2f },
-        { 1.0f, 1.0f, 1.0f },
+        { 1.897f, 1.0f, 1.0f },
         { 0.2f, 0.5f, 0.5f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
