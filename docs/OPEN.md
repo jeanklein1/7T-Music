@@ -123,36 +123,62 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
-## SAND_1 — the finding the campaign could not rule on, and what it parked
+## SAND_2 — one sizing law, and the one thing it does not cover
 
-Origin: SAND_1 (five commits on master, base `9d6250d`). All five landed; the
-recon turned up one thing the handoff had not modelled, and it is layout
-authority, so it is here rather than in the tree.
+Origin: SAND_2 (one commit on master, base `88c7a66`). `commit_gallery`'s two
+branches now read the same law — `size_mult = max(0.5f, gallery_size_mean *
+(1.0f + jitter))` into an area under a square root — so `gallery_size_mean`
+is an AREA dial at both sites and `PAINTING_SIZE_SIGMA` the same fraction at
+both. `AUTHORED_AREA` 48 against `PAINTING_AREA`'s 18–30 holds an authored
+work at 2.4x a MEDIUM snapshot's canvas at every size and every aspect.
+COMMIT 2 of that handoff was SKIPPED on its own instruction: no comment in
+the tree states or implies `fill_slot_wall_frame`'s `base_height` is an
+authored rather than a derived height, and `state.hpp`'s `scale_x`/`scale_y`
+("width/height in world units") stayed true across the change.
 
-- THE AUTHORED BRANCH READS `gallery_size_mean` AS A LINEAR DIAL, AND E4.3
-  MOVED IT AS AN AREA ONE. `commit_gallery` has two sizing sites, not two
-  copies of one. The snapshot branch is an AREA path — `area =
-  PAINTING_AREA * size_mult`, `scale_x = sqrt(area * aspect)` — so E4.3's
-  0.85→3.4 floor is the x4-area/x2-linear the ruling asked for. The authored
-  branch is a LINEAR path — `height = (5.0f + jitter) * gallery_size_mean`,
-  `scale_x = height * aspect`, no square root — so the same dial move is x4
-  ON THE CANVAS. Authored outdoor works go from [3.87, 16.35] wu tall to
-  [15.47, 27.25]: four times the smallest where the ruling says twice. And
-  the width follows: measured over the 57 files in `assets/paintings`
-  (aspect 0.449 to 2.530, median 0.994), the top of the new height range is
-  27.1 wu wide AT THE MEDIAN ASPECT against `ROW_SPACING` 26 — VISUAL GATE 7
-  fails at the middle of the library, not in its tail. E4.4 was NOT applied
-  here and that is deliberate: R1's premise (a second copy of the jitter
-  arithmetic) is false, and the authored jitter is ALREADY fractional in
-  E4.4's sense — it rides inside the `* gallery_size_mean` product, ±9% of
-  height at every scale, so `* (1.0f + jitter)` there would widen the spread
-  five-fold, which nobody ruled. Note the two paths were never sized alike:
-  read linearly the old dial spanned 3.53x, the snapshot path's own linear
-  span was 1.88x. That is why no mechanical cure fits — sqrt'ing the
-  authored read gives the floor its x2 but SHRINKS the ceiling, which
-  "all artworks larger" forbids. Unblocked by Jean's ruling on what the
-  authored path's own range should be, or by a ruling that the two paths
-  stop sharing one dial.
+- THE ROW BUDGET IS AN ASPECT CEILING FOR BOTH CONTENT KINDS, not an authored
+  defect. Width goes as `sqrt(area * aspect)` on both paths now, so a wide
+  enough painting overruns `ROW_SPACING` 26 whatever it holds: the crossing
+  aspect at the top of range and jitter is 1.94. Measured over the 57 files
+  in `assets/paintings` (aspect 0.449–2.530), ONE asset can exceed the row,
+  and only at the top of both range and jitter, reaching 29.7 wu; at a
+  mid-range site none does. For scale, the deployed pre-SAND_2 tree put 20 of
+  57 over the row at a mid-range site and 45 of 57 at the top, worst case
+  91.7 wu. Unblocked by `ROW_SPACING`, if it ever bites.
+- `AUTHORED_AREA` 48 IS A READING, NOT A RULING — it reproduces what the
+  mid-range site held before SAND_1 (92.6 wu² x the 2.18x the snapshots got
+  = 201.6 = 48 x 4.2). Whether Jean's paintings should preside more or less
+  than 2.4x a MEDIUM snapshot is his eye's call, and it is now one number:
+  20 hangs them as equals, 70 makes them dominate. Unblocked by VISUAL GATE 4.
+- THE OLD RATIO CANNOT BE PRESERVED AND WAS NOT: it was never constant —
+  1.06x at the smallest sites to 3.75x at the largest, times each painting's
+  own aspect, because authored area carried an `x aspect` the snapshot area
+  does not. "The same factor" is therefore honoured exactly at one point,
+  fixed here at the mid-size aspect-neutral value. Small sites' paintings
+  come out smaller than the old law gave and large sites' notably smaller;
+  that is the quadratic being removed, not a loss. Recorded so a later round
+  does not read the shrink as a regression.
+
+### The five readings SAND_2 is not closed without
+
+`?seed=N` pinned. (1) NO OVERLAP — walk a MIXED site, find a landscape-format
+painting, its frame clears its neighbours; this was the live defect.
+(2) CONSTANT RELATIONSHIP — in a small gallery and a large one, a painting
+stands the SAME amount larger than the snapshot beside it; if the large site
+still exaggerates, E1.2 did not land. (3) ASPECT NEUTRAL — a portrait and a
+landscape at one site carry visibly similar amounts of canvas, one taller,
+one wider. (4) THE PREMIUM ITSELF — stand before a pair and say whether the
+paintings should preside more or less; see `AUTHORED_AREA` above.
+(5) SNAPSHOTS UNTOUCHED — a snapshot-only gallery looks exactly as it did
+after SAND_1; nothing in this campaign may reach that path.
+
+## SAND_1 — what the campaign parked
+
+Origin: SAND_1 (five commits on master, base `9d6250d`). All five landed. The
+finding this section was opened for — the authored branch reading
+`gallery_size_mean` as a linear dial — was ruled on and CLOSED by SAND_2
+(`0715e39a`), and its line has died accordingly.
+
 - `PAINTING_AREA`'s block comment still names the retired multiplier
   ("before the right-skewed multiplier [0.85, 3.0]", gallery.hpp above the
   table). False since E4.3; outside COMMIT 5's stated scope, which was the
@@ -162,10 +188,14 @@ authority, so it is here rather than in the tree.
   spans [1.5, 4.5) and the smallest table entry is 8, so the `std::min`
   never binds. Kept because a dead table and a behaviour change do not share
   a commit. Unblocked by any commit that is not itself a behaviour change.
-- `size_mult`'s `0.5f` FLOOR IS A DEAD GUARD (E4.4 rider): `1.0f + jitter`
-  bottoms at 0.55 and `GALLERY_SIZE_LO` is 3.4, so the product bottoms at
-  1.87 and the floor is unreachable. Left standing; deleting it is its own
-  ruling. Dies in the commit that reopens the site.
+- BOTH `size_mult` `0.5f` FLOORS ARE DEAD GUARDS (SAND_1 E4.4 rider, joined
+  by SAND_2 E1.2 which gave the authored branch the same form): `1.0f +
+  jitter` bottoms at 0.55 and `GALLERY_SIZE_LO` is 3.4, so the product
+  bottoms at 1.87 at either site. SAND_2 also retired the authored branch's
+  `2.0f` height floor by superseding it — measured over the library the new
+  height bottoms at 5.96 wu, so it too was unreachable. The two survivors are
+  left standing; deleting them is its own ruling. They die in the commit that
+  reopens the sites.
 - `PHOTO_PACE_BY_ARCHETYPE` IS A FLAT TABLE, hence a dead mechanism, and the
   row says so itself. If the even distribution reads right at VISUAL GATE 2,
   the 0.6 folds into `TRIGGER_DISTANCE_MEAN` and the table goes. Unblocked by
@@ -195,8 +225,8 @@ typical gap near 110, not well above it. (5) LARGER — the smallest works at
 roughly twice their former width, felt on approach at pawn height.
 (6) STILL VARIED — works within one gallery visibly different sizes.
 (7) NO OVERLAP — no canvas intersects its neighbour at the top of the range;
-a panoramic pair on a large-mean site is the case to look for, AND the
-authored finding above predicts this one fails until it is ruled on.
+a panoramic pair on a large-mean site is the case to look for. SAND_2 landed
+the authored half of this reading; see its own gate 1.
 (8) INDOOR UNCHANGED — wall art hangs exactly as before; nothing in this
 campaign may reach it.
 
