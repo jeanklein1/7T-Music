@@ -33,7 +33,7 @@
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
 #include "cartridges/the_board/bodies/pawn_figures.hpp"            // typed figure registry (H1: PawnFigureDef / PAWN_FIGURES) — constexpr-only, self-contained
-#include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS, CAMERA_CHASE_FF — source of truth for the point-house boot pins
+#include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS, CAMERA_CHASE_FF, CAMERA_PUSH_* — source of truth for the point-house boot pins
 #include "cartridges/the_board/contracts/control_panel.hpp"         // THE PANEL — the field dials' rests, boot-pinned into the config
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"        // RIBBON_1 — RIBBON_LIVE: the ribbon's dials, boot-pinned into the config beside the field's
 #include <webgpu/webgpu_cpp.h>
@@ -776,6 +776,15 @@ namespace t7 {
             // pins it. The tail pad is consumed IN PLACE, so sizeof 688 is
             // unmoved and no witness below moves either.
             float camera_chase_ff;         // 684
+            // KITE_1 — THE WITNESS'S PRESENCE. Mirror of the WGSL twin,
+            // GROWTH LAW, same commit, same order, same types. Rests
+            // authored at contracts/point.hpp; the boot pins them. The tail
+            // pad went to camera_chase_ff, so these two append and two fresh
+            // pads carry the struct back to its boundary: 688 -> 704.
+            float camera_push_gain;        // 688
+            float camera_push_radius;      // 692
+            float _pad704_0;               // 696
+            float _pad704_1;               // 700
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1792,8 +1801,8 @@ namespace t7 {
         // 624 -> 672. Both rooms, same commit.
         // RIBBON_2: the wander brain's four join them — one pad consumed,
         // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 688,
-            "GPUDesignConfig must be 688 bytes. PRUNING_1 P3 removed nine "
+        static_assert(sizeof(GPUDesignConfig) == 704,
+            "GPUDesignConfig must be 704 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
             "44 B moved all four vec3 members off their boundaries. "
@@ -1809,8 +1818,9 @@ namespace t7 {
             "the wander brain's four at the same tail — one pad consumed, "
             "three appended, one fresh pad; 672 -> 688. KITE_1: the chase's "
             "feed-forward consumes that last pad IN PLACE — 688 is unmoved, "
-            "and the trailing pad is spent again, so the NEXT knob meets the "
-            "alignment law below.)");
+            "and the trailing pad is spent. The witness's two presence dials "
+            "met that: no pad to reuse, two appended, two fresh pads to the "
+            "boundary; 688 -> 704.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -5008,6 +5018,8 @@ namespace t7 {
                 // KITE_1 — the witness's own dial, boot-pinned from the point's
                 // house (contracts/point.hpp) by the POINT_BUBBLE_RADIUS idiom.
                 config_.camera_chase_ff        = CAMERA_CHASE_FF;
+                config_.camera_push_gain       = CAMERA_PUSH_GAIN;
+                config_.camera_push_radius     = CAMERA_PUSH_RADIUS;
                 config_.freeze_sphere = 0;
                 config_.fpv_mode = 0;
                 config_.world_seed = 42;

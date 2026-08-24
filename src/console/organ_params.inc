@@ -606,6 +606,20 @@ ORGAN_PARAM(PANEL, PanelSurface, possession.radius, F32, 0.5f, 80.0f, 0.5f, "Int
 // stance anyone asked for, so 1.0 is the ceiling.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_chase_ff, F32, 0.0f, 1.0f, 0.01f, "Camera · Chase", "feed-forward")
 
+// ─── Camera · Presence ──────────────────────────────────────────────
+// The eye repels floaters as it passes (cubes only — a sphere's motor owns
+// its orbit). Boot-pinned from contracts/point.hpp; cube_force_witness is
+// the one reader, and it is OFF in free-fly.
+//
+// THE RANGES ARE EVIDENCE. GAIN: this force is an acceleration in the same
+// integrator CurlField (12) and PhaseWave (30) push through, and the cube
+// registry's own authoring note puts the stable ceiling at ~10 x
+// spring_stiffness — 4.0/s², so 40. RADIUS: the point's bubble is the
+// bound on awareness (80 wu), and a presence has no business reaching past
+// what the point can notice, so the bubble's own range is the shell's.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_push_gain,   F32, 0.0f, 40.0f, 0.25f, "Camera · Presence", "push gain")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_push_radius, F32, 0.0f, 80.0f, 0.5f,  "Camera · Presence", "push radius")
+
 // ─── Debug ──────────────────────────────────────────────────────────
 // Config's uint32_t toggle words enroll as BOOL directly; fpv_mode is
 // KEY-SHARED, the keyboard writes it too. mute_couplings: docs/ORGAN.md.

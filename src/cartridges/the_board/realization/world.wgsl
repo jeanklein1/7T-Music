@@ -1763,6 +1763,16 @@ struct DesignConfig {
     // UNMOVED, so no size pin nor offsetof witness changes. Read by
     // update_camera, RIBBON host only.
     camera_chase_ff: f32,           // 684  [0,1] — 1 cancels the aim ease's trail; 0 restores it
+    // KITE_1 — THE WITNESS'S PRESENCE. Mirror of GPUDesignConfig, GROWTH
+    // LAW, same commit, same order. THE PANEL (contracts/point.hpp
+    // CAMERA_PUSH_GAIN / _RADIUS) authors the rests. The tail pad was spent
+    // by camera_chase_ff, so these two append and two fresh pads carry the
+    // struct back to its 16-byte boundary: sizeof 688 -> 704 (state.hpp
+    // carries the witness). Read by cube_force_witness.
+    camera_push_gain: f32,          // 688  wu/s² of shove at the shell's center
+    camera_push_radius: f32,        // 692  wu — the shell; 0 shuts the term off
+    _pad704_0: f32,                 // 696
+    _pad704_1: f32,                 // 700
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -9352,16 +9362,64 @@ fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordin
     return vec3<f32>(0.0, sin(phase) * amplitude, 0.0);
 }
 
+// ─ Force: the Witness's presence (KITE_1) ────────────────────────
+// THE EYE REPELS FLOATERS AS IT PASSES. Radial from the composed eye, on
+// the pawn forcefield's falloff shape read the other way round — 1 inside
+// the shell, 0 outside, soft over PAWN_FORCEFIELD_FALLOFF at the rim. It
+// is not a behavior: it is the room the behaviors happen in, so it is
+// added to every cube whatever its behavior_id.
+//
+// RADIAL IN THREE DIMENSIONS, not planar. The pawn's own shove is a
+// column because a walking body reaches a hovering cube only as an
+// occupancy underneath it; the eye is not on the ground, and a cube
+// directly above the lens is exactly the one that should shed. So the
+// distance and the direction are both the full vector.
+//
+// camera_state.pos DIRECTLY, never point_pos(): the point is the pawn in
+// every host but free-fly, and this term is the WITNESS's. Same gate as
+// the render carve — off when the camera hosts the point, because the
+// revision camera is a ghost and emanates nothing (contracts/point.hpp:
+// presence follows the point, emanation stays the body's).
+//
+// AN ACCELERATION, not an impulse. It joins behavior_force inside
+// update_cube's (spring_a + behavior_force + ff) * dt, so the spring and
+// the drag bound it exactly as they bound CurlField's 12.0 and
+// PhaseWave's 30.0. At the rest gain the steady shed is gain /
+// spring_stiffness = 12.5 / 4 ≈ 3 wu — the same visible displacement
+// CurlField already produces.
+//
+// SPHERES TAKE NONE OF IT, by ruling. They subscribe to no behavior force
+// at all: update_sphere composes its orbit from motors and adds only the
+// field and its own spring. It is the sphere that EMITS the point's push
+// (row_sphere_push, read from update_camera's free-fly branch), never a
+// subscriber to one. Perturbing a motor is the complicated dynamics the
+// ruling excludes.
+fn cube_force_witness(fe: FloatingEntityState) -> vec3<f32> {
+    if (point_camera_hosted()) { return vec3<f32>(0.0); }
+    let r = config.camera_push_radius;
+    if (r <= 0.0) { return vec3<f32>(0.0); }
+    let away = fe.pos - camera_state.pos;
+    let d = length(away);
+    if (d < 1e-4) { return vec3<f32>(0.0); }   // degenerate: the lens is inside the body
+    let w = 1.0 - smoothstep(r - PAWN_FORCEFIELD_FALLOFF,
+                             r + PAWN_FORCEFIELD_FALLOFF, d);
+    return (away / d) * (config.camera_push_gain * w);
+}
+
 // ─ Dispatch ──────────────────────────────────────────────────────
 // Switch by behavior_id. New behaviors land here as additional cases
 // alongside their authoring registry rows in bodies/cube_behaviors.hpp.
+// The witness's presence is added AFTER the switch, to every cube: it is
+// the room, not a behavior, so no behavior_id can opt out of it.
 fn cube_behavior_force(fe: FloatingEntityState, t: f32, point_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
     let rest_xz = vec2<f32>(fe.anchor.x, fe.anchor.z);
+    var f = vec3<f32>(0.0);
     switch (fe.behavior_id) {
-        case 1u: { return cube_force_curlfield(rest_xz, t, coordination); }
-        case 2u: { return cube_force_phasewave(rest_xz, t, fe.behavior_phase, coordination); }
-        default: { return cube_force_stationary(); }
+        case 1u: { f = cube_force_curlfield(rest_xz, t, coordination); }
+        case 2u: { f = cube_force_phasewave(rest_xz, t, fe.behavior_phase, coordination); }
+        default: { f = cube_force_stationary(); }
     }
+    return f + cube_force_witness(fe);
 }
 
 @compute @workgroup_size(1)
