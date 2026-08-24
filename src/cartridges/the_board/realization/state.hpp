@@ -33,7 +33,7 @@
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
 #include "cartridges/the_board/bodies/pawn_figures.hpp"            // typed figure registry (H1: PawnFigureDef / PAWN_FIGURES) — constexpr-only, self-contained
-#include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS — source of truth for the CONTACT_2 boot pin
+#include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS, CAMERA_CHASE_FF — source of truth for the point-house boot pins
 #include "cartridges/the_board/contracts/control_panel.hpp"         // THE PANEL — the field dials' rests, boot-pinned into the config
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"        // RIBBON_1 — RIBBON_LIVE: the ribbon's dials, boot-pinned into the config beside the field's
 #include <webgpu/webgpu_cpp.h>
@@ -770,7 +770,12 @@ namespace t7 {
             float ribbon_wander_yaw_max;   // 672
             float ribbon_wander_arrive;    // 676
             float ribbon_roam_radius;      // 680
-            float _pad688_0;               // 684
+            // KITE_1 — THE CHASE'S FEED-FORWARD. Mirror of the WGSL twin —
+            // GROWTH LAW, same commit, same position, same type. Rest
+            // authored at contracts/point.hpp (CAMERA_CHASE_FF); the boot
+            // pins it. The tail pad is consumed IN PLACE, so sizeof 688 is
+            // unmoved and no witness below moves either.
+            float camera_chase_ff;         // 684
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1788,7 +1793,7 @@ namespace t7 {
         // RIBBON_2: the wander brain's four join them — one pad consumed,
         // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
         static_assert(sizeof(GPUDesignConfig) == 688,
-            "GPUDesignConfig must be 624 bytes. PRUNING_1 P3 removed nine "
+            "GPUDesignConfig must be 688 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
             "44 B moved all four vec3 members off their boundaries. "
@@ -1802,7 +1807,10 @@ namespace t7 {
             "RIBBON_1: the ribbon's twelve dials at the same tail — one pad "
             "consumed, eleven appended, one fresh pad; 624 -> 672. RIBBON_2: "
             "the wander brain's four at the same tail — one pad consumed, "
-            "three appended, one fresh pad; 672 -> 688.)");
+            "three appended, one fresh pad; 672 -> 688. KITE_1: the chase's "
+            "feed-forward consumes that last pad IN PLACE — 688 is unmoved, "
+            "and the trailing pad is spent again, so the NEXT knob meets the "
+            "alignment law below.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -4997,6 +5005,9 @@ namespace t7 {
                 config_.ribbon_wander_yaw_max  = RIBBON_LIVE.wander_yaw_max;
                 config_.ribbon_wander_arrive   = RIBBON_LIVE.wander_arrive;
                 config_.ribbon_roam_radius     = RIBBON_LIVE.roam_radius;
+                // KITE_1 — the witness's own dial, boot-pinned from the point's
+                // house (contracts/point.hpp) by the POINT_BUBBLE_RADIUS idiom.
+                config_.camera_chase_ff        = CAMERA_CHASE_FF;
                 config_.freeze_sphere = 0;
                 config_.fpv_mode = 0;
                 config_.world_seed = 42;

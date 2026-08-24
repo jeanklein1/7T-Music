@@ -82,6 +82,21 @@ struct PointBubble {
     float radius = POINT_BUBBLE_RADIUS;   // the awareness bound (the portal's vertical gate today)
 };
 
+// ═══ THE WITNESS'S OWN DIALS ═══════════════════════════════════════
+// The camera does not own the point, but it has a stance of its own, and
+// the stance has rests. They are authored HERE — the witness is the
+// point's, so its rests live in the point's house — and boot-pinned into
+// the config mirror by the same idiom POINT_BUBBLE_RADIUS uses. One home
+// authors; the boot is the transport; the organ edits the live copy.
+
+// THE KITE LOCK. A first-order ease trails a constant-velocity target by
+// v·tau, so the chase adds v·tau back to the target and the trail cancels
+// identically. 1.0 is the whole cancellation and IS the shipped behavior;
+// 0.0 restores the plain trail, which makes the dial the proof that the
+// mechanism is the one described. Only the RIBBON host reads it — the
+// walk kite is untouched.
+inline constexpr float CAMERA_CHASE_FF = 1.0f;
+
 // ═══ THE POINT ═════════════════════════════════════════════════════
 // The instance (point_) lives at the composition root, beside the
 // witness record (PlayerState) — spine-resident, like every organ.

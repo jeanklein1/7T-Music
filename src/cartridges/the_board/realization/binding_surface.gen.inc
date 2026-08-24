@@ -323,12 +323,17 @@
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
                     // THE CHASE (RIBBON_2) reads the head it follows. update_camera turns
-                    // the azimuth to the flight while the point rides the ribbon, so this
-                    // room needs the ribbon body’s READ face for one word —
-                    // head.heading. Same home as g2:144, another window, never co-bound
-                    // with it (L23-prime): the ribbon room binds the rw face in its own
-                    // dispatch, this one binds the ro face in its own.
-                    entries[5].binding = bind::g2::ribbon_body_read;  // ribbon_body_read (storage, read — the chase reads head.heading)
+                    // the azimuth to the flight while the point rides the ribbon, and
+                    // KITE_1 gave it the head’s MOTION as well — the aim ease adds the
+                    // commanded velocity back, so the camera holds the flight instead of
+                    // trailing it. Three words now: head.heading, head.throttle_eased
+                    // (speed = throttle × config.ribbon_max_speed — the head stores no
+                    // speed field) and head.y_vel. A WIDER READ THROUGH THE SAME WINDOW:
+                    // same buffer, same slot, same face, no layout change — a window is
+                    // bound per binding, never per field. Same home as g2:144, another
+                    // window, never co-bound with it (L23-prime): the ribbon room binds
+                    // the rw face in its own dispatch, this one binds the ro face in its own.
+                    entries[5].binding = bind::g2::ribbon_body_read;  // ribbon_body_read (storage, read — the chase reads head.heading, .throttle_eased, .y_vel)
                     entries[5].visibility = wgpu::ShaderStage::Compute;
                     entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 

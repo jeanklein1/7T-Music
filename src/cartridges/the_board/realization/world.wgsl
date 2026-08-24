@@ -1756,7 +1756,13 @@ struct DesignConfig {
     ribbon_wander_yaw_max: f32,     // 672  the brain's share of the hands' cap, [0, 1]
     ribbon_wander_arrive: f32,      // 676  wu — a target is reached here; the next is drawn
     ribbon_roam_radius: f32,        // 680  wu — the anchor's disc the targets are drawn on
-    _pad688_0: f32,                 // 684
+    // KITE_1 — THE CHASE'S FEED-FORWARD. Mirror of GPUDesignConfig
+    // (state.hpp) — GROWTH LAW, same commit, same position, same type.
+    // THE PANEL (contracts/point.hpp CAMERA_CHASE_FF) authors the rest and
+    // the boot pins it here. Reuses the tail pad in place: sizeof 688 is
+    // UNMOVED, so no size pin nor offsetof witness changes. Read by
+    // update_camera, RIBBON host only.
+    camera_chase_ff: f32,           // 684  [0,1] — 1 cancels the aim ease's trail; 0 restores it
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -9011,17 +9017,54 @@ fn update_camera() {
         }
     }
 
-    // Damped aim point — third-person orbit tracks aim_point rather
-    // than the possessed agent's raw position. The lerp time constant
-    // is tuned so walking lag is imperceptible (~3cm at 15 u/s walking
-    // speed) but a Caps Lock transfer over ~10 units takes about a
-    // second to settle. FPV bypasses this — first-person view requires
-    // the camera to be exactly on the pawn each frame.
+    // Damped aim point — third-person orbit tracks aim_point rather than
+    // the possessed body's raw position. A first-order ease trails a
+    // constant-velocity target by v·tau at steady state, so tau IS the trail:
+    // 4.5 wu at the pawn's 15 u/s walk (imperceptible in a third-person
+    // frame), while a Caps Lock transfer over ~10 units still takes about a
+    // second to settle. FPV bypasses this — first-person view requires the
+    // camera to be exactly on the pawn each frame.
+    //
+    // ─── THE KITE LOCK (KITE_1, RIBBON host only) ────────────────
+    //
+    // Riding, that same trail is 12 wu — 40 wu/s × 0.30 s — and the head
+    // flies out of the frame the boarding placed it in. Since the trail is
+    // v·tau EXACTLY, adding v·tau back to the target cancels it identically,
+    // at any dt, while transients and ring-0's wave sway still pass through
+    // the ease and keep their filtering. The camera locks to the FLIGHT, not
+    // to the oscillation.
+    //
+    // v_cmd is the head's commanded motion, recomposed here because the head
+    // stores no speed: flight is −dir(heading) at throttle_eased ×
+    // config.ribbon_max_speed — ribbon_head's own step, read back through the
+    // window the chase above already reads — and y_vel is the pen's vertical
+    // rate (realized, the spring's output toward alt_target; it is the only
+    // vertical the head stores, and it is what the seat actually climbs at).
+    //
+    // The ramp is the SEAT's own boarding ease, read exactly as
+    // behavior_player_controlled reads it. The seat is what the camera
+    // chases, so a feed-forward that outran the seat's arrival would let
+    // boarding lead. mount_kind is 1 or 0 in this branch — landing eases onto
+    // the walked pose, by which time the point no longer rides.
+    //
+    // config.camera_chase_ff at 0 restores the plain trail exactly, which
+    // makes the dial the proof that this is the mechanism. The PAWN path
+    // takes none of it: aim_target is pawn_pos, and the walk kite is
+    // byte-identical to the one it was.
     let pawn_pos = compute_pawn_pos();
     {
         let tau = 0.30;
         let alpha = 1.0 - exp(-signal.dt / tau);
-        camera.aim_point = mix(camera.aim_point, pawn_pos, alpha);
+        var aim_target = pawn_pos;
+        if (point_ribbon_hosted()) {
+            let hd = ribbon_body_read.head;
+            let speed = hd.throttle_eased * config.ribbon_max_speed;
+            let v_cmd = vec3(-cos(hd.heading) * speed, hd.y_vel, -sin(hd.heading) * speed);
+            var mount_e = 1.0;
+            if (signal.mount_kind == 1u) { mount_e = mount_ease(signal.mount_phase); }
+            aim_target += v_cmd * (mount_e * config.camera_chase_ff * tau);
+        }
+        camera.aim_point = mix(camera.aim_point, aim_target, alpha);
     }
 
     if (fpv_mode_active()) {
