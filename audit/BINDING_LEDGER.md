@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `b30b8dd5460c47a7f526f6f7b25cfda52f90b45e` |
-| | GOL_ROWS_2 E2: Day & night's seed is biased off the critical point |
+| source commit | `854fc0e88dcbe946da8246792d25ef236010395e` |
+| | GOL_ROWS_3 F2: Day & night becomes Plateau, the majority rule |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f451e5c1b5d709b1c7fabd486410055f2e270a05f3f6cf129a18382cdda8a0e4` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:e63862b9c2383f80e918e8998caede22559e3d440f11b7b7c17b277c62c327b3` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:a16e5f22343f533a8775f00b4ad49e228fc8fb3b8aab1809ad446f33ade2f52a` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:eee3a9b187663f99f922257167806c5609372b81f409a0f4cdb968e8129ca44a` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -30,7 +30,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | caller file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/bodies/gallery.hpp` | `c9c654855f07bd0ea7fc6ef624bac49530b21788df1171d4a543c97aa278713e` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `8a28f997af9c6a275dcaff96628db21c54f7ad93d40058da270403c091708294` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `28a3328325b2f589a4961ab7d78d6d01017143ec92c3bbe00b46e426cdc9f7f3` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/cartridge.hpp` | `7db7d8d6f48d11ed83b4bf0dd2ebfe3a108a5e117c337dabc533a0fd27833d69` |
