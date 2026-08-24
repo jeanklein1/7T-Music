@@ -3809,13 +3809,16 @@ fn coupling_velocity_to_pawn_heading(velocity: vec2<f32>, current_heading: f32, 
 
 // §3.7 GoL → evolution
 
-// --- [COUPLING:gol→next_state] Conway's rules
-fn coupling_gol_next_state(alive: bool, neighbors: i32) -> f32 {
-    if (alive) {
-        return select(0.0, 1.0, neighbors == 2 || neighbors == 3);
-    } else {
-        return select(0.0, 1.0, neighbors == 3);
-    }
+// --- [COUPLING:gol→next_state] the zone's own birth/survival rule
+// rule_mask is a bitset: bit n = birth on n neighbours, bit 9+n =
+// survival on n. neighbors is a Moore-neighbourhood count, 0..8 by
+// construction, so 9 + n never reaches the shift width.
+// B3/S23 — Conway — is 0x1808u, and every row carried that until
+// GOL_RULES_1 gave three rows a rule of their own.
+fn coupling_gol_next_state(alive: bool, neighbors: i32, rule_mask: u32) -> f32 {
+    let n = u32(neighbors);
+    let bit = select(n, 9u + n, alive);
+    return select(0.0, 1.0, (rule_mask & (1u << bit)) != 0u);
 }
 
 // §4 DYNAMICS
@@ -7137,7 +7140,8 @@ fn apply_boundary(x: f32, mode: u32) -> f32 {
 // The result drives the same spring dynamics as Conway's binary alive/dead.
 fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
                      tick_period: f32, phase_randomness: f32,
-                     tempo_randomness: f32) -> f32 {
+                     tempo_randomness: f32, field_fn: u32,
+                     grid_size: u32) -> f32 {
     // Per-cell phase offset from hash
     let h = gol_cell_hash(cell_x, cell_y);
     let cell_phase = gol_cell_variation(h) * phase_randomness * 2.0 * PI;
@@ -7146,6 +7150,28 @@ fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
     // tempo_randomness=0 → all unison. =1 → ±50% frequency variation.
     let h2 = gol_cell_hash(cell_x + 137u, cell_y + 251u);
     let tempo_jitter = 1.0 + (gol_cell_variation(h2) - 0.5) * tempo_randomness;
+
+    if (field_fn == PULSE_FIELD_SPIRAL) {
+        // A two-armed phase spiral about the zone centre, CONTINUOUS where
+        // BREATH is binary. Nothing clamps this return: the shared
+        // critically damped spring drives visual to whatever it is, and the
+        // gradation between neighbouring cells IS the row. Height never
+        // reads it — the Spiral tier sets force_no_height, so alive_height
+        // was already zeroed at derive; tint does, which is the intent.
+        // The two scatter terms above are reused verbatim at the same
+        // placement BREATH gives them: tempo on the temporal rate, phase on
+        // the accumulated phase. (No TAU constant exists in this module;
+        // 2.0 * PI is the idiom already in this function.)
+        let n = f32(grid_size);
+        let p = vec2<f32>(f32(cell_x) + 0.5 - n * 0.5, f32(cell_y) + 0.5 - n * 0.5);
+        let r = length(p);
+        let th = atan2(p.y, p.x) / (2.0 * PI);
+        let arms = 2.0;
+        let arm_wavelength = n * 0.5;
+        let u = th * arms + r / arm_wavelength
+              - t_beats * tempo_jitter / max(tick_period, 0.01);
+        return 0.5 + 0.5 * cos(u * 2.0 * PI + cell_phase);
+    }
 
     // DRIVERLESS since gen-1 retirement — held at neutral by the boot
     // block; revive via a gen-2 coupling or delete on the next pass here.
@@ -10278,21 +10304,24 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
                     if (zone_life[base + GOL_CELL_TARGET + ni] > 0.5) { count++; }
                 }
             }
-            let next = coupling_gol_next_state(tgt > 0.5, count);
+            let next = coupling_gol_next_state(tgt > 0.5, count, z.rule_mask);
             zone_life[base + GOL_CELL_NEXT + idx] = next;
         }
     } else {
-        // Pulse: per-cell on/off target on a sinusoidal schedule (no neighbor
-        // rules). Binary like Conway, so cells plant on the ground / at full
-        // height instead of hovering at mid-extension; the shared spring
-        // smooths the transitions. Written every frame (deterministic from
-        // t_beats), not tick-gated.
+        // Pulse: the tier's field function writes the per-cell target, no
+        // neighbor rules. BREATH is binary like Conway, so cells plant on
+        // the ground / at full height instead of hovering at mid-extension;
+        // the shared spring smooths the transitions. A continuous field
+        // returns whatever it returns and the same spring tracks it.
+        // Written every frame (deterministic from t_beats), not tick-gated.
         let raw_target = pulse_cell_target(
             cell.x, cell.y,
             zone_config.t_beats,
             z.tick_period,
             z.phase_randomness,
-            z.tempo_randomness
+            z.tempo_randomness,
+            z.field_fn,
+            z.grid_size
         );
         zone_life[base + GOL_CELL_NEXT + idx] = raw_target;
         // For Pulse, also copy directly to TARGET (no sync delay needed)
