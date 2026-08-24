@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `4b147afec050ab99e2dfe6fe2e505e2228951383`
-(WALLS_2: an authored record keeps its image until the replacement lands)
+Last commit touching any scanned file: `b5c4a44b9a88218a330d70cabbb707e5863ae7b8`
+(WALLS_3: a record's claimed painting and its shown painting are two facts)
 
 | file scanned | sha256 |
 |---|---|
@@ -16,7 +16,7 @@ Last commit touching any scanned file: `4b147afec050ab99e2dfe6fe2e505e2228951383
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:e5b2a994ccf0d8586013fd3c89956d95d7b6156b4294340a175a4dc18fea1123` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:d78340de47bdb988b351f7de92cae2adb15ee0c623a62541447a17c614370469` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:c9c654855f07bd0ea7fc6ef624bac49530b21788df1171d4a543c97aa278713e` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/pawn.cpp` | `sha256:e7ae20cb9d84139e6f795bbe79c539d236bf0034f3d64617b56c5d2c53487ce4` |
 | `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |
@@ -47,8 +47,8 @@ in `console.hpp`.
 | 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:763` | — | — | — |
 | 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:776` | — | — | — |
 | 14 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1526` | — | — | — |
-| 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1585` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
+| 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1544` | — | — | — |
+| 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1603` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
 | 17 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:743` | — | — | — |
 | 18 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:764` | — | — | — |
 | 19 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:779` | — | — | — |
