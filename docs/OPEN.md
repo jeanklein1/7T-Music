@@ -123,6 +123,105 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## WALLS_1 — the dial landed, the fix did not: what recon disproved
+
+Origin: WALLS_1 (COMMIT 1 on master, base `41bda81`). COMMIT 1 landed. COMMIT 2
+is STOPPED and COMMIT 3 was not written, per R3's standing instruction. The
+campaign's diagnosis did not survive its own recon, and the fix as specified
+collides with the hazard R4 was written to catch.
+
+- THE STATED DEFECT CANNOT HAPPEN: A MOOD CHANGE IS ALWAYS A PORTAL CROSSING.
+  `place_wall_paintings` ← `apply_mood_indoor_shell` ← `apply_mood`, and
+  `apply_mood` has exactly two call sites — `cartridge.hpp:685` (boot) and
+  `cartridge.hpp:1355`. The second sits in the destination block that calls
+  `teardown_gallery` at `cartridge.hpp:1308`, forty-seven lines of
+  straight-line code earlier, whose last line clears `consumed` on every
+  authored record. `pendingDestination_` is written in one place
+  (`cartridge.hpp:1590`, from an arch's destination), so there is no
+  mood-change path that is not a portal crossing. Every indoor room is
+  therefore hung against a fully released `consumed` array, and the stated
+  cascade — 28 of 32 in the first room, four in the second, zero in the third
+  — cannot occur.
+- THE SYMPTOM IS REAL AND THE ARITHMETIC IS RIGHT; THE MECHANISM IS ROTATION,
+  NOT ACCUMULATION. `teardown_gallery` calls `rotate_authored_staging` BETWEEN
+  freeing the layers and clearing `consumed`, and the rotation's selector is
+  `consumed`: for every consumed slot it calls
+  `load_authored_image_to_staging`, which sets `valid = false, pending = true`
+  and queues a network fetch. `AUTHORED_FETCH_INFLIGHT_CAP` is 1, so the
+  refetches run one at a time over a round trip, while `place_wall_paintings`
+  runs in the SAME FRAME and selects on `valid && !consumed`. The room is
+  hung only from the slots rotation did NOT touch — the ones the previous
+  world did not exhibit. A four-wall room at `per_wall_cap` 7 consumes up to
+  28 of 32, so the NEXT room opens with four valid records. The handoff's
+  numbers are correct; they land one world later, through `valid`, not
+  through `consumed`. Recovery is gradual as fetches land, which is the
+  intermittency.
+- SO COMMIT 2 WOULD WORK, BY THE OPPOSITE MECHANISM — AND WOULD FREEZE THE
+  LIBRARY (R4). Clearing `consumed` at layer release leaves few slots consumed
+  at teardown, so rotation invalidates few and the rooms fill. But rotation
+  then has almost nothing to revisit: `rotate_authored_staging` skips every
+  slot with `if (!consumed) continue`, so the 57-image library stops cycling
+  through the 32 staging slots and every world hangs the same 32 pictures.
+  E2.3 applied to `teardown_gallery`'s loop as the handoff directs makes the
+  freeze total — that loop runs immediately before the rotation.
+- THE FLAG IS OVERLOADED, AND THAT IS THE RULING TO MAKE. `consumed` carries
+  two meanings: (a) "currently exhibited", which selection reads, and (b)
+  "shown in this world, so rotate it out at world end", which the rotation
+  reads. E2.1–E2.3 collapse (b) into (a) and drop (b) silently. The remedy
+  that keeps both is small and mechanical — leave `consumed` meaning (a) as
+  the campaign intends, and give the rotation its own flag, set at the four
+  claim sites and cleared by the rotation itself. That is a change to
+  `GalleryState`'s shape and to what a world remembers, so it is Jean's.
+  Unblocked by his word on that split, or by a ruling that rotation may
+  freeze in exchange for full rooms.
+- R3, ANSWERED (b), WITH ITS CONSEQUENCE REVERSED. Entering an indoor mood
+  does NOT evict resident outdoor patches: `evict_paintings_for_patch` is
+  reached only from `evict_gallery`, which is the patch system's
+  radius-driven evictor (`EVICT_BUDGET_PER_FRAME` 4), and nothing on
+  `apply_mood`'s indoor path calls it. But the contention the question fears
+  does not exist, because `teardown_gallery` frees ALL forty exhibition
+  layers at `cartridge.hpp:1308` before `apply_mood` runs. The walls meet an
+  empty array, not a full one. No ruling is owed on whether the world keeps
+  its sand galleries across an indoor visit — it already does not.
+- THE ONE LEAK THAT IS REAL, AND IS OUTDOOR: `evict_paintings_for_patch`
+  frees an exhibition layer without releasing its record, and it runs
+  continuously as the pawn walks and patches churn. Within one world the
+  authored pool therefore walks down to nothing and outdoor authored
+  galleries stop placing until the next portal. SAND_1 made galleries far
+  more common, so this bites sooner than it did. It is the same law COMMIT 2
+  states and it is fixed by the same edit — and it carries the same rotation
+  trade, which is why no part of E2.3 was landed piecemeal.
+- `clear_wall_paintings` HAS THE SAME SHAPE AND IS INERT: it frees layers
+  without releasing records, but it only ever runs immediately after a
+  teardown that released everything, or at the head of
+  `place_wall_paintings` on a room whose records the same teardown already
+  cleared. Correctness wants the fix; nothing observable does.
+- R2 AND R4, CLEAN. Four claim sites (`commit_gallery` snapshot + authored,
+  `place_wall_paintings` snapshot + authored) and three release sites
+  (`evict_paintings_for_patch`, `clear_wall_paintings`, `teardown_gallery`)
+  — the counts the campaign required. `rotate_authored_staging` has exactly
+  one caller, `teardown_gallery`. No fifth claim site exists.
+- THE DUPLICATE QUESTION, CLOSED: E2.3 could not have shown one image twice
+  in one room. `place_wall_paintings` releases nothing between walls — its
+  only `clear_wall_paintings` call is at its head, before any wall is
+  planned — so `consumed` accumulates monotonically across the walls of one
+  room exactly as it does today, and it is `consumed`, not the per-wall
+  claim masks, that later walls read. The rider's STOP does not fire.
+- THE WITNESS, UNCHANGED AND EXACT (R1). The console line carries a trailing
+  site-type field the handoff's version omits:
+  `[WallPainting] Placed N painting(s) + M snapshot(s) across K walls (TYPE)`.
+  No commit here touched it.
+
+### The readings WALLS_1 is not closed without
+
+COMMIT 1 alone is stampable now: (4) THREE OR FOUR — `across K walls` never
+reads 1 or 2. The rest wait on the ruling above, and reading (1) THE
+STARVATION, REPRODUCED — enter several indoor moods in one session and watch
+`Placed N + M` fall while `across K walls` holds at 3 or 4 — is now the
+witness for the ROTATION account rather than the accumulation one: the drop
+should track what the PREVIOUS room hung, and should recover as
+`[Authored] Rotated` fetches land.
+
 ## SAND_2 — one sizing law, and the one thing it does not cover
 
 Origin: SAND_2 (one commit on master, base `88c7a66`). `commit_gallery`'s two
