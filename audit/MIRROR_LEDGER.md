@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `038062bd7fe15c66ec064ceffe5802e0776b0284` |
-| | SAND_1: the ledgers re-stamp against the moved lines |
+| source commit | `6ba15e45a312a743ae42b415cf5b3f0d704a979d` |
+| | SAND_2: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:43e9d647ccc1a387c200576dc4292c583477cb5050166f0ae20b1109eda283be` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:17f0f97c95e6e44af5efdd9a0362bc99a15b73b8cefea7814d3bef89b5c5034a` |
