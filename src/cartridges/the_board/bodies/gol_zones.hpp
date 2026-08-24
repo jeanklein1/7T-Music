@@ -108,16 +108,21 @@ struct GoLZoneProp {
 struct GoLZoneSpawnConfig {
     static constexpr float SPAWN_CHANCE = 0.60f;  // fraction of checkerboard zones
     // Fraction of zones that get extrusion. The roll refuses no zone; the
-    // only flat zones left are the two tiers whose identity is flatness
-    // (Conway Flash, Pulse Sparkle set force_no_height), so the delivered
-    // rate is 0.8755. Recipe: each family's weights sum to 1, and
-    // GOL_PULSE_ALGORITHM_CHANCE = 0.35 splits them, so the flat weight is
-    // 0.65 x Flash 0.03 + 0.35 x Sparkle 0.30 = 0.1245, and 1.0 - 0.1245
-    // = 0.8755. See the tier tables below.
+    // only flat zones left are the three tiers whose identity is flatness
+    // (Conway Flash, Pulse Sparkle and Pulse Spiral set force_no_height),
+    // so the delivered rate is 0.8335. Recipe: each family's weights sum
+    // to 1, and GOL_PULSE_ALGORITHM_CHANCE = 0.35 splits them, so the flat
+    // weight is 0.65 x Flash 0.03 + 0.35 x (Sparkle 0.24 + Spiral 0.18)
+    // = 0.0195 + 0.147 = 0.1665, and 1.0 - 0.1665 = 0.8335. See the tier
+    // tables below.
     // (TUNE_1 A10 moved Flash 0.17 -> 0.03, which is an INPUT to this
-    //  recipe. Flat zones went 0.2155 -> 0.1245 — about one in eight, not
-    //  rare — and Pulse Sparkle, untouched by A10, now owns 84% of what
-    //  flatness remains.)
+    //  recipe. As of A10 flat zones went 0.2155 -> 0.1245 — about one in
+    //  eight, not rare — and Pulse Sparkle, untouched by A10, owned 84%
+    //  of what flatness remained.
+    //  GOL_RULES_1 is this recipe's SECOND input: it reweighted both
+    //  families and added Spiral, a second force_no_height Pulse row.
+    //  Flat zones are now 0.1665 — about one in six — and the flat weight
+    //  splits Flash 12% / Sparkle 50% / Spiral 38%.)
     static constexpr float HEIGHT_CHANCE = 1.00f;
     static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
     // Per-cell height factor seeding (Gaussian draw per cell)
@@ -245,7 +250,7 @@ struct PulseZoneProp {
 };
 
 // ── Pulse Tier Profile ───────────────────────────────────────────
-inline constexpr uint32_t GOL_PULSE_TIER_COUNT = 3;
+inline constexpr uint32_t GOL_PULSE_TIER_COUNT = 4;
 
 struct GolPulseTierProfile {
     // ─── Field ───────────────────────────────────────────────
@@ -287,13 +292,28 @@ struct GolPulseTierProfile {
 // mirror — when tuning, change both sides.
 //                                     field                  tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd                    cells
 inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
-    /* 0: Breathe  */ { PulseField::BREATH,  2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT, 32u },
-    /* 1: Sparkle  */ { PulseField::BREATH,  0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT, 16u },
-    /* 2: Drift    */ { PulseField::BREATH,  4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP, 8u },
+    /* 0: Breathe  */ { PulseField::BREATH,  2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.38f, false, BoundaryMode::REFLECT, 32u },
+    /* 1: Sparkle  */ { PulseField::BREATH,  0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.24f, true,  BoundaryMode::REFLECT, 16u },
+    /* 2: Drift    */ { PulseField::BREATH,  4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.20f, false, BoundaryMode::WRAP, 8u },
+    // GOL_RULES_1. The first Pulse row that is not BREATH, and the first
+    // whose target is continuous rather than binary. Read the values as
+    // intent:
+    //  · stiff spring (8.0) so the continuous target is TRACKED rather
+    //    than smeared;
+    //  · phase and tempo scatter near zero — coherence is the point; a
+    //    little shimmer, no more, or the arms come apart;
+    //  · wander_radius 0 — the spiral centre IS the zone centre and does
+    //    not move; a wandering centre smears the arms;
+    //  · 32 cells, because a spiral does not read at 16;
+    //  · force_no_height, which is also the safety of the fractional
+    //    target: select_gol_zone forces height_enabled = false for such
+    //    rows, so height never reads a fractional visual. Tint does, and
+    //    that is the intent.
+    /* 3: Spiral   */ { PulseField::SPIRAL,  3.0f, 0.8f,   8.0f, 2.0f,   0.30f, 0.06f,   0.03f, 0.01f,   0.02f, 0.01f,   0.0f, 0.0f,   0.0f, 0.0f,   0.10f,  0.18f, true,  BoundaryMode::WRAP, 32u },
 };
 
 inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {
-    "Breathe", "Sparkle", "Drift"
+    "Breathe", "Sparkle", "Drift", "Spiral"
 };
 
 // ── The tier's zone size (UNIFIED_GROUND_1 U5) ───────────────────

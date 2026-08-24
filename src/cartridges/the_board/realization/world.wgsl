@@ -2239,14 +2239,17 @@ struct GolPulseTierParams {
     grid_cells: u32,          // zone side in cells (Jean-tunable)
 }
 
-const GOL_PULSE_TIER_COUNT: u32 = 3u;
+const GOL_PULSE_TIER_COUNT: u32 = 4u;
 
 //                                            field                    tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd  cells
 // (cells column: UNIFIED_GROUND_1 U5 — 32/16/8 by weight order; Jean-tunable.)
-const GOL_PULSE_TIERS = array<GolPulseTierParams, 3>(
-    /* 0: Breathe  */ GolPulseTierParams( PULSE_FIELD_BREATH,  2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u, 32u ),
-    /* 1: Sparkle  */ GolPulseTierParams( PULSE_FIELD_BREATH,  0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u, 16u ),
-    /* 2: Drift    */ GolPulseTierParams( PULSE_FIELD_BREATH,  4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u, 8u ),
+const GOL_PULSE_TIERS = array<GolPulseTierParams, GOL_PULSE_TIER_COUNT>(
+    /* 0: Breathe  */ GolPulseTierParams( PULSE_FIELD_BREATH,  2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.38, 0u, 0u, 32u ),
+    /* 1: Sparkle  */ GolPulseTierParams( PULSE_FIELD_BREATH,  0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.24, 1u, 0u, 16u ),
+    /* 2: Drift    */ GolPulseTierParams( PULSE_FIELD_BREATH,  4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.20, 0u, 1u, 8u ),
+    // GOL_RULES_1 — the continuous field row. Rationale lives with the CPU
+    // twin in bodies/gol_zones.hpp; this is the same row.
+    /* 3: Spiral   */ GolPulseTierParams( PULSE_FIELD_SPIRAL,  3.0, 0.8,   8.0, 2.0,   0.30, 0.06,   0.03, 0.01,   0.02, 0.01,   0.0, 0.0,   0.0, 0.0,   0.10,  0.18, 1u, 1u, 32u ),
 );
 
 
