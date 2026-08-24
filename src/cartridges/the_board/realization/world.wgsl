@@ -2187,7 +2187,7 @@ const GOL_TIERS = array<GoLTierParams, GOL_TIER_COUNT>(
     // cities"). Rationale lives with the CPU twin in bodies/gol_zones.hpp;
     // these are the same rows.
     /* 7: DAY&NIGHT*/ GoLTierParams(0x3B1C8u, 0.50, 0.06,   4.0, 1.0,   6.0, 1.5,   0.10, 0.02,  30.0, 8.0,  0.08,  0.09, 0u, 32u),
-    /* 8: CAULDRON */ GoLTierParams(0x79F0u,  0.50, 0.05,   6.0, 1.5,   1.2, 0.3,   0.20, 0.05,   5.0, 1.5,  0.15,  0.08, 0u, 24u),
+    /* 8: CAULDRON */ GoLTierParams(0x79F0u,  0.50, 0.05,   2.5, 0.6,   1.2, 0.3,   0.40, 0.08,   5.0, 1.5,  0.15,  0.08, 0u, 24u),
     /* 9: HIGHLIFE */ GoLTierParams(0x1848u,  0.30, 0.05,   0.6, 0.15,  9.0, 2.0,   0.20, 0.04,  10.0, 3.0,  0.22,  0.07, 0u, 32u),
 );
 

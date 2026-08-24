@@ -226,18 +226,22 @@ inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
     //  · Cauldron, once "Walled cities", builds no walls at any reachable
     //    size: 0 of 32 seeds reached a fixed point in 4000 generations and
     //    not one cell was static, at every size 24..128 and every density
-    //    0.25..0.65. It is a dense slow boil at ~53% live, and it is named
-    //    for what it does. Mask, density and cells are the rule's own
+    //    0.25..0.65. It is a dense boil at ~53% live, and it is named for
+    //    what it does. Mask, density and cells are the rule's own
     //    requirement and stay. LOW height is what makes a permanently
-    //    churning field a textured surface instead of a strobing forest,
-    //    and a deliberately smeared spring (omega = 3 / (0.20 x 6.0) =
-    //    2.5) makes it shimmer rather than strobe.
+    //    churning field a textured surface instead of a strobing forest.
+    //    GOL_ROWS_2: the 6.0 tick was authored for a freeze that never
+    //    comes, and at 120bpm it was three seconds a generation — slower
+    //    than a boil can be seen to be. At 2.5 with transition 0.40 the
+    //    cell spends about two fifths of its tick in transit
+    //    (omega = 3 / (0.40 x 2.5) = 3.0), so the field shimmers
+    //    continuously instead of stepping.
     //  · HighLife must be 32 cells or the replicator has no room and the
     //    row reads as thin Conway. Brisk tick so replication is visible.
     //    Untouched by GOL_ROWS_1 — the witness ran Hickerson's replicator
     //    on this row's own grid and watched one 12-cell seed become two.
     /* 7: Day&night*/ { 0x3B1C8u, 0.50f, 0.06f,   4.0f, 1.0f,   6.0f, 1.5f,   0.10f, 0.02f,  30.0f, 8.0f,  0.08f,  0.09f, false, 32u },
-    /* 8: Cauldron */ { 0x79F0u,  0.50f, 0.05f,   6.0f, 1.5f,   1.2f, 0.3f,   0.20f, 0.05f,   5.0f, 1.5f,  0.15f,  0.08f, false, 24u },
+    /* 8: Cauldron */ { 0x79F0u,  0.50f, 0.05f,   2.5f, 0.6f,   1.2f, 0.3f,   0.40f, 0.08f,   5.0f, 1.5f,  0.15f,  0.08f, false, 24u },
     /* 9: HighLife */ { 0x1848u,  0.30f, 0.05f,   0.6f, 0.15f,  9.0f, 2.0f,   0.20f, 0.04f,  10.0f, 3.0f,  0.22f,  0.07f, false, 32u },
 };
 
