@@ -225,8 +225,16 @@ struct GalleryConfig {
     // In mixed mode: per-painting chance of being the minority content
     static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.35f;  // chance each outdoor painting is authored
 
-    // Photographer pacing by archetype
-    static constexpr float PHOTO_PACE_BY_ARCHETYPE[4] = { 0.7f, 0.8f, 1.5f, 1.5f };
+    // Photographer pacing by archetype. FLAT, AND DELIBERATELY SO (SAND_1).
+    // The old row slowed the photographer to 1.5x trigger distance on basin
+    // and pool while GALLERY_CHANCE put galleries there at 0.70/0.85 — the
+    // program wanted exhibitions on sand and would not photograph it, which
+    // is the whole of why the sand read as empty. 0.6 is below the old
+    // fastest tier: one capture per ~15 wu walked everywhere, against 37.5
+    // on sand before. A flat table is a dead mechanism and this one is kept
+    // only until the even distribution is seen; if it is right, the row
+    // folds into TRIGGER_DISTANCE_MEAN and this table goes.
+    static constexpr float PHOTO_PACE_BY_ARCHETYPE[4] = { 0.6f, 0.6f, 0.6f, 0.6f };
 
     // Gallery center jitter (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.30f;
