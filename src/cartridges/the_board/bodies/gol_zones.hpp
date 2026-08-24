@@ -72,6 +72,14 @@ struct BoundaryMode {
     static constexpr uint32_t WRAP = 1;
 };
 
+// The Pulse rows' field function: which spatial law writes the per-cell
+// target. BREATH is the per-cell sinusoid the algorithm shipped with.
+// L3 MIRROR: world.wgsl PULSE_FIELD_*.
+struct PulseField {
+    static constexpr uint32_t BREATH = 0;   // what ships today
+    static constexpr uint32_t SPIRAL = 1;
+};
+
 // ═══ ZONE-LEVEL VOCABULARY (shared across both algorithms) ═══════
 
 // ── Property Index Registry (seed band 250, indices 920–939) ─────
@@ -149,6 +157,11 @@ struct GoLColorMode {
 inline constexpr uint32_t GOL_TIER_COUNT = 7;
 
 struct GoLTierProfile {
+    // ─── Rule ────────────────────────────────────────────────
+    // Conway B/S as a bitset: bit n = birth on n neighbours, bit 9+n =
+    // survival on n. B3/S23 is 0x1808u. L3 MIRROR: world.wgsl GOL_TIERS.
+    uint32_t rule_mask;
+
     // ─── Initial conditions ──────────────────────────────────
     float density_mean, density_sigma;
 
@@ -182,15 +195,15 @@ struct GoLTierProfile {
 // in its bind), so the order now reads 24,32,16,16,32,16,24. The column is
 // Jean-tunable per row and its VALUES are unchanged; only the descending-
 // rank pattern is gone. Re-author the cells if the pattern is wanted back.
-//                                          dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h   cells
+//                                     rule       dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h   cells
 inline constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-    /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.14f, false, 16u },
-    /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.22f, false, 32u },
-    /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.12f, false, 32u },
-    /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.04f, false, 16u },
-    /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
-    /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.15f, false, 16u },
-    /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.30f, false, 24u },
+    /* 0: Pillars  */ { 0x1808u,  0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.14f, false, 16u },
+    /* 1: Sparse   */ { 0x1808u,  0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.22f, false, 32u },
+    /* 2: Moderate */ { 0x1808u,  0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.12f, false, 32u },
+    /* 3: Dense    */ { 0x1808u,  0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.04f, false, 16u },
+    /* 4: Flash    */ { 0x1808u,  0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.03f, true,  24u },
+    /* 5: Monolith */ { 0x1808u,  0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.15f, false, 16u },
+    /* 6: Glacier  */ { 0x1808u,  0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.30f, false, 24u },
 };
 
 inline constexpr const char* GOL_TIER_NAMES[] = {
@@ -217,6 +230,9 @@ struct PulseZoneProp {
 inline constexpr uint32_t GOL_PULSE_TIER_COUNT = 3;
 
 struct GolPulseTierProfile {
+    // ─── Field ───────────────────────────────────────────────
+    uint32_t field_fn;         // PulseField:: — which law writes the target
+
     // ─── Temporal ────────────────────────────────────────────
     float tick_period_mean, tick_period_sigma;
 
@@ -251,11 +267,11 @@ struct GolPulseTierProfile {
 // MUST match world.wgsl's GOL_PULSE_TIERS cells column
 // (UNIFIED_GROUND_1 U5 — "32/16/8 by weight order"). Hardware
 // mirror — when tuning, change both sides.
-//                                              tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd                    cells
+//                                     field                  tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd                    cells
 inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
-    /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT, 32u },
-    /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT, 16u },
-    /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP, 8u },
+    /* 0: Breathe  */ { PulseField::BREATH,  2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT, 32u },
+    /* 1: Sparkle  */ { PulseField::BREATH,  0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT, 16u },
+    /* 2: Drift    */ { PulseField::BREATH,  4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP, 8u },
 };
 
 inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {

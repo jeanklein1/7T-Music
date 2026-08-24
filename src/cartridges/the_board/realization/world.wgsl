@@ -2131,6 +2131,12 @@ const GOL_ZONE_HEIGHT_CHANCE: f32  = 1.00;      // every zone the roll sees gets
 const GOL_ZONE_MODE_THRESHOLD: f32 = 0.50;      // min interpolated mode for eligibility
                                                   // (above scatter_edge, well into discrete)
 struct GoLTierParams {
+    // --- Rule
+    // Conway B/S as a bitset: bit n = birth on n neighbours, bit 9+n =
+    // survival on n. B3/S23 is 0x1808u.
+    // L3 MIRROR: bodies/gol_zones.hpp GoLTierProfile::rule_mask.
+    rule_mask: u32,
+
     // --- Initial conditions
     density_mean: f32,             // fraction alive at spawn
     density_sigma: f32,
@@ -2162,20 +2168,20 @@ struct GoLTierParams {
 
 const GOL_TIER_COUNT: u32 = 7u;
 
-//                                                 dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h  cells
+//                                            rule       dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h  cells
 // (cells column: authored by UNIFIED_GROUND_1 U5 as "defaults by weight
 //  order thirds, 32/24/16"; Jean-tunable per row. That descending-rank
 //  pattern held until TUNE_1 A10 re-ranked the weights without touching
 //  the cells — the values are unchanged, the pattern is not. See the CPU
 //  twin in bodies/gol_zones.hpp for the full note.)
 const GOL_TIERS = array<GoLTierParams, 7>(
-    /* 0: PILLARS  */ GoLTierParams(0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.14, 0u, 16u),
-    /* 1: SPARSE   */ GoLTierParams(0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.22, 0u, 32u),
-    /* 2: MODERATE */ GoLTierParams(0.30, 0.08,   1.0, 0.3,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.12, 0u, 32u),
-    /* 3: DENSE    */ GoLTierParams(0.45, 0.10,   0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.04, 0u, 16u),
-    /* 4: FLASH    */ GoLTierParams(0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.03, 1u, 24u),
-    /* 5: MONOLITH */ GoLTierParams(0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.15, 0u, 16u),
-    /* 6: GLACIER  */ GoLTierParams(0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.30, 0u, 24u),
+    /* 0: PILLARS  */ GoLTierParams(0x1808u,  0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.14, 0u, 16u),
+    /* 1: SPARSE   */ GoLTierParams(0x1808u,  0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.22, 0u, 32u),
+    /* 2: MODERATE */ GoLTierParams(0x1808u,  0.30, 0.08,   1.0, 0.3,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.12, 0u, 32u),
+    /* 3: DENSE    */ GoLTierParams(0x1808u,  0.45, 0.10,   0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.04, 0u, 16u),
+    /* 4: FLASH    */ GoLTierParams(0x1808u,  0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.03, 1u, 24u),
+    /* 5: MONOLITH */ GoLTierParams(0x1808u,  0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.15, 0u, 16u),
+    /* 6: GLACIER  */ GoLTierParams(0x1808u,  0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.30, 0u, 24u),
 );
 
 // --- Pulse Algorithm Tier Definitions ────────────────────────────────────
@@ -2193,6 +2199,11 @@ const GOL_TIERS = array<GoLTierParams, 7>(
 // (defined below in the GoL zone system section)
 
 struct GolPulseTierParams {
+    // --- Field
+    // Which spatial law writes the per-cell target (PULSE_FIELD_*).
+    // L3 MIRROR: bodies/gol_zones.hpp GolPulseTierProfile::field_fn.
+    field_fn: u32,
+
     // --- Temporal
     tick_period_mean: f32,
     tick_period_sigma: f32,
@@ -2225,12 +2236,12 @@ struct GolPulseTierParams {
 
 const GOL_PULSE_TIER_COUNT: u32 = 3u;
 
-//                                                       tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd  cells
+//                                            field                    tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd  cells
 // (cells column: UNIFIED_GROUND_1 U5 — 32/16/8 by weight order; Jean-tunable.)
 const GOL_PULSE_TIERS = array<GolPulseTierParams, 3>(
-    /* 0: Breathe  */ GolPulseTierParams( 2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u, 32u ),
-    /* 1: Sparkle  */ GolPulseTierParams( 0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u, 16u ),
-    /* 2: Drift    */ GolPulseTierParams( 4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u, 8u ),
+    /* 0: Breathe  */ GolPulseTierParams( PULSE_FIELD_BREATH,  2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u, 32u ),
+    /* 1: Sparkle  */ GolPulseTierParams( PULSE_FIELD_BREATH,  0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u, 16u ),
+    /* 2: Drift    */ GolPulseTierParams( PULSE_FIELD_BREATH,  4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u, 8u ),
 );
 
 
@@ -7070,6 +7081,10 @@ const GOL_COLOR_LENS:     u32 = 1u;  // shift ground toward per-zone target colo
 // Algorithm constants (must match CPU AlgorithmType::)
 const GOL_ALGORITHM_CONWAY: u32 = 0u;
 
+// Pulse field-function constants (must match CPU PulseField::)
+const PULSE_FIELD_BREATH: u32 = 0u;   // what ships today
+const PULSE_FIELD_SPIRAL: u32 = 1u;
+
 // Boundary mode constants (must match CPU BoundaryMode::)
 const GOL_BOUNDARY_REFLECT: u32 = 0u;
 const GOL_BOUNDARY_WRAP:    u32 = 1u;
@@ -7437,6 +7452,7 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
             max(0.5, sample_gaussian(seed, ZONE_PROP_HEIGHT, tp.alive_height_mean, tp.alive_height_sigma)),
             actual_height);
         zc.spring_variance = tp.spring_variance;
+        zc.rule_mask = tp.rule_mask;
 
         // Pulse fields: zeroed for Conway
         zc.wander_radius = 0.0;
@@ -7493,6 +7509,7 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
             sample_gaussian(seed, ZONE_PROP_TEMPO_RANDOM, pp.tempo_randomness_mean, pp.tempo_randomness_sigma),
             0.0, 1.0);
         zc.spring_variance = pp.spring_variance;
+        zc.field_fn = pp.field_fn;
 
         // Pulse zones always use LENS color mode
         zc.color_mode = GOL_COLOR_LENS;
