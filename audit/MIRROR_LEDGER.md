@@ -23,7 +23,7 @@ carry those facts, or leave them in place and patch around them.
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:e63862b9c2383f80e918e8998caede22559e3d440f11b7b7c17b277c62c327b3` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:4993bdc28caf2583b0987b94a959ad548238adc3398a07482ef196d44f434270` |
+| `audit/BINDING_LEDGER.md` | `sha256:5927f86d714f1fd00af7145bc7a0b5d7c73f7dc6da161348d86c9d636f4add8d` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `3d68e32c2b83b9e299a7ffcbf1905ed9159938ac`
-(WALLS_1: three or four walls, always)
+Last commit touching any scanned file: `4b147afec050ab99e2dfe6fe2e505e2228951383`
+(WALLS_2: an authored record keeps its image until the replacement lands)
 
 | file scanned | sha256 |
 |---|---|
@@ -16,7 +16,7 @@ Last commit touching any scanned file: `3d68e32c2b83b9e299a7ffcbf1905ed9159938ac
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:e5b2a994ccf0d8586013fd3c89956d95d7b6156b4294340a175a4dc18fea1123` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:01d3e7717deb78c7c7c7da165adf3fd61c97f386320495ad40677e79bf420001` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:d78340de47bdb988b351f7de92cae2adb15ee0c623a62541447a17c614370469` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/pawn.cpp` | `sha256:e7ae20cb9d84139e6f795bbe79c539d236bf0034f3d64617b56c5d2c53487ce4` |
 | `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |
