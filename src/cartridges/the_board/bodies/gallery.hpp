@@ -1941,12 +1941,23 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
     auto& rec = gs.authored_staging[staging_layer];
     if (rec.pending) return;   // already spoken for; a second request would race its own slot
 
-    // THE OLD PICTURE STOPS COUNTING NOW, not when the new one lands.
-    // The upload overwrites this staging layer, so a record left valid
-    // would describe a texture that is about to change under it —
-    // teardown's `consumed = false` sweep would then hand the stale
-    // record back to a gallery just in time for the swap.
-    rec.valid = false;
+    // THE RECORD KEEPS ITS PICTURE (WALLS_2). This used to clear `valid`
+    // at REQUEST time, which threw the image away the instant a
+    // replacement was asked for — and the room is hung in the SAME FRAME,
+    // 47 lines after teardown_gallery, from whatever survived. At
+    // AUTHORED_FETCH_INFLIGHT_CAP 1 the replacements arrive over round
+    // trips long after the walls are up, so a four-wall room that used 28
+    // of 32 records left the next one four pictures to hang.
+    //
+    // `pending` already carries "a fetch is outstanding" — it was written
+    // for exactly this distinction one level down, where A REQUEST IS NOT
+    // A PICTURE. `valid` means only "this slot holds an image", and it
+    // does, until onsuccess overwrites it.
+    //
+    // Nothing on a wall moves when the fetch lands: queue_promotion has
+    // already copied this layer into the painting's OWN exhibition layer
+    // (R0), so the staging texture can be replaced underneath a hung
+    // frame with no visible effect.
     rec.pending = true;
     rec.disk_index = disk_index;   // the slot advertises its claim to the rotation cursor
 
