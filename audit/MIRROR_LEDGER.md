@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `39c5197a2adf2a1cdd3383c43920741288917fbb` |
-| | The binding and mirror ledgers name the commit that carried their inputs |
+| source commit | `dcb009d7aabb8943447ff82331067a5685dbd748` |
+| | The indoor suns come off amber and the night's fog ceiling halves — Jean's eye, after the export and against it |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:815a5de8a5f1582af5f6bdefd0dc41ae73b5206f26a24300baf27bdcb56ae08e` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:77e634c84d10eb03254c1a04580e56e9baab09ca0edf5d36741d647537a25a38` |
