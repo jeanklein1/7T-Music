@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `b5c4a44b9a88218a330d70cabbb707e5863ae7b8`
-(WALLS_3: a record's claimed painting and its shown painting are two facts)
+Last commit touching any scanned file: `780bead0b09d416e50d81f6225c88ec86ca7de32`
+(GOL_RULES_1 C5: Spiral joins GOL_PULSE_TIERS)
 
 | file scanned | sha256 |
 |---|---|
@@ -14,7 +14,7 @@ Last commit touching any scanned file: `b5c4a44b9a88218a330d70cabbb707e5863ae7b8
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:7db7d8d6f48d11ed83b4bf0dd2ebfe3a108a5e117c337dabc533a0fd27833d69` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:e5b2a994ccf0d8586013fd3c89956d95d7b6156b4294340a175a4dc18fea1123` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4019fa8c797ffc9001657de4e1a2c36c7f712c341bef223b99cd8d5e64197777` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:b4889ce03f3916864e54540e0aa4735bc898b6baf03105c5ce4012faea4b1b92` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:c9c654855f07bd0ea7fc6ef624bac49530b21788df1171d4a543c97aa278713e` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
@@ -43,9 +43,9 @@ in `console.hpp`.
 | 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1932` | — | — | — |
 | 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
 | 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:197` | — | — | — |
-| 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:675` | — | — | — |
-| 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:763` | — | — | — |
-| 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:776` | — | — | — |
+| 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:743` | — | — | — |
+| 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:831` | — | — | — |
+| 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:844` | — | — | — |
 | 14 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
 | 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1544` | — | — | — |
 | 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1603` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
@@ -60,7 +60,7 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:692` |
+| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:760` |
 | 2 | `app->queue.Submit` | `frame` | `src/pawn.cpp:220` |
 
 2 submit sites. The frame's one submit rides the pawn's
@@ -75,7 +75,7 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:668` |
+| 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:736` |
 | 2 | `"frame"` | `frame` | `src/pawn.cpp:211` |
 
 ## §3 — the swapchain reconfigure trigger
