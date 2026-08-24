@@ -123,7 +123,71 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
-## WALLS_2 — the rooms hang, and the one window it opens
+## WALLS_3 — claimed and shown, split; what R0 could not confirm
+
+Origin: WALLS_3 (one commit on master, base `815f427c`). `AuthoredStagingRecord`
+now carries `shown_disk_index` beside `disk_index`, and the three consequences
+of the overload are closed: the rotation's `disk_in_use` protects the claim AND
+the picture, `authored_fetch_release_slot` falls its claim back to what is
+shown instead of blanking a good image, and the three numeric-order readers
+sort by what is on the wall rather than by what is in flight.
+
+- R0's SECOND CONFIRMATION FAILS, AND THE CAMPAIGN ASSUMED OTHERWISE.
+  `disk_in_use` is `bool disk_in_use[256]` — a FIXED CAP, not a
+  `std::vector<bool>` sized to the manifest. It is documented in place as THE
+  CAP FAILS OPEN: every read is guarded `disk_idx < 256`, so an index past the
+  array short-circuits to "not in use" and the no-duplicates rule quietly
+  stops applying to the overflow. `tools/web_dist.py` mirrors the number as
+  `MANIFEST_DEDUPE_CAP = 256` and warns loudly when a dist exceeds it. Inert
+  at a manifest of 57 and the two constants must move together. WALLS_3 kept
+  the `< 256` guard on its new mark for that reason. Unblocked by a manifest
+  that approaches 256, or by a round that makes the array the manifest's
+  length.
+- THE DEDUP IS TIGHTER NOW, BY DESIGN, AND HERE IS THE MARGIN. A picture is
+  unavailable if any slot claims it or shows it, so a rotation can no longer
+  reissue anything currently held in staging. Against a 57-image manifest and
+  32 staging slots at least 25 pictures are always free; after a heavy world
+  of roughly 28 consumed slots showing 28 distinct pictures, 29 remain for 28
+  rotations — it fits, but not by much. Total lockout would need 32 shown plus
+  26 distinct pending claims. VISUAL GATE 3 is the reading: if
+  `[Authored] Rotated N slot(s)` stalls, this margin is where it went, and a
+  slot that fails to rotate now KEEPS its picture rather than going blank, so
+  a stall costs cycling and not walls. Unblocked by a larger manifest if the
+  eye ever sees it.
+
+### What recon found that the campaign did not expect
+
+- R0, ON ITS MAIN QUESTION: THE PREMISE SURVIVED FALSIFICATION. `disk_in_use`
+  in `rotate_authored_staging` is the only dedup on disk identity anywhere in
+  the tree — there is no `disk_index ==` or `!=` comparison in `src` at all.
+  The boot fill dedupes by CONSTRUCTION (slot i takes disk i, once) rather
+  than by comparison, and `load_authored_image_to_staging`'s `if (rec.pending)
+  return;` guards the slot, not the picture. One site, and E1.3 edited it.
+- R1 REPORTS THREE WRITERS, NOT THE THREE EXPECTED. The rotation's claim and
+  the boot fill's claim are ONE line — both callers reach
+  `load_authored_image_to_staging`. The third expected writer, the failure
+  release, is there. The one the campaign did not list is the ARRIVAL:
+  `authored_stage_decoded_image` writes `rec.disk_index = disk_index` beside
+  the `valid = true` that E1.2 anchors on, which is why E1.2's
+  `shown = rec.disk_index` is exact there and would not have been elsewhere in
+  that function.
+- R2 REPORTS THREE READERS WANTING SHOWN, NOT ONE, AND ALL THREE WERE
+  REPOINTED. `pick_authored_staging` was the expected one. The other two are
+  `commit_gallery`'s authored fallback scan and `place_wall_paintings`'s
+  selection — both order by lowest `disk_index`, both choose what to PUT ON A
+  WALL, and both carried the same silent ordering regression WALLS_2 caused.
+  Leaving either on the claim would have left the campaign's own gate 1
+  failing on the outdoor monuments and on the walls themselves. The readers
+  wanting CLAIM — the rotation's cursor logic and the fetch-context plumbing
+  — were left alone.
+- THE GUARDS COST NO ELIGIBILITY, PROVED FROM THE WRITERS. Authored `valid` is
+  written in exactly two places now: the arrival, which sets
+  `shown_disk_index` in the same breath, and the failure release, which sets
+  `valid = (shown != UINT32_MAX)`. So `valid == true` implies
+  `shown_disk_index != UINT32_MAX`, and the `!= UINT32_MAX` skips E1.4 added
+  cannot exclude a record that would previously have been picked.
+
+## WALLS_2 — the rooms hang (its open half closed by WALLS_3)
 
 Origin: WALLS_2 (one commit on master, base `1191f60a`). `rotate_authored_staging`
 no longer throws a picture away at REQUEST time: `load_authored_image_to_staging`
@@ -134,32 +198,10 @@ proved by reading rather than inferred — `drain_gallery_promotions` calls
 staging array into `exhibitionTexture_`, an independent texture. A hung frame
 holds a copy and cannot flicker when its source is replaced.
 
-- THE ONE WINDOW THIS OPENS: A ROOM CAN HANG THE SAME PAINTING TWICE, RARELY.
-  `rotate_authored_staging` dedupes by CLAIM, not by picture — `disk_in_use` is
-  keyed on `disk_index`, and `disk_index` is written at REQUEST time while the
-  texture still holds the OUTGOING image. Before WALLS_2 that desync was
-  harmless because a pending record was `valid = false` and could not be
-  picked. Now it can. So a slot pending for image X while displaying image W
-  protects X and leaves W unclaimed, and once the disk cursor laps the
-  manifest (57 images against at most 32 rotated per teardown, so roughly two
-  rotations, longer when the queue backs up) another slot can be handed W
-  while the first is still showing it. Two records, one picture, and both
-  `usedAuthored` and the per-wall claim masks dedupe by RECORD. Reachable only
-  under sustained fast portalling with fetches still in flight across
-  teardowns — which is the recording scenario. THE REMEDY IS SMALL AND IS NOT
-  A ONE-LINE CHANGE: the record needs to carry its DISPLAYED disk index as
-  well as its claimed one, so the dedup can protect both, which is a field on
-  `AuthoredStagingRecord`. Jean's, and the same sitting as the flag split
-  below could take it. Unblocked by his word.
-- `authored_fetch_release_slot` — REPORTED AS THE CAMPAIGN ASKED, CHANGED
-  NOTHING. It sets `valid = false, consumed = true, disk_index = UINT32_MAX`,
-  and after WALLS_2 that discards a usable old image because a DIFFERENT one
-  failed to arrive; on bad wifi it is a bare wall for the world. It is not a
-  one-line deletion: the record's claim already names the painting that did
-  not arrive while its texture holds the previous one, and keeping `valid`
-  without restoring the old claim hands that picture to a second slot — the
-  same repeat defect as the item above, through the failure door. The old
-  `disk_index` is saved nowhere today. Same remedy, same sitting.
+The two items this section opened — the duplicate window and the failure-path
+desync — were both CLOSED by WALLS_3 (`b5c4a44b`), and their lines have died.
+What remains below is the recon that campaign was built on.
+
 - THE INVALIDATE WAS NOT WHERE THE CAMPAIGN PLACED IT, and the anchor it gave
   matched nothing. The line lives in `load_authored_image_to_staging`, the
   shared helper, not in `rotate_authored_staging`; at the stated eight-space
