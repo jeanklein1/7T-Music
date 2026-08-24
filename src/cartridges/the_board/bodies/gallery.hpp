@@ -197,7 +197,7 @@ struct GalleryConfig {
 
     // Layout: paintings share a facing direction, staggered in two rows.
     // Odd paintings step forward, even step back — the pawn walks between.
-    static constexpr float ROW_SPACING = 18.0f;       // horizontal distance between paintings
+    static constexpr float ROW_SPACING = 26.0f;       // horizontal distance between paintings
     static constexpr float ROW_DEPTH_MIN = 8.0f;      // minimum depth gap between rows
     static constexpr float ROW_DEPTH_RANGE = 4.0f;    // depth jitter on top of minimum
     static constexpr float ROW_LATERAL_JITTER = 2.0f;
@@ -213,14 +213,29 @@ struct GalleryConfig {
     // allowance was never the defect (the count it multiplied was), but 15 put
     // a mean-count gallery at 54.8 wu against a legal 55 in the smallest room —
     // passing by 0.2 wu is luck, not a design.
-    static constexpr float PAINTING_HALF = 9.0f;
+    static constexpr float PAINTING_HALF = 13.0f;
     static constexpr float FAN_MARGIN    = 3.0f;
 
     static constexpr float MONO_TIER_CHANCE = 0.40f;  // 40% mono, 60% chronological
 
-    static constexpr float GALLERY_SIZE_LO = 0.85f;  // smallest gallery mean
-    static constexpr float GALLERY_SIZE_HI = 3.0f;   // largest gallery mean
-    static constexpr float PAINTING_SIZE_SIGMA = 0.3f;   // per-painting jitter around gallery mean
+    // AN AREA DIAL, NOT A SCALE DIAL. scale_x = sqrt(area * aspect), so these
+    // numbers move linear size by their square root: x4 here is x2 on the
+    // canvas. That is why the floor moves by four and the ceiling by less —
+    // "everything bigger, the smallest twice as big" compresses the range by
+    // construction, and the compression is the ruling, not a side effect.
+    //
+    // Resulting widths, against ROW_SPACING 26: smallest work 3.0 -> 5.8 wu,
+    // middle 7.6 -> 11.2, widest case (PANORAMIC at aspect 2.35, top of range,
+    // top of jitter) 22.6 — leaving 3.4 wu of air, which is the clearance the
+    // old row carried at its own ceiling.
+    static constexpr float GALLERY_SIZE_LO = 3.4f;   // smallest gallery mean
+    static constexpr float GALLERY_SIZE_HI = 5.0f;   // largest gallery mean
+    // A FRACTION OF THE SITE MEAN, NOT AN ABSOLUTE OFFSET (SAND_1) — see the
+    // jitter site in commit_gallery. Additive, this was +-0.45 at every size:
+    // a 1.6x spread of width on a small site and 1.14x on a large one, so
+    // raising the floor would have made every work in a gallery the same
+    // size. Fractional holds one character of variation at every scale.
+    static constexpr float PAINTING_SIZE_SIGMA = 0.3f;   // per-painting jitter, FRACTIONAL
 
     // Minimum snapshots before galleries start appearing
     static constexpr uint32_t MIN_POOL_SIZE = 3;
@@ -1377,7 +1392,7 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
             float jitter = (cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_A)
                 + cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_B)
                 + cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_C) - 1.5f) * GalleryConfig::PAINTING_SIZE_SIGMA;
-            float size_mult = std::max(0.5f, gallery_size_mean + jitter);
+            float size_mult = std::max(0.5f, gallery_size_mean * (1.0f + jitter));
             float area = PAINTING_AREA[shot_idx] * size_mult;
             float scale_x = std::sqrt(area * snap.aspect_ratio);
             float scale_y = scale_x / snap.aspect_ratio;
