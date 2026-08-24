@@ -123,6 +123,36 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## PORTAL_3 — the even field (E1/E2 landed at `ee90a85`, E3 open)
+
+- E3 DEFERRED, AWAITING ONE NUMBER. `ArchConfig::SPAWN_CHANCE` stands at
+  `0.050f`. The gate is the arch row `live` count from a boot census in an
+  open world (`live / hi-wtr / cap / portal`; boot and mood-transition dumps
+  are not on the instrument dial). Ruled in advance: `<= 8` -> `0.100f`;
+  `9-12` -> `0.075f`; `>= 13` -> no edit, the array is the constraint and
+  capacity is a separate campaign. Unblocked by the census reading.
+- MORE ARCHES IN GENERAL IS WANTED (Jean, Aug 2026). E3 raises every arch
+  tier, not DOORWAY alone. That side-effect is a BENEFIT, not a cost — the
+  taste gate ARCH_2's "buy portals with the chance" implies is ANSWERED. Do
+  not re-open it, and do not price the big arches as a loss.
+- COUNT BELONGS IN `SPAWN_CHANCE`, NOT IN `THEMES`. `spawn_weight[ARCH]` and
+  `ArchConfig::SPAWN_CHANCE` are the same multiplier; 1.34x in either is
+  identical. The THEMES column now states a SHAPE — flat, at the mean — and
+  buying count there re-introduces the spread E1 removed. One fact, one home.
+- E1 REDISTRIBUTED, IT DID NOT ADD. barren/transition 0.3 -> 0.75 (2.5x more
+  arches); monumental/colonnade 1.0 -> 0.75 (-25%). Global mean held. A dense
+  theme reading as thinned is this, not a defect.
+- THREE ROW BANNERS DESCRIBE ARCH CHARACTER THE NUMBERS NO LONGER CARRY
+  (`population_themes.hpp` THEMES rows 1, 2, 4: "varied arches", "moderate
+  arches", "near-empty"). HELD DELIBERATELY, not overlooked: if E3 returns
+  `>= 13` the tree enters a capacity campaign, and if portals ever become a
+  population separate from arches the banners become true again with no edit.
+  Rewriting prose that may be re-truthed shortly is churn. Unblocked by E3's
+  verdict.
+- PRE-CHANGE BIOGRAPHY IS AT `503f90f`. E1/E2 are frozen-biography edits:
+  every world ever born changed, and `?seed=N` no longer reproduces anything
+  pinned before `551325c`.
+
 ## WALLS_3 — claimed and shown, split; what R0 could not confirm
 
 Origin: WALLS_3 (one commit on master, base `815f427c`). `AuthoredStagingRecord`
