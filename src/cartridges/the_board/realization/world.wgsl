@@ -90,8 +90,8 @@
 //   ACTIVITY_LATTICE_SPACING      400 wu — activity envelope
 //
 // ── GoL Zones (§2.2, §7.0b) ──────────────────────────────────────
-//   GOL_TIERS[7]                  Tier params (density, tick, spring)
-//   GOL_PULSE_TIERS[3]                Pulse algorithm params
+//   GOL_TIERS[10]                 Tier params (rule, density, tick, spring)
+//   GOL_PULSE_TIERS[4]                Pulse algorithm params (field, ...)
 //   GOL_ZONE_SPAWN_CHANCE         0.60 — fraction of discrete zones
 //   GOL_ZONE_HEIGHT_CHANCE        1.00 — fraction with extrusion
 //   GOL_COLOR_WEIGHTS             Color mode probabilities

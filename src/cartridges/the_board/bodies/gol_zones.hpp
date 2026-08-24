@@ -516,7 +516,7 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
                 initial_density = std::max(0.05f, std::min(0.9f,
                     cpu_sample_gaussian(seed, GoLZoneProp::DENSITY,
                         tp.density_mean, tp.density_sigma)));
-                tier_idx = tier;  // Conway: 0–6
+                tier_idx = tier;  // Conway: 0 .. GOL_TIER_COUNT - 1
             }
             else {
                 float w[GOL_PULSE_TIER_COUNT];
