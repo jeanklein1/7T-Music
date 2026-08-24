@@ -383,6 +383,9 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Interaction · Camera | look sens range | `PANEL.camera.look_sens_range` | PANEL | F32 | 1 … 32 | 0.25 | live | none |  |
 | Interaction · Camera | scroll zoom | `PANEL.camera.scroll_zoom_scale` | PANEL | F32 | 0 … 8 | 0.05 | live | none |  |
 | Interaction · Possession | reach | `PANEL.possession.radius` | PANEL | F32 | 0.5 … 80 | 0.5 | live | none |  |
+| Camera · Chase | feed-forward | `CONFIG.camera_chase_ff` | CONFIG | F32 | 0 … 1 | 0.01 | live | none |  |
+| Camera · Presence | push gain | `CONFIG.camera_push_gain` | CONFIG | F32 | 0 … 40 | 0.25 | live | none |  |
+| Camera · Presence | push radius | `CONFIG.camera_push_radius` | CONFIG | F32 | 0 … 80 | 0.5 | live | none |  |
 | Debug ·  | mute dynamics (0D) | `CONFIG.mute_dynamics_0d` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | mute signal | `CONFIG.mute_signal` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | freeze sphere | `CONFIG.freeze_sphere` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
@@ -392,14 +395,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **364** |
-| by section | Agents 109 · Atmosphere 73 · Ribbon 55 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 |
-| by cadence | boundary 180 · driven 20 · gen 40 · live 124 |
-| by macro form | PARAM 128 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 40 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 188 · ORB_MOOD 19 · TIER 32 |
+| entries | **367** |
+| by section | Agents 109 · Atmosphere 73 · Ribbon 55 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 |
+| by cadence | boundary 180 · driven 20 · gen 40 · live 127 |
+| by macro form | PARAM 131 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 40 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 191 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 349 |
+| namespaces | canvas 15 · the_board 352 |
 
 ### Doors
 
@@ -469,7 +472,7 @@ THE ANSWER, ROW BY ROW
   proved    270   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
-  scope      74   GPU-side or whole-struct (blind spots 2, 3)
+  scope      77   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

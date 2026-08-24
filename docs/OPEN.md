@@ -2,6 +2,24 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
+- Sphere repulsion excluded from the witness's presence (motor-sovereign):
+  a sphere subscribes to no behavior force and no presence push — it EMITS
+  the point's push (`row_sphere_push`) and has never been a subscriber to
+  one — so the eye sheds cubes and leaves spheres alone. Origin: KITE_1 C6.
+  Jean's word re-opens it.
+- The witness's carve follows the PHOTOGRAPHER's eye inside the snapshot
+  pass: `patch_terrain_vs` draws there through `framePhotographerGroup_`,
+  whose `frame_r.camera` is the photographer's own, so a gallery painting is
+  carved by the lens that took it rather than by the player's. Ridden
+  deliberately — no distinguisher exists in the shader, and minting one
+  would either move a byte-pinned FrameR offset or cost a pipeline variant.
+  Origin: KITE_1 C4. Jean's word gates it off.
+- The witness carve's height scale is `ZONE_SUPPRESS_OUTER` used as the
+  vertical half of the same reach, because the tree has NO cell-lift
+  ceiling to be the scale instead: `config.indoor_height_cap` is indoor-only
+  with 0 as its disable sentinel, and `GOL_HEIGHT_FACTOR_MAX` is a per-cell
+  multiplier. Origin: KITE_1 C4 (RECON F4). Unblocked by a ruling on what
+  the ceiling should be, or by leaving the reach as the answer.
 - PIPE_0: PARKED per Jean's 2026-08-07 directive. Origin sha of
   docs/HANDOFFS/WEB/PIPE_0_DECISION.md (path retired to git; content at its last sha).
 - STREAM_0: PARKED per Jean's 2026-08-07 directive. Origin sha of
@@ -228,6 +246,14 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   restores the idle-mouse settling). The elevation is his too:
   `RIBBON_CHASE_ELEVATION` 0.25 → 0.6, about 35° to the ribbon's surface.
   What is still owed is the look of that one pose — witness (4) below.
+  EXTENDED BY KITE_1 (W2, and the standing ruling is untouched — pose taken
+  once at boarding, mouse owns azimuth, `RIBBON_CHASE_TAU` still 0.0): the
+  chase now holds the flight instead of trailing it. Board, full throttle,
+  straight — the head should HOLD the screen placement the boarding gave
+  it, sustained, where it used to lead by v·tau (12 wu at 40 wu/s). Hard
+  turns must keep the kite's give, and the sway must stay eased.
+  `Camera · Chase / feed-forward` at 0 restores today's trail, which is the
+  proof the mechanism is the one described. Origin: KITE_1 C2/C3.
 - THE WANDERER STEERS ITSELF. A wanderer should cross its anchor's disc
   target to target and come back, not drift away and never return. The
   brain is the head kernel's now — the target is drawn from the ribbon's
