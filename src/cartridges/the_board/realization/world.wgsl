@@ -9032,22 +9032,34 @@ fn update_camera() {
 
     // ─── Camera terrain clamp: never go underground ──────────────
     //
-    // POLICY_WALKER_TILT (b3 — "camera = live minus suppression"): the
-    // walker's world surface (static base + pyramids + GoL zones + terrain
-    // waves + radial pulses) with the pawn-centered GoL suppression applied,
-    // minus the pawn self-aura. Suppression is centered on the PAWN
-    // (consumer_pos = pawn_pos) so it matches the pawn body's own GoL
-    // suppression: pawn-local GoL — where the body already stands flat —
-    // does NOT lift the camera, while world-anchored waves/pulses and GoL
-    // away from the pawn still clear the camera so animated ridges don't clip
-    // it. Was POLICY_FLYER, which read the RAW (un-suppressed) GoL and lifted
-    // the camera as the pawn passed through a zone (the b3 symptom).
-    // update_camera's pipeline carries the live-contributor Group 1
-    // (computeTextureLayout) — see follow-up brief Part D.
+    // THE AURA IS A FLOOR EXACTLY AS TERRAIN IS (Jean's ruling): the eye
+    // never passes under the visual skin, and the skin includes the pawn's
+    // aura dome. POLICY_WALKER_AGENT is the surface that says so — the
+    // shared world stack (static base + pyramids + GoL zones + terrain
+    // waves + radial pulses) plus the EXTERNAL aura form, the same grid
+    // sample patch_terrain_vs extrudes the ground by, so the floor and the
+    // picture cannot disagree. No suppression: a consumer that is not the
+    // pawn does not flatten GoL under itself, so the eye CLIMBS a zone's
+    // lift as the pawn does.
+    //
+    // The query is at the COMPOSED EYE's xz (camera.pos, already the orbit
+    // eye at this point), and consumer_pos is the eye for the same reason —
+    // this consumer is the camera, not the body. Under WALKER_AGENT that
+    // field is inert (the policy carries no consumer-local term), so the
+    // change of anchor moves no value; it is the honest declaration the
+    // witness policy below will read for real.
+    //
+    // Reached through the manifold interface rather than by naming
+    // query_ground_walker_agent directly: the switch in manifold_height_hf
+    // is the ONE declared fold, and delegation is byte-identical to the
+    // named call by construction.
+    //
+    // Free-fly is unaffected — the camera host returns above this point,
+    // which IS its TERRAIN RULE = NONE (contracts/point.hpp).
     {
-        let min_clearance = 1.5;  // minimum height above terrain
-        let qi = QueryInputs(pawn_pos, signal.t_seconds);  // suppression centered on the pawn (matches the pawn body)
-        let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_TILT, qi).y;
+        let min_clearance = 1.5;  // minimum height above the visual skin
+        let qi = QueryInputs(camera.pos, signal.t_seconds);  // the eye is the consumer
+        let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_AGENT, qi).y;
         camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
     }
 
