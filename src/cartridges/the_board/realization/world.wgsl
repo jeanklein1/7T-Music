@@ -2912,6 +2912,43 @@ fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
                             distance(world_xz, pawn_xz));
 }
 
+// THE WITNESS'S CARVE (KITE_1) — the eye is a SECOND suppression center.
+// Cells duck under the camera as they duck under the pawn, on the same
+// radii and the same falloff: the form above IS the law, called at the
+// other center. Render-side only (it reads frame_r); the two patch VS are
+// its callers, and they max() it into the pawn's factor, which is the
+// union of the two footprints — "flat under EITHER" — and leaves the
+// factor on its own [0,1] scale.
+//
+// Two gates make this the WITNESS's and not the point's:
+//
+//   HOST. Off in free-fly. The revision camera is a ghost and emanates
+//     nothing — contracts/point.hpp: presence follows the point, emanation
+//     stays the body's. (In that host the eye and the point coincide
+//     anyway, so the term would carve twice in one place and nowhere else.)
+//   HEIGHT. Faded out as the eye rises, so an aerial camera does not mow
+//     the field. The vertical scale is the suppression's own OUTER radius,
+//     used as the vertical half of the same reach: a lens more than one
+//     reach above the ground is OVER the field rather than beside it, and
+//     two reaches up it is gone. At the idle pose that is 15 sin(0.4) ≈
+//     5.8 wu of eye height — full carve; zoomed to CAMERA_MAX_DISTANCE it
+//     is ≈ 39 — none.
+//
+// The scale is the reach because there is no cell-lift ceiling in this
+// tree to be the scale instead: config.indoor_height_cap is indoor-only
+// with 0 as its disable sentinel, and GOL_HEIGHT_FACTOR_MAX is a per-cell
+// multiplier, not a height. A reach is a named home and needs no new one.
+//
+// Returns exactly 0.0 when either gate shuts, so max()-ing it in is
+// BIT-IDENTICAL to the pawn's factor alone wherever the witness is silent.
+fn witness_gol_suppression(world_xz: vec2<f32>, local_ground_y: f32) -> f32 {
+    if (point_camera_hosted()) { return 0.0; }
+    let eye = frame_r.camera.pos;
+    let fade = 1.0 - smoothstep(ZONE_SUPPRESS_OUTER, 2.0 * ZONE_SUPPRESS_OUTER,
+                                eye.y - local_ground_y);
+    return pawn_gol_suppression(world_xz, eye.xz) * fade;
+}
+
 // --- [DATA-DRIVEN PYRAMID INSTANCES]
 const MAX_PYRAMID_INSTANCES: u32 = 8u;
 
@@ -4722,11 +4759,18 @@ fn patch_terrain_vs(
     world_pos.y += live.x;
 
     // THE CELL LIFT (UNIFIED_GROUND_1): GoL rides the ground itself —
-    // the card's .a, nearest at the vertex's OWN cell center, pawn-
-    // suppressed. BASE verts take no lift (that gap IS the curtain);
-    // d.drop subsumes the old skirt ring drop.
-    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
-             * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
+    // the card's .a, nearest at the vertex's OWN cell center, suppressed.
+    // BASE verts take no lift (that gap IS the curtain); d.drop subsumes
+    // the old skirt ring drop.
+    //
+    // TWO CENTERS (KITE_1): the pawn's and the eye's, unioned by max — a
+    // cell is flat where EITHER stands over it. local_ground for the
+    // witness's height fade is this vertex's own ground (heightfield +
+    // aura + card, the y just above), which is the ground under the eye to
+    // within the reach the carve acts over.
+    let supp = max(pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz),
+                   witness_gol_suppression(world_pos.xz, world_pos.y));
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz) * (1.0 - supp);
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: PatchTerrainVarying;
@@ -5019,10 +5063,15 @@ fn shadow_patch_terrain_vs(
     let wz = pi.origin.y + (uv.y - 0.5) * pi.extent;
     var world_pos = vec3(wx, height_data.x + sample_live_card(vec2(wx, wz)).x, wz);
     // THE CELL LIFT (UNIFIED_GROUND_1) — shadow surface = heightfield +
-    // the card + the pawn-suppressed cell lift; d.drop subsumes the old
-    // skirt ring drop.
-    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
-             * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
+    // the card + the suppressed cell lift; d.drop subsumes the old skirt
+    // ring drop. The caster carries the SAME two centers the visible
+    // surface carries (KITE_1): a cell carved out of the picture but left
+    // standing in the shadow map casts the shadow of geometry nobody drew.
+    // This VS has no aura term, so its local_ground is the aura's height
+    // lower inside the dome — under the 15→30 fade that is nothing.
+    let supp = max(pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz),
+                   witness_gol_suppression(world_pos.xz, world_pos.y));
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz) * (1.0 - supp);
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: ShadowVarying;
