@@ -76,7 +76,7 @@ enum class PointHost : uint32_t {
 // same P5 harvest — the wire is the realization, the bubble is the
 // semantics.
 
-inline constexpr float POINT_BUBBLE_RADIUS = 20.0f;   // world units; boot-pinned into config.point_bubble_radius (the WGSL side reads the config field)
+inline constexpr float POINT_BUBBLE_RADIUS = 80.0f;   // world units; boot-pinned into config.point_bubble_radius (the WGSL side reads the config field). 20 until the desk raised it 4×: the vertical gate lets an arch fire from far higher up now.
 
 struct PointBubble {
     float radius = POINT_BUBBLE_RADIUS;   // the awareness bound (the portal's vertical gate today)

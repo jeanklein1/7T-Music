@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `32d47d09f281959077b7efaa3585b8673b0450d5`
-(RIBBON_6 P2: the presentation law — a frame integrates the refreshes it was shown for; [PRESENT] reads them)
+Last commit touching any scanned file: `85e67407c7a3d5aedabb53234dd044cd68a54594`
+(RIBBON_6 P4: the presentation law had a stuck multiple and an unclamped serve — both found by simulating the neighbourhood, not the nominal)
 
 | file scanned | sha256 |
 |---|---|

@@ -57,8 +57,11 @@ struct DriverSurface {
 // alone: its rests live on the REGIME (Regime.fog_density / .fog_color,
 // contracts/spine_state.hpp).
 inline constexpr DriverSurface DRIVER_TABLE = {
-    { 1.0f },                   // fog: gain 1, the coupling verbatim
-    { 0u, 1.0f, 1.5f, 1.0f },   // aura: intent off, the authored rates
+    { 0.63f },                  // fog: the desk dialled the coupling back —
+                                // 0.63 driven, the rest held at the regime's rest
+    { 0u, 1.0f, 1.5f, 1.0f },   // aura: intent off, the authored rates.
+                                // (It rested ON for one commit, d3b1f6d;
+                                // the next desk export put it back off.)
     { { 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f, 1.0f },   // checker: a return to seed
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
 };

@@ -186,8 +186,11 @@ namespace t7 {
             // LIVE values ride config (veil_ring/veil_icing/lod0_radius,
             // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
             constexpr float LOD0_RADIUS_DEFAULT = 3.5f * PATCH_EXTENT;   // 175
-            constexpr float VEIL_RING_DEFAULT   = 6.5f * PATCH_EXTENT;   // 325 — THE RING
-            constexpr float VEIL_ICING_DEFAULT  = 40.0f;                 // δ (~25-50, tunable)
+            constexpr float VEIL_RING_DEFAULT   = 6.84f * PATCH_EXTENT;  // 342 — THE RING (desk-tuned
+                                                                         // from 6.5; the chain asserts
+                                                                         // below hold, but EXIST is now
+                                                                         // only 8 wu further out)
+            constexpr float VEIL_ICING_DEFAULT  = 42.0f;                 // δ (~25-50, tunable)
             constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
             static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
@@ -661,7 +664,7 @@ namespace t7 {
             float checker_resultant[3];    // the music color (weighted pc-average), enveloped
             float checker_music_amount;    // enveloped presence [0,1] — S1 pull + S2 wander scale
             float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
-            float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 20; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
+            float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 80; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
             float cube_plasticity;         // CONTACT_3 K2c: global λ master (rest 1.0 — raised from 0.6 at CONTACT_5 P2b; boot-pinned from Idle::CUBE_PLASTICITY_DEFAULT). Also fills the checker tail pad — sizeof unchanged.
             // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds.
             // 0 = instant (the pawn's response, byte-identical to the pre-[6]
@@ -4953,6 +4956,14 @@ namespace t7 {
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
                 config_.point_bubble_radius = POINT_BUBBLE_RADIUS;  // CONTACT_2: boot-pin the bubble from contracts/point.hpp (source of truth); rest 20.0
                 config_.cube_plasticity = Idle::CUBE_PLASTICITY_DEFAULT;  // CONTACT_3 K2c: boot-pin the live λ master; rest 1.0 (CONTACT_5 P2b)
+                // THE FLOATERS' SYNCHRONY, GIVEN A HOME. Until the desk asked
+                // for a nonzero rest this row had no author at all — the
+                // value-initialised `config_` was its only value, and 0 turns
+                // the beacon emitter off outright (contracts/control_panel.hpp:
+                // "strength is s * coord"). Two readers, one fact: the beacon's
+                // strength gate and the cube-behaviour synchrony knob in
+                // world.wgsl. Its dial is Interaction · Cubes.
+                config_.floater_coordination = 0.11f;
                 // FIELD_2b — the field's dials, boot-pinned from THE PANEL
                 // (contracts/control_panel.hpp). One home authors; this is
                 // the transport. The ribbon dialect reads the same names

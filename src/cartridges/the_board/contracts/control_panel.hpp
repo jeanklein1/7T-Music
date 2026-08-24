@@ -78,8 +78,11 @@ inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination: strength is s * coord, and
 // coord == 0 turns the emitter off. Its one author is the
-// Interaction · Cubes dial, 0…1 continuous. R0 sits outside the
-// point's bubble (20). The runtime transport is already the authored
+// Interaction · Cubes dial, 0…1 continuous. R0 (25) sat outside the
+// point's bubble when that bubble was 20; the desk raised the bubble to
+// 80, so the ring's inner edge is inside it now — the two are separate
+// authorities and neither reads the other, but the old sentence claimed
+// a spacing that no longer holds. The runtime transport is already the authored
 // table (the g2:5 uniform), so these are rests the writer reads, not
 // a second wire.
 inline constexpr float FIELD_BEACON_R0   = 25.0f;
