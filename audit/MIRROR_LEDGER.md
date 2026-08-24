@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `694da23bb4798c3d08ca3306f94dfe60e8fa3514` |
+| source commit | `062a0b5e4b2458a5976845e2763053cd4bdf0836` |
 | | GOL_RULES_1: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:9e7c6163cdfbd6c034353d34a642f805d91a9554e4a2d37048171445e29bd312` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:1bd660eb382cf0ed3869551c7cc0dfefe152d657b9548111a82071ff1292c02f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f451e5c1b5d709b1c7fabd486410055f2e270a05f3f6cf129a18382cdda8a0e4` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:e63862b9c2383f80e918e8998caede22559e3d440f11b7b7c17b277c62c327b3` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:e1cd201a9cd90b53867882a62098c61d2ce2d9c116a6ccf262aee3edeb000608` |
+| `audit/BINDING_LEDGER.md` | `sha256:1d61be7346c382b5102c243b7622159c59bddd9cac2c19637bf542996833ab55` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
