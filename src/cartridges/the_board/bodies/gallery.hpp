@@ -621,6 +621,20 @@ struct SnapshotStagingRecord {
 // ── Authored Staging (circular buffer, 16 layers) ──
 struct AuthoredStagingRecord {
     uint32_t disk_index = UINT32_MAX;
+    // WHICH PAINTING THIS SLOT'S TEXTURE ACTUALLY HOLDS (WALLS_3).
+    //
+    // `disk_index` is a CLAIM, written when the fetch is requested. The
+    // texture still holds the outgoing image until the round trip lands, so
+    // the two disagree for the whole flight. That was harmless while a
+    // pending record was `valid = false` and unpickable; WALLS_2 made pending
+    // records pickable ON PURPOSE — that is the fix — and the disagreement
+    // became load-bearing.
+    //
+    // Everything that asks "which painting is on this wall" reads THIS.
+    // Everything that asks "which painting has been spoken for" reads
+    // disk_index. Both are true at once and neither can stand in for the
+    // other.
+    uint32_t shown_disk_index = UINT32_MAX;   // UINT32_MAX = slot holds no image
     float aspect_ratio = 1.0f;
     float uv_scale_x = 1.0f;
     float uv_scale_y = 1.0f;
@@ -1374,11 +1388,15 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
         if (use_authored) {
             uint32_t auth_stg = pick_authored_staging(gs, p_seed, GalleryPaintingProp::AUTH_STG_PICK);
             if (auth_stg == UINT32_MAX || usedAuthored[auth_stg]) {
+                // Lowest SHOWN index first — pick_authored_staging's order,
+                // and by the same argument: this puts a picture on a wall
+                // (WALLS_3).
                 uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
                 for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
                     if (!usedAuthored[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
-                        && gs.authored_staging[a].disk_index < best_disk) {
-                        best_disk = gs.authored_staging[a].disk_index;
+                        && gs.authored_staging[a].shown_disk_index != UINT32_MAX
+                        && gs.authored_staging[a].shown_disk_index < best_disk) {
+                        best_disk = gs.authored_staging[a].shown_disk_index;
                         best = a;
                     }
                 }
@@ -1729,6 +1747,10 @@ inline void authored_stage_decoded_image(GalleryState& gs, GPUState& gpu, wgpu::
     rec.uv_scale_x = (float)dst_w / RES;
     rec.uv_scale_y = (float)dst_h / RES;
     rec.valid = true;
+    // SHOWN CATCHES UP TO CLAIMED, in the same instant `valid` becomes true
+    // (WALLS_3). A reader that saw one without the other would see a valid
+    // slot showing nothing, or a slot showing a picture it no longer holds.
+    rec.shown_disk_index = rec.disk_index;
     rec.consumed = false;
 
     std::cout << "[Authored] Scaled → " << dst_w << "x" << dst_h
@@ -1801,9 +1823,19 @@ inline void recount_authored_staged(GalleryState& gs) {
 // up.
 inline void authored_fetch_release_slot(GalleryState& gs, uint32_t staging_layer) {
     auto& rec = gs.authored_staging[staging_layer];
-    rec.valid = false;
+    // A DIFFERENT PAINTING FAILED TO ARRIVE. This used to blank the slot,
+    // which threw away the picture it was still holding — on venue wifi, a
+    // bare wall for the rest of the world. It could not be fixed by deletion
+    // while one field carried both facts: the claim to restore already named
+    // the painting that did not come.
+    //
+    // Now it can. The claim falls back to what is actually shown, so the
+    // record is self-consistent again and the rotation will not hand that
+    // picture to a second slot. `consumed` stays true — the slot is still the
+    // shape the rotation looks for, and the next world re-asks.
+    rec.disk_index = rec.shown_disk_index;
+    rec.valid = (rec.shown_disk_index != UINT32_MAX);
     rec.consumed = true;
-    rec.disk_index = UINT32_MAX;
 }
 
 // One exit for both outcomes: the lane is freed, the context is
@@ -2146,6 +2178,16 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
         // the wall would hang the same picture twice.
         if (gs.authored_staging[i].pending && gs.authored_staging[i].disk_index < 256)
             disk_in_use[gs.authored_staging[i].disk_index] = true;
+        // AND THE PICTURE IT IS STILL SHOWING (WALLS_3). Unconditional, and
+        // that is the whole point: the two marks above are keyed on the
+        // CLAIM, and a slot rotated away is CONSUMED and not yet pending, so
+        // neither of them covers the image its texture still holds. Since
+        // WALLS_2 that image is on a wall, so handing it to a second slot is
+        // the same picture twice down the row. A painting is unavailable if
+        // any slot has claimed it OR is still showing it.
+        if (gs.authored_staging[i].shown_disk_index != UINT32_MAX
+            && gs.authored_staging[i].shown_disk_index < 256)
+            disk_in_use[gs.authored_staging[i].shown_disk_index] = true;
     }
 
     uint32_t rotated = 0;
@@ -2204,14 +2246,18 @@ inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAut
     return count;
 }
 
-// Pick the next authored painting in numeric order (lowest disk_index first)
+// Pick the next authored painting in numeric order (lowest SHOWN index
+// first). It orders by shown_disk_index, not by disk_index: this chooses what
+// to PUT ON A WALL, and during a fetch the claim names the incoming picture
+// rather than the one the texture holds (WALLS_3).
 inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint32_t /*prop*/) {
     uint32_t best_slot = UINT32_MAX;
     uint32_t best_disk = UINT32_MAX;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed
-            && gs.authored_staging[i].disk_index < best_disk) {
-            best_disk = gs.authored_staging[i].disk_index;
+            && gs.authored_staging[i].shown_disk_index != UINT32_MAX
+            && gs.authored_staging[i].shown_disk_index < best_disk) {
+            best_disk = gs.authored_staging[i].shown_disk_index;
             best_slot = i;
         }
     }
@@ -2426,13 +2472,15 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             }
 
             if (!resolved && !use_snapshot) {
-                // Lowest disk_index first, the pick_authored_staging order,
-                // with the claim mask on top.
+                // Lowest SHOWN index first, the pick_authored_staging order,
+                // with the claim mask on top. shown_disk_index, not
+                // disk_index: this is the wall (WALLS_3).
                 uint32_t a_rec = UINT32_MAX, best_disk = UINT32_MAX;
                 for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
                     if (!authClaimed[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
-                        && gs.authored_staging[a].disk_index < best_disk) {
-                        best_disk = gs.authored_staging[a].disk_index;
+                        && gs.authored_staging[a].shown_disk_index != UINT32_MAX
+                        && gs.authored_staging[a].shown_disk_index < best_disk) {
+                        best_disk = gs.authored_staging[a].shown_disk_index;
                         a_rec = a;
                     }
                 }
