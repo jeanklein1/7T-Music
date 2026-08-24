@@ -279,6 +279,16 @@ inline void gol_tier_cells(uint32_t tier_idx, uint32_t& cells_x, uint32_t& cells
     cells_z = n;
 }
 
+// The tier's NAME, off the same compound decode and living beside it so
+// there is still one decode home, not two. GOL_TIER_NAMES and
+// GOL_PULSE_TIER_NAMES were declared-and-unread until the [GoL] spawn
+// log took them; this is the reader that makes them live.
+inline const char* gol_tier_name(uint32_t tier_idx) {
+    return (tier_idx < GOL_TIER_COUNT)
+        ? GOL_TIER_NAMES[tier_idx]
+        : GOL_PULSE_TIER_NAMES[tier_idx - GOL_TIER_COUNT];
+}
+
 inline void gol_tier_extent(uint32_t tier_idx, float& extent_x, float& extent_z) {
     uint32_t cx = 0u, cz = 0u;
     gol_tier_cells(tier_idx, cx, cz);
@@ -588,6 +598,7 @@ inline void commit_gol(GoLState& gs, MachineCtx* c,
 
     std::cout << "[GoL] "
         << (plan.algorithm == AlgorithmType::PULSE ? "Pulse" : "Conway")
+        << " tier=" << gol_tier_name(plan.tier_idx)
         << " slot=" << plan.slot
         << " node=(" << plan.zone_nx << "," << plan.zone_nz << ")"
         << " corner=(" << plan.corner_x << "," << plan.corner_z << ")"
