@@ -249,10 +249,22 @@ struct GalleryConfig {
     // walls always win by arriving first: place_wall_paintings runs once at
     // mood entry and takes everything it wants in one pass, while
     // commit_gallery arrives afterwards over many frames at
-    // SPAWN_BUDGET_PER_FRAME. This is a GEOMETRIC BOUND, not an expected
-    // occupancy — sixteen galleries all rolling n=3 against a mean of 5, on a
+    // SPAWN_BUDGET_PER_FRAME.
+    //
+    // THE VALUE STANDS AND ITS DERIVATION DOES NOT (SAND_1). It read as a
+    // GEOMETRIC BOUND rather than an expected occupancy because sixteen
+    // galleries all rolling n=3 was a TAIL against a mean of 5 — on a
     // near-perfect grid at exactly the exclusion distance, under a spawner
-    // that places randomly with rejection. Realistic peak is 25-35.
+    // that places randomly with rejection. At PAINTINGS_MEAN 3 that roll is
+    // the MEDIAN, so sixteen resident sites reach 48 in the ordinary case and
+    // MAX_GALLERIES would allow three times that. The sentence bounds
+    // nothing now, and the 25-35 peak it concluded with was read off the
+    // same expired mean.
+    //
+    // 48 survives on a different fact: an outdoor painting spends an
+    // exhibition layer as well as a slot, so the exhibition array — not this
+    // reserve — is the cap outdoor demand meets first. Its size and the
+    // reason for that size live in state.hpp and are not repeated here.
     static constexpr uint32_t OUTDOOR_SLOT_RESERVE = 48;
 
     // ─── Content×Form Mixing ─────────────────────────────────
