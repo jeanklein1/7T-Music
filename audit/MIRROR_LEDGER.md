@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `9c07cb00d8584413ac99adde1c70a0bc390d73ea` |
-| | KITE_1 C7: the ledgers are rebuilt and the register says what is open |
+| source commit | `038062bd7fe15c66ec064ceffe5802e0776b0284` |
+| | SAND_1: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:17624876ffe347a6feacb4d732b16994e0ea6581c9e04523c76299931f1bff46` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:43e9d647ccc1a387c200576dc4292c583477cb5050166f0ae20b1109eda283be` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:17f0f97c95e6e44af5efdd9a0362bc99a15b73b8cefea7814d3bef89b5c5034a` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:e63862b9c2383f80e918e8998caede22559e3d440f11b7b7c17b277c62c327b3` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:4280e08ffbe7369ab5dbfa3a308192c863f5415cea1040b8c1940331b11653aa` |
+| `audit/BINDING_LEDGER.md` | `sha256:59ed43ec939e3ac31725302d9627a0a29f93d3cde63f9b6991f0d325314ada61` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
