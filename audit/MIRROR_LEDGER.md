@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `12b18c0a9944f97a89d9f93c9f1e92d77fc5cdd8` |
-| | dump_camera_orbit — the live pose in the arrival row's three names (ATRIUM_11 instrument) |
+| source commit | `a48524555edf9437aaa5d96ce8eda169b5b1c722` |
+| | ATRIUM_11: the ledgers re-stamp against the camera witness |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:2db4fa513fe25ecead2e8d3edfe97737b3d80458065aacc0075d5e55ef6cbcad` |
