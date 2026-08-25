@@ -2,6 +2,16 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
+- The doorway's shell: CLOSED for agents, OPEN for the ribbon. An arch is two
+  leg sources half_span apart in the field, and at the social slack (3.0) their
+  shells meet across every opening — a barrier with its crest in front of the
+  door. `FIELD_ARCH_SLACK` (1.25) answers it in the GPU dialect
+  (`world.wgsl` `field_sum`'s occupier_amg loop). The ribbon head's CPU sum
+  (`bodies/ribbon.hpp`) is a separate dialect with its own per-family occupier
+  dials and still wears the social slack over arch legs — untouched, and it
+  will read the same closure the moment a ribbon aims at a doorway. Origin:
+  ATRIUM_7 A7.2. Unblocked by a ribbon that meets an arch, or by Jean ruling
+  the two dialects into one.
 - Doorways flush with walls: the rooms' wall doors stand with their SPAN
   perpendicular to the wall they sit on, so a visitor meets the arch edge-on
   rather than through its opening. An arch's rotation is its span
