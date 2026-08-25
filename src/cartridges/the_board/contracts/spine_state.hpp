@@ -477,15 +477,30 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY, { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
     /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
     /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON,       { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
-    // THE ENTRANCE COMPOSES ITS OWN ARRIVAL (ATRIUM_9). These are the
-    // program's own numbers, written out unchanged — the seam is open and the
-    // frame has not moved. 22.918312 deg IS Idle::CAMERA_ELEVATION (0.4 rad)
-    // and the degree round trip is exact in float; 180 is
-    // Idle::CAMERA_AZIMUTH minus Idle::PAWN_HEADING, the half turn ATRIUM_5
-    // found. Jean composes against the poster and the arc at
-    // ?organ=1 -> Camera · arrival, and the export lands here.
+    // THE ENTRANCE'S ARRIVAL, MEASURED AT THE DESK (ATRIUM_12). Jean posed the
+    // camera against screenshot 211 with the dials live (A11.1) and read these
+    // three off [Camera] orbit: — an artifact's numbers, not a solve's. They
+    // replace A9.1's seam values, which were the program's own constants
+    // written out so the seam could open without moving the frame.
+    //
+    // WHAT THE SIGN MEANS, because the next reader should not have to infer a
+    // convention: compose_camera_position_from_orbit puts the eye at
+    // look_at + distance * (cos_el*sin_az, SIN_EL, cos_el*cos_az), so a
+    // NEGATIVE elevation puts the eye BELOW the look-at and the camera looks
+    // UP. At 13 and -18 the composed eye is 13*sin(-18 deg) = -4.017 wu — four
+    // metres UNDER the floor — and it is the terrain clamp in update_camera
+    // that lifts it to ground + 1.5. THE CLAMP DOES NOT TURN THE CAMERA: the
+    // view matrix re-derives forward from azimuth and elevation, so the eye
+    // rises and the look stays 18 degrees UP. That is the frame Jean chose,
+    // and it is why the pawn's feet sit BELOW frame centre in 211 — the one
+    // measurement ATRIUM_11's solve could not reach, because with the eye on
+    // its own orbit the look-at IS the centre. The clamp is what breaks that,
+    // and A12.2's flat floor is what makes it repeatable.
+    //
+    // 180 stands the camera behind the figure, so the composition turns with
+    // the gaze rather than drifting off it.
     /* MOOD_ATRIUM             */  { SHAPE_ATRIUM,     ATMOS_ATRIUM,     { 1.0f, 0.0f,  0.0f,  0.0f  },
-                                     { 15.0f, 22.918312f, 180.0f } },
+                                     { 13.0f, -18.0f, 180.0f } },   // ATRIUM_12
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in

@@ -207,10 +207,18 @@ ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "clear
 // MOOD_LIVE's row and the export carries the atrium's three numbers.
 //
 // distance <= 0 is the sentinel "this mood does not compose its arrival", so
-// the range starts at 0: a hand can retire a composition as well as author
-// one. The azimuth is an OFFSET on Idle::PAWN_HEADING — 180 stands the camera
-// behind the figure — and the whole composition turns with the gaze.
-ORGAN_PARAM_DEFONLY(F32,   0.0f,   60.0f,  0.5f,   "Camera · arrival", "distance",               MOOD, MoodProfile, arrival.distance)
+// the range starts BELOW zero: a hand can retire a composition as well as
+// author one. The azimuth is an OFFSET on Idle::PAWN_HEADING — 180 stands the
+// camera behind the figure — and the whole composition turns with the gaze.
+//
+// AND THE FLOOR IS -1, NOT 0, BECAUSE THE SENTINEL IS -1 (ATRIUM_12). Same
+// fact, two homes: ORBIT_DEFAULT.distance is -1.0f, every export therefore
+// carries -1 for the six moods that decline to compose, and a row that cannot
+// express its own default makes every import of every preset report six
+// refusals and name one in the status line — an import that worked reading
+// exactly like an import that failed. Nothing about behaviour changes:
+// orbit_composed is `> 0`, so -1 and 0 are both "this mood does not compose".
+ORGAN_PARAM_DEFONLY(F32,  -1.0f,   60.0f,  0.5f,   "Camera · arrival", "distance",               MOOD, MoodProfile, arrival.distance)
 ORGAN_PARAM_DEFONLY(F32, -89.0f,   89.0f,  0.5f,   "Camera · arrival", "elevation (deg)",        MOOD, MoodProfile, arrival.elevation_deg)
 ORGAN_PARAM_DEFONLY(F32, -180.0f, 180.0f,  1.0f,   "Camera · arrival", "azimuth off gaze (deg)", MOOD, MoodProfile, arrival.azimuth_offset_deg)
 
