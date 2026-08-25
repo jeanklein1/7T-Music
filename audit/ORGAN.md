@@ -453,7 +453,7 @@ reader — the class of defect this witness exists to catch.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=34 constexpr=4 comment=29 
+  MOOD_TABLE           definition=1 seed=7 static_assert=34 constexpr=4 comment=30 
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:427  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:428  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:429  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
