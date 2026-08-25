@@ -629,3 +629,21 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_dynamics_0d, BOOL, 0.0f, 1.0f, 1.0f, "
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_signal,      BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute signal")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, freeze_sphere,    BOOL, 0.0f, 1.0f, 1.0f, "Debug", "freeze sphere")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, fpv_mode,         BOOL, 0.0f, 1.0f, 1.0f, "Debug", "FPV mode (key-shared)")
+
+// ─── Atrium — EDITS THE NEXT ENTRANCE ───────────────────────────
+// ATRIUM_LIVE (contracts/atrium_surface.hpp), DESTRUCTIVE: the arc is read
+// as the doors spawn and the sand as the images hang, both once per world,
+// so no row here is wired to the boundary. Bearings are in the ARRIVAL
+// FRAME — 0 is dead ahead of the pawn at Idle::PAWN_HEADING.
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_radius,          F32,   10.0f,  120.0f, 0.5f, "Atrium", "arc radius")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_span_deg,        F32,   60.0f,  300.0f, 1.0f, "Atrium", "arc span (deg)")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_bearing_deg,     F32, -180.0f,  180.0f, 1.0f, "Atrium", "arc bearing (deg)")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[0].bearing_deg, F32, -180.0f,  180.0f, 1.0f, "Atrium", "sand 0 bearing (deg)")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[0].distance,    F32,   10.0f,  120.0f, 0.5f, "Atrium", "sand 0 distance")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[0].height,      F32,    1.0f,   40.0f, 0.5f, "Atrium", "sand 0 height")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[1].bearing_deg, F32, -180.0f,  180.0f, 1.0f, "Atrium", "sand 1 bearing (deg)")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[1].distance,    F32,   10.0f,  120.0f, 0.5f, "Atrium", "sand 1 distance")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[1].height,      F32,    1.0f,   40.0f, 0.5f, "Atrium", "sand 1 height")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[2].bearing_deg, F32, -180.0f,  180.0f, 1.0f, "Atrium", "sand 2 bearing (deg)")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[2].distance,    F32,   10.0f,  120.0f, 0.5f, "Atrium", "sand 2 distance")
+ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[2].height,      F32,    1.0f,   40.0f, 0.5f, "Atrium", "sand 2 height")

@@ -94,6 +94,7 @@ PAIRS = {
     "CanvasSurface":     ("CANVAS_TABLE",      "CANVAS_LIVE"),
     "WorldDrawSurface":  ("WORLD_DRAW_TABLE",  "WORLD_DRAW_LIVE"),
     "RibbonSpawnSurface":("RIBBON_SPAWN_TABLE","RIBBON_SPAWN_LIVE"),
+    "AtriumSurface":     ("ATRIUM_TABLE",      "ATRIUM_LIVE"),
 }
 SRC_EXT = (".hpp", ".cpp", ".inc", ".h")
 

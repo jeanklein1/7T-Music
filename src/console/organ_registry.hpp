@@ -21,6 +21,7 @@
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // RIBBON_LIVE (block 7)
 #include "cartridges/the_board/contracts/indoor_module.hpp"   // INDOOR_LIVE (block 8, destructive)
 #include "cartridges/the_board/contracts/mood_constants.hpp"  // WORLD_DRAW_LIVE (block 10, destructive)
+#include "cartridges/the_board/contracts/atrium_surface.hpp"  // ATRIUM_LIVE (block 12, destructive)
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
 
@@ -88,7 +89,10 @@ enum : uint8_t {
     // The stricter temperament governs.
     ORGAN_BLOCK_WORLD        = 10,  // WorldDrawSurface   — WORLD_DRAW_LIVE
     ORGAN_BLOCK_RIBBON_SPAWN = 11,  // RibbonSpawnSurface — RIBBON_SPAWN_LIVE
-    ORGAN_BLOCK_COUNT        = 12,
+    ORGAN_BLOCK_ATRIUM       = 12,  // AtriumSurface      — ATRIUM_LIVE; DESTRUCTIVE
+                                    // (ATRIUM_2 — the arc and the sand, read as
+                                    //  the entrance is drawn and not re-read)
+    ORGAN_BLOCK_COUNT        = 13,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -317,6 +321,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_CANVAS:     return &canvas::CANVAS_LIVE;
     case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_DRAW_LIVE;
     case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
+    case ORGAN_BLOCK_ATRIUM:     return &the_board::ATRIUM_LIVE;
     default:                     return nullptr;
     }
 }

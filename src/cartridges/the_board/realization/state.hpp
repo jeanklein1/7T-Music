@@ -454,6 +454,20 @@ namespace t7 {
                                                              // column keeps the character spread.
         }
 
+        // ── heading_to_bearing (ATRIUM_2) ────────────────────────
+        // The pawn kernel's heading, spoken in the door grammar's
+        // bearing. Two conventions meet here and neither moves:
+        //   the kernel's forward is (sin h, cos h) in world XZ
+        //     (world.wgsl, coupling_velocity_to_pawn_heading writes
+        //      h = atan2(vel.x, vel.z); the aura's forward reads it back)
+        //   a door at bearing b stands at (cos b, sin b) and its opening
+        //     faces b + PI (force_spawn_door_fallback, the one grammar)
+        // so bearing = atan2(cos h, sin h) = PI/2 - h, exactly. One home,
+        // beside the pose it converts: the arc (force_spawn_atrium_arc)
+        // and the hang (place_atrium_images) both read it, and neither
+        // re-derives the identity.
+        constexpr float heading_to_bearing(float h) { return 1.57079633f - h; }
+
         // Mirrors world.wgsl's COUPLING_* bit-flag block. MUST match those
         // bit values 1:1 — semantic drift here would corrupt every GPU-side
         // coupling read silently.
