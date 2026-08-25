@@ -356,6 +356,20 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
 // (ATRIUM_2): one door per other mood, not PORTAL_2's triad.
 //
+// ATRIUM_13 — THE LAMPS ARE DRAWN, NOT AUTHORED (Jean). The entrance PINS the
+// scheme so the count is four and does not roll; everything else about the
+// lamps — aim, intensity, placement — is QUARTET's spreads under the world's
+// seed, exactly as any indoor room. The entrance had a scheme of its own whose
+// whole content was "four, straight down, nothing drawn", and that is the
+// sentence being retracted; what is left after the retraction is QUARTET,
+// which already says the rest better.
+//
+// THIS IS THE ONE THING IN THE ENTRANCE THAT NOW VARIES BETWEEN VISITS. The
+// walls, the floor, the camera, the arc, the palette and the images are all
+// pinned; the light is not. That is the trade "as usual" buys, and SCHEME_ROLL
+// is the word that would take the COUNT with it — which is why the pin stays
+// and only the index moves. Same column, same clamp, no new mechanism.
+//
 // ATRIUM_12 — AND THE FLOOR IS PINNED TOO, at 0.01 and NOT at 0. Every other
 // room rolls its ground and the poster's fit was a hope: the CPU cannot
 // sample an indoor floor (the seat is a GPU pass), so the headroom witness
@@ -385,7 +399,7 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
 // so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
 // axis — the wall behind, the arc ahead, and the long side is +X +Z.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, PortalRoster::ARC,   SCHEME_ATRIUM, PALETTE_ATRIUM };
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, PortalRoster::ARC,   SCHEME_QUARTET, PALETTE_ATRIUM };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one

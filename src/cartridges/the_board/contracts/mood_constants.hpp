@@ -75,6 +75,12 @@ inline constexpr uint32_t SCHEME_COUNT = 5;   // indoor light schemes; sizes
 inline constexpr uint32_t SCHEME_ATRIUM = 4;  // four downlights, symmetric — pinned by
                                               // the atrium's shape, weight 0 in the roll
                                               // (ATRIUM_5)
+// ATRIUM_13 — THE ROW THE ENTRANCE POINTS AT NOW. A pinned index must name its
+// row (ATRIUM_5's rule, and the reason the palette pin carried a string
+// witness): the other three schemes are positional because nothing pins them,
+// and this one is not.
+inline constexpr uint32_t SCHEME_QUARTET = 1;  // four ceiling lamps at the quarter
+                                               // points, aim drawn — the indoor default
 
 struct WorldDrawSurface {
     float portal_density;         // fraction of DOORWAY arches that become portals
