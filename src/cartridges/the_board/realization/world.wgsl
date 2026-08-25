@@ -8313,49 +8313,75 @@ fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
     return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
 }
 
-// ─── Behavior: Passer (ATRIUM_4) ─────────────────────────────────
+// ─── Behavior: Passer — THE ROUND (ATRIUM_6) ─────────────────────
 //
-// A BEHAVIOUR, NOT A TRAVERSAL. The passers walk the atrium's arc the way
-// a visitor would: across the room to a door, through it, along the
-// outside of the wall to another door, back in, across again. Nothing
-// about the world changes when one crosses a door plane — the portal
-// trigger rides the POSSESSED slot only (update_player_agent), so a passer
-// walks through a door and the door does nothing.
+// A BEHAVIOUR, NOT A TRAVERSAL, and in Jean's words: they start from the
+// centre of the semicircle, walk out through a door, go back around the
+// semicircle, and go at it once again. One crossing per round, always
+// outward, always from the centre — so a visitor standing behind the chord
+// sees, over and over, exactly the act they are invited to perform.
+// Nothing about the world changes when one crosses a door plane: the portal
+// trigger rides the POSSESSED slot only (update_player_agent).
 //
 // THE DOORS are the portal entries with kind == 0, in array order, which is
-// arc order (force_spawn_atrium_arc spawns ascending and the back portal,
-// when one exists, takes the lowest slot and wears kind == 1). The scan is
-// linear over portals.count, at most 32, and runs only on an ADVANCE —
-// nothing is cached, because a cache would be a second home for a fact the
-// array already holds.
+// arc order (force_spawn_atrium_arc spawns ascending; the back portal, when
+// one exists, takes the lowest slot and wears kind == 1).
 //
-// THE ROUTE is one u32 in the slot: (leg << 12) | (cur << 4) | (phase << 1) | 1.
-// Bit 0 is "initialised", so a zeroed slot is a fresh passer and the spawn
-// path writes nothing but zero.
+// THE NORMAL, NOT THE SPAN. facing_cos/facing_sin are the arch's SPAN — the
+// chord between its feet (amg_gen_shell; arch_rotation_from_facing names the
+// convention CPU-side). The opening's normal is (-facing_sin, facing_cos),
+// and force_spawn_atrium_arc aims it at the arc's centre, so the normal
+// points INTO the room. ATRIUM_4 read the span as the normal, which put
+// every waypoint beside a door rather than through it.
 //
-//   a(leg) = hash(seed, leg*2)   % N          the leg's first door
-//   b(leg) = (a + 1 + hash(seed, leg*2+1) % (N-1)) % N     the second, != a
-//   inside(d)  = door.xz + facing(d) * band   facing points INTO the room
-//   outside(d) = door.xz - facing(d) * band   (rotation = bearing + PI)
+// THE CENTRE IS RECOVERED, NOT CARRIED. The doors were placed facing it, so
+// the inverse recovers it and a re-placed arc is followed with no window
+// where the two disagree. Each door constrains C to its own normal LINE;
+// the constraint is span . (C - D) = 0, and the least-squares solution over
+// ALL the doors is the intersection when they concur. Over all of them and
+// not two of them for a reason worth stating: on a 180-degree span the END
+// doors' normals are ANTIPARALLEL — their lines coincide, the 2x2 is exactly
+// singular, and the pair a two-door derivation would pick is the one pair
+// that cannot answer. Six doors over 180 degrees give det(M) ~ 8.75.
 //
-//   phase 0 -> inside(a)    the walk across the room
-//   phase 1 -> outside(a)   through the door, out
-//   phase 2 -> outside(cur) along the outside band, door by door: on arrival
-//                           cur += sign(b - cur), and cur == b -> phase 3
-//   phase 3 -> inside(b)    through the door, in; on arrival leg += 1, phase 0
+// THE ROUTE is A4.2's packing, unchanged, and so is the census that reads it:
+//   route = (leg << 12) | (cur << 4) | (phase << 1) | 1
+//   phase 0 CENTRE  waypoint = C + jitter(seed, leg)   |jitter| <= PASSER_CENTRE_JITTER
+//                   arrive -> a = hash(seed, leg*2) % N; cur = a; phase 1
+//   phase 1 DOOR    waypoint = outside(a) = D[a] - n_a * band
+//                   arrive -> phase 2   (from C the line runs through a's opening)
+//   phase 2 BAND    waypoint = outside(cur), door by door along the outside
+//                   arrive -> cur == e ? phase 3 : cur += sign(e - cur)
+//   phase 3 END     waypoint = end(e), a quarter past the end door on the band
+//                   arrive -> leg += 1; phase 0
+//   fresh (bit 0 clear): leg 0, phase 0 — the first thing a passer does is
+//                   walk to the centre.
+//   arrive: |waypoint - pos.xz| < step_size, the row's documented second role.
+// `e` is not stored: it is a function of (seed, leg, N) like `a` is, so the
+// packing did not have to grow.
 //
-// home_x/home_z IS the current waypoint — the tether pulls the passer along
-// its route, so there is no second target field and the HOME_SEEKER impulse
-// below is unchanged. `band` is behaviors[PASSER].aux.
+// MOTION — A WALK, NOT A SPRING. The tether sprinted from afar and crawled
+// the last metres, which is why ATRIUM_5's passers stalled short of every
+// waypoint and never advanced a phase. Here the speed is CONSTANT and only
+// the direction is eased:
+//   desired = normalize(waypoint - pos.xz) * speed_cap * tier.speed_gain
+//   vel.xz += (desired - vel.xz) * min(1, drag * dt)
+// so drag is the blend rate of the turn, not a decay — agent_post_step is
+// therefore called with drag 0 (its speed cap and its C2b ground steering
+// still apply). home_pull is UNREAD on this arm, and so is step_rate: the
+// step kick was never a gait, only noise on the velocity, and noise on a
+// constant-speed walk is a shove.
 const PASSER_BEHAVIOR: u32 = 10u;
+const PASSER_END_MARGIN: f32 = 0.32;     // rad past the end door's bearing — clears its pier by ~R*sin(18deg)
+const PASSER_CENTRE_JITTER: f32 = 4.0;   // wu — a handful of bodies do not stack on one point
 
-struct PasserDoor { xz: vec2<f32>, facing: vec2<f32>, ok: bool }
+struct PasserDoor { xz: vec2<f32>, normal: vec2<f32>, ok: bool }
 
-// The d-th forward door, by a linear scan over the portal array.
+// The d-th forward door, by a linear scan over the portal array (count <= 32).
 fn passer_door(d: u32) -> PasserDoor {
     var out: PasserDoor;
     out.xz = vec2(0.0);
-    out.facing = vec2(0.0, 1.0);
+    out.normal = vec2(0.0, 1.0);
     out.ok = false;
     var k = 0u;
     for (var pi = 0u; pi < agent_room.portals.count; pi++) {
@@ -8363,11 +8389,7 @@ fn passer_door(d: u32) -> PasserDoor {
         if (p.kind != 0u) { continue; }
         if (k == d) {
             out.xz = vec2(p.x, p.z);
-            // The arch's rotation IS the opening's outward bearing
-            // (force_spawn_atrium_arc: rotation = bearing + PI, and the
-            // bearing runs from the arrival point outward), so facing_cos /
-            // facing_sin point INTO the room.
-            out.facing = vec2(p.facing_cos, p.facing_sin);
+            out.normal = vec2(-p.facing_sin, p.facing_cos);   // the opening, not the chord
             out.ok = true;
             return out;
         }
@@ -8384,28 +8406,87 @@ fn passer_door_count() -> u32 {
     return n;
 }
 
+struct PasserArc { c: vec2<f32>, r: f32, ok: bool }
+
+// The arc the doors were placed on, recovered from the doors themselves.
+fn passer_arc() -> PasserArc {
+    var out: PasserArc;
+    out.c = vec2(0.0);
+    out.r = 0.0;
+    out.ok = false;
+    var m00 = 0.0;
+    var m01 = 0.0;
+    var m11 = 0.0;
+    var v = vec2(0.0);
+    var first = vec2(0.0);
+    var have_first = false;
+    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
+        let p = agent_room.portals.portals[pi];
+        if (p.kind != 0u) { continue; }
+        let xz = vec2(p.x, p.z);
+        // span . (C - D) = 0 — C lies on this door's normal line.
+        let sp = vec2(p.facing_cos, p.facing_sin);
+        let q = dot(sp, xz);
+        m00 += sp.x * sp.x;
+        m01 += sp.x * sp.y;
+        m11 += sp.y * sp.y;
+        v += sp * q;
+        if (!have_first) { first = xz; have_first = true; }
+    }
+    let det = m00 * m11 - m01 * m01;
+    if (!have_first || abs(det) < 0.0001) { return out; }   // every span parallel — no centre
+    out.c = vec2(m11 * v.x - m01 * v.y, m00 * v.y - m01 * v.x) / det;
+    out.r = length(first - out.c);
+    out.ok = out.r > 0.001;
+    return out;
+}
+
 fn passer_leg_a(seed: u32, leg: u32, n: u32) -> u32 {
     return u32(hash_property(seed, 9600u + leg * 2u) * f32(n)) % n;
 }
-fn passer_leg_b(seed: u32, leg: u32, n: u32) -> u32 {
+
+// The end the leg returns around: the nearer one to the door it went out of.
+// An exactly-central door (N odd) is a coin, and the coin is the leg's.
+fn passer_leg_end(seed: u32, leg: u32, n: u32) -> u32 {
     let a = passer_leg_a(seed, leg, n);
-    let step = 1u + u32(hash_property(seed, 9600u + leg * 2u + 1u) * f32(n - 1u)) % (n - 1u);
-    return (a + step) % n;
+    let half = n / 2u;
+    if (a * 2u == n) {
+        return select(0u, n - 1u, (u32(hash_property(seed, 9600u + leg * 2u + 1u) * 2.0) & 1u) == 1u);
+    }
+    return select(0u, n - 1u, a >= half);
 }
 
 // The waypoint this (leg, cur, phase) asks for, in world XZ.
-fn passer_waypoint(seed: u32, leg: u32, cur: u32, phase: u32, n: u32, band: f32) -> vec2<f32> {
-    let a = passer_leg_a(seed, leg, n);
-    let b = passer_leg_b(seed, leg, n);
-    var d = a;
-    var inside = true;
-    if (phase == 1u) { d = a; inside = false; }
-    else if (phase == 2u) { d = cur; inside = false; }
-    else if (phase == 3u) { d = b; inside = true; }
+fn passer_waypoint(seed: u32, leg: u32, cur: u32, phase: u32, n: u32,
+                   band: f32, arc: PasserArc) -> vec2<f32> {
+    if (phase == 0u) {
+        let ja = hash_property(seed, 9700u + leg) * 6.28318530718;
+        let jr = sqrt(hash_property(seed, 9800u + leg)) * PASSER_CENTRE_JITTER;
+        return arc.c + vec2(cos(ja), sin(ja)) * jr;
+    }
+    if (phase == 3u) {
+        // A quarter past the end door, on the outside band — the turn that
+        // brings the passer back around the arc's end toward the centre.
+        let e = passer_leg_end(seed, leg, n);
+        let d0 = passer_door(0u);
+        let d1 = passer_door(1u);
+        let b0 = atan2(d0.xz.y - arc.c.y, d0.xz.x - arc.c.x);
+        let b1 = atan2(d1.xz.y - arc.c.y, d1.xz.x - arc.c.x);
+        // Which way the arc runs in index order — read off ADJACENT doors,
+        // whose bearings differ by span/(N-1) and so cannot wrap ambiguously
+        // the way the two ends can at a half turn.
+        let step_sign = select(-1.0, 1.0, wrap_pi(b1 - b0) > 0.0);
+        let de = passer_door(e);
+        let be = atan2(de.xz.y - arc.c.y, de.xz.x - arc.c.x);
+        let s = select(-step_sign, step_sign, e != 0u);
+        let bo = be + s * PASSER_END_MARGIN;
+        return arc.c + vec2(cos(bo), sin(bo)) * (arc.r + band);
+    }
+    // phases 1 and 2 — outside(d), through the opening and out.
+    let d = select(cur, passer_leg_a(seed, leg, n), phase == 1u);
     let door = passer_door(d);
-    if (!door.ok) { return vec2(0.0); }
-    let sign_f = select(-1.0, 1.0, inside);
-    return door.xz + door.facing * (band * sign_f);
+    if (!door.ok) { return arc.c; }
+    return door.xz - door.normal * band;
 }
 
 fn behavior_passer(agent_in: AgentState) -> AgentState {
@@ -8416,12 +8497,16 @@ fn behavior_passer(agent_in: AgentState) -> AgentState {
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_room.tier_gains[tier];
 
-    // FEWER THAN TWO DOORS IS NOT A ROUTE. One door cannot be left and
-    // re-entered without doubling back through itself, and none cannot be
-    // walked at all — so the passer patrols instead, which is the nearest
-    // honest thing a figure in a room can do.
+    // FEWER THAN TWO DOORS IS NOT A ROUND, and neither is an arc whose
+    // centre will not resolve — the doors face nowhere in particular, so
+    // there is nothing to be the centre OF. The passer patrols instead,
+    // which is the nearest honest thing a figure in a room can do. (A kernel
+    // has no console; the [PASSER] census is where this shows, as a phase
+    // that never leaves 0 and a d that wanders.)
     let n = passer_door_count();
     if (n < 2u) { return behavior_slow_patrol(a); }
+    let arc = passer_arc();
+    if (!arc.ok) { return behavior_slow_patrol(a); }
 
     let band = b.aux;
     var leg   = (a.route >> 12u) & 0xFFFFFu;
@@ -8429,48 +8514,42 @@ fn behavior_passer(agent_in: AgentState) -> AgentState {
     var phase = (a.route >> 1u) & 0x7u;
 
     if ((a.route & 1u) == 0u) {
-        // Fresh: leg 0, phase 0, cur at the leg's first door.
-        leg = 0u; phase = 0u; cur = passer_leg_a(a.seed, 0u, n);
+        // Fresh: the first thing a passer does is walk to the centre.
+        leg = 0u; phase = 0u; cur = 0u;
     } else {
         // ARRIVED? step_size is the WAYPOINT RADIUS on this row.
         let to_home = vec2(a.home_x - a.pos_x, a.home_z - a.pos_z);
         if (length(to_home) < b.step_size) {
-            let bb = passer_leg_b(a.seed, leg, n);
-            if (phase == 0u) { phase = 1u; }
-            else if (phase == 1u) { phase = 2u; cur = passer_leg_a(a.seed, leg, n); }
+            let e = passer_leg_end(a.seed, leg, n);
+            if (phase == 0u) { cur = passer_leg_a(a.seed, leg, n); phase = 1u; }
+            else if (phase == 1u) { phase = 2u; }
             else if (phase == 2u) {
-                if (cur == bb) { phase = 3u; }
-                else if (cur < bb) { cur += 1u; }
+                if (cur == e) { phase = 3u; }
+                else if (e > cur) { cur += 1u; }
                 else { cur -= 1u; }
             }
-            else { leg += 1u; phase = 0u; cur = passer_leg_a(a.seed, leg, n); }
+            else { leg += 1u; phase = 0u; cur = 0u; }
         }
     }
-    // The waypoint IS home: one target field, and the tether below is the
-    // one that already exists.
-    let wp = passer_waypoint(a.seed, leg, cur, phase, n, band);
+    // The waypoint IS home — one target field, and the census's `d` is
+    // exactly the distance the arrival test measures.
+    let wp = passer_waypoint(a.seed, leg, cur, phase, n, band, arc);
     a.home_x = wp.x;
     a.home_z = wp.y;
     a.route = (leg << 12u) | ((cur & 0xFFu) << 4u) | ((phase & 0x7u) << 1u) | 1u;
 
-    // ── The HOME_SEEKER impulse toward home, unchanged ────────────
-    let s = step_trigger(b.step_rate);
-    if (s.fired) {
-        let theta = hash_property(a.seed, 7200u + s.step_idx) * 6.28318530718;
-        let impulse = b.step_size * g.step_gain;
-        a.vel_x += cos(theta) * impulse;
-        a.vel_z += sin(theta) * impulse;
-    }
-    let dx = a.home_x - a.pos_x;
-    let dz = a.home_z - a.pos_z;
-    let dist_sq = dx * dx + dz * dz;
-    if (dist_sq > 0.25) {
-        let pull = b.home_pull * g.persist_gain;
-        a.vel_x = a.vel_x + dx * pull * dt;
-        a.vel_z = a.vel_z + dz * pull * dt;
-    }
+    // ── The walk: constant speed, eased direction ─────────────────
+    let to = wp - vec2(a.pos_x, a.pos_z);
+    let dist = length(to);
+    let dir = select(vec2(0.0), to / max(dist, 0.0001), dist > 0.0001);
+    let desired = dir * (b.speed_cap * g.speed_gain);
+    let blend = min(1.0, b.drag * dt);
+    a.vel_x += (desired.x - a.vel_x) * blend;
+    a.vel_z += (desired.y - a.vel_z) * blend;
 
-    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+    // drag 0: the blend above IS this arm's drag, and decaying twice would
+    // put the walk under its own cap. The cap and the ground steering stay.
+    return agent_post_step(a, 0.0, b.speed_cap, g.speed_gain);
 }
 
 // ─── Behavior: Pursuit ───────────────────────────────────────────
@@ -9157,7 +9236,13 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         // (the isotropic fallback -- no camera velocity field yet; the deferred
         // config.point_vel_x/z retires it). point_pos() is the emitter --
         // PRESENCE FOLLOWS THE POINT.
-        {
+        // ATRIUM_6 — THE PASSAGE IS IMPERTURBABLE. A passer walking its
+        // round is the one thing in the entrance that must not flinch: the
+        // visitor is invited to walk up to a door BY WATCHING SOMEONE DO IT,
+        // and a figure that backs away as you approach teaches the opposite.
+        // Only this term is off — body-to-body contact above still holds, so
+        // passers part around each other and around you.
+        if (agent.behavior_id != PASSER_BEHAVIOR) {
             var src_vel = vec2(0.0);
             var a_floor = BUBBLE_PART_SPEED;
             if (!point_camera_hosted()) {

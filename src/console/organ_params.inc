@@ -550,7 +550,7 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].persistence,   
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].drag,           F32, 0.0f,  3.75f,  0.02f,   "Agents · passer", "drag", BEHAVIOR, AgentBehaviorBank, b[10].drag)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].home_pull,      F32, 0.0f,  10.0f,  0.05f,   "Agents · passer", "home pull", BEHAVIOR, AgentBehaviorBank, b[10].home_pull)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].neighbor_radius,F32, 0.0f,  50.0f,  0.25f,   "Agents · passer", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[10].neighbor_radius)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].speed_cap,      F32, 0.0f,  10.0f,  0.05f,   "Agents · passer", "speed cap", BEHAVIOR, AgentBehaviorBank, b[10].speed_cap)
+ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].speed_cap,      F32, 0.0f,  30.0f,  0.25f,   "Agents · passer", "speed cap", BEHAVIOR, AgentBehaviorBank, b[10].speed_cap)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].aux,            F32, 0.0f,  20.0f,  0.25f,   "Agents · passer", "band", BEHAVIOR, AgentBehaviorBank, b[10].aux)
 
 // ─── Agents · Portals — EDITS THE NEXT DRAW ─────────────────────
