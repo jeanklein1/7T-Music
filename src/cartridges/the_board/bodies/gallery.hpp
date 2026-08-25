@@ -3024,6 +3024,22 @@ inline void rehang_atrium_memory(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
               << gs.atrium_hang.count << " re-hung\n";
 }
 
+// ATRIUM_12 — THE FIT IS ARITHMETIC NOW, and the compiler checks it. The
+// poster stands ON the floor and its top is one full height above it, so the
+// clearance is wall_height - ground - height. Two of those three were always
+// authored; the third was a GPU-resolved sum with no CPU witness, which is
+// why the runtime line below could only print the flat-floor answer. With
+// SHAPE_ATRIUM.terrain_amp_ceiling pinned the ground term is bounded by
+// 0.06 wu, and the fit reduces to these two design numbers.
+//
+// THE DESIGN ROW, NOT THE LIVE BANK: a static_assert can only ever check what
+// the program ships with, and it says so rather than pretending otherwise.
+// sand[0].height is a LIVE dial that reaches 40 against this 20 ceiling, and
+// the runtime witness below is what tells the hand when it has gone past.
+static_assert(ATRIUM_TABLE.sand[0].height + 2.0f <= SHAPE_ATRIUM.wall_height,
+    "the controls poster must clear the atrium's ceiling with 2 wu to spare — "
+    "the floor is pinned flat (ATRIUM_12), so this is the whole of the fit");
+
 // ── place_atrium_poster — STAGE 1 (ATRIUM_10) ────────────────────
 //
 // The controls scheme on the sand, the frame its bytes are in hand, with no
@@ -3125,10 +3141,19 @@ inline void place_atrium_poster(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     // reader of it is a surviving reader of a graduated pair
     // (tools/organ_gap.py says so, and it is right: the room was built from
     // the live bank, so the witness must measure against the live bank).
+    // ATRIUM_12 — AND THE NUMBER IS TRUE NOW. It always printed
+    // wall_height - height and called it clearance, while the real clearance
+    // is wall_height - ground_under_the_poster - height and the CPU cannot
+    // sample that ground. The floor is pinned, so the ground term is bounded
+    // by 0.06 wu and the optimistic answer became the answer. The static
+    // assert above checks the DESIGN row; this line is what tells the hand,
+    // because sand[0].height is a live dial that reaches 40 against a 20
+    // ceiling and no static_assert can follow it there.
     const float ceiling = mood_def(MOOD_ATRIUM).shape.wall_height;
     std::cout << "[Atrium] poster: h=" << A.sand[0].height << " at d=" << A.sand[0].distance
               << ", ceiling " << ceiling
               << ", headroom " << (ceiling - A.sand[0].height)
+              << " (floor pinned flat, ATRIUM_12: +/-0.06 wu)"
               << ", apparent " << (A.sand[0].height / A.sand[0].distance) << "\n";
 }
 

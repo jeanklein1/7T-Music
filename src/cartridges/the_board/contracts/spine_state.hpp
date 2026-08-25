@@ -350,11 +350,37 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // visitor's first room is the same room. No GoL — the floor is for the images
 // and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
 // (ATRIUM_2): one door per other mood, not PORTAL_2's triad.
+//
+// ATRIUM_12 — AND THE FLOOR IS PINNED TOO, at 0.01 and NOT at 0. Every other
+// room rolls its ground and the poster's fit was a hope: the CPU cannot
+// sample an indoor floor (the seat is a GPU pass), so the headroom witness
+// could only ever print the flat-floor answer and call it clearance. Near-flat
+// makes that answer true to within a bound the arithmetic can state, and it
+// keeps the camera's eye out of a rise — which at elevation -18, where the
+// composed eye is already under the floor and riding the terrain clamp, is
+// not free. The last rolled thing in the entrance, and the entrance is always
+// as it is.
+//
+// ZERO WOULD HAVE DONE THE OPPOSITE. terrain_amp_ceiling is a per-wave
+// amplitude CAP applied as `if (config.terrain_amp_ceiling > 0.0) { amp =
+// min(amp, ceiling); }` (world.wgsl, evaluate_lattice_wave_pair), so 0 is the
+// OUTDOOR sentinel — uncapped — and writing it here would have made the
+// entrance the most rolled indoor room in the program. 0.01 is the smallest
+// number that still ARMS the cap.
+//
+// AND "FLAT" IS A BOUNDED CLAIM, NOT AN ABSOLUTE. The cap governs the wave
+// term only: six bands, each a bilinear blend over four lattice nodes whose
+// weights sum to 1, so |wave sum| <= 6 * 0.01 = 0.06 wu. The other
+// contributors to the walker's ground are untouched and named here so the
+// claim cannot be mistaken for more than it is — GoL zones (already off for
+// this shape, the `false` below), the baked pyramids inside
+// sample_terrain_y_at, the live card's radial pulses, and the pawn's own aura
+// dome, which is a floor by Jean's ruling and is meant to lift the eye.
 // ATRIUM_5 — THE SMALL ROOM. Radius 1: 3x3 patches, 150 wu a side. The
 // bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
 // so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
 // axis — the wall behind, the arc ahead, and the long side is +X +Z.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.5f,  false, true, false, PortalRoster::ARC,   SCHEME_ATRIUM, /* warm charcoal */ 7u };
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, PortalRoster::ARC,   SCHEME_ATRIUM, /* warm charcoal */ 7u };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
