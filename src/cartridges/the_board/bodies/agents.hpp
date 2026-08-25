@@ -4,6 +4,7 @@
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
 #include "cartridges/the_board/bodies/pawn_figures.hpp"        // PAWN_FIGURES, FIGURE_SHARES, family spans (H1) — this TU names them directly
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
+#include "cartridges/the_board/contracts/atrium_surface.hpp"   // ATRIUM_TABLE.arc_radius — the atrium row's spawn radius rides the arc (ATRIUM_4)
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // Tier vocabulary graduated to contracts/agent_tiers.hpp (ORGAN_2b) — the bank TIER_LIVE is the world's definition; the translator below reads it.
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_4 P3b — PANEL_LIVE.possession.radius: the reach, graduated out of this file's console
@@ -201,12 +202,14 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
       /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_ATRIUM — unpopulated until ATRIUM_4 seats the passers */
-    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 0,
-      /*behavior_weights=*/ {},
-      /*tier_weights=*/     {},
-      /*spawn_inner_radius=*/ 0.0f,
-      /*spawn_radius=*/       0.0f,
+    /* MOOD_ATRIUM — three passers, the visitor's own figure, born inside the arc (ATRIUM_4) */
+    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 3,
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
+      /*spawn_inner_radius=*/ 10.0f,
+      /*spawn_radius=*/       ATRIUM_TABLE.arc_radius - 10.0f,
       /*home_seeding_radius=*/ 0.0f },
 };
 
@@ -372,7 +375,7 @@ inline void populate_agent_slot_(const AgentState& as,
 
     // ── Write the slot ────────────────────────────────────────────
     out.pos_x   = sx;   out.pos_y   = 0.0f; out.pos_z   = sz;
-    out.home_x  = hx;   out.home_y  = 0.0f; out.home_z  = hz;
+    out.home_x  = hx;   out.route   = 0u;   out.home_z  = hz;   // ATRIUM_4 — route 0 = fresh
     out.heading = 0.0f;
     out.vel_x   = 0.0f; out.vel_y   = 0.0f; out.vel_z   = 0.0f;
     out.orient_x = 0.0f; out.orient_y = 0.0f; out.orient_z = 0.0f; out.orient_w = 1.0f;
@@ -389,7 +392,13 @@ inline void populate_agent_slot_(const AgentState& as,
     // ── Roll figure (skin_id) — global distribution, deterministic from seed ──
     // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
     // (salt 9u). Independent of the behavior/tier rolls (distinct salts).
-    {
+    //
+    // ATRIUM_4 — A PASSER IS NOT ROLLED. It is the regular pawn, skin 0: the
+    // figure the visitor inhabits, walking the doors ahead of them. The
+    // entrance teaches by showing someone doing the thing.
+    if (behavior_id == AGENT_BEHAVIOR_PASSER) {
+        out.skin_id = 0u;
+    } else {
         float fw[FAM_COUNT];
         float fsum = 0.0f;
         for (uint32_t i = 0; i < FAM_COUNT; ++i) fsum += FIGURE_SHARES[i].share_pct;

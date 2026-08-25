@@ -836,7 +836,10 @@ namespace t7 {
             float vel_z;           // 24
             float heading;         // 28
             float home_x;          // 32
-            float home_y;          // 36
+            uint32_t route;        // 36 — ATRIUM_4. Was home_y: the tether is planar
+                                   //      and nothing ever read it (R4). PASSER's route
+                                   //      state, packed (leg<<12)|(cur<<4)|(phase<<1)|1;
+                                   //      0 = fresh. Zero on every other behaviour.
             float home_z;          // 40
             uint32_t seed;         // 44 — stable noise source
             uint32_t behavior_id;  // 48 — AgentBehaviorId (see bodies/agents.hpp)

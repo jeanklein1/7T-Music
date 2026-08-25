@@ -816,7 +816,8 @@ struct AgentState {
     vel_z: f32,
     heading: f32,
     home_x: f32,
-    home_y: f32,
+    route: u32,     // ATRIUM_4. Was home_y — the tether is planar and nothing read it
+                    // (R4). PASSER's route state; 0 = fresh. Zero on every other behaviour.
     home_z: f32,
     seed: u32,
     behavior_id: u32,
@@ -8312,6 +8313,166 @@ fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
     return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
 }
 
+// ─── Behavior: Passer (ATRIUM_4) ─────────────────────────────────
+//
+// A BEHAVIOUR, NOT A TRAVERSAL. The passers walk the atrium's arc the way
+// a visitor would: across the room to a door, through it, along the
+// outside of the wall to another door, back in, across again. Nothing
+// about the world changes when one crosses a door plane — the portal
+// trigger rides the POSSESSED slot only (update_player_agent), so a passer
+// walks through a door and the door does nothing.
+//
+// THE DOORS are the portal entries with kind == 0, in array order, which is
+// arc order (force_spawn_atrium_arc spawns ascending and the back portal,
+// when one exists, takes the lowest slot and wears kind == 1). The scan is
+// linear over portals.count, at most 32, and runs only on an ADVANCE —
+// nothing is cached, because a cache would be a second home for a fact the
+// array already holds.
+//
+// THE ROUTE is one u32 in the slot: (leg << 12) | (cur << 4) | (phase << 1) | 1.
+// Bit 0 is "initialised", so a zeroed slot is a fresh passer and the spawn
+// path writes nothing but zero.
+//
+//   a(leg) = hash(seed, leg*2)   % N          the leg's first door
+//   b(leg) = (a + 1 + hash(seed, leg*2+1) % (N-1)) % N     the second, != a
+//   inside(d)  = door.xz + facing(d) * band   facing points INTO the room
+//   outside(d) = door.xz - facing(d) * band   (rotation = bearing + PI)
+//
+//   phase 0 -> inside(a)    the walk across the room
+//   phase 1 -> outside(a)   through the door, out
+//   phase 2 -> outside(cur) along the outside band, door by door: on arrival
+//                           cur += sign(b - cur), and cur == b -> phase 3
+//   phase 3 -> inside(b)    through the door, in; on arrival leg += 1, phase 0
+//
+// home_x/home_z IS the current waypoint — the tether pulls the passer along
+// its route, so there is no second target field and the HOME_SEEKER impulse
+// below is unchanged. `band` is behaviors[PASSER].aux.
+const PASSER_BEHAVIOR: u32 = 10u;
+
+struct PasserDoor { xz: vec2<f32>, facing: vec2<f32>, ok: bool }
+
+// The d-th forward door, by a linear scan over the portal array.
+fn passer_door(d: u32) -> PasserDoor {
+    var out: PasserDoor;
+    out.xz = vec2(0.0);
+    out.facing = vec2(0.0, 1.0);
+    out.ok = false;
+    var k = 0u;
+    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
+        let p = agent_room.portals.portals[pi];
+        if (p.kind != 0u) { continue; }
+        if (k == d) {
+            out.xz = vec2(p.x, p.z);
+            // The arch's rotation IS the opening's outward bearing
+            // (force_spawn_atrium_arc: rotation = bearing + PI, and the
+            // bearing runs from the arrival point outward), so facing_cos /
+            // facing_sin point INTO the room.
+            out.facing = vec2(p.facing_cos, p.facing_sin);
+            out.ok = true;
+            return out;
+        }
+        k += 1u;
+    }
+    return out;
+}
+
+fn passer_door_count() -> u32 {
+    var n = 0u;
+    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
+        if (agent_room.portals.portals[pi].kind == 0u) { n += 1u; }
+    }
+    return n;
+}
+
+fn passer_leg_a(seed: u32, leg: u32, n: u32) -> u32 {
+    return u32(hash_property(seed, 9600u + leg * 2u) * f32(n)) % n;
+}
+fn passer_leg_b(seed: u32, leg: u32, n: u32) -> u32 {
+    let a = passer_leg_a(seed, leg, n);
+    let step = 1u + u32(hash_property(seed, 9600u + leg * 2u + 1u) * f32(n - 1u)) % (n - 1u);
+    return (a + step) % n;
+}
+
+// The waypoint this (leg, cur, phase) asks for, in world XZ.
+fn passer_waypoint(seed: u32, leg: u32, cur: u32, phase: u32, n: u32, band: f32) -> vec2<f32> {
+    let a = passer_leg_a(seed, leg, n);
+    let b = passer_leg_b(seed, leg, n);
+    var d = a;
+    var inside = true;
+    if (phase == 1u) { d = a; inside = false; }
+    else if (phase == 2u) { d = cur; inside = false; }
+    else if (phase == 3u) { d = b; inside = true; }
+    let door = passer_door(d);
+    if (!door.ok) { return vec2(0.0); }
+    let sign_f = select(-1.0, 1.0, inside);
+    return door.xz + door.facing * (band * sign_f);
+}
+
+fn behavior_passer(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt = signal.dt;
+
+    let b = agent_room.behaviors[PASSER_BEHAVIOR];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = agent_room.tier_gains[tier];
+
+    // FEWER THAN TWO DOORS IS NOT A ROUTE. One door cannot be left and
+    // re-entered without doubling back through itself, and none cannot be
+    // walked at all — so the passer patrols instead, which is the nearest
+    // honest thing a figure in a room can do.
+    let n = passer_door_count();
+    if (n < 2u) { return behavior_slow_patrol(a); }
+
+    let band = b.aux;
+    var leg   = (a.route >> 12u) & 0xFFFFFu;
+    var cur   = (a.route >> 4u) & 0xFFu;
+    var phase = (a.route >> 1u) & 0x7u;
+
+    if ((a.route & 1u) == 0u) {
+        // Fresh: leg 0, phase 0, cur at the leg's first door.
+        leg = 0u; phase = 0u; cur = passer_leg_a(a.seed, 0u, n);
+    } else {
+        // ARRIVED? step_size is the WAYPOINT RADIUS on this row.
+        let to_home = vec2(a.home_x - a.pos_x, a.home_z - a.pos_z);
+        if (length(to_home) < b.step_size) {
+            let bb = passer_leg_b(a.seed, leg, n);
+            if (phase == 0u) { phase = 1u; }
+            else if (phase == 1u) { phase = 2u; cur = passer_leg_a(a.seed, leg, n); }
+            else if (phase == 2u) {
+                if (cur == bb) { phase = 3u; }
+                else if (cur < bb) { cur += 1u; }
+                else { cur -= 1u; }
+            }
+            else { leg += 1u; phase = 0u; cur = passer_leg_a(a.seed, leg, n); }
+        }
+    }
+    // The waypoint IS home: one target field, and the tether below is the
+    // one that already exists.
+    let wp = passer_waypoint(a.seed, leg, cur, phase, n, band);
+    a.home_x = wp.x;
+    a.home_z = wp.y;
+    a.route = (leg << 12u) | ((cur & 0xFFu) << 4u) | ((phase & 0x7u) << 1u) | 1u;
+
+    // ── The HOME_SEEKER impulse toward home, unchanged ────────────
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
+        let theta = hash_property(a.seed, 7200u + s.step_idx) * 6.28318530718;
+        let impulse = b.step_size * g.step_gain;
+        a.vel_x += cos(theta) * impulse;
+        a.vel_z += sin(theta) * impulse;
+    }
+    let dx = a.home_x - a.pos_x;
+    let dz = a.home_z - a.pos_z;
+    let dist_sq = dx * dx + dz * dz;
+    if (dist_sq > 0.25) {
+        let pull = b.home_pull * g.persist_gain;
+        a.vel_x = a.vel_x + dx * pull * dt;
+        a.vel_z = a.vel_z + dz * pull * dt;
+    }
+
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
+
 // ─── Behavior: Pursuit ───────────────────────────────────────────
 // Steers toward the player. Engages only when the player is within
 // neighbor_radius — outside that range, agent reverts to RandomWalk-
@@ -8940,11 +9101,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         case 7u: { agent = behavior_flee(agent); }
         case 8u: { agent = behavior_flock2d(agent); }
         case 9u: { agent = behavior_levy_flight(agent); }
-        // ATRIUM_4 — PASSER. Inert here: it falls to the HOME_SEEKER arm,
-        // which pulls toward home_x/z. The route that MOVES home is the
-        // next commit; this row exists so the count, the registry and the
-        // panel move first and alone.
-        case 10u: { agent = behavior_home_seeker(agent); }
+        case 10u: { agent = behavior_passer(agent); }   // ATRIUM_4
         default: { /* unknown behavior — no-op */ }
     }
 
