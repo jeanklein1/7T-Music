@@ -549,6 +549,20 @@ namespace t7 {
                     }
                 }
 
+
+                // BOOT IS A TRANSITION FROM NOTHING — IN FACT (ATRIUM_0).
+                // The seed and the mood are settled above; the world's other
+                // two destination facts were in-struct defaults until now,
+                // right only while the boot mood was open. The radius is
+                // DERIVED from the seed, never authored: DemoConfig does not
+                // grow, and its parked D2 axis stays parked.
+                {
+                    const auto& bm = mood_def(mood_state_.active);
+                    const PortalDestination boot{ world_state_.active_seed, bm.shape.finite,
+                        derive_finite_radius(world_state_.active_seed, bm), mood_state_.active };
+                    become_destination(boot);
+                }
+
                 // EXHIBIT_0 — THE EXHIBITION IS A FETCH, AND IT STARTS HERE.
                 // This is the earliest instant a GalleryState exists to fill,
                 // and on the web twin it runs inside main() BEFORE
@@ -1230,6 +1244,17 @@ namespace t7 {
                 gpuState_.set_veil_strength(world_state_.finite_mode ? 0.0f : 1.0f);
             }
 
+            // L10 — a destination becomes the world through ONE door. The
+            // teardown and the ctor both walk it; boot is a transition from
+            // nothing in fact, not in doctrine (ATRIUM_0: finite_mode and
+            // finite_radius were in-struct defaults at boot, correct by luck
+            // while the boot mood was open).
+            void become_destination(const PortalDestination& d) {
+                world_state_.active_seed   = d.seed;
+                world_state_.finite_mode   = d.finite;
+                world_state_.finite_radius = d.finite_radius;
+            }
+
             // U7 — THE TRANSITION MACHINE (spine-owned; SEAM[spine:transitions]).
             // ONE phase; internals untouched. FADE_OUT/TEARDOWN/FADE_IN; the
             // TEARDOWN arm owns the worldGen bump (P5 guard), return-state
@@ -1282,9 +1307,7 @@ namespace t7 {
                         mood_state_.back_portal_return_mood = mood_state_.active;
                         mood_state_.back_portal_return_radius = world_state_.finite_radius;
 
-                        world_state_.active_seed = pendingDestination_.seed;
-                        world_state_.finite_mode = pendingDestination_.finite;
-                        world_state_.finite_radius = pendingDestination_.finite_radius;
+                        become_destination(pendingDestination_);   // L10 — the one door (ATRIUM_0)
 
                         // The surface core first, then one teardown verb per
                         // owner. The per-organ clears are independent (each
