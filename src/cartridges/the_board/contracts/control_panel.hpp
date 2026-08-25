@@ -58,6 +58,48 @@ inline constexpr float FIELD_FMAX  = 600.0f;  // magnitude clamp on the summed f
 inline constexpr float FIELD_OCCUPIER_GAIN = 1.0f;  // standing geometry (shafts + arch legs)
 inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the beacon, the lure)
 
+// ── THE DOORWAY (ATRIUM_7) ───────────────────────────────────────
+// AN ARCH LEG WEARS ITS OWN SHELL FACTOR. The social slack is 3.0 — tuned
+// for bodies parting around shafts and around each other — and an arch is
+// TWO leg sources, half_span either side of the door's centre (world.wgsl
+// field_sum, the occupier_amg loop). Two shells of (r_leg + r_agent) * 3.0
+// close every doorway in the program:
+//
+//   DOORWAY's means, taken straight by force_spawn_portal_arch with no roll
+//   and no indoor rescale: half_span 6.0, depth 4.5, thickness 1.2, so the
+//   leg radius max(thickness, depth) * 0.5 = 2.25. A worker's contact_radius
+//   is 1.6. At slack 3.0 the shell is 11.55 against a half_span of 6.0 — the
+//   two shells overlap ACROSS the opening and 11.1 wu beyond it.
+//
+// On the door's own axis the lateral halves cancel and the summed push runs
+// outward from the mid-plane, so what stands in the doorway is a BARRIER
+// with a crest in front of it: at slack 3.0 its peak is 192 wu/s^2 against
+// a passer's 67.5 of forward authority (speed_cap 22.5 x drag 3.0), which is
+// exactly why they stopped at the doors and a nudge popped them through. The
+// possessed pawn never felt it — it reads occupiers as hard contact
+// (occupier_contact, BATCH G), not as the field.
+//
+// THE REST BELOW IS SIZED SO A DOORWAY LEAVES A CHANNEL A BODY WALKS DOWN:
+//   channel = 2*half_span - 2*(r_leg + r_agent)*slack = 12.0 - 7.7*slack
+// The barrier vanishes ENTIRELY the moment the shells stop meeting on the
+// axis — channel > 0, i.e. slack < 1.5584 — so the channel is not a proxy
+// for the obstruction, it IS the obstruction. And slack may not fall below
+// 1.0, or a body would stand inside a leg's own surface unpushed. 1.25 sits
+// inside [1.0, 1.5584] with the shell a quarter proud of the leg and a
+// channel of 2.38 wu for the body's centre.
+//
+// Shafts, bodies, the beacon and the authored table keep the social slack —
+// the parting crowd is Jean's stamp and is not touched here.
+inline constexpr float FIELD_ARCH_SLACK = 1.25f;   // shell factor over an arch leg
+// The channel the gate reads. 2.0 and not 5.0: at slack 1.0 — the floor —
+// the geometry's widest possible channel is 4.30 wu, so a 5 wu channel is
+// not a tighter shell, it is a wider door.
+inline constexpr float ATRIUM_DOOR_CHANNEL_MIN = 2.0f;   // wu
+static_assert(FIELD_ARCH_SLACK < FIELD_SLACK,
+    "the doorway's shell must be tighter than the social shell");
+static_assert(FIELD_ARCH_SLACK >= 1.0f,
+    "a shell inside the leg's own surface would let a body stand in the stone");
+
 // The gate instrument's subscriber half — any class zeroes
 // independently. Applied AFTER the FMAX clamp: the summed shape is
 // bounded once, then scaled per class. These three were WGSL-only

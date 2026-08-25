@@ -569,6 +569,7 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[6], F32, 0.0f, 1.0f, 0.005
 // GPUDesignConfig, boot-pinned from contracts/control_panel.hpp and read
 // by both dialects. field_k is clamped against the beacon's S at the writer.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_slack,         F32, 0.0f, 12.0f,   0.05f, "Interaction · Field", "slack")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, field_arch_slack,    F32, 0.5f,  4.0f,   0.05f, "Interaction · Field", "arch slack")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_k,             F32, 0.0f, 1200.0f, 5.0f,  "Interaction · Field", "k (accel)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_fmax,          F32, 0.0f, 2400.0f, 10.0f, "Interaction · Field", "f max")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_occupier_gain, F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "occupier gain")

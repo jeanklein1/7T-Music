@@ -813,7 +813,13 @@ namespace t7 {
             // pads carry the struct back to its boundary: 688 -> 704.
             float camera_push_gain;        // 688
             float camera_push_radius;      // 692
-            float _pad704_0;               // 696
+            // ATRIUM_7 — THE DOORWAY'S OWN SHELL. Mirror of the WGSL twin —
+            // GROWTH LAW, same commit, same position, same type. Rest
+            // authored at contracts/control_panel.hpp (FIELD_ARCH_SLACK);
+            // the boot pins it. A tail pad is consumed IN PLACE, so sizeof
+            // 704 is unmoved and no witness below moves either. Was
+            // _pad704_0.
+            float field_arch_slack;        // 696
             float _pad704_1;               // 700
         };
 
@@ -5025,6 +5031,7 @@ namespace t7 {
                 // the transport. The ribbon dialect reads the same names
                 // directly, so the two rooms cannot drift.
                 config_.field_slack         = FIELD_SLACK;
+                config_.field_arch_slack    = FIELD_ARCH_SLACK;   // ATRIUM_7 — an arch leg's own shell
                 config_.field_k             = FIELD_K;
                 config_.field_fmax          = FIELD_FMAX;
                 config_.field_occupier_gain = FIELD_OCCUPIER_GAIN;

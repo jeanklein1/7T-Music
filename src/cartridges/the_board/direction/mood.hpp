@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUSpotLightArray, MAX_SPOT_LIGHTS
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
+#include "cartridges/the_board/contracts/agent_tiers.hpp"      // TIER_LIVE — the doorway witness reads a walker's contact_radius (ATRIUM_7)
 #include "cartridges/the_board/contracts/spine_state.hpp"      // TransitionPhase (the transition channel — the driver door's param)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
@@ -1491,6 +1492,31 @@ inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& 
         << " centre=(" << cx << "," << cz << ")"
         << " r=" << A.arc_radius << " span=" << A.arc_span_deg
         << " wall clearance beyond the arc=" << clear << "\n";
+
+    // ── THE DOORWAY WITNESS (ATRIUM_7) ───────────────────────────
+    // The channel the field leaves down the middle of a DOORWAY at the LIVE
+    // arch slack — a prose mirror of world.wgsl's field_sum (L2-class: the
+    // formula is the kernel's, the sources are named, and the two move
+    // together). An arch is TWO leg sources half_span either side of the
+    // centre, each shell (r_leg + r_agent) * slack, so what a body's centre
+    // has to walk down is what is left between them:
+    //     channel = 2*half_span - 2*(r_leg + r_agent)*slack
+    // Negative means the shells meet across the opening and a barrier stands
+    // in the doorway. The radii are the kernel's own: leg
+    // max(thickness, depth) * 0.5, walker TIER_LIVE contact_radius (the
+    // passers are worker tier — AGENT_POPULATIONS[MOOD_ATRIUM]).
+    {
+        const auto& dw = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
+        const float half_span = dw.params[ArchIdx::SPAN].mean * 0.5f;
+        const float r_leg = std::max(dw.params[ArchIdx::THICKNESS].mean,
+                                     dw.params[ArchIdx::DEPTH].mean) * 0.5f;
+        const float r_agent = TIER_LIVE.t[AGENT_TIER_WORKER].contact_radius;
+        const float slack = c->gpuState_.config().field_arch_slack;
+        const float channel = 2.0f * half_span - 2.0f * (r_leg + r_agent) * slack;
+        std::cout << "[Atrium] doorway channel at arch slack " << slack
+            << " = " << channel << " wu (min " << ATRIUM_DOOR_CHANNEL_MIN << ")"
+            << (channel < ATRIUM_DOOR_CHANNEL_MIN ? "  << TIGHT" : "") << "\n";
+    }
 }
 
 // ── force_spawn_door_fallback ──

@@ -1772,7 +1772,11 @@ struct DesignConfig {
     // carries the witness). Read by cube_force_witness.
     camera_push_gain: f32,          // 688  wu/s² of shove at the shell's center
     camera_push_radius: f32,        // 692  wu — the shell; 0 shuts the term off
-    _pad704_0: f32,                 // 696
+    // ATRIUM_7 — an arch leg's own shell factor. Mirror of
+    // GPUDesignConfig.field_arch_slack (state.hpp) — GROWTH LAW, same
+    // commit, same order, same type. Read by field_sum's occupier_amg loop.
+    // Was _pad704_0.
+    field_arch_slack: f32,          // 696
     _pad704_1: f32,                 // 700
 }
 
@@ -8989,10 +8993,15 @@ fn update_player_agent() {
 // constant- or uniform-bounded (banner rule 2); no textures
 // (rule 3); outside every collision/ground chain.
 
-fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
-              r_s: f32, r_e: f32, sub_i: u32, emit_i: u32) -> vec3<f32> {
+// ATRIUM_7 — THE SHELL FACTOR IS A PARAMETER NOW, because one source class
+// does not wear the social shell: an arch's two legs half_span apart close
+// the doorway between them at slack 3.0. Every caller but the arch-leg pair
+// passes config.field_slack, and field_pair is the door that says so.
+fn field_pair_slack(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
+                    r_s: f32, r_e: f32, sub_i: u32, emit_i: u32,
+                    slack: f32) -> vec3<f32> {
     let dvec = sub_pos - emit_pos;
-    let shell = (r_s + r_e) * config.field_slack;
+    let shell = (r_s + r_e) * slack;
     let len = length(dvec);
     if (len >= shell) { return vec3(0.0); }
     // Degenerate overlap: deterministic axis by index parity — no
@@ -9005,6 +9014,11 @@ fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
     }
     let depth = 1.0 - len / shell;
     return dir * (config.field_k * depth * depth);
+}
+
+fn field_pair(sub_pos: vec3<f32>, emit_pos: vec3<f32>,
+              r_s: f32, r_e: f32, sub_i: u32, emit_i: u32) -> vec3<f32> {
+    return field_pair_slack(sub_pos, emit_pos, r_s, r_e, sub_i, emit_i, config.field_slack);
 }
 
 fn field_sum(sub_i: u32) -> vec3<f32> {
@@ -9105,12 +9119,18 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
         if (am.is_active == 0u) { continue; }
         let leg_r = max(am.thickness, am.depth) * 0.5;
         let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-        occ += field_pair(sub_pos,
+        // ATRIUM_7 — THE DOORWAY OPENS. These two are half_span apart, and
+        // at the SOCIAL slack their shells meet across the opening: what
+        // stands between the legs is a barrier with its crest in front of
+        // the door, which is where the passers stopped. An arch leg wears
+        // its own, tighter shell (config.field_arch_slack); the shaft loop
+        // above and every other emitter keep the social one.
+        occ += field_pair_slack(sub_pos,
                           vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
-                          r_s, leg_r, sub_i, 740u + 2u * i);
-        occ += field_pair(sub_pos,
+                          r_s, leg_r, sub_i, 740u + 2u * i, config.field_arch_slack);
+        occ += field_pair_slack(sub_pos,
                           vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
-                          r_s, leg_r, sub_i, 741u + 2u * i);
+                          r_s, leg_r, sub_i, 741u + 2u * i, config.field_arch_slack);
     }
     f += occ * config.field_occupier_gain;
     if (sub_i >= 32u) {
