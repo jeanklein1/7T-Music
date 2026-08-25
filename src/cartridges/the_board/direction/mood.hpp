@@ -1167,10 +1167,15 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
 
         struct Spot { float x, z, rotation; };
         Spot candidates[4] = {
-            { room_center,        bmin + WALL_MARGIN,  1.5708f  },  // south, faces +Z
-            { bmax - WALL_MARGIN, room_center,         3.14159f },  // east,  faces -X
-            { room_center,        bmax - WALL_MARGIN, -1.5708f  },  // north, faces -Z
-            { bmin + WALL_MARGIN, room_center,         0.0f     },  // west,  faces +X
+            // ATRIUM_6 — the rotations here are SPANS, like every arch's
+            // (arch_rotation_from_facing names the convention). The rooms'
+            // doorways stand with their span perpendicular to the wall they
+            // sit on; that is the standing reading and Jean has gated it. No
+            // value below changes.
+            { room_center,        bmin + WALL_MARGIN,  1.5708f  },  // south wall; span along +Z
+            { bmax - WALL_MARGIN, room_center,         3.14159f },  // east  wall; span along -X
+            { room_center,        bmax - WALL_MARGIN, -1.5708f  },  // north wall; span along -Z
+            { bmin + WALL_MARGIN, room_center,         0.0f     },  // west  wall; span along +X
         };
 
         // Fisher–Yates on the side order, seeded from the world seed.
@@ -1313,15 +1318,19 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         float x, z, rotation;
     };
 
-    // Fixed candidate positions: one per wall, offset from center
+    // Fixed candidate positions: one per wall, offset from center.
+    // ATRIUM_6 — the rotations here are SPANS, like every arch's
+    // (arch_rotation_from_facing names the convention). The rooms' doorways
+    // stand with their span perpendicular to the wall they sit on; that is
+    // the standing reading and Jean has gated it. No value below changes.
     PortalSpot candidates[] = {
-        // South wall, facing +Z (into room)
+        // South wall; span along +Z
         { room_center, bmin + margin, 1.5708f },
-        // East wall, facing -X (into room)
+        // East wall; span along -X
         { bmax - margin, room_center, 3.14159f },
-        // North wall, facing -Z (into room)
+        // North wall; span along -Z
         { room_center, bmax - margin, -1.5708f },
-        // West wall, facing +X (into room)
+        // West wall; span along +X
         { bmin + margin, room_center, 0.0f },
     };
     uint32_t num_candidates = 4;
@@ -1443,23 +1452,12 @@ inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& 
         const float px = cx + std::cos(bearing) * A.arc_radius;
         const float pz = cz + std::sin(bearing) * A.arc_radius;
         const float dxc = cx - px, dzc = cz - pz;
-        // AN ARCH'S ROTATION IS ITS SPAN, NOT ITS NORMAL — and that is the
-        // whole of why the first sitting stood orthogonal. Three sites in
-        // world.wgsl agree and none of them is a comment: amg_gen_shell
-        // sweeps the catenary along (cos r, sin r) and the DEPTH along
-        // (-sin r, cos r); arch_rib_point walks foot to foot along
-        // (cos r, sin r) * half_span; and the crossing ellipse weights
-        // (cos r, sin r) by inv_span_sq and its perpendicular by
-        // inv_depth_sq. So (cos r, sin r) is the chord between the feet and
-        // (-sin r, cos r) is the walk-through normal.
-        //
-        // Wanting normal == unit(centre - door) therefore gives
-        //   -sin r = dxc/len,  cos r = dzc/len   ->   r = atan2(-dxc, dzc)
-        // which is the placement bearing + PI/2. Written as the atan2 of the
-        // ACTUAL door-to-centre vector rather than as an offset on `bearing`,
-        // so a change to the placement expression cannot turn the doors
-        // sideways again.
-        const float rotation = std::atan2(-dxc, dzc);
+        // The opening faces the centre. The span convention that makes this
+        // a quarter turn rather than a half one has ONE home now
+        // (arch_rotation_from_facing, contracts/spawn_services.hpp, ATRIUM_6);
+        // what is passed is the ACTUAL door-to-centre vector, so a change to
+        // the placement expression above cannot turn the doors sideways.
+        const float rotation = arch_rotation_from_facing(dxc, dzc);
         const uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7970u + m);
         const auto& mp = mood_def(m);
         PortalDestination dest{};
@@ -1530,7 +1528,12 @@ inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCt
     float bearing = cpu_hash_f(c->world_state_.active_seed, 8810u) * 2.0f * 3.14159f;
     float cx = std::cos(bearing) * door_r;
     float cz = std::sin(bearing) * door_r;
-    float rotation = bearing + 3.14159f;   // face the spawn anchor
+    // THE OPENING FACES THE SPAWN ANCHOR — which is what this line always
+    // said and never did: bearing + PI aimed the arch's SPAN at the anchor
+    // and left the doorway edge-on (ATRIUM_6). The door stands at
+    // (cos b, sin b) * door_r from the anchor, so the vector from the door
+    // TO the anchor is -(cos b, sin b).
+    float rotation = arch_rotation_from_facing(-std::cos(bearing), -std::sin(bearing));
 
     uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 8800u);
     uint32_t mood = pick_portal_mood(c->world_state_.active_seed, 8900u);

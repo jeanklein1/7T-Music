@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>                                            // size_t (the rescale template's array extent)
+#include <cmath>                                              // std::atan2 (arch_rotation_from_facing)
 #include "cartridges/the_board/contracts/roster.hpp"          // PopFamily (sizes MIN_SEPARATION)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"    // MachineCtx + EntityInstance + traits/adapter + TierProfile
@@ -113,6 +114,28 @@ inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
 
 // ── Arch vocabulary (graduated with the decl tier: read by entities'
 //    recipes and direction/mood.hpp's portal/doorway geometry) ──
+
+// ── AN ARCH'S ROTATION IS ITS SPAN (ATRIUM_6) ────────────────────
+// amg_gen_shell (world.wgsl) sweeps the catenary along (cos r, sin r) and
+// the depth along (-sin r, cos r); arch_rib_point walks foot to foot along
+// the same (cos r, sin r); the crossing ellipse weights that axis by
+// inv_span_sq and its perpendicular by inv_depth_sq. Three sites, one
+// reading: (cos r, sin r) is the chord between the feet, and the OPENING's
+// normal is (-sin r, cos r).
+//
+// So a door meant to FACE a point takes the bearing of that point less a
+// quarter turn, and every CPU site that places a door to face something
+// derives it here rather than spelling a sign it can get backwards. Pass
+// the vector FROM the door TO the thing it should open onto; the length
+// does not matter.
+//
+// THE WALL CANDIDATE TABLES ARE NOT SUCH SITES. They carry their own
+// authored rotations and their own standing reading — a doorway's span
+// perpendicular to its wall — which Jean has gated as it stands. They do
+// not derive here, and this line is why they do not have to.
+inline float arch_rotation_from_facing(float nx, float nz) {
+    return std::atan2(-nx, nz);
+}
 
 struct ArchIdx {
     static constexpr uint32_t SPAN         = 0;  // full span (halved in compute_solid_half)
