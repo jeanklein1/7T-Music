@@ -239,6 +239,7 @@ uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 // Used before their definitions (which keep their original section
 // homes below). Impl-only — not part of the header surface.
 inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
+inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
 
 // ═══ TUNING DATA (impl-side — internal authoring tables) ═════════
 //
@@ -1210,7 +1211,12 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
 inline void force_spawn_forward_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
     c->mood_state_.forward_portals_pending = false;
     if (!c->world_state_.finite_mode) return;
-    force_spawn_finite_portals(c, queue, machine_ctx);
+    // ATRIUM_2 — the roster is the SHAPE's, not this function's. One
+    // property, two rosters; every other finite world keeps the triad.
+    switch (mood_def(c->mood_state_.active).shape.portal_roster) {
+    case PortalRoster::ARC:   force_spawn_atrium_arc(c, queue, machine_ctx);    break;
+    default:                  force_spawn_finite_portals(c, queue, machine_ctx); break;
+    }
 }
 
 // ── force_spawn_finite_portals ──
@@ -1239,7 +1245,9 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     // doors: deeper in (one of the two rooms, seed's coin), out — an
     // open sky, drawn by the destination law's weights among the open
     // moods (ATMOS_1) — and back (already standing). Two forwards here;
-    // the radius no longer buys doors.
+    // the radius no longer buys doors. ATRIUM_2: the triad is the
+    // roster a shape asks for, not the only one — SHAPE_ATRIUM wears
+    // PortalRoster::ARC and reaches force_spawn_atrium_arc instead.
     constexpr uint32_t count = 2;
     const uint32_t fwd_moods[2] = {
         (cpu_hash_f(c->world_state_.active_seed, 7950u) < 0.5f)
@@ -1342,6 +1350,52 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         << (back_stands ? 1 : 0) << " back-portal\n";
 }
 
+// ── force_spawn_atrium_arc ──
+// ATRIUM_2 — PORTAL_2 amended for ONE shape property. The atrium's roster is
+// one door per OTHER mood, in id order, on a semicircle centred on the
+// arrival point and facing it. The colours are the destination law's, so the
+// arc reads as a spectrum: there are places. The back (when something
+// precedes) stands on its wall as ever — "most" doors are on the arc.
+inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
+    const auto& A = ATRIUM_LIVE;
+    constexpr float DEG = 3.14159265f / 180.0f;
+    const float ox = Idle::PAWN_POS_X, oz = Idle::PAWN_POS_Z;
+    const float centre_bearing = heading_to_bearing(Idle::PAWN_HEADING) + A.arc_bearing_deg * DEG;
+    constexpr uint32_t DOORS = MOOD_COUNT - 1;   // no self-door
+    uint32_t k = 0, spawned = 0;
+    // THE SPAWN ORDER IS THE ARC ORDER, and it is stated here because
+    // ATRIUM_4 depends on it: the doors enter the arch slots ascending, so
+    // the portal array's slot order IS arc order and a passer can walk the
+    // array index as the arc index. The back portal, spawned first when it
+    // exists, takes the lowest slot and wears kind = 1.
+    for (uint32_t m = 0; m < MOOD_COUNT; m++) {
+        if (m == MOOD_ATRIUM) continue;
+        const float t = (DOORS == 1) ? 0.5f : (float)k / (float)(DOORS - 1);
+        const float bearing = centre_bearing + (t - 0.5f) * A.arc_span_deg * DEG;
+        const float px = ox + std::cos(bearing) * A.arc_radius;
+        const float pz = oz + std::sin(bearing) * A.arc_radius;
+        const float rotation = bearing + 3.14159f;   // the opening faces the arrival point
+        const uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7970u + m);
+        const auto& mp = mood_def(m);
+        PortalDestination dest{};
+        dest.seed = dest_seed; dest.mood = m; dest.finite = mp.shape.finite;
+        dest.finite_radius = derive_finite_radius(dest_seed, mp);
+        const uint32_t slot = force_spawn_portal_at(c, queue, px, pz, rotation, dest, false, machine_ctx);
+        if (slot != UINT32_MAX) {
+            spawned++;
+            std::cout << "[Atrium] door " << k << " at (" << px << "," << pz << ") -> " << mood_name(m) << "\n";
+        }
+        k++;
+    }
+    // THE FIT WITNESS — a log, not a clamp. The passers' outside band is
+    // arc_radius + PASSER band (A4); the number to watch is the clearance.
+    const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+    const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
+    const float clear = std::min({ ox - bmin, bmax - ox, oz - bmin, bmax - oz }) - A.arc_radius;
+    std::cout << "[Atrium] arc: doors=" << spawned << "/" << DOORS << " r=" << A.arc_radius
+        << " span=" << A.arc_span_deg << " wall clearance beyond the arc=" << clear << "\n";
+}
+
 // ── force_spawn_door_fallback ──
 //
 // THE DOOR GUARANTEE (U2). Runs once per world, after the synchronous
@@ -1421,7 +1475,7 @@ inline void upload_portal_array(MoodDeps* c, wgpu::Queue& queue) {
         entry.inv_span_sq = 1.0f / (aa.half_span * aa.half_span);
         entry.inv_depth_sq = 1.0f / (half_depth * half_depth);
         entry.arch_index = i;
-        entry._pad = 0;
+        entry.kind = aa.is_back_portal ? 1u : 0u;
         count++;
     }
     c->cpuPortalArray_.count = count;
@@ -1504,7 +1558,8 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
 
 // PORTAL_2 — the OPEN-WORLD destination law. Finite worlds no
 // longer roll: their roster is the fixed triad
-// (force_spawn_finite_portals). The finite outdoors is a rare
+// (force_spawn_finite_portals), or the arc where the shape says ARC
+// (force_spawn_atrium_arc, ATRIUM_2). The finite outdoors is a rare
 // feature of the open field only.
 // THE DESTINATION LAW (ATMOS_1). One weighted walk over every mood, in id
 // order, from WORLD_DRAW_LIVE.mood_weights — the open field's law in one

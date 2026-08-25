@@ -206,6 +206,12 @@ enum class CeilingType : uint32_t {
     VAULT = 2,   // catenary vault ceiling
 };
 
+// THE ROSTER A SHAPE OFFERS (ATRIUM_2). PORTAL_2's triad is the finite
+// world's roster; the atrium's is an arc — one door per OTHER mood, in id
+// order, on a semicircle around the arrival point. Structural, like every
+// other WorldShape column: read at POPULATION and never re-spoken.
+enum class PortalRoster : uint32_t { TRIAD = 0, ARC = 1 };
+
 // THE SHAPE — what a world IS. Structural by the eligibility rule
 // (stated beside MOOD_LIVE below): no field here may take a definition
 // target, because world GENERATION reads it, and rewriting it without
@@ -230,6 +236,9 @@ struct WorldShape {
                                      // indoor terrain IS culled despite the two
                                      // `false` rows below. See renderer.hpp for
                                      // the full note and the cut (OPT_1 O0-f).
+    PortalRoster portal_roster;      // ATRIUM_2 — TRIAD (PORTAL_2) or ARC (one door per
+                                     // other mood on a semicircle). Structural: read at
+                                     // population, never re-spoken.
 };
 // The open field, by property: neither walled nor roofed. The triad's
 // way out asks this; no id is kept for it, because the two flags already
@@ -297,15 +306,16 @@ struct MoodProfile {
 // ═══ THE SHAPES ══════════════════════════════════════════════════
 // One authored home per shape. Three moods wear SHAPE_OPEN, and that
 // they are one stage is stated by this constant, not by three copies.
-//                                              fin    r_min r_max indoor ceil                wall_h amp_c  zones aura  cull
-inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true  };
-inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false };
-inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false };
-inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true  };
+//                                              fin    r_min r_max indoor ceil                wall_h amp_c  zones aura  cull   roster
+inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  PortalRoster::TRIAD };
+inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false, PortalRoster::TRIAD };
+inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false, PortalRoster::TRIAD };
+inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  PortalRoster::TRIAD };
 // THE ATRIUM'S SHAPE (ATRIUM_1). Radius pinned (min == max, no roll): every
 // visitor's first room is the same room. No GoL — the floor is for the images
-// and the passers. Flat ceiling, the flat room's wall.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  2,    2,    true,  CeilingType::FLAT,  20.0f, 0.5f,  false, true, false };
+// and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
+// (ATRIUM_2): one door per other mood, not PORTAL_2's triad.
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  2,    2,    true,  CeilingType::FLAT,  20.0f, 0.5f,  false, true, false, PortalRoster::ARC };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
@@ -447,10 +457,10 @@ static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
 // shapes and the atmospheres are positionally brace-initialised, so a
 // column added or cut mid-row shifts every field after it with no
 // diagnostic. One probe per region of each row — head, middle, tail —
-// so a shift anywhere trips. allow_frustum_cull is WorldShape's last
-// field and takes the tail probe; its values differ from `indoor` at
-// the same rows, so the tail probe still names something the middle
-// probe does not.
+// so a shift anywhere trips. portal_roster is WorldShape's last field
+// and takes the tail probe (ATRIUM_2); allow_frustum_cull, the field it
+// displaced, keeps a probe of its own one step in, and its values differ
+// from `indoor` at the same rows, so neither names what the other does.
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.finite         == false, "WorldShape column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape.finite      == true,  "WorldShape column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.indoor         == false, "WorldShape column drift: indoor (middle)");
@@ -461,6 +471,9 @@ static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "W
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_min == MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_max,
     "WorldShape: the atrium's radius is pinned (ATRIUM_1)");
+static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.portal_roster == PortalRoster::ARC
+           && MOOD_TABLE[MOOD_INDOOR_FLAT].shape.portal_roster == PortalRoster::TRIAD,
+    "WorldShape column drift: portal_roster (tail)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]            == 0.94f,   "Atmosphere column drift: sun_direction (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].sun_color[0]      == 1.0f,    "Atmosphere column drift: regime[0].sun_color");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].intensity         == 0.90f,   "Atmosphere column drift: regime[0].intensity (middle)");

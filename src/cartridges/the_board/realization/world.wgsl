@@ -6875,7 +6875,7 @@ struct PortalEntry {
     inv_span_sq: f32,
     inv_depth_sq: f32,
     arch_index: u32,
-    _pad: u32,
+    kind: u32,   // 0 forward, 1 back (ATRIUM_2: the passers walk forward doors only)
 }
 struct PortalArray {
     count: u32,

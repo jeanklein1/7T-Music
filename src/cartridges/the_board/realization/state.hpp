@@ -1863,7 +1863,7 @@ namespace t7 {
             float inv_span_sq;        // 16  1 / half_span²  (lateral — foot-to-foot)
             float inv_depth_sq;       // 20  1 / (depth*0.5)² (forward — walk-through)
             uint32_t arch_index;      // 24  maps to CPU entities_state_.arches[index]
-            uint32_t _pad;            // 28
+            uint32_t kind;            // 28 — 0 forward, 1 back (ATRIUM_2: the passers walk forward doors only)
         };
         struct alignas(16) GPUPortalArray {
             uint32_t count;
