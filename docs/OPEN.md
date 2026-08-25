@@ -2,6 +2,18 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
+- The atrium's CENTRE DOOR stands behind the poster at arrival. Five doors on
+  a 180-degree arc put one dead ahead, and `sand[0].bearing_deg` is 0, so the
+  visitor finds that door by moving rather than by looking. If all five should
+  be in the first frame the dial is `sand[0].bearing_deg` (~25 deg, sliding the
+  poster between the centre and one neighbour) — it hides nothing at that
+  angle and stays in frame. Origin: ATRIUM_8, flagged not fixed. Jean's word
+  decides whether the first frame owes the visitor all five.
+- The `[PASSER]` census (`dump_passer_census`, `INSTRUMENTS.passer_witness`)
+  is a CAMPAIGN instrument and the one arm true in every column including
+  `off`. Its warrant was "retire it once the passers are seen". It is still on
+  because ATRIUM_8's own gate reads it. Origin: ATRIUM_5 A5.0. Unblocked by
+  Jean reading a deployed `[PASSER]` line and saying the round is seen.
 - The doorway's shell: CLOSED for agents, OPEN for the ribbon. An arch is two
   leg sources half_span apart in the field, and at the social slack (3.0) their
   shells meet across every opening — a barrier with its crest in front of the
