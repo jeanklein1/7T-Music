@@ -362,7 +362,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Agents · passer | drag | `AGENT_ROOM.behaviors[10].drag` | AGENT_ROOM | F32 | 0 … 3.75 | 0.02 | boundary | behavior |  |
 | Agents · passer | home pull | `AGENT_ROOM.behaviors[10].home_pull` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
 | Agents · passer | neighbour radius | `AGENT_ROOM.behaviors[10].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
-| Agents · passer | speed cap | `AGENT_ROOM.behaviors[10].speed_cap` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
+| Agents · passer | speed cap | `AGENT_ROOM.behaviors[10].speed_cap` | AGENT_ROOM | F32 | 0 … 30 | 0.25 | boundary | behavior |  |
 | Agents · passer | band | `AGENT_ROOM.behaviors[10].aux` | AGENT_ROOM | F32 | 0 … 20 | 0.25 | boundary | behavior |  |
 | Agents · Portals | portal density | `WORLD.portal_density` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Agents · Portals | draw · open sunset | `WORLD.mood_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
