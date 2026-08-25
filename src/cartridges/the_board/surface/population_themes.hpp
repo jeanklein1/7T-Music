@@ -48,6 +48,12 @@ inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
     /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_OPEN_NIGHT      */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     /* MOOD_OPEN_NOON       */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    // THE ATRIUM IS AUTHORED, NOT ROLLED (ATRIUM_1). Every family's column
+    // is 0: nothing the composition law would scatter belongs in the
+    // entrance. Every one of the twelve reaches compose_spawn_chance
+    // through mood_mult_for, and adj_mod = 0 survives the whole stack —
+    // the clamps bound the top only — so this row silences all of them.
+    /* MOOD_ATRIUM          */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // The per-family column view, contiguous for the const float* funnels

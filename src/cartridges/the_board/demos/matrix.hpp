@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/contracts/demo_config.hpp"       // DemoConfig, Roster
-#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET
+#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET, MOOD_ATRIUM
 
 // ─── matrix.hpp (THE DEMO MATRIX: pieces × demos, cells booleans) ──
 // Jean's ratified grid.

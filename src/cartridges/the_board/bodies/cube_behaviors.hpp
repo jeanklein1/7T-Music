@@ -222,6 +222,9 @@ inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_OPEN_NOON (ATMOS_1) */
     { MOOD_OPEN_NOON,
       /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+    /* MOOD_ATRIUM (ATRIUM_1) */
+    { MOOD_ATRIUM,
+      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
 };
 
 static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
@@ -232,6 +235,7 @@ static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_VAULT,   "row 2 must be
 static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be MOOD_FINITE_OUTDOOR");
 static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_OPEN_NIGHT,     "row 4 must be MOOD_OPEN_NIGHT");
 static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_OPEN_NOON,      "row 5 must be MOOD_OPEN_NOON");
+static_assert(CUBE_POPULATIONS[6].mood_id == MOOD_ATRIUM,         "row 6 must be MOOD_ATRIUM");
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 

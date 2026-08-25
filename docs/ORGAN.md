@@ -213,6 +213,9 @@ shared one) and one `ATMOS_` constant, one row in each positional per-mood
 table (`MOOD_TABLE`, `ORB_MOOD_TABLE`, `AGENT_POPULATIONS`, `MOOD_SPAWN_MULT`,
 `CUBE_POPULATIONS`), a portal colour and a weight in `WORLD_DRAW_TABLE`, and a
 name in `MOOD_NAMES` — every table's assert names the commit it expects.
+`atrium` (id 6) is the boot mood and the rarest door — the shape `SHAPE_ATRIUM`
+is radius-pinned, wears `PortalRoster::ARC` (ATRIUM_2), and hangs only its own
+folder (ATRIUM_3).
 
 The destination law is one weighted table, `WORLD_DRAW_LIVE.mood_weights`,
 walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to open

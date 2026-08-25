@@ -132,6 +132,7 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[2][0], VEC3, 0.0f, 1.0f, 
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to finite outdoor")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[4][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open night")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[5][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open noon")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[6][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to atrium")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "back portal")
 
 // ─── Atmosphere · Regimes — THE REGIME LAW ──────────────────────────
@@ -551,6 +552,7 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[2], F32, 0.0f, 1.0f, 0.005
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[3], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · finite outdoor")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[4], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open night")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[5], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open noon")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[6], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · atrium")
 
 // ─── Interaction · Field ───────────────────────────────────────
 // GPUDesignConfig, boot-pinned from contracts/control_panel.hpp and read

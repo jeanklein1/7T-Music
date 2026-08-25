@@ -15,17 +15,20 @@
 namespace t7 {
 namespace the_board {
 
-inline constexpr uint32_t MOOD_COUNT = 6;
+inline constexpr uint32_t MOOD_COUNT = 7;
 
 // ─── Mood IDs ───────────────────────────────────────────────────
 // Three outdoor worlds open (one sky each), one outdoor world walled,
-// two rooms.
+// two rooms, and the atrium.
 inline constexpr uint32_t MOOD_OPEN_SUNSET = 0;
 inline constexpr uint32_t MOOD_INDOOR_FLAT = 1;
 inline constexpr uint32_t MOOD_INDOOR_VAULT = 2;
 inline constexpr uint32_t MOOD_FINITE_OUTDOOR = 3;
 inline constexpr uint32_t MOOD_OPEN_NIGHT     = 4;  // ATMOS_1 — the open shape under a night sky
 inline constexpr uint32_t MOOD_OPEN_NOON      = 5;  // ATMOS_1 — the open shape under a high sun
+inline constexpr uint32_t MOOD_ATRIUM         = 6;  // ATRIUM_1 — the entrance: a small dark room,
+                                                    // an arc of every door, the visitor's own figure
+                                                    // walking through them. Boot mood; rare afterward.
 
 // The names, positional by id (F-3's kin). mood_name() reads them, the
 // registry emits them to the panel's mood select (organ_mood_names), and
@@ -34,7 +37,7 @@ inline constexpr uint32_t MOOD_OPEN_NOON      = 5;  // ATMOS_1 — the open shap
 // not a missing one — it zero-fills to nullptr.
 inline constexpr const char* MOOD_NAMES[MOOD_COUNT] = {
     "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor",
-    "open_night",  "open_noon",
+    "open_night",  "open_noon",  "atrium",
 };
 
 struct PortalDestination {
@@ -83,10 +86,13 @@ struct WorldDrawSurface {
 
 inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
     1.00f,   // portal_density — every Doorway arch is a portal today
-    { 0.20f, 0.20f, 0.20f, 0.10f, 0.15f, 0.15f },   // mood_weights by id: sunset, flat, vault,
-                                                    // finite, night, noon — PORTAL_2's 0.10
-                                                    // finite kept; the old even thirds re-cut
-                                                    // to seat the two new skies (ATMOS_1)
+    { 0.20f, 0.20f, 0.20f, 0.10f, 0.15f, 0.15f, 0.02f },   // mood_weights by id: sunset, flat, vault,
+                                                           // finite, night, noon, ATRIUM — PORTAL_2's
+                                                           // 0.10 finite kept; the old even thirds
+                                                           // re-cut to seat the two new skies
+                                                           // (ATMOS_1); the atrium is the rarest door
+                                                           // in the open field (ATRIUM_1) — the walk
+                                                           // normalises
     { 0.42f, 0.43f, 0.10f, 0.05f },
     {
         { 0.72f, 0.45f, 0.70f },  // mood 0  open_sunset     — lilac, deepened
@@ -95,6 +101,7 @@ inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
         { 0.85f, 0.20f, 0.15f },  // mood 3  finite_outdoor  — red
         { 0.80f, 0.85f, 0.95f },  // mood 4  open_night      — moon silver (ATMOS_1)
         { 0.20f, 0.85f, 0.85f },  // mood 5  open_noon       — cyan (ATMOS_1)
+        { 1.00f, 1.00f, 1.00f },  // mood 6  atrium          — white: the way home (ATRIUM_1)
     },
     { 0.35f, 0.55f, 0.90f },      // back-portal — blue
 };
@@ -103,7 +110,7 @@ inline WorldDrawSurface WORLD_DRAW_LIVE = WORLD_DRAW_TABLE;
 static_assert(sizeof(WorldDrawSurface) == (1 + MOOD_COUNT + SCHEME_COUNT + MOOD_COUNT * 3 + 3) * sizeof(float),
     "WORLD_DRAW_LIVE is a whole-struct copy of the design row: a field "
     "added to one is added to the other by construction");
-static_assert(MOOD_COUNT == 6 && SCHEME_COUNT == 4,
+static_assert(MOOD_COUNT == 7 && SCHEME_COUNT == 4,
     "WORLD_DRAW_TABLE's palette and scheme rows are POSITIONAL — a new "
     "mood or a new scheme needs its row here, in the same commit");
 

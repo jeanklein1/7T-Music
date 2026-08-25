@@ -302,6 +302,10 @@ inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, Ceili
 inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false };
 inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false };
 inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true  };
+// THE ATRIUM'S SHAPE (ATRIUM_1). Radius pinned (min == max, no roll): every
+// visitor's first room is the same room. No GoL — the floor is for the images
+// and the passers. Flat ceiling, the flat room's wall.
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  2,    2,    true,  CeilingType::FLAT,  20.0f, 0.5f,  false, true, false };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
@@ -391,6 +395,23 @@ inline constexpr Atmosphere ATMOS_NOON = {
       {}, {} },
 };
 
+// ═══ THE ATRIUM'S SKY (ATRIUM_1) ═════════════════════════════════
+// A POINT, ON PURPOSE — the atrium draws the same sky for everyone; Jean
+// tunes it on the desk (?organ=1&mood=6) and the export lands here. Every
+// spread is 0 and both bearing spreads are 0, so no hash is taken and the
+// draw is these numbers exactly. The centres are the flat room's regime 0
+// — the atrium wears the flat room's wall, so it wears the flat room's
+// light — with the intensity, the ambient and the clear colour each halved:
+// a small DARK room, the images and the doors carrying it. The fog centre
+// is unchanged, and only its spread goes: fog is the room's depth, not its
+// brightness. Regimes 1-3 are absent.
+inline constexpr Atmosphere ATMOS_ATRIUM = {
+    { 0.34f, -0.10f, 0.06f }, 0.0f, 0.0f,           // the flat room's bearing; no spread, either axis
+    { { { 0.9843137f, 0.850f, 0.720f }, 0.0f, 0.575f, 0.0f, 0.055f, 0.0f,
+        0.0024f, 0.0f, { 0.85882354f, 0.58431375f, 0.36078432f }, 0.0f, { 0.075f, 0.06f, 0.05f }, 0.0f },
+      {}, {}, {} },
+};
+
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
 //
 // SEAM[mood:K1] indoor/outdoor binary lives in WorldShape as bool
@@ -407,6 +428,7 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY, { 1.0f, 0.0f,  0.0f,  0.0f  } },
     /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 1.0f, 0.0f,  0.0f,  0.0f  } },
     /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON,       { 1.0f, 0.0f,  0.0f,  0.0f  } },
+    /* MOOD_ATRIUM             */  { SHAPE_ATRIUM,     ATMOS_ATRIUM,     { 1.0f, 0.0f,  0.0f,  0.0f  } },
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
@@ -416,7 +438,8 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
 static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
            && MOOD_INDOOR_VAULT == 2 && MOOD_FINITE_OUTDOOR == 3
            && MOOD_OPEN_NIGHT   == 4 && MOOD_OPEN_NOON      == 5
-           && MOOD_COUNT == 6,
+           && MOOD_ATRIUM       == 6
+           && MOOD_COUNT == 7,
     "MOOD_TABLE rows are positional in mood-id order (F-3): "
     "reorder the table together with the ids");
 
@@ -436,6 +459,8 @@ static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.wall_height    == 20.0f, "World
 static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].shape.wall_height   == 25.0f, "WorldShape column drift: wall_height");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
+static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_min == MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_max,
+    "WorldShape: the atrium's radius is pinned (ATRIUM_1)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]            == 0.94f,   "Atmosphere column drift: sun_direction (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].sun_color[0]      == 1.0f,    "Atmosphere column drift: regime[0].sun_color");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].intensity         == 0.90f,   "Atmosphere column drift: regime[0].intensity (middle)");
@@ -486,8 +511,10 @@ inline constexpr bool mood_carries_point(const MoodProfile& m) {
 // nobody has tuned, which is the whole of what it was ever proving: a row
 // that was a point before ATMOS_1 draws that point still.
 static_assert(mood_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET])
-           && mood_carries_point(MOOD_TABLE[MOOD_FINITE_OUTDOOR]),
-    "ATMOS_1 carry witness: the untuned pre-ATMOS_1 rows must draw their old point values exactly");
+           && mood_carries_point(MOOD_TABLE[MOOD_FINITE_OUTDOOR])
+           && mood_carries_point(MOOD_TABLE[MOOD_ATRIUM]),
+    "ATMOS_1 carry witness: the untuned pre-ATMOS_1 rows must draw their old "
+    "point values exactly; the atrium draws a point by design");
 
 // ═══ THE MOOD DEFINITION IN FORCE (O1b) ══════════════════════════
 // MOOD_TABLE above is the DESIGNED definition: constexpr, asserted,
@@ -514,9 +541,9 @@ static_assert(mood_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET])
 // best and disagree at worst.
 inline MoodProfile MOOD_LIVE[MOOD_COUNT] = {
     MOOD_TABLE[0], MOOD_TABLE[1], MOOD_TABLE[2], MOOD_TABLE[3],
-    MOOD_TABLE[4], MOOD_TABLE[5],
+    MOOD_TABLE[4], MOOD_TABLE[5], MOOD_TABLE[6],
 };
-static_assert(MOOD_COUNT == 6,
+static_assert(MOOD_COUNT == 7,
     "MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
     "a new mood needs its row here as well as in MOOD_TABLE");
 

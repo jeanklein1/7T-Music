@@ -166,6 +166,8 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     // value the TABLE holds and the panel can only leave alone.
     /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.605f, 0.4f, 3u,  0.007010115f, {0.15f, 0.59f, 0.05f},  0.0f, 0u,  0.08f, 0u,     50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  1.22f, 1.64f, 0.0f, 0.0f },
     /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* MOOD_ATRIUM — the flat room's sky (ATRIUM_1) */
+    /* 6 atrium              */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // The live surface — the panel's definition bank. Seeded row by row, so
@@ -173,9 +175,9 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
 // module carried before this commit.
 inline OrbMoodConfig ORB_MOOD_LIVE[MOOD_COUNT] = {
     ORB_MOOD_TABLE[0], ORB_MOOD_TABLE[1], ORB_MOOD_TABLE[2], ORB_MOOD_TABLE[3],
-    ORB_MOOD_TABLE[4], ORB_MOOD_TABLE[5],
+    ORB_MOOD_TABLE[4], ORB_MOOD_TABLE[5], ORB_MOOD_TABLE[6],
 };
-static_assert(MOOD_COUNT == 6,
+static_assert(MOOD_COUNT == 7,
     "ORB_MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
     "a new mood needs its row here as well as in ORB_MOOD_TABLE");
 
