@@ -102,8 +102,8 @@ inline constexpr uint32_t DEMO_SEED[static_cast<uint32_t>(DemoCol::COUNT)] = {
     /* minimal */ 42,
 };
 inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] = {
-    /* full    */ MOOD_OPEN_SUNSET,
-    /* minimal */ MOOD_OPEN_SUNSET,
+    /* full    */ MOOD_ATRIUM,
+    /* minimal */ MOOD_ATRIUM,
 };
 
 // ═══ THE COLUMN READ (a demo column → a constexpr Roster) ══════════
@@ -145,18 +145,20 @@ static_assert(Piece::COUNT == 19,
 //     their sentences honest).
 //     ONE field is deliberately no longer byte-equal: boot_mood. The
 //     old headers booted into open_default, and the mood cut retired
-//     that mood. Both columns boot into open_sunset — the surviving
-//     open outdoor world — and the golden pins the new value.
+//     that mood; the two columns then booted into open_sunset, the
+//     surviving open outdoor world. Both columns boot into the atrium
+//     now (ATRIUM_1) — the entrance is the visitor's first room — and
+//     the golden pins the new value.
 static_assert(demo_config(DemoCol::full).roster.all_enabled(),
     "GOLDEN: demo=full must equal old full.hpp — all 19 tickable bits ON");
 static_assert(demo_config(DemoCol::full).seed == 42 &&
-              demo_config(DemoCol::full).boot_mood == MOOD_OPEN_SUNSET,
-    "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the post-cut open outdoor");
+              demo_config(DemoCol::full).boot_mood == MOOD_ATRIUM,
+    "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the atrium — the entrance (ATRIUM_1)");
 static_assert(demo_config(DemoCol::minimal).roster.none_enabled(),
     "GOLDEN: demo=minimal must equal old minimal.hpp — all 19 tickable bits OFF");
 static_assert(demo_config(DemoCol::minimal).seed == 42 &&
-              demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_SUNSET,
-    "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the post-cut open outdoor");
+              demo_config(DemoCol::minimal).boot_mood == MOOD_ATRIUM,
+    "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the atrium — the entrance (ATRIUM_1)");
 
 } // namespace the_board
 } // namespace t7
