@@ -118,6 +118,9 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Regime 4 | fog colour spread (±bright) | `MoodProfile.atmos.regime[3].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | clear colour | `MoodProfile.atmos.regime[3].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | clear colour spread (±bright) | `MoodProfile.atmos.regime[3].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Camera · arrival | distance | `MoodProfile.arrival.distance` | NONE (255) | F32 | 0 … 60 | 0.5 | boundary | mood |  |
+| Camera · arrival | elevation (deg) | `MoodProfile.arrival.elevation_deg` | NONE (255) | F32 | -89 … 89 | 0.5 | boundary | mood |  |
+| Camera · arrival | azimuth off gaze (deg) | `MoodProfile.arrival.azimuth_offset_deg` | NONE (255) | F32 | -180 … 180 | 1 | boundary | mood |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
@@ -414,14 +417,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **386** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 43 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 7 · Debug 4 · Camera 3 |
-| by cadence | boundary 188 · driven 20 · gen 50 · live 128 |
-| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 50 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 202 · ORB_MOOD 19 · TIER 32 |
+| entries | **389** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 43 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 7 · Camera 6 · Debug 4 |
+| by cadence | boundary 191 · driven 20 · gen 50 · live 128 |
+| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 77 · PARAM_GEN 50 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 58 · NONE 202 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, ATRIUM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 371 |
+| namespaces | canvas 15 · the_board 374 |
 
 ### Doors
 
@@ -449,11 +452,11 @@ reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=11 comment=7             
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
-  ATRIUM_TABLE         definition=1 seed=1 comment=1              
+  ATRIUM_TABLE         definition=1 seed=1 comment=2              
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=34 constexpr=4 comment=30 
+  MOOD_TABLE           definition=1 seed=7 static_assert=36 constexpr=4 comment=30 
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:427  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:428  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:429  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
@@ -488,7 +491,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    288   a declared reader names the field
+  proved    291   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
   scope      78   GPU-side or whole-struct (blind spots 2, 3)

@@ -14,9 +14,9 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `f15fb7c12c64fabf8084d2153642fccbe67b20cf` |
-| | field_arch_slack — an arch leg wears its own shell; the doorway opens to free agents (ATRIUM_7) |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:3512877c40e1faa51b61582bc87a83670f059eeac382c02d538cd089ebb3936d` |
+| source commit | `85825d7741b6157894d6af7c2fbd07f3b3ad0d8d` |
+| | ArrivalOrbit — the arrival camera is a per-mood definition; the atrium composes its own (ATRIUM_9, seam) |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:3f919e126128ccafd904ff814939f0fb73d7c8885028eee0d6a2cd29feb22dbb` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6a637696ec6414214aecf5d1a6d02513edaf45dd29b9a3fc714b79509fb62ab9` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
@@ -34,8 +34,8 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/cartridge.hpp` | `33b7c20e865ff949e742a623c9dfb6cd68d90ca9e2ac30c8cecf9f1612bea6c9` |
-| `src/cartridges/the_board/contracts/spine_state.hpp` | `6532c21b08995b5dba49bd527fd51732b31e26c8616bd107eee0012fa62d1920` |
-| `src/cartridges/the_board/direction/mood.hpp` | `e427f8a7f84d6998edd4ccf169e65a4a49080da3701a4122599c499af6862976` |
+| `src/cartridges/the_board/contracts/spine_state.hpp` | `4a4d9efaabc41730e32e34e7b834f3a297943f2d1aff31eb8e719b32f7b3e401` |
+| `src/cartridges/the_board/direction/mood.hpp` | `3839097b5012b221a42d8370a1e17455602ec5a95d30273a56c3e3cac8d844dc` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `564de76198597221b097f2c7dc6f0760cefed19d0735c4def0e76547d0bab781` |
 
@@ -1101,17 +1101,17 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2602 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2605 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5087 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5177 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5289 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5336 | `law-ref` | A:proximity |
-| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5387 | `law-ref` | A:proximity |
-| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5392 | `law-ref` | A:proximity |
-| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5460 | `law-ref`, `witness` | A:proximity, B:named |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5531 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5544 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5802 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5802 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5110 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5200 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5312 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5359 | `law-ref` | A:proximity |
+| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5410 | `law-ref` | A:proximity |
+| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5415 | `law-ref` | A:proximity |
+| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5483 | `law-ref`, `witness` | A:proximity, B:named |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5554 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5567 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5825 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5825 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 268 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 415 | `law-ref` | A:proximity, B:named |
