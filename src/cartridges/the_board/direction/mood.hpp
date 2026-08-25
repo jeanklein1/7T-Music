@@ -442,6 +442,15 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
             src.hfrac_mean, src.hfrac_sigma };
     }
 
+    // ATRIUM_13 — THE DRAWN AIM, KEPT. pitch, yaw and warmth are sampled per
+    // slot below and then consumed on the spot: the aim becomes a unit
+    // direction and the warmth becomes a colour, so GPUSpotLight carries
+    // neither. The [Lights] witness needs exactly these three — the aim is the
+    // thing that must be SEEN to be drawn rather than authored — so they are
+    // kept here, where they are true, instead of being re-derived downstream
+    // from a direction that has already been normalized and clamped.
+    float drawn_pitch[MAX_SPOT_LIGHTS]{}, drawn_yaw[MAX_SPOT_LIGHTS]{}, drawn_warm[MAX_SPOT_LIGHTS]{};
+
     // Derive each light from its slot spec + seed
     for (uint32_t i = 0; i < count; i++) {
         const auto& s = slots[i];
@@ -524,6 +533,7 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
         // Normalize direction
         float dlen = std::sqrt(dx * dx + dy * dy + dz * dz);
         dx /= dlen; dy /= dlen; dz /= dlen;
+        drawn_pitch[i] = pitch; drawn_yaw[i] = yaw;   // ATRIUM_13 — post-clamp, as flown
 
         // Intensity and cone angles
         float intensity = std::max(1.0f,
@@ -546,6 +556,7 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
             cpu_sample_gaussian(seed, base + IndoorLightProp::WARMTH,
                 s.warmth_mean, s.warmth_sigma),
             0.0f, 1.0f);
+        drawn_warm[i] = w;   // ATRIUM_13 — the drawn warmth, before it becomes a colour
         float cr = 1.00f + w * (0.80f - 1.00f);
         float cg = 0.85f + w * (0.88f - 0.85f);
         float cb = 0.65f + w * (1.00f - 0.65f);
@@ -586,6 +597,10 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
         // spare at the worst. vault_crown_height() is the exact quantity if
         // VAULT_RISE_FRACTION ever moves.
         L.range = wall_height + 80.0f;  // reach the crown with headroom
+        // ATRIUM_13 — the uplight is AUTHORED WHOLE: it writes a direction and a
+        // colour directly and never draws a pitch, a yaw or a warmth. Its three
+        // witness slots stay at their zero-init, and the line reads aim(0,0)
+        // warm=0.00 for it — which is the truth about this lamp, not a hole.
         count++;
         c->cpuSpotLights_.count = count;
         std::cout << "[Lighting] Added vault uplight (slot " << (count - 1) << ")\n";
@@ -594,6 +609,37 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
     std::cout << "[Lighting] " << SCHEME_NAMES[scheme]
         << " (" << count << " lights, "
         << (use_ew ? "E/W" : "N/S") << " walls)\n";
+
+    // ═══ DIAGNOSTIC: the indoor light stage (ATRIUM_13) ══════════
+    // ABSENT AND DIM LOOK IDENTICAL FROM A CHAIR. The line above names
+    // the scheme and counts the slots; this one says what the lamps ARE,
+    // after the scheme is drawn and the room is scaled, so a dark room
+    // can be told from an unlit one without reading source. One line per
+    // world, at the derivation — which is where `scheme` and `count` are
+    // both in hand; apply_mood_spot_lights has neither.
+    //
+    // THE CONES ARE STORED AS COSINES (GPUSpotLight.inner_cone /
+    // outer_cone) and printed back as HALF-ANGLES in radians, because the
+    // half-angle is what LIGHT_SCHEMES authors and therefore the number a
+    // reader can compare against a row. There is no warmth on the GPU
+    // struct — warmth is baked into the colour at derivation — so the
+    // colour is what prints.
+    //
+    // Not gated by INSTRUMENTS: one line per world entry, and it is the
+    // instrument this round is read against. It retires on Jean's word,
+    // beside the passer census and the camera witness.
+    std::cout << "[Lights] scheme=" << SCHEME_NAMES[scheme] << " slots=" << count;
+    for (uint32_t i = 0; i < count; i++) {
+        const auto& L = c->cpuSpotLights_.lights[i];
+        std::cout << " | s" << i << " (" << std::fixed << std::setprecision(0)
+                  << L.position[0] << "," << L.position[1] << "," << L.position[2] << ")"
+                  << " aim(" << std::setprecision(2) << drawn_pitch[i] << "," << drawn_yaw[i] << ")"
+                  << " int=" << L.intensity
+                  << " cone=" << std::acos(std::clamp(L.inner_cone, -1.0f, 1.0f))
+                  << "/"      << std::acos(std::clamp(L.outer_cone, -1.0f, 1.0f))
+                  << " warm=" << drawn_warm[i];
+    }
+    std::cout << std::setprecision(6) << "\n";
 }
 
 // ═══ THE ATMOSPHERE DRAW (ATMOS_1) ═══════════════════════════════
