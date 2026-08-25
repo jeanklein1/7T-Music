@@ -55,6 +55,24 @@
                     // re-drawn from the regime it landed in.
                     apply_mood_regime(&mood_deps_, mood_def(def_mood));
                     apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
+                    // ATRIUM_11 — AND THE ARRIVAL, which A9.1 added as the
+                    // fifth applier and never added here. That is why the
+                    // Camera · arrival sliders wrote MOOD_LIVE and moved
+                    // nothing: the arrival orbit is consumed ONCE, at
+                    // arrival, so a dial turned mid-world was a durable
+                    // edit with no round trip until the next entry. This
+                    // line IS that round trip, and it is the same one the
+                    // regime and the sky have always taken.
+                    //
+                    // IT DOES NOT FIGHT THE MOUSE. The flag is raised by a
+                    // DEFINITION WRITE and by nothing else (organ_registry
+                    // write_definition's else-arm, and the RESPEAK door
+                    // above), so the orbit is re-composed on the frames a
+                    // dial actually moved and on no others — orbit freely
+                    // between edits and the camera stays where it is put.
+                    // A sentinel mood writes nothing at all, because
+                    // apply_mood_arrival's own guard is orbit_composed.
+                    apply_mood_arrival(&mood_deps_, mood_def(def_mood), queue);
                 }
                 // The tier bank changed, so its author re-speaks the whole
                 // registry in its own voice — idempotent by construction.
