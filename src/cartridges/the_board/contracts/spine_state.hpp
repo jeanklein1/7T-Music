@@ -499,10 +499,25 @@ inline constexpr Atmosphere ATMOS_NOON = {
 // a small DARK room, the images and the doors carrying it. The fog centre
 // is unchanged, and only its spread goes: fog is the room's depth, not its
 // brightness. Regimes 1-3 are absent.
+// ATRIUM_14 — NO FOG IN THE ENTRANCE (Jean). The rest goes 0.0024 -> 0. The
+// entrance is a small room whose whole job is to be READ: the controls poster
+// at 15 wu, the arc's doors at 38, and a haze over either is a haze over the
+// lesson. Every other room keeps its own.
+//
+// AND ZERO HERE IS ZERO ON SCREEN, at rest. The live value is
+// max(0, fog_rest_density + gain * deviation) at the U4 seam, and the canvas
+// writes the deviation as FOG_BY_FIELD[idx] - FOG_BY_FIELD[0] — a difference
+// from field 0, so it is exactly 0 until the music changes field. The mood's
+// number is therefore the whole of the fog in a quiet room; the drivers'
+// gain is global and stays every mood's, not this one's to silence.
+//
+// THE FOG COLOUR STAYS AUTHORED. At density 0 nothing reads it, and a rest
+// of black would be a second, invisible decision to unpick the day a hand or
+// the music lifts the density off the floor.
 inline constexpr Atmosphere ATMOS_ATRIUM = {
     { 0.34f, -0.10f, 0.06f }, 0.0f, 0.0f,           // the flat room's bearing; no spread, either axis
     { { { 0.9843137f, 0.850f, 0.720f }, 0.0f, 0.575f, 0.0f, 0.055f, 0.0f,
-        0.0024f, 0.0f, { 0.85882354f, 0.58431375f, 0.36078432f }, 0.0f, { 0.075f, 0.06f, 0.05f }, 0.0f },
+        0.0f, 0.0f, { 0.85882354f, 0.58431375f, 0.36078432f }, 0.0f, { 0.075f, 0.06f, 0.05f }, 0.0f },
       {}, {}, {} },
 };
 
