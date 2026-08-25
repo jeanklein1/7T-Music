@@ -31,6 +31,35 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   exhibition — the wasm's own hash already names every deploy — which is its
   own campaign, not a line. Origin: ATRIUM_10, flagged. Unblocked by that
   campaign, or by Jean accepting the hard reload as the standing answer.
+- The `[Camera] orbit:` witness (`dump_camera_orbit`, `INSTRUMENTS.camera_witness`)
+  is a CAMPAIGN instrument on the passer census's standing exactly — true in
+  every column including `off`, because a witness Jean's own build column
+  would silence is not a witness. It carries a THIRD GPU->CPU readback behind
+  it (48 bytes a frame, `if constexpr`-gated whole), which is the real cost
+  and the real reason to retire it. Its warrant: retire it once the arrival
+  row is settled. Origin: ATRIUM_11 A11.0. Unblocked by Jean saying the
+  entrance's starting frame is right.
+- THE ARRIVAL ROW CANNOT EXPRESS A PAN, and screenshot 211 has one. The row is
+  distance / elevation / azimuth-offset; `compose_camera_position_from_orbit`
+  also takes `pan_x` / `pan_y`, which translate look-at AND eye together, and
+  `set_arrival_orbit` writes only the orbit's three floats (correctly — the
+  pan is the visitor's). A11.2's solve is what found it: the pawn's feet are
+  the frame centre at EVERY distance and elevation, because `look_at` IS
+  `aim_point` and `aim_point` is the possessed pawn's own position, so 211's
+  feet-below-centre of 0.412 is unreachable by the row. With `pan_y` admitted
+  as a third unknown the three measurements are exactly consistent at
+  distance 8.250, elevation -5.773 deg, `pan_y` 3.714 wu. Origin: ATRIUM_11
+  A11.2, solved and NOT written. Unblocked by Jean dialling the frame he
+  wants and exporting it (the dials are live since A11.1), or by a ruling
+  that the arrival composes a pan too.
+- `arrival.distance` can compose a pose the zoom cannot hold. The organ row's
+  floor is 0 (ATRIUM_9, so a hand can retire a composition), and
+  `set_arrival_orbit` writes the buffer directly, but `CAMERA_MIN_DISTANCE` is
+  5 and is applied only inside `coupling_input_to_camera_distance` — so a
+  composed distance under 5 stands until the visitor's first scroll, which
+  snaps it to 5. Latent before ATRIUM_11 (the dial reached nothing mid-world);
+  live now. Origin: ATRIUM_11, flagged not fixed. Unblocked by Jean ruling the
+  row's floor to 5, or the clamp into `set_arrival_orbit`.
 - The `[PASSER]` census (`dump_passer_census`, `INSTRUMENTS.passer_witness`)
   is a CAMPAIGN instrument and the one arm true in every column including
   `off`. Its warrant was "retire it once the passers are seen". It is still on
