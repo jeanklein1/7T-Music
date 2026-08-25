@@ -457,10 +457,10 @@ reader — the class of defect this witness exists to catch.
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
   MOOD_TABLE           definition=1 seed=7 static_assert=36 constexpr=4 comment=30 
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:427  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:428  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:429  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:430  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:432  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:433  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:434  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
+        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:435  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
   ORB_CONSOLE          definition=1 seed=1 comment=2              
   ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 

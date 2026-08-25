@@ -14,9 +14,9 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `85825d7741b6157894d6af7c2fbd07f3b3ad0d8d` |
-| | ArrivalOrbit — the arrival camera is a per-mood definition; the atrium composes its own (ATRIUM_9, seam) |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:3f919e126128ccafd904ff814939f0fb73d7c8885028eee0d6a2cd29feb22dbb` |
+| source commit | `0a1f48c49e469c24928144a83cf6d66d7261b775` |
+| | the two-stage hang — the poster the frame ATRIUM_0 lands, the walls and the memory when the folder settles (ATRIUM_10) |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:632fe99ffb9bc24015e7e2d0066db9fbaa80b8de07a0a01fb7813f3fefe6eb52` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6a637696ec6414214aecf5d1a6d02513edaf45dd29b9a3fc714b79509fb62ab9` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
@@ -29,13 +29,13 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `af362766b1bdea9a2848e7122710d2513e028a68afa1ca39c2729d4464e61654` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `8d0875ecfdeb1ed0b380598760368923652053dd0bb38a76adb4f1b2638d12db` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `33b7c20e865ff949e742a623c9dfb6cd68d90ca9e2ac30c8cecf9f1612bea6c9` |
+| `src/cartridges/the_board/cartridge.hpp` | `65c9b674eb5d138abdc1580a0b5391a7d29a4e53eba65c4f82beb8f6909fbe5c` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `4a4d9efaabc41730e32e34e7b834f3a297943f2d1aff31eb8e719b32f7b3e401` |
-| `src/cartridges/the_board/direction/mood.hpp` | `3839097b5012b221a42d8370a1e17455602ec5a95d30273a56c3e3cac8d844dc` |
+| `src/cartridges/the_board/direction/mood.hpp` | `b052db358bd5309737e48c76219f9591af065c056e6b0871abfc0572ecc951b5` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `564de76198597221b097f2c7dc6f0760cefed19d0735c4def0e76547d0bab781` |
 

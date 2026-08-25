@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `a01600c12c9111336d292b8e7eb19d6e184d6221` |
-| | ATRIUM_9: the ledgers re-stamp against the arrival column |
+| source commit | `0a1f48c49e469c24928144a83cf6d66d7261b775` |
+| | the two-stage hang — the poster the frame ATRIUM_0 lands, the walls and the memory when the folder settles (ATRIUM_10) |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:3f919e126128ccafd904ff814939f0fb73d7c8885028eee0d6a2cd29feb22dbb` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:632fe99ffb9bc24015e7e2d0066db9fbaa80b8de07a0a01fb7813f3fefe6eb52` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6a637696ec6414214aecf5d1a6d02513edaf45dd29b9a3fc714b79509fb62ab9` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:2a9c733cff029a038546ae96e660c01eef6821803465d847f951a936f1a4f5ae` |
+| `audit/BINDING_LEDGER.md` | `sha256:4b01454a48a8693b6f7a2122f97e7bbe73bb95cfdb77f873261d298c4969c44b` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -1046,14 +1046,14 @@ wrapper, 18 wrapper calls) and are not recounted here.
 |---|---|---|---|---|
 | `cartridge.hpp:1994` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
 | `cartridge.hpp:1995` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
-| `gallery.hpp:1728` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
-| `gallery.hpp:1729` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
-| `gallery.hpp:1794` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
-| `gallery.hpp:1795` | `render_snapshot_pass` | 1 | `framePhotographerGroup_` | `1, &kFrameSlotZero` |
-| `gallery.hpp:1796` | `render_snapshot_pass` | 2 | `sceneStateGroup_` | — |
-| `gallery.hpp:1797` | `render_snapshot_pass` | 3 | `sceneTexturesGroup_` | — |
-| `gallery.hpp:1825` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
-| `gallery.hpp:1826` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
+| `gallery.hpp:1790` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
+| `gallery.hpp:1791` | `render_snapshot_pass` | 1 | `frameCGroup_` | — |
+| `gallery.hpp:1856` | `render_snapshot_pass` | 0 | `worldGroup_` | — |
+| `gallery.hpp:1857` | `render_snapshot_pass` | 1 | `framePhotographerGroup_` | `1, &kFrameSlotZero` |
+| `gallery.hpp:1858` | `render_snapshot_pass` | 2 | `sceneStateGroup_` | — |
+| `gallery.hpp:1859` | `render_snapshot_pass` | 3 | `sceneTexturesGroup_` | — |
+| `gallery.hpp:1887` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
+| `gallery.hpp:1888` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
 | `gol_zones.hpp:809` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
 | `gol_zones.hpp:810` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:897` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
