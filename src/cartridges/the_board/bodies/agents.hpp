@@ -4,7 +4,6 @@
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
 #include "cartridges/the_board/bodies/pawn_figures.hpp"        // PAWN_FIGURES, FIGURE_SHARES, family spans (H1) — this TU names them directly
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
-#include "cartridges/the_board/contracts/atrium_surface.hpp"   // ATRIUM_TABLE.arc_radius — the atrium row's spawn radius rides the arc (ATRIUM_4)
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // Tier vocabulary graduated to contracts/agent_tiers.hpp (ORGAN_2b) — the bank TIER_LIVE is the world's definition; the translator below reads it.
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_4 P3b — PANEL_LIVE.possession.radius: the reach, graduated out of this file's console
@@ -202,14 +201,20 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
       /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_ATRIUM — three passers, the visitor's own figure, born inside the arc (ATRIUM_4) */
-    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 3,
+    /* MOOD_ATRIUM — EVERY SLOT BUT THE PLAYER'S (ATRIUM_5). Three read as
+       three strangers; thirty-one read as a passage, and the passage is the
+       thing the entrance has to make obvious. spawn_population_for_mood
+       clamps to MAX_AGENTS - 1 itself, so this row states the ceiling rather
+       than a number that would silently mean it. Born inside the chord and
+       close in — their first waypoint is a walk across the room to a door,
+       so the motion is there at the first frame. */
+    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ Dim::MAX_AGENTS - 1u,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
       /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 10.0f,
-      /*spawn_radius=*/       ATRIUM_TABLE.arc_radius - 10.0f,
+      /*spawn_inner_radius=*/ 8.0f,
+      /*spawn_radius=*/       30.0f,
       /*home_seeding_radius=*/ 0.0f },
 };
 
