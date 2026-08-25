@@ -35,7 +35,8 @@ struct AtriumSurface {
 };
 inline constexpr AtriumSurface ATRIUM_TABLE = {
     38.0f, 180.0f, 0.0f, 40.0f,
-    { { 0.0f, 10.0f, 6.0f } },   // ATRIUM_0 — the controls scheme, ten units ahead, facing the pawn
+    { { 0.0f, 10.0f, 12.0f } },   // ATRIUM_0 — the controls scheme: twelve units tall at ten
+                                  //            units, so the audience reads it (ATRIUM_6, Jean's dial)
 };
 inline AtriumSurface ATRIUM_LIVE = ATRIUM_TABLE;
 static_assert(sizeof(AtriumSurface) == (4 + 3 * ATRIUM_SAND_SPOTS) * sizeof(float),
