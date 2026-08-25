@@ -38,6 +38,8 @@
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"        // RIBBON_1 — RIBBON_LIVE: the ribbon's dials, boot-pinned into the config beside the field's
 #include <webgpu/webgpu_cpp.h>
 #include <cstdio>    // the params ring's clamp report
+#include <iostream>  // ATRIUM_11 — the camera witness's one line
+#include <iomanip>   // ATRIUM_11 — std::fixed, std::setprecision, same
 #include <cstring>
 #include <array>
 #include <vector>
@@ -1046,6 +1048,50 @@ namespace t7 {
                    && offsetof(GPUCameraState, distance) == 20,
             "GPUCameraState: azimuth/elevation/distance must stay contiguous at 12 "
             "(set_arrival_orbit writes the span, not the struct)");
+
+        // ═══ THE CAMERA WITNESS (ATRIUM_11) ══════════════════════════
+        //
+        // THE ORBIT HAS NO CPU HOME. compose_camera_position_from_orbit is
+        // WGSL, update_camera ACCUMULATES the look deltas into camera_state,
+        // and the CHORD_3 block copy carries the result GPU-to-GPU — the CPU
+        // is not in that loop and must not be. So the pose Jean makes with
+        // his own mouse is unreadable from here without a readback, and this
+        // is the print at the end of one (cartridge.hpp, the camera arm of
+        // phase_witness_harvest, beside the pawn's and the floaters').
+        //
+        // IT SPEAKS THE ARRIVAL ROW'S THREE NAMES, so a pose made by hand
+        // can be read off and authored: distance, elevation in degrees, and
+        // the azimuth as an OFFSET on the gaze. The base is whatever
+        // apply_mood_arrival adds the offset to and nothing else — pass
+        // Idle::PAWN_HEADING, the ARRIVAL gaze, not the live heading — or
+        // the number printed is not the number to type and the instrument
+        // lies.
+        //
+        // Printed on CHANGE and no faster than 4 Hz: a settled camera says
+        // nothing, and silence is the resting state.
+
+        // To (-180, 180]. std::remainder rounds the quotient to NEAREST, so
+        // it lands in [-180, 180] already; the one open end is fixed here.
+        inline float wrap_deg(float d) {
+            const float r = std::remainder(d, 360.0f);
+            return (r <= -180.0f) ? r + 360.0f : r;
+        }
+
+        inline void dump_camera_orbit(const GPUCameraState& cam, float gaze_heading, float t) {
+            constexpr float RAD2DEG = 180.0f / 3.14159265359f;
+            static float last_t = -1.0e9f;
+            static float last_d = 0.0f, last_e = 0.0f, last_a = 0.0f;
+            const float el  = cam.elevation * RAD2DEG;
+            const float off = wrap_deg((cam.azimuth - gaze_heading) * RAD2DEG);
+            const bool moved = std::fabs(cam.distance - last_d) > 0.05f
+                            || std::fabs(el  - last_e) > 0.1f
+                            || std::fabs(off - last_a) > 0.1f;
+            if (!moved || t - last_t < 0.25f) return;
+            last_t = t; last_d = cam.distance; last_e = el; last_a = off;
+            std::cout << "[Camera] orbit: distance=" << std::fixed << std::setprecision(2) << last_d
+                      << " elevation=" << std::setprecision(1) << last_e
+                      << " azimuth-offset=" << last_a << "\n";
+        }
 
         struct alignas(16) GPUFloatingEntityState {
             float pos[3];              //   0: world position (computed by GPU)
@@ -2177,6 +2223,7 @@ namespace t7 {
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
+            wgpu::Buffer cameraReadbackStaging_;   // ATRIUM_11 — created only when the witness is armed
             // CHORD_1 — THE AGENTS' ROOM, one buffer where five stood
             // (portals, behaviors, tier gains, and the two occupier
             // windows). agentRoomStage_ is the sovereign CPU copy: every
@@ -3499,11 +3546,14 @@ namespace t7 {
             wgpu::Buffer agent_state_buffer() const { return agentStateBuffer_; }
             wgpu::Buffer agent_state_readback_staging() const { return agentStateReadbackStaging_; }
             wgpu::Buffer floating_entity_readback_staging() const { return floatingEntityReadbackStaging_; }
+            wgpu::Buffer camera_buffer() const { return cameraBuffer_; }                              // ATRIUM_11
+            wgpu::Buffer camera_readback_staging() const { return cameraReadbackStaging_; }           // ATRIUM_11
             wgpu::Buffer floating_entity_buffer() const { return floatingEntityBuffer_; }
             static constexpr size_t floating_entity_buffer_size() {
                 return Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
             }
             static constexpr size_t agent_state_buffer_size() { return Dim::MAX_AGENTS * sizeof(GPUAgentState); }
+            static constexpr size_t camera_state_buffer_size() { return sizeof(GPUCameraState); }   // ATRIUM_11
             static constexpr size_t agent_slot_size() { return sizeof(GPUAgentState); }
             // The point readback (option A): camera-host
             // only — the spine copies the camera state to staging and
@@ -4101,6 +4151,15 @@ namespace t7 {
                 floatingEntityReadbackStaging_ = makeBuffer("Floating Entity Readback Staging",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
+                // ATRIUM_11 — THE THIRD READBACK, and the smallest: 48 bytes,
+                // once per frame, and only when the witness is armed. The
+                // camera's source already carries CopySrc for the CHORD_3
+                // block copy, so nothing else changes to make this legal.
+                if constexpr (INSTRUMENTS.camera_witness) {
+                    cameraReadbackStaging_ = makeBuffer("Camera State Readback Staging",
+                        sizeof(GPUCameraState),
+                        wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
+                }
                 // THE FRAME METER — GPU half. Created only when the
                 // instruments dial arms the meter AND the device carries
                 // timestamp-query (the cartridge prints the loud boot line
@@ -4198,6 +4257,9 @@ namespace t7 {
                     sizeof(GPUDrawPlanParams),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 if (!drawPlanBuffer_) return false;
+                if constexpr (INSTRUMENTS.camera_witness) {
+                    if (!cameraReadbackStaging_) return false;   // ATRIUM_11
+                }
 
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&

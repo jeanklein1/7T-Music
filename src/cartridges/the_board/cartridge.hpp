@@ -389,6 +389,18 @@ namespace t7 {
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             uint32_t floaterReadbackGen_ = 0;   // OIL_1c — same grammar as pawnReadbackGen_ above
+            // ATRIUM_11 — THE CAMERA WITNESS'S MACHINE, the pawn's and the
+            // floaters' grammar exactly: skip-if-busy, the issue-time
+            // generation, the stale callback dropped. It exists because the
+            // orbit has NO CPU mirror — compose_camera_position_from_orbit is
+            // WGSL and the CHORD_3 block copy is GPU-to-GPU — so a pose made
+            // with the mouse is unreadable from here any other way. Every
+            // line of it, and the buffer behind it, is `if constexpr`-gated
+            // on INSTRUMENTS.camera_witness, so an unarmed build has no third
+            // readback at all.
+            enum class CameraReadbackState { IDLE, COPIED, MAPPING };
+            CameraReadbackState cameraReadbackState_ = CameraReadbackState::IDLE;
+            uint32_t cameraReadbackGen_ = 0;
             // The point readback (option A): runs ONLY in
             // camera-host — the camera's GPU position IS the point's, so
             // it must reach the CPU for the viewpoint set (streaming,
@@ -1305,6 +1317,10 @@ namespace t7 {
                             pawnReadbackState_ = PawnReadbackState::IDLE;
                         if (floaterReadbackState_ == FloaterReadbackState::COPIED)
                             floaterReadbackState_ = FloaterReadbackState::IDLE;
+                        if constexpr (INSTRUMENTS.camera_witness) {   // ATRIUM_11 — same cancel
+                            if (cameraReadbackState_ == CameraReadbackState::COPIED)
+                                cameraReadbackState_ = CameraReadbackState::IDLE;
+                        }
 
                         // Capture return seed + mood + radius before overwrite
                         mood_state_.back_portal_return_seed = world_state_.active_seed;
@@ -1634,6 +1650,43 @@ namespace t7 {
                             self->floaterReadbackState_ = FloaterReadbackState::IDLE;
                         },
                         this);
+                }
+
+                // ATRIUM_11 — THE CAMERA WITNESS. Third arm, the two above
+                // in grammar and in every guard: the issue-time generation,
+                // the stale callback dropped, Unmap unconditional on a
+                // successful map. The whole arm compiles out when the
+                // witness is unarmed.
+                //
+                // THE BASE IS Idle::PAWN_HEADING, not point_.heading: the
+                // arrival row's azimuth is an offset on the ARRIVAL gaze, a
+                // constant, and apply_mood_arrival adds it to exactly this.
+                // A printed offset against the live heading would be a
+                // different number from the one the panel takes, which is
+                // the one way this instrument could lie.
+                if constexpr (INSTRUMENTS.camera_witness) {
+                    if (cameraReadbackState_ == CameraReadbackState::COPIED) {
+                        cameraReadbackState_ = CameraReadbackState::MAPPING;
+                        cameraReadbackGen_ = world_state_.world_gen;
+                        gpuState_.camera_readback_staging().MapAsync(
+                            wgpu::MapMode::Read, 0, GPUState::camera_state_buffer_size(),
+                            wgpu::CallbackMode::AllowSpontaneous,
+                            [](wgpu::MapAsyncStatus status, wgpu::StringView, Cartridge* self) {
+                                if (status == wgpu::MapAsyncStatus::Success) {
+                                    if (self->cameraReadbackGen_ == self->world_state_.world_gen) {
+                                        const auto* cam = static_cast<const GPUCameraState*>(
+                                            self->gpuState_.camera_readback_staging().GetConstMappedRange(
+                                                0, GPUState::camera_state_buffer_size()));
+                                        if (cam)
+                                            dump_camera_orbit(*cam, Idle::PAWN_HEADING,
+                                                              self->time_state_.seconds);
+                                    }
+                                    self->gpuState_.camera_readback_staging().Unmap();
+                                }
+                                self->cameraReadbackState_ = CameraReadbackState::IDLE;
+                            },
+                            this);
+                    }
                 }
             }
 
@@ -2089,6 +2142,20 @@ namespace t7 {
                         gpuState_.floating_entity_readback_staging(), 0,
                         GPUState::floating_entity_buffer_size());
                     floaterReadbackState_ = FloaterReadbackState::COPIED;
+                }
+
+                // ATRIUM_11 — the camera witness's 48 bytes, on the same
+                // encoder and after the same dispatches. update_camera has
+                // written camera_state by now, exactly as it has written the
+                // agent buffer above.
+                if constexpr (INSTRUMENTS.camera_witness) {
+                    if (cameraReadbackState_ == CameraReadbackState::IDLE) {
+                        encoder.CopyBufferToBuffer(
+                            gpuState_.camera_buffer(), 0,
+                            gpuState_.camera_readback_staging(), 0,
+                            GPUState::camera_state_buffer_size());
+                        cameraReadbackState_ = CameraReadbackState::COPIED;
+                    }
                 }
             }
 

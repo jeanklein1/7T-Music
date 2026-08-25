@@ -62,6 +62,21 @@ namespace t7 {
         // shipped frame pays a comparison per readback. RETIRE IT once the
         // passers are seen — that is the whole of its warrant.
         bool passer_witness;
+        // ATRIUM_11 — THE CAMERA WITNESS, and the same standing as the
+        // passer census above: true in every column INCLUDING `off`. The
+        // camera's orbit is GPU truth with no CPU mirror anywhere in the
+        // tree, so the only way to read the pose Jean has made with his own
+        // mouse is to bring it back and print it — and a witness his own
+        // build column would silence is not a witness. It prints on CHANGE
+        // and no faster than 4 Hz, so a settled camera is silent. RETIRE IT
+        // once the arrival row is settled — that is the whole of its
+        // warrant, and it is the whole of the passer census's too.
+        //
+        // The flag also gates the READBACK: the staging buffer, the frame's
+        // copy and the map all sit under `if constexpr`, so a build with the
+        // witness off pays nothing at all — not a buffer, not a byte of
+        // per-frame copy.
+        bool camera_witness;
     };
 
     // THE COLUMNS. `off` is the shipped frame. `meter` is the timing arm
@@ -87,11 +102,11 @@ namespace t7 {
         // because `full` is the pre-dial behaviour exactly; `meter` drops
         // them for the same reason it drops the entity text; `off` — the
         // shipped frame — is silent on the steady path.
-        case InstrumentCol::meter: return { true,  true,  false, false, false, false, false, true };
-        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true,  true,  true };
+        case InstrumentCol::meter: return { true,  true,  false, false, false, false, false, true,  true };
+        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true,  true,  true,  true };
         case InstrumentCol::off:   break;
         }
-        return { false, false, false, false, false, false, false, true };
+        return { false, false, false, false, false, false, false, true,  true };
     }
 
 } // namespace t7
