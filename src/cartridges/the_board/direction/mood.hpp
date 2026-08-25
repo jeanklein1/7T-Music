@@ -882,6 +882,14 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
         apply_mood_spot_lights(c, m, queue);   // indoor only
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
         apply_mood_indoor_shell(c, m, queue, gallery_state, gallery_deps);  // shell + camera ceiling clamp
+    // ATRIUM_3 — THE ENTRANCE HANGS LATER. The shell's own wall hang above
+    // has already run and hung whatever was present; at boot that is
+    // nothing, because the manifest is a fetch still in flight. The flag
+    // says "come back for this one", and the gallery's per-frame phase
+    // re-hangs — place_wall_paintings clears first, so the second pass is
+    // a re-hang and not a double one.
+    if constexpr (ROSTER.gallery)              // ROSTER-GATE gallery (b) — no authored content at all
+        gallery_state.atrium_hang_pending = (mood == MOOD_ATRIUM);
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
         // ORGAN_3b P3 — the world's definition, not the design table.
         // ORGAN_5 P1b — reseed TRUE: a mood change is a new world's sky,

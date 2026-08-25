@@ -731,6 +731,13 @@ struct GalleryState {
     // function the exhibition already ran.
     uint32_t              authored_loaded_lo = UINT32_MAX;
     uint32_t              authored_loaded_hi = UINT32_MAX;
+    // ATRIUM_3 — THE HANG IS DEFERRED, BECAUSE THE MANIFEST IS IN FLIGHT.
+    // apply_mood's wall hang runs inside one rAF turn at boot, before any
+    // fetch callback can fire, so it finds an empty range and hangs
+    // nothing. Raised by apply_mood when the mood is the atrium; consumed
+    // by the gallery's per-frame phase once the range is there AND its
+    // images have landed.
+    bool                  atrium_hang_pending = false;
 
     // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
     // The native twin had no state here because its loads were calls
@@ -808,6 +815,11 @@ inline uint32_t& authored_cursor_for(GalleryState& gs, uint32_t mood) {
     return (mood == MOOD_ATRIUM) ? gs.atrium_disk_cursor : gs.authored_disk_cursor;
 }
 
+// The indoor hang's three site types, plus ROLL — the sentinel that says
+// "the seed decides", which is what every caller but the atrium wants
+// (ATRIUM_3). It left place_wall_paintings' body to become a parameter.
+enum class IndoorSiteType : uint32_t { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY, ROLL };
+
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Per-frame
@@ -831,8 +843,17 @@ bool dispatch_select_gallery(MachineCtx* self, int32_t gx, int32_t gz, EntityQue
 bool dispatch_place_gallery(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_gallery(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Indoor entry (called by mood.hpp::apply_mood)
+// ATRIUM_3 — the two trailing parameters default to today's behaviour:
+// `forced` = ROLL (the seed decides the site type) and `strict` = false
+// (a dry authored pool falls through to snapshots). The atrium passes
+// AUTHORED_ONLY and true: it hangs its own folder or nothing.
 void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
-    float bmin, float bmax, float wall_height);
+    float bmin, float bmax, float wall_height,
+    IndoorSiteType forced = IndoorSiteType::ROLL, bool strict = false);
+// ATRIUM_3 — the entrance's own hang: the controls image dead ahead on the
+// sand, the next spots flanking it, the walls taking the rest. Deferred,
+// because at boot the manifest is still a fetch in flight.
+void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 // Authored image loading
 void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t mood);  // GPUState& deps-form: context-agnostic dual-entry door; ATRIUM_3 — the mood picks the collection
@@ -951,6 +972,33 @@ inline void fill_slot_wall_frame(
 // ═══ PHOTOGRAPHER LIFECYCLE ══════════════════════════════════════
 
 inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
+    // ── ATRIUM_3: THE DEFERRED HANG, CONSUMED ────────────────────
+    // Ahead of the photographer's own early returns, because it is not the
+    // photographer's business and must not ride its cooldowns.
+    //
+    // THE WAIT IS FOR PICTURES, NOT FOR NAMES. A non-empty manifest range
+    // only means the FETCHES CAN START; the records are still empty and a
+    // hang there would place nothing and consume the flag, leaving the
+    // entrance bare forever. So the flag survives until the range's fetches
+    // have settled — none in flight and at least one landed — and
+    // load_authored_textures is kept fed meanwhile so they start at all.
+    // Every fetch clears `pending` on failure as well as on arrival
+    // (authored_fetch_release_slot), so this cannot wait forever.
+    if (gs.atrium_hang_pending && c->mood_state_.active == MOOD_ATRIUM) {
+        const DiskRange range = authored_range_for(gs, MOOD_ATRIUM);
+        if (range.hi > range.lo) {
+            load_authored_textures(gs, c->gpuState_, queue, MOOD_ATRIUM);
+            uint32_t in_flight = 0;
+            for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+                if (gs.authored_staging[i].pending
+                    && in_range(range, gs.authored_staging[i].disk_index)) in_flight++;
+            if (in_flight == 0 && authored_hangable_in_range(gs, range) > 0) {
+                gs.atrium_hang_pending = false;
+                place_atrium_images(gs, c, queue);
+            }
+        }
+    }
+
     float px = c->point_.x;
     float pz = c->point_.z;
 
@@ -2402,7 +2450,9 @@ inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint3
 
 // ═══ WALL PAINTINGS (indoor) ═════════════════════════════════════
 
-inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue, float bmin, float bmax, float wall_height) {
+inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
+    float bmin, float bmax, float wall_height,
+    IndoorSiteType forced, bool strict) {
     // Clear any existing wall paintings first (indoor→indoor transitions)
     clear_wall_paintings(gs, c, queue);
 
@@ -2423,12 +2473,20 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     float wall_span = bmax - bmin;
     float wall_center = (bmin + bmax) * 0.5f;
 
-    // Three-way site type: snapshot-only / mixed / authored-only
+    // Three-way site type: snapshot-only / mixed / authored-only.
+    // ATRIUM_3 — THE ROLL IS SKIPPED WHERE THE CALLER HAS DECIDED. A room
+    // draws its site type from its seed; the entrance does not roll for
+    // anything, so place_atrium_images passes AUTHORED_ONLY and the seed's
+    // word is never asked for. The seed is still hashed — site_seed feeds
+    // the wall count, the shuffle and every per-painting roll below, and
+    // those are the room's grammar whoever chose the site type.
     uint32_t site_seed = cpu_hash(c->world_state_.active_seed, WallArtProp::SITE_SEED_OFFSET);
     float site_roll = cpu_hash_f(site_seed, WallArtProp::SITE_TYPE_ROLL);
-    enum class IndoorSiteType { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY };
     IndoorSiteType site_type;
-    if (site_roll < WALL_ART.snapshot_only_share && gs.snapshot_count > 0) {
+    if (forced != IndoorSiteType::ROLL) {
+        site_type = forced;
+    }
+    else if (site_roll < WALL_ART.snapshot_only_share && gs.snapshot_count > 0) {
         site_type = IndoorSiteType::SNAPSHOT_ONLY;
     }
     else if (site_roll < WALL_ART.snapshot_only_share + WALL_ART.mixed_share
@@ -2587,7 +2645,11 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 if (gs.authored_staging[a].valid && !gs.authored_staging[a].consumed && !authClaimed[a]
                     && in_range(auth_range, gs.authored_staging[a].shown_disk_index))   // ATRIUM_3
                     auth_free++;
-            if (!use_snapshot && auth_free == 0) use_snapshot = true;
+            // ATRIUM_3 — STRICT TURNS THE DRY-POOL FALL-THROUGH OFF. In a
+            // room a dry authored pool means "hang a snapshot instead"; in
+            // the entrance it means "hang nothing". The atrium hangs its own
+            // folder or nothing.
+            if (!use_snapshot && auth_free == 0) { if (strict) break; use_snapshot = true; }
 
             PlannedFrame f{};
             f.height = h;
@@ -2759,6 +2821,76 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         << " painting(s) + " << snapshot_placed
         << " snapshot(s) across " << active_wall_count << " walls"
         << " (" << site_type_name << ")\n";
+}
+
+// ═══ THE ATRIUM'S HANG (ATRIUM_3) ════════════════════════════════
+// Index 0 of the folder is the controls scheme and stands dead ahead on the
+// sand, facing the arrival point. The next sand spots take the next images;
+// the walls take the rest — this folder only, no fall-through to snapshots.
+//
+// A standing quad on the sand is TERRAIN_QUAD with AUTHORED content: the
+// snapshot quad's inline fill in commit_gallery, with the record's uv scale
+// (the wall frame's idiom), because the shader reads uv per slot whatever
+// the form. The sentinel patch pair is the wall frame's too — no patch
+// evicts an image the entrance owns.
+inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
+    const auto& A = ATRIUM_LIVE;
+    const DiskRange range = authored_range_for(gs, MOOD_ATRIUM);
+    const float ox = Idle::PAWN_POS_X, oz = Idle::PAWN_POS_Z;
+    const float b0 = heading_to_bearing(Idle::PAWN_HEADING);
+    constexpr float DEG = 3.14159265f / 180.0f;
+    uint32_t sand_placed = 0;
+    for (uint32_t i = 0; i < ATRIUM_SAND_SPOTS; i++) {
+        // Lowest shown index in range, valid, unconsumed — the wall's own
+        // order (WALLS_3), which is what makes sand[0] the folder's first.
+        const uint32_t rec = pick_authored_staging(gs, 0u, 0u, range);
+        if (rec == UINT32_MAX) break;
+        const uint32_t exh = find_free_exhibition_layer(gs);  if (exh == UINT32_MAX) break;
+        const uint32_t slot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
+        if (slot == UINT32_MAX) break;
+        const float bearing = b0 + A.sand[i].bearing_deg * DEG;
+        const float px = ox + std::cos(bearing) * A.sand[i].distance;
+        const float pz = oz + std::sin(bearing) * A.sand[i].distance;
+
+        auto& s = gs.painting_slots[slot];
+        s = {};
+        // Y IS AUTHORED HERE, and that is what the sentinel patch pair costs.
+        // compute_entity_placement seats every terrain quad at
+        // ground + scale_y*0.5 (bottom on the ground) and SKIPS the sentinel
+        // pair — the same line that keeps a patch from evicting these. So the
+        // half-height lift is written here instead, against the indoor floor
+        // at y = 0. The room's terrain amplitude is capped at
+        // shape.terrain_amp_ceiling, so the residual is that cap and not a
+        // dune.
+        s.position[0] = px; s.position[1] = A.sand[i].height * 0.5f; s.position[2] = pz;
+        s.forward[0] = -std::cos(bearing); s.forward[1] = 0.0f; s.forward[2] = -std::sin(bearing);
+        s.up[0] = 0.0f; s.up[1] = 1.0f; s.up[2] = 0.0f;
+        s.scale_y = A.sand[i].height;
+        s.scale_x = A.sand[i].height * gs.authored_staging[rec].aspect_ratio;
+        s.texture_layer = exh;
+        s.form_type = FormType::TERRAIN_QUAD;
+        s.content_source = ContentSource::AUTHORED;
+        s.uv_scale_x = gs.authored_staging[rec].uv_scale_x;
+        s.uv_scale_y = gs.authored_staging[rec].uv_scale_y;
+        s.patch_gx = INT32_MAX; s.patch_gz = INT32_MAX;   // the wall frame's idiom: no patch evicts it
+        s.is_active = 1;
+        if (slot + 1 > gs.slot_high_water) gs.slot_high_water = slot + 1;
+
+        gs.exhibition_occupied[exh] = true;
+        gs.authored_staging[rec].consumed = true;
+        queue_promotion(gs, false, rec, exh);
+        c->gpuState_.upload_painting_slot(queue, slot, s);
+        gs.active_painting_count++;
+        sand_placed++;
+    }
+    // The walls take the rest — the atrium's range only, strict. wall_height
+    // is the shape's: on the FLAT path apply_mood_indoor_shell passes
+    // wall_h = ch = m.shape.wall_height, so the two are one number.
+    const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+    const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
+    place_wall_paintings(gs, c, queue, bmin, bmax, mood_def(MOOD_ATRIUM).shape.wall_height,
+        /*forced=*/ IndoorSiteType::AUTHORED_ONLY, /*strict=*/ true);
+    std::cout << "[Atrium] hang: " << sand_placed << " sand, " << gs.wall_frame_count << " wall\n";
 }
 
 inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {

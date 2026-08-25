@@ -136,6 +136,12 @@ READERS = {
         ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_write_active"),
         ("src/cartridges/the_board/bodies/grounded.hpp", "force_spawn_portal_arch"),
     ]),
+    "ATRIUM": ("ATRIUM_LIVE", "AtriumSurface", [
+        # ATRIUM_2 — the arc's three dials are read as the doors spawn.
+        ("src/cartridges/the_board/direction/mood.hpp", "force_spawn_atrium_arc"),
+        # ATRIUM_3 — the sand spots are read as the images hang.
+        ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_images"),
+    ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "place_ribbon_from_selection"),
