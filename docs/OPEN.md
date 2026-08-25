@@ -9,6 +9,28 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   poster between the centre and one neighbour) — it hides nothing at that
   angle and stays in frame. Origin: ATRIUM_8, flagged not fixed. Jean's word
   decides whether the first frame owes the visitor all five.
+- The `[Atrium] poster: hung at t=` witness (`place_atrium_poster`) is
+  ATRIUM_10's INSTRUMENT and is deliberately ungated — one line per entrance,
+  and the two fixes of that round are read against it. Its warrant is the
+  same as the census's: it retires once the number is settled and Jean says
+  the entrance arrives fast enough. Origin: ATRIUM_10 A10.0. Unblocked by
+  Jean's word on a deployed reading.
+- `exhibition.json` is the OTHER round trip on the boot's critical path and
+  is not preloaded. ATRIUM_10 preloaded ATRIUM_0 alone — one change, one
+  measurement — so if the A10.2 reading still carries a visible manifest
+  wait, its preload is the next single line in `web/index.html` (`as="fetch"`,
+  crossorigin). Origin: ATRIUM_10, flagged not built. Unblocked by Jean
+  reading a deployed `[Atrium] poster: hung at t=` that is still manifest-bound.
+- NO VERSION KEY ON EXHIBITION ASSETS. `dist/_headers` marks only `/` and
+  `/index.html` `no-cache`, and neither `exhibition.json` nor any painting,
+  track or atrium image carries a `?v=` — so a returning visitor may hold a
+  stale manifest, and a REPLACED `ATRIUM_0.jpg` may be served from cache on a
+  redeploy. ATRIUM_10's preload does not change this: it reuses the same
+  cache entry the program would have asked for. Jean's cure today is a hard
+  reload. The real one is `BUILD_ID_PLACEHOLDER`'s idiom extended to the
+  exhibition — the wasm's own hash already names every deploy — which is its
+  own campaign, not a line. Origin: ATRIUM_10, flagged. Unblocked by that
+  campaign, or by Jean accepting the hard reload as the standing answer.
 - The `[PASSER]` census (`dump_passer_census`, `INSTRUMENTS.passer_witness`)
   is a CAMPAIGN instrument and the one arm true in every column including
   `off`. Its warrant was "retire it once the passers are seen". It is still on
