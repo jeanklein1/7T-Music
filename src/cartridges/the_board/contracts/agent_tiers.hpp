@@ -150,21 +150,29 @@ inline constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
     { AGENT_BEHAVIOR_FLEE,              "flee",                0.4f,      1.0f,      0.0f,        1.5f, 8.0f,      30.0f,           8.0f,      0.0f },
     { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.6f,      1.5f,      0.7f,        0.6f, 0.0f,      30.0f,           4.5f,      0.0f },
     { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.4f,      0.8f,      0.0f,        1.5f, 0.0f,      0.0f,            8.0f,      0.0f },
-    // ATRIUM_6 — THE PASSER WALKS, and this row stopped being slow_patrol's.
-    //   speed_cap 22.5 is 1.5 x PAWN_SPEED (15, world.wgsl) — the passage
-    //     reads as purposeful beside a visitor's own pace.
-    //   drag 3.0 is THE BLEND RATE OF THE WALK, not a decay: the arm eases
+    // THE PASSER WALKS, and this row stopped being slow_patrol's (ATRIUM_6).
+    //   speed_cap 9.0 is 0.6 x PAWN_SPEED (15, world.wgsl). ATRIUM_6 made it
+    //     1.5x and the passage read as a chase; the PROPERTY this number is
+    //     for is the opposite one — THE VISITOR OVERTAKES A PASSER AT A WALK
+    //     and can follow one to a door without falling behind. The passage
+    //     is something you can join. At 0.6 the visitor closes at 6 wu/s,
+    //     which is a gain of one body length a second (ATRIUM_8).
+    //   drag 1.8 is THE BLEND RATE OF THE WALK, not a decay: the arm eases
     //     direction toward a constant-speed desired velocity and calls
-    //     agent_post_step with drag 0, so a turn completes in about a third
-    //     of a second and the speed never sags.
-    //   step_size 2.5 is the WAYPOINT RADIUS — how close is arrived.
+    //     agent_post_step with drag 0, so the turn completes over about half
+    //     a second and the speed never sags. At 3.0 they darted between
+    //     waypoints — the frolic, and the turn was a third of what a body
+    //     that size should need (ATRIUM_8).
+    //   step_size 2.5 is the WAYPOINT RADIUS — a geometry, not a pace, so
+    //     the slower walk did not move it.
     //   aux 8.0 is the band, the turnaround outside a door.
     //   home_pull and step_rate are UNREAD on this arm: the tether was what
     //     made ATRIUM_5's passers crawl the last metres and stall, and the
     //     step kick was never a gait — only noise on the velocity, which on
-    //     a constant-speed walk is a shove. persistence and neighbor_radius
+    //     a constant-speed walk is a shove, so ATRIUM_6 cut it from the arm
+    //     and there is nothing left to mute. persistence and neighbor_radius
     //     were never read here.
-    { AGENT_BEHAVIOR_PASSER,            "passer",              0.25f,     2.5f,      0.0f,        3.0f, 4.0f,      0.0f,           22.5f,      8.0f },
+    { AGENT_BEHAVIOR_PASSER,            "passer",              0.25f,     2.5f,      0.0f,        1.8f, 4.0f,      0.0f,            9.0f,      8.0f },
 };
 
 struct AgentBehaviorBank {
