@@ -745,6 +745,27 @@ struct GalleryState {
     // which is where WorldState is writable.
     bool                  atrium_seat_pending = false;
 
+    // ═══ THE ATRIUM'S MEMORY (ATRIUM_7) ═══════════════════════════
+    // THE ENTRANCE IS ALWAYS AS IT IS. Its images rode the staging window,
+    // and a window is the wrong home for a room that must not change: on a
+    // return the window holds whatever history left there, the hang's one
+    // shot fires against it, and the walls are different. So the first
+    // COMPLETE hang is kept here — the slots verbatim — and the exhibition
+    // layers those slots point at are HELD for the session
+    // (exhibition_resident). A return re-hangs this and asks the fetch
+    // machinery for nothing: the pixels persist because the layers do, the
+    // composition persists because the room is pinned (radius, palette,
+    // lights, arc), and only the SEAT is re-asked, because the floor is
+    // each world's own. slots[0] is the controls image.
+    static constexpr uint32_t ATRIUM_HANG_MAX = 16;   // min(16, EXHIBITION_LAYERS / 2)
+    struct AtriumHang {
+        GPUPaintingSlot slots[ATRIUM_HANG_MAX]{};
+        uint32_t count = 0;
+        bool     resident = false;
+    };
+    AtriumHang            atrium_hang;
+    bool                  exhibition_resident[Dim::EXHIBITION_LAYERS]{};
+
     // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
     // The native twin had no state here because its loads were calls
     // that returned with the picture. The web twin's do not, so the
@@ -874,9 +895,18 @@ void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEnc
 
 // ═══ STATE-LOCAL HELPERS (impl-only, take GalleryState&) ═════════
 
+// ATRIUM_7 — A RESIDENT LAYER IS NEVER RELEASED AND NEVER STOLEN. The
+// atrium's remembered hang points at these layers for the whole session, so
+// the pixels behind it have to outlive every teardown, every patch eviction
+// and every wall clear. One predicate, read by all of them, rather than a
+// guard spelled four times.
+inline bool exhibition_layer_releasable(const GalleryState& gs, uint32_t exh) {
+    return exh < Dim::EXHIBITION_LAYERS && !gs.exhibition_resident[exh];
+}
+
 inline uint32_t find_free_exhibition_layer(const GalleryState& gs) {
     for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++)
-        if (!gs.exhibition_occupied[i]) return i;
+        if (!gs.exhibition_occupied[i] && !gs.exhibition_resident[i]) return i;
     return UINT32_MAX;
 }
 
@@ -991,16 +1021,26 @@ inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     // Every fetch clears `pending` on failure as well as on arrival
     // (authored_fetch_release_slot), so this cannot wait forever.
     if (gs.atrium_hang_pending && c->mood_state_.active == MOOD_ATRIUM) {
-        const DiskRange range = authored_range_for(gs, MOOD_ATRIUM);
-        if (range.hi > range.lo) {
-            load_authored_textures(gs, c->gpuState_, queue, MOOD_ATRIUM);
-            uint32_t in_flight = 0;
-            for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
-                if (gs.authored_staging[i].pending
-                    && in_range(range, gs.authored_staging[i].disk_index)) in_flight++;
-            if (in_flight == 0 && authored_hangable_in_range(gs, range) > 0) {
-                gs.atrium_hang_pending = false;
-                place_atrium_images(gs, c, queue);
+        // ATRIUM_7 — A RETURN WAITS FOR NOTHING. The memory holds the slots
+        // and the layers behind them, so there is no fetch to be in flight
+        // and no manifest to have arrived: re-hang on the first frame of the
+        // world. Everything below this line is the FIRST visit's path.
+        if (gs.atrium_hang.resident) {
+            gs.atrium_hang_pending = false;
+            place_atrium_images(gs, c, queue);
+        }
+        else {
+            const DiskRange range = authored_range_for(gs, MOOD_ATRIUM);
+            if (range.hi > range.lo) {
+                load_authored_textures(gs, c->gpuState_, queue, MOOD_ATRIUM);
+                uint32_t in_flight = 0;
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+                    if (gs.authored_staging[i].pending
+                        && in_range(range, gs.authored_staging[i].disk_index)) in_flight++;
+                if (in_flight == 0 && authored_hangable_in_range(gs, range) > 0) {
+                    gs.atrium_hang_pending = false;
+                    place_atrium_images(gs, c, queue);
+                }
             }
         }
     }
@@ -1623,9 +1663,9 @@ inline void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c, int32_t g
         if (gs.painting_slots[i].is_active != 0 &&
             gs.painting_slots[i].patch_gx == gx && gs.painting_slots[i].patch_gz == gz) {
 
-            // Free the exhibition layer
+            // Free the exhibition layer — unless the atrium holds it (ATRIUM_7).
             uint32_t exh = gs.painting_slots[i].texture_layer;
-            if (exh < Dim::EXHIBITION_LAYERS) {
+            if (exhibition_layer_releasable(gs, exh)) {
                 gs.exhibition_occupied[exh] = false;
             }
 
@@ -2840,8 +2880,41 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 // the form. The sentinel patch pair is the wall frame's too — no patch
 // evicts an image the entrance owns.
 inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
+    // ── THE RETURN (ATRIUM_7) ────────────────────────────────────
+    // The memory, re-hung into fresh slots. No staging record is read, no
+    // fetch is asked for, and no exhibition layer is claimed — the slots
+    // already name the layers, and those layers were never released.
+    //
+    // The shell's OWN wall hang has already run this entry (apply_mood ->
+    // apply_mood_indoor_shell -> place_wall_paintings) against whatever the
+    // staging window happened to hold, which is the very thing this memory
+    // exists to overrule. Clearing it first is what makes the entrance the
+    // same room rather than the same room plus history's leftovers.
+    if (gs.atrium_hang.resident) {
+        clear_wall_paintings(gs, c, queue);
+        uint32_t hung = 0;
+        for (uint32_t i = 0; i < gs.atrium_hang.count; i++) {
+            const uint32_t slot = find_free_painting_slot(gs, GalleryConfig::OUTDOOR_SLOT_RESERVE);
+            if (slot == UINT32_MAX) break;
+            gs.painting_slots[slot] = gs.atrium_hang.slots[i];
+            if (slot + 1 > gs.slot_high_water) gs.slot_high_water = slot + 1;
+            if (gs.painting_slots[slot].form_type == FormType::WALL_FRAME) gs.wall_frame_count++;
+            c->gpuState_.upload_painting_slot(queue, slot, gs.painting_slots[slot]);
+            gs.active_painting_count++;
+            hung++;
+        }
+        // THE SEAT IS THIS WORLD'S. Everything else about the entrance is
+        // pinned; the floor under it is drawn fresh with the world, so the
+        // one thing the memory does NOT carry is the terrain quads' Y.
+        gs.atrium_seat_pending = true;
+        std::cout << "[Atrium] hang: resident, " << hung << " of "
+                  << gs.atrium_hang.count << " re-hung\n";
+        return;
+    }
+
     const auto& A = ATRIUM_LIVE;
     const DiskRange range = authored_range_for(gs, MOOD_ATRIUM);
+    uint32_t sand_slots[ATRIUM_SAND_SPOTS]{};
     const float ox = Idle::PAWN_POS_X, oz = Idle::PAWN_POS_Z;
     const float b0 = heading_to_bearing(Idle::PAWN_HEADING);
     constexpr float DEG = 3.14159265f / 180.0f;
@@ -2891,6 +2964,7 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
         queue_promotion(gs, false, rec, exh);
         c->gpuState_.upload_painting_slot(queue, slot, s);
         gs.active_painting_count++;
+        sand_slots[sand_placed] = slot;   // ATRIUM_7 — the memory takes the sand first
         sand_placed++;
     }
     // The walls take the rest — the atrium's range only, strict. wall_height
@@ -2909,6 +2983,41 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     // turns it into placement_dirty (cartridge.hpp, phase_witness_photographer).
     if (sand_placed > 0) gs.atrium_seat_pending = true;
     std::cout << "[Atrium] hang: " << sand_placed << " sand, " << gs.wall_frame_count << " wall\n";
+
+    // ── THE MEMORY (ATRIUM_7) ────────────────────────────────────
+    // Taken once this hang has claimed the WHOLE folder — no record of the
+    // atrium's range left hangable. The deferred consumer only calls this
+    // function when none of the range's fetches is still in flight, so
+    // "none hangable" here means every image is on the sand or on a wall,
+    // not that one never arrived. An incomplete hang leaves resident false
+    // and the next visit tries again.
+    //
+    // WHICH SLOTS. The sand's indices were kept above; the walls' are every
+    // remaining slot wearing the indoor wall frame's own discriminator — the
+    // sentinel patch pair, which clear_wall_paintings uses for exactly this
+    // purpose. place_wall_paintings cleared every earlier indoor frame at
+    // its top and commit_gallery's outdoor frames carry real patch pairs, so
+    // the scan names this hang and nothing else. Sand first, so slots[0] is
+    // the controls image by construction rather than by argument.
+    if (sand_placed > 0 && authored_hangable_in_range(gs, range) == 0) {
+        gs.atrium_hang.count = 0;
+        auto remember = [&](uint32_t slot) {
+            if (gs.atrium_hang.count >= GalleryState::ATRIUM_HANG_MAX) return;
+            gs.atrium_hang.slots[gs.atrium_hang.count++] = gs.painting_slots[slot];
+            const uint32_t exh = gs.painting_slots[slot].texture_layer;
+            if (exh < Dim::EXHIBITION_LAYERS) gs.exhibition_resident[exh] = true;
+        };
+        for (uint32_t i = 0; i < sand_placed; i++) remember(sand_slots[i]);
+        for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+            const auto& ps = gs.painting_slots[i];
+            if (ps.is_active == 0) continue;
+            if (ps.form_type != FormType::WALL_FRAME) continue;
+            if (ps.patch_gx != INT32_MAX || ps.patch_gz != INT32_MAX) continue;
+            remember(i);
+        }
+        gs.atrium_hang.resident = gs.atrium_hang.count > 0;
+        std::cout << "[Atrium] resident: " << gs.atrium_hang.count << " slots held\n";
+    }
 }
 
 inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
@@ -2923,7 +3032,7 @@ inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             gs.painting_slots[i].patch_gx == INT32_MAX &&
             gs.painting_slots[i].patch_gz == INT32_MAX) {
             uint32_t exh = gs.painting_slots[i].texture_layer;
-            if (exh < Dim::EXHIBITION_LAYERS) {
+            if (exhibition_layer_releasable(gs, exh)) {   // ATRIUM_7
                 gs.exhibition_occupied[exh] = false;
             }
             gs.painting_slots[i].is_active = 0;
@@ -3011,8 +3120,10 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
         GPUPaintingSlot empty[Dim::PAINTING_MAX_SLOTS]{};
         c->gpuState_.upload_painting_slots(queue, empty, Dim::PAINTING_MAX_SLOTS);
     }
-    // Free all exhibition layers (staging persists across worlds)
-    for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) gs.exhibition_occupied[i] = false;
+    // Free all exhibition layers (staging persists across worlds) — except
+    // the ones the atrium holds, which outlive every world (ATRIUM_7).
+    for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++)
+        if (exhibition_layer_releasable(gs, i)) gs.exhibition_occupied[i] = false;
     rotate_authored_staging(gs, c, queue);
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gs.authored_staging[i].consumed = false;
 }
