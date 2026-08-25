@@ -57,6 +57,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | sanctum | `WORLD.scheme_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Sky & Light · Schemes | atrium | `WORLD.scheme_weights[4]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Portals | to open sunset | `WORLD.portal_colors[0][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to indoor flat | `WORLD.portal_colors[1][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to indoor vault | `WORLD.portal_colors[2][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
@@ -403,28 +404,23 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atrium ·  | arc radius | `ATRIUM.arc_radius` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
 | Atrium ·  | arc span (deg) | `ATRIUM.arc_span_deg` | ATRIUM | F32 | 60 … 300 | 1 | gen | none |  |
 | Atrium ·  | arc bearing (deg) | `ATRIUM.arc_bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
+| Atrium ·  | arc centre offset | `ATRIUM.arc_center_offset` | ATRIUM | F32 | 0 … 120 | 0.5 | gen | none |  |
 | Atrium ·  | sand 0 bearing (deg) | `ATRIUM.sand[0].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
 | Atrium ·  | sand 0 distance | `ATRIUM.sand[0].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
 | Atrium ·  | sand 0 height | `ATRIUM.sand[0].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
-| Atrium ·  | sand 1 bearing (deg) | `ATRIUM.sand[1].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
-| Atrium ·  | sand 1 distance | `ATRIUM.sand[1].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
-| Atrium ·  | sand 1 height | `ATRIUM.sand[1].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
-| Atrium ·  | sand 2 bearing (deg) | `ATRIUM.sand[2].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
-| Atrium ·  | sand 2 distance | `ATRIUM.sand[2].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
-| Atrium ·  | sand 2 height | `ATRIUM.sand[2].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **389** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 22 · Pawn 18 · Atrium 12 · Debug 4 · Camera 3 |
-| by cadence | boundary 188 · driven 20 · gen 54 · live 127 |
-| by macro form | PARAM 131 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 54 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 205 · ORB_MOOD 19 · TIER 32 |
+| entries | **385** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 43 · Terrain 42 · Interaction 22 · Pawn 18 · Atrium 7 · Debug 4 · Camera 3 |
+| by cadence | boundary 188 · driven 20 · gen 50 · live 127 |
+| by macro form | PARAM 131 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 50 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 201 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, ATRIUM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 374 |
+| namespaces | canvas 15 · the_board 370 |
 
 ### Doors
 
@@ -445,18 +441,18 @@ NOT name, and the reader witness over every graduated pair. The tail
 of its run, verbatim:
 
 ```
+THE READER WITNESS — every mention of a DESIGN symbol, classified.
 A graduation is complete when the design table's only readers are
 its seed and its asserts. Anything else is a surviving runtime
 reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=11 comment=7             
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
-  ATRIUM_TABLE         definition=1 seed=1 constexpr=1 comment=2  
-        constexpr derivation  src/cartridges/the_board/bodies/agents.hpp:212  /*spawn_radius=*/       ATRIUM_TABLE.arc_radius - 10.0f,
+  ATRIUM_TABLE         definition=1 seed=1 comment=1              
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=31 constexpr=4 comment=29 
+  MOOD_TABLE           definition=1 seed=7 static_assert=34 constexpr=4 comment=29 
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:427  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:428  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:429  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
@@ -491,7 +487,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    292   a declared reader names the field
+  proved    288   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
   scope      77   GPU-side or whole-struct (blind spots 2, 3)
