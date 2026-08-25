@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs — the arc roster is per mood (ATRIUM_7)
 // ─── atrium_surface.hpp — THE ATRIUM'S COMPOSITION (ATRIUM_2) ─────
 //
 // The contract tier, because the ORGAN may not include a direction file
@@ -39,6 +40,30 @@ inline constexpr AtriumSurface ATRIUM_TABLE = {
                                   //            units, so the audience reads it (ATRIUM_6, Jean's dial)
 };
 inline AtriumSurface ATRIUM_LIVE = ATRIUM_TABLE;
+
+// WHO IS ON THE ENTRANCE'S ARC — the one home (ATRIUM_7). A mood off the
+// arc stays reachable by weight from the open field; the atrium offers the
+// worlds a newcomer can read from a doorway. Finite outdoor is a field with
+// a wall — off the arc by Jean's ruling. The atrium itself never offers
+// itself. NOT a dial: the roster is a fact about what the entrance says,
+// which is a decision, not a taste.
+inline constexpr bool ATRIUM_ARC_DOOR[MOOD_COUNT] = {
+    /* open_sunset    */ true,
+    /* indoor_flat    */ true,
+    /* indoor_vault   */ true,
+    /* finite_outdoor */ false,
+    /* open_night     */ true,
+    /* open_noon      */ true,
+    /* atrium         */ false,
+};
+inline constexpr uint32_t atrium_arc_door_count() {
+    uint32_t n = 0;
+    for (uint32_t m = 0; m < MOOD_COUNT; m++) n += ATRIUM_ARC_DOOR[m] ? 1u : 0u;
+    return n;
+}
+static_assert(!ATRIUM_ARC_DOOR[MOOD_ATRIUM], "the atrium never offers itself");
+static_assert(atrium_arc_door_count() >= 2,
+    "an arc is at least two doors — the passers need an end to walk to");
 static_assert(sizeof(AtriumSurface) == (4 + 3 * ATRIUM_SAND_SPOTS) * sizeof(float),
     "ATRIUM_LIVE is a whole-struct copy of the design row");
 }}

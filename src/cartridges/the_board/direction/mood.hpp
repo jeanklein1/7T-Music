@@ -1438,7 +1438,7 @@ inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& 
     // and faced the doors at the pawn — which put the visitor inside the
     // chord with the end doors beside them rather than ahead.
     const float cx = ox + fx * A.arc_center_offset, cz = oz + fz * A.arc_center_offset;
-    constexpr uint32_t DOORS = MOOD_COUNT - 1;   // no self-door
+    constexpr uint32_t DOORS = atrium_arc_door_count();   // ATRIUM_7 — the roster mask's own count
     uint32_t k = 0, spawned = 0;
     // THE SPAWN ORDER IS THE ARC ORDER, and it is stated here because
     // ATRIUM_4 depends on it: the doors enter the arch slots ascending, so
@@ -1446,7 +1446,7 @@ inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& 
     // array index as the arc index. The back portal, spawned first when it
     // exists, takes the lowest slot and wears kind = 1.
     for (uint32_t m = 0; m < MOOD_COUNT; m++) {
-        if (m == MOOD_ATRIUM) continue;
+        if (!ATRIUM_ARC_DOOR[m]) continue;   // ATRIUM_7 — the roster, one home
         const float t = (DOORS == 1) ? 0.5f : (float)k / (float)(DOORS - 1);
         const float bearing = gaze + (t - 0.5f) * A.arc_span_deg * DEG;   // around the centre; t = 0.5 is dead ahead
         const float px = cx + std::cos(bearing) * A.arc_radius;
