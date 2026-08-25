@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `f15fb7c12c64fabf8084d2153642fccbe67b20cf` |
-| | field_arch_slack — an arch leg wears its own shell; the doorway opens to free agents (ATRIUM_7) |
+| source commit | `ce53e474b10fbef59ea514983b807d26d02b378f` |
+| | ATRIUM_7: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3512877c40e1faa51b61582bc87a83670f059eeac382c02d538cd089ebb3936d` |
