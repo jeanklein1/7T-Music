@@ -145,6 +145,10 @@ READERS = {
         # as what this hang answered.
         ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_poster"),
         ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_walls"),
+        # ATRIUM_12 — the entrance's own wall and ceiling colours are read
+        # where the shell picks its palette: PALETTE_ATRIUM builds a local
+        # IndoorPalette from ATRIUM_LIVE instead of returning a table row.
+        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_indoor_shell"),
     ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),

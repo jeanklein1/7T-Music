@@ -33,6 +33,19 @@ struct AtriumSurface {
                              // near the wall behind it; the doors face this centre,
                              // not the pawn (Jean)
     AtriumSandSpot sand[ATRIUM_SAND_SPOTS];   // [0] is the controls image, dead ahead
+    // ATRIUM_12 — THE ENTRANCE'S OWN WALL AND ROOF. Every other room draws
+    // INDOOR_PALETTES by index — pinned or rolled — and an index is a row you
+    // PICK. The entrance authors its pair here, beside its arc and its poster,
+    // because this file is where the room's authored facts live and because a
+    // contract is what the ORGAN may include.
+    //
+    // IndoorPalette carries exactly two colour fields (its third member is the
+    // NAME, which is the console line's and never reaches the GPU), so these
+    // two are the whole palette and not a partial one. generate_indoor_shell
+    // reads wall_color on the four walls and ceiling_color on the flat lid and
+    // the vault crown, and they reach the GPU as ShellVertex colour.
+    float wall_color[3];
+    float ceiling_color[3];
 };
 inline constexpr AtriumSurface ATRIUM_TABLE = {
     38.0f, 180.0f, 0.0f, 40.0f,
@@ -45,6 +58,10 @@ inline constexpr AtriumSurface ATRIUM_TABLE = {
     // dial (ATRIUM_8). The headroom witness prints all four numbers at the
     // hang.
     { { 0.0f, 15.0f, 18.0f } },   // ATRIUM_0 — the controls scheme, back at fifteen
+    // THE RESTS ARE INDOOR_PALETTES[7] "warm charcoal" WRITTEN OUT, so this
+    // commit changes nothing on screen: the seam opens and Jean composes.
+    { 0.40f, 0.38f, 0.36f },   // wall
+    { 0.32f, 0.30f, 0.28f },   // ceiling
 };
 inline AtriumSurface ATRIUM_LIVE = ATRIUM_TABLE;
 
@@ -71,6 +88,6 @@ inline constexpr uint32_t atrium_arc_door_count() {
 static_assert(!ATRIUM_ARC_DOOR[MOOD_ATRIUM], "the atrium never offers itself");
 static_assert(atrium_arc_door_count() >= 2,
     "an arc is at least two doors — the passers need an end to walk to");
-static_assert(sizeof(AtriumSurface) == (4 + 3 * ATRIUM_SAND_SPOTS) * sizeof(float),
+static_assert(sizeof(AtriumSurface) == (4 + 3 * ATRIUM_SAND_SPOTS + 6) * sizeof(float),
     "ATRIUM_LIVE is a whole-struct copy of the design row");
 }}
