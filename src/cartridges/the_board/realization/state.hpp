@@ -1037,6 +1037,15 @@ namespace t7 {
             float aim_point[3];   // damped target (lerps toward possessed agent's pos)
             float _pad;           // pad to 16-byte boundary
         };
+        // ATRIUM_9 — THE ORBIT IS THREE CONTIGUOUS FLOATS, and the arrival
+        // write depends on it: set_arrival_orbit writes exactly this span so
+        // pos, pan and aim_point — which are the GPU's own, composed and
+        // damped per frame — are not clobbered by a one-shot pose.
+        static_assert(offsetof(GPUCameraState, azimuth) == 12
+                   && offsetof(GPUCameraState, elevation) == 16
+                   && offsetof(GPUCameraState, distance) == 20,
+            "GPUCameraState: azimuth/elevation/distance must stay contiguous at 12 "
+            "(set_arrival_orbit writes the span, not the struct)");
 
         struct alignas(16) GPUFloatingEntityState {
             float pos[3];              //   0: world position (computed by GPU)
@@ -3297,6 +3306,20 @@ namespace t7 {
             float veil_ring()   const { return config_.veil_ring; }
             float lod0_radius() const { return config_.lod0_radius; }
             const GPUDesignConfig& config() const { return config_; }
+
+            // ── THE ARRIVAL ORBIT (ATRIUM_9) ─────────────────────────
+            // WHERE THE CAMERA STANDS WHEN A WORLD BEGINS is authored, the way
+            // the gaze is; where it stands thereafter is the visitor's, and
+            // that is the GPU's (update_camera ACCUMULATES the look deltas, it
+            // does not re-derive from a rest — so a one-shot write here is not
+            // fought by anything). Only the orbit's three floats are written:
+            // pos is composed from them each frame and aim_point is damped
+            // toward the possessed body, so both are the kernel's to keep.
+            void set_arrival_orbit(wgpu::Queue& queue, float distance, float elevation, float azimuth) {
+                const float orbit[3] = { azimuth, elevation, distance };   // the struct's own order
+                queue.WriteBuffer(cameraBuffer_, offsetof(GPUCameraState, azimuth),
+                                  orbit, sizeof(orbit));
+            }
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
 
             // --- Compute pass ---

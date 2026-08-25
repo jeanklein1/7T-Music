@@ -307,11 +307,35 @@ struct Atmosphere {
     // seed-picked per world; the profile never authored them in effect.
 };
 
+// ═══ THE ARRIVAL ORBIT (ATRIUM_9) ════════════════════════════════
+// The camera's pose AT ARRIVAL — authored, per-mood, consumed once. It is
+// not runtime pose (that is the visitor's, and GPU truth): a definition the
+// world is composed from, so it lives in the mood's definition and travels
+// with MOOD_LIVE, per-mood and exportable, like the sun's own witnesses.
+//
+// azimuth_offset_deg is measured FROM THE PAWN'S HEADING, not from a world
+// axis: the camera stands behind the figure at 180, and the whole
+// composition turns with the gaze rather than drifting off it. ATRIUM_5
+// found Idle::PAWN_HEADING and Idle::CAMERA_AZIMUTH exactly a half turn
+// apart with nothing in the tree stating why; this column is the statement.
+//
+// distance <= 0 is the SENTINEL: this mood does not compose its arrival —
+// the program's own orbit stands (Idle::CAMERA_*). Six of seven moods wear
+// it, and that is the point: a mood pays for the column only when it has
+// something to say. A mood wearing the sentinel is also never YANKED — the
+// apply writes nothing at all there, so a return to an open world leaves
+// the visitor's own orbit exactly where they left it.
+struct ArrivalOrbit { float distance; float elevation_deg; float azimuth_offset_deg; };
+inline constexpr ArrivalOrbit ORBIT_DEFAULT = { -1.0f, 0.0f, 0.0f };
+inline constexpr bool orbit_composed(const ArrivalOrbit& o) { return o.distance > 0.0f; }
+
 struct MoodProfile {
     WorldShape shape;                      // what the world is
     Atmosphere atmos;                      // what it wears
     float      regime_weight[REGIME_COUNT];// how often it wears each regime (REGIME_1) —
                                            // the world's roll; 0 = that regime is absent
+    ArrivalOrbit arrival;                  // ATRIUM_9 — where the camera stands when this
+                                           // world begins; ORBIT_DEFAULT = the program's own
 };
 
 // ═══ THE SHAPES ══════════════════════════════════════════════════
@@ -447,13 +471,21 @@ inline constexpr Atmosphere ATMOS_ATRIUM = {
 //                                      shape             atmosphere
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     //                                shape             atmosphere        regime weights (REGIME_1)
-    /* MOOD_OPEN_SUNSET        */  { SHAPE_OPEN,       ATMOS_SUNSET,     { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_INDOOR_FLAT        */  { SHAPE_ROOM_FLAT,  ATMOS_ROOM_FLAT,  { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_INDOOR_VAULT       */  { SHAPE_ROOM_VAULT, ATMOS_ROOM_VAULT, { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY, { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON,       { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_ATRIUM             */  { SHAPE_ATRIUM,     ATMOS_ATRIUM,     { 1.0f, 0.0f,  0.0f,  0.0f  } },
+    /* MOOD_OPEN_SUNSET        */  { SHAPE_OPEN,       ATMOS_SUNSET,     { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
+    /* MOOD_INDOOR_FLAT        */  { SHAPE_ROOM_FLAT,  ATMOS_ROOM_FLAT,  { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
+    /* MOOD_INDOOR_VAULT       */  { SHAPE_ROOM_VAULT, ATMOS_ROOM_VAULT, { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
+    /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY, { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
+    /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
+    /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON,       { 1.0f, 0.0f,  0.0f,  0.0f  }, ORBIT_DEFAULT },
+    // THE ENTRANCE COMPOSES ITS OWN ARRIVAL (ATRIUM_9). These are the
+    // program's own numbers, written out unchanged — the seam is open and the
+    // frame has not moved. 22.918312 deg IS Idle::CAMERA_ELEVATION (0.4 rad)
+    // and the degree round trip is exact in float; 180 is
+    // Idle::CAMERA_AZIMUTH minus Idle::PAWN_HEADING, the half turn ATRIUM_5
+    // found. Jean composes against the poster and the arc at
+    // ?organ=1 -> Camera · arrival, and the export lands here.
+    /* MOOD_ATRIUM             */  { SHAPE_ATRIUM,     ATMOS_ATRIUM,     { 1.0f, 0.0f,  0.0f,  0.0f  },
+                                     { 15.0f, 22.918312f, 180.0f } },
 };
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
@@ -504,10 +536,17 @@ static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].clear_color_spread == 
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].regime_weight[0]                == 1.0f,    "MoodProfile column drift: regime_weight (sunset, one regime)");
 // EVERY MOOD WEIGHTS ONE REGIME TODAY, so no lane anywhere carries a
 // distinctive value and a probe on lane 1, 2 or 3 could only expect 0.
-// The head probe above still pins lane 0, the tail probe below still
-// READS lane 3, and the per-lane work is done by mood_carries_point,
-// which checks all four lanes on the rows that must carry a point.
-static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].regime_weight[3]                 == 0.0f,    "MoodProfile column drift: regime_weight (night, tail)");
+// The head probe above still pins lane 0, the probe below still READS
+// lane 3, and the per-lane work is done by mood_carries_point, which
+// checks all four lanes on the rows that must carry a point. The TAIL
+// probe is arrival's now (ATRIUM_9) — regime_weight is no longer last.
+static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].regime_weight[3]                 == 0.0f,    "MoodProfile column drift: regime_weight (night)");
+// ATRIUM_9 — arrival is MoodProfile's last field and takes the tail probe.
+// It reads the PREDICATE and not a number, because the sentinel is what the
+// column means: six rows say nothing and one says something.
+static_assert(orbit_composed(MOOD_TABLE[MOOD_ATRIUM].arrival)
+           && !orbit_composed(MOOD_TABLE[MOOD_OPEN_SUNSET].arrival),
+    "MoodProfile column drift: arrival (tail)");
 
 // The open family is one stage: three moods, one SHAPE_OPEN, stated once.
 static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)

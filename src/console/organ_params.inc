@@ -199,6 +199,21 @@ ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "fog c
 ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "clear colour",                  MOOD, MoodProfile, atmos.regime[3].clear_color)
 ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[3].clear_color_spread)
 
+// ─── Camera · arrival — WHERE THIS WORLD BEGINS (ATRIUM_9) ──────
+// Camera POSE has no panel section, and that rule stands: pose is GPU truth,
+// composed and damped every frame, and a dial on it would be a second author.
+// This is not pose. It is a DEFINITION consumed once, at arrival, and its
+// home is therefore the mood — per-mood, DEFINITION mode, so an edit lands in
+// MOOD_LIVE's row and the export carries the atrium's three numbers.
+//
+// distance <= 0 is the sentinel "this mood does not compose its arrival", so
+// the range starts at 0: a hand can retire a composition as well as author
+// one. The azimuth is an OFFSET on Idle::PAWN_HEADING — 180 stands the camera
+// behind the figure — and the whole composition turns with the gaze.
+ORGAN_PARAM_DEFONLY(F32,   0.0f,   60.0f,  0.5f,   "Camera · arrival", "distance",               MOOD, MoodProfile, arrival.distance)
+ORGAN_PARAM_DEFONLY(F32, -89.0f,   89.0f,  0.5f,   "Camera · arrival", "elevation (deg)",        MOOD, MoodProfile, arrival.elevation_deg)
+ORGAN_PARAM_DEFONLY(F32, -180.0f, 180.0f,  1.0f,   "Camera · arrival", "azimuth off gaze (deg)", MOOD, MoodProfile, arrival.azimuth_offset_deg)
+
 // ─── Atmosphere · Fog (the drivers' room + its witnesses) ────────────
 // Fog is DRIVEN, so the dial sits on the driver's seam and the driven
 // values are witnesses: out = regime rest + gain·deviation.
