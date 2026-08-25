@@ -2,6 +2,14 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
+- Doorways flush with walls: the rooms' wall doors stand with their SPAN
+  perpendicular to the wall they sit on, so a visitor meets the arch edge-on
+  rather than through its opening. An arch's rotation is its span
+  (`arch_rotation_from_facing`, contracts/spawn_services.hpp); the two wall
+  candidate tables in `direction/mood.hpp` carry authored rotations and would
+  each turn a quarter — a one-table change, no new mechanism. Origin:
+  ATRIUM_5's reading of `amg_gen_shell`, gated as it stands by Jean at
+  ATRIUM_6. Jean's word opens it.
 - Sphere repulsion excluded from the witness's presence (motor-sovereign):
   a sphere subscribes to no behavior force and no presence push — it EMITS
   the point's push (`row_sphere_push`) and has never been a subscriber to
