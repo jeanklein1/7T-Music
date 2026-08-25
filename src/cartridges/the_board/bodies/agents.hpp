@@ -201,20 +201,18 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
       /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_ATRIUM — EVERY SLOT BUT THE PLAYER'S (ATRIUM_5). Three read as
-       three strangers; thirty-one read as a passage, and the passage is the
-       thing the entrance has to make obvious. spawn_population_for_mood
-       clamps to MAX_AGENTS - 1 itself, so this row states the ceiling rather
-       than a number that would silently mean it. Born inside the chord and
-       close in — their first waypoint is a walk across the room to a door,
-       so the motion is there at the first frame. */
-    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ Dim::MAX_AGENTS - 1u,
+    /* MOOD_ATRIUM — FIVE FIGURES (ATRIUM_6). Enough to read the round, few
+       enough not to jostle: thirty-one spent the entrance repelling each
+       other, which is the one thing a passage must not look like. Born
+       inside the chord and close in — their first waypoint is the arc's
+       centre, so the walk starts at the first frame. */
+    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 5u,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
       /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 8.0f,
-      /*spawn_radius=*/       30.0f,
+      /*spawn_radius=*/       24.0f,
       /*home_seeding_radius=*/ 0.0f },
 };
 
@@ -350,7 +348,8 @@ inline void populate_agent_slot_(const AgentState& as,
                           const AgentPopulationDef& pop,
                           uint32_t agent_seed,
                           float beh_sum, float tier_sum,
-                          float center_x, float center_z) {
+                          float center_x, float center_z,
+                          uint32_t slot_index) {   // ATRIUM_6 — the passers' figures are DEALT, by slot
     // ── Roll behavior ─────────────────────────────────────────────
     float w_beh[AGENT_BEHAVIOR_COUNT];
     for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
@@ -399,11 +398,15 @@ inline void populate_agent_slot_(const AgentState& as,
     // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
     // (salt 9u). Independent of the behavior/tier rolls (distinct salts).
     //
-    // ATRIUM_4 — A PASSER IS NOT ROLLED. It is the regular pawn, skin 0: the
-    // figure the visitor inhabits, walking the doors ahead of them. The
-    // entrance teaches by showing someone doing the thing.
+    // ATRIUM_6 — A PASSER IS NOT ROLLED, IT IS DEALT. ATRIUM_4 gave every
+    // passer skin 0 so the visitor would see their own figure walking the
+    // doors; five identical pawns read as a copy, not as a crowd. Dealt by
+    // SLOT, so the five are five different figures and skin 0 — the regular
+    // pawn, the one the visitor inhabits — is dealt first and is always
+    // among them. Deterministic and independent of the seed, which is what
+    // "the same entrance for everyone" already means here.
     if (behavior_id == AGENT_BEHAVIOR_PASSER) {
-        out.skin_id = 0u;
+        out.skin_id = (slot_index - 1u) % PAWN_FIGURE_COUNT;
     } else {
         float fw[FAM_COUNT];
         float fsum = 0.0f;
@@ -458,7 +461,7 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
 
             populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                                  beh_sum, tier_sum,
-                                 center_x, center_z);
+                                 center_x, center_z, slot);
             spawned++;
         }
     }
@@ -515,7 +518,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
         populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                              beh_sum, tier_sum,
-                             px, pz);
+                             px, pz, slot);
 
         c->gpuState_.upload_agent_slot(queue, slot, &as.slots[slot]);
         respawned++;
