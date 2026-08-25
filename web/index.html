@@ -179,15 +179,6 @@
     }
     .btn:hover { border-color: #55525c; }
 
-    #hint {
-      position: fixed; left: 12px; bottom: 10px; z-index: 5;
-      color: var(--faint); font-size: 12px;
-      user-select: none; pointer-events: none;
-    }
-    #hint[hidden] { display: none; }
-    /* Touch devices have no cursor to capture and no WASD. SHIP_1 owns
-       the sticks; until then the hint would be a lie on a phone. */
-    @media (pointer: coarse) { #hint { display: none; } }
     @media (prefers-reduced-motion: reduce) { #veil.lifting { transition: none; } }
 
     /* ── STATE 4 — READY ──────────────────────────────────────────
@@ -252,7 +243,6 @@
        starts listening to itself, it listens here. Nothing else in the
        shell may create or touch audio. -->
   <audio id="music" loop preload="none" data-src="music/samsara.mp3"></audio>
-  <div id="hint" hidden>click to capture the cursor &middot; WASD moves &middot; 5&ndash;8 change moods</div>
 
   <!-- ── STATE 1 — LOADING ─────────────────────────────────────── -->
   <div id="veil" class="layer">
@@ -306,7 +296,6 @@
     var cardSay = document.getElementById('cardSay');
     var cardSub = document.getElementById('cardSub');
     var reload  = document.getElementById('reload');
-    var hint    = document.getElementById('hint');
     var logEl   = document.getElementById('log');
     var logEl2  = document.getElementById('log2');
     var music   = document.getElementById('music');
@@ -409,7 +398,6 @@
       card.hidden = true;                   // clears a watchdog card, if any
       shown = true;
       veil.classList.add('lifting');
-      hint.hidden = false;
       setTimeout(function () { if (!terminal) veil.hidden = true; }, 950);
     }
 
@@ -500,7 +488,6 @@
         'Opening it again sometimes works; if it never does, ' + CONTACT + '.',
         true
       );
-      hint.hidden = true;
       record('[shell] LOST: ' + reason);
     }
 
@@ -560,10 +547,9 @@
       }
     }
 
-    // 2 — FULLSCREEN, coarse pointers only. The same gate the hint uses
-    // (@media (pointer: coarse)). A desktop visitor's entry is already
-    // the pointer-lock hint, and taking their window away would be a
-    // second, louder answer to a question they did not ask.
+    // 2 — FULLSCREEN, coarse pointers only. A desktop visitor's entry is
+    // already the pointer-lock gesture, and taking their window away
+    // would be a second, louder answer to a question they did not ask.
     function goFullscreen() {
       try {
         if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
@@ -962,7 +948,7 @@
     // "Module['canvas']" (emscripten-glfw Config.h kDefaultCanvasSelector),
     // so handing the canvas to Module wires the GLFW window to it.
     // Pointer Lock is requested by contrib.glfw3 on the first user
-    // gesture — the browser requires one; hence the hint.
+    // gesture — the browser requires one; hence ATMOS_0's entry gesture.
     // PROBATE_SEAL2 — the digest reaches the program as a global, read
     // once in loadShader(). A Module field would be the tidier home,
     // but Module is rebuilt by the glue and the read happens long after
