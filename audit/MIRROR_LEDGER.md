@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `3484f72e08be0a1bfc0310035fb29e5a05d96465` |
-| | ATRIUM_12: the ledgers re-stamp against the entrance's two dials |
+| source commit | `f2b7d7586734bcdcdd158ff224d095609db62134` |
+| | ATRIUM_13: the ledgers re-stamp against the retired scheme |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:2db4fa513fe25ecead2e8d3edfe97737b3d80458065aacc0075d5e55ef6cbcad` |
