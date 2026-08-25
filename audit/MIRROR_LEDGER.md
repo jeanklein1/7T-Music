@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `be224fc6c1e177342b4eba2ec0ff6b8cbf8043fa` |
-| | PASSER — the round (centre, door, band, end), constant-speed walking, no player flee (ATRIUM_6) |
+| source commit | `85e5fc983d140f5035d75dcce8a932eea8963218` |
+| | ATRIUM_6: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:771fb6272cba8f87c9dc869d0516c05b5eb558e12815626569fe59f931473d3b` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:a3b6435e340389bb7d6beb0bf0e1af62ce1a2773aa44b182ce47be359febacd6` |
