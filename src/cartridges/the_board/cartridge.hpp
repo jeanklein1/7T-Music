@@ -509,7 +509,7 @@ namespace t7 {
                 , cube_deps_{ gpuState_, time_state_, player_, point_, mood_state_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
-                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, sunDirection_, clearColor_ }
+                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, time_state_, sunDirection_, clearColor_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands

@@ -38,6 +38,7 @@
 #include <cstdint>   // (impl, merged)
 #include <filesystem>  // paintings folder scan   // (impl, merged)
 #include <iostream>    // capture / gallery / authored logs   // (impl, merged)
+#include <iomanip>     // std::fixed, std::setprecision — the time-to-poster witness (ATRIUM_10)   // (impl, merged)
 #include <string>      // manifest paths, std::stoi   // (impl, merged)
 #include <vector>      // manifest + pixel staging   // (impl, merged)
 #include <cstring>            // std::strncpy — emscripten_fetch_attr_t::requestMethod   (EXHIBIT_0)
@@ -52,7 +53,7 @@ namespace the_board {
 // the root cosmetic arrays (by reference); ribbon_state_ read for the
 // snapshot draw gate. All reads except GPU wire + renderer.
 class Renderer;
-struct WorldState; struct TileWorldState; struct RibbonState;
+struct WorldState; struct TileWorldState; struct RibbonState; struct TimeState;
 struct GalleryDeps {
     GPUState&             gpuState_;
     Renderer&            renderer_;
@@ -62,6 +63,10 @@ struct GalleryDeps {
     const PlayerState&   player_;
     const PointState&    point_;    // the point's house (position mirror — wall-frame placement)
     const MoodState&     mood_state_;
+    // ATRIUM_10 — the clock, const. The entrance's one number is a TIME, and
+    // a witness that cannot read the clock cannot be printed. Read-only, like
+    // every other row here; the agents' face has carried it since the census.
+    const TimeState&     time_state_;
     const float          (&sunDirection_)[3];
     const float          (&clearColor_)[3];
 };
@@ -2999,6 +3004,20 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
         gs.active_painting_count++;
         sand_slots[sand_placed] = slot;   // ATRIUM_7 — the memory takes the sand first
         sand_placed++;
+    }
+    // ATRIUM_10 — TIME TO POSTER. The one number the entrance is judged by:
+    // how long a visitor stands in a bare room before the controls are on the
+    // sand. It reads the folder's settle time today, because the hang waits
+    // for in_flight == 0; A10.1 makes it read ATRIUM_0's own arrival and
+    // A10.2 makes it read a cache hit. Three deploys, three readings.
+    //
+    // Not gated by INSTRUMENTS: one line per entrance, and it is the witness
+    // the next two commits are judged by. It retires on Jean's word, like the
+    // census. It prints only when a quad actually went up — a hang that
+    // placed nothing has no poster to time.
+    if (sand_placed > 0) {
+        std::cout << "[Atrium] poster: hung at t=" << std::fixed << std::setprecision(2)
+                  << c->time_state_.seconds << "s\n";
     }
     // The walls take the rest — the atrium's range only, strict. wall_height
     // is the shape's: on the FLAT path apply_mood_indoor_shell passes
