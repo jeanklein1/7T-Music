@@ -57,7 +57,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | sanctum | `WORLD.scheme_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | atrium | `WORLD.scheme_weights[4]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Portals | to open sunset | `WORLD.portal_colors[0][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to indoor flat | `WORLD.portal_colors[1][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to indoor vault | `WORLD.portal_colors[2][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
@@ -419,14 +418,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **391** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 43 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 9 · Camera 6 · Debug 4 |
-| by cadence | boundary 191 · driven 20 · gen 52 · live 128 |
-| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 77 · PARAM_GEN 52 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 58 · NONE 204 · ORB_MOOD 19 · TIER 32 |
+| entries | **390** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 9 · Camera 6 · Debug 4 |
+| by cadence | boundary 191 · driven 20 · gen 51 · live 128 |
+| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 77 · PARAM_GEN 51 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 58 · NONE 203 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, ATRIUM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 376 |
+| namespaces | canvas 15 · the_board 375 |
 
 ### Doors
 
@@ -493,7 +492,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    293   a declared reader names the field
+  proved    292   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
   scope      78   GPU-side or whole-struct (blind spots 2, 3)
