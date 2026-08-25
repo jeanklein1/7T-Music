@@ -142,6 +142,8 @@ struct AgentPopulationDef {
     std::array<float, AGENT_TIER_COUNT>     tier_weights;
     float    spawn_inner_radius;                             // world units (annulus inner)
     float    spawn_radius;                                   // world units (annulus outer)
+    float    spawn_center_forward;                           // ATRIUM_9 — world units the annulus'
+                                                             // CENTRE rides along the arrival gaze
     float    home_seeding_radius;                            // world units from spawn point
 };
 
@@ -157,6 +159,7 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
+      /*spawn_center_forward=*/ 0.0f,
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_INDOOR_FLAT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 4,
@@ -166,6 +169,7 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
       /*spawn_inner_radius=*/ 0.0f,
       /*spawn_radius=*/       60.0f,
+      /*spawn_center_forward=*/ 0.0f,
       /*home_seeding_radius=*/ 30.0f },
     /* MOOD_INDOOR_VAULT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 4,
@@ -175,6 +179,7 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
       /*spawn_inner_radius=*/ 0.0f,
       /*spawn_radius=*/       60.0f,
+      /*spawn_center_forward=*/ 0.0f,
       /*home_seeding_radius=*/ 30.0f },
     /* MOOD_FINITE_OUTDOOR — unpopulated */
     { /*mood_id=*/ MOOD_FINITE_OUTDOOR, /*count=*/ 0,
@@ -182,6 +187,7 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*tier_weights=*/     {},
       /*spawn_inner_radius=*/ 0.0f,
       /*spawn_radius=*/       0.0f,
+      /*spawn_center_forward=*/ 0.0f,
       /*home_seeding_radius=*/ 0.0f },
     /* MOOD_OPEN_NIGHT — the sunset's travelers, thinned to six (ATMOS_1) */
     { /*mood_id=*/ MOOD_OPEN_NIGHT, /*count=*/ 6,
@@ -191,6 +197,7 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
+      /*spawn_center_forward=*/ 0.0f,
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_OPEN_NOON — the sunset's travelers, twelve strong (ATMOS_1) */
     { /*mood_id=*/ MOOD_OPEN_NOON, /*count=*/ 12,
@@ -200,16 +207,25 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
+      /*spawn_center_forward=*/ 0.0f,
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_ATRIUM — THREE FIGURES (ATRIUM_8). Three read as a passage; five
        read as traffic, and thirty-one before them read as a crowd repelling
        itself. Jean backtracked on five.
 
-       THE RING STANDS BEYOND THE POSTER. sand[0] sits at 15 (A8.3), so an
-       inner radius of 20 keeps every passer out of the frame the visitor is
-       reading at arrival. Their first waypoint is the arc's centre, which is
-       further out still, so from the ring they walk OUTWARD — into view, and
-       toward a door.
+       THE RING BEGINS AT THE ARC'S CENTRE (ATRIUM_9). It used to be drawn
+       around the VISITOR, and a ring around the visitor is a ring the
+       visitor is inside: a third of it stood behind them, unseen, and the
+       rest arrived from the sides. spawn_center_forward walks the centre 40
+       wu along the arrival gaze — ATRIUM_TABLE.arc_center_offset exactly,
+       the point every door already faces — so the three begin where they
+       are already going: in front, in the frame, walking a door.
+
+       THE POSTER IS STILL CLEAR. sand[0] sits at 15 (A8.3); the ring's
+       nearest point to the arrival stands at 40 - 22 = 18, so nothing
+       spawns in the frame the visitor is reading. The outer 22 keeps the
+       ring inside the shell with room to spare — at finite_radius 1 the
+       centre lands within 5 wu of the room's own middle.
 
        tier_weights stays worker-only, and that is a decision rather than the
        oversight it now looks like beside the rolled figures: the tier
@@ -221,8 +237,9 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 20.0f,
-      /*spawn_radius=*/       32.0f,
+      /*spawn_inner_radius=*/ 6.0f,
+      /*spawn_radius=*/       22.0f,
+      /*spawn_center_forward=*/ 40.0f,
       /*home_seeding_radius=*/ 0.0f },
 };
 
@@ -372,14 +389,25 @@ inline void populate_agent_slot_(const AgentState& as,
     uint32_t tier_idx = select_tier(agent_seed, 2u, w_tier, AGENT_TIER_COUNT);
 
     // ── Sample annulus position (uniform area distribution) ───────
+    // ATRIUM_9 — THE ANNULUS RIDES THE ARRIVAL GAZE. The centre passed in
+    // is where the VISITOR is; spawn_center_forward walks it along the
+    // gaze before the ring is drawn, so a room can put its figures in
+    // front of the viewer instead of all around them. The direction is
+    // Idle::PAWN_HEADING's — the ARRIVAL gaze, a constant, not the live
+    // heading: the composition is the room's, and it must not swing when
+    // the visitor turns. Every mood but the atrium passes 0 here, and at
+    // 0 both cosines fall out and the centre is the caller's, unmoved.
     const float two_pi = 6.28318530718f;
+    const float gaze = heading_to_bearing(Idle::PAWN_HEADING);
+    const float cx = center_x + std::cos(gaze) * pop.spawn_center_forward;
+    const float cz = center_z + std::sin(gaze) * pop.spawn_center_forward;
     float theta = cpu_hash_f(agent_seed, 3u) * two_pi;
     const float inner_sq = pop.spawn_inner_radius * pop.spawn_inner_radius;
     const float outer_sq = pop.spawn_radius       * pop.spawn_radius;
     float u = cpu_hash_f(agent_seed, 4u);
     float r = std::sqrt(inner_sq + u * (outer_sq - inner_sq));
-    float sx = center_x + std::cos(theta) * r;
-    float sz = center_z + std::sin(theta) * r;
+    float sx = cx + std::cos(theta) * r;
+    float sz = cz + std::sin(theta) * r;
 
     // ── Sample home offset (uniform on disk around spawn point) ───
     float h_theta = cpu_hash_f(agent_seed, 5u) * two_pi;
