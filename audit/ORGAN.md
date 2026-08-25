@@ -63,6 +63,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Portals | to finite outdoor | `WORLD.portal_colors[3][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to open night | `WORLD.portal_colors[4][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | to open noon | `WORLD.portal_colors[5][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Sky & Light · Portals | to atrium | `WORLD.portal_colors[6][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Sky & Light · Portals | back portal | `WORLD.portal_color_back[0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Atmosphere · Regimes | draw · regime 1 | `MoodProfile.regime_weight[0]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regimes | draw · regime 2 | `MoodProfile.regime_weight[1]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
@@ -354,6 +355,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Agents · levy_flight | home pull | `AGENT_ROOM.behaviors[9].home_pull` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
 | Agents · levy_flight | neighbour radius | `AGENT_ROOM.behaviors[9].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
 | Agents · levy_flight | speed cap | `AGENT_ROOM.behaviors[9].speed_cap` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
+| Agents · passer | step rate | `AGENT_ROOM.behaviors[10].step_rate` | AGENT_ROOM | F32 | 0 … 1 | 0.005 | boundary | behavior |  |
+| Agents · passer | step size (waypoint radius) | `AGENT_ROOM.behaviors[10].step_size` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
+| Agents · passer | persistence | `AGENT_ROOM.behaviors[10].persistence` | AGENT_ROOM | F32 | 0 … 1 | 0.005 | boundary | behavior |  |
+| Agents · passer | drag | `AGENT_ROOM.behaviors[10].drag` | AGENT_ROOM | F32 | 0 … 3.75 | 0.02 | boundary | behavior |  |
+| Agents · passer | home pull | `AGENT_ROOM.behaviors[10].home_pull` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
+| Agents · passer | neighbour radius | `AGENT_ROOM.behaviors[10].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
+| Agents · passer | speed cap | `AGENT_ROOM.behaviors[10].speed_cap` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
+| Agents · passer | band | `AGENT_ROOM.behaviors[10].aux` | AGENT_ROOM | F32 | 0 … 20 | 0.25 | boundary | behavior |  |
 | Agents · Portals | portal density | `WORLD.portal_density` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Agents · Portals | draw · open sunset | `WORLD.mood_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Agents · Portals | draw · indoor flat | `WORLD.mood_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
@@ -361,6 +370,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Agents · Portals | draw · finite outdoor | `WORLD.mood_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Agents · Portals | draw · open night | `WORLD.mood_weights[4]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Agents · Portals | draw · open noon | `WORLD.mood_weights[5]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Agents · Portals | draw · atrium | `WORLD.mood_weights[6]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Interaction · Field | slack | `CONFIG.field_slack` | CONFIG | F32 | 0 … 12 | 0.05 | live | none |  |
 | Interaction · Field | k (accel) | `CONFIG.field_k` | CONFIG | F32 | 0 … 1200 | 5 | live | none |  |
 | Interaction · Field | f max | `CONFIG.field_fmax` | CONFIG | F32 | 0 … 2400 | 10 | live | none |  |
@@ -390,19 +400,31 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Debug ·  | mute signal | `CONFIG.mute_signal` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | freeze sphere | `CONFIG.freeze_sphere` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | FPV mode (key-shared) | `CONFIG.fpv_mode` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
+| Atrium ·  | arc radius | `ATRIUM.arc_radius` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
+| Atrium ·  | arc span (deg) | `ATRIUM.arc_span_deg` | ATRIUM | F32 | 60 … 300 | 1 | gen | none |  |
+| Atrium ·  | arc bearing (deg) | `ATRIUM.arc_bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
+| Atrium ·  | sand 0 bearing (deg) | `ATRIUM.sand[0].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
+| Atrium ·  | sand 0 distance | `ATRIUM.sand[0].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
+| Atrium ·  | sand 0 height | `ATRIUM.sand[0].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
+| Atrium ·  | sand 1 bearing (deg) | `ATRIUM.sand[1].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
+| Atrium ·  | sand 1 distance | `ATRIUM.sand[1].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
+| Atrium ·  | sand 1 height | `ATRIUM.sand[1].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
+| Atrium ·  | sand 2 bearing (deg) | `ATRIUM.sand[2].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
+| Atrium ·  | sand 2 distance | `ATRIUM.sand[2].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
+| Atrium ·  | sand 2 height | `ATRIUM.sand[2].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **367** |
-| by section | Agents 109 · Atmosphere 73 · Ribbon 55 · Terrain 42 · Sky & Light 41 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 |
-| by cadence | boundary 180 · driven 20 · gen 40 · live 127 |
-| by macro form | PARAM 131 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 40 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 191 · ORB_MOOD 19 · TIER 32 |
+| entries | **389** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 22 · Pawn 18 · Atrium 12 · Debug 4 · Camera 3 |
+| by cadence | boundary 188 · driven 20 · gen 54 · live 127 |
+| by macro form | PARAM 131 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 54 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 205 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
-| blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 352 |
+| blocks and sentinels used | AGENT_ROOM, ATRIUM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
+| namespaces | canvas 15 · the_board 374 |
 
 ### Doors
 
@@ -423,31 +445,31 @@ NOT name, and the reader witness over every graduated pair. The tail
 of its run, verbatim:
 
 ```
-
-THE READER WITNESS — every mention of a DESIGN symbol, classified.
 A graduation is complete when the design table's only readers are
 its seed and its asserts. Anything else is a surviving runtime
 reader — the class of defect this witness exists to catch.
 
-  AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
+  AGENT_BEHAVIORS      definition=1 seed=11 comment=7             
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
+  ATRIUM_TABLE         definition=1 seed=1 constexpr=1 comment=2  
+        constexpr derivation  src/cartridges/the_board/bodies/agents.hpp:212  /*spawn_radius=*/       ATRIUM_TABLE.arc_radius - 10.0f,
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=6 static_assert=26 constexpr=4 comment=29 
+  MOOD_TABLE           definition=1 seed=7 static_assert=31 constexpr=4 comment=29 
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:427  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:428  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:429  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:430  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       definition=1 seed=6 comment=6              
+  ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
   WORLD_DRAW_TABLE     definition=1 seed=1 comment=2              
 
-SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
+SURVIVING RUNTIME READERS ACROSS 14 GRADUATED PAIRS: 0
 
 Blind spot 3: a partly-enrolled nested aggregate reads as named —
 `fog.gain` names `fog`. The ledger carries the per-field truth.
@@ -469,7 +491,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    270   a declared reader names the field
+  proved    292   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
   scope      77   GPU-side or whole-struct (blind spots 2, 3)
