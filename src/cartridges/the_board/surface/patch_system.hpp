@@ -592,6 +592,14 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             if (c->mood_state_.back_portal_pending) {
                 force_spawn_back_portal(&mood_deps, queue, *c);
             }
+            // ATRIUM_0 — BACK FIRST, THEN THE FORWARDS. The forward roster
+            // reads the standing arches to learn which wall the back owns,
+            // so its order against the line above is structural, not
+            // stylistic. Both stay ahead of force_spawn_door_fallback,
+            // whose gate counts standing doors.
+            if (c->mood_state_.forward_portals_pending) {
+                force_spawn_forward_portals(&mood_deps, queue, *c);
+            }
             // Built ONCE before the window loop: bit-identical to the old
             // per-cell O(N) scan (each cell is unique, so a patch added at an
             // earlier cell never matches a later one). Kills the O(N^2).

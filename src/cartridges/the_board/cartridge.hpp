@@ -562,6 +562,9 @@ namespace t7 {
                         derive_finite_radius(world_state_.active_seed, bm), mood_state_.active };
                     become_destination(boot);
                 }
+                // ATRIUM_0 — a boot world has no back (nothing precedes), but
+                // its forwards no longer hang off the return.
+                mood_state_.forward_portals_pending = world_state_.finite_mode;
 
                 // EXHIBIT_0 — THE EXHIBITION IS A FETCH, AND IT STARTS HERE.
                 // This is the earliest instant a GalleryState exists to fill,
@@ -1397,7 +1400,8 @@ namespace t7 {
                         if constexpr (ROSTER.ribbon)
                             release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
                         // Schedule guaranteed back-portal in finite worlds
-                        mood_state_.back_portal_pending = world_state_.finite_mode;
+                        mood_state_.back_portal_pending     = world_state_.finite_mode;
+                        mood_state_.forward_portals_pending = world_state_.finite_mode;
                         // Re-arm the door guarantee for the new world (one
                         // shot, consumed by its first fullRegen).
                         mood_state_.door_fallback_pending = true;

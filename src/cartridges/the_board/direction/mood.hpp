@@ -206,6 +206,7 @@ void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
 // Portals (door; the internals route through entities' force_spawn_portal_arch
 // — the arch's owner writes, so the machine face rides the tail param)
 void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
+void force_spawn_forward_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
 void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
 // Per-frame uploads (doors)
 void upload_lights(MoodDeps* c, wgpu::Queue& queue);
@@ -1171,8 +1172,6 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
             std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
         }
 
-        // Spawn additional forward portals around the room perimeter
-        force_spawn_finite_portals(c, queue, machine_ctx);
         return;
     }
 
@@ -1200,7 +1199,17 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
         std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
     }
 
-    // Spawn additional forward portals around the room perimeter
+}
+
+// ── force_spawn_forward_portals ──
+// ATRIUM_0 — THE FORWARDS LEAVE THE BACK. force_spawn_finite_portals was
+// reachable only through force_spawn_back_portal, which fires on
+// back_portal_pending, which only a TRANSITION sets. A boot world has no
+// back — correctly — but as wired, no back meant no forwards. The finite
+// world's forward roster now has its own pending flag and its own door.
+inline void force_spawn_forward_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
+    c->mood_state_.forward_portals_pending = false;
+    if (!c->world_state_.finite_mode) return;
     force_spawn_finite_portals(c, queue, machine_ctx);
 }
 
@@ -1268,8 +1277,18 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     // WALL_MARGIN formula is this margin's twin), jittered ALONG that
     // wall by at most room_half * 0.2 — far under the gap to any other
     // wall, so the nearest candidate names its wall unambiguously.
-    uint32_t back_wall = 0;
-    {
+    // ATRIUM_0 — AND ONLY WHERE ONE STANDS. backPortalPosition_ is a
+    // standing value, not a live fact: a boot world reaches this function
+    // with no back at all, and reading the stale position there would
+    // retire a wall for a door that does not exist. The arches are the
+    // truth; they are asked once, here.
+    bool back_stands = false;
+    for (uint32_t j = 0; j < Dim::MAX_ARCH_INSTANCES && !back_stands; j++) {
+        const auto& aa = c->entities_state_.arches[j];
+        if (aa.active && aa.is_portal && aa.is_back_portal) back_stands = true;
+    }
+    uint32_t back_wall = UINT32_MAX;
+    if (back_stands) {
         float best = 3.4e38f;
         for (uint32_t j = 0; j < num_candidates; j++) {
             float dx = candidates[j].x - c->backPortalPosition_[0];
@@ -1319,7 +1338,8 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
         }
     }
 
-    std::cout << "[Portal] Finite world: " << spawned << " forward portals + 1 back-portal\n";
+    std::cout << "[Portal] Finite world: " << spawned << " forward portals + "
+        << (back_stands ? 1 : 0) << " back-portal\n";
 }
 
 // ── force_spawn_door_fallback ──
@@ -1330,8 +1350,9 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
 // Channel A DOORWAY arch (portal_density 1.0, entity_pipeline.hpp) —
 // this is a no-op and the world changes by nothing. Only a world that
 // populated DOORLESS gets one forced door: an open-world roll can
-// commit zero DOORWAY arches in the priority window, and the boot
-// world raises no back_portal_pending. No new placement grammar: the
+// commit zero DOORWAY arches in the priority window, and a boot world
+// raises forward_portals_pending but no back (ATRIUM_0). No new
+// placement grammar: the
 // destination is the forward-portal grammar (pick_portal_mood +
 // derive_finite_radius, fresh 88xx salts beside the 66xx/77xx series),
 // and the spot is a seeded bearing at twice the back-portal grammar's

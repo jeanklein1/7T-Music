@@ -149,6 +149,10 @@ struct MoodState {
 
     // ── Back-portal return state ──
     bool     back_portal_pending       = false;
+    // ATRIUM_0 — the forwards no longer hang off the return. Raised at every
+    // finite birth (boot and transition); the back is raised only where
+    // something precedes. Consumed at the same population site, back first.
+    bool     forward_portals_pending   = false;
     // One-shot arm for the door-guarantee fallback (U2). TRUE at boot
     // (the boot world runs no teardown) and re-armed at every teardown;
     // consumed by the world's FIRST fullRegen. NOT tied to fullRegen
