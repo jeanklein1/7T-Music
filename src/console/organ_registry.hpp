@@ -821,6 +821,14 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     // write succeed, keyed on the block, and never in the shell.
     if (block == ORGAN_BLOCK_ORBS)
         g_orb_console_dirty |= (1u << (e->offset / 4u));
+    // ATRIUM_13 — THE ENTRANCE'S GEN BANK, the same hook and the same rule.
+    // ATRIUM is an INSTANCE block (ORGAN_PARAM_GEN writes ATRIUM_LIVE through
+    // block_base), so the bit is e->offset / 4 and NOT def_offset: there is no
+    // definition behind these rows. organ_mark_dirty(12) already fired above
+    // and GPUState's flush has no arm for block 12 — this is what the frame
+    // boundary reads instead.
+    if (block == ORGAN_BLOCK_ATRIUM)
+        t7::the_board::g_atrium_touched |= (1u << (e->offset / 4u));
 }
 
 // BY INDEX, LIKE ITS SIBLINGS. The manifest index IS the index in

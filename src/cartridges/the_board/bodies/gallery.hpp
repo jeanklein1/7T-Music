@@ -908,6 +908,7 @@ void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
 // not wait on the walls. The consumer drives them: the memory on a return,
 // the poster the frame ATRIUM_0 lands, the walls when the folder settles.
 void rehang_atrium_memory(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
+void reseat_atrium_poster(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);   // ATRIUM_13
 void place_atrium_poster(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue, uint32_t rec0);
 void place_atrium_walls(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
@@ -3153,6 +3154,60 @@ inline void place_atrium_poster(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     std::cout << "[Atrium] poster: h=" << A.sand[0].height << " at d=" << A.sand[0].distance
               << ", ceiling " << ceiling
               << ", headroom " << (ceiling - A.sand[0].height)
+              << " (floor pinned flat, ATRIUM_12: +/-0.06 wu)"
+              << ", apparent " << (A.sand[0].height / A.sand[0].distance) << "\n";
+}
+
+// ── reseat_atrium_poster (ATRIUM_13) ─────────────────────────────
+//
+// THE SAND DIAL, MID-WORLD. sand[0].distance and .height are GEN rows, so a
+// drag used to write a value nothing would read until the next entry. What
+// they feed is one quad's TRANSFORM, and the quad already exists: stage 1 kept
+// its slot in gs.atrium_sand_slot. So the narrowest verb is not a re-hang at
+// all — no slot claimed, no exhibition layer taken, no staging record touched,
+// no fetch. The transform is recomputed from the live surface and the one slot
+// re-uploaded.
+//
+// THE ASPECT COMES BACK OUT OF THE SLOT. place_atrium_poster wrote
+// scale_x = height * aspect_ratio and the staging record it read is consumed
+// by now, so the ratio is recovered as scale_x / scale_y — exact, because that
+// is the product that was stored.
+//
+// The seat is re-asked (the GPU resolves a terrain quad's Y) and the memory is
+// offered its own retirement: ATRIUM_8's rule keys on exactly these two
+// fields, so a dialed composition drops a hang that answered the old one. The
+// handoff asked that the bits be routed at atrium_memory_retire_if_dialed
+// rather than duplicating it — they are, at the tail; but retiring the memory
+// only drops a REMEMBERED hang and moves nothing standing, so the reseat above
+// it is what the desk actually sees.
+inline void reseat_atrium_poster(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
+    const auto& A = ATRIUM_LIVE;
+    const float ox = Idle::PAWN_POS_X, oz = Idle::PAWN_POS_Z;
+    const float b0 = heading_to_bearing(Idle::PAWN_HEADING);
+    constexpr float DEG = 3.14159265f / 180.0f;
+    uint32_t moved = 0;
+    for (uint32_t i = 0; i < gs.atrium_sand_count && i < ATRIUM_SAND_SPOTS; i++) {
+        const uint32_t slot = gs.atrium_sand_slot[i];
+        if (slot >= Dim::PAINTING_MAX_SLOTS) continue;
+        auto& s = gs.painting_slots[slot];
+        if (s.is_active == 0) continue;
+        const float aspect = (s.scale_y > 0.0f) ? (s.scale_x / s.scale_y) : 1.0f;
+        const float bearing = b0 + A.sand[i].bearing_deg * DEG;
+        s.position[0] = ox + std::cos(bearing) * A.sand[i].distance;
+        s.position[1] = A.sand[i].height * 0.5f;   // the flat-floor answer; the GPU seats it
+        s.position[2] = oz + std::sin(bearing) * A.sand[i].distance;
+        s.forward[0] = -std::cos(bearing); s.forward[1] = 0.0f; s.forward[2] = -std::sin(bearing);
+        s.scale_y = A.sand[i].height;
+        s.scale_x = A.sand[i].height * aspect;
+        c->gpuState_.upload_painting_slot(queue, slot, s);
+        moved++;
+    }
+    if (moved == 0) return;
+    gs.atrium_seat_pending = true;
+    atrium_memory_retire_if_dialed(gs);
+    std::cout << "[Atrium] poster: h=" << A.sand[0].height << " at d=" << A.sand[0].distance
+              << ", ceiling " << mood_def(MOOD_ATRIUM).shape.wall_height
+              << ", headroom " << (mood_def(MOOD_ATRIUM).shape.wall_height - A.sand[0].height)
               << " (floor pinned flat, ATRIUM_12: +/-0.06 wu)"
               << ", apparent " << (A.sand[0].height / A.sand[0].distance) << "\n";
 }

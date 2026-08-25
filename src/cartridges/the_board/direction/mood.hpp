@@ -206,8 +206,12 @@ void apply_mood_arrival(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue); 
 void apply_mood_regime(MoodDeps* c, const MoodProfile& m);     // REGIME_1 — the roll, first
 void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
+// ATRIUM_13 — rehang=false regenerates the MESH only. The shell's own wall
+// hang runs the general ROLL policy, which is the atrium's to overrule
+// (ATRIUM_10), so a colour dial mid-world must not fire it: the walls already
+// carry the entrance's authored hang and only the vertex colours moved.
 void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps);
+    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang = true);
 // Indoor support
 // ATRIUM_5 — forced_scheme takes the shape's light_scheme column: SCHEME_ROLL
 // lets the seed draw, anything else is the pinned scheme id. The shape's
@@ -217,7 +221,7 @@ void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     uint32_t forced_scheme = SCHEME_ROLL);
 void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
     const IndoorPalette& pal,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps);
+    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang = true);   // ATRIUM_13
 void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
 // Portals (door; the internals route through entities' force_spawn_portal_arch
@@ -921,7 +925,7 @@ inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
 }
 
 inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps) {
+    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang) {
     if (m.shape.indoor && m.shape.ceiling_type != CeilingType::NONE) {
         // THREE ARMS, ONE SITE: the entrance's own pair, a pinned index, or
         // the seed's draw.
@@ -954,7 +958,7 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
             std::cout << "[Mood] Indoor palette: " << pal.name
                       << " (idx=" << pal_idx << ")\n";
         }
-        generate_indoor_shell(c, queue, m, pal, gallery_state, gallery_deps);
+        generate_indoor_shell(c, queue, m, pal, gallery_state, gallery_deps, rehang);
     } else {
         clear_indoor_shell(c, queue, gallery_state, gallery_deps);
     }
@@ -1084,7 +1088,7 @@ inline void push_quad(
 
 inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
     const IndoorPalette& pal,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps) {
+    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang) {
     float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
     float ch = m.shape.wall_height;
@@ -1215,7 +1219,13 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
 
     c->gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
 
-    place_wall_paintings(gallery_state, &gallery_deps, queue, bmin, bmax, wall_h);
+    // ATRIUM_13 — THE MESH IS THE SHELL'S; THE HANG IS THE ROOM'S. A world
+    // being built wants both, and every caller but one passes true. The one is
+    // the entrance's colour dial: the walls already carry its authored hang and
+    // only the vertex colours moved, so firing the general ROLL policy here
+    // would tear that hang down to re-hang it wrong.
+    if (rehang)
+        place_wall_paintings(gallery_state, &gallery_deps, queue, bmin, bmax, wall_h);
 
     std::cout << "[Shell] Generated "
         << (m.shape.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>   // offsetof — the touched mask names its bits by field (ATRIUM_13)
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs — the arc roster is per mood (ATRIUM_7)
 // ─── atrium_surface.hpp — THE ATRIUM'S COMPOSITION (ATRIUM_2) ─────
 //
@@ -64,6 +65,71 @@ inline constexpr AtriumSurface ATRIUM_TABLE = {
     { 0.32f, 0.30f, 0.28f },   // ceiling
 };
 inline AtriumSurface ATRIUM_LIVE = ATRIUM_TABLE;
+
+// ═══ THE ENTRANCE'S TOUCHED MASK (ATRIUM_13) ═════════════════════
+// The rows here are GEN — read when a world is BUILT — so a dial turned
+// mid-world wrote a value nothing would look at again until the next entry,
+// and the desk read that as "the dial does not work". organ_set raises
+// organ_mark_dirty(12), which sets a bit in organTouched_ that GPUState's own
+// flush has no arm for; nothing else happened at all.
+//
+// The orb bank's idiom answers it exactly: A BIT IS AN OFFSET / 4 into
+// AtriumSurface, the flag says the bank moved, the mask says where, and the
+// boundary redoes only what that field feeds. Nothing debounced, nothing
+// polled — the mask coalesces a drag into one raise, the way a slider drag is
+// one WriteBuffer.
+//
+// THREE CONSEQUENCES, and every word belongs to exactly one:
+//   COLOUR  -> the shell is regenerated (walls + ceiling), the hang untouched
+//   SAND    -> the poster is reseated in place
+//   ARC     -> refused, and the witness says so (ATRIUM_13 R6: no release verb
+//              exists for the arc's arches, and one is not CC's to write)
+//
+// THE LAMPS ARE NOT A FOURTH. The entrance points at a scheme and draws its
+// lamps as any indoor room does (A13.2, Jean's amendment), so it authors
+// nothing about them and has nothing here to route. A word in two sets would
+// be a word with two homes; the asserts below prove the three are pairwise
+// disjoint AND total.
+inline uint32_t g_atrium_touched = 0;
+inline uint32_t take_atrium_touched() {
+    const uint32_t m = g_atrium_touched;
+    g_atrium_touched = 0;
+    return m;
+}
+
+// THE BITS NAME THEIR FIELDS, never a literal: a column inserted above moves
+// every offset below it, and offsetof follows while a number would not.
+inline constexpr uint32_t ATRIUM_BIT(uint32_t off)  { return 1u << (off / 4u); }
+inline constexpr uint32_t ATRIUM_BIT3(uint32_t off) {
+    return ATRIUM_BIT(off) | ATRIUM_BIT(off + 4u) | ATRIUM_BIT(off + 8u);
+}
+inline constexpr uint32_t ATRIUM_ARC_BITS =
+      ATRIUM_BIT(offsetof(AtriumSurface, arc_radius))
+    | ATRIUM_BIT(offsetof(AtriumSurface, arc_span_deg))
+    | ATRIUM_BIT(offsetof(AtriumSurface, arc_bearing_deg))
+    | ATRIUM_BIT(offsetof(AtriumSurface, arc_center_offset));
+// sand[i] is three words each — bearing, distance, height — and
+// ATRIUM_SAND_SPOTS is 1 today; the fold is written so a second spot joins the
+// set by itself.
+inline constexpr uint32_t atrium_sand_bits() {
+    uint32_t m = 0;
+    for (uint32_t i = 0; i < ATRIUM_SAND_SPOTS; i++)
+        m |= ATRIUM_BIT3(offsetof(AtriumSurface, sand) + i * sizeof(AtriumSandSpot));
+    return m;
+}
+inline constexpr uint32_t ATRIUM_SAND_BITS   = atrium_sand_bits();
+inline constexpr uint32_t ATRIUM_COLOUR_BITS =
+      ATRIUM_BIT3(offsetof(AtriumSurface, wall_color))
+    | ATRIUM_BIT3(offsetof(AtriumSurface, ceiling_color));
+
+static_assert(sizeof(AtriumSurface) / 4u <= 32u,
+    "the touched mask is a uint32: every field's offset/4 must be a bit it can hold");
+static_assert((ATRIUM_COLOUR_BITS & ATRIUM_SAND_BITS) == 0
+           && (ATRIUM_COLOUR_BITS & ATRIUM_ARC_BITS)  == 0
+           && (ATRIUM_SAND_BITS   & ATRIUM_ARC_BITS)  == 0
+           && (ATRIUM_COLOUR_BITS | ATRIUM_SAND_BITS | ATRIUM_ARC_BITS)
+              == ((1u << (sizeof(AtriumSurface) / 4u)) - 1u),
+    "every word of AtriumSurface belongs to exactly one consequence (ATRIUM_13)");
 
 // WHO IS ON THE ENTRANCE'S ARC — the one home (ATRIUM_7). A mood off the
 // arc stays reachable by weight from the open field; the atrium offers the

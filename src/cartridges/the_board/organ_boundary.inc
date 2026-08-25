@@ -74,6 +74,51 @@
                     // apply_mood_arrival's own guard is orbit_composed.
                     apply_mood_arrival(&mood_deps_, mood_def(def_mood), queue);
                 }
+                // ═══ THE ENTRANCE'S GEN BANK (ATRIUM_13) ══════════════
+                // The ATRIUM rows are GEN — read when a world is BUILT — so a
+                // dial turned mid-world wrote a value nothing would look at
+                // again until the next entry, and the desk read that as "the
+                // dial does not work". The mask says WHICH field moved and
+                // each arm is the narrowest verb that makes it visible; none
+                // of them is a world change, so the seed, the room and the
+                // visitor all stand. THERE IS NO LIGHT ARM: the entrance
+                // points at a scheme and authors nothing about its lamps.
+                //
+                // ONLY IN THE ATRIUM. A dial turned from another mood lands at
+                // the next entry, which is the whole meaning of GEN — and the
+                // mask is taken either way, so a stale edit cannot fire later.
+                if (mood_state_.active == MOOD_ATRIUM) {
+                    const uint32_t t = t7::the_board::take_atrium_touched();
+                    if (t) {
+                        const char* sep = "";
+                        std::cout << "[Atrium] dialed:";
+                        if (t & t7::the_board::ATRIUM_COLOUR_BITS) {
+                            // The MESH only — rehang=false. The walls already carry
+                            // the entrance's authored hang; only the vertex colours
+                            // moved, and the shell's own hang is the ROLL policy.
+                            apply_mood_indoor_shell(&mood_deps_, mood_def(MOOD_ATRIUM), queue,
+                                gallery_state_, gallery_deps_, /*rehang=*/false);
+                            std::cout << sep << " shell"; sep = " +";
+                        }
+                        if (t & t7::the_board::ATRIUM_SAND_BITS) {
+                            reseat_atrium_poster(gallery_state_, &gallery_deps_, queue);
+                            std::cout << sep << " poster"; sep = " +";
+                        }
+                        if (t & t7::the_board::ATRIUM_ARC_BITS) {
+                            // REFUSED, AND IT SAYS SO. force_spawn_atrium_arc claims an
+                            // arch slot per door through force_spawn_portal_at, and the
+                            // tree has no verb that releases them: the only
+                            // deactivation path is entity_pipeline's footprint-driven
+                            // eviction. Re-running it here would spawn a second arc on
+                            // top of the first. Writing that release verb is not CC's
+                            // to do, so the arc stays an entry-time fact and the
+                            // witness tells the hand which button it needs.
+                            std::cout << sep << " arc(needs an entry)"; sep = " +";
+                        }
+                        std::cout << "\n";
+                    }
+                }
+
                 // The tier bank changed, so its author re-speaks the whole
                 // registry in its own voice — idempotent by construction.
                 // Once per frame however many edits arrived.
