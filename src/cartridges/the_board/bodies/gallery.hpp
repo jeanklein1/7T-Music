@@ -710,10 +710,27 @@ struct GalleryState {
 
     AuthoredStagingRecord authored_staging[Dim::STAGING_LAYERS]{};
     uint32_t              authored_write_cursor = 0;
-    uint32_t              authored_disk_cursor = 0;     // walks through authored_disk_manifest
+    uint32_t              authored_disk_cursor = 0;     // walks the EXHIBITION's range of authored_disk_manifest
+    // ATRIUM_3 — A SECOND CURSOR, BECAUSE ONE u32 HOLDS ONE POSITION. The
+    // manifest is two collections now and the rotation walks whichever is
+    // in force; a single cursor clamped into the range in force would lose
+    // the other collection's place every time a visitor crossed a door, so
+    // the exhibition would restart at painting 0 on every return. Two
+    // positions is two words. authored_cursor_for names which is which.
+    uint32_t              atrium_disk_cursor = 0;       // walks the ATRIUM's range
     uint32_t              authored_staged_count = 0;
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
+    // ATRIUM_3 — THE PARTITION. [0, atrium_first) is the exhibition,
+    // [atrium_first, size) is the atrium. Written once, where the manifest
+    // is parsed; authored_range_for is the only reader that matters.
+    uint32_t              atrium_first = 0;
+    // The range the staging was last filled from. load_authored_textures'
+    // latch is the RANGE's, not the program's: one collection's fill is not
+    // the other's, and the atrium's arrival must be able to re-enter a
+    // function the exhibition already ran.
+    uint32_t              authored_loaded_lo = UINT32_MAX;
+    uint32_t              authored_loaded_hi = UINT32_MAX;
 
     // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
     // The native twin had no state here because its loads were calls
@@ -763,6 +780,34 @@ struct GalleryState {
     PendingSnapshot pending_snapshot;
 };
 
+// ATRIUM_3 — THE RANGE. The collection in force is the mood's: the atrium
+// hangs [atrium_first, size), every other world hangs [0, atrium_first).
+// ONE MANIFEST, TWO COLLECTIONS, AND THEY NEVER MIX — the entrance's own
+// folder is not the exhibition, and the exhibition is not what greets a
+// visitor at the door.
+//
+// THE INVARIANT THIS RESTS ON, stated here because every predicate below
+// assumes it: a disk index appears in at most one staging record, valid or
+// pending. The rotation's disk_in_use bookkeeping is what maintains it,
+// and the fill below keeps the same book.
+struct DiskRange { uint32_t lo, hi; };
+inline DiskRange authored_range_for(const GalleryState& gs, uint32_t mood) {
+    const uint32_t n = (uint32_t)gs.authored_disk_manifest.size();
+    return (mood == MOOD_ATRIUM) ? DiskRange{ gs.atrium_first, n } : DiskRange{ 0u, gs.atrium_first };
+}
+inline bool in_range(const DiskRange& r, uint32_t disk_index) { return disk_index >= r.lo && disk_index < r.hi; }
+// A slot the rotation may reuse: consumed, OR holding a picture from the
+// other collection. The picture is not lost — the browser cache is the
+// exhibition's home now — but it may not hang here.
+inline bool slot_reusable(const AuthoredStagingRecord& rec, const DiskRange& r) {
+    return rec.consumed || (rec.valid && !in_range(r, rec.shown_disk_index));
+}
+// The rotation's position IN the range in force. Two ranges, two cursors
+// (GalleryState); this is the one line that says which.
+inline uint32_t& authored_cursor_for(GalleryState& gs, uint32_t mood) {
+    return (mood == MOOD_ATRIUM) ? gs.atrium_disk_cursor : gs.authored_disk_cursor;
+}
+
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Per-frame
@@ -790,7 +835,7 @@ void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
     float bmin, float bmax, float wall_height);
 void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 // Authored image loading
-void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);  // GPUState& deps-form: context-agnostic dual-entry door
+void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t mood);  // GPUState& deps-form: context-agnostic dual-entry door; ATRIUM_3 — the mood picks the collection
 void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEncoder& encoder);
@@ -854,8 +899,9 @@ inline void recompute_slot_high_water(GalleryState& gs) {
 // Used before their definitions (which keep their original section
 // homes below). Impl-only — not part of the header surface.
 inline void capture_snapshot(GalleryState& gs, GalleryDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue);
-inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[]);
-inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t seed, uint32_t prop);
+inline uint32_t authored_hangable_in_range(const GalleryState& gs, const DiskRange& range);
+inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[], const DiskRange& range);
+inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t seed, uint32_t prop, const DiskRange& range);
 
 // ═══ FRAME STYLE PRESETS + SLOT FILL ═════════════════════════════
 
@@ -1255,8 +1301,16 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
 
     // Resolve site type with content availability
     uint32_t site_type = plan.site_type;
-    if (site_type != GallerySiteType::SNAPSHOT_ONLY && !gs.authored_textures_loaded) {
-        load_authored_textures(gs, c->gpuState_, queue);
+    // ATRIUM_3 — THE COLLECTION IN FORCE, resolved once for this gallery.
+    // The outdoor commit reads the LIVE mood; apply_mood has long since
+    // written it by the time a patch commits.
+    const DiskRange auth_range = authored_range_for(gs, c->mood_state_.active);
+    if (site_type != GallerySiteType::SNAPSHOT_ONLY) {
+        // The call is its OWN latch now, and the latch is the RANGE's — so
+        // the old `!authored_textures_loaded` test in front of it could only
+        // stop a collection change from ever landing. Leaving the room and
+        // coming back must be able to re-fill the staging.
+        load_authored_textures(gs, c->gpuState_, queue, c->mood_state_.active);
     }
     if (site_type != GallerySiteType::SNAPSHOT_ONLY && !gs.authored_textures_loaded) {
         site_type = GallerySiteType::SNAPSHOT_ONLY;
@@ -1279,7 +1333,7 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     // place by the standing law that the place phase writes no GPU state.
     // Each releases the ground place claimed.
     bool have_snapshots = candidate_count > 0;
-    bool have_authored = gs.authored_staged_count > 0;
+    bool have_authored = authored_hangable_in_range(gs, auth_range) > 0;   // ATRIUM_3 — this world's collection
     if ((site_type == GallerySiteType::SNAPSHOT_ONLY && !have_snapshots)
         || (site_type == GallerySiteType::AUTHORED_ONLY && !have_authored)
         || (site_type == GallerySiteType::MIXED && !have_snapshots && !have_authored)) {
@@ -1370,11 +1424,11 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
             || (site_type == GallerySiteType::MIXED
                 && cpu_hash_f(p_seed, GalleryPaintingProp::MIX_AUTHOR_ROLL) < GalleryConfig::OUTDOOR_MIX_AUTHORED_CHANCE);
 
-        if (use_authored && count_unused_authored(gs, usedAuthored) == 0) {
+        if (use_authored && count_unused_authored(gs, usedAuthored, auth_range) == 0) {
             use_authored = false;
         }
         if (!use_authored && snap_cursor >= candidate_count) {
-            if (count_unused_authored(gs, usedAuthored) > 0) {
+            if (count_unused_authored(gs, usedAuthored, auth_range) > 0) {
                 use_authored = true;
             }
             else {
@@ -1386,7 +1440,7 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
         bool placed_this = false;
 
         if (use_authored) {
-            uint32_t auth_stg = pick_authored_staging(gs, p_seed, GalleryPaintingProp::AUTH_STG_PICK);
+            uint32_t auth_stg = pick_authored_staging(gs, p_seed, GalleryPaintingProp::AUTH_STG_PICK, auth_range);
             if (auth_stg == UINT32_MAX || usedAuthored[auth_stg]) {
                 // Lowest SHOWN index first — pick_authored_staging's order,
                 // and by the same argument: this puts a picture on a wall
@@ -1395,6 +1449,7 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
                 for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
                     if (!usedAuthored[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
                         && gs.authored_staging[a].shown_disk_index != UINT32_MAX
+                        && in_range(auth_range, gs.authored_staging[a].shown_disk_index)   // ATRIUM_3
                         && gs.authored_staging[a].shown_disk_index < best_disk) {
                         best_disk = gs.authored_staging[a].shown_disk_index;
                         best = a;
@@ -1766,6 +1821,9 @@ inline constexpr const char* EXHIBITION_MANIFEST_URL = "exhibition.json";
 // The folder the manifest's bare filenames hang under. One place
 // decides the layout; tools/web_dist.py writes to the same one.
 inline constexpr const char* EXHIBITION_PAINTINGS_DIR = "paintings/";
+// ATRIUM_3 — the entrance's own folder, written by tools/web_dist.py from
+// assets/atrium. The manifest names files; the program joins the folder.
+inline constexpr const char* EXHIBITION_ATRIUM_DIR = "atrium/";
 
 // ONE PAINTING IN THE AIR AT A TIME. Each arrival is one decode and one
 // 1 MiB WriteTexture, and with one lane the arrivals pace themselves at the
@@ -1808,6 +1866,7 @@ inline void recount_authored_staged(GalleryState& gs) {
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
         if (gs.authored_staging[i].valid) gs.authored_staged_count++;
 }
+
 
 // A SLOT THAT FAILED MUST STAY REACHABLE. Native's failure was final and
 // harmless — the file was on disk or it was not, and a second read would
@@ -2008,10 +2067,10 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
 // because the strings are filenames the same script emitted; anything
 // else in the file is ignored rather than rejected, so a manifest that
 // grows a field later cannot stop the paintings arriving.
-inline void parse_exhibition_paintings(const char* data, size_t len,
-    std::vector<std::string>& out) {
+inline void parse_exhibition_array(const char* data, size_t len,
+    const char* key_name, std::vector<std::string>& out) {
     std::string s(data, len);
-    size_t key = s.find("\"paintings\"");
+    size_t key = s.find(std::string("\"") + key_name + "\"");
     if (key == std::string::npos) return;
     size_t open = s.find('[', key);
     if (open == std::string::npos) return;
@@ -2033,27 +2092,41 @@ inline void parse_exhibition_paintings(const char* data, size_t len,
 // paintings" off this sentence to size its progress (SHIP_0 U3), so
 // the wording is the native wording, verbatim — only the place it
 // names changes, because on this twin the place IS the manifest.
+// ATRIUM_3 appends " + M atrium" to it and touches nothing before: the
+// shell parses the FIRST clause and stops, so the coupling holds.
 inline void exhibition_manifest_onsuccess(emscripten_fetch_t* fetch) {
     GalleryState* gs = (GalleryState*)fetch->userData;
-    std::vector<std::string> names;
-    parse_exhibition_paintings(fetch->data, (size_t)fetch->numBytes, names);
+    std::vector<std::string> paintings, atrium;
+    parse_exhibition_array(fetch->data, (size_t)fetch->numBytes, "paintings", paintings);
+    parse_exhibition_array(fetch->data, (size_t)fetch->numBytes, "atrium", atrium);
     emscripten_fetch_close(fetch);
-
-    gs->authored_disk_manifest.clear();
-    gs->authored_disk_manifest.reserve(names.size());
-    for (const std::string& n : names)
-        gs->authored_disk_manifest.push_back(std::string(EXHIBITION_PAINTINGS_DIR) + n);
 
     // Sorted here and not trusted from the file: the ORDER paintings
     // hang in is the program's rule, and a hand-edited manifest must
-    // not be able to change it.
-    std::sort(gs->authored_disk_manifest.begin(), gs->authored_disk_manifest.end(),
-        [](const std::string& a, const std::string& b) {
-            return authored_extract_number(a) < authored_extract_number(b);
-        });
+    // not be able to change it. EACH COLLECTION IS SORTED ON ITS OWN and
+    // the two are then CONCATENATED, never re-sorted together: sorting the
+    // joined vector would interleave "paintings/PAINTING_3" with
+    // "atrium/ATRIUM_3" by number and the partition would stop being a
+    // partition.
+    auto by_number = [](const std::string& a, const std::string& b) {
+        return authored_extract_number(a) < authored_extract_number(b);
+    };
+    std::sort(paintings.begin(), paintings.end(), by_number);
+    std::sort(atrium.begin(), atrium.end(), by_number);
+
+    gs->authored_disk_manifest.clear();
+    gs->authored_disk_manifest.reserve(paintings.size() + atrium.size());
+    for (const std::string& n : paintings)
+        gs->authored_disk_manifest.push_back(std::string(EXHIBITION_PAINTINGS_DIR) + n);
+    // ATRIUM_3 — THE PARTITION IS WRITTEN HERE, once, where the two
+    // collections meet. Everything downstream reads authored_range_for.
+    gs->atrium_first = (uint32_t)gs->authored_disk_manifest.size();
+    for (const std::string& n : atrium)
+        gs->authored_disk_manifest.push_back(std::string(EXHIBITION_ATRIUM_DIR) + n);
 
     std::cout << "[Authored] Scanned " << EXHIBITION_MANIFEST_URL
-        << " — found " << gs->authored_disk_manifest.size() << " paintings\n";
+        << " — found " << paintings.size() << " paintings"
+        << " + " << atrium.size() << " atrium\n";
 }
 
 inline void exhibition_manifest_onerror(emscripten_fetch_t* fetch) {
@@ -2099,9 +2172,7 @@ inline void scan_paintings_folder(GalleryState& gs) {
 }
 
 
-inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
-    if (gs.authored_textures_loaded) return;
-
+inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t mood) {
     // Scan folder on first load
     if (gs.authored_disk_manifest.empty()) {
         scan_paintings_folder(gs);
@@ -2125,34 +2196,76 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         return;
     }
 
-    // Fill staging with the first STAGING_LAYERS images from manifest
-    uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
-    uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
-    for (uint32_t i = 0; i < to_load; i++) {
-        // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR. Today the flag
-        // below makes this loop run exactly once, so nothing can be
-        // valid or pending yet — but the flag no longer latches on an
-        // empty manifest, and a re-entered fill would otherwise drop
-        // rec.valid on a texture already uploaded and re-download it.
-        // One line, and the interlock stops being the only thing
-        // standing between this loop and thrown-away work.
-        if (gs.authored_staging[i].valid || gs.authored_staging[i].pending) continue;
-        load_authored_image_to_staging(gs, gpu, queue, i, i, gs.authored_disk_manifest[i].c_str());
-        // WEB: adds nothing here — the record cannot be valid yet, and
-        // the tally is recomputed at each arrival instead. The line
-        // stays because on native it WAS the tally.
-        if (gs.authored_staging[i].valid) gs.authored_staged_count++;
+    // ATRIUM_3 — THE FILL IS THE RANGE'S, AND SO IS ITS LATCH. One
+    // manifest, two collections: a world hangs the one its mood names and
+    // nothing of the other. A single "have I loaded" bit was right while
+    // there was one collection; it would now lock the entrance out of a
+    // function the exhibition had already run. The latch is the RANGE the
+    // staging was last filled from, so crossing a door re-enters here
+    // exactly once and standing still costs nothing.
+    const DiskRange range = authored_range_for(gs, mood);
+    if (range.hi <= range.lo) return;              // this collection is not there
+    if (gs.authored_loaded_lo == range.lo && gs.authored_loaded_hi == range.hi) return;
+    gs.authored_loaded_lo = range.lo;
+    gs.authored_loaded_hi = range.hi;
+
+    // WHAT THIS RANGE ALREADY HAS IN HAND — claimed (a fetch in flight) or
+    // shown (a texture still holding it). The rotation's book, kept by the
+    // fill too, so the one-index-one-record invariant holds across both.
+    // The cap fails OPEN exactly as it does there: an index past the array
+    // reads as "not in use" (tools/web_dist.py warns above it).
+    bool disk_in_use[256]{};
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+        const auto& r = gs.authored_staging[i];
+        if (r.pending && r.disk_index < 256) disk_in_use[r.disk_index] = true;
+        if (r.valid && !r.consumed && r.disk_index < 256) disk_in_use[r.disk_index] = true;
+        if (r.shown_disk_index != UINT32_MAX && r.shown_disk_index < 256)
+            disk_in_use[r.shown_disk_index] = true;
     }
-    gs.authored_write_cursor = to_load % Dim::STAGING_LAYERS;
-    gs.authored_disk_cursor = to_load % manifest_size;
+
+    const uint32_t range_size = range.hi - range.lo;
+    const uint32_t want = std::min(range_size, Dim::STAGING_LAYERS);
+    uint32_t disk = range.lo;
+    uint32_t filled = 0;
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS && filled < want; i++) {
+        auto& rec = gs.authored_staging[i];
+        // A SLOT IN FLIGHT IS SPOKEN FOR. Its fetch is already on its way
+        // and its claim is already in the book above.
+        if (rec.pending) continue;
+        // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR — but only if it is
+        // this range's picture. A slot holding the other collection is
+        // reusable, which is the whole of what changes at a door.
+        if (rec.valid && !slot_reusable(rec, range)) continue;
+        while (disk < range.hi && disk < 256 && disk_in_use[disk]) disk++;
+        if (disk >= range.hi) break;
+        load_authored_image_to_staging(gs, gpu, queue, i, disk, gs.authored_disk_manifest[disk].c_str());
+        if (disk < 256) disk_in_use[disk] = true;
+        disk++;
+        filled++;
+    }
+    // The rotation picks up where the fill left off, IN THIS RANGE. Two
+    // ranges, two cursors — authored_cursor_for is the one line that says
+    // which (GalleryState).
+    uint32_t& cursor = authored_cursor_for(gs, mood);
+    cursor = range.lo + ((disk - range.lo) % range_size);
+    gs.authored_write_cursor = filled % Dim::STAGING_LAYERS;
     gs.authored_textures_loaded = true;
+    recount_authored_staged(gs);
     std::cout << "[Authored] Staged " << gs.authored_staged_count
-        << "/" << manifest_size << " images\n";
+        << "/" << range_size << " images from ["
+        << range.lo << "," << range.hi << ")\n";
 }
 
 inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
     if (gs.authored_disk_manifest.empty()) return;
-    uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
+    // ATRIUM_3 — THE RANGE IN FORCE, not the whole manifest. The rotation
+    // draws only from the collection this world hangs, and it treats a slot
+    // holding the OTHER collection as fodder (slot_reusable): the picture is
+    // not lost — the browser's cache is the exhibition's home now — but it
+    // may not hang here.
+    const DiskRange range = authored_range_for(gs, c->mood_state_.active);
+    const uint32_t range_size = (range.hi > range.lo) ? (range.hi - range.lo) : 0u;
+    if (range_size == 0u) return;
 
     // Collect disk indices currently in unconsumed (surviving) slots
     // to avoid loading duplicates
@@ -2191,8 +2304,14 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
     }
 
     uint32_t rotated = 0;
+    uint32_t& cursor = authored_cursor_for(gs, c->mood_state_.active);
+    if (!in_range(range, cursor)) cursor = range.lo;   // a fresh range starts at its own low end
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (!gs.authored_staging[i].consumed) continue;  // keep unconsumed
+        // ATRIUM_3 — CONSUMED, OR HOLDING THE OTHER COLLECTION. The second
+        // arm is what a door change costs: an exhibition painting standing
+        // in the entrance is not fodder because it is spent, it is fodder
+        // because it does not belong here.
+        if (!slot_reusable(gs.authored_staging[i], range)) continue;
         // A SLOT ALREADY IN FLIGHT IS NOT ROTATED. The loop below reads
         // the disk cursor, ADVANCES it, and then assumes the load took —
         // it marks the painting in use and counts a rotation. On this
@@ -2205,9 +2324,9 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
 
         // Find next disk image not already in a surviving slot
         uint32_t attempts = 0;
-        while (attempts < manifest_size) {
-            uint32_t disk_idx = gs.authored_disk_cursor;
-            gs.authored_disk_cursor = (gs.authored_disk_cursor + 1) % manifest_size;
+        while (attempts < range_size) {
+            uint32_t disk_idx = cursor;
+            cursor = range.lo + ((cursor + 1u - range.lo) % range_size);
             if (disk_idx < 256 && disk_in_use[disk_idx]) {
                 attempts++;
                 continue;
@@ -2219,29 +2338,44 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
             rotated++;
             break;
         }
-        // If all manifest images are in surviving slots (unlikely with 50+),
-        // the consumed slot just stays invalid
+        // If every image in the range is in a surviving slot (unlikely with
+        // 50+), the reusable slot just stays as it was
     }
 
     if (rotated > 0) {
         // Recount valid slots after rotation
-        gs.authored_staged_count = 0;
-        for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-            if (gs.authored_staging[i].valid) gs.authored_staged_count++;
-        }
+        recount_authored_staged(gs);
         // Autonomous stdout — exhibition-guard candidate, still open.
         std::cout << "[Authored] Rotated " << rotated
             << " slot(s), " << gs.authored_staged_count << " valid"
-            << ", disk cursor at " << gs.authored_disk_cursor
-            << "/" << manifest_size << "\n";
+            << ", disk cursor at " << cursor
+            << " in [" << range.lo << "," << range.hi << ")\n";
     }
 }
 
-// Count how many valid authored staging entries aren't in usedAuthored[]
-inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[]) {
+// ATRIUM_3 — how many records this world could actually hang: valid,
+// unconsumed, and holding a picture from the range in force. The plain
+// authored_staged_count is a tally over BOTH collections, so it answers
+// "is there any authored content staged" and no longer answers "is there
+// any for THIS world" — which is the question every content gate asks.
+inline uint32_t authored_hangable_in_range(const GalleryState& gs, const DiskRange& range) {
     uint32_t count = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed && !usedAuthored[i]) count++;
+        const auto& r = gs.authored_staging[i];
+        if (r.valid && !r.consumed && in_range(range, r.shown_disk_index)) count++;
+    }
+    return count;
+}
+
+// Count how many valid authored staging entries aren't in usedAuthored[]
+// — IN THE RANGE IN FORCE (ATRIUM_3). A record holding the other
+// collection is not content this world may hang, so it is not counted.
+inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[],
+    const DiskRange& range) {
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+        if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed && !usedAuthored[i]
+            && in_range(range, gs.authored_staging[i].shown_disk_index)) count++;
     }
     return count;
 }
@@ -2250,12 +2384,14 @@ inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAut
 // first). It orders by shown_disk_index, not by disk_index: this chooses what
 // to PUT ON A WALL, and during a fetch the claim names the incoming picture
 // rather than the one the texture holds (WALLS_3).
-inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint32_t /*prop*/) {
+inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint32_t /*prop*/,
+    const DiskRange& range) {
     uint32_t best_slot = UINT32_MAX;
     uint32_t best_disk = UINT32_MAX;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed
             && gs.authored_staging[i].shown_disk_index != UINT32_MAX
+            && in_range(range, gs.authored_staging[i].shown_disk_index)   // ATRIUM_3
             && gs.authored_staging[i].shown_disk_index < best_disk) {
             best_disk = gs.authored_staging[i].shown_disk_index;
             best_slot = i;
@@ -2270,7 +2406,12 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // Clear any existing wall paintings first (indoor→indoor transitions)
     clear_wall_paintings(gs, c, queue);
 
-    load_authored_textures(gs, c->gpuState_, queue);
+    load_authored_textures(gs, c->gpuState_, queue, c->mood_state_.active);
+
+    // ATRIUM_3 — THE COLLECTION IN FORCE, resolved once for this hang. The
+    // wall hang runs inside apply_mood, which has already written
+    // mood_state_.active, so the live mood IS this world's mood.
+    const DiskRange auth_range = authored_range_for(gs, c->mood_state_.active);
 
     // Painting center base height (fraction of ceiling) — WALL_ART knob.
     constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
@@ -2443,7 +2584,8 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
             uint32_t auth_free = 0;
             for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++)
-                if (gs.authored_staging[a].valid && !gs.authored_staging[a].consumed && !authClaimed[a])
+                if (gs.authored_staging[a].valid && !gs.authored_staging[a].consumed && !authClaimed[a]
+                    && in_range(auth_range, gs.authored_staging[a].shown_disk_index))   // ATRIUM_3
                     auth_free++;
             if (!use_snapshot && auth_free == 0) use_snapshot = true;
 
@@ -2479,6 +2621,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
                 for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
                     if (!authClaimed[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
                         && gs.authored_staging[a].shown_disk_index != UINT32_MAX
+                        && in_range(auth_range, gs.authored_staging[a].shown_disk_index)   // ATRIUM_3
                         && gs.authored_staging[a].shown_disk_index < best_disk) {
                         best_disk = gs.authored_staging[a].shown_disk_index;
                         a_rec = a;
