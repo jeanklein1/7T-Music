@@ -201,18 +201,28 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_inner_radius=*/ 200.0f,
       /*spawn_radius=*/       340.0f,
       /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_ATRIUM — FIVE FIGURES (ATRIUM_6). Enough to read the round, few
-       enough not to jostle: thirty-one spent the entrance repelling each
-       other, which is the one thing a passage must not look like. Born
-       inside the chord and close in — their first waypoint is the arc's
-       centre, so the walk starts at the first frame. */
-    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 5u,
+    /* MOOD_ATRIUM — THREE FIGURES (ATRIUM_8). Three read as a passage; five
+       read as traffic, and thirty-one before them read as a crowd repelling
+       itself. Jean backtracked on five.
+
+       THE RING STANDS BEYOND THE POSTER. sand[0] sits at 15 (A8.3), so an
+       inner radius of 20 keeps every passer out of the frame the visitor is
+       reading at arrival. Their first waypoint is the arc's centre, which is
+       further out still, so from the ring they walk OUTWARD — into view, and
+       toward a door.
+
+       tier_weights stays worker-only, and that is a decision rather than the
+       oversight it now looks like beside the rolled figures: the tier
+       multiplies speed_cap, so a rolled tier puts back exactly the frolic
+       A8.1 took out (scout is 1.4x). One line to overturn when the pace is
+       settled. */
+    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 3u,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
       /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 8.0f,
-      /*spawn_radius=*/       24.0f,
+      /*spawn_inner_radius=*/ 20.0f,
+      /*spawn_radius=*/       32.0f,
       /*home_seeding_radius=*/ 0.0f },
 };
 
@@ -348,8 +358,7 @@ inline void populate_agent_slot_(const AgentState& as,
                           const AgentPopulationDef& pop,
                           uint32_t agent_seed,
                           float beh_sum, float tier_sum,
-                          float center_x, float center_z,
-                          uint32_t slot_index) {   // ATRIUM_6 — the passers' figures are DEALT, by slot
+                          float center_x, float center_z) {
     // ── Roll behavior ─────────────────────────────────────────────
     float w_beh[AGENT_BEHAVIOR_COUNT];
     for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
@@ -398,16 +407,8 @@ inline void populate_agent_slot_(const AgentState& as,
     // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
     // (salt 9u). Independent of the behavior/tier rolls (distinct salts).
     //
-    // ATRIUM_6 — A PASSER IS NOT ROLLED, IT IS DEALT. ATRIUM_4 gave every
-    // passer skin 0 so the visitor would see their own figure walking the
-    // doors; five identical pawns read as a copy, not as a crowd. Dealt by
-    // SLOT, so the five are five different figures and skin 0 — the regular
-    // pawn, the one the visitor inhabits — is dealt first and is always
-    // among them. Deterministic and independent of the seed, which is what
-    // "the same entrance for everyone" already means here.
-    if (behavior_id == AGENT_BEHAVIOR_PASSER) {
-        out.skin_id = (slot_index - 1u) % PAWN_FIGURE_COUNT;
-    } else {
+    // No branch — the entrance's figures roll like everyone's (ATRIUM_8).
+    {
         float fw[FAM_COUNT];
         float fsum = 0.0f;
         for (uint32_t i = 0; i < FAM_COUNT; ++i) fsum += FIGURE_SHARES[i].share_pct;
@@ -461,7 +462,7 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
 
             populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                                  beh_sum, tier_sum,
-                                 center_x, center_z, slot);
+                                 center_x, center_z);
             spawned++;
         }
     }
@@ -518,7 +519,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
         populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                              beh_sum, tier_sum,
-                             px, pz, slot);
+                             px, pz);
 
         c->gpuState_.upload_agent_slot(queue, slot, &as.slots[slot]);
         respawned++;
