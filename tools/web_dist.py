@@ -152,7 +152,7 @@ PAINTING_EXTS = (".jpg", ".jpeg")
 #
 # INDEX 0 IS THE CONTROLS SCHEME BY CONVENTION — the program hangs the
 # atrium's first image dead ahead on the sand, facing the arrival point
-# (place_atrium_images). The numeric sort below is what makes "first"
+# (place_atrium_poster). The numeric sort below is what makes "first"
 # mean ATRIUM_0, and it is the paintings' sort, restated on this folder.
 #
 # .png IS TAKEN AND KEPT AS .png. The paintings' re-encode is JPEG at

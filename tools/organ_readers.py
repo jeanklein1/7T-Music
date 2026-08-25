@@ -139,8 +139,12 @@ READERS = {
     "ATRIUM": ("ATRIUM_LIVE", "AtriumSurface", [
         # ATRIUM_2 — the arc's three dials are read as the doors spawn.
         ("src/cartridges/the_board/direction/mood.hpp", "force_spawn_atrium_arc"),
-        # ATRIUM_3 — the sand spots are read as the images hang.
-        ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_images"),
+        # ATRIUM_3 — the sand spots are read as the images hang. ATRIUM_10
+        # split that hang in two: stage 1 composes the sand quad from the
+        # three dials, stage 2 stamps distance and height into the memory
+        # as what this hang answered.
+        ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_poster"),
+        ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_walls"),
     ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
