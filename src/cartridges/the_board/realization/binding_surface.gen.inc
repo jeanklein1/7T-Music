@@ -136,7 +136,7 @@
                     //  layout. Agents ride the baked ground path (145/146/152) + the
                     //  card (g1:34); the zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 6928 B — CHORD_1)
+                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 6960 B — CHORD_1)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
@@ -719,7 +719,7 @@
                     // occupier_amg the arches) and the tier registry the walkers’
                     // contact radii come from. A WINDOW, not a home — the same block
                     // the agents’ room binds at g2:1.
-                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 6928 B — the shafts, the arches, the tiers)
+                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 6960 B — the shafts, the arches, the tiers)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 

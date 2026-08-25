@@ -874,7 +874,7 @@ namespace t7 {
             float home_pull;       // 16 — 1/s² tether spring coefficient
             float neighbor_radius; // 20 — world units, flock/cohesion sample radius
             float speed_cap;       // 24 — world units/s
-            float _pad;            // 28 — pad to 32 bytes
+            float aux;             // 28 — ATRIUM_4: behaviour-specific scalar (PASSER = the band, wu; 0 elsewhere). Was _pad.
         };                         // 32 total (16-byte aligned)
 
         // Counts mirror the AGENT_BEHAVIOR_COUNT / AGENT_TIER_COUNT
@@ -883,7 +883,7 @@ namespace t7 {
         // on bodies/agents.hpp (which is included after state.hpp, at
         // file scope in the cartridge cohort). Asserts in
         // bodies/agents.hpp verify these stay in sync.
-        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 10;
+        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 11;
         static constexpr uint32_t GPU_AGENT_TIER_COUNT = 4;
 
         //
@@ -1886,16 +1886,16 @@ namespace t7 {
         // authoring site writes every window it owns.
         struct alignas(16) GPUAgentRoomConstants {
             GPUPortalArray      portals;                                  //    0
-            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040
-            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1360
-            GPUColumnMeshParams occupier_cmg[Dim::MAX_COLUMN_INSTANCES];  // 1552
-            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 5648
+            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040 (ATRIUM_4: 11 rows, +32 B)
+            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1392
+            GPUColumnMeshParams occupier_cmg[Dim::MAX_COLUMN_INSTANCES];  // 1584
+            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 5680
         };
-        static_assert(sizeof(GPUAgentRoomConstants) == 6928);
+        static_assert(sizeof(GPUAgentRoomConstants) == 6960);
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 1040);
-        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1360);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_cmg) == 1552);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 5648);
+        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1392);
+        static_assert(offsetof(GPUAgentRoomConstants, occupier_cmg) == 1584);
+        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 5680);
         // The two registries are contiguous, which is what lets
         // upload_agent_registries spend ONE write on both.
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)
@@ -3970,7 +3970,7 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                // CHORD_1: one 6928 B uniform block where five buffers stood.
+                // CHORD_1: one 6960 B uniform block where five buffers stood.
                 agentRoomBuffer_ = makeBuffer("Agents' Room Constants",
                     sizeof(GPUAgentRoomConstants), UU);
                 // CHORD_4: one 4336 B uniform block where three buffers stood.

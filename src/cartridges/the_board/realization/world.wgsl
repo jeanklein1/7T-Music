@@ -878,7 +878,7 @@ struct AgentBehaviorParams {
     home_pull:       f32,  // 1/s² spring toward home
     neighbor_radius: f32,  // flock neighbor search
     speed_cap:       f32,  // max speed
-    _pad:            f32,  // pad to 32 bytes (matches GPUAgentBehaviorDef)
+    aux:             f32,  // ATRIUM_4: behaviour-specific scalar (PASSER = the band, wu; 0 elsewhere). Was _pad.
 }
 
 
@@ -6886,13 +6886,13 @@ struct PortalArray {
 }
 // THE AGENTS' ROOM CONSTANTS (CHORD_1) — one cadence, one block.
 // Everything here is CPU-authored at world/mood cadence. Mirrors
-// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (6928 B; the
+// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (6960 B; the
 // static_asserts are the handshake). Offsets: portals 0,
-// behaviors 1040, tier_gains 1360, occupier_cmg 1552,
-// occupier_amg 5648.
+// behaviors 1040, tier_gains 1392, occupier_cmg 1584,
+// occupier_amg 5680. (ATRIUM_4 grew behaviors by one row, +32 B.)
 struct AgentRoomConstants {
     portals: PortalArray,
-    behaviors: array<AgentBehaviorParams, 10>,
+    behaviors: array<AgentBehaviorParams, 11>,
     tier_gains: array<AgentTierParams, 4>,
     occupier_cmg: array<ColumnMeshParams, 32>,
     occupier_amg: array<ArchMeshParams, 16>,
@@ -8940,6 +8940,11 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         case 7u: { agent = behavior_flee(agent); }
         case 8u: { agent = behavior_flock2d(agent); }
         case 9u: { agent = behavior_levy_flight(agent); }
+        // ATRIUM_4 — PASSER. Inert here: it falls to the HOME_SEEKER arm,
+        // which pulls toward home_x/z. The route that MOVES home is the
+        // next commit; this row exists so the count, the registry and the
+        // panel move first and alone.
+        case 10u: { agent = behavior_home_seeker(agent); }
         default: { /* unknown behavior — no-op */ }
     }
 

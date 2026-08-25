@@ -79,6 +79,7 @@ inline constexpr const char* AGENT_BEHAVIOR_NAMES[AGENT_BEHAVIOR_COUNT] = {
     "flee",          //  7  FLEE
     "flock2d",       //  8  FLOCK2D
     "levy_flight",   //  9  LEVY_FLIGHT
+    "passer",        // 10  PASSER
 };
 
 inline constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
@@ -150,8 +151,8 @@ struct AgentPopulationDef {
 inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_OPEN_SUNSET — Scout-heavy travelers (BiasedWalk) */
     { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 10,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
@@ -159,8 +160,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_INDOOR_FLAT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 4,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
       /*spawn_inner_radius=*/ 0.0f,
@@ -168,8 +169,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 30.0f },
     /* MOOD_INDOOR_VAULT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 4,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
       /*spawn_inner_radius=*/ 0.0f,
@@ -184,8 +185,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 0.0f },
     /* MOOD_OPEN_NIGHT — the sunset's travelers, thinned to six (ATMOS_1) */
     { /*mood_id=*/ MOOD_OPEN_NIGHT, /*count=*/ 6,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
@@ -193,8 +194,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_OPEN_NOON — the sunset's travelers, twelve strong (ATMOS_1) */
     { /*mood_id=*/ MOOD_OPEN_NOON, /*count=*/ 12,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
@@ -306,7 +307,7 @@ inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
         gpu_behaviors[i].home_pull       = src.home_pull;
         gpu_behaviors[i].neighbor_radius = src.neighbor_radius;
         gpu_behaviors[i].speed_cap       = src.speed_cap;
-        gpu_behaviors[i]._pad            = 0.0f;
+        gpu_behaviors[i].aux             = src.aux;   // ATRIUM_4 — the column travels
     }
 
     GPUAgentTierDef gpu_tiers[AGENT_TIER_COUNT] = {};

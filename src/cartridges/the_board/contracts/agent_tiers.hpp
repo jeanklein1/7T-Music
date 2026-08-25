@@ -99,11 +99,11 @@ static_assert(AGENT_TIER_COUNT == 4,
 // therefore raises the TIER flag — one flag, one boundary, two banks.
 //
 // AGENT_BEHAVIORS is the DESIGN; BEHAVIOR_LIVE is what the translator
-// reads. Ten rows of seven float columns — over D5's ≤8 cut, and
-// enrolled per-row anyway: D5's line is about COMPOSITE rows (names,
-// modes, nested tables), and these are seven uniform float columns
-// with a stable row identity. The exception is deliberate and this
-// sentence is its reason.
+// reads. Eleven rows of eight float columns (ATRIUM_4 added the passer
+// and its aux) — over D5's ≤8 cut, and enrolled per-row anyway: D5's
+// line is about COMPOSITE rows (names, modes, nested tables), and these
+// are uniform float columns with a stable row identity. The exception is
+// deliberate and this sentence is its reason.
 
 enum AgentBehaviorId : uint32_t {
     AGENT_BEHAVIOR_PLAYER_CONTROLLED = 0,
@@ -116,33 +116,46 @@ enum AgentBehaviorId : uint32_t {
     AGENT_BEHAVIOR_FLEE              = 7,   // flees player when in range, idles otherwise
     AGENT_BEHAVIOR_FLOCK2D           = 8,   // Vicsek alignment + cohesion
     AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // power-law step magnitudes
-    AGENT_BEHAVIOR_COUNT             = 10,
+    AGENT_BEHAVIOR_PASSER            = 10,  // ATRIUM_4 — walks a route of doors, in and out
+    AGENT_BEHAVIOR_COUNT             = 11,
 };
 
 struct AgentBehaviorDef {
     AgentBehaviorId id;
     const char*     name;
     float           step_rate;
-    float           step_size;
+    float           step_size;      // world units per step — AND, on PASSER, the
+                                    // WAYPOINT RADIUS: the field's documented second role
     float           persistence;
     float           drag;
     float           home_pull;
     float           neighbor_radius;
     float           speed_cap;
+    // ATRIUM_4 — a behaviour-specific scalar: PASSER = the band, wu, either
+    // side of a door's plane; 0 elsewhere. One column rather than a second
+    // table, because exactly one behaviour has ever wanted a number of its
+    // own and a column the other rows read as 0 costs them nothing.
+    float           aux;
 };
 
 inline constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
-    //  id                                  name               step_rate  step_size  persistence  drag  home_pull  neighbor_radius  speed_cap
-    { AGENT_BEHAVIOR_PLAYER_CONTROLLED, "player_controlled",   0.0f,      0.0f,      0.0f,        0.0f, 0.0f,      0.0f,            0.0f    },
-    { AGENT_BEHAVIOR_RANDOM_WALK,       "random_walk",         0.8f,      1.5f,      0.0f,        3.0f, 0.0f,      0.0f,            3.0f    },
-    { AGENT_BEHAVIOR_BIASED_WALK,       "biased_walk",         0.5f,      2.5f,      0.85f,       0.6f, 0.0f,      25.0f,           5.0f    },
-    { AGENT_BEHAVIOR_WANDERER,          "wanderer",            0.7f,      1.8f,      0.0f,        1.0f, 0.4f,      0.0f,            4.0f    },
-    { AGENT_BEHAVIOR_HOME_SEEKER,       "home_seeker",         0.4f,      1.0f,      0.0f,        1.5f, 3.0f,      0.0f,            3.0f    },
-    { AGENT_BEHAVIOR_SLOW_PATROL,       "slow_patrol",         0.25f,     8.0f,      0.0f,        2.0f, 4.0f,      0.0f,            2.0f    },
-    { AGENT_BEHAVIOR_PURSUIT,           "pursuit",             0.5f,      1.5f,      0.0f,        1.0f, 5.0f,      40.0f,           5.0f    },
-    { AGENT_BEHAVIOR_FLEE,              "flee",                0.4f,      1.0f,      0.0f,        1.5f, 8.0f,      30.0f,           8.0f    },
-    { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.6f,      1.5f,      0.7f,        0.6f, 0.0f,      30.0f,           4.5f    },
-    { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.4f,      0.8f,      0.0f,        1.5f, 0.0f,      0.0f,            8.0f    },
+    //  id                                  name               step_rate  step_size  persistence  drag  home_pull  neighbor_radius  speed_cap  aux
+    { AGENT_BEHAVIOR_PLAYER_CONTROLLED, "player_controlled",   0.0f,      0.0f,      0.0f,        0.0f, 0.0f,      0.0f,            0.0f,      0.0f },
+    { AGENT_BEHAVIOR_RANDOM_WALK,       "random_walk",         0.8f,      1.5f,      0.0f,        3.0f, 0.0f,      0.0f,            3.0f,      0.0f },
+    { AGENT_BEHAVIOR_BIASED_WALK,       "biased_walk",         0.5f,      2.5f,      0.85f,       0.6f, 0.0f,      25.0f,           5.0f,      0.0f },
+    { AGENT_BEHAVIOR_WANDERER,          "wanderer",            0.7f,      1.8f,      0.0f,        1.0f, 0.4f,      0.0f,            4.0f,      0.0f },
+    { AGENT_BEHAVIOR_HOME_SEEKER,       "home_seeker",         0.4f,      1.0f,      0.0f,        1.5f, 3.0f,      0.0f,            3.0f,      0.0f },
+    { AGENT_BEHAVIOR_SLOW_PATROL,       "slow_patrol",         0.25f,     8.0f,      0.0f,        2.0f, 4.0f,      0.0f,            2.0f,      0.0f },
+    { AGENT_BEHAVIOR_PURSUIT,           "pursuit",             0.5f,      1.5f,      0.0f,        1.0f, 5.0f,      40.0f,           5.0f,      0.0f },
+    { AGENT_BEHAVIOR_FLEE,              "flee",                0.4f,      1.0f,      0.0f,        1.5f, 8.0f,      30.0f,           8.0f,      0.0f },
+    { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.6f,      1.5f,      0.7f,        0.6f, 0.0f,      30.0f,           4.5f,      0.0f },
+    { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.4f,      0.8f,      0.0f,        1.5f, 0.0f,      0.0f,            8.0f,      0.0f },
+    // ATRIUM_4 — THE PASSER, from slow_patrol's row: the same unhurried
+    // tether and cadence, half again the speed cap so a route of doors
+    // reads as walking rather than drifting, and step_size 3.0 because on
+    // this row it is the WAYPOINT RADIUS — how close is arrived. aux is the
+    // band either side of a door's plane.
+    { AGENT_BEHAVIOR_PASSER,            "passer",              0.25f,     3.0f,      0.0f,        2.0f, 4.0f,      0.0f,            3.0f,      6.0f },
 };
 
 struct AgentBehaviorBank {
@@ -153,9 +166,9 @@ inline AgentBehaviorBank BEHAVIOR_LIVE = {
     { AGENT_BEHAVIORS[0], AGENT_BEHAVIORS[1], AGENT_BEHAVIORS[2],
       AGENT_BEHAVIORS[3], AGENT_BEHAVIORS[4], AGENT_BEHAVIORS[5],
       AGENT_BEHAVIORS[6], AGENT_BEHAVIORS[7], AGENT_BEHAVIORS[8],
-      AGENT_BEHAVIORS[9] }
+      AGENT_BEHAVIORS[9], AGENT_BEHAVIORS[10] }
 };
-static_assert(AGENT_BEHAVIOR_COUNT == 10,
+static_assert(AGENT_BEHAVIOR_COUNT == 11,
     "BEHAVIOR_LIVE is seeded row by row (constexpr copy, one per behavior): "
     "a new behavior needs its row here as well as in AGENT_BEHAVIORS");
 
