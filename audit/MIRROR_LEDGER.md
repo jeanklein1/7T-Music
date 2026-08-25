@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `85825d7741b6157894d6af7c2fbd07f3b3ad0d8d` |
-| | ArrivalOrbit — the arrival camera is a per-mood definition; the atrium composes its own (ATRIUM_9, seam) |
+| source commit | `a01600c12c9111336d292b8e7eb19d6e184d6221` |
+| | ATRIUM_9: the ledgers re-stamp against the arrival column |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3f919e126128ccafd904ff814939f0fb73d7c8885028eee0d6a2cd29feb22dbb` |
