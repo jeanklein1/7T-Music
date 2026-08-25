@@ -111,6 +111,20 @@ BUILD_ID_LEN = 12
 # Eight hex: the short form the console prints, long enough to name a
 # corruption and short enough to read off a phone at arm's length.
 SHADER_SHA_PLACEHOLDER = "__SHADER_SHA__"
+
+# ── ATRIUM_10 — THE POSTER ON THE BOOT'S CRITICAL PATH ───────────
+# The entrance's first image cannot be NAMED by the program until the
+# wasm has run and exhibition.json has parsed — two serial round trips
+# after the page. This slot lets the page name it, so the browser's
+# preload scanner starts it in parallel with the wasm and the program's
+# later emscripten_fetch is served from the HTTP cache.
+#
+# UNLIKE THE TWO ABOVE, ITS ABSENCE IS NOT A REFUSAL. A missing BUILD_ID
+# ships a page that can pair stale glue with fresh wasm and a missing
+# SHADER_SHA ships a serve nothing witnesses — both are correctness. This
+# one is a head start: without it the poster still arrives, later. A
+# refusal here would trade a real deploy for a lost optimisation.
+ATRIUM_PRELOAD_PLACEHOLDER = "__ATRIUM_PRELOAD__"
 SHADER_SHA_LEN = 8
 SHADER_SRC = os.path.join(ROOT, "src", "cartridges", "the_board",
                           "realization", "world.wgsl")
@@ -678,6 +692,13 @@ def main():
     shader_sha = shader_sha_full[:SHADER_SHA_LEN]
     shell_out = shell_src.replace(BUILD_ID_PLACEHOLDER, build_id)
     shell_out = shell_out.replace(SHADER_SHA_PLACEHOLDER, shader_sha)
+    # ATRIUM_10 — atrium[0] is ATRIUM_0 by list_atrium's numeric sort, and
+    # write_atrium keeps the source filename (a .png stays a .png), so the
+    # name written here is the name the program will ask for. An empty folder
+    # substitutes the empty string: no link, no 404, no warning.
+    atrium_preload = ('<link rel="preload" as="image" href="atrium/%s">' % atrium[0]
+                      if atrium else "")
+    shell_out = shell_out.replace(ATRIUM_PRELOAD_PLACEHOLDER, atrium_preload)
     with open(os.path.join(DIST, "index.html"), "w", encoding="utf-8", newline="") as fh:
         fh.write(shell_out)
 
@@ -767,6 +788,16 @@ def main():
     print("  %-18s %14d  %9.2f  %7d   <- the entrance's own folder (ATRIUM_3); "
           "index 0 is the controls scheme"
           % ("atrium (dist)", atrium_dist_bytes, mib(atrium_dist_bytes), len(atrium_paths)))
+    # ATRIUM_10 — the veil poster's idiom and its reason: the number nobody
+    # measures is the one you have to go and measure. This file is on the
+    # boot's critical path by construction now, and it competes for bandwidth
+    # with the wasm — small beside it at PAINTING_CAP, but not free on a
+    # phone. If it ever gets heavy the dial is the source image.
+    if atrium_paths:
+        n0 = os.path.getsize(atrium_paths[0])
+        print("    %-16s %14d  %9.2f   <- preloaded by index.html; the one atrium "
+              "image on the boot's critical path"
+              % (atrium[0], n0, mib(n0)))
     if paintings_src_bytes and paintings_dist_bytes:
         print("  paintings re-encode: %.2f MiB -> %.2f MiB  (%.0f%% of source)"
               % (mib(paintings_src_bytes), mib(paintings_dist_bytes),
