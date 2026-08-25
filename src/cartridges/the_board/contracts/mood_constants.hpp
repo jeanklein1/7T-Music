@@ -69,16 +69,18 @@ struct PortalDestination {
 // WORLD_DRAW_TABLE is the DESIGN, two jobs only: seeding the bank and
 // standing under its assert. WORLD_DRAW_LIVE is what the rollers read.
 
-inline constexpr uint32_t SCHEME_COUNT = 5;   // indoor light schemes; sizes
+inline constexpr uint32_t SCHEME_COUNT = 4;   // indoor light schemes; sizes
                                               // LIGHT_SCHEMES and SCHEME_NAMES
                                               // in direction/mood.hpp
-inline constexpr uint32_t SCHEME_ATRIUM = 4;  // four downlights, symmetric — pinned by
-                                              // the atrium's shape, weight 0 in the roll
-                                              // (ATRIUM_5)
-// ATRIUM_13 — THE ROW THE ENTRANCE POINTS AT NOW. A pinned index must name its
-// row (ATRIUM_5's rule, and the reason the palette pin carried a string
-// witness): the other three schemes are positional because nothing pins them,
-// and this one is not.
+// ATRIUM_13 — SCHEME_ATRIUM IS GONE, and the count is four again. It was a
+// fifth row that said "four downlights, straight down, every sigma 0"; the
+// entrance points at QUARTET now (A13.2) and nothing pointed at row 4 any
+// more. An authored row with no author left is not annotated, it is deleted.
+//
+// THE ROW THE ENTRANCE POINTS AT NOW. A pinned index must name its row
+// (ATRIUM_5's rule, and the reason the palette pin carried a string witness):
+// the other three schemes are positional because nothing pins them, and this
+// one is not.
 inline constexpr uint32_t SCHEME_QUARTET = 1;  // four ceiling lamps at the quarter
                                                // points, aim drawn — the indoor default
 
@@ -102,7 +104,8 @@ inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
                                                            // (ATMOS_1); the atrium is the rarest door
                                                            // in the open field (ATRIUM_1) — the walk
                                                            // normalises
-    { 0.42f, 0.43f, 0.10f, 0.05f, 0.00f },   // SCHEME_ATRIUM rolls nowhere; the atrium pins it (ATRIUM_5)
+    { 0.42f, 0.43f, 0.10f, 0.05f },          // cathedral / quartet / gallery / sanctum (ATRIUM_13 — the
+                                             // atrium's weight-0 fifth went with its row)
     {
         { 0.72f, 0.45f, 0.70f },  // mood 0  open_sunset     — lilac, deepened
         { 0.95f, 0.55f, 0.15f },  // mood 1  indoor_flat     — orange
@@ -119,7 +122,7 @@ inline WorldDrawSurface WORLD_DRAW_LIVE = WORLD_DRAW_TABLE;
 static_assert(sizeof(WorldDrawSurface) == (1 + MOOD_COUNT + SCHEME_COUNT + MOOD_COUNT * 3 + 3) * sizeof(float),
     "WORLD_DRAW_LIVE is a whole-struct copy of the design row: a field "
     "added to one is added to the other by construction");
-static_assert(MOOD_COUNT == 7 && SCHEME_COUNT == 5,
+static_assert(MOOD_COUNT == 7 && SCHEME_COUNT == 4,
     "WORLD_DRAW_TABLE's palette and scheme rows are POSITIONAL — a new "
     "mood or a new scheme needs its row here, in the same commit");
 

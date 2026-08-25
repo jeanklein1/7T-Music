@@ -310,7 +310,7 @@ struct LightSlotDef {
 // as WORLD_DRAW_LIVE.scheme_weights — the roll below reads the bank.
 // SCHEME_COUNT went with it, because it SIZES the bank's row; the two
 // tables it also sizes are here and read it unqualified, unchanged.
-inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum", "atrium" };
+inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
 inline constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
 
 // ── Lighting Scheme Table ──
@@ -369,21 +369,6 @@ inline constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
     { 1, {
         { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
     }},
-    /* 4: SCHEME_ATRIUM (ATRIUM_5) — four downlights at the quarter points of
-     *    the ceiling, straight down, EVERY SIGMA 0: the same room for
-     *    everyone, which is what an entrance is. Pinned by SHAPE_ATRIUM and
-     *    weighted 0 in the roll, so no other room can draw it.
-     *    A CEILING slot's pitch 0 IS straight down (derive_indoor_lights
-     *    writes dy = -cos(pitch) and clamps to [0, 0.50]); the yaw is
-     *    irrelevant at pitch 0 and is 0 anyway. Four slots, so the vault's
-     *    uplight (count < MAX_SPOT_LIGHTS) cannot fire — and the atrium's
-     *    ceiling is FLAT besides. */
-    { 4, {
-        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.25f, 0.0f, 0.25f, 0.0f },
-        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.75f, 0.0f, 0.25f, 0.0f },
-        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.25f, 0.0f, 0.75f, 0.0f },
-        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.75f, 0.0f, 0.75f, 0.0f },
-    }},
 };
 
 // ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
@@ -398,13 +383,20 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
     // Scheme selection
     uint32_t scheme = select_tier(seed, IndoorLightProp::SCHEME,
         WORLD_DRAW_LIVE.scheme_weights, SCHEME_COUNT);
-    // A WEIGHT OF 0 RETIRES A SCHEME FROM THE ROLL, and the epsilon tail must
-    // not resurrect it: select_weighted returns count-1 when the roll lands
-    // past the cumulative sum, which a hash of exactly 1.0 does — one seed in
-    // four billion would have given a room the atrium's pinned scheme. The
-    // mood walk states the same hazard at pick_mood_weighted_ and answers it
-    // by skipping zero rows; this answers it at the one place that reads.
-    if (WORLD_DRAW_LIVE.scheme_weights[scheme] <= 0.0f) scheme = 0u;
+    // ATRIUM_13 — THE WEIGHT-0 GUARD IS RETIRED WITH THE ROW IT PROTECTED, and
+    // ITS FINDING IS KEPT HERE SO IT IS NOT LOST WITH THE CODE. The guard read
+    //
+    //     if (WORLD_DRAW_LIVE.scheme_weights[scheme] <= 0.0f) scheme = 0u;
+    //
+    // and it was RIGHT: select_weighted returns count-1 when the roll lands
+    // past the cumulative sum, which a hash of exactly 1.0 does, so one seed in
+    // four billion would have handed an ordinary room the atrium's pinned
+    // scheme — a weight of 0 that does not quite retire a row. Its subject is
+    // gone: every one of the four rows now carries a nonzero weight, and the
+    // epsilon tail can only land on the last real scheme. IF ANY SCHEME IS EVER
+    // WEIGHTED 0 AGAIN, THE GUARD COMES BACK WITH IT. The mood walk states the
+    // same hazard at pick_mood_weighted_ and answers it by skipping zero rows,
+    // which is where a reader can find the shape of the cure.
     // ATRIUM_5 — and the SHAPE may say which, after the roll so the roll's
     // props stay consumed and every other seed-derived value below is
     // unmoved.
