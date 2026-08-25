@@ -8,6 +8,7 @@
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
 #include <iostream>    // mood / lighting / shell / portal logs   // (impl, merged)
 #include <iomanip>     // std::fixed, std::setprecision — the arc's facing witness (ATRIUM_5)   // (impl, merged)
+#include <string_view> // the atrium's palette pin names its row (ATRIUM_5)
 #include <vector>      // shell mesh staging   // (impl, merged)
 
 // ─── mood.hpp (MERGED: deps + portal/palette vocabulary + impl) ────
@@ -140,6 +141,13 @@ inline constexpr IndoorPalette INDOOR_PALETTES[] = {
 };
 inline constexpr uint32_t INDOOR_PALETTE_COUNT =
     sizeof(INDOOR_PALETTES) / sizeof(INDOOR_PALETTES[0]);
+// ATRIUM_5 — THE PIN NAMES ITS ROW. WorldShape::palette is an INDEX into the
+// table above, so a row inserted or reordered would silently repaint the
+// entrance. The atrium's wall is warm charcoal by name, and the index only
+// gets to be an index because this line checks what it points at.
+static_assert(std::string_view(INDOOR_PALETTES[MOOD_TABLE[MOOD_ATRIUM].shape.palette].name)
+              == std::string_view("warm charcoal"),
+    "the atrium's wall is warm charcoal — the pin names its row (ATRIUM_5)");
 
 // ═══ INDOOR ENTITY PLACEMENT → THE INDOOR MODULE ═════════════════
 //
@@ -197,8 +205,12 @@ void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queu
 void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
 // Indoor support
+// ATRIUM_5 — forced_scheme takes the shape's light_scheme column: SCHEME_ROLL
+// lets the seed draw, anything else is the pinned scheme id. The shape's
+// columns arrive unpacked here, as wall_height and ceiling_type already do.
 void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
-    float wall_height, CeilingType ceiling_type = CeilingType::FLAT);
+    float wall_height, CeilingType ceiling_type = CeilingType::FLAT,
+    uint32_t forced_scheme = SCHEME_ROLL);
 void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
     const IndoorPalette& pal,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
@@ -290,7 +302,7 @@ struct LightSlotDef {
 // as WORLD_DRAW_LIVE.scheme_weights — the roll below reads the bank.
 // SCHEME_COUNT went with it, because it SIZES the bank's row; the two
 // tables it also sizes are here and read it unqualified, unchanged.
-inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
+inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum", "atrium" };
 inline constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
 
 // ── Lighting Scheme Table ──
@@ -349,12 +361,27 @@ inline constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
     { 1, {
         { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
     }},
+    /* 4: SCHEME_ATRIUM (ATRIUM_5) — four downlights at the quarter points of
+     *    the ceiling, straight down, EVERY SIGMA 0: the same room for
+     *    everyone, which is what an entrance is. Pinned by SHAPE_ATRIUM and
+     *    weighted 0 in the roll, so no other room can draw it.
+     *    A CEILING slot's pitch 0 IS straight down (derive_indoor_lights
+     *    writes dy = -cos(pitch) and clamps to [0, 0.50]); the yaw is
+     *    irrelevant at pitch 0 and is 0 anyway. Four slots, so the vault's
+     *    uplight (count < MAX_SPOT_LIGHTS) cannot fire — and the atrium's
+     *    ceiling is FLAT besides. */
+    { 4, {
+        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.25f, 0.0f, 0.25f, 0.0f },
+        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.75f, 0.0f, 0.25f, 0.0f },
+        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.25f, 0.0f, 0.75f, 0.0f },
+        { AnchorRole::CEILING,   1.2f, 0.0f, 0.45f, 0.0f, 0.85f, 0.0f, 0.15f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f,   0.75f, 0.0f, 0.75f, 0.0f },
+    }},
 };
 
 // ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
 
 inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
-    float wall_height, CeilingType ceiling_type) {
+    float wall_height, CeilingType ceiling_type, uint32_t forced_scheme) {
     c->cpuSpotLights_ = GPUSpotLightArray{};
 
     float room_size = bmax - bmin;
@@ -363,6 +390,17 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
     // Scheme selection
     uint32_t scheme = select_tier(seed, IndoorLightProp::SCHEME,
         WORLD_DRAW_LIVE.scheme_weights, SCHEME_COUNT);
+    // A WEIGHT OF 0 RETIRES A SCHEME FROM THE ROLL, and the epsilon tail must
+    // not resurrect it: select_weighted returns count-1 when the roll lands
+    // past the cumulative sum, which a hash of exactly 1.0 does — one seed in
+    // four billion would have given a room the atrium's pinned scheme. The
+    // mood walk states the same hazard at pick_mood_weighted_ and answers it
+    // by skipping zero rows; this answers it at the one place that reads.
+    if (WORLD_DRAW_LIVE.scheme_weights[scheme] <= 0.0f) scheme = 0u;
+    // ATRIUM_5 — and the SHAPE may say which, after the roll so the roll's
+    // props stay consumed and every other seed-derived value below is
+    // unmoved.
+    if (forced_scheme != SCHEME_ROLL) scheme = std::min(forced_scheme, SCHEME_COUNT - 1u);
 
     // Wall pair: N/S or E/W — gives axis variety across seeds
     bool use_ew = cpu_hash_f(seed, IndoorLightProp::WALL_PAIR) > 0.5f;
@@ -782,7 +820,7 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
 
         const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
         const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-        derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.shape.wall_height, m.shape.ceiling_type);
+        derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.shape.wall_height, m.shape.ceiling_type, m.shape.light_scheme);
 
         for (uint32_t i = 0; i < c->cpuSpotLights_.count; i++) {
             compute_spot_light_vp(c->cpuSpotLights_.lights[i],
@@ -835,7 +873,13 @@ inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
 inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps) {
     if (m.shape.indoor && m.shape.ceiling_type != CeilingType::NONE) {
-        const uint32_t pal_idx = cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
+        // ATRIUM_5 — THE SHAPE MAY SAY WHICH. PALETTE_ROLL is "let the seed
+        // draw", which is every room but the entrance; a pinned index is
+        // clamped rather than trusted, so a table that shrinks cannot read
+        // past its end.
+        const uint32_t pal_idx = (m.shape.palette != PALETTE_ROLL)
+            ? std::min(m.shape.palette, INDOOR_PALETTE_COUNT - 1u)
+            : cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
         const auto& pal = INDOOR_PALETTES[pal_idx];
         std::cout << "[Mood] Indoor palette: " << pal.name
                   << " (idx=" << pal_idx << ")\n";

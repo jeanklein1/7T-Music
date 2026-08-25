@@ -123,6 +123,7 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[0], F32, 0.0f, 1.0f, 0.0
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[1], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "quartet")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[2], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "gallery")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "sanctum")
+ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[4], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "atrium")
 // ─── Sky & Light · Portals — EDITS THE NEXT PORTAL ──────────────
 // A portal's colour is a fact about its DESTINATION, so the per-mood rows
 // are indexed by destination mood and the last is the way back.

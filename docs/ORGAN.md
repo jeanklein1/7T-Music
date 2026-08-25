@@ -216,6 +216,8 @@ name in `MOOD_NAMES` — every table's assert names the commit it expects.
 `atrium` (id 6) is the boot mood and the rarest door — the shape `SHAPE_ATRIUM`
 is radius-pinned, wears `PortalRoster::ARC` (ATRIUM_2), and hangs only its own
 folder (ATRIUM_3).
+`WorldShape.light_scheme` / `.palette`: `*_ROLL` lets the seed draw; the atrium
+pins both (ATRIUM_5).
 
 The destination law is one weighted table, `WORLD_DRAW_LIVE.mood_weights`,
 walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to open
