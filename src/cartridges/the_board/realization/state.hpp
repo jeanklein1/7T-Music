@@ -439,8 +439,24 @@ namespace t7 {
             constexpr float PAWN_POS_X = 0.0f;
             constexpr float PAWN_POS_Y = 0.0f;
             constexpr float PAWN_POS_Z = 0.0f;
-            constexpr float PAWN_HEADING = 0.0f;
-            constexpr float CAMERA_AZIMUTH = 0.0f;
+            // ATRIUM_5 — THE BOOT GAZE FACES THE LONG DIAGONAL of a finite
+            // room's asymmetric bounds. [-r*PE, (r+1)*PE] leaves the arrival
+            // point 50 wu from the wall behind it and 100 ahead on each axis,
+            // so the room a boot can compose into runs +X +Z. The pawn kernel
+            // reads the heading as forward = (sin h, cos h) (world.wgsl,
+            // coupling_velocity_to_pawn_heading writes h = atan2(vel.x, vel.z);
+            // the aura reads it back), so PI/4 is the diagonal exactly.
+            // Nothing else composes on the heading.
+            constexpr float PAWN_HEADING = 0.78539816f;    // PI/4 — forward (0.7071, 0.7071)
+            // AND THE CAMERA IS THE HEADING'S TWIN, PI APART. The orbit puts
+            // the eye at look_at + d*(cos_el*sin_az, sin_el, cos_el*cos_az)
+            // and looks back along it (compose_camera_position_from_orbit),
+            // so the view direction in XZ is -(sin az, cos az) — the NEGATIVE
+            // of the pawn's forward at the same angle. Both constants sat at
+            // 0, which put the camera in FRONT of the pawn looking at its
+            // face, with everything placed along the gaze behind the viewer.
+            // az = h + PI is what makes the camera look where the pawn looks.
+            constexpr float CAMERA_AZIMUTH = 3.92699082f;  // PI/4 + PI
             constexpr float CAMERA_ELEVATION = 0.4f;
             constexpr float CAMERA_DISTANCE = 15.0f;
             constexpr float PAWN_SPEED = 15.0f;
