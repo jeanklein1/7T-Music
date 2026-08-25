@@ -738,6 +738,12 @@ struct GalleryState {
     // by the gallery's per-frame phase once the range is there AND its
     // images have landed.
     bool                  atrium_hang_pending = false;
+    // ATRIUM_5 — A REQUEST FOR ONE PLACEMENT PASS. The deferred hang puts a
+    // terrain quad in the world long after the patch set settled, so nothing
+    // is left to raise placement_dirty and the GPU would never seat its foot
+    // on the ground. Raised by place_atrium_images; consumed by the spine,
+    // which is where WorldState is writable.
+    bool                  atrium_seat_pending = false;
 
     // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
     // The native twin had no state here because its loads were calls
@@ -2854,14 +2860,18 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
 
         auto& s = gs.painting_slots[slot];
         s = {};
-        // Y IS AUTHORED HERE, and that is what the sentinel patch pair costs.
+        // Y IS THE GROUND'S, AND THE GPU RESOLVES IT (ATRIUM_5).
         // compute_entity_placement seats every terrain quad at
-        // ground + scale_y*0.5 (bottom on the ground) and SKIPS the sentinel
-        // pair — the same line that keeps a patch from evicting these. So the
-        // half-height lift is written here instead, against the indoor floor
-        // at y = 0. The room's terrain amplitude is capped at
-        // shape.terrain_amp_ceiling, so the residual is that cap and not a
-        // dune.
+        // ground + scale_y*0.5 — the foot on the ground — and since ATRIUM_5
+        // it no longer skips a quad merely for wearing the sentinel patch
+        // pair (that pair says "no patch owns me", which is why it is here at
+        // all). ATRIUM_3 wrote the half-height against an assumed floor at
+        // y = 0; the indoor floor is a sum of lattice waves, each capped at
+        // shape.terrain_amp_ceiling but many, so it is not 0 and the image
+        // stood buried. What is written here is the flat-floor ANSWER, kept
+        // as the honest pre-correction value: the correction refines it to
+        // ground + half, and if a correction pass were ever missed the image
+        // still stands on y = 0 rather than half-sunk through it.
         s.position[0] = px; s.position[1] = A.sand[i].height * 0.5f; s.position[2] = pz;
         s.forward[0] = -std::cos(bearing); s.forward[1] = 0.0f; s.forward[2] = -std::sin(bearing);
         s.up[0] = 0.0f; s.up[1] = 1.0f; s.up[2] = 0.0f;
@@ -2890,6 +2900,14 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
     place_wall_paintings(gs, c, queue, bmin, bmax, mood_def(MOOD_ATRIUM).shape.wall_height,
         /*forced=*/ IndoorSiteType::AUTHORED_ONLY, /*strict=*/ true);
+    // AND THE CORRECTION MUST RUN AFTER THE SLOT EXISTS. placement_dirty is
+    // raised at a world's birth and whenever the patch set changes; this hang
+    // is DEFERRED behind a network fetch and can land long after the room has
+    // settled, with no patch change left to ride. The gallery's deps face
+    // holds WorldState CONST — correctly, the gallery does not author the
+    // world — so what is raised here is a REQUEST, and the spine's own phase
+    // turns it into placement_dirty (cartridge.hpp, phase_witness_photographer).
+    if (sand_placed > 0) gs.atrium_seat_pending = true;
     std::cout << "[Atrium] hang: " << sand_placed << " sand, " << gs.wall_frame_count << " wall\n";
 }
 

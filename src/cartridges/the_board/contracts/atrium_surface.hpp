@@ -16,22 +16,28 @@
 namespace t7 { namespace the_board {
 
 struct AtriumSandSpot { float bearing_deg; float distance; float height; };
-inline constexpr uint32_t ATRIUM_SAND_SPOTS = 3;
+// ATRIUM_5 — ONE IMAGE ON THE SAND. Three spots put two hand photos beside
+// the controls scheme and the entrance read as a gallery; the entrance is
+// not a gallery. The folder's first image, dead ahead, facing the pawn —
+// and the walls take the rest, as they always did.
+inline constexpr uint32_t ATRIUM_SAND_SPOTS = 1;
 
 struct AtriumSurface {
     float arc_radius;        // wu from the arrival point to every door
     float arc_span_deg;      // the doors spread over this, centred on arc_bearing
     float arc_bearing_deg;   // 0 = dead ahead; the arc sits in the forward hemisphere
                              // so the first frame holds controls + doors + passers
+    float arc_center_offset; // ATRIUM_5 — wu from the arrival point, along the gaze,
+                             // to the arc's CENTRE: the pawn stands BEHIND the chord,
+                             // near the wall behind it; the doors face this centre,
+                             // not the pawn (Jean)
     AtriumSandSpot sand[ATRIUM_SAND_SPOTS];   // [0] is the controls image, dead ahead
 };
 inline constexpr AtriumSurface ATRIUM_TABLE = {
-    45.0f, 180.0f, 0.0f,
-    { {  0.0f, 16.0f, 9.0f },     // ATRIUM_0 — the controls scheme, facing the arrival point
-      { -35.0f, 22.0f, 7.0f },    // a hand photo, left
-      {  35.0f, 22.0f, 7.0f } },  // a hand photo, right
+    38.0f, 180.0f, 0.0f, 40.0f,
+    { { 0.0f, 10.0f, 6.0f } },   // ATRIUM_0 — the controls scheme, ten units ahead, facing the pawn
 };
 inline AtriumSurface ATRIUM_LIVE = ATRIUM_TABLE;
-static_assert(sizeof(AtriumSurface) == (3 + 3 * ATRIUM_SAND_SPOTS) * sizeof(float),
+static_assert(sizeof(AtriumSurface) == (4 + 3 * ATRIUM_SAND_SPOTS) * sizeof(float),
     "ATRIUM_LIVE is a whole-struct copy of the design row");
 }}

@@ -7,6 +7,7 @@
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
 #include <iostream>    // mood / lighting / shell / portal logs   // (impl, merged)
+#include <iomanip>     // std::fixed, std::setprecision — the arc's facing witness (ATRIUM_5)   // (impl, merged)
 #include <vector>      // shell mesh staging   // (impl, merged)
 
 // ─── mood.hpp (MERGED: deps + portal/palette vocabulary + impl) ────
@@ -1360,15 +1361,30 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
 
 // ── force_spawn_atrium_arc ──
 // ATRIUM_2 — PORTAL_2 amended for ONE shape property. The atrium's roster is
-// one door per OTHER mood, in id order, on a semicircle centred on the
-// arrival point and facing it. The colours are the destination law's, so the
-// arc reads as a spectrum: there are places. The back (when something
-// precedes) stands on its wall as ever — "most" doors are on the arc.
+// one door per OTHER mood, in id order, on a semicircle. The colours are the
+// destination law's, so the arc reads as a spectrum: there are places. The
+// back (when something precedes) stands on its wall as ever — "most" doors
+// are on the arc.
+//
+// ATRIUM_5 — THE SECOND SITTING. The semicircle is centred arc_center_offset
+// ahead of the arrival point, not on it, and every door faces THAT CENTRE.
+// The consequence is worth stating rather than discovering: the arc's END
+// doors face the centre, so from the arrival point behind the chord they
+// read nearly edge-on. That is the geometry of "face the centre", not a
+// defect — the dial that turns them toward the visitor is arc_span_deg,
+// down.
 inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
     const auto& A = ATRIUM_LIVE;
     constexpr float DEG = 3.14159265f / 180.0f;
     const float ox = Idle::PAWN_POS_X, oz = Idle::PAWN_POS_Z;
-    const float centre_bearing = heading_to_bearing(Idle::PAWN_HEADING) + A.arc_bearing_deg * DEG;
+    const float gaze = heading_to_bearing(Idle::PAWN_HEADING) + A.arc_bearing_deg * DEG;
+    const float fx = std::cos(gaze), fz = std::sin(gaze);
+    // THE CENTRE IS AHEAD OF THE PAWN (ATRIUM_5). The pawn stands behind the
+    // chord, near the wall behind it; the arc is placed around this centre
+    // and every door FACES it. The first sitting placed the arc on the pawn
+    // and faced the doors at the pawn — which put the visitor inside the
+    // chord with the end doors beside them rather than ahead.
+    const float cx = ox + fx * A.arc_center_offset, cz = oz + fz * A.arc_center_offset;
     constexpr uint32_t DOORS = MOOD_COUNT - 1;   // no self-door
     uint32_t k = 0, spawned = 0;
     // THE SPAWN ORDER IS THE ARC ORDER, and it is stated here because
@@ -1379,10 +1395,27 @@ inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& 
     for (uint32_t m = 0; m < MOOD_COUNT; m++) {
         if (m == MOOD_ATRIUM) continue;
         const float t = (DOORS == 1) ? 0.5f : (float)k / (float)(DOORS - 1);
-        const float bearing = centre_bearing + (t - 0.5f) * A.arc_span_deg * DEG;
-        const float px = ox + std::cos(bearing) * A.arc_radius;
-        const float pz = oz + std::sin(bearing) * A.arc_radius;
-        const float rotation = bearing + 3.14159f;   // the opening faces the arrival point
+        const float bearing = gaze + (t - 0.5f) * A.arc_span_deg * DEG;   // around the centre; t = 0.5 is dead ahead
+        const float px = cx + std::cos(bearing) * A.arc_radius;
+        const float pz = cz + std::sin(bearing) * A.arc_radius;
+        const float dxc = cx - px, dzc = cz - pz;
+        // AN ARCH'S ROTATION IS ITS SPAN, NOT ITS NORMAL — and that is the
+        // whole of why the first sitting stood orthogonal. Three sites in
+        // world.wgsl agree and none of them is a comment: amg_gen_shell
+        // sweeps the catenary along (cos r, sin r) and the DEPTH along
+        // (-sin r, cos r); arch_rib_point walks foot to foot along
+        // (cos r, sin r) * half_span; and the crossing ellipse weights
+        // (cos r, sin r) by inv_span_sq and its perpendicular by
+        // inv_depth_sq. So (cos r, sin r) is the chord between the feet and
+        // (-sin r, cos r) is the walk-through normal.
+        //
+        // Wanting normal == unit(centre - door) therefore gives
+        //   -sin r = dxc/len,  cos r = dzc/len   ->   r = atan2(-dxc, dzc)
+        // which is the placement bearing + PI/2. Written as the atan2 of the
+        // ACTUAL door-to-centre vector rather than as an offset on `bearing`,
+        // so a change to the placement expression cannot turn the doors
+        // sideways again.
+        const float rotation = std::atan2(-dxc, dzc);
         const uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7970u + m);
         const auto& mp = mood_def(m);
         PortalDestination dest{};
@@ -1391,17 +1424,31 @@ inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& 
         const uint32_t slot = force_spawn_portal_at(c, queue, px, pz, rotation, dest, false, machine_ctx);
         if (slot != UINT32_MAX) {
             spawned++;
-            std::cout << "[Atrium] door " << k << " at (" << px << "," << pz << ") -> " << mood_name(m) << "\n";
+            // THE FACING WITNESS: the door's NORMAL against the line to the
+            // centre. 1.000 is a door that faces the centre; 0.000 is the
+            // orthogonal error this sitting corrects; -1.000 faces away.
+            // It reads (-sin, cos) and not (cos, sin) for the reason stated
+            // above — a witness that measured the span would have printed
+            // 1.000 while the doors stood edge-on.
+            const float len = std::sqrt(dxc * dxc + dzc * dzc);
+            const float face = (-std::sin(rotation) * dxc + std::cos(rotation) * dzc) / len;
+            std::cout << "[Atrium] door " << k << " at (" << px << "," << pz << ") -> " << mood_name(m)
+                      << " face-centre=" << std::fixed << std::setprecision(3) << face
+                      << std::setprecision(6) << "\n";
         }
         k++;
     }
-    // THE FIT WITNESS — a log, not a clamp. The passers' outside band is
-    // arc_radius + PASSER band (A4); the number to watch is the clearance.
+    // THE FIT WITNESS — a log, not a clamp, and measured from the CENTRE now
+    // (ATRIUM_5): the arc is around the centre, so the clearance that matters
+    // is the centre's. The passers' outside band is arc_radius + PASSER band
+    // (A4); the number to watch is what is left beyond it.
     const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
     const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    const float clear = std::min({ ox - bmin, bmax - ox, oz - bmin, bmax - oz }) - A.arc_radius;
-    std::cout << "[Atrium] arc: doors=" << spawned << "/" << DOORS << " r=" << A.arc_radius
-        << " span=" << A.arc_span_deg << " wall clearance beyond the arc=" << clear << "\n";
+    const float clear = std::min({ cx - bmin, bmax - cx, cz - bmin, bmax - cz }) - A.arc_radius;
+    std::cout << "[Atrium] arc: doors=" << spawned << "/" << DOORS
+        << " centre=(" << cx << "," << cz << ")"
+        << " r=" << A.arc_radius << " span=" << A.arc_span_deg
+        << " wall clearance beyond the arc=" << clear << "\n";
 }
 
 // ── force_spawn_door_fallback ──

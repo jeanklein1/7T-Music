@@ -11105,10 +11105,22 @@ fn compute_entity_placement() {
     // Patch lookup is O(1) via patch_grid — no patch_count needed.
 
     // Y-correct all outdoor paintings (terrain quads + wall frame monuments).
-    // Indoor wall frames use sentinel patch coords (0x7FFFFFFF) and are skipped.
+    // Indoor WALL FRAMES use sentinel patch coords (0x7FFFFFFF) and are
+    // skipped: their Y is the wall's, measured from the ceiling down, and the
+    // ground under them is not their business.
+    //
+    // A SENTINEL TERRAIN QUAD IS NOT A WALL FRAME (ATRIUM_5). The sentinel
+    // says NO PATCH OWNS ME — it is the eviction discriminator
+    // (evict_paintings_for_patch, clear_wall_paintings) — and it was reused
+    // here as an "is this indoor" test because until ATRIUM_3 no terrain quad
+    // had ever carried it. The atrium's sand image does: it stands on the
+    // floor of a room, owned by no patch, and its foot wants the ground like
+    // every other terrain quad's. So the skip is narrowed to the form it was
+    // always about.
     for (var i = 0u; i < PAINTING_MAX_SLOTS; i++) {
-        if (photo_painting_slots[i].is_active != 0u &&
-            photo_painting_slots[i].patch_gx != 0x7FFFFFFF) {
+        let owned = photo_painting_slots[i].patch_gx != 0x7FFFFFFF;
+        let seats = owned || photo_painting_slots[i].form_type == FORM_TERRAIN_QUAD;
+        if (photo_painting_slots[i].is_active != 0u && seats) {
             let slot_xz = vec2(
                 photo_painting_slots[i].position.x,
                 photo_painting_slots[i].position.z

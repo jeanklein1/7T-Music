@@ -1447,6 +1447,19 @@ namespace t7 {
             void phase_witness_photographer(UpdateCtx& c) {
                 auto& queue = c.queue;
                 update_photographer(gallery_state_, &gallery_deps_, queue);
+                // ATRIUM_5 — THE DEFERRED HANG'S ONE PLACEMENT PASS. The
+                // atrium's sand image is placed out of band, behind a network
+                // fetch, so it can arrive after the patch set has settled and
+                // there is nothing left to raise placement_dirty. The gallery
+                // holds WorldState const and raises a request instead; this is
+                // where the world is writable. U9 is before R16, so the pass
+                // it asks for runs THIS frame.
+                if constexpr (ROSTER.gallery) {   // ROSTER-GATE gallery (c) — no atrium hang without it
+                    if (gallery_state_.atrium_seat_pending) {
+                        gallery_state_.atrium_seat_pending = false;
+                        world_state_.placement_dirty = true;
+                    }
+                }
             }
 
             // U10 — DRIVER BOOKKEEPING (O-5e, dead-last): U1's signal fill

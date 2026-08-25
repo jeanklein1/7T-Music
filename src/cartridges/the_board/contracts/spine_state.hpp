@@ -315,7 +315,11 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // visitor's first room is the same room. No GoL — the floor is for the images
 // and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
 // (ATRIUM_2): one door per other mood, not PORTAL_2's triad.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  2,    2,    true,  CeilingType::FLAT,  20.0f, 0.5f,  false, true, false, PortalRoster::ARC };
+// ATRIUM_5 — THE SMALL ROOM. Radius 1: 3x3 patches, 150 wu a side. The
+// bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
+// so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
+// axis — the wall behind, the arc ahead, and the long side is +X +Z.
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.5f,  false, true, false, PortalRoster::ARC };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
