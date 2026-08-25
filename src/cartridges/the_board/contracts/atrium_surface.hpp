@@ -36,8 +36,15 @@ struct AtriumSurface {
 };
 inline constexpr AtriumSurface ATRIUM_TABLE = {
     38.0f, 180.0f, 0.0f, 40.0f,
-    { { 0.0f, 10.0f, 12.0f } },   // ATRIUM_0 — the controls scheme: twelve units tall at ten
-                                  //            units, so the audience reads it (ATRIUM_6, Jean's dial)
+    // THE POSTER'S TWO DIALS MOVE TOGETHER. Apparent size is height/distance;
+    // Jean gated 1.2 at (10, 12) and asked for distance without losing it, so
+    // (15, 18) holds 1.2 exactly. THE CEILING IS THE STOP: the quad stands on
+    // the sand, so height must clear SHAPE_ATRIUM's wall_height (20) with
+    // room to spare — 18 leaves 2. Past distance ~15 the poster either
+    // shrinks in the frame or the room's wall has to grow; there is no third
+    // dial (ATRIUM_8). The headroom witness prints all four numbers at the
+    // hang.
+    { { 0.0f, 15.0f, 18.0f } },   // ATRIUM_0 — the controls scheme, back at fifteen
 };
 inline AtriumSurface ATRIUM_LIVE = ATRIUM_TABLE;
 

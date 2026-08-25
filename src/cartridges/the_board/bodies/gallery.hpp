@@ -762,6 +762,13 @@ struct GalleryState {
         GPUPaintingSlot slots[ATRIUM_HANG_MAX]{};
         uint32_t count = 0;
         bool     resident = false;
+        // ATRIUM_8 — WHAT THE MEMORY WAS HUNG AGAINST. The remembered slots
+        // carry POSITION and SCALE, not intention, so a dialed poster would
+        // otherwise be invisible until a reload. These two are the composition
+        // the hang answered; when they no longer match the live surface the
+        // memory is dropped and the first-visit arm re-remembers.
+        float    sand_distance = 0.0f;
+        float    sand_height   = 0.0f;
     };
     AtriumHang            atrium_hang;
     bool                  exhibition_resident[Dim::EXHIBITION_LAYERS]{};
@@ -895,6 +902,30 @@ void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEnc
 
 // ═══ STATE-LOCAL HELPERS (impl-only, take GalleryState&) ═════════
 
+// ATRIUM_8 — A DIALED POSTER RETIRES THE MEMORY. The resident hang holds
+// SLOTS, which carry position and scale; the panel's Atrium dials author
+// INTENTIONS, and the two part company the moment one is turned. Cheap and
+// exact: the memory remembers what it was hung against, and a mismatch drops
+// it — the resident layers are handed back and the first-visit arm runs again
+// and re-remembers. This is what puts the Atrium dials live in the room: turn
+// one, walk out, walk back, see it.
+//
+// IT IS READ WHERE THE CONSUMER DECIDES, not inside place_atrium_images. The
+// consumer branches on `resident` to skip the fetch wait; retiring inside the
+// hang would leave that branch already taken, so the first-visit arm would run
+// with no staging fed and hang nothing — the room empty until the next entry.
+inline void atrium_memory_retire_if_dialed(GalleryState& gs) {
+    if (!gs.atrium_hang.resident) return;
+    if (gs.atrium_hang.sand_distance == ATRIUM_LIVE.sand[0].distance
+     && gs.atrium_hang.sand_height   == ATRIUM_LIVE.sand[0].height) return;
+    for (uint32_t i = 0; i < gs.atrium_hang.count; i++) {
+        const uint32_t exh = gs.atrium_hang.slots[i].texture_layer;
+        if (exh < Dim::EXHIBITION_LAYERS) gs.exhibition_resident[exh] = false;
+    }
+    gs.atrium_hang = {};
+    std::cout << "[Atrium] memory retired — the composition was dialed\n";
+}
+
 // ATRIUM_7 — A RESIDENT LAYER IS NEVER RELEASED AND NEVER STOLEN. The
 // atrium's remembered hang points at these layers for the whole session, so
 // the pixels behind it have to outlive every teardown, every patch eviction
@@ -957,6 +988,7 @@ inline void recompute_slot_high_water(GalleryState& gs) {
 // homes below). Impl-only — not part of the header surface.
 inline void capture_snapshot(GalleryState& gs, GalleryDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue);
 inline uint32_t authored_hangable_in_range(const GalleryState& gs, const DiskRange& range);
+inline void atrium_memory_retire_if_dialed(GalleryState& gs);
 inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[], const DiskRange& range);
 inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t seed, uint32_t prop, const DiskRange& range);
 
@@ -1021,6 +1053,7 @@ inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     // Every fetch clears `pending` on failure as well as on arrival
     // (authored_fetch_release_slot), so this cannot wait forever.
     if (gs.atrium_hang_pending && c->mood_state_.active == MOOD_ATRIUM) {
+        atrium_memory_retire_if_dialed(gs);   // ATRIUM_8 — before the branch below reads `resident`
         // ATRIUM_7 — A RETURN WAITS FOR NOTHING. The memory holds the slots
         // and the layers behind them, so there is no fetch to be in flight
         // and no manifest to have arrived: re-hang on the first frame of the
@@ -2983,6 +3016,23 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     // turns it into placement_dirty (cartridge.hpp, phase_witness_photographer).
     if (sand_placed > 0) gs.atrium_seat_pending = true;
     std::cout << "[Atrium] hang: " << sand_placed << " sand, " << gs.wall_frame_count << " wall\n";
+    // THE POSTER'S HEADROOM (ATRIUM_8). The quad stands ON the sand and is
+    // centred on its own half-height, so its top is one full height above the
+    // floor and the ceiling is what stops it. Apparent size is height over
+    // distance — the pair Jean gates. Both constants are in reach here, so
+    // this is a printed witness rather than a static_assert: wall_height is
+    // structural but sand[0] is a LIVE dial, and a static_assert could only
+    // ever check the design row.
+    // The ceiling comes through mood_def — the DEFINITION IN FORCE, the same
+    // door the wall hang below reads. MOOD_TABLE is the design table and a
+    // runtime reader of it is a surviving reader of a graduated pair
+    // (tools/organ_gap.py says so, and it is right: the room was built from
+    // the live bank, so the witness must measure against the live bank).
+    const float ceiling = mood_def(MOOD_ATRIUM).shape.wall_height;
+    std::cout << "[Atrium] poster: h=" << A.sand[0].height << " at d=" << A.sand[0].distance
+              << ", ceiling " << ceiling
+              << ", headroom " << (ceiling - A.sand[0].height)
+              << ", apparent " << (A.sand[0].height / A.sand[0].distance) << "\n";
 
     // ── THE MEMORY (ATRIUM_7) ────────────────────────────────────
     // Taken once this hang has claimed the WHOLE folder — no record of the
@@ -3015,6 +3065,8 @@ inline void place_atrium_images(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
             if (ps.patch_gx != INT32_MAX || ps.patch_gz != INT32_MAX) continue;
             remember(i);
         }
+        gs.atrium_hang.sand_distance = A.sand[0].distance;   // ATRIUM_8 — what this hang answered
+        gs.atrium_hang.sand_height   = A.sand[0].height;
         gs.atrium_hang.resident = gs.atrium_hang.count > 0;
         std::cout << "[Atrium] resident: " << gs.atrium_hang.count << " slots held\n";
     }
