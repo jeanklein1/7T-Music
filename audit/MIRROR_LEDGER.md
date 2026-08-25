@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `0a1f48c49e469c24928144a83cf6d66d7261b775` |
-| | the two-stage hang — the poster the frame ATRIUM_0 lands, the walls and the memory when the folder settles (ATRIUM_10) |
+| source commit | `29cfc3a8d1f9b847705064bc7fbafbfb9530c972` |
+| | ATRIUM_10: the ledgers re-stamp against the split hang |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:632fe99ffb9bc24015e7e2d0066db9fbaa80b8de07a0a01fb7813f3fefe6eb52` |
