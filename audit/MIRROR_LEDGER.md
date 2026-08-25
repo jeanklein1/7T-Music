@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `999d9c8c14e5733ab7fdf617b85abadac141b0c5` |
-| | Idle::PAWN_HEADING — the boot gaze faces the long diagonal (ATRIUM_5) |
+| source commit | `61c158f7193f42ee89f9e184536f4a6ec7eaf593` |
+| | ATRIUM_5: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:2110fcb887659dd3450f755091ba3d47f4058dcf6a8bd5f6b174f5aa02e07834` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:a3b6435e340389bb7d6beb0bf0e1af62ce1a2773aa44b182ce47be359febacd6` |
