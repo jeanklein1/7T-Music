@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `12b18c0a9944f97a89d9f93c9f1e92d77fc5cdd8`
-(dump_camera_orbit — the live pose in the arrival row's three names (ATRIUM_11 instrument))
+Last commit touching any scanned file: `46a484863551cd05d06ef74465822f19bdaf6799`
+(SHAPE_ATRIUM.terrain_amp_ceiling = 0.01 — the floor is pinned; the poster's fit is arithmetic (ATRIUM_12))
 
 | file scanned | sha256 |
 |---|---|
@@ -16,7 +16,7 @@ Last commit touching any scanned file: `12b18c0a9944f97a89d9f93c9f1e92d77fc5cdd8
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:564de76198597221b097f2c7dc6f0760cefed19d0735c4def0e76547d0bab781` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:8d0875ecfdeb1ed0b380598760368923652053dd0bb38a76adb4f1b2638d12db` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:029ab12eddcab44b27af358f0d5cc6fece7e97006cdeda2199b5a520638cd0df` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/pawn.cpp` | `sha256:e7ae20cb9d84139e6f795bbe79c539d236bf0034f3d64617b56c5d2c53487ce4` |
 | `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |

@@ -118,7 +118,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Regime 4 | fog colour spread (±bright) | `MoodProfile.atmos.regime[3].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | clear colour | `MoodProfile.atmos.regime[3].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | clear colour spread (±bright) | `MoodProfile.atmos.regime[3].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Camera · arrival | distance | `MoodProfile.arrival.distance` | NONE (255) | F32 | 0 … 60 | 0.5 | boundary | mood |  |
+| Camera · arrival | distance | `MoodProfile.arrival.distance` | NONE (255) | F32 | -1 … 60 | 0.5 | boundary | mood |  |
 | Camera · arrival | elevation (deg) | `MoodProfile.arrival.elevation_deg` | NONE (255) | F32 | -89 … 89 | 0.5 | boundary | mood |  |
 | Camera · arrival | azimuth off gaze (deg) | `MoodProfile.arrival.azimuth_offset_deg` | NONE (255) | F32 | -180 … 180 | 1 | boundary | mood |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
@@ -412,19 +412,21 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atrium ·  | sand 0 bearing (deg) | `ATRIUM.sand[0].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
 | Atrium ·  | sand 0 distance | `ATRIUM.sand[0].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
 | Atrium ·  | sand 0 height | `ATRIUM.sand[0].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
+| Atrium ·  | wall colour | `ATRIUM.wall_color` | ATRIUM | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Atrium ·  | ceiling colour | `ATRIUM.ceiling_color` | ATRIUM | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **389** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 43 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 7 · Camera 6 · Debug 4 |
-| by cadence | boundary 191 · driven 20 · gen 50 · live 128 |
-| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 77 · PARAM_GEN 50 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 58 · NONE 202 · ORB_MOOD 19 · TIER 32 |
+| entries | **391** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 43 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 9 · Camera 6 · Debug 4 |
+| by cadence | boundary 191 · driven 20 · gen 52 · live 128 |
+| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 77 · PARAM_GEN 52 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 58 · NONE 204 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, ATRIUM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 374 |
+| namespaces | canvas 15 · the_board 376 |
 
 ### Doors
 
@@ -452,11 +454,11 @@ reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=11 comment=7             
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
-  ATRIUM_TABLE         definition=1 seed=1 comment=2              
+  ATRIUM_TABLE         definition=1 seed=1 static_assert=1 comment=2 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=36 constexpr=4 comment=30 
+  MOOD_TABLE           definition=1 seed=7 static_assert=36 constexpr=4 comment=31 
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:432  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:433  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:434  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
@@ -491,7 +493,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    291   a declared reader names the field
+  proved    293   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
   scope      78   GPU-side or whole-struct (blind spots 2, 3)
