@@ -445,6 +445,16 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
     // thing that must be SEEN to be drawn rather than authored — so they are
     // kept here, where they are true, instead of being re-derived downstream
     // from a direction that has already been normalized and clamped.
+    //
+    // ATRIUM_14 — AND THEY RETIRE WHEN [Lights] RETIRES. These three exist for
+    // ONE reader, the witness at the tail of this function, and for no other:
+    // GPUSpotLight carries a direction and a colour, and every downstream
+    // consumer reads those. An instrument that outlives its warrant is dead
+    // weight, and one that leaves fields behind is worse — so the warrant is
+    // written where the fields are, not only where the line is. NOTHING
+    // GPU-SHAPED GREW TO HOLD THEM: they are three function-local arrays,
+    // MAX_SPOT_LIGHTS floats each, alive for the length of one derivation.
+    // The witness observes its subject; it did not change it.
     float drawn_pitch[MAX_SPOT_LIGHTS]{}, drawn_yaw[MAX_SPOT_LIGHTS]{}, drawn_warm[MAX_SPOT_LIGHTS]{};
 
     // Derive each light from its slot spec + seed
