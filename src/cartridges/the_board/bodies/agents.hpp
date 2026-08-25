@@ -280,6 +280,7 @@ void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
                         uint32_t preserved_skin);
 // Logging
 void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger);
+void dump_passer_census(const AgentState& as, const AgentsDeps* c);   // ATRIUM_5 — the route state, read from the mirror
 
 // ═══ IMPL:
 // bodies deref agent_state_(own) + gpu/player/transitionPhase/world/time
@@ -597,6 +598,41 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
 }
 
 // ═══ DIAGNOSTIC: agent census ═════════════════════════════════════
+
+// ═══ DIAGNOSTIC: passer census (ATRIUM_5) ════════════════════════
+// The route state lives on the GPU; the readback mirrors it. One line per
+// cadence: every passer's leg / phase / current door and its distance to
+// the waypoint it is pulled to. Phases that advance say the machine walks;
+// distances that never fall under the waypoint radius say where it stalls.
+//
+// DECODES THE WGSL PACKING (an L2-class mirror — the prose is the contract,
+// and the two must move together). behavior_passer writes
+//     route = (leg << 12) | (cur << 4) | (phase << 1) | 1
+// with cur masked to 8 bits and phase to THREE (0x7u), not two: phase only
+// ever holds 0..3 today, so a 2-bit read would agree by accident. The mask
+// below is the kernel's, so a fourth-bit phase would show here rather than
+// silently fold.
+//
+// The waypoint IS home_x/home_z (the kernel writes it there and the tether
+// pulls to it), so `d` is exactly the distance the advance test measures
+// against behaviors[PASSER].step_size — the waypoint radius on that row.
+inline void dump_passer_census(const AgentState& as, const AgentsDeps* c) {
+    std::cout << "[PASSER t=" << std::fixed << std::setprecision(1) << c->time_state_.seconds << "]";
+    for (uint32_t i = PLAYER_SLOT + 1; i < Dim::MAX_AGENTS; i++) {
+        const auto& a = as.slots[i];
+        if (a.is_active == 0u || a.behavior_id != AGENT_BEHAVIOR_PASSER) continue;
+        const uint32_t r = a.route;
+        const uint32_t leg   = (r >> 12) & 0xFFFFFu;
+        const uint32_t cur   = (r >> 4) & 0xFFu;
+        const uint32_t phase = (r >> 1) & 0x7u;
+        const uint32_t init  = r & 1u;
+        const float dx = a.pos_x - a.home_x, dz = a.pos_z - a.home_z;
+        std::cout << " s" << i << ":L" << leg << "P" << phase << "C" << cur << (init ? "" : "!")
+                  << "d" << std::setprecision(0) << std::sqrt(dx * dx + dz * dz)
+                  << std::setprecision(1);
+    }
+    std::cout << "\n";
+}
 
 inline void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger) {
     uint32_t active = 0;

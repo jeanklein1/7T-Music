@@ -54,6 +54,14 @@ namespace t7 {
         bool zoetrope_witness; // the [ZOETROPE] strike line, one per strike-frame
         bool watcher_ticks;    // the harness's hot-reload progress dot (a flushed write, 2×/s)
         bool stream_witness;   // RIBBON_4 — the streaming path's spawn/evict lines
+        // ATRIUM_5 — A CAMPAIGN INSTRUMENT, and the one arm that is true in
+        // every column INCLUDING `off`. The passers' route state lives on the
+        // GPU and the only way to read whether the machine walks is to print
+        // the mirror; a witness Jean's own build column would silence is not a
+        // witness. One line every four seconds, in ONE mood, so even the
+        // shipped frame pays a comparison per readback. RETIRE IT once the
+        // passers are seen — that is the whole of its warrant.
+        bool passer_witness;
     };
 
     // THE COLUMNS. `off` is the shipped frame. `meter` is the timing arm
@@ -79,11 +87,11 @@ namespace t7 {
         // because `full` is the pre-dial behaviour exactly; `meter` drops
         // them for the same reason it drops the entity text; `off` — the
         // shipped frame — is silent on the steady path.
-        case InstrumentCol::meter: return { true,  true,  false, false, false, false, false };
-        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true,  true  };
+        case InstrumentCol::meter: return { true,  true,  false, false, false, false, false, true };
+        case InstrumentCol::full:  return { true,  true,  true,  true,  true,  true,  true,  true };
         case InstrumentCol::off:   break;
         }
-        return { false, false, false, false, false, false, false };
+        return { false, false, false, false, false, false, false, true };
     }
 
 } // namespace t7
