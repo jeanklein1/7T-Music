@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d45ef5736c017ec18b472cb7715f07de8fea6eb7` |
-| | PASSER — route state, the door-to-door kernel, the atrium's three (ATRIUM_4) |
+| source commit | `eec222305f9ceaa2394fd4ef36c482125c29282e` |
+| | ATRIUM: the ledgers re-stamp against the moved lines |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9af874c6deea497967d7ae77b8384009fda5d9802bcd51a657c5c1b6c78cf6ef` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:4333b50dcc4f7563624ed88edf38f04fac344825968e70ae46bd7cc0abe6f32f` |
