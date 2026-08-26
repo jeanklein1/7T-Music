@@ -5,7 +5,7 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `8d91fc9655c992b089dffcbd1cab576079f5c071`
+Last commit touching any scanned file: `f4dab6c14624a34dc5882c4f80cd337b7172ef29`
 (D5 — the entrance's own colours and its surface, deleted (ATTIC_ATRIUM))
 
 | file scanned | sha256 |

@@ -14,7 +14,7 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `fa141baea84e64768ee6f3111d7f1b89b09b703d` |
+| source commit | `4afd6804f90e20f8cc04d606245c23ca6a7c6585` |
 | | D4 — the arrival orbit, deleted; Idle::CAMERA_* is the orbit again (ATTIC_ATRIUM) |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:29a7412428c8d924ce9a13e0f72af47f6696b8a1fcb7093cfae8d26b0b64f804` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6a637696ec6414214aecf5d1a6d02513edaf45dd29b9a3fc714b79509fb62ab9` |

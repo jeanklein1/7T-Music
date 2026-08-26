@@ -15,7 +15,7 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `985f6519d15f1a2e4d45ee5929b4b04861b72ca0` |
+| source commit | `eac338be3a53ad1d79dd00d8e52efc8c7b83f3d8` |
 | | D7 — the docs of record, and one entry opened rather than closed (ATTIC_ATRIUM) |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
@@ -23,7 +23,7 @@ carry those facts, or leave them in place and patch around them.
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6a637696ec6414214aecf5d1a6d02513edaf45dd29b9a3fc714b79509fb62ab9` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:4b67acf5228c805463e61298e9df7680392348320e6c6ae402b388f93ea943e0` |
+| `audit/BINDING_LEDGER.md` | `sha256:cd7f9448a0a5f3380484f941618cff720231e847595e103c5dc983d718dca59b` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
