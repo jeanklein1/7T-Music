@@ -174,7 +174,7 @@ inline constexpr RibbonSpawnSurface RIBBON_SPAWN_TABLE = {
     0.15f,    // wander_cruise_sigma
     0.15f,    // wander_cruise_min
     0.80f,    // wander_cruise_max
-    { 0.40f, 0.35f, 0.25f },   // color_weights — SMOOTH / TINTED / CONTRAST
+    { 0.03f, 0.02f, 0.95f },   // color_weights — SMOOTH / TINTED / CONTRAST
     {
         { 0.82f, 0.75f, 0.62f },   // warm sandstone
         { 0.55f, 0.65f, 0.78f },   // sky blue
