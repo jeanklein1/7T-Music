@@ -42,6 +42,10 @@ WEB = os.path.join(ROOT, "web")
 DIST = os.path.join(ROOT, "dist")
 
 SRC_PAINTINGS = os.path.join(ROOT, "assets", "paintings")
+# ENTRANCE_0 — THE ENTRANCE'S OWN FOLDER. Read by resolve_poster_sources
+# and by nothing else; list_paintings never looks here, which is the whole
+# mechanism. Absent is legal — see the resolver.
+SRC_ENTRANCE = os.path.join(ROOT, "assets", "entrance")
 SRC_MUSIC = os.path.join(ROOT, "assets", "music")
 DIST_PAINTINGS = os.path.join(DIST, "paintings")
 DIST_MUSIC = os.path.join(DIST, "music")
@@ -258,9 +262,36 @@ def write_paintings(names):
 
 
 def resolve_poster_sources():
-    """Turn each POSTERS role into a real file under assets/paintings/.
+    """Turn each POSTERS role into a real file under assets/entrance/ or
+    assets/paintings/.
 
-    THE EXTENSION IS READ, NEVER ASSUMED. The folder mixes .jpg and .jpeg
+    ENTRANCE_0 — THE ENTRANCE'S IMAGES ARE NOT THE SHOW'S. A poster the page
+    fetches at boot and a canvas that hangs on a wall are two jobs, and until
+    this campaign one folder held both: the page's posters resolved out of
+    assets/paintings/, so the image greeting a visitor was also one they would
+    meet again on a wall. assets/entrance/ is the answer, and its whole
+    strength is structural rather than clerical — list_paintings() reads
+    SRC_PAINTINGS and only SRC_PAINTINGS, so the exhibition scan CANNOT REACH
+    the entrance folder. Nothing has to remember a rule.
+
+    THE TRAP THIS REPLACES, SAID OUT LOUD. Nothing filters on the PAINTING_
+    prefix here — any stem in either folder resolves — so the separation the
+    tree relied on before this was an accident of naming that no line claimed
+    was deliberate. Point a POSTERS role back at a stem in assets/paintings/
+    and you put a hung canvas on the boot's critical path, exactly as
+    write_posters' banner warns; the folder is what makes that a choice
+    somebody has to make rather than a default.
+
+    AN ABSENT assets/entrance/ IS NOT AN ERROR, on preset_files' precedent: a
+    folder that is not there yields nothing and says nothing. The only refusal
+    is the caller's existing one — a role that resolves to NOTHING refuses the
+    dist at exit 5 — and that is what turns a missing entrance image into a
+    stopped deploy rather than a hole on the page.
+
+    THE ENTRANCE WINS A TIE. Two folders can hold the same stem; the entrance
+    is the more specific home and the one a role is likelier to have meant.
+
+    THE EXTENSION IS READ, NEVER ASSUMED. Either folder may mix .jpg and .jpeg
     because the program's scan takes both, so the table names STEMS and
     this finds whichever one is actually there. The stem match is exact
     and case-sensitive: Cloudflare's URLs are, and a poster that resolves
@@ -270,16 +301,25 @@ def resolve_poster_sources():
     path, missing lists the (output name, role) pairs with nothing behind
     them. Neither writes anything; the refusal is the caller's.
     """
+    # STEM -> FULL PATH, not stem -> filename: with two source folders a bare
+    # name is ambiguous and a caller that re-joined one of them would read the
+    # wrong directory in silence. The path is carried the whole way; nothing
+    # downstream joins a source folder again.
     by_stem = {}
-    if os.path.isdir(SRC_PAINTINGS):
-        # Sorted, so a folder holding both PAINTING_50.jpg and
-        # PAINTING_50.jpeg resolves the same way on every run rather than
-        # following whatever order listdir happens to give.
-        for f in sorted(os.listdir(SRC_PAINTINGS)):
+    for folder in (SRC_PAINTINGS, SRC_ENTRANCE):   # entrance second, so it wins
+        if not os.path.isdir(folder):
+            continue
+        # Sorted, so a folder holding both NAME.jpg and NAME.jpeg resolves the
+        # same way on every run rather than following whatever order listdir
+        # happens to give.
+        for f in sorted(os.listdir(folder)):
             stem, ext = os.path.splitext(f)
-            if (ext.lower() in PAINTING_EXTS
-                    and os.path.isfile(os.path.join(SRC_PAINTINGS, f))):
-                by_stem.setdefault(stem, f)
+            full = os.path.join(folder, f)
+            if ext.lower() in PAINTING_EXTS and os.path.isfile(full):
+                if folder is SRC_ENTRANCE:
+                    by_stem[stem] = full            # the entrance overrules
+                else:
+                    by_stem.setdefault(stem, full)
 
     resolved = {}
     missing = []
@@ -289,7 +329,7 @@ def resolve_poster_sources():
         if found is None:
             missing.append((out_name, role))
         else:
-            resolved[out_name] = os.path.join(SRC_PAINTINGS, found)
+            resolved[out_name] = found
     return resolved, missing
 
 
@@ -693,8 +733,12 @@ def main():
     for p in poster_paths:
         out_name = os.path.basename(p)
         n = os.path.getsize(p)
-        print("    %-16s %14d  %9.2f   <- %s"
-              % (out_name, n, mib(n), POSTERS[out_name]))
+        # ENTRANCE_0 — the SOURCE FOLDER is named, not just the stem: with two
+        # folders resolvable, "which one did this come from" is the question a
+        # reader now has, and the answer is one os.path.relpath away.
+        print("    %-16s %14d  %9.2f   <- %s (%s)"
+              % (out_name, n, mib(n), POSTERS[out_name],
+                 os.path.relpath(os.path.dirname(poster_src[out_name]), ROOT)))
     print("  %s: %d painting(s), %d track(s)"
           % (EXHIBITION_JSON, len(paintings), len(music)))
     if presets:
