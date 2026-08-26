@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>   // ATTIC_ATRIUM — mood_def refuses an out-of-range id, loudly
 #include <cstdint>
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs + PortalDestination (the request door)
 
@@ -625,8 +626,28 @@ static_assert(MOOD_COUNT == 7,
 
 // The one runtime door onto a mood's fields. Non-const because the
 // panel writes through it; every reader takes it by const reference.
+// ATTIC_ATRIUM — AN OUT-OF-RANGE ID FAILS LOUDLY, IT DOES NOT ALIAS. The
+// wrap was `% MOOD_COUNT`, which landed a stale id silently on mood 0 —
+// filed in docs/OPEN.md as an alias-rather-than-refusal for as long as
+// nothing could produce a stale id. Deleting a mood is what makes one
+// producible: a preset exported before the deletion keys its definitions
+// "<mood>/<param>", and importing it after would have written the retired
+// mood's rows onto the sunset's without a word. It still returns a
+// reference, so the refusal is a clamp and a line, not a throw — but the
+// line names the id, once per id, and the value it lands on.
 inline MoodProfile& mood_def(uint32_t mood) {
-    return MOOD_LIVE[mood % MOOD_COUNT];
+    if (mood >= MOOD_COUNT) {
+        static bool warned[64]{};
+        const uint32_t slot = mood & 63u;
+        if (!warned[slot]) {
+            warned[slot] = true;
+            std::cout << "[Mood] REFUSED an out-of-range mood id " << mood
+                      << " (MOOD_COUNT is " << MOOD_COUNT
+                      << "); reading mood 0 instead — a stale preset or URL\n";
+        }
+        return MOOD_LIVE[0];
+    }
+    return MOOD_LIVE[mood];
 }
 
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═

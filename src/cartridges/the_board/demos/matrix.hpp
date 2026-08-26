@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/contracts/demo_config.hpp"       // DemoConfig, Roster
-#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET, MOOD_ATRIUM
+#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET
 
 // ─── matrix.hpp (THE DEMO MATRIX: pieces × demos, cells booleans) ──
 // Jean's ratified grid.
@@ -102,8 +102,8 @@ inline constexpr uint32_t DEMO_SEED[static_cast<uint32_t>(DemoCol::COUNT)] = {
     /* minimal */ 42,
 };
 inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] = {
-    /* full    */ MOOD_ATRIUM,
-    /* minimal */ MOOD_ATRIUM,
+    /* full    */ MOOD_OPEN_SUNSET,
+    /* minimal */ MOOD_OPEN_SUNSET,
 };
 
 // ═══ THE COLUMN READ (a demo column → a constexpr Roster) ══════════
@@ -152,13 +152,13 @@ static_assert(Piece::COUNT == 19,
 static_assert(demo_config(DemoCol::full).roster.all_enabled(),
     "GOLDEN: demo=full must equal old full.hpp — all 19 tickable bits ON");
 static_assert(demo_config(DemoCol::full).seed == 42 &&
-              demo_config(DemoCol::full).boot_mood == MOOD_ATRIUM,
-    "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the atrium — the entrance (ATRIUM_1)");
+              demo_config(DemoCol::full).boot_mood == MOOD_OPEN_SUNSET,
+    "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the open field (ATTIC_ATRIUM)");
 static_assert(demo_config(DemoCol::minimal).roster.none_enabled(),
     "GOLDEN: demo=minimal must equal old minimal.hpp — all 19 tickable bits OFF");
 static_assert(demo_config(DemoCol::minimal).seed == 42 &&
-              demo_config(DemoCol::minimal).boot_mood == MOOD_ATRIUM,
-    "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the atrium — the entrance (ATRIUM_1)");
+              demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_SUNSET,
+    "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the open field (ATTIC_ATRIUM)");
 
 } // namespace the_board
 } // namespace t7
