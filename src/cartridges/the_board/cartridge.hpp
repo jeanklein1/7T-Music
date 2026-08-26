@@ -1470,12 +1470,6 @@ namespace t7 {
                 // holds WorldState const and raises a request instead; this is
                 // where the world is writable. U9 is before R16, so the pass
                 // it asks for runs THIS frame.
-                if constexpr (ROSTER.gallery) {   // ROSTER-GATE gallery (c) — no atrium hang without it
-                    if (gallery_state_.atrium_seat_pending) {
-                        gallery_state_.atrium_seat_pending = false;
-                        world_state_.placement_dirty = true;
-                    }
-                }
             }
 
             // U10 — DRIVER BOOKKEEPING (O-5e, dead-last): U1's signal fill

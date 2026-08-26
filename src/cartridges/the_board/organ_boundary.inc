@@ -100,10 +100,6 @@
                                 gallery_state_, gallery_deps_, /*rehang=*/false);
                             std::cout << sep << " shell"; sep = " +";
                         }
-                        if (t & t7::the_board::ATRIUM_SAND_BITS) {
-                            reseat_atrium_poster(gallery_state_, &gallery_deps_, queue);
-                            std::cout << sep << " poster"; sep = " +";
-                        }
                         if (t & t7::the_board::ATRIUM_ARC_BITS) {
                             // REFUSED, AND IT SAYS SO. force_spawn_atrium_arc claims an
                             // arch slot per door through force_spawn_portal_at, and the

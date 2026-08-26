@@ -143,8 +143,6 @@ READERS = {
         # split that hang in two: stage 1 composes the sand quad from the
         # three dials, stage 2 stamps distance and height into the memory
         # as what this hang answered.
-        ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_poster"),
-        ("src/cartridges/the_board/bodies/gallery.hpp", "place_atrium_walls"),
         # ATRIUM_12 — the entrance's own wall and ceiling colours are read
         # where the shell picks its palette: PALETTE_ATRIUM builds a local
         # IndoorPalette from ATRIUM_LIVE instead of returning a table row.
