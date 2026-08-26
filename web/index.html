@@ -9,20 +9,6 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0a0a0c">
   <title>the_board</title>
-  <!-- ATRIUM_10 — THE CONTROLS POSTER, PRELOADED. The entrance's first image
-       is the only thing a visitor must read before they can play, and the
-       program cannot even NAME it until the wasm runs and exhibition.json
-       parses — two serial round trips after this page. The scanner starts it
-       here instead, in parallel with the wasm, and the fetch that follows is
-       a cache hit. tools/web_dist.py writes the filename; an empty atrium
-       folder writes nothing at all. as="image" is the true destination of
-       the file whatever its extension (the folder mixes .jpg and .png and
-       write_atrium keeps whichever it found); the reuse relied on is the
-       HTTP cache, not the preload cache, so a mismatch would cost a
-       console warning at worst and never a second download. NOT
-       LOAD-BEARING, like the posters below it: a link that 404s or is
-       blocked leaves this page exactly as it was. -->
-  __ATRIUM_PRELOAD__
   <style>
     /* ── THE PAGE ──────────────────────────────────────────────────
        Dark, one canvas, three states over it. No framework, no CSS

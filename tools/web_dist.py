@@ -43,10 +43,8 @@ DIST = os.path.join(ROOT, "dist")
 
 SRC_PAINTINGS = os.path.join(ROOT, "assets", "paintings")
 SRC_MUSIC = os.path.join(ROOT, "assets", "music")
-SRC_ATRIUM = os.path.join(ROOT, "assets", "atrium")
 DIST_PAINTINGS = os.path.join(DIST, "paintings")
 DIST_MUSIC = os.path.join(DIST, "music")
-DIST_ATRIUM = os.path.join(DIST, "atrium")
 
 # ── ORGAN_4 P6 — THE PRESET SHELF ────────────────────────────────
 # web/presets/ holds index.json and one file per scene, fetched BY THE
@@ -112,19 +110,6 @@ BUILD_ID_LEN = 12
 # corruption and short enough to read off a phone at arm's length.
 SHADER_SHA_PLACEHOLDER = "__SHADER_SHA__"
 
-# ── ATRIUM_10 — THE POSTER ON THE BOOT'S CRITICAL PATH ───────────
-# The entrance's first image cannot be NAMED by the program until the
-# wasm has run and exhibition.json has parsed — two serial round trips
-# after the page. This slot lets the page name it, so the browser's
-# preload scanner starts it in parallel with the wasm and the program's
-# later emscripten_fetch is served from the HTTP cache.
-#
-# UNLIKE THE TWO ABOVE, ITS ABSENCE IS NOT A REFUSAL. A missing BUILD_ID
-# ships a page that can pair stale glue with fresh wasm and a missing
-# SHADER_SHA ships a serve nothing witnesses — both are correctness. This
-# one is a head start: without it the poster still arrives, later. A
-# refusal here would trade a real deploy for a lost optimisation.
-ATRIUM_PRELOAD_PLACEHOLDER = "__ATRIUM_PRELOAD__"
 SHADER_SHA_LEN = 8
 SHADER_SRC = os.path.join(ROOT, "src", "cartridges", "the_board",
                           "realization", "world.wgsl")
@@ -158,23 +143,6 @@ MANIFEST_DEDUPE_CAP = 256
 # .jpg or .jpeg case-insensitively (gallery.hpp, scan_paintings_folder).
 PAINTING_EXTS = (".jpg", ".jpeg")
 
-# ── ATRIUM_3 — THE ENTRANCE'S OWN FOLDER ─────────────────────────
-# assets/atrium/ATRIUM_*.{png,jpg,jpeg} -> dist/atrium/, and its own key
-# in exhibition.json. The two collections NEVER MIX: the atrium hangs
-# this folder and nothing else, and every other world hangs the
-# exhibition and none of this (gallery.hpp, authored_range_for).
-#
-# INDEX 0 IS THE CONTROLS SCHEME BY CONVENTION — the program hangs the
-# atrium's first image dead ahead on the sand, facing the arrival point
-# (place_atrium_poster). The numeric sort below is what makes "first"
-# mean ATRIUM_0, and it is the paintings' sort, restated on this folder.
-#
-# .png IS TAKEN AND KEPT AS .png. The paintings' re-encode is JPEG at
-# PAINTING_QUALITY because a painting is a photograph; the controls
-# scheme is line art and a diagram, which q82 chroma subsampling
-# smears. Same cap, same LANCZOS, encoder chosen from the extension —
-# so the name in exhibition.json never lies about the bytes behind it.
-ATRIUM_EXTS = (".png", ".jpg", ".jpeg")
 
 # POSTER_0 — THE SHELL KNOWS ROLES, THIS KNOWS PAINTINGS. web/index.html
 # names veil_poster.jpg and card_poster.jpg and nothing else; re-picking
@@ -235,25 +203,6 @@ def list_paintings():
     return names
 
 
-def list_atrium():
-    """Source atrium images in the program's numeric order (ATRIUM_0 first).
-
-    An absent or empty folder is an EMPTY LIST, not a failure: the atrium
-    with no images is the already-legal no-images state, exactly as an
-    absent assets/paintings is the no-exhibition state.
-    """
-    if not os.path.isdir(SRC_ATRIUM):
-        return []
-    names = [
-        f for f in os.listdir(SRC_ATRIUM)
-        if os.path.isfile(os.path.join(SRC_ATRIUM, f))
-        and f.startswith("ATRIUM_")
-        and os.path.splitext(f)[1].lower() in ATRIUM_EXTS
-    ]
-    names.sort(key=lambda f: (extract_number(f), f))
-    return names
-
-
 def list_music():
     if not os.path.isdir(SRC_MUSIC):
         return []
@@ -306,46 +255,6 @@ def write_paintings(names):
             print("  (re-encode failed for %s: %s — copied verbatim)" % (f, e))
             shutil.copy2(src, dst)
     return [os.path.join(DIST_PAINTINGS, f) for f in names]
-
-
-def write_atrium(names):
-    """Re-encode into dist/atrium/, capped at the same PAINTING_CAP.
-
-    write_paintings' twin, and the same promise: Pillow is a convenience,
-    and without it every image still ships at its authored size.
-    """
-    if not names:
-        return []
-    os.makedirs(DIST_ATRIUM, exist_ok=True)
-    try:
-        from PIL import Image
-    except ImportError:
-        print("  (Pillow absent — copying atrium images verbatim, uncapped.)")
-        for f in names:
-            shutil.copy2(os.path.join(SRC_ATRIUM, f), os.path.join(DIST_ATRIUM, f))
-        return [os.path.join(DIST_ATRIUM, f) for f in names]
-
-    for f in names:
-        src = os.path.join(SRC_ATRIUM, f)
-        dst = os.path.join(DIST_ATRIUM, f)
-        is_png = os.path.splitext(f)[1].lower() == ".png"
-        try:
-            with Image.open(src) as im:
-                # RGBA survives on the PNG path: the controls scheme may
-                # carry transparency, and the authored loader takes four
-                # channels. The JPEG path flattens as the paintings do.
-                im = im.convert("RGBA" if is_png else "RGB")
-                w, h = im.size
-                if max(w, h) > PAINTING_CAP:
-                    im.thumbnail((PAINTING_CAP, PAINTING_CAP), Image.LANCZOS)
-                if is_png:
-                    im.save(dst, "PNG", optimize=True)
-                else:
-                    im.save(dst, "JPEG", quality=PAINTING_QUALITY, optimize=True)
-        except Exception as e:
-            print("  (re-encode failed for %s: %s — copied verbatim)" % (f, e))
-            shutil.copy2(src, dst)
-    return [os.path.join(DIST_ATRIUM, f) for f in names]
 
 
 def resolve_poster_sources():
@@ -485,14 +394,12 @@ def main():
     # the re-encoded dist figures print after the write.
     paintings = list_paintings()
     music = list_music()
-    atrium = list_atrium()
     # POSTER_0 — resolved here, refused later. This reads the directory and
     # writes nothing, so it is safe this early and its answer is needed by
     # the verdict below.
     poster_src, poster_missing = resolve_poster_sources()
     paintings_src_bytes = dir_bytes([os.path.join(SRC_PAINTINGS, f) for f in paintings])
     music_src_bytes = dir_bytes([os.path.join(SRC_MUSIC, f) for f in music])
-    atrium_src_bytes = dir_bytes([os.path.join(SRC_ATRIUM, f) for f in atrium])
     print("")
     print("exhibition inventory  (%s)" % os.path.join(ROOT, "assets"))
     print("  %-18s %14s  %9s  %7s" % ("kind", "bytes", "MiB", "files"))
@@ -501,11 +408,9 @@ def main():
     print("  %-18s %14d  %9.2f  %7d"
           % ("music", music_src_bytes, mib(music_src_bytes), len(music)))
     print("  %-18s %14d  %9.2f  %7d"
-          % ("atrium (src)", atrium_src_bytes, mib(atrium_src_bytes), len(atrium)))
-    print("  %-18s %14d  %9.2f  %7d"
-          % ("TOTAL", paintings_src_bytes + music_src_bytes + atrium_src_bytes,
-             mib(paintings_src_bytes + music_src_bytes + atrium_src_bytes),
-             len(paintings) + len(music) + len(atrium)))
+          % ("TOTAL", paintings_src_bytes + music_src_bytes,
+             mib(paintings_src_bytes + music_src_bytes),
+             len(paintings) + len(music)))
     if not paintings:
         print("  (no PAINTING_*.jpg|.jpeg under assets/paintings — the dist will")
         print("   carry an empty exhibition, which the program reads as no paintings.)")
@@ -568,8 +473,6 @@ def main():
         verdict_sizes["paintings/" + f] = os.path.getsize(os.path.join(SRC_PAINTINGS, f))
     for f in music:
         verdict_sizes["music/" + f] = os.path.getsize(os.path.join(SRC_MUSIC, f))
-    for f in atrium:
-        verdict_sizes["atrium/" + f] = os.path.getsize(os.path.join(SRC_ATRIUM, f))
     # POSTER_0 — the posters are files in dist/, and the rule says every
     # file. Source size again, and an upper bound for the same reason: a
     # poster only ever shrinks from the painting behind it, so a source
@@ -692,13 +595,6 @@ def main():
     shader_sha = shader_sha_full[:SHADER_SHA_LEN]
     shell_out = shell_src.replace(BUILD_ID_PLACEHOLDER, build_id)
     shell_out = shell_out.replace(SHADER_SHA_PLACEHOLDER, shader_sha)
-    # ATRIUM_10 — atrium[0] is ATRIUM_0 by list_atrium's numeric sort, and
-    # write_atrium keeps the source filename (a .png stays a .png), so the
-    # name written here is the name the program will ask for. An empty folder
-    # substitutes the empty string: no link, no 404, no warning.
-    atrium_preload = ('<link rel="preload" as="image" href="atrium/%s">' % atrium[0]
-                      if atrium else "")
-    shell_out = shell_out.replace(ATRIUM_PRELOAD_PLACEHOLDER, atrium_preload)
     with open(os.path.join(DIST, "index.html"), "w", encoding="utf-8", newline="") as fh:
         fh.write(shell_out)
 
@@ -722,10 +618,9 @@ def main():
         return 5
 
     print("")
-    print("EXHIBITION — assembling %d painting(s), %d track(s), %d atrium image(s)"
-          % (len(paintings), len(music), len(atrium)))
+    print("EXHIBITION — assembling %d painting(s), %d track(s)"
+          % (len(paintings), len(music)))
     painting_paths = write_paintings(paintings)
-    atrium_paths = write_atrium(atrium)
     os.makedirs(DIST_MUSIC, exist_ok=True)
     for f in music:
         shutil.copy2(os.path.join(SRC_MUSIC, f), os.path.join(DIST_MUSIC, f))
@@ -741,13 +636,12 @@ def main():
     # a file that is sitting right there. The handle is already utf-8 and
     # the C++ side reads raw bytes.
     with open(os.path.join(DIST, EXHIBITION_JSON), "w", encoding="utf-8", newline="\n") as fh:
-        json.dump({"paintings": paintings, "music": music, "atrium": atrium},
+        json.dump({"paintings": paintings, "music": music},
                   fh, indent=2, ensure_ascii=False)
         fh.write("\n")
 
     paintings_dist_bytes = dir_bytes(painting_paths)
     music_dist_bytes = dir_bytes(music_paths)
-    atrium_dist_bytes = dir_bytes(atrium_paths)
     poster_dist_bytes = dir_bytes(poster_paths)
     # ── GATEHOUSE_G4 — THE CACHE LAW, THE CORRIDOR'S LAST DOOR ───────
     #
@@ -779,25 +673,12 @@ def main():
                  "/index.html\n  Cache-Control: no-cache\n")
 
     file_count = (len(ARTIFACTS) + len(painting_paths) + len(music_paths)
-                  + len(atrium_paths) + len(poster_paths) + len(presets) + 2)
+                  + len(poster_paths) + len(presets) + 2)
 
     print("  %-18s %14d  %9.2f  %7d" % ("paintings (dist)", paintings_dist_bytes,
                                         mib(paintings_dist_bytes), len(painting_paths)))
     print("  %-18s %14d  %9.2f  %7d" % ("music (dist)", music_dist_bytes,
                                         mib(music_dist_bytes), len(music_paths)))
-    print("  %-18s %14d  %9.2f  %7d   <- the entrance's own folder (ATRIUM_3); "
-          "index 0 is the controls scheme"
-          % ("atrium (dist)", atrium_dist_bytes, mib(atrium_dist_bytes), len(atrium_paths)))
-    # ATRIUM_10 — the veil poster's idiom and its reason: the number nobody
-    # measures is the one you have to go and measure. This file is on the
-    # boot's critical path by construction now, and it competes for bandwidth
-    # with the wasm — small beside it at PAINTING_CAP, but not free on a
-    # phone. If it ever gets heavy the dial is the source image.
-    if atrium_paths:
-        n0 = os.path.getsize(atrium_paths[0])
-        print("    %-16s %14d  %9.2f   <- preloaded by index.html; the one atrium "
-              "image on the boot's critical path"
-              % (atrium[0], n0, mib(n0)))
     if paintings_src_bytes and paintings_dist_bytes:
         print("  paintings re-encode: %.2f MiB -> %.2f MiB  (%.0f%% of source)"
               % (mib(paintings_src_bytes), mib(paintings_dist_bytes),
@@ -814,8 +695,8 @@ def main():
         n = os.path.getsize(p)
         print("    %-16s %14d  %9.2f   <- %s"
               % (out_name, n, mib(n), POSTERS[out_name]))
-    print("  %s: %d painting(s), %d track(s), %d atrium image(s)"
-          % (EXHIBITION_JSON, len(paintings), len(music), len(atrium)))
+    print("  %s: %d painting(s), %d track(s)"
+          % (EXHIBITION_JSON, len(paintings), len(music)))
     if presets:
         print("  %-18s %14d  %9.2f  %7d   <- the preset shelf (ORGAN_4 P6); "
               "?preset=<name> picks one at boot"

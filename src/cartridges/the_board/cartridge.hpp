@@ -753,7 +753,7 @@ namespace t7 {
                 // disabled, the authored-staging textures stay pristine.
                 if constexpr (ROSTER.gallery) {
                     wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(gallery_state_, gpuState_, q, mood_state_.active);
+                    load_authored_textures(gallery_state_, gpuState_, q);
                 }
 
                 auto t3 = std::chrono::high_resolution_clock::now();
