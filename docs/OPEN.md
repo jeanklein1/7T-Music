@@ -2,16 +2,22 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
-- THE PIECE NOW TEACHES NOTHING ABOUT ITS OWN CONTROLS. HINT_0 deleted the
-  `#hint` overlay and ATTIC_ATRIUM D1 deleted the controls poster, which was
-  the only remaining teaching in the program: a visitor arrives in an open
-  field with no statement anywhere of what the keys, the mouse or the doors
-  do. This is a KNOWN, ACCEPTED gap for the length of one deploy and no
-  longer. The remedy is named and specified: the LOADING PAGE — three images
-  (controls, portal, current image) off the piece entirely, its own campaign,
-  shipping in the same `dist`. Origin: ATTIC_ATRIUM D1, opened not closed.
-  Unblocked by the loading page landing; until it does, this campaign is
-  preview-only (`npx wrangler pages dev dist`) and the Pages deploy is held.
+- THE DOOR TEACHES; THE WORLD STILL DOES NOT. ANSWERED, NOT CLOSED. HINT_0
+  deleted the `#hint` overlay and ATTIC_ATRIUM D1 deleted the controls poster,
+  leaving no statement anywhere of what the keys, the mouse or the doors do.
+  The remedy's first half has landed: ENTRANCE_0 gave the entrance its own
+  `assets/entrance/`, put the controls diagram on the veil, and E3/E5 freed it
+  from the 2:3 slot so it arrives whole. PHASE M reads it on the Pixel — AURA,
+  ZOOM, SWAP, DIRECTION, ROTATION all legible at 263 CSS px, neither too small
+  nor soft, no cap moved. The visitor is therefore shown the gestures
+  immediately before entering, and the veil is dismissed by a dedicated
+  "tap to enter" button rather than by performing one (E3/E4 addendum R4,
+  settled). WHAT REMAINS OPEN is the world's own half: once inside there is
+  still no teaching, and the portal and current-image images of the named
+  remedy have not shipped. Origin: ATTIC_ATRIUM D1, answered at ENTRANCE_0 E5.
+  The deploy hold was written against the loading page landing and that
+  condition is now met on the door — whether it lifts is Jean's, and
+  ATTIC_ATRIUM must be in the same `dist` when it does.
 - MOOD_ATRIUM STILL EXISTS, AND ONLY BECAUSE A PRESET REMEMBERS ITS ID.
   ATTIC_ATRIUM deleted the entrance's every mechanism — the hang, the
   partition, the arc, the arrival orbit, the colours — and stopped at the ROW.
