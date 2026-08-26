@@ -152,8 +152,19 @@ PAINTING_EXTS = (".jpg", ".jpeg")
 # names veil_poster.jpg and card_poster.jpg and nothing else; re-picking
 # a painting is one edit here and a redeploy, with no page change.
 POSTERS = {
-    "veil_poster.jpg": "PAINTING_50",    # STATE 1 LOADING + STATE 4 READY
-    "card_poster.jpg": "PAINTING_200",   # STATE 2 FALLBACK + STATE 3 LOST
+    # ENTRANCE_0 E2 — BOTH ROLES LEAVE THE EXHIBITION. These stems live in
+    # assets/entrance/, which list_paintings() cannot reach, so neither
+    # image can also hang on a wall. Jean's stamp, Aug 2026.
+    #
+    # THE CONTROLS IMAGE TAKES THE BOOT'S CRITICAL PATH, and that is the
+    # whole reason the pair is ordered this way: ATTIC_ATRIUM D1 deleted the
+    # controls poster and HINT_0 deleted #hint before it, so the piece
+    # currently teaches nothing about its own keys. The veil is the first
+    # thing a visitor sees and the thing they see again at READY; the card
+    # shows only when something has gone wrong, which is the wrong moment
+    # to explain how to play.
+    "veil_poster.jpg": "ENTRANCE_CONTROLS",   # STATE 1 LOADING + STATE 4 READY
+    "card_poster.jpg": "ENTRANCE_FIELD",      # STATE 2 FALLBACK + STATE 3 LOST
 }
 # The .poster box is at most 340 CSS px wide. 640 covers it at DPR ~1.9
 # and at the widths a phone actually gives it under the 74vw and 34vh
