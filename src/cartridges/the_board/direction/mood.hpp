@@ -200,7 +200,7 @@ void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     PawnState& pawn_state);
 // request_mood_transition decl GRADUATED to spine_state.hpp (input
 // calls it before this file in the cohort); the definition is below.
-// Appliers (apply_mood's five named sub-functions; each takes only
+// Appliers (apply_mood's four named sub-functions; each takes only
 // the targets its own fan drives)
 void apply_mood_arrival(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);  // ATRIUM_9 — the orbit, first
 void apply_mood_regime(MoodDeps* c, const MoodProfile& m);     // REGIME_1 — the roll, first
@@ -977,31 +977,6 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
         c->gpuState_.set_ceiling_height(0.0f);
     }
 }
-
-// ── apply_mood_arrival ──
-//
-// THE ARRIVAL ORBIT (ATRIUM_9). WHERE THE CAMERA STANDS WHEN THIS WORLD
-// BEGINS. Nothing touched the orbit at a world change before this
-// applier existed — cameraBuffer_ had exactly one CPU writer, the boot —
-// so A5.2's global constant was the only home a composition had, and
-// turning it turned every world's first frame.
-// The composition belongs to the room; the sentinel is what lets six
-// rooms decline to have one.
-//
-// A MOOD WEARING THE SENTINEL IS NOT YANKED: nothing is written at all
-// there, so walking back out to an open field leaves the visitor's own
-// orbit exactly where they left it. The azimuth is an OFFSET on the
-// gaze, so the whole composition turns with Idle::PAWN_HEADING rather
-// than drifting off it. Boot walks this same door, and the atrium's row
-// is the program's own numbers, so boot is unchanged by construction.
-inline void apply_mood_arrival(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue) {
-    if (!orbit_composed(m.arrival)) return;
-    constexpr float DEG = 3.14159265f / 180.0f;
-    c->gpuState_.set_arrival_orbit(queue, m.arrival.distance,
-        m.arrival.elevation_deg * DEG,
-        Idle::PAWN_HEADING + m.arrival.azimuth_offset_deg * DEG);
-}
-
 // ── apply_mood (orchestrator) ──
 //
 inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
@@ -1021,7 +996,6 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     c->gol_state_.mood_allowed     = m.shape.allow_gol_zones;
     apply_aura_mood_policy(pawn_state, m.shape.allow_pawn_aura);  // the pawn door; byte-identical semantics
 
-    apply_mood_arrival(c, m, queue);           // ATRIUM_9 — the orbit, before the roll
     apply_mood_regime(c, m);                   // REGIME_1 — the world's roll, before anything reads it
     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured

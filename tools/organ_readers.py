@@ -165,10 +165,6 @@ READERS = {
         ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_regime"),
         ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
         ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
-        # ATRIUM_9 — the arrival orbit is a definition consumed ONCE, at the
-        # world's beginning; apply_mood_arrival is the one place that reads
-        # it, and it is apply_mood's own applier for exactly that column.
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_arrival"),
     ]),
     "TIER": ("TIER_LIVE", "AgentTierBank", [
         ("src/cartridges/the_board/bodies/agents.hpp", "upload_agent_registries_to_gpu"),
