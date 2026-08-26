@@ -260,7 +260,6 @@ uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 // Used before their definitions (which keep their original section
 // homes below). Impl-only — not part of the header surface.
 inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
-inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
 
 // ═══ TUNING DATA (impl-side — internal authoring tables) ═════════
 //
@@ -1371,10 +1370,7 @@ inline void force_spawn_forward_portals(MoodDeps* c, wgpu::Queue& queue, Machine
     if (!c->world_state_.finite_mode) return;
     // ATRIUM_2 — the roster is the SHAPE's, not this function's. One
     // property, two rosters; every other finite world keeps the triad.
-    switch (mood_def(c->mood_state_.active).shape.portal_roster) {
-    case PortalRoster::ARC:   force_spawn_atrium_arc(c, queue, machine_ctx);    break;
-    default:                  force_spawn_finite_portals(c, queue, machine_ctx); break;
-    }
+    force_spawn_finite_portals(c, queue, machine_ctx);
 }
 
 // ── force_spawn_finite_portals ──
@@ -1403,9 +1399,7 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     // doors: deeper in (one of the two rooms, seed's coin), out — an
     // open sky, drawn by the destination law's weights among the open
     // moods (ATMOS_1) — and back (already standing). Two forwards here;
-    // the radius no longer buys doors. ATRIUM_2: the triad is the
-    // roster a shape asks for, not the only one — SHAPE_ATRIUM wears
-    // PortalRoster::ARC and reaches force_spawn_atrium_arc instead.
+    // the radius no longer buys doors.
     constexpr uint32_t count = 2;
     const uint32_t fwd_moods[2] = {
         (cpu_hash_f(c->world_state_.active_seed, 7950u) < 0.5f)
@@ -1511,113 +1505,6 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
     std::cout << "[Portal] Finite world: " << spawned << " forward portals + "
         << (back_stands ? 1 : 0) << " back-portal\n";
 }
-
-// ── force_spawn_atrium_arc ──
-// ATRIUM_2 — PORTAL_2 amended for ONE shape property. The atrium's roster is
-// one door per OTHER mood, in id order, on a semicircle. The colours are the
-// destination law's, so the arc reads as a spectrum: there are places. The
-// back (when something precedes) stands on its wall as ever — "most" doors
-// are on the arc.
-//
-// ATRIUM_5 — THE SECOND SITTING. The semicircle is centred arc_center_offset
-// ahead of the arrival point, not on it, and every door faces THAT CENTRE.
-// The consequence is worth stating rather than discovering: the arc's END
-// doors face the centre, so from the arrival point behind the chord they
-// read nearly edge-on. That is the geometry of "face the centre", not a
-// defect — the dial that turns them toward the visitor is arc_span_deg,
-// down.
-inline void force_spawn_atrium_arc(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
-    const auto& A = ATRIUM_LIVE;
-    constexpr float DEG = 3.14159265f / 180.0f;
-    const float ox = Idle::PAWN_POS_X, oz = Idle::PAWN_POS_Z;
-    const float gaze = heading_to_bearing(Idle::PAWN_HEADING) + A.arc_bearing_deg * DEG;
-    const float fx = std::cos(gaze), fz = std::sin(gaze);
-    // THE CENTRE IS AHEAD OF THE PAWN (ATRIUM_5). The pawn stands behind the
-    // chord, near the wall behind it; the arc is placed around this centre
-    // and every door FACES it. The first sitting placed the arc on the pawn
-    // and faced the doors at the pawn — which put the visitor inside the
-    // chord with the end doors beside them rather than ahead.
-    const float cx = ox + fx * A.arc_center_offset, cz = oz + fz * A.arc_center_offset;
-    constexpr uint32_t DOORS = atrium_arc_door_count();   // ATRIUM_7 — the roster mask's own count
-    uint32_t k = 0, spawned = 0;
-    // THE SPAWN ORDER IS THE ARC ORDER, and it is stated here because
-    // ATRIUM_4 depends on it: the doors enter the arch slots ascending, so
-    // the portal array's slot order IS arc order and a passer can walk the
-    // array index as the arc index. The back portal, spawned first when it
-    // exists, takes the lowest slot and wears kind = 1.
-    for (uint32_t m = 0; m < MOOD_COUNT; m++) {
-        if (!ATRIUM_ARC_DOOR[m]) continue;   // ATRIUM_7 — the roster, one home
-        const float t = (DOORS == 1) ? 0.5f : (float)k / (float)(DOORS - 1);
-        const float bearing = gaze + (t - 0.5f) * A.arc_span_deg * DEG;   // around the centre; t = 0.5 is dead ahead
-        const float px = cx + std::cos(bearing) * A.arc_radius;
-        const float pz = cz + std::sin(bearing) * A.arc_radius;
-        const float dxc = cx - px, dzc = cz - pz;
-        // The opening faces the centre. The span convention that makes this
-        // a quarter turn rather than a half one has ONE home now
-        // (arch_rotation_from_facing, contracts/spawn_services.hpp, ATRIUM_6);
-        // what is passed is the ACTUAL door-to-centre vector, so a change to
-        // the placement expression above cannot turn the doors sideways.
-        const float rotation = arch_rotation_from_facing(dxc, dzc);
-        const uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7970u + m);
-        const auto& mp = mood_def(m);
-        PortalDestination dest{};
-        dest.seed = dest_seed; dest.mood = m; dest.finite = mp.shape.finite;
-        dest.finite_radius = derive_finite_radius(dest_seed, mp);
-        const uint32_t slot = force_spawn_portal_at(c, queue, px, pz, rotation, dest, false, machine_ctx);
-        if (slot != UINT32_MAX) {
-            spawned++;
-            // THE FACING WITNESS: the door's NORMAL against the line to the
-            // centre. 1.000 is a door that faces the centre; 0.000 is the
-            // orthogonal error this sitting corrects; -1.000 faces away.
-            // It reads (-sin, cos) and not (cos, sin) for the reason stated
-            // above — a witness that measured the span would have printed
-            // 1.000 while the doors stood edge-on.
-            const float len = std::sqrt(dxc * dxc + dzc * dzc);
-            const float face = (-std::sin(rotation) * dxc + std::cos(rotation) * dzc) / len;
-            std::cout << "[Atrium] door " << k << " at (" << px << "," << pz << ") -> " << mood_name(m)
-                      << " face-centre=" << std::fixed << std::setprecision(3) << face
-                      << std::setprecision(6) << "\n";
-        }
-        k++;
-    }
-    // THE FIT WITNESS — a log, not a clamp, and measured from the CENTRE now
-    // (ATRIUM_5): the arc is around the centre, so the clearance that matters
-    // is the centre's. The passers' outside band is arc_radius + PASSER band
-    // (A4); the number to watch is what is left beyond it.
-    const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
-    const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    const float clear = std::min({ cx - bmin, bmax - cx, cz - bmin, bmax - cz }) - A.arc_radius;
-    std::cout << "[Atrium] arc: doors=" << spawned << "/" << DOORS
-        << " centre=(" << cx << "," << cz << ")"
-        << " r=" << A.arc_radius << " span=" << A.arc_span_deg
-        << " wall clearance beyond the arc=" << clear << "\n";
-
-    // ── THE DOORWAY WITNESS (ATRIUM_7) ───────────────────────────
-    // The channel the field leaves down the middle of a DOORWAY at the LIVE
-    // arch slack — a prose mirror of world.wgsl's field_sum (L2-class: the
-    // formula is the kernel's, the sources are named, and the two move
-    // together). An arch is TWO leg sources half_span either side of the
-    // centre, each shell (r_leg + r_agent) * slack, so what a body's centre
-    // has to walk down is what is left between them:
-    //     channel = 2*half_span - 2*(r_leg + r_agent)*slack
-    // Negative means the shells meet across the opening and a barrier stands
-    // in the doorway. The radii are the kernel's own: leg
-    // max(thickness, depth) * 0.5, walker TIER_LIVE contact_radius (the
-    // passers are worker tier — AGENT_POPULATIONS[MOOD_ATRIUM]).
-    {
-        const auto& dw = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
-        const float half_span = dw.params[ArchIdx::SPAN].mean * 0.5f;
-        const float r_leg = std::max(dw.params[ArchIdx::THICKNESS].mean,
-                                     dw.params[ArchIdx::DEPTH].mean) * 0.5f;
-        const float r_agent = TIER_LIVE.t[AGENT_TIER_WORKER].contact_radius;
-        const float slack = c->gpuState_.config().field_arch_slack;
-        const float channel = 2.0f * half_span - 2.0f * (r_leg + r_agent) * slack;
-        std::cout << "[Atrium] doorway channel at arch slack " << slack
-            << " = " << channel << " wu (min " << ATRIUM_DOOR_CHANNEL_MIN << ")"
-            << (channel < ATRIUM_DOOR_CHANNEL_MIN ? "  << TIGHT" : "") << "\n";
-    }
-}
-
 // ── force_spawn_door_fallback ──
 //
 // THE DOOR GUARANTEE (U2). Runs once per world, after the synchronous
@@ -1785,8 +1672,7 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
 
 // PORTAL_2 — the OPEN-WORLD destination law. Finite worlds no
 // longer roll: their roster is the fixed triad
-// (force_spawn_finite_portals), or the arc where the shape says ARC
-// (force_spawn_atrium_arc, ATRIUM_2). The finite outdoors is a rare
+// (force_spawn_finite_portals). The finite outdoors is a rare
 // feature of the open field only.
 // THE DESTINATION LAW (ATMOS_1). One weighted walk over every mood, in id
 // order, from WORLD_DRAW_LIVE.mood_weights — the open field's law in one

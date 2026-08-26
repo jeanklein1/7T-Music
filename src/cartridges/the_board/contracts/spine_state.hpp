@@ -206,11 +206,6 @@ enum class CeilingType : uint32_t {
     VAULT = 2,   // catenary vault ceiling
 };
 
-// THE ROSTER A SHAPE OFFERS (ATRIUM_2). PORTAL_2's triad is the finite
-// world's roster; the atrium's is an arc — one door per OTHER mood, in id
-// order, on a semicircle around the arrival point. Structural, like every
-// other WorldShape column: read at POPULATION and never re-spoken.
-enum class PortalRoster : uint32_t { TRIAD = 0, ARC = 1 };
 
 // ATRIUM_5 — THE TWO PINS' SENTINELS. A shape either lets the seed draw its
 // indoor light scheme and its wall palette, or it says which. The atrium
@@ -248,9 +243,6 @@ struct WorldShape {
                                      // indoor terrain IS culled despite the two
                                      // `false` rows below. See renderer.hpp for
                                      // the full note and the cut (OPT_1 O0-f).
-    PortalRoster portal_roster;      // ATRIUM_2 — TRIAD (PORTAL_2) or ARC (one door per
-                                     // other mood on a semicircle). Structural: read at
-                                     // population, never re-spoken.
     uint32_t    light_scheme;        // ATRIUM_5 — SCHEME_ROLL: the seed rolls (scheme_weights);
                                      // else the scheme id, pinned. Structural: drawn at apply.
     uint32_t    palette;             // ATRIUM_5 — PALETTE_ROLL: the seed rolls INDOOR_PALETTES;
@@ -347,10 +339,10 @@ struct MoodProfile {
 // One authored home per shape. Three moods wear SHAPE_OPEN, and that
 // they are one stage is stated by this constant, not by three copies.
 //                                              fin    r_min r_max indoor ceil                wall_h amp_c  zones aura  cull   roster               scheme         palette
-inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  PortalRoster::TRIAD, SCHEME_ROLL,   PALETTE_ROLL };
-inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false, PortalRoster::TRIAD, SCHEME_ROLL,   PALETTE_ROLL };
-inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false, PortalRoster::TRIAD, SCHEME_ROLL,   PALETTE_ROLL };
-inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  PortalRoster::TRIAD, SCHEME_ROLL,   PALETTE_ROLL };
+inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  SCHEME_ROLL,   PALETTE_ROLL };
+inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false, SCHEME_ROLL,   PALETTE_ROLL };
+inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false, SCHEME_ROLL,   PALETTE_ROLL };
+inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  SCHEME_ROLL,   PALETTE_ROLL };
 // THE ATRIUM'S SHAPE (ATRIUM_1). Radius pinned (min == max, no roll): every
 // visitor's first room is the same room. No GoL — the floor is for the images
 // and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
@@ -399,7 +391,7 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
 // so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
 // axis — the wall behind, the arc ahead, and the long side is +X +Z.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, PortalRoster::ARC,   SCHEME_QUARTET, PALETTE_ATRIUM };
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, SCHEME_QUARTET, PALETTE_ATRIUM };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
@@ -580,10 +572,9 @@ static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
 // column added or cut mid-row shifts every field after it with no
 // diagnostic. One probe per region of each row — head, middle, tail —
 // so a shift anywhere trips. light_scheme / palette are WorldShape's last
-// two fields and take the tail probe (ATRIUM_5); portal_roster and
-// allow_frustum_cull, the fields they displaced, keep probes of their own
-// one and two steps in, and no two of the four agree at the same rows, so
-// none names what another does.
+// two fields and take the tail probe (ATRIUM_5); allow_frustum_cull, the
+// field they displaced, keeps a probe of its own one step in, and no two
+// of the three agree at the same rows, so none names what another does.
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.finite         == false, "WorldShape column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape.finite      == true,  "WorldShape column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.indoor         == false, "WorldShape column drift: indoor (middle)");
@@ -594,9 +585,6 @@ static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "W
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_min == MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_max,
     "WorldShape: the atrium's radius is pinned (ATRIUM_1)");
-static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.portal_roster == PortalRoster::ARC
-           && MOOD_TABLE[MOOD_INDOOR_FLAT].shape.portal_roster == PortalRoster::TRIAD,
-    "WorldShape column drift: portal_roster");
 // ATRIUM_12 — the atrium's palette is PALETTE_ATRIUM now, not row 7: it
 // authors its pair on its own surface. The probe still READS the tail
 // column and still distinguishes the entrance from an ordinary room, which
