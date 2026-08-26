@@ -129,8 +129,35 @@
        before: it is what a visitor sees if an image never arrives, and
        what a <video> will sit against later. The img/video rule below
        already takes both. */
+    /* ── ENTRANCE_0 E3 — THE BOX ADAPTS TO WHAT IT IS FED ──────────
+       The pinned 2:3 was authored when the poster was a PAINTING, which
+       survives any crop. It is a DIAGRAM now, and `cover` on a 1.329
+       source in a 0.658 box keeps 0.658/1.329 of the width and throws
+       away the outer halves — which is where the labels are. AURA
+       arrived as "RA", DIRECTION as "ON", ROTATION as "R", SWAP was
+       gone entirely. Only ZOOM and the arch survived, being the one
+       part that needed no explaining.
+
+       THE ENVELOPE IS PRESERVED EXACTLY, and the height is now said in
+       its own terms instead of being derived. There was never a
+       max-height here: 34vh capped the WIDTH and the ratio turned it
+       into 51vh of height, which the notes below already say twice.
+       So height = 1.5 x width, written out: 340 -> 510, 74vw -> 111vw,
+       34vh -> 51vh. Not one dimension moves today. What moves is which
+       dimension CAN bind, and the height now has an honest home for the
+       day the reading on the Pixel says it should move.
+
+       IT IS A `height`, NOT A `max-height`, and that is the reservation.
+       aspect-ratio gave the box definite dimensions before the image
+       decoded, so nothing below it ever moved; a max-height on a
+       contained image would collapse to zero until decode and push the
+       whole column. The box is reserved at its maximum whether or not
+       an image ever arrives — dark margins are invisible against the
+       page background, and a text stack that jumps on the boot's
+       critical path is not. */
     .poster {
-      width: min(340px, 74vw, 34vh); aspect-ratio: 2 / 3;
+      width:  min(340px, 74vw, 34vh);
+      height: min(510px, 111vw, 51vh);   /* was aspect-ratio: 2/3 — the same envelope */
       border-radius: 3px; overflow: hidden; flex: none;
       background:
         radial-gradient(120% 100% at 30% 15%, #2a2740 0%, transparent 60%),
@@ -138,7 +165,12 @@
         linear-gradient(160deg, #141420 0%, #0d0d12 100%);
       box-shadow: 0 1px 0 rgba(255,255,255,.05) inset;
     }
-    .poster img, .poster video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* CONTAIN, NOT COVER (ENTRANCE_0 E3). The element still fills the
+       reserved box; object-fit letterboxes the CONTENT inside it and
+       centres it by default. Aspect-agnostic in both directions — a
+       portrait source fits the same way a landscape one does, which is
+       the difference between freeing the aspect and re-pinning it. */
+    .poster img, .poster video { width: 100%; height: 100%; object-fit: contain; display: block; }
 
     .wordmark { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--faint); }
     .say      { max-width: 30rem; font-size: 17px; line-height: 1.55; color: var(--ink); margin: 0; }
@@ -224,7 +256,9 @@
        (The frame was never the problem — the canvas fills both
        orientations by construction, PORT_3c + --app-h.) */
     @media (max-height: 600px) {
-      .poster { width: min(340px, 74vw, 28vh); }
+      /* ENTRANCE_0 E3 — the height carries the same 3/2 the width lost:
+         28vh of width was 42vh of height, and still is. */
+      .poster { width: min(340px, 74vw, 28vh); height: min(510px, 111vw, 42vh); }
       .layer  { gap: 14px; padding: 16px 24px; }
     }
   </style>
