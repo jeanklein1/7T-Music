@@ -1,9 +1,17 @@
 Retired branches live as tags. Recovery: `git branch <name> attic/<name>`. Milestone tags stand outside attic/ and outrank it. Names ending -origin hold an origin tip that diverged from the local line of the same name. Index snapshot of `git tag -l "attic/*"` at 2026-08-18.
 
+ATTIC_ATRIUM's rollback point is a BRANCH, `refs/heads/attic/atrium`, and not a
+tag: this environment's git proxy refuses tag pushes (HTTP 403) while branch
+pushes succeed. It is the same guarantee — a durable ref on the remote at the
+pre-deletion tip — in the one shape that could be pushed. To restore the
+convention from a machine that can push tags:
+`git tag attic/atrium origin/attic/atrium && git push origin attic/atrium && git push origin --delete attic/atrium`.
+
 Vendoring landmark: a059949 (2026-08-15) — emdawnwebgpu pinned, DOMESDAY_2 F5-a.
 
 | tag | tip date | merged into master | subject | aliases |
 |---|---|---|---|---|
+| `attic/atrium` (BRANCH, not a tag) | 2026-08-26 | n | the entrance, kept not carried — master at e75586e7, immediately before ATTIC_ATRIUM D1 | — |
 | `attic/claude/toolchain-docs-step-7-x7yy43` | 2026-08-18 | y | PAWN: absence is health |  |
 | `attic/claude/organ1` | 2026-08-16 | y | ORGAN_2 ruling: the tier determines the dial |  |
 | `attic/claude/sunset2` | 2026-08-16 | y | SUNSET_2: the presets speak only the web flow — the guard fires first and names the road |  |

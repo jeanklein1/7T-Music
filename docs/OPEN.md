@@ -2,69 +2,39 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
-- The atrium's CENTRE DOOR stands behind the poster at arrival. Five doors on
-  a 180-degree arc put one dead ahead, and `sand[0].bearing_deg` is 0, so the
-  visitor finds that door by moving rather than by looking. If all five should
-  be in the first frame the dial is `sand[0].bearing_deg` (~25 deg, sliding the
-  poster between the centre and one neighbour) — it hides nothing at that
-  angle and stays in frame. Origin: ATRIUM_8, flagged not fixed. Jean's word
-  decides whether the first frame owes the visitor all five.
-- The `[Atrium] poster: hung at t=` witness (`place_atrium_poster`) is
-  ATRIUM_10's INSTRUMENT and is deliberately ungated — one line per entrance,
-  and the two fixes of that round are read against it. Its warrant is the
-  same as the census's: it retires once the number is settled and Jean says
-  the entrance arrives fast enough. Origin: ATRIUM_10 A10.0. Unblocked by
-  Jean's word on a deployed reading.
-- `exhibition.json` is the OTHER round trip on the boot's critical path and
-  is not preloaded. ATRIUM_10 preloaded ATRIUM_0 alone — one change, one
-  measurement — so if the A10.2 reading still carries a visible manifest
-  wait, its preload is the next single line in `web/index.html` (`as="fetch"`,
-  crossorigin). Origin: ATRIUM_10, flagged not built. Unblocked by Jean
-  reading a deployed `[Atrium] poster: hung at t=` that is still manifest-bound.
+- THE PIECE NOW TEACHES NOTHING ABOUT ITS OWN CONTROLS. HINT_0 deleted the
+  `#hint` overlay and ATTIC_ATRIUM D1 deleted the controls poster, which was
+  the only remaining teaching in the program: a visitor arrives in an open
+  field with no statement anywhere of what the keys, the mouse or the doors
+  do. This is a KNOWN, ACCEPTED gap for the length of one deploy and no
+  longer. The remedy is named and specified: the LOADING PAGE — three images
+  (controls, portal, current image) off the piece entirely, its own campaign,
+  shipping in the same `dist`. Origin: ATTIC_ATRIUM D1, opened not closed.
+  Unblocked by the loading page landing; until it does, this campaign is
+  preview-only (`npx wrangler pages dev dist`) and the Pages deploy is held.
+- MOOD_ATRIUM STILL EXISTS, AND ONLY BECAUSE A PRESET REMEMBERS ITS ID.
+  ATTIC_ATRIUM deleted the entrance's every mechanism — the hang, the
+  partition, the arc, the arrival orbit, the colours — and stopped at the ROW.
+  R1's gate: `organ_panel.js` exports definitions keyed `"<mood_id>/<param>"`
+  into a file the operator keeps, and import reads it back, so a preset saved
+  before the deletion carries id 6. Dropping MOOD_COUNT to 6 would have those
+  keys land somewhere. `mood_def` now REFUSES an out-of-range id loudly
+  instead of aliasing it to mood 0 (D6a), which is the cure — what is left is
+  a ruling. Boot no longer goes there: `?mood=6` is the only way in, and what
+  it opens is a room with no poster, no arc, no composed camera and the flat
+  room's palette. Origin: ATTIC_ATRIUM D6, halted at its own gate. Unblocked
+  by Jean ruling whether old presets are migrated (rewrite the key on import,
+  or version the blob) or simply re-exported.
 - NO VERSION KEY ON EXHIBITION ASSETS. `dist/_headers` marks only `/` and
   `/index.html` `no-cache`, and neither `exhibition.json` nor any painting,
-  track or atrium image carries a `?v=` — so a returning visitor may hold a
-  stale manifest, and a REPLACED `ATRIUM_0.jpg` may be served from cache on a
-  redeploy. ATRIUM_10's preload does not change this: it reuses the same
-  cache entry the program would have asked for. Jean's cure today is a hard
+  track carries a `?v=` — so a returning visitor may hold a stale manifest,
+  and a REPLACED painting may be served from cache on a redeploy. Jean's
+  cure today is a hard
   reload. The real one is `BUILD_ID_PLACEHOLDER`'s idiom extended to the
   exhibition — the wasm's own hash already names every deploy — which is its
-  own campaign, not a line. Origin: ATRIUM_10, flagged. Unblocked by that
+  own campaign, not a line. Origin: ATRIUM_10, flagged; it outlived the
+  entrance (ATTIC_ATRIUM) because it was never the entrance's. Unblocked by that
   campaign, or by Jean accepting the hard reload as the standing answer.
-- The `[Camera] orbit:` witness (`dump_camera_orbit`, `INSTRUMENTS.camera_witness`)
-  is a CAMPAIGN instrument on the passer census's standing exactly — true in
-  every column including `off`, because a witness Jean's own build column
-  would silence is not a witness. It carries a THIRD GPU->CPU readback behind
-  it (48 bytes a frame, `if constexpr`-gated whole), which is the real cost
-  and the real reason to retire it. Its warrant: retire it once the arrival
-  row is settled. Origin: ATRIUM_11 A11.0. Unblocked by Jean saying the
-  entrance's starting frame is right.
-- THE ARRIVAL ROW CANNOT EXPRESS A PAN, and screenshot 211 has one. The row is
-  distance / elevation / azimuth-offset; `compose_camera_position_from_orbit`
-  also takes `pan_x` / `pan_y`, which translate look-at AND eye together, and
-  `set_arrival_orbit` writes only the orbit's three floats (correctly — the
-  pan is the visitor's). A11.2's solve is what found it: the pawn's feet are
-  the frame centre at EVERY distance and elevation, because `look_at` IS
-  `aim_point` and `aim_point` is the possessed pawn's own position, so 211's
-  feet-below-centre of 0.412 is unreachable by the row. With `pan_y` admitted
-  as a third unknown the three measurements are exactly consistent at
-  distance 8.250, elevation -5.773 deg, `pan_y` 3.714 wu. Origin: ATRIUM_11
-  A11.2, solved and NOT written. Unblocked by Jean dialling the frame he
-  wants and exporting it (the dials are live since A11.1), or by a ruling
-  that the arrival composes a pan too.
-- `arrival.distance` can compose a pose the zoom cannot hold. The organ row's
-  floor is 0 (ATRIUM_9, so a hand can retire a composition), and
-  `set_arrival_orbit` writes the buffer directly, but `CAMERA_MIN_DISTANCE` is
-  5 and is applied only inside `coupling_input_to_camera_distance` — so a
-  composed distance under 5 stands until the visitor's first scroll, which
-  snaps it to 5. Latent before ATRIUM_11 (the dial reached nothing mid-world);
-  live now. Origin: ATRIUM_11, flagged not fixed. Unblocked by Jean ruling the
-  row's floor to 5, or the clamp into `set_arrival_orbit`.
-- The `[PASSER]` census (`dump_passer_census`, `INSTRUMENTS.passer_witness`)
-  is a CAMPAIGN instrument and the one arm true in every column including
-  `off`. Its warrant was "retire it once the passers are seen". It is still on
-  because ATRIUM_8's own gate reads it. Origin: ATRIUM_5 A5.0. Unblocked by
-  Jean reading a deployed `[PASSER]` line and saying the round is seen.
 - The doorway's shell: CLOSED for agents, OPEN for the ribbon. An arch is two
   leg sources half_span apart in the field, and at the social slack (3.0) their
   shells meet across every opening — a barrier with its crest in front of the

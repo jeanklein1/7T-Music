@@ -117,9 +117,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Regime 4 | fog colour spread (±bright) | `MoodProfile.atmos.regime[3].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | clear colour | `MoodProfile.atmos.regime[3].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regime 4 | clear colour spread (±bright) | `MoodProfile.atmos.regime[3].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Camera · arrival | distance | `MoodProfile.arrival.distance` | NONE (255) | F32 | -1 … 60 | 0.5 | boundary | mood |  |
-| Camera · arrival | elevation (deg) | `MoodProfile.arrival.elevation_deg` | NONE (255) | F32 | -89 … 89 | 0.5 | boundary | mood |  |
-| Camera · arrival | azimuth off gaze (deg) | `MoodProfile.arrival.azimuth_offset_deg` | NONE (255) | F32 | -180 … 180 | 1 | boundary | mood |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
@@ -404,28 +401,19 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Debug ·  | mute signal | `CONFIG.mute_signal` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | freeze sphere | `CONFIG.freeze_sphere` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | FPV mode (key-shared) | `CONFIG.fpv_mode` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
-| Atrium ·  | arc radius | `ATRIUM.arc_radius` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
-| Atrium ·  | arc span (deg) | `ATRIUM.arc_span_deg` | ATRIUM | F32 | 60 … 300 | 1 | gen | none |  |
-| Atrium ·  | arc bearing (deg) | `ATRIUM.arc_bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
-| Atrium ·  | arc centre offset | `ATRIUM.arc_center_offset` | ATRIUM | F32 | 0 … 120 | 0.5 | gen | none |  |
-| Atrium ·  | sand 0 bearing (deg) | `ATRIUM.sand[0].bearing_deg` | ATRIUM | F32 | -180 … 180 | 1 | gen | none |  |
-| Atrium ·  | sand 0 distance | `ATRIUM.sand[0].distance` | ATRIUM | F32 | 10 … 120 | 0.5 | gen | none |  |
-| Atrium ·  | sand 0 height | `ATRIUM.sand[0].height` | ATRIUM | F32 | 1 … 40 | 0.5 | gen | none |  |
-| Atrium ·  | wall colour | `ATRIUM.wall_color` | ATRIUM | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Atrium ·  | ceiling colour | `ATRIUM.ceiling_color` | ATRIUM | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **390** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Atrium 9 · Camera 6 · Debug 4 |
-| by cadence | boundary 191 · driven 20 · gen 51 · live 128 |
-| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 77 · PARAM_GEN 51 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 58 · NONE 203 · ORB_MOOD 19 · TIER 32 |
+| entries | **378** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 |
+| by cadence | boundary 188 · driven 20 · gen 42 · live 128 |
+| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 42 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 194 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
-| blocks and sentinels used | AGENT_ROOM, ATRIUM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 375 |
+| blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
+| namespaces | canvas 15 · the_board 363 |
 
 ### Doors
 
@@ -446,6 +434,7 @@ NOT name, and the reader witness over every graduated pair. The tail
 of its run, verbatim:
 
 ```
+
 THE READER WITNESS — every mention of a DESIGN symbol, classified.
 A graduation is complete when the design table's only readers are
 its seed and its asserts. Anything else is a surviving runtime
@@ -453,11 +442,10 @@ reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=11 comment=7             
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
-  ATRIUM_TABLE         definition=1 seed=1 static_assert=1 comment=2 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=36 constexpr=4 comment=31 
+  MOOD_TABLE           definition=1 seed=7 static_assert=32 constexpr=4 comment=29 
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:432  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:433  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
         constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:434  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
@@ -470,7 +458,7 @@ reader — the class of defect this witness exists to catch.
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
   WORLD_DRAW_TABLE     definition=1 seed=1 comment=2              
 
-SURVIVING RUNTIME READERS ACROSS 14 GRADUATED PAIRS: 0
+SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
 
 Blind spot 3: a partly-enrolled nested aggregate reads as named —
 `fog.gain` names `fog`. The ledger carries the per-field truth.
@@ -492,7 +480,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    292   a declared reader names the field
+  proved    280   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
   scope      78   GPU-side or whole-struct (blind spots 2, 3)
