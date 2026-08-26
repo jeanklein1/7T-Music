@@ -213,11 +213,6 @@ enum class CeilingType : uint32_t {
 // every other shape rolls, as it always did.
 inline constexpr uint32_t SCHEME_ROLL  = 0xFFFFFFFFu;
 inline constexpr uint32_t PALETTE_ROLL = 0xFFFFFFFFu;
-// ATRIUM_12 — NOT AN INDEX: the mood authors its own pair, on its own surface.
-// A second sentinel rather than a reserved row, because the entrance's colours
-// are not a row and must not become one — a row in INDOOR_PALETTES would join
-// the roll and repaint an ordinary room with the entrance's charcoal.
-inline constexpr uint32_t PALETTE_ATRIUM = 0xFFFFFFFEu;
 
 // THE SHAPE — what a world IS. Structural by the eligibility rule
 // (stated beside MOOD_LIVE below): no field here may take a definition
@@ -367,7 +362,7 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
 // so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
 // axis — the wall behind, the arc ahead, and the long side is +X +Z.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, SCHEME_QUARTET, PALETTE_ATRIUM };
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, SCHEME_QUARTET, /* warm charcoal */ 7u };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
@@ -538,11 +533,7 @@ static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "W
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_min == MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_max,
     "WorldShape: the atrium's radius is pinned (ATRIUM_1)");
-// ATRIUM_12 — the atrium's palette is PALETTE_ATRIUM now, not row 7: it
-// authors its pair on its own surface. The probe still READS the tail
-// column and still distinguishes the entrance from an ordinary room, which
-// is the whole of its job.
-static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.palette == PALETTE_ATRIUM
+static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.palette == 7u
            && MOOD_TABLE[MOOD_INDOOR_FLAT].shape.palette == PALETTE_ROLL
            && MOOD_TABLE[MOOD_INDOOR_FLAT].shape.light_scheme == SCHEME_ROLL,
     "WorldShape column drift: light_scheme / palette (tail)");

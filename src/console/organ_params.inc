@@ -642,25 +642,3 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, freeze_sphere,    BOOL, 0.0f, 1.0f, 1.0f, "
 ORGAN_PARAM(CONFIG, GPUDesignConfig, fpv_mode,         BOOL, 0.0f, 1.0f, 1.0f, "Debug", "FPV mode (key-shared)")
 
 // ─── Atrium — EDITS THE NEXT ENTRANCE ───────────────────────────
-// ATRIUM_LIVE (contracts/atrium_surface.hpp), DESTRUCTIVE: the arc is read
-// as the doors spawn and the sand as the images hang, both once per world,
-// so no row here is wired to the boundary. Bearings are in the ARRIVAL
-// FRAME — 0 is dead ahead of the pawn at Idle::PAWN_HEADING.
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_radius,          F32,   10.0f,  120.0f, 0.5f, "Atrium", "arc radius")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_span_deg,        F32,   60.0f,  300.0f, 1.0f, "Atrium", "arc span (deg)")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_bearing_deg,     F32, -180.0f,  180.0f, 1.0f, "Atrium", "arc bearing (deg)")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, arc_center_offset,   F32,    0.0f,  120.0f, 0.5f, "Atrium", "arc centre offset")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[0].bearing_deg, F32, -180.0f,  180.0f, 1.0f, "Atrium", "sand 0 bearing (deg)")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[0].distance,    F32,   10.0f,  120.0f, 0.5f, "Atrium", "sand 0 distance")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, sand[0].height,      F32,    1.0f,   40.0f, 0.5f, "Atrium", "sand 0 height")
-// ATRIUM_12 — THE ENTRANCE'S OWN WALL AND ROOF. Every other room draws
-// INDOOR_PALETTES by index; the entrance authors its pair, and these are the
-// dials on it. GEN like every row above them, and for the same reason: the
-// colours are read while the shell is BUILT (generate_indoor_shell writes them
-// into ShellVertex) and re-read only at the next world change, which is what
-// the GEN chip says. RESPEAK does not rebuild the shell — the re-speak runs
-// the regime, the sky and the arrival, not apply_mood_indoor_shell, which is
-// C3 DESTRUCTIVE and would tear down the hang — so these land on a world
-// change: the mood door, a portal, or a reload.
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, wall_color,          VEC3,   0.0f,    1.0f, 0.01f, "Atrium", "wall colour")
-ORGAN_PARAM_GEN(ATRIUM, AtriumSurface, ceiling_color,       VEC3,   0.0f,    1.0f, 0.01f, "Atrium", "ceiling colour")

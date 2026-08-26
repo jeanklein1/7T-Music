@@ -136,18 +136,6 @@ READERS = {
         ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_write_active"),
         ("src/cartridges/the_board/bodies/grounded.hpp", "force_spawn_portal_arch"),
     ]),
-    "ATRIUM": ("ATRIUM_LIVE", "AtriumSurface", [
-        # ATRIUM_2 — the arc's three dials are read as the doors spawn.
-        ("src/cartridges/the_board/direction/mood.hpp", "force_spawn_atrium_arc"),
-        # ATRIUM_3 — the sand spots are read as the images hang. ATRIUM_10
-        # split that hang in two: stage 1 composes the sand quad from the
-        # three dials, stage 2 stamps distance and height into the memory
-        # as what this hang answered.
-        # ATRIUM_12 — the entrance's own wall and ceiling colours are read
-        # where the shell picks its palette: PALETTE_ATRIUM builds a local
-        # IndoorPalette from ATRIUM_LIVE instead of returning a table row.
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_indoor_shell"),
-    ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "place_ribbon_from_selection"),

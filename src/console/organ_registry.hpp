@@ -21,7 +21,6 @@
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // RIBBON_LIVE (block 7)
 #include "cartridges/the_board/contracts/indoor_module.hpp"   // INDOOR_LIVE (block 8, destructive)
 #include "cartridges/the_board/contracts/mood_constants.hpp"  // WORLD_DRAW_LIVE (block 10, destructive)
-#include "cartridges/the_board/contracts/atrium_surface.hpp"  // ATRIUM_LIVE (block 12, destructive)
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
 
@@ -89,10 +88,9 @@ enum : uint8_t {
     // The stricter temperament governs.
     ORGAN_BLOCK_WORLD        = 10,  // WorldDrawSurface   — WORLD_DRAW_LIVE
     ORGAN_BLOCK_RIBBON_SPAWN = 11,  // RibbonSpawnSurface — RIBBON_SPAWN_LIVE
-    ORGAN_BLOCK_ATRIUM       = 12,  // AtriumSurface      — ATRIUM_LIVE; DESTRUCTIVE
                                     // (ATRIUM_2 — the arc and the sand, read as
                                     //  the entrance is drawn and not re-read)
-    ORGAN_BLOCK_COUNT        = 13,
+    ORGAN_BLOCK_COUNT        = 12,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -321,7 +319,6 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_CANVAS:     return &canvas::CANVAS_LIVE;
     case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_DRAW_LIVE;
     case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
-    case ORGAN_BLOCK_ATRIUM:     return &the_board::ATRIUM_LIVE;
     default:                     return nullptr;
     }
 }
@@ -821,14 +818,6 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     // write succeed, keyed on the block, and never in the shell.
     if (block == ORGAN_BLOCK_ORBS)
         g_orb_console_dirty |= (1u << (e->offset / 4u));
-    // ATRIUM_13 — THE ENTRANCE'S GEN BANK, the same hook and the same rule.
-    // ATRIUM is an INSTANCE block (ORGAN_PARAM_GEN writes ATRIUM_LIVE through
-    // block_base), so the bit is e->offset / 4 and NOT def_offset: there is no
-    // definition behind these rows. organ_mark_dirty(12) already fired above
-    // and GPUState's flush has no arm for block 12 — this is what the frame
-    // boundary reads instead.
-    if (block == ORGAN_BLOCK_ATRIUM)
-        t7::the_board::g_atrium_touched |= (1u << (e->offset / 4u));
 }
 
 // BY INDEX, LIKE ITS SIBLINGS. The manifest index IS the index in

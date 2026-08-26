@@ -141,16 +141,10 @@ inline constexpr IndoorPalette INDOOR_PALETTES[] = {
 };
 inline constexpr uint32_t INDOOR_PALETTE_COUNT =
     sizeof(INDOOR_PALETTES) / sizeof(INDOOR_PALETTES[0]);
-// ATRIUM_12 — ATRIUM_5's STRING WITNESS IS RETIRED HERE, with the pin it
-// proved. It read INDOOR_PALETTES[MOOD_TABLE[MOOD_ATRIUM].shape.palette].name
-// and asserted "warm charcoal", which was the right guard while the entrance
-// pointed at row 7: an index only gets to be an index if something checks what
-// it points at. The entrance points at no row now — SHAPE_ATRIUM.palette is
-// PALETTE_ATRIUM and the colours are ATRIUM_LIVE's own — so the assert would
-// have indexed the table with 0xFFFFFFFE. A witness on a row nobody points at
-// is a witness of nothing; the rests in atrium_surface.hpp carry the colour
-// now, and the table above is free to grow or reorder without touching the
-// entrance. Row 7 stays in the roll for ordinary rooms, unchanged.
+// ATRIUM_5's string witness asserted that the atrium's pinned index named
+// "warm charcoal", and ATRIUM_12 retired it when the entrance stopped
+// pointing at a row. Both are gone with the mood. Row 7 stays in the roll
+// for ordinary rooms, and INDOOR_PALETTES is untouched.
 
 // ═══ INDOOR ENTITY PLACEMENT → THE INDOOR MODULE ═════════════════
 //
@@ -928,37 +922,15 @@ inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
 inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang) {
     if (m.shape.indoor && m.shape.ceiling_type != CeilingType::NONE) {
-        // THREE ARMS, ONE SITE: the entrance's own pair, a pinned index, or
-        // the seed's draw.
-        //
         // ATRIUM_5 — THE SHAPE MAY SAY WHICH. PALETTE_ROLL is "let the seed
-        // draw", which is every room but the entrance; a pinned index is
-        // clamped rather than trusted, so a table that shrinks cannot read
-        // past its end.
-        //
-        // ATRIUM_12 — AND THE ENTRANCE SAYS WHAT, not which. A LOCAL palette
-        // is built rather than a table row returned, because the atrium's
-        // colours are not a row and must not become one: a row in
-        // INDOOR_PALETTES would join the seed's draw and repaint an ordinary
-        // room with the entrance's charcoal. ATRIUM_LIVE is the live bank, so
-        // the dials land here and the design row is what boot ships.
-        IndoorPalette pal{};
-        if (m.shape.palette == PALETTE_ATRIUM) {
-            const auto& A = ATRIUM_LIVE;
-            pal.name = "atrium (authored)";
-            for (int i = 0; i < 3; i++) {
-                pal.wall_color[i]    = A.wall_color[i];
-                pal.ceiling_color[i] = A.ceiling_color[i];
-            }
-            std::cout << "[Mood] Indoor palette: " << pal.name << "\n";
-        } else {
-            const uint32_t pal_idx = (m.shape.palette != PALETTE_ROLL)
-                ? std::min(m.shape.palette, INDOOR_PALETTE_COUNT - 1u)
-                : cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
-            pal = INDOOR_PALETTES[pal_idx];
-            std::cout << "[Mood] Indoor palette: " << pal.name
-                      << " (idx=" << pal_idx << ")\n";
-        }
+        // draw", which is every room; a pinned index is clamped rather than
+        // trusted, so a table that shrinks cannot read past its end.
+        const uint32_t pal_idx = (m.shape.palette != PALETTE_ROLL)
+            ? std::min(m.shape.palette, INDOOR_PALETTE_COUNT - 1u)
+            : cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
+        const IndoorPalette& pal = INDOOR_PALETTES[pal_idx];
+        std::cout << "[Mood] Indoor palette: " << pal.name
+                  << " (idx=" << pal_idx << ")\n";
         generate_indoor_shell(c, queue, m, pal, gallery_state, gallery_deps, rehang);
     } else {
         clear_indoor_shell(c, queue, gallery_state, gallery_deps);
