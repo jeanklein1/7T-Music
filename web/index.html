@@ -129,35 +129,50 @@
        before: it is what a visitor sees if an image never arrives, and
        what a <video> will sit against later. The img/video rule below
        already takes both. */
-    /* ── ENTRANCE_0 E3 — THE BOX ADAPTS TO WHAT IT IS FED ──────────
+    /* ── ENTRANCE_0 E3/E5 — THE BOX ADAPTS TO WHAT IT IS FED ───────
        The pinned 2:3 was authored when the poster was a PAINTING, which
        survives any crop. It is a DIAGRAM now, and `cover` on a 1.329
-       source in a 0.658 box keeps 0.658/1.329 of the width and throws
+       source in a 0.658 box kept 0.658/1.329 of the width and threw
        away the outer halves — which is where the labels are. AURA
        arrived as "RA", DIRECTION as "ON", ROTATION as "R", SWAP was
        gone entirely. Only ZOOM and the arch survived, being the one
-       part that needed no explaining.
+       part that needed no explaining. E3 freed the CROP: object-fit
+       went to `contain` and the aspect became a literal height.
 
-       THE ENVELOPE IS PRESERVED EXACTLY, and the height is now said in
-       its own terms instead of being derived. There was never a
-       max-height here: 34vh capped the WIDTH and the ratio turned it
-       into 51vh of height, which the notes below already say twice.
-       So height = 1.5 x width, written out: 340 -> 510, 74vw -> 111vw,
-       34vh -> 51vh. Not one dimension moves today. What moves is which
-       dimension CAN bind, and the height now has an honest home for the
-       day the reading on the Pixel says it should move.
+       E5 FREES THE BOX. `contain` showed the whole diagram inside a
+       still-2:3 container, so on the Pixel the image landed 490x370
+       inside 492x735 and 365px — HALF THE CONTAINER — was dead. It was
+       not invisible dead space either: the margins sampled rgb(35,33,54)
+       against a page of rgb(10,10,12), because the gradient below is
+       the container's OWN paint. A single alpha of 0.683 of #2a2740
+       over #141420 reproduces all three measured channels, and the warm
+       cast at the bottom is the second radial. So the container hugs,
+       and the paint hugs with it.
 
-       IT IS A `height`, NOT A `max-height`, and that is the reservation.
-       aspect-ratio gave the box definite dimensions before the image
-       decoded, so nothing below it ever moved; a max-height on a
-       contained image would collapse to zero until decode and push the
-       whole column. The box is reserved at its maximum whether or not
-       an image ever arrives — dark margins are invisible against the
-       page background, and a text stack that jumps on the boot's
-       critical path is not. */
+       THE CAPS DO NOT MOVE — they only change which element carries
+       them. min(340px, 74vw, 34vh) still bounds the width and
+       min(510px, 111vw, 51vh) still bounds the height, exactly the
+       envelope E3 wrote out. They sit on the IMAGE now, with width and
+       height both auto, which is the one construction that hugs on BOTH
+       axes: a cap on the container can only clip (overflow) or letterbox
+       (contain), and either one is the dead space this round removes.
+       The container keeps no dimension of its own and takes the image's.
+
+       NOTHING IS RESERVED ANY MORE, and that is the trade E5 accepts.
+       aspect-ratio, and then E3's literal height, gave the box definite
+       dimensions before the image decoded. A hugged box has none until
+       the image does, so the column below can settle on decode. The
+       measurement is Jean's, on a throttled reload; if it is visible the
+       cure is web_dist.py substituting each poster's real aspect during
+       the bake, not a number remembered beside it.
+
+       THE GRADIENT is now paint the visitor sees only where the image
+       is absent — a hugged box behind an opaque image shows none of it.
+       That is the arithmetic of the ruling, not a side effect: if an
+       image never arrives the box has nothing to take its size from and
+       carries the alt text alone. */
     .poster {
-      width:  min(340px, 74vw, 34vh);
-      height: min(510px, 111vw, 51vh);   /* was aspect-ratio: 2/3 — the same envelope */
+      /* no width, no height, no ratio — it is the image's frame now */
       border-radius: 3px; overflow: hidden; flex: none;
       background:
         radial-gradient(120% 100% at 30% 15%, #2a2740 0%, transparent 60%),
@@ -165,12 +180,27 @@
         linear-gradient(160deg, #141420 0%, #0d0d12 100%);
       box-shadow: 0 1px 0 rgba(255,255,255,.05) inset;
     }
-    /* CONTAIN, NOT COVER (ENTRANCE_0 E3). The element still fills the
-       reserved box; object-fit letterboxes the CONTENT inside it and
-       centres it by default. Aspect-agnostic in both directions — a
-       portrait source fits the same way a landscape one does, which is
-       the difference between freeing the aspect and re-pinning it. */
-    .poster img, .poster video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    /* THE CAPS LIVE HERE (ENTRANCE_0 E5). Width and height are both
+       auto, so a replaced element scales down under two max-* terms
+       until it fits inside both, preserving its own ratio: 1616x1216
+       lands 305x229 under a 305 width cap, and 752x1280 lands 268x457
+       under a 457 height cap. Neither is distorted and neither is
+       letterboxed, so there is nothing for the container to pad.
+       CONTAIN STAYS, and is a no-op today by construction — the box is
+       the image's size, so there is no box to contain against. It is
+       the guard for the day a cap binds on both axes at once, and for
+       the <video> this selector already names, whose intrinsic size is
+       its own business. One word, and it holds the campaign's ruling.
+       ONE DIFFERENCE FROM `width: 100%`: max-width does not upscale. A
+       poster baked NARROWER than the cap would sit at its own size
+       instead of stretching. POSTER_WIDTH is 640 and the cap is at most
+       340, so nothing today is near it. */
+    .poster img, .poster video {
+      display: block;
+      max-width:  min(340px, 74vw, 34vh);
+      max-height: min(510px, 111vw, 51vh);
+      object-fit: contain;
+    }
 
     .wordmark { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--faint); }
     .say      { max-width: 30rem; font-size: 17px; line-height: 1.55; color: var(--ink); margin: 0; }
@@ -256,9 +286,13 @@
        (The frame was never the problem — the canvas fills both
        orientations by construction, PORT_3c + --app-h.) */
     @media (max-height: 600px) {
-      /* ENTRANCE_0 E3 — the height carries the same 3/2 the width lost:
-         28vh of width was 42vh of height, and still is. */
-      .poster { width: min(340px, 74vw, 28vh); height: min(510px, 111vw, 42vh); }
+      /* ENTRANCE_0 E3/E5 — the height carries the same 3/2 the width
+         lost: 28vh of width was 42vh of height, and still is. Both caps
+         moved onto the image with the rule above; the numbers did not. */
+      .poster img, .poster video {
+        max-width:  min(340px, 74vw, 28vh);
+        max-height: min(510px, 111vw, 42vh);
+      }
       .layer  { gap: 14px; padding: 16px 24px; }
     }
   </style>
