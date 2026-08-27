@@ -84,12 +84,35 @@ constexpr const char* RENDER_NAME = STRINGIFY(INCUBATE_RENDER);
 // Member order IS the old construction order; init calls stay in
 // main(), verbatim and in sequence.
 
+// ═══ THE READY OFFER'S FLOOR (OVERTURE_0) ════════════════════════════════
+//
+// "Controls:" is the line the shell dismisses the veil on — it either
+// presents the world or offers the door, depending on whether the visitor
+// has already tapped. The world is LIVE behind that veil, so the line is not
+// "the world is ready", it is "you may look now".
+//
+// It used to print the instant the frame loop went live, which is before any
+// painting can have landed: the eager tapper watched the boot ring dress in
+// front of them. The offer now waits for a floor of paintings, or for a
+// timeout, whichever comes first.
+//
+// THE TRADE, NAMED: the eager tapper waits at most OVERTURE_READY_TIMEOUT_S
+// behind a veil that is already saying "Hanging the paintings (n/57)", and
+// nobody sees the ring dress in front of them. A manifest that never lands is
+// the timeout's case and needs no third arm.
+inline constexpr uint32_t OVERTURE_READY_FLOOR     = 6;     // two galleries of three
+inline constexpr float    OVERTURE_READY_TIMEOUT_S = 5.0f;  // a slow phone is not held hostage
+
 struct App {
     t7::Console console;
     t7::BeatClock clock;
     RenderCartridge render;
     wgpu::Queue queue;
     bool world_ready = false;   // PORT_1c: init_world() ran (post-device init)
+    // U9's two: when the frame loop went live, and whether the offer is spent.
+    // One-shot by construction — once printed, the test is never evaluated again.
+    std::chrono::steady_clock::time_point world_live{};
+    bool controls_offered = false;
 };
 
 static App* app = nullptr;
@@ -123,11 +146,31 @@ static bool init_world() {
     // leaves its coupling disabled — the graceful path in signal_layout.hpp.
     app->render.bind_signal_layout(app->clock.stat_layout());
 
-    std::cout << "Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit\n\n";
-
+    // THE OFFER IS NOT MADE HERE ANY MORE (OVERTURE_0). This is the instant
+    // the frame loop goes live, which is the instant the wait is measured
+    // from — see offer_controls_when_ready(), called from frame().
     app->queue = app->console.queue();
+    app->world_live = std::chrono::steady_clock::now();
     app->world_ready = true;
     return true;
+}
+
+// ── the offer, once the exhibition has a floor under it ────────────
+//
+// Called every frame until it fires. The line's TEXT is load-bearing at both
+// ends: web/index.html dismisses the veil on a line beginning "Controls:",
+// so the string and its position stay exactly as they were.
+static void offer_controls_when_ready() {
+    if (app->controls_offered) return;
+    const float waited = std::chrono::duration<float>(
+        std::chrono::steady_clock::now() - app->world_live).count();
+    // ORGANS ARE PUBLIC (the composition root's law): the gallery's own tally
+    // is readable here without a face cut for it.
+    const bool floor_met =
+        app->render.gallery_state_.authored_staged_count >= OVERTURE_READY_FLOOR;
+    if (!floor_met && waited < OVERTURE_READY_TIMEOUT_S) return;
+    app->controls_offered = true;
+    std::cout << "Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit\n\n";
 }
 
 // =========================================================================
@@ -159,6 +202,10 @@ static void frame() {
             return;
         }
     }
+
+    // THE READY OFFER (OVERTURE_0) — the veil lifts on a world that has its
+    // first paintings up, not on a world that has merely started.
+    offer_controls_when_ready();
 
     // ═══ THE FRAME METER — S rows (OIL_1a; ledger: S0 host tail, C10) ══
     // TIMER LAW: these rows name where a wait SURFACES, not where the
