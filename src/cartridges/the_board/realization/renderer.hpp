@@ -706,7 +706,10 @@ namespace t7 {
             // the FAMILY_DISPATCH pyramid mesh hook now routes to the none-fork.
 
             // GPU arch mesh gen — generates all 16 slots × 4 sub-meshes.
-            // gid.x = slot (0..15), gid.y = sub-mesh (outer shell, inner shell, front cap, back cap).
+            // The shape is unchanged by LATTICE_2; what it counts is not.
+            // workgroup_id.x = slot (0..15), workgroup_id.y = sub-mesh
+            // (outer shell, inner shell, front cap, back cap), and
+            // MESHGEN_LANES lanes inside each.
             void dispatch_arch_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
@@ -719,7 +722,8 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_ARCH_INSTANCES, 4, 1);
             }
 
-            // GPU column mesh gen — generates all 32 slots in one dispatch.
+            // GPU column mesh gen — all 32 slots in one dispatch, one
+            // workgroup each (LATTICE_2).
             void dispatch_column_mesh_gen(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,

@@ -12321,13 +12321,17 @@ const MESHGEN_LANES: u32 = 64u;
 // Indexed vertices with shared edges (grid topology). The catenary
 // parameter 'a' is precomputed on CPU and passed in params.
 //
-// Dispatch: (16, 4, 1) — 4 invocations per arch slot.
-//   gid.x = slot index (0..15)
-//   gid.y = sub-mesh (0=outer shell, 1=inner shell, 2=front cap, 3=back cap)
+// Dispatch: (16, 4, 1) — 4 WORKGROUPS per arch slot (LATTICE_2; it was
+// 4 threads).
+//   workgroup_id.x = slot index (0..15)
+//   workgroup_id.y = sub-mesh (0=outer shell, 1=inner shell, 2=front cap,
+//                              3=back cap)
+//   local_invocation_id.x = the lane, MESHGEN_LANES of them
 //
 // Each sub-mesh writes to a deterministic offset within the slot's VB/IB
-// region, computed from segs_u and segs_v. This distributes the buffer
-// writes across 4 threads, avoiding per-thread execution limits.
+// region, computed from segs_u and segs_v. That partition is what let the
+// four sub-meshes run as four threads in the first place; the stride law
+// now partitions each sub-mesh again, across its lanes.
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -12591,8 +12595,8 @@ fn amg_gen_cap(
 
 // ── Compute entry point ───────────────────────────────────────────────
 //
-// Dispatch: (16, 4, 1)
-//   gid.x = slot, gid.y = sub-mesh
+// Dispatch: (16, 4, 1) — one workgroup per (slot, sub-mesh)
+//   workgroup_id.x = slot, workgroup_id.y = sub-mesh, local_invocation_id.x = lane
 //
 // Sub-mesh VB/IB offsets within a slot (deterministic from segs_u, segs_v):
 //   shell_verts  = (su+1)*(sv+1)
@@ -12700,7 +12704,8 @@ fn arch_mesh_gen(
 // Profile polyline: base layers → shaft (taper + entasis) → capital layers.
 // Revolution around Y axis. Horizontal discs at radius transitions.
 //
-// Dispatch: (32, 1, 1) — one invocation per column slot.
+// Dispatch: (32, 1, 1) — one WORKGROUP per column slot, MESHGEN_LANES
+// lanes inside it (LATTICE_2; it was one invocation).
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -14093,9 +14098,16 @@ fn blade_hash(seed: u32, prop: u32) -> f32 {
     return f32(h) / 4294967295.0;
 }
 
-@compute @workgroup_size(1)
-fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let slot = gid.x;
+@compute @workgroup_size(MESHGEN_LANES)
+fn blade_cluster_mesh_gen(
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>
+) {
+    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
+    // The simplest of the five: ONE emission section, and every blade is
+    // the same size, so a lane owns a blade and the base is a product.
+    let slot = wid.x;
+    let lane = lid.x;
     if (slot >= BLADEG_MAX_SLOTS) { return; }
 
     let p = bladeg_params[slot];
@@ -14103,14 +14115,11 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let ib_base = slot * BLADEG_MAX_INDICES_PER_SLOT;
 
     if (p.is_active == 0u) {
-        for (var i = 0u; i < BLADEG_MAX_INDICES_PER_SLOT; i++) {
+        for (var i = lane; i < BLADEG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
             bladeg_indices[ib_base + i] = vb_base;  // NOT 0u!
         }
         return;
     }
-
-    var vi = 0u;
-    var ii = 0u;
 
     let cx = p.center_x;
     let cz = p.center_z;
@@ -14139,7 +14148,13 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let n_blades = min(u32(max(2.0, p.blade_count)), blade_ceiling);
     let GA = PI * (3.0 - sqrt(5.0));
 
-    for (var b = 0u; b < n_blades; b++) {
+    // A LANE OWNS A BLADE: the body is verbatim, both inner loops and the
+    // per-blade cursor included. `verts_per_blade` / `indices_per_blade`
+    // were already named above for the ceiling; they are the stride too.
+    for (var b = lane; b < n_blades; b += MESHGEN_LANES) {
+        var vi = b * verts_per_blade;
+        var ii = b * indices_per_blade;
+
         let azimuth = f32(b) * GA;
         let ca = cos(azimuth);
         let sa = sin(azimuth);
@@ -14260,8 +14275,10 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
     }
 
-    // Fill remaining indices with vb_base (NOT 0u!)
-    for (var i = ii; i < BLADEG_MAX_INDICES_PER_SLOT; i++) {
+    // Fill remaining indices with vb_base (NOT 0u!).
+    // `used` was the final ii, which no lane holds any more.
+    let used = n_blades * indices_per_blade;
+    for (var i = used + lane; i < BLADEG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
         bladeg_indices[ib_base + i] = vb_base;
     }
 }
