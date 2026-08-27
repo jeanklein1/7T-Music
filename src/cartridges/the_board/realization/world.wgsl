@@ -13694,9 +13694,17 @@ fn cactus_hash(seed: u32, prop: u32) -> f32 {
     return f32(h) / 4294967295.0;
 }
 
-@compute @workgroup_size(1, 1, 1)
-fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let slot = gid.x;
+@compute @workgroup_size(MESHGEN_LANES)
+fn cactus_mesh_gen(
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>
+) {
+    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
+    // R3 LIVES HERE: the arm path accumulates (apx/apy/apz) down its
+    // length, so the ARM loop is the strided one and a lane walks its whole
+    // arm serially, exactly as the single thread did.
+    let slot = wid.x;
+    let lane = lid.x;
     if (slot >= CACTUSG_MAX_SLOTS) { return; }
 
     let p = cactusg_params[slot];
@@ -13704,14 +13712,11 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let ib_base = slot * CACTUSG_MAX_INDICES_PER_SLOT;
 
     if (p.is_active == 0u) {
-        for (var i = 0u; i < CACTUSG_MAX_INDICES_PER_SLOT; i++) {
+        for (var i = lane; i < CACTUSG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
             cactusg_indices[ib_base + i] = vb_base;
         }
         return;
     }
-
-    var vi = 0u;
-    var ii = 0u;
 
     let cx = p.center_x;
     let cz = p.center_z;
@@ -13722,9 +13727,17 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let around = min(max(ribs * 2u, 12u), 20u);
     let trunk_steps = min(u32(p.trunk_segs), 20u);
 
-    // ── TRUNK: ribbed surface of revolution ──
+    // THE SECTION BASES (LATTICE_2). Pure in (trunk_steps, around), both
+    // uniform per workgroup. `top_ring_vi` was already named below for the
+    // cap fan; it moves here so the trunk's totals derive from it.
+    let top_ring_vi = trunk_steps * around;        // first vertex of the trunk's last ring
+    let cap_tip_vi  = top_ring_vi + around;        // the single tip vertex
+    let cap_fan_ii  = trunk_steps * around * 6u;   // ii at the cap fan
 
-    for (var ring = 0u; ring <= trunk_steps; ring++) {
+    // ── TRUNK: ribbed surface of revolution ──
+    // vi was ring * around + seg.
+
+    for (var ring = lane; ring <= trunk_steps; ring += MESHGEN_LANES) {
         let t = f32(ring) / f32(trunk_steps);
         let r_base = p.radius * (1.0 + (p.taper - 1.0) * t);
 
@@ -13752,32 +13765,31 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             let cg = (p.body_g + (p.rib_g - p.body_g) * rib_frac * 0.6) * shade;
             let cb = (p.body_b + (p.rib_b - p.body_b) * rib_frac * 0.6) * shade;
 
-            cactusg_write_vertex(vb_base + vi,
+            cactusg_write_vertex(vb_base + ring * around + seg,
                 cx + lx + ca * r, y, cz + lz + sa * r,
                 ca, 0.0, sa, cr, cg, cb, slot);
-            vi++;
         }
     }
 
-    // Trunk indices
-    for (var ring = 0u; ring < trunk_steps; ring++) {
+    // Trunk indices — ii was (ring * around + seg) * 6u + j.
+    for (var ring = lane; ring < trunk_steps; ring += MESHGEN_LANES) {
         for (var seg = 0u; seg < around; seg++) {
             let next_seg = (seg + 1u) % around;
             let row0 = ring * around;
             let row1 = (ring + 1u) * around;
 
-            cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + row1 + seg; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
-            cactusg_indices[ib_base + ii] = vb_base + row0 + next_seg; ii++;
+            let ii = ib_base + (ring * around + seg) * 6u;
+            cactusg_indices[ii + 0u] = vb_base + row0 + seg;
+            cactusg_indices[ii + 1u] = vb_base + row1 + seg;
+            cactusg_indices[ii + 2u] = vb_base + row1 + next_seg;
+            cactusg_indices[ii + 3u] = vb_base + row0 + seg;
+            cactusg_indices[ii + 4u] = vb_base + row1 + next_seg;
+            cactusg_indices[ii + 5u] = vb_base + row0 + next_seg;
         }
     }
 
     // ── TRUNK CAP (stitched to top ring) ──
 
-    let top_ring_vi = trunk_steps * around;  // first vertex of trunk's last ring
     let top_lean = p.lean * p.height;
     let cap_cx = cx + top_lean * lean_cos;
     let cap_cz = cz + top_lean * lean_sin;
@@ -13787,20 +13799,21 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let cap_col_g = p.body_g * 0.6 + p.rib_g * 0.4;
     let cap_col_b = p.body_b * 0.6 + p.rib_b * 0.4;
 
-    // Single tip vertex above center
-    let cap_tip_vi = vi;
-    cactusg_write_vertex(vb_base + vi,
-        cap_cx, cap_y + cap_r * 0.6, cap_cz,
-        0.0, 1.0, 0.0,
-        cap_col_r, cap_col_g, cap_col_b, slot);
-    vi++;
+    // Single tip vertex above center — ONE VERTEX, so lane 0 writes it.
+    if (lane == 0u) {
+        cactusg_write_vertex(vb_base + cap_tip_vi,
+            cap_cx, cap_y + cap_r * 0.6, cap_cz,
+            0.0, 1.0, 0.0,
+            cap_col_r, cap_col_g, cap_col_b, slot);
+    }
 
     // Fan from tip to trunk's existing top ring — no separate cap ring
-    for (var seg = 0u; seg < around; seg++) {
+    for (var seg = lane; seg < around; seg += MESHGEN_LANES) {
         let next = (seg + 1u) % around;
-        cactusg_indices[ib_base + ii] = vb_base + cap_tip_vi; ii++;
-        cactusg_indices[ib_base + ii] = vb_base + top_ring_vi + seg; ii++;
-        cactusg_indices[ib_base + ii] = vb_base + top_ring_vi + next; ii++;
+        let ii = ib_base + cap_fan_ii + seg * 3u;
+        cactusg_indices[ii + 0u] = vb_base + cap_tip_vi;
+        cactusg_indices[ii + 1u] = vb_base + top_ring_vi + seg;
+        cactusg_indices[ii + 2u] = vb_base + top_ring_vi + next;
     }
 
     // ── ARMS: ribbed columns along upward-curving paths ──
@@ -13825,8 +13838,8 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // body rings are inclusive too, plus the single cap tip.
     // n_arms moves BELOW arm_segs_u and arm_around because the ceiling
     // depends on both. No floor to preserve — zero arms is a valid Finger.
-    let trunk_verts   = (trunk_steps + 1u) * around + 1u;
-    let trunk_indices = trunk_steps * around * 6u + around * 3u;
+    let trunk_verts   = cap_tip_vi + 1u;              // (trunk_steps+1)*around + the tip
+    let trunk_indices = cap_fan_ii + around * 3u;     // the trunk quads + the cap fan
     let verts_per_arm   = (arm_segs_u + 1u) * arm_around + 1u;
     let indices_per_arm = arm_segs_u * arm_around * 6u + arm_around * 3u;
     let arm_verts_left   = CACTUSG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   CACTUSG_MAX_VERTS_PER_SLOT);
@@ -13836,7 +13849,15 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let n_arms = min(u32(max(0.0, p.arm_count)), arm_ceiling);
 
-    for (var a = 0u; a < n_arms; a++) {
+    // A LANE OWNS A WHOLE ARM (R3). The body below is verbatim — the
+    // apx/apy/apz path walk accumulates down the arm, and it accumulates
+    // inside one lane exactly as it did inside the one thread. Every arm
+    // is the same size (arm_segs_u and arm_around are per-slot), so the
+    // base is a product, not a prefix.
+    for (var a = lane; a < n_arms; a += MESHGEN_LANES) {
+        var vi = trunk_verts + a * verts_per_arm;
+        var ii = trunk_indices + a * indices_per_arm;
+
         let arm_az = f32(a) * golden_angle + cactus_hash(p.seed, 1050u + a) * 0.5;
         let fork_frac = p.arm_height + (cactus_hash(p.seed, 1060u + a) - 0.5) * 0.15;
         let fork_y = p.height * fork_frac;
@@ -13981,8 +14002,9 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
     }
 
-    // Zero remaining indices
-    for (var i = ii; i < CACTUSG_MAX_INDICES_PER_SLOT; i++) {
+    // Zero remaining indices — `used` was the final ii, which no lane holds.
+    let used = trunk_indices + n_arms * indices_per_arm;
+    for (var i = used + lane; i < CACTUSG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
         cactusg_indices[ib_base + i] = vb_base;
     }
 }
