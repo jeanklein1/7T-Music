@@ -11,4 +11,4 @@ inline constexpr uint32_t FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE            
 inline constexpr uint32_t FLOOR_MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE            = 12;  // core-default — the wallet fits the default; worst row per MANIFEST's lane table
 inline constexpr uint32_t FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE                 = 65536;  // core-default — every uniform window sits well under 64 KiB
 inline constexpr uint32_t FLOOR_MAX_BIND_GROUPS                                 = 4;  // core-default — the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design
-inline constexpr uint32_t FLOOR_MAX_DYNAMIC_UNIFORM_BUFFERS_PER_PIPELINE_LAYOUT = 1;  // core-default — two dynamic seats, one per layout (shadow_slot on frame R, patch_params on patchgen) — 1 of 8
+inline constexpr uint32_t FLOOR_MAX_DYNAMIC_UNIFORM_BUFFERS_PER_PIPELINE_LAYOUT = 1;  // core-default — one dynamic seat (shadow_slot on frame R) — 1 of 8

@@ -575,24 +575,20 @@
 
                 // Patchgen State Layout — stratum 2 (Patchgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
-                    entries[0].binding = bind::g2::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
+                    entries[0].binding = bind::g2::pyramid_instances;  // pyramid_instances
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g2::pyramid_instances;  // pyramid_instances
+                    // The frame's batch, 16 bytes a patch, contiguous — read as an ARRAY and
+                    // indexed by workgroup_id.z, so one dispatch bakes every patch in it
+                    // (LATTICE_1). The dynamic seat and its 256-byte ring retired with the
+                    // per-patch pass pair.
+                    entries[1].binding = bind::g2::patch_params_batch;  // patch_params_batch (read-only storage — the frame's batch)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    // This patch's 32 bytes, at record i of a MAX_ACTIVE_PATCHES ring with a
-                    // 256-byte stride; the dynamic offset selects the record. Written per batch
-                    // before the passes are recorded, from a per-frame cursor in stream_patches.
-                    entries[2].binding = bind::g2::patch_params;  // patch_params (uniform, dynamic — the patch being generated)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-                    entries[2].buffer.hasDynamicOffset = true;
-                    entries[2].buffer.minBindingSize = sizeof(GPUPatchParams);
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[1].buffer.minBindingSize = sizeof(GPUPatchParams);
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Patchgen State Layout";
@@ -1633,19 +1629,15 @@
 
                 // Projected from: patchGenBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
 
-                    entries[0].binding = bind::g2::patch_height_scratch;
-                    entries[0].buffer = patchHeightScratchBuffer_;
-                    entries[0].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
+                    entries[0].binding = bind::g2::pyramid_instances;
+                    entries[0].buffer = pyramidInstancesBuffer_;
+                    entries[0].size = sizeof(GPUPyramidArray);
 
-                    entries[1].binding = bind::g2::pyramid_instances;
-                    entries[1].buffer = pyramidInstancesBuffer_;
-                    entries[1].size = sizeof(GPUPyramidArray);
-
-                    entries[2].binding = bind::g2::patch_params;
-                    entries[2].buffer = patchParamsBuffer_;
-                    entries[2].size = sizeof(GPUPatchParams);
+                    entries[1].binding = bind::g2::patch_params_batch;
+                    entries[1].buffer = patchParamsBuffer_;
+                    entries[1].size = Dim::MAX_ACTIVE_PATCHES * sizeof(GPUPatchParams);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Patchgen State BindGroup";

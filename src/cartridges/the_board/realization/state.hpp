@@ -1916,14 +1916,18 @@ namespace t7 {
             float color[3];
         };
 
+        // LATTICE_1 — what the bake reads, and nothing else. `extent` was
+        // always Dim::PATCH_EXTENT (make_patch_params wrote the constant);
+        // `resolution` is now Dim::PATCH_HEIGHTFIELD_N; `time` had no reader in
+        // either kernel; `master_seed` folded into config.world_seed, which is
+        // the same fact written with active_seed at world birth — and the
+        // HEIGHTS already baked from the config copy while only the cells read
+        // the struct, so the fold also retires a one-frame disagreement.
+        // 32 B -> 16 B, and the twin is world.wgsl's PatchParams.
         struct alignas(16) GPUPatchParams {
-            float origin[2];           // world-space XZ of patch origin
-            float extent;              // patch side length in world units
-            uint32_t resolution;       // texels per side (e.g. 256)
-            uint32_t master_seed;      // master seed for terrain generation
-            float time;                // for animated waves (0 for static generation)
-            uint32_t layer;            // which layer of the heightfield array to write
-            float _pad1;
+            float origin[2];           // world XZ of the patch CENTER
+            uint32_t layer;            // heightfield / cell-color array layer
+            uint32_t _pad0;
         };
 
         struct GPUPatchInstance {
@@ -2146,7 +2150,7 @@ namespace t7 {
         // SHARED format for six families (arch/column/palm/cactus/blade/pyramid mesh-gen).
         static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
         static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
-        static_assert(sizeof(GPUPatchParams) == 32, "GPUPatchParams must be 32 bytes");
+        static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
         static_assert(sizeof(GPUPatchInstance) == 16, "GPUPatchInstance must be 16 bytes");
         static_assert(sizeof(GPUPatchGrid) == 16 + Dim::MAX_ACTIVE_PATCHES * 4,
             "GPUPatchGrid must be 16 bytes header + 4 bytes/entry");
@@ -2341,9 +2345,9 @@ namespace t7 {
             uint32_t meterPairCount_ = 0;
             uint32_t meterNextIndex_ = 0;
 
-            // The patch being generated, on a dynamic-offset uniform seat:
-            // one record per patch at Dim::UNIFORM_DYNAMIC_STRIDE, written
-            // per batch and selected by the offset at each dispatch.
+            // The frame's whole batch, contiguous, 16 B a patch, on a
+            // read-only STORAGE seat: written once per frame and indexed by
+            // workgroup_id.z inside the one fused dispatch (LATTICE_1).
             wgpu::Buffer patchParamsBuffer_;
             wgpu::Buffer patchInstancesBuffer_;
             // OIL_1 U10: shadow of the last-uploaded instance packing +
@@ -2352,7 +2356,6 @@ namespace t7 {
             uint32_t lastPatchInstanceCount_ = 0;
             bool patchInstancesEverUploaded_ = false;
             wgpu::Buffer patchGridBuffer_;         // GPUPatchGrid — O(1) spatial index for sample_terrain_y_at
-            wgpu::Buffer patchHeightScratchBuffer_;  // 256×256×2 floats (height+complexity) for two-pass heightfield gen
             wgpu::Buffer patchIndexBuffer_;
             wgpu::Buffer patchIndexBufferLOD1_;   // half-res index buffer for distant patches
             wgpu::Buffer patchIndexBufferCapOnly_; // ECONOMY_1 E1 — caps + skirt, no curtain band
@@ -2773,28 +2776,26 @@ namespace t7 {
             // The light index rides a dynamic offset on frame R: record i holds i.
             static constexpr uint32_t shadow_slot_offset(uint32_t light) { return light * Dim::UNIFORM_DYNAMIC_STRIDE; }
 
-            // This batch's params, one record per patch at the ring's stride,
-            // starting at record `base`. The passes that read them are recorded
-            // after this call and execute after the write on the queue timeline.
-            // stream_patches carries a per-frame CURSOR because a full regen
-            // generates two batches into one encoder, and the second batch's
-            // write must not land on the first's records. Returns how many
-            // records were accepted.
+            // THE BATCH'S PARAMS, one contiguous write (LATTICE_1). The bake
+            // reads them as a storage ARRAY indexed by workgroup_id.z, so the
+            // records pack at their own 16-byte stride where they used to sit
+            // one per 256-byte dynamic-uniform slot — 57.6 KB of ring becomes
+            // 3.6 KB. The dispatch that reads them is recorded after this call
+            // and executes after the write on the queue timeline.
+            //
+            // NO CURSOR: stream_patches makes exactly ONE batch a frame now
+            // (LATTICE_1, the R-D fold), so every batch starts at record 0.
+            // The clamp stays — a bound stated is a bound that cannot rot.
             uint32_t upload_patch_params(wgpu::Queue& queue, const GPUPatchParams* params,
-                                         uint32_t count, uint32_t base) {
-                if (base >= Dim::MAX_ACTIVE_PATCHES) {
-                    std::fprintf(stderr, "[PatchParams] ring full at %u records; batch of %u dropped\n",
-                                 base, count);
-                    return 0;
+                                         uint32_t count) {
+                if (count > Dim::MAX_ACTIVE_PATCHES) {
+                    std::fprintf(stderr, "[PatchParams] batch of %u exceeds the %u-record buffer; clamped\n",
+                                 count, Dim::MAX_ACTIVE_PATCHES);
+                    count = Dim::MAX_ACTIVE_PATCHES;
                 }
-                if (base + count > Dim::MAX_ACTIVE_PATCHES) {
-                    std::fprintf(stderr, "[PatchParams] batch of %u at record %u exceeds the %u-record ring; clamped\n",
-                                 count, base, Dim::MAX_ACTIVE_PATCHES);
-                    count = Dim::MAX_ACTIVE_PATCHES - base;
-                }
-                for (uint32_t i = 0; i < count; i++)
-                    queue.WriteBuffer(patchParamsBuffer_, (base + i) * Dim::UNIFORM_DYNAMIC_STRIDE,
-                                      &params[i], sizeof(GPUPatchParams));
+                if (count > 0)
+                    queue.WriteBuffer(patchParamsBuffer_, 0, params,
+                                      count * sizeof(GPUPatchParams));
                 return count;
             }
 
@@ -4263,12 +4264,9 @@ namespace t7 {
                 patchGridBuffer_ = makeBuffer("Patch Grid",
                     sizeof(GPUPatchGrid),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                patchParamsBuffer_ = makeBuffer("Patch Params Ring",
-                    Dim::MAX_ACTIVE_PATCHES * Dim::UNIFORM_DYNAMIC_STRIDE,
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                patchHeightScratchBuffer_ = makeBuffer("Patch Height Scratch",
-                    Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float),
-                    wgpu::BufferUsage::Storage);
+                patchParamsBuffer_ = makeBuffer("Patch Params Batch",
+                    Dim::MAX_ACTIVE_PATCHES * sizeof(GPUPatchParams),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 // The card writer's two-pass scratch (the patch pattern at card
                 // size — TRUEBAND_CONTACT_1)
                 liveCardScratchBuffer_ = makeBuffer("Live Card Scratch",
@@ -4349,7 +4347,7 @@ namespace t7 {
                     shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ && patchParamsBuffer_ &&
-                    patchHeightScratchBuffer_ && liveCardScratchBuffer_ &&
+                    liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
                     agentRoomBuffer_ && sceneConstantsBuffer_ &&

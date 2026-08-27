@@ -11,9 +11,9 @@ Last commit touching any scanned file: `879006a7c02269fd36230ec8ca99542fc7dc6479
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e4cba2c043d9b83ba8bf0dd1e43c652e17640b593786bbde88115aa8f7d66621` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f6146489224a835eab184f7078fc520c88fc9461d26d6a93b2d5caec1e070a93` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6a79357301cdc105527ea251f1a5fe66b0d995096a71f63db19280ab80998465` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:444d27b0166e20e7167f6fd4959d836a3e8464b83ad6ff1c4582ce5ec520f674` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:5d1dbc55435c46690bf839a52d7dae33c21f918d952c99264a9f0b79bc968da9` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:58498b7bfda6335e3582d62c83ca749e997d46d262895ed313f12a87da0c3a34` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:924cabe08a921320c79177daf6209bb80cb7ee7786902741078e2840b108396b` |
@@ -41,20 +41,19 @@ in `console.hpp`.
 | 6 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:378` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 7 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:558` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
 | 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2101` | — | — | — |
-| 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
-| 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:197` | — | — | — |
-| 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:807` | — | — | — |
-| 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:895` | — | — | — |
-| 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:908` | — | — | — |
-| 14 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1685` | — | — | — |
-| 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1744` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
-| 17 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:743` | — | — | — |
-| 18 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:764` | — | — | — |
-| 19 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:779` | — | — | — |
-| 20 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:798` | — | — | — |
+| 9 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:185` | — | — | — |
+| 10 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:807` | — | — | — |
+| 11 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:895` | — | — | — |
+| 12 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:908` | — | — | — |
+| 13 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
+| 14 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1685` | — | — | — |
+| 15 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1744` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
+| 16 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:743` | — | — | — |
+| 17 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:764` | — | — | — |
+| 18 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:779` | — | — | — |
+| 19 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:798` | — | — | — |
 
-20 passes: 4 render, 16 compute.
+19 passes: 4 render, 15 compute.
 
 ## §2 — submit sites
 
@@ -142,10 +141,10 @@ carries the same op (PASS_0 F2, `gallery.hpp`
 
 | witness | verdict | detail |
 |---|---|---|
-| `C-1` | **PASS** | every storeOp token attributed to exactly one pass row: 8 tokens over 20 rows |
-| `C-2` | **PASS** | every pass row names its encoding function (20 rows) |
+| `C-1` | **PASS** | every storeOp token attributed to exactly one pass row: 8 tokens over 19 rows |
+| `C-2` | **PASS** | every pass row names its encoding function (19 rows) |
 | `C-3` | **PASS** | the begin_frame reconfigure branch is captured verbatim and contains the frame1_report call that feeds [FRAME_1] |
 | `C-4` | **PASS** | renderer.hpp encodes no pass of its own (Begin*Pass sites: 0) |
 | `C-5` | **PASS** | exactly one main scene pass row (label 'Rasterized Scene'): found 1 |
 | `C-6` | **PASS** | (a) no depth LoadOp::Load anywhere (0), no other pass names the main depth view (none); (b) Table A depth bindings are shadow_map/spot_shadow_map and the console depth usage is wgpu::TextureUsage::RenderAttachment |
-| `C-7` | **PASS** | label law: every encoder-creation site (2) and pass-begin site (20) carries a label |
+| `C-7` | **PASS** | label law: every encoder-creation site (2) and pass-begin site (19) carries a label |

@@ -158,63 +158,50 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
 
 // ── Patch generation ───────────────────────────────────────────────
 
-// The params ride a DYNAMIC-OFFSET uniform seat: one write per patch into
-// the ring before any pass is recorded, then one offset per dispatch.
-// `ringCursor` is stream_patches' per-frame cursor — a full regen makes two
-// batches into one encoder, and the queue orders both writes before the
-// command buffer, so the second must not land on the first's records.
-// THE PER-PATCH PASS PAIR STAYS: `patch_height_scratch` is ONE patch's
-// worth, so heights must reach gradients before the next patch overwrites
-// them — H_i → G_i → C_i is Table E's RAW contract.
+// The params ride a read-only STORAGE array: one contiguous write for the
+// whole batch before the pass is recorded, and workgroup_id.z picks the
+// record. ONE BATCH A FRAME (LATTICE_1) — see stream_patches' bake block.
+// ONE PASS, TWO DISPATCHES, THE WHOLE BATCH (LATTICE_1). This was a pass PAIR
+// per patch: N patches cost 2N passes and 3N dispatches, each pass carrying a
+// bind and a boundary that existed to order a scratch buffer which no longer
+// exists. The bake reads its patch from patch_params_batch[workgroup_id.z], so
+// the batch is the dispatch's z extent and the pass count stops depending on
+// the batch size at all.
+//
+// CELLS RIDE THE SAME PASS. The binding ledger's W1-4 row lists
+// {generate_patch_cells, generate_patch_heights} and {generate_patch_cells,
+// generate_patch_gradients} as hazard-free in both directions — the pair
+// writes disjoint textures — so the boundary between them was never buying
+// ordering either.
 inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    const GPUPatchParams* params, uint32_t count, uint32_t& ringCursor) {
+    const GPUPatchParams* params, uint32_t count) {
     if (count == 0) return;
-    const uint32_t base = ringCursor;
-    count = c->gpuState_.upload_patch_params(queue, params, count, base);
+    count = c->gpuState_.upload_patch_params(queue, params, count);
     if (count == 0) return;
-    ringCursor = base + count;
 
-    for (uint32_t i = 0; i < count; i++) {
-        const uint32_t paramsOffset = (base + i) * Dim::UNIFORM_DYNAMIC_STRIDE;
-        // Pass 1: heights only (one ground_formed_with_complexity per texel)
-        {
-            wgpu::ComputePassDescriptor cpd{};
-            cpd.label = "Patch Heights (pass 1)";
-            cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
-            wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
-            // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-            { cp.SetBindGroup(0, c->gpuState_.world_group());
-              cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-            c->renderer_.dispatch_generate_patch_heights(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
-            cp.End();
-        }
-
-        // Pass 2: gradients from neighbor reads + complexity + cell colors
-        {
-            wgpu::ComputePassDescriptor cpd{};
-            cpd.label = "Patch Gradients + Cells (pass 2)";
-            cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
-            wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
-            // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-            { cp.SetBindGroup(0, c->gpuState_.world_group());
-              cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-            c->renderer_.dispatch_generate_patch_gradients(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_heightfield_workgroups());
-            c->renderer_.dispatch_generate_patch_cells(cp, paramsOffset, c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(), GPUState::patch_cell_workgroups());
-            cp.End();
-        }
-    }
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "Patch Bake (fused)";
+    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
+    wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
+    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
+    { cp.SetBindGroup(0, c->gpuState_.world_group());
+      cp.SetBindGroup(1, c->gpuState_.frame_c_group()); }
+    c->renderer_.dispatch_bake_patches(cp,
+        c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(),
+        GPUState::patch_heightfield_workgroups(), count);
+    c->renderer_.dispatch_generate_patch_cells(cp,
+        c->gpuState_.patchgen_state_group(), c->gpuState_.patchgen_textures_group(),
+        GPUState::patch_cell_workgroups(), count);
+    cp.End();
 }
 
 inline GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer) {
     GPUPatchParams p{};
+    (void)c;   // LATTICE_1: the seed reaches the bake through config.world_seed
     p.origin[0] = (gx + 0.5f) * Dim::PATCH_EXTENT;
     p.origin[1] = (gz + 0.5f) * Dim::PATCH_EXTENT;
-    p.extent = Dim::PATCH_EXTENT;
-    p.resolution = Dim::PATCH_HEIGHTFIELD_N;  // Q9: one source of truth (was a 256 literal decoupled from the Dim const that sizes the write texture + the dispatch divisor)
-    p.master_seed = c->world_state_.active_seed;
-    p.time = 0.0f;
     p.layer = layer;
-    p._pad1 = 0.0f;
+    p._pad0 = 0u;
     return p;
 }
 
@@ -361,8 +348,7 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
 inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     bool& tileGridDirty,
-    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps,
-    uint32_t& ringCursor) {
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps) {
     if (count == 0) return;
     if (tileGridDirty) {
         upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
@@ -376,7 +362,7 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
             c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z, c->patch_system_state_.patches_[pi].layer);
         batchIdx[i] = pi;
     }
-    generate_patch_batch(c, encoder, queue, batchParams, count, ringCursor);
+    generate_patch_batch(c, encoder, queue, batchParams, count);
     for (uint32_t b = 0; b < count; b++) {
         uint32_t pi = batchIdx[b];
         c->patch_system_state_.patches_[pi].phase = PatchPhase::GENERATED;
@@ -556,7 +542,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // two batches into this one encoder, and the queue orders every
     // WriteBuffer before the whole command buffer — so the second batch
     // takes fresh records rather than overwriting the first's.
-    uint32_t patchParamsCursor = 0;
+    bool bakedThisFrame = false;   // LATTICE_1 R-D: ONE bake batch a frame
     bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
     if (c->world_state_.finite_mode) {
         centerX = 0;
@@ -666,8 +652,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
                 }, true);
             generate_selected_patches(c, genCands, genCount,
-                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
-                patchParamsCursor);
+                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
+            bakedThisFrame = true;
 
             // THE DOOR GUARANTEE (U2) — after the synchronous population
             // above, so Channel A's DOORWAY portals are countable: a world
@@ -913,12 +899,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // of its own to say so. That is why the two arms RIBBON_4 split and
     // RIBBON_5 kept are one again — the split existed to give the sliced
     // conductor a phase it could own, and there is no sliced conductor.
-    //
-    // patch_height_scratch has ONE WRITER BY CONSTRUCTION: generate_patch_batch
-    // finishes each patch's heights -> gradients -> cells before it opens the
-    // next. The interlock RIBBON_5 needed existed only because a bake could
-    // straddle frames; a bake cannot straddle a frame any more, so the guard
-    // is gone rather than kept against a state that no longer exists (L30).
     {
         PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates, gen_cx, gen_cz,
@@ -926,10 +906,25 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 return p.phase == PatchPhase::SPAWNED ||
                        p.phase == PatchPhase::NEEDS_REGEN;
             }, true);
-        generate_selected_patches(c, candidates,
-            std::min(count, young ? BAKE_BUDGET_YOUNG : BAKE_BUDGET_PER_FRAME),
-            encoder, queue, tileGridDirty, tile_world_state, tile_world_deps,
-            patchParamsCursor);
+        // ONE BAKE BATCH A FRAME (LATTICE_1, the R-D fold). The fullRegen arm
+        // above already spent this frame's bake — on the whole priority window,
+        // which the batch shape makes a single dispatch — and the params buffer
+        // is written once per frame at record 0. A second batch in the same
+        // encoder would have its write land on the first's records before
+        // EITHER dispatch ran, because the queue orders every WriteBuffer ahead
+        // of the command buffer. That is what the retired 256-byte ring cursor
+        // was for.
+        //
+        // The cost of folding is that up to SPAWN_BUDGET's worth of patches
+        // spawned later in this same frame wait one frame to bake. They are the
+        // ones OUTSIDE the priority window — further from the point than
+        // anything the fullRegen just baked — and nearest-first already serves
+        // them last. Behind the veil at boot and behind the fade at a portal.
+        if (!bakedThisFrame) {
+            generate_selected_patches(c, candidates,
+                std::min(count, young ? BAKE_BUDGET_YOUNG : BAKE_BUDGET_PER_FRAME),
+                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
+        }
     }
 
     // The conductor tail as a sequence of named units (was one inline block).

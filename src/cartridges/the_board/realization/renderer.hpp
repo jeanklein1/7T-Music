@@ -33,8 +33,7 @@ namespace t7 {
             constexpr const char* COMPUTE_VP = "compute_vp";                    // 0D
 
             // On-demand compute
-            constexpr const char* GENERATE_PATCH_HEIGHTS = "generate_patch_heights";          // 2D -- per-patch, pass 1
-            constexpr const char* GENERATE_PATCH_GRADIENTS = "generate_patch_gradients";      // 2D -- per-patch, pass 2
+            constexpr const char* BAKE_PATCH_HEIGHTFIELD = "bake_patch_heightfield";         // 2D x batch -- the fused bake
             constexpr const char* GENERATE_PATCH_CELLS = "generate_patch_cells";              // 2D -- per-patch
             constexpr const char* RIBBON_HEAD = "ribbon_head";                                // 0D -- one thread: intent, the Sky Rule, flight, the spine
             constexpr const char* RIBBON_BODY = "ribbon_body";                                // 1D -- per ring: rest, gesture, tension, frame, motor
@@ -224,9 +223,8 @@ namespace t7 {
             wgpu::ComputePipeline updateCubePipeline_;           // 0D
             wgpu::ComputePipeline computeVPPipeline_;         // 0D
 
-            // Compute pipelines -- patch heightfield generation (per-patch, two-pass)
-            wgpu::ComputePipeline generatePatchHeightsPipeline_;     // 2D -- pass 1: heights only
-            wgpu::ComputePipeline generatePatchGradientsPipeline_;   // 2D -- pass 2: gradients + complexity
+            // Compute pipelines -- patch heightfield generation (batched, one pass)
+            wgpu::ComputePipeline bakePatchPipeline_;                // 2D x batch -- heights + gradients, one pass
             wgpu::ComputePipeline generatePatchCellsPipeline_;        // 2D
             wgpu::ComputePipeline ribbonHeadPipeline_;                    // 0D -- the ribbon's head: intent, the Sky Rule, flight, the spine
             wgpu::ComputePipeline ribbonBodyPipeline_;                    // 1D -- the ribbon's body: one thread per ring
@@ -453,48 +451,36 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
             }
 
-            // Pass 1: evaluate ground_formed() per texel, store height only.
-            void dispatch_generate_patch_heights(
+            // THE ONE BAKE PASS: height and both gradients per lattice point,
+            // five terrain evaluations, one store.
+            // LATTICE_1 — THE BATCH IS THE DISPATCH. `count` patches ride the z
+            // axis; the kernel reads patch_params_batch[workgroup_id.z]. No
+            // dynamic offset: the seat is a read-only storage ARRAY now, so the
+            // whole batch is addressable from one bind.
+            void dispatch_bake_patches(
                 wgpu::ComputePassEncoder& pass,
-                uint32_t paramsOffset,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups
+                uint32_t workgroups,
+                uint32_t count
             ) {
-                pass.SetPipeline(generatePatchHeightsPipeline_);
-                // The patch being generated: one dynamic offset into the params ring.
-                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
+                pass.SetPipeline(bakePatchPipeline_);
+                pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(workgroups, workgroups, 1);
-            }
-
-            // Pass 2: read stored heights from neighbors, compute gradients + complexity.
-            void dispatch_generate_patch_gradients(
-                wgpu::ComputePassEncoder& pass,
-                uint32_t paramsOffset,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup,
-                uint32_t workgroups
-            ) {
-                pass.SetPipeline(generatePatchGradientsPipeline_);
-                // The patch being generated: one dynamic offset into the params ring.
-                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(workgroups, workgroups, 1);
+                pass.DispatchWorkgroups(workgroups, workgroups, count);
             }
 
             void dispatch_generate_patch_cells(
                 wgpu::ComputePassEncoder& pass,
-                uint32_t paramsOffset,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
-                uint32_t workgroups
+                uint32_t workgroups,
+                uint32_t count
             ) {
                 pass.SetPipeline(generatePatchCellsPipeline_);
-                // The patch being generated: one dynamic offset into the params ring.
-                pass.SetBindGroup(2, stateGroup, 1, &paramsOffset);
+                pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(workgroups, workgroups, 1);
+                pass.DispatchWorkgroups(workgroups, workgroups, count);
             }
 
             // THE RIBBON ROOM, both kernels, one pair of binds (RIBBON_1). The
@@ -1614,20 +1600,13 @@ namespace t7 {
                 if (!makeComputePipeline("compute_vp", "Compute VP Matrix (0D)",
                     frameKComputeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
 
-                // Pipeline: generate_patch_heights (2D, pass 1 — heights only)
+                // Pipeline: bake_patch_heightfield (LATTICE_1 — one kernel where
+                // two stood; workgroup_id.z selects the patch in the batch)
                 {
                     wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
                     if (!pl) return false;
-                    if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
-                        pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
-                }
-
-                // Pipeline: generate_patch_gradients (2D, pass 2 — gradients + complexity)
-                {
-                    wgpu::PipelineLayout pl = strataLayoutFor("patchgenComputeLayout", frameCLayout_, patchgenStateLayout_, patchgenTexturesLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
-                        pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
+                    if (!makeComputePipeline("bake_patch", "Patch Bake (fused, batched)",
+                        pl, Entry::BAKE_PATCH_HEIGHTFIELD, bakePatchPipeline_)) return false;
                 }
 
                 // Pipeline: generate_patch_cells (2D, on demand)

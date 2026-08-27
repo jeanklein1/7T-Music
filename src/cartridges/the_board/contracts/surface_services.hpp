@@ -184,10 +184,10 @@ struct ActivePatch {
 // frame at 2 ms of GPU and frame_total at 2.2 ms of CPU, so it never cost a
 // frame — but a pace must still be EVEN, and it must be FAST ENOUGH. A grid
 // crossing demands 15 cells; at the top of the speed dial one arrives every
-// 19 frames. So the unit is one whole patch per frame — ~2.4 ms of GPU, the
-// same every streaming frame, and 15 frames to a crossing. Evenness by
-// construction, adequacy by arithmetic, and no ladder to make a deep backlog
-// work harder exactly when the point is moving fastest.
+// 19 frames. So the unit is one whole patch per frame — one patch, one
+// dispatch, the same shape every streaming frame, and 15 frames to a
+// crossing. Evenness by construction, adequacy by arithmetic, and no ladder
+// to make a deep backlog work harder exactly when the point is moving fastest.
 inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 2;   // spawning is CPU and precedes the bake; two keeps the pipeline fed
 inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;   // bookkeeping
 inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;   // matched to ALLOC: the pool balances by symmetry as well as by refusal (RIBBON_5's FLAG-38)
@@ -263,9 +263,9 @@ void request_recenter(WorldState& ws);
 void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);
-// ringCursor is stream_patches' per-frame cursor into the params ring.
+// LATTICE_1 — one pass, two dispatches, the whole batch.
 void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    const GPUPatchParams* params, uint32_t count, uint32_t& ringCursor);
+    const GPUPatchParams* params, uint32_t count);
 GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer);
 uint32_t alloc_layer(MachineCtx* c);
 void free_layer(MachineCtx* c, uint32_t layer);
@@ -281,8 +281,7 @@ void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uin
 void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     bool& tileGridDirty,
-    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps,
-    uint32_t& ringCursor);
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
 
 // THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,

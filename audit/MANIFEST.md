@@ -22,9 +22,8 @@ the header.
 | Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
-| Generate Patch Heights (2D, pass 1) | `generatePatchHeightsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Generate Patch Gradients (2D, pass 2) | `generatePatchGradientsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 5 / 7 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Patch Bake (fused, batched) | `bakePatchPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Ribbon Head (0D, 1 thread, per frame) | `ribbonHeadPipeline_` | C | 6 / 6 | 5 / 3 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Ribbon Body (1D, per ring, per frame) | `ribbonBodyPipeline_` | C | 6 / 6 | 5 / 3 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Compute Photographer VP (0D) | `photographerVPPipeline_` | C | 4 / 8 | 5 / 3 | 1 / 15 | 3 / 13 | 0 / 4 |
@@ -102,7 +101,7 @@ the header.
 | storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+5 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
-| storagetex | 2 / 4 | 2 | `generatePatchHeightsPipeline_` C (+8 more) |
+| storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+7 more) |
 
 ## Table A's shape, with the channel column
 
@@ -141,8 +140,7 @@ declaration alone — no hand-authored field.
 | `patch_heightfield_array_write` | 3:40 | handle | `texture_storage_2d_array<rgba16float, write>` | storagetex |
 | `tile_grid` | 0:1 | uniform | `TileGrid` | uniform |
 | `patch_cell_color_array_write` | 3:41 | handle | `texture_storage_2d_array<rgba8unorm, write>` | storagetex |
-| `patch_params` | 2:40 | uniform | `PatchParams` | uniform |
-| `patch_height_scratch` | 2:41 | storage, read_write | `array<f32>` | storage |
+| `patch_params_batch` | 2:40 | storage, read | `array<PatchParams>` | storage |
 | `patch_instances` | 2:61 | storage, read | `array<PatchInstance>` | storage |
 | `patch_heightfield_array_read` | 3:44 | handle | `texture_2d_array<f32>` | sampled |
 | `patch_cell_color_array_read` | 3:45 | handle | `texture_2d_array<f32>` | sampled |
@@ -204,7 +202,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 77
+Lane sums equal per-seat counts on every one of the 76
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

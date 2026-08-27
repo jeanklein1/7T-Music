@@ -1068,14 +1068,17 @@ struct RibbonRingTransform {
 }
 
 // --- [STATE:patch] PatchParams
+// LATTICE_1 — what the bake actually reads, and nothing else. `extent` was
+// always Dim::PATCH_EXTENT (make_patch_params wrote the constant), `resolution`
+// is now PATCH_HEIGHTFIELD_N, `time` had no reader in either kernel, and
+// `master_seed` folded into config.world_seed — the two are one fact written
+// together at world birth, and the HEIGHTS already baked from the config copy
+// while the cells read the struct, so folding also retires a disagreement that
+// could survive one frame. 32 B -> 16 B, and the twin is the C++ struct's.
 struct PatchParams {
-    origin: vec2<f32>,      // world-space origin of the patch center
-    extent: f32,            // side length in world units
-    resolution: u32,        // texels per side (e.g. 128)
-    master_seed: u32,       // world seed — deterministic terrain from this
-    time: f32,              // current time for animated wave phases
-    layer: u32,             // which layer of the heightfield array to write
-    _pad1: f32,
+    origin: vec2<f32>,      // world XZ of the patch CENTER
+    layer: u32,             // heightfield / cell-color array layer
+    _pad0: u32,
 }
 
 // Per-patch rendering data. Storage buffer indexed by instance_index.
@@ -3136,7 +3139,7 @@ const POLICY_WALKER_WITNESS       : u32 = 6u;
 
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
 // terrain_height_and_complexity does the same lattice work as terrain_height_at
-// but also accumulates the complexity metric. Used by two-pass heightfield gen.
+// but also accumulates the complexity metric. Used by the patch bake.
 //
 // Height output is the POLICY_BAKED_HEIGHTFIELD contributor set exactly:
 //   contrib_static_base_at(xz) + contrib_pyramids_at(xz)
@@ -3276,8 +3279,8 @@ struct QueryInputs {
 // Contributors: contrib_static_base_at + CONTRIB_PYRAMIDS.
 // Typical consumers: any compute that wants the ground-without-dynamics.
 //   The texture variant is sample_terrain_y_at.
-// Notes: must stay consistent with ground_formed_with_complexity (the
-//   two-pass patch heightfield generator) — same contributor set.
+// Notes: must stay consistent with ground_formed_with_complexity (what
+//   the patch bake evaluates) — same contributor set.
 
 // ─── The shared dynamic-overlay stack ───────────────────────────────
 // The additive fold every DYNAMIC ground policy shares, authored ONCE
@@ -7116,18 +7119,18 @@ fn shadow_light_vp() -> mat4x4<f32> {
 
 
 // --- Patch heightfield generation (Group 0: bindings 23-24)
-// Separate pipeline layout. Dispatched per-patch when a new patch enters
-// the active set. Writes to one layer of the patch heightfield array.
-// This patch's 32 bytes on a DYNAMIC-OFFSET uniform seat: the buffer is
-// a MAX_ACTIVE_PATCHES ring at 256-byte stride, written per batch before
-// the passes are recorded, and each dispatch binds group 2 at its own
-// record. One struct, one dispatch cadence, no per-patch copies.
-@group(2) @binding(40) var<uniform> patch_params: PatchParams;
+// Separate pipeline layout. Dispatched once a frame for the whole batch of
+// patches that entered the active set. Writes one layer of the patch
+// heightfield array per patch.
+// THE BATCH, not the patch. A read-only STORAGE array indexed by
+// workgroup_id.z: one dispatch bakes every patch in the frame's batch, where
+// there used to be one pass pair and one 256-byte dynamic-offset ring slot
+// per patch. The dynamic seat retires with it.
+@group(2) @binding(40) var<storage, read> patch_params_batch: array<PatchParams>;
 // .a = the terrain's reserve field — 28.125 MiB pre-paid, nine consumers wired, write nothing until a campaign names it (LOOM ruling).
 @group(3) @binding(40) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(1) var<uniform> tile_grid: TileGrid;
 @group(3) @binding(41) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
-@group(2) @binding(41) var<storage, read_write> patch_height_scratch: array<f32>;
 
 // --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-29)
 @group(2) @binding(61) var<storage, read> patch_instances: array<PatchInstance>;
@@ -10194,130 +10197,56 @@ fn compute_vp() {
     }
 }
 
-// --- Patch heightfield generation (two-pass, uses patchGen bind group layout)
+// --- The patch bake (one fused pass, one batched dispatch) ------------
 //
-// Pass 1: generate_patch_heights
-//   Evaluates ground_formed_with_complexity() once per texel, stores the
-//   height in the scratch buffer. (The stride-2 layout is kept; the +1
-//   complexity slot is no longer written — no reader.)
-//   This is the only expensive call — terrain waves + pyramids.
+// LATTICE_1. This was TWO kernels and a 512 KB scratch buffer: pass 1
+// evaluated the terrain per texel and wrote heights to storage; pass 2 read
+// five neighbours back and differenced them. That shape existed to pay the
+// terrain evaluation once per texel — which mattered when there were 65,536
+// texels per patch and the stencil neighbours were texels.
 //
-// Pass 2: generate_patch_gradients
-//   Reads height from 5 scratch neighbors.
-//   Pure arithmetic: finite-difference gradients + textureStore (.w unused).
-//   No terrain evaluation at all.
+// At the lattice there are 4,225, and the stencil is a WORLD offset
+// (BAKE_STENCIL_EPS), not a neighbouring texel — so the neighbours a texel
+// needs are not values any other texel computed. There is nothing to share,
+// the scratch buffer has nothing to carry, and the pass boundary has nothing
+// to order. One kernel, five evaluations, one store.
 //
-// The compute pass boundary between them provides the storage buffer
-// barrier. Net effect: 1 terrain eval per texel total, not 6.
-
+// THE STENCIL IS CENTRAL AT THE PATCH EDGE TOO, which the old pass 2 could
+// not manage: it read neighbours out of a per-patch scratch buffer, so at a
+// patch border it fell back to a one-sided 3-point difference — on BOTH sides
+// of every seam, from two different one-sided stencils. ground_formed_with
+// _complexity is world-continuous and takes a world position, so the five
+// taps here cross the border like any other point. Patch-border normals
+// become continuous across neighbours. A consequence, not a goal.
+//
+// workgroup_id.z selects the patch: one dispatch bakes the whole batch.
 @compute @workgroup_size(16, 16)
-fn generate_patch_heights(@builtin(global_invocation_id) id: vec3<u32>) {
-    let res = patch_params.resolution;
-    if (id.x >= res || id.y >= res) { return; }
-
-    let res_f = f32(res);
-    let uv = vec2<f32>(id.xy) / (res_f - 1.0);
-    let world_xz = vec2<f32>(
-        patch_params.origin.x + (uv.x - 0.5) * patch_params.extent,
-        patch_params.origin.y + (uv.y - 0.5) * patch_params.extent
-    );
-
-    let hc = ground_formed_with_complexity(world_xz);
-    let base = (id.y * res + id.x) * 2u;
-    patch_height_scratch[base]      = hc.x;   // height (stride-2 layout kept; the
-    // +1 complexity slot is no longer written — no reader)
-}
-
-// Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo for 3-point edge stencil)
-var<workgroup> sh_height: array<f32, 400>;
-
-@compute @workgroup_size(16, 16)
-fn generate_patch_gradients(
-    @builtin(global_invocation_id) id: vec3<u32>,
+fn bake_patch_heightfield(
     @builtin(local_invocation_id) lid: vec3<u32>,
     @builtin(workgroup_id) wid: vec3<u32>
 ) {
-    let res = patch_params.resolution;
-    let res_i = i32(res);
+    let pp = patch_params_batch[wid.z];
+    let ix = wid.x * 16u + lid.x;
+    let iz = wid.y * 16u + lid.y;
+    if (ix >= PATCH_HEIGHTFIELD_N || iz >= PATCH_HEIGHTFIELD_N) { return; }
 
-    // ── Cooperative tile load: 20×20 from global scratch ────────────
-    // 256 threads load 400 cells via stride. Halo cells outside the
-    // 256×256 grid clamp to boundary (safe: edge stencils only read
-    // inward from the boundary, never into clamped halo).
-    let thread_id = lid.y * 16u + lid.x;
-    let tile_origin_x = i32(wid.x * 16u) - 2;
-    let tile_origin_y = i32(wid.y * 16u) - 2;
+    // texel i IS lattice point i: the same uv patch_terrain_vs decodes.
+    let uv = vec2(f32(ix), f32(iz)) / f32(PATCH_MESH_N);
+    let p  = pp.origin + (uv - vec2(0.5)) * PATCH_EXTENT;
 
-    for (var t = thread_id; t < 400u; t += 256u) {
-        let tx = i32(t % 20u);
-        let ty = i32(t / 20u);
-        let gx = clamp(tile_origin_x + tx, 0, res_i - 1);
-        let gy = clamp(tile_origin_y + ty, 0, res_i - 1);
-        sh_height[t] = patch_height_scratch[(u32(gy) * res + u32(gx)) * 2u];
-    }
-    workgroupBarrier();
-
-    // ── Bounds check AFTER barrier (all threads must participate in load) ─
-    if (id.x >= res || id.y >= res) { return; }
-
-    // ── Read center height from shared ──────────────────────────────
-    let cx = lid.x + 2u;
-    let cy = lid.y + 2u;
-    let height = sh_height[cy * 20u + cx];
-
-    let texel = vec2<i32>(id.xy);
-    let layer = i32(patch_params.layer);
-    let res_f = f32(res);
-    let eps = patch_params.extent / (res_f - 1.0);
-
-    let ix = id.x;
-    let iy = id.y;
-    let max_i = res - 1u;
-
-    // Gradient computation: central difference in interior,
-    // 3-point one-sided stencil at edges for matching O(eps²) accuracy.
-    //   Forward:  (-3h[0] + 4h[1] - h[2]) / (2*eps)
-    //   Backward: ( 3h[N] - 4h[N-1] + h[N-2]) / (2*eps)
-
-    // ── Gradient X: all reads from shared tile ──────────────────────
-    var grad_x: f32;
-    if (ix == 0u) {
-        let h0 = height;
-        let h1 = sh_height[cy * 20u + cx + 1u];
-        let h2 = sh_height[cy * 20u + cx + 2u];
-        grad_x = (-3.0 * h0 + 4.0 * h1 - h2) / (2.0 * eps);
-    } else if (ix == max_i) {
-        let h0 = height;
-        let h1 = sh_height[cy * 20u + cx - 1u];
-        let h2 = sh_height[cy * 20u + cx - 2u];
-        grad_x = (3.0 * h0 - 4.0 * h1 + h2) / (2.0 * eps);
-    } else {
-        let h_px = sh_height[cy * 20u + cx + 1u];
-        let h_mx = sh_height[cy * 20u + cx - 1u];
-        grad_x = (h_px - h_mx) / (2.0 * eps);
-    }
-
-    // ── Gradient Z: all reads from shared tile ──────────────────────
-    var grad_z: f32;
-    if (iy == 0u) {
-        let h0 = height;
-        let h1 = sh_height[(cy + 1u) * 20u + cx];
-        let h2 = sh_height[(cy + 2u) * 20u + cx];
-        grad_z = (-3.0 * h0 + 4.0 * h1 - h2) / (2.0 * eps);
-    } else if (iy == max_i) {
-        let h0 = height;
-        let h1 = sh_height[(cy - 1u) * 20u + cx];
-        let h2 = sh_height[(cy - 2u) * 20u + cx];
-        grad_z = (3.0 * h0 - 4.0 * h1 + h2) / (2.0 * eps);
-    } else {
-        let h_pz = sh_height[(cy + 1u) * 20u + cx];
-        let h_mz = sh_height[(cy - 1u) * 20u + cx];
-        grad_z = (h_pz - h_mz) / (2.0 * eps);
-    }
+    let e   = BAKE_STENCIL_EPS;
+    let h0  = ground_formed_with_complexity(p).x;
+    let hx  = ground_formed_with_complexity(p + vec2(e, 0.0)).x;
+    let hmx = ground_formed_with_complexity(p - vec2(e, 0.0)).x;
+    let hz  = ground_formed_with_complexity(p + vec2(0.0, e)).x;
+    let hmz = ground_formed_with_complexity(p - vec2(0.0, e)).x;
+    let grad_x = (hx - hmx) / (2.0 * e);
+    let grad_z = (hz - hmz) / (2.0 * e);
 
     // The .w channel is unused — stored 0.0. Palette calls read the
     // pinned PALETTE_COMPLEXITY (TERRAIN_LOOKS ROW 3) instead.
-    textureStore(patch_heightfield_array_write, texel, layer, vec4(height, grad_x, grad_z, 0.0));
+    textureStore(patch_heightfield_array_write, vec2<i32>(i32(ix), i32(iz)),
+                 i32(pp.layer), vec4(h0, grad_x, grad_z, 0.0));
 }
 
 // --- Patch cell color generation (uses patchGen bind group layout)
@@ -10551,7 +10480,7 @@ fn tag_cell_behavior(id: CellIdentity, world_xz: vec2<f32>) -> f32 {
 
     // Zone-level seed: all cells in the same mode lattice cell share this
     let zone_node = vec2<i32>(floor(world_xz / MODE_LATTICE_SPACING));
-    let zone_seed = lattice_node_seed(patch_params.master_seed, zone_node, GOL_ZONE_SEED_BAND);
+    let zone_seed = lattice_node_seed(config.world_seed, zone_node, GOL_ZONE_SEED_BAND);
 
     // GoL activation roll (per-zone, not per-cell)
     let spawn_roll = hash_property(zone_seed, GOL_ZONE_PROP_SPAWN);
@@ -10574,20 +10503,23 @@ fn tag_cell_behavior(id: CellIdentity, world_xz: vec2<f32>) -> f32 {
 }
 
 @compute @workgroup_size(8, 8)
-fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
+fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>,
+                        @builtin(workgroup_id) wid: vec3<u32>) {
     let cell_n = PATCH_CELL_N;
     if (id.x >= cell_n || id.y >= cell_n) {
         return;
     }
 
+    // LATTICE_1 — the same batch the bake reads; wid.z is the patch.
+    let pp = patch_params_batch[wid.z];
     let texel = vec2<i32>(id.xy);
-    let layer = i32(patch_params.layer);
+    let layer = i32(pp.layer);
 
     // Map cell to world-space center position
     let uv = (vec2<f32>(id.xy) + 0.5) / f32(cell_n);
     let world_xz = vec2<f32>(
-        patch_params.origin.x + (uv.x - 0.5) * patch_params.extent,
-        patch_params.origin.y + (uv.y - 0.5) * patch_params.extent
+        pp.origin.x + (uv.x - 0.5) * PATCH_EXTENT,
+        pp.origin.y + (uv.y - 0.5) * PATCH_EXTENT
     );
 
     // THE ONE-ADDRESS LAW, inverted: write texel T colors the cell at
@@ -10597,11 +10529,11 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     // patch_system.hpp make_patch_params); round() is exact on the
     // aligned grid. world_xz above stays the cell-center FIELD sample
     // point — bit-identical to the pre-law bake.
-    let patch_grid = vec2<i32>(round((patch_params.origin - 0.5 * patch_params.extent) / patch_params.extent));
+    let patch_grid = vec2<i32>(round((pp.origin - 0.5 * PATCH_EXTENT) / PATCH_EXTENT));
     let addr = patch_grid * i32(cell_n) + vec2<i32>(id.xy);
     let cell_gx = addr.x;
     let cell_gz = addr.y;
-    let cell_seed = lattice_node_seed(patch_params.master_seed, vec2(cell_gx, cell_gz), 200u);
+    let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
     // Stage 1: Evaluate the cell's identity (bias 0 — the bake is unbiased).
     // (Named cell_id: `id` is this entry point's invocation builtin.)
@@ -11283,9 +11215,9 @@ fn compute_photographer_vp() {
 //
 // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
 // sample_terrain_y_at reads the cached patch_heightfield_array_read,
-// which is populated by the two-pass heightfield generator. That
-// generator evaluates the baked heightfield's contributor set
-// (static_base + pyramids) once per texel and caches the result.
+// which bake_patch_heightfield populates. That bake evaluates the
+// baked heightfield's contributor set (static_base + pyramids) at each
+// lattice point and caches the result.
 // This Y-correction pass samples the cache rather than re-evaluating
 // contributors analytically — it is *not* a spawn-time placement
 // query: CPU spawn decisions stay on estimate_terrain_height (the
