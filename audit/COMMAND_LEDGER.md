@@ -5,13 +5,13 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `70338a1c2d6aeaa887a263b240c47f335ad0e91e`
-(LATTICE_4/D+F — the fade gate reads what the shader reads; the floor moves to the card)
+Last commit touching any scanned file: `4c6d4682d4cf1c887ea34335e8fedcb25d9e1df8`
+(BUNDLE_1/A — the draw ledger: every CPU-authored count becomes a record)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:a2374fcfeb70d1cc473e382d70a623906a98f0a06152b3965a32c32b24c64ce7` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:58e195c7aea92ef695cc63ef6c61e4c466fd446c41a3f2c092aacd1d6146dc06` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:95c056850af916ee8af18487fb10fc345921295c6b11944183a4c3c514a6b5df` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:81a4f35994788691056445f5759427e274a4035a73aaaa526f667057e74345ff` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:1b1c3c116721dd10a5644190951aa680dc2bdd2fcd06b6677ed41bf3698bf500` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |

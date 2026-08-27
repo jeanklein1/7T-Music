@@ -616,8 +616,9 @@ namespace t7 {
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
+            template <class Enc>
             void draw_orbs(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer quadVB,
                 wgpu::Buffer quadIB,
                 wgpu::Buffer orbStateVB,
@@ -783,11 +784,13 @@ namespace t7 {
             // when the seat left the layout; they keep their three names
             // pending a collapse ruling, and group 2 still re-binds per
             // slot as before.
-            void begin_patch_terrain_plan(wgpu::RenderPassEncoder& pass) {
+            template <class Enc>
+            void begin_patch_terrain_plan(Enc& pass) {
                 pass.SetPipeline(patchTerrainIndirectPipeline_);
             }
+            template <class Enc>
             void draw_patch_terrain_plan_slot(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::Buffer visibleList,
                 uint64_t visibleOffset,
@@ -812,8 +815,9 @@ namespace t7 {
             // (USE_PATCH_INDIRECTION=false). The full list (512 entries)
             // covers every direct instance range the program draws
             // (MAX_ACTIVE_PATCHES = 225).
+            template <class Enc>
             void draw_patch_terrain_direct(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup,
                 wgpu::Buffer visibleList,
@@ -880,8 +884,9 @@ namespace t7 {
             // (TIDY_0d's reason for that early-out — Dawn logging "Draw with
             // an index count of 0 is unusual" for a submitted zero-count draw
             // — does not arise: the count is not known at encode time.)
+            template <class Enc>
             void draw_indexed_mesh_indirect(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::RenderPipeline pipeline,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
@@ -894,8 +899,9 @@ namespace t7 {
                 pass.DrawIndexedIndirect(ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_indexed_mesh(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::RenderPipeline pipeline,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
@@ -910,8 +916,9 @@ namespace t7 {
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
 
+            template <class Enc>
             void draw_pawn(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 uint32_t vertexCount
             ) {
                 pass.SetPipeline(pawnPipeline_);
@@ -920,8 +927,9 @@ namespace t7 {
                 pass.Draw(vertexCount, /*instanceCount=*/ Dim::MAX_AGENTS);
             }
 
+            template <class Enc>
             void draw_sphere(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
@@ -932,8 +940,9 @@ namespace t7 {
                     Dim::MAX_SPHERE_INSTANCES);
             }
 
+            template <class Enc>
             void draw_monolith(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
@@ -949,8 +958,9 @@ namespace t7 {
             // with it: an inactive ribbon stages zero vertices, which draws
             // nothing — and unlike an encoder-time skip, that survives being
             // recorded into a bundle.
+            template <class Enc>
             void draw_ribbon(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
             ) {
@@ -959,8 +969,9 @@ namespace t7 {
                 pass.DrawIndirect(ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_arch(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -971,8 +982,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_column(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -983,8 +995,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_palm(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -995,8 +1008,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_cactus(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1007,8 +1021,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_blade(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1021,8 +1036,9 @@ namespace t7 {
 
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
 
+            template <class Enc>
             void draw_shell(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1044,8 +1060,9 @@ namespace t7 {
             // guard (B1) makes drawing fewer safe by construction. Both the
             // mark and the `activePaintingCount == 0` guard are in the record
             // now (BUNDLE_1) — zero instances draw nothing.
+            template <class Enc>
             void draw_gallery_frames(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
             ) {
@@ -1062,8 +1079,9 @@ namespace t7 {
             // TWO DRAWS, ONE RECORD: the canvas and the frame walk the same
             // vertices with different pipelines, so their count is one number
             // and gets one home. The `wallFrameCount == 0` guard is in it.
+            template <class Enc>
             void draw_wall_paintings(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
             ) {
@@ -1088,8 +1106,9 @@ namespace t7 {
             // The caller passes config().fade_alpha — the same value
             // fade_overlay_fs reads — so the gate and the shader cannot
             // disagree about whether the frame is at rest.
+            template <class Enc>
             void draw_fade_overlay(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 float fadeAlpha
             ) {
                 if constexpr (!(ROSTER.transitions)) return;  // ROSTER-GATE transitions (a') — pipeline never created; the holder tolerates
@@ -1116,8 +1135,9 @@ namespace t7 {
             // tail of draw_shadow_all.
             // The shadow twin of draw_indexed_mesh_indirect. Same record —
             // a family's index count is one number, not one per pass.
+            template <class Enc>
             void draw_shadow_indexed_mesh_indirect(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::RenderPipeline pipeline,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
@@ -1130,8 +1150,9 @@ namespace t7 {
                 pass.DrawIndexedIndirect(ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_indexed_mesh(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::RenderPipeline pipeline,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
@@ -1155,8 +1176,9 @@ namespace t7 {
             // way. Folding them also removes the only non-zero firstInstance
             // on this path, which an indirect draw could not have carried
             // without the `indirect-first-instance` feature.
+            template <class Enc>
             void draw_shadow_patch_terrain(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
@@ -1168,16 +1190,18 @@ namespace t7 {
                 pass.DrawIndexedIndirect(ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_pawn(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 uint32_t vertexCount
             ) {
                 pass.SetPipeline(shadowPawnPipeline_);
                 pass.Draw(vertexCount, /*instanceCount=*/ Dim::MAX_AGENTS);
             }
 
+            template <class Enc>
             void draw_shadow_sphere(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
@@ -1188,8 +1212,9 @@ namespace t7 {
                     Dim::MAX_SPHERE_INSTANCES);
             }
 
+            template <class Enc>
             void draw_shadow_monolith(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
@@ -1200,8 +1225,9 @@ namespace t7 {
                     Dim::MAX_CUBE_INSTANCES, Dim::CUBE_SLOT_OFFSET);
             }
 
+            template <class Enc>
             void draw_shadow_ribbon(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
             ) {
@@ -1210,8 +1236,9 @@ namespace t7 {
                 pass.DrawIndirect(ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_arch(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1222,8 +1249,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_column(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1234,8 +1262,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_palm(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1246,8 +1275,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_cactus(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1258,8 +1288,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_blade(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1272,8 +1303,9 @@ namespace t7 {
 
             // draw_shadow_pyramid CUT — caller-free
 
+            template <class Enc>
             void draw_shadow_shell(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer ledger,
@@ -1288,8 +1320,9 @@ namespace t7 {
             // OIL_1 U12: the gallery pair is bound ONCE by the caller
             // before these two draws (they share galleryShadowLayout and
             // sit at the tail of draw_shadow_all).
+            template <class Enc>
             void draw_shadow_gallery_frames(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
             ) {
@@ -1298,8 +1331,9 @@ namespace t7 {
                 pass.DrawIndirect(ledger, ledgerOffset);
             }
 
+            template <class Enc>
             void draw_shadow_wall_paintings(
-                wgpu::RenderPassEncoder& pass,
+                Enc& pass,
                 wgpu::Buffer ledger,
                 uint64_t ledgerOffset
             ) {

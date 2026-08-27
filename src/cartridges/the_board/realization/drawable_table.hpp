@@ -66,27 +66,44 @@ struct DrawBind {
     bool ribbon_bit;            // the pass's own say: DrawBit::RIBBON in main, true elsewhere
 };
 
+// BUNDLE_1: the row is a TEMPLATE over the encoder type. `Enc` is
+// wgpu::RenderPassEncoder for a direct pass and wgpu::RenderBundleEncoder
+// for a recorded bundle; both carry SetPipeline / SetBindGroup /
+// SetVertexBuffer / SetIndexBuffer / Draw / DrawIndexed / DrawIndirect /
+// DrawIndexedIndirect, which is the whole of what a thunk needs.
+//
+// THE TABLE ITSELF IS WRITTEN ONCE (R-E: the table-template spelling, not
+// the pointer-pair one). A pair of function pointers per row would have
+// duplicated ten rows' worth of initialiser to say the same thing twice;
+// a variable template instantiates the one list per encoder type. One draw
+// list, two encoders, no second list — which is R3's requirement stated as
+// code rather than as discipline.
+template <class Enc>
 struct Drawable {
     const char* name;
     uint32_t    passes;         // bit-OR of DrawPass
-    void (*draw)(Renderer&, GPUState&, wgpu::RenderPassEncoder&, const DrawBind&);
+    void (*draw)(Renderer&, GPUState&, Enc&, const DrawBind&);
 };
 
 // ── The thunks: each knows its buffers and picks draw_X vs draw_shadow_X ──
-inline void dt_pawn(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_pawn(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     (void)g;
     if (b.shadow) r.draw_shadow_pawn(p, GPUState::pawn_vertex_count());   // OIL_1 U12: pass-head binds
     else          r.draw_pawn       (p, GPUState::pawn_vertex_count());   // OIL_1 U13: pass-head binds
 }
-inline void dt_sphere(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_sphere(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_sphere(p, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
     else          r.draw_sphere       (p, g.sphere_vertex_buffer(), g.sphere_index_buffer(), g.sphere_index_count());
 }
-inline void dt_monolith(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_monolith(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_monolith(p, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
     else          r.draw_monolith       (p, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
 }
-inline void dt_ribbon(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_ribbon(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     // RIBBON_1: the draw is the LIVE count. It used to be the 400-ring
     // ceiling with the VS early-out retiring four fifths of it twice a pass.
     // BUNDLE_1: the count AND the `rendered_slot != UINT32_MAX` guard are
@@ -99,37 +116,43 @@ inline void dt_ribbon(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, cons
     else          r.draw_ribbon       (p, g.draw_ledger_buffer(),
                                        GPUState::draw_record_offset(GPUState::DR_RIBBON));
 }
-inline void dt_arch(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_arch(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_ARCH));
     else          r.draw_arch       (p, g.arch_vertex_buffer(), g.arch_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_ARCH));
 }
-inline void dt_column(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_column(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_column(p, g.column_vertex_buffer(), g.column_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_COLUMN));
     else          r.draw_column       (p, g.column_vertex_buffer(), g.column_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_COLUMN));
 }
-inline void dt_palm(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_palm(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_palm(p, g.palm_vertex_buffer(), g.palm_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
     else          r.draw_palm       (p, g.palm_vertex_buffer(), g.palm_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
 }
-inline void dt_cactus(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_cactus(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
     else          r.draw_cactus       (p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
 }
-inline void dt_blade(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_blade(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_blade(p, g.blade_vertex_buffer(), g.blade_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_BLADE));
     else          r.draw_blade       (p, g.blade_vertex_buffer(), g.blade_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_BLADE));
 }
-inline void dt_shell(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
+template <class Enc>
+inline void dt_shell(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
     else          r.draw_shell       (p, g.shell_vertex_buffer(), g.shell_index_buffer(),
@@ -138,24 +161,38 @@ inline void dt_shell(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const
 
 // THE CANONICAL ORDER (== the shadow order). Membership is which passes a
 // drawable belongs to; snapshot is the photographer's subset.
-inline const Drawable DRAWABLES[] = {
-    { "pawn",     DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_pawn    },
-    { "sphere",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_sphere  },
+template <class Enc>
+inline const Drawable<Enc> DRAWABLES[] = {
+    { "pawn",     DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_pawn<Enc>    },
+    { "sphere",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_sphere<Enc>  },
     { "monolith", DRAW_SHADOW | DRAW_MAIN,                dt_monolith },
-    { "ribbon",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_ribbon  },
-    { "arch",     DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_arch    },
-    { "column",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_column  },
+    { "ribbon",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_ribbon<Enc>  },
+    { "arch",     DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_arch<Enc>    },
+    { "column",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_column<Enc>  },
     { "palm",     DRAW_SHADOW | DRAW_MAIN,                dt_palm     },
     { "cactus",   DRAW_SHADOW | DRAW_MAIN,                dt_cactus   },
     { "blade",    DRAW_SHADOW | DRAW_MAIN,                dt_blade    },
-    { "shell",    DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_shell   },
+    { "shell",    DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_shell<Enc>   },
 };
 
 // Iterate the table for one pass, in canonical order, filtered by membership.
-inline void draw_table(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p,
+template <class Enc>
+inline void draw_table(Renderer& r, GPUState& g, Enc& p,
                        const DrawBind& b, uint32_t passbit) {
-    for (const Drawable& d : DRAWABLES)
+    for (const Drawable<Enc>& d : DRAWABLES<Enc>)
         if (d.passes & passbit) d.draw(r, g, p, b);
+}
+
+// THE WITNESS THAT BOTH ENCODERS INSTANTIATE (BUNDLE_1). A function
+// template is only type-checked when something asks for it, so a draw list
+// that compiles for the pass encoder proves NOTHING about the bundle
+// encoder until a bundle is recorded — and the first bundle lands a commit
+// later. This asks now: taking the address forces both instantiations, so
+// the TU gate reads the whole table twice and Commit B stands on its own.
+// Never called; emits no code.
+inline void drawable_table_encoder_witness() {
+    (void)&draw_table<wgpu::RenderPassEncoder>;
+    (void)&draw_table<wgpu::RenderBundleEncoder>;
 }
 
 } // namespace the_board
