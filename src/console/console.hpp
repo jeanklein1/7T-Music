@@ -1289,10 +1289,35 @@ namespace t7 {
             // mean. Where a frame is dropped it serves what the eye saw. A law
             // that is a no-op when it is not needed.
             //
-            // THE RELOCK (RIBBON_3 P2's, kept): a display that genuinely
-            // changes cadence must not sit outside the model forever. After
-            // STEADY_CLOCK_RELOCK consecutive strangers the period adopts the
-            // measurement.
+            // THE PERIOD IS PINNED, NOT TRACKED (WRAP_0 U1). Everything above
+            // is still true; what was wrong was WHERE the period came from. It
+            // was an EWMA over in-band frames plus a relock that adopted `raw`
+            // outright — an estimator that follows the FRAME RATE, and there
+            // is nothing in it that can tell "the display is slow" from "the
+            // world is slow". So it learned the judder and then hid it: on the
+            // laptop it printed 16.66 at boot and 25.4-25.7 for the rest of
+            // the session, with every frame labelled 1x. On a 60 Hz panel 25.0
+            // is exactly the mean of a 16.67/33.33 alternation — the estimator
+            // had adopted the average of the stutter as the refresh, and the
+            // histogram, which divides by it, could then only ever read 1x.
+            //
+            // A PRESENT CAN BE LATE BUT NEVER EARLY. You can miss a vblank;
+            // you cannot beat one. So the display period is the SMALLEST
+            // stable delta, not the mean: the frames that made their refresh
+            // are the ones telling the truth about the panel, and the mean is
+            // the judder averaged in. P is the 5th percentile of the trailing
+            // PRESENT_FIT_WINDOW deltas — a percentile and not the minimum,
+            // because one early timer reading must not redefine the display.
+            //
+            // AND IT MAY ONLY EVER DECREASE, once seeded. A faster display
+            // discovered later is real (a 120 Hz panel whose first seconds
+            // were slow); a slower one is a world that has fallen behind, and
+            // that is precisely what must NOT be mistaken for a refresh.
+            //
+            // THE LIMITATION, STATED. A device that never fits a single vblank
+            // from its very first frame pins to its slowest honest period, and
+            // `refresh` prints 33.3 — which is a recognizable number and not a
+            // hidden one. Read it as "this machine never once made 60".
             //
             // THE FLOOR IS NOT DECORATION, and it is the one line that is
             // mine. The period is a DIVISOR now, which the mean never was, so
@@ -1305,6 +1330,29 @@ namespace t7 {
             // in a row is the common case there, not a corner: they would
             // relock the period to 0 and every later frame would divide by it.
             // A refresh period cannot be shorter than PRESENT_MIN_PERIOD.
+            // The fit's sample set: deltas only, artefacts dropped. A reading
+            // under PRESENT_FIT_FLOOR is a coarsened or duplicated timer value,
+            // never a display that refreshes faster than 250 Hz.
+            if (raw >= PRESENT_FIT_FLOOR) {
+                presentFit_[presentFitCursor_] = raw;
+                presentFitCursor_ = (presentFitCursor_ + 1u) % PRESENT_FIT_WINDOW;
+                if (presentFitCount_ < PRESENT_FIT_WINDOW) presentFitCount_++;
+            }
+            // Refit on a cadence, not per frame: a percentile over the window
+            // is a selection, and the panel's period does not move between
+            // frames. Cheap either way — one 300-float copy, ~1 kB, 1 Hz.
+            if (presentFitCount_ >= PRESENT_FIT_MIN
+                    && ++presentFitTick_ >= PRESENT_FIT_REFIT) {
+                presentFitTick_ = 0;
+                float scratch[PRESENT_FIT_WINDOW];
+                std::memcpy(scratch, presentFit_, presentFitCount_ * sizeof(float));
+                const size_t idx = (size_t)(presentFitCount_ * 5u / 100u);
+                std::nth_element(scratch, scratch + idx, scratch + presentFitCount_);
+                const float p5 = std::max(scratch[idx], PRESENT_MIN_PERIOD);
+                if (!presentFitSeeded_) { refreshPeriod_ = p5; presentFitSeeded_ = true; }
+                else if (p5 < refreshPeriod_) { refreshPeriod_ = p5; }
+            }
+
             const float k_raw = std::round(raw / refreshPeriod_);
             const float k = std::clamp(k_raw, 1.0f, PRESENT_MAX_MULTIPLE);
             const float model = k * refreshPeriod_;
@@ -1327,16 +1375,17 @@ namespace t7 {
                 // the term is zero and the model is untouched; a false multiple
                 // converges until served == raw. A no-op when it is not needed,
                 // which is the property the whole law is built on.
-                refreshPeriod_ = std::max(
-                    refreshPeriod_ + (raw / k - refreshPeriod_) * PRESENT_GAIN,
-                    PRESENT_MIN_PERIOD);
+                // The period is the percentile's; an in-band frame teaches it
+                // nothing any more. What the band still decides is what is
+                // SERVED — a frame that fits its multiple is integrated for
+                // the multiple, which is the presentation law itself.
                 dtStrangers_ = 0;
                 dt = model;
-            } else if (++dtStrangers_ >= STEADY_CLOCK_RELOCK) {
-                refreshPeriod_ = std::max(raw, PRESENT_MIN_PERIOD);
-                dtStrangers_ = 0;
-                dt = raw;
             } else {
+                // Out of band: a hitch, a tab-resume, a stall. Serve its true
+                // time. It no longer relocks the period — a slow frame is not
+                // evidence about the display, which is the whole of U1.
+                dtStrangers_++;
                 dt = raw;
             }
             // THE SERVED VALUE CARRIES THE CLAMP TOO. `model` is k x period and
@@ -2135,12 +2184,23 @@ namespace t7 {
         // a coarsened clock and a permanent NaN. RELOCK keeps RIBBON_3's name
         // and value: it is the same idea, one layer down.
         static constexpr float    PRESENT_BAND         = 0.25f;
-        static constexpr float    PRESENT_GAIN         = 0.05f;
+        // WRAP_0 U1 — THE FIT. The window is 300 presents (~5 s at 60 Hz):
+        // long enough that a burst of dropped frames cannot move the 5th
+        // percentile, short enough to seed within the first walk. PRESENT_GAIN
+        // and STEADY_CLOCK_RELOCK are retired with the estimator they drove.
+        static constexpr uint32_t PRESENT_FIT_WINDOW  = 300;
+        static constexpr uint32_t PRESENT_FIT_MIN     = 60;    // seed no earlier
+        static constexpr uint32_t PRESENT_FIT_REFIT   = 60;    // refit ~1 Hz
+        static constexpr float    PRESENT_FIT_FLOOR   = 0.004f;   // s — 250 Hz
         static constexpr float    PRESENT_MAX_MULTIPLE = 4.0f;
         static constexpr float    PRESENT_MIN_PERIOD   = 0.001f;   // s
-        static constexpr uint32_t STEADY_CLOCK_RELOCK  = 8;
         static constexpr uint32_t PRESENT_REPORT_FRAMES = 60;
         float    refreshPeriod_ = 1.0f / 60.0f;   // the panel's period; a divisor, so it is named as one
+        float    presentFit_[PRESENT_FIT_WINDOW] = {};   // the trailing deltas the percentile is taken over
+        uint32_t presentFitCursor_ = 0;
+        uint32_t presentFitCount_  = 0;
+        uint32_t presentFitTick_   = 0;
+        bool     presentFitSeeded_ = false;
         uint32_t dtStrangers_   = 0;
         // The [PRESENT] histogram's counters (meter builds only; the arithmetic
         // is gated at its site, these are four words that cost nothing).
