@@ -440,6 +440,13 @@ inline constexpr WallArtConfig WALL_ART = {
     /* mix_snapshot_chance */ 0.40f,
 };
 
+// THREE OR FOUR, PROVED (OVERTURE_0). WALLS_1 zeroed the one- and two-wall
+// rooms; this keeps them zeroed. A dial that moved them would compile a shape
+// the piece has ruled out — and it would do it silently, since a room with two
+// bare walls looks exactly like a room that ran out of pictures.
+static_assert(WALL_ART.wall_count_t1 == 0.0f && WALL_ART.wall_count_t2 == 0.0f,
+    "a room hangs three or four walls; one- and two-wall rooms are not a shape");
+
 // THE ROW'S UPPER BOUND, DERIVED RATHER THAN GUESSED. The count is now a
 // function of the wall, so its maximum is a function of the biggest wall —
 // and every input is constexpr, so the plan array and the slot budget can
@@ -2745,6 +2752,7 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
         float cursor = group_start;
 
         // ─── PLACEMENT PASS — consumes the plan, decides nothing ──
+        uint32_t wall_placed = 0;   // U7's witness: this wall's own count
         for (uint32_t p = 0; p < effective_count; p++) {
             const PlannedFrame& f = plan[p];
 
@@ -2838,7 +2846,23 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             cursor += f.width + WALL_ART.painting_gap;
             c->gpuState_.upload_painting_slot(queue, slot, s);
             gs.wall_frame_count++;
+            wall_placed++;
             if (f.is_snapshot) snapshot_placed++; else authored_placed++;
+        }
+
+        // A BARE WALL IS A DEFECT, NEVER CHATTER (OVERTURE_0). The room's
+        // summary line reports the ROOM's total, so three walls hung and one
+        // bare reads as a slightly thin room rather than as the specific
+        // thing it is — a selected wall that got nothing. Always-on, on
+        // stderr, and it says which of the two ran out.
+        if (wall_placed == 0) {
+            uint32_t snaps_free = 0;
+            for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+                if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed) snaps_free++;
+            std::cerr << "[WallPainting] BARE WALL " << w
+                << ": planned " << effective_count
+                << " pieces, authored hangable " << authored_hangable(gs)
+                << ", snapshots " << snaps_free << "\n";
         }
     }
 
