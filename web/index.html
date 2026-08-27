@@ -193,14 +193,45 @@
        its own business. One word, and it holds the campaign's ruling.
        ONE DIFFERENCE FROM `width: 100%`: max-width does not upscale. A
        poster baked NARROWER than the cap would sit at its own size
-       instead of stretching. POSTER_WIDTH is 640 and the cap is at most
-       340, so nothing today is near it. */
+       instead of stretching — which is now the ceiling itself, by
+       construction, and is the point of the number.
+
+       ── ENTRANCE_0 E6 — 640 IS POSTER_WIDTH ───────────────────────
+       The old 340/510 were chosen for a phone and froze the poster
+       there on every larger screen: above ~460 CSS px of viewport the
+       74vw term stops binding and 340 takes over, so a 1440 monitor got
+       24% of its width at DPR 1 against the Pixel's 284 CSS px at DPR
+       2.6 — the same number at a third of the angular size. 640 IS THE
+       BAKE. Capping the CSS at the file means a DPR-1 monitor renders
+       it 1:1: no upscale, maximum sharpness from bytes already shipped,
+       and one number on both axes stating one fact — the CSS never asks
+       for more pixels than the file has. It clears the legibility floor
+       with room (~465 CSS px for a 14px label at arm's length).
+       60vh HAS TO CLEAR THE WIDTH CAP or it becomes the binder: at 640
+       wide a 1.329 image wants 482 tall, and the old 34vh gave only 306
+       on a 900px window. 60vh reaches 482 at an 800px viewport, an
+       ordinary desktop window. The relative cap keeps doing its job on
+       short viewports; the absolute one keeps the poster from
+       outgrowing its own file.
+       74vw IS UNCHANGED, which is why portrait is unchanged: at 412 CSS
+       wide it binds at 305 and 640 never engages. That is the
+       regression witness. */
     .poster img, .poster video {
       display: block;
-      max-width:  min(340px, 74vw, 34vh);
-      max-height: min(510px, 111vw, 51vh);
+      max-width:  min(74vw, 640px);
+      max-height: min(60vh, 640px);
       object-fit: contain;
     }
+
+    /* ── ENTRANCE_0 E6 — A BOX THAT EXISTS ONLY TO BE POINTED AT ───
+       `display: contents` means this element generates no box: its
+       children are the .layer's flex items exactly as they were before
+       it existed, so the column regime is byte-identical and this
+       costs nothing until the row regime below turns it into a real
+       box. The <pre class="log"> panes stay OUTSIDE it deliberately —
+       at min(680px, 92vw) the details pane is wider than the text
+       column and takes its own line in the row. */
+    .stack { display: contents; }
 
     .wordmark { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--faint); }
     .say      { max-width: 30rem; font-size: 17px; line-height: 1.55; color: var(--ink); margin: 0; }
@@ -286,14 +317,84 @@
        (The frame was never the problem — the canvas fills both
        orientations by construction, PORT_3c + --app-h.) */
     @media (max-height: 600px) {
-      /* ENTRANCE_0 E3/E5 — the height carries the same 3/2 the width
-         lost: 28vh of width was 42vh of height, and still is. Both caps
-         moved onto the image with the rule above; the numbers did not. */
-      .poster img, .poster video {
-        max-width:  min(340px, 74vw, 28vh);
-        max-height: min(510px, 111vw, 42vh);
-      }
+      /* ENTRANCE_0 E6 — THE POSTER'S OVERRIDE RETIRES HERE. 28vh/42vh
+         was a WIDTH term standing in for a height the rule could not
+         say: cap the width by vh and the pinned ratio bounded the
+         height. E6's 60vh bounds the height directly and correctly, and
+         it already fits everywhere this block reaches — at 600 tall the
+         column has 430px for the poster and 60vh asks 360; at 450 it
+         has 280 and asks 270. Two terms for one job is how they drift
+         apart. The gap and padding below are this block's real work. */
       .layer  { gap: 14px; padding: 16px 24px; }
+    }
+
+    /* ── ENTRANCE_0 E6 — THE STACK BECOMES A ROW ───────────────────
+       KEYED ON HEIGHT, NOT ORIENTATION, and on the same axis the block
+       above already uses — one fact, one home. Height is what is
+       actually scarce; orientation is a proxy for it, and a short
+       desktop window has the identical problem and gets the identical
+       fix.
+
+       400 IS MEASURED, NOT ESTIMATED. The recipe is the poster's useful
+       minimum plus the stack below it plus the page padding, and the
+       stack was read rather than guessed:
+
+         229.6  the poster's useful minimum — the height at which the
+                Pixel-portrait reading PHASE M passed (304.9 x 229.6)
+         138.0  the veil's stack in this regime, MEASURED: wordmark
+                19.5 + status 46.5 + details 30.0 + two 14px gaps.
+                The estimate this threshold was first built on said
+                196, and it was taken off the wrong state.
+          32.0  the page padding this block sets, 16 top and 16 bottom
+         -----
+         399.6  -> 400
+
+       Below it the column cannot give the poster the size that is known
+       to read, and 34vh of Jean's 384-tall landscape gave 131 — labels
+       at about five pixels. There is nothing to hand over in a column,
+       so it stops being one.
+
+       THE HEIGHT CAP RELAXES because nothing is stacked underneath any
+       more: 100vh less the 32px of padding, less 32px of air so the
+       poster does not run edge to edge. On the Pixel in landscape that
+       is 320, and a 1.329 image lands 425 x 320 — larger than the
+       portrait case that already works, which is the whole point.
+
+       NO SECOND MAGIC NUMBER FOR THE WIDTH — flexbox does that
+       arithmetic. The poster shrinks (`flex: 0 1 auto` on the box,
+       `max-width: 100%` on the image, replacing the column's 74vw for
+       the duration) and the stack starts from nothing and takes what is
+       left (`flex: 1 1 0`). So where the width is short the poster
+       gives it up rather than the layout breaking, and that alone
+       carries every phone: the iPhone SE at 667x375, the narrowest
+       landscape still in use, lands beside its text with nothing
+       overflowing, which it did not before the shrink was there.
+       AND `min-width: 600px` DECLINES THE ROW below any width a phone
+       produces in landscape. Under it the two will not share a line at
+       all: the stack cannot shrink past its own buttons, so nowrap
+       makes them OVERLAP (measured, 380x390 and 480x399) and wrap
+       returns a column that still has the relaxed cap over it (78px
+       spilled). Neither is a layout. The column with its 60vh cap is,
+       and that is what those widths keep.
+       THE LOG PANE takes its own line — at min(680px, 92vw) it is
+       wider than the text column, so `flex-basis: 100%` and the wrap
+       drop it below rather than squeezing it into a third column. */
+    @media (max-height: 400px) and (min-width: 600px) {
+      .layer {
+        flex-direction: row; flex-wrap: wrap;
+        align-items: center; justify-content: center;
+        gap: 20px;
+      }
+      .layer > .poster { flex: 0 1 auto; min-width: 0; }
+      .stack {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 10px; flex: 1 1 0; min-width: 0; max-width: 30rem;
+      }
+      .layer > .log { flex-basis: 100%; }
+      .poster img, .poster video {
+        max-width: 100%;
+        max-height: min(calc(100vh - 64px), 640px);
+      }
     }
   </style>
 </head>
@@ -315,9 +416,15 @@
   <!-- ── STATE 1 — LOADING ─────────────────────────────────────── -->
   <div id="veil" class="layer">
     <div class="poster"><img src="veil_poster.jpg" alt="" decoding="async"></div>
-    <div class="wordmark">the_board</div>
-    <div id="status">Waking the world</div>
-    <button id="logToggle" class="logToggle" type="button" aria-controls="log" aria-expanded="false">details</button>
+    <!-- ENTRANCE_0 E6 — .stack is `display: contents` and generates no
+         box, so this wrapper changes nothing until the row regime needs
+         something to put beside the poster. The log pane stays outside
+         it: it is wider than the text column and takes its own line. -->
+    <div class="stack">
+      <div class="wordmark">the_board</div>
+      <div id="status">Waking the world</div>
+      <button id="logToggle" class="logToggle" type="button" aria-controls="log" aria-expanded="false">details</button>
+    </div>
     <pre id="log" class="log" aria-live="off"></pre>
   </div>
 
@@ -333,11 +440,13 @@
          a person receives, and it is also what shows if the image
          never arrives. -->
     <div class="poster"><img id="cardPoster" alt="A painting from the piece" decoding="async" data-src="card_poster.jpg"></div>
-    <div class="wordmark">the_board</div>
-    <p class="say" id="cardSay"></p>
-    <p class="sub" id="cardSub"></p>
-    <button class="btn" id="reload" type="button" hidden>Open it again</button>
-    <button id="logToggle2" class="logToggle" type="button" aria-controls="log2" aria-expanded="false">details</button>
+    <div class="stack">
+      <div class="wordmark">the_board</div>
+      <p class="say" id="cardSay"></p>
+      <p class="sub" id="cardSub"></p>
+      <button class="btn" id="reload" type="button" hidden>Open it again</button>
+      <button id="logToggle2" class="logToggle" type="button" aria-controls="log2" aria-expanded="false">details</button>
+    </div>
     <pre id="log2" class="log" aria-live="off"></pre>
   </div>
 
