@@ -57,7 +57,7 @@ INPUTS = [
     os.path.join(BOARD, "bodies", "pawn.hpp"),
     os.path.join(BOARD, "bodies", "gallery.hpp"),
     os.path.join(BOARD, "bodies", "orbs.hpp"),
-    os.path.join(REPO, "src", "pawn.cpp"),
+    os.path.join(REPO, "src", "the_board.cpp"),
     os.path.join(REPO, "src", "console", "console.hpp"),
 ]
 

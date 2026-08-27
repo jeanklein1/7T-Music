@@ -1,6 +1,6 @@
 # 7T-Pawns : C++ / WebGPU engine + React design tools
 cmake_minimum_required(VERSION 3.16)
-project(7t_visualizer VERSION 0.1.0 LANGUAGES CXX)
+project(the_board VERSION 0.1.0 LANGUAGES CXX)
 
 # ═══ SUNSET_2 — THE GUARD FIRES FIRST, AND NAMES THE ROAD ════════════════════
 #
@@ -132,13 +132,13 @@ file(GLOB_RECURSE DUAL_RENDER_HEADERS
     "src/cartridges/${PAWN_RENDER_CARTRIDGE}/*.hpp"
 )
 
-add_executable(pawn
-    src/pawn.cpp
+add_executable(the_board
+    src/the_board.cpp
     src/external/stb_image.cpp
     ${DUAL_RENDER_HEADERS}
 )
 
-target_include_directories(pawn PRIVATE
+target_include_directories(the_board PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 
@@ -202,13 +202,13 @@ if(EMSCRIPTEN)
     endif()
 
     # Program defines.
-    target_compile_definitions(pawn PRIVATE
+    target_compile_definitions(the_board PRIVATE
         INCUBATE_RENDER=${PAWN_RENDER_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
         ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
     )
-    target_compile_options(pawn PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
+    target_compile_options(the_board PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
     # ONE PRELOAD, AND IT IS PROGRAM (EXHIBIT_0 U3). The MEMFS mapping
     # left is the shader: the loader's 2nd search entry is
     # "src/cartridges/the_board/realization/world.wgsl" and it hits this
@@ -248,7 +248,7 @@ if(EMSCRIPTEN)
     # stays literal: it must match the loader's search string verbatim, so
     # it is a different fact and does not share this home.
     set(T7_WEB_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl")
-    target_link_options(pawn PRIVATE
+    target_link_options(the_board PRIVATE
         ${T7_WEB_PORTS}
         # ORGAN_0b — the panel's ABI. EMSCRIPTEN_KEEPALIVE keeps the
         # functions from being garbage-collected, but ccall/cwrap are
@@ -274,7 +274,7 @@ if(EMSCRIPTEN)
     # runtime and had no bundle that could go stale — which is exactly
     # why the twins disagreed about collisions and only one of them was
     # wrong.
-    set_target_properties(pawn PROPERTIES
+    set_target_properties(the_board PROPERTIES
         OUTPUT_NAME "the_board"
         SUFFIX ".js"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"

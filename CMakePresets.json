@@ -52,17 +52,17 @@
     {
       "name": "the-board-web",
       "configurePreset": "the-board-web",
-      "targets": [ "pawn" ]
+      "targets": [ "the_board" ]
     },
     {
       "name": "the-board-web-meter",
       "configurePreset": "the-board-web-meter",
-      "targets": [ "pawn" ]
+      "targets": [ "the_board" ]
     },
     {
       "name": "the-board-web-debug",
       "configurePreset": "the-board-web-debug",
-      "targets": [ "pawn" ]
+      "targets": [ "the_board" ]
     }
   ]
 }
