@@ -654,5 +654,9 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, fpv_mode,         BOOL, 0.0f, 1.0f, 1.0f, "
 // piece is tuned with.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, draw_mask,   U32, 0.0f, 255.0f, 1.0f, "Measure", "main draw mask (bits: A/B/C terrain, table, ribbon, paintings, orbs, fade)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_mask, U32, 0.0f,   3.0f, 1.0f, "Measure", "shadow draw mask (bit0 terrain, bit1 entities+artworks)")
+// The tap A/B (PANORAMA_1). 16 = the 4x4 kernel (rest), 4 = its inner 2x2.
+// A measurement AND a taste gate: the tap cost on both GPUs, and whether the
+// narrower penumbra is the piece. Range covers only the two legal values.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_pcf_taps, U32, 4.0f, 16.0f, 12.0f, "Measure", "sun PCF taps (4 or 16)")
 
 // ─── Atrium — EDITS THE NEXT ENTRANCE ───────────────────────────

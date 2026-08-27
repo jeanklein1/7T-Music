@@ -1786,7 +1786,11 @@ struct DesignConfig {
     // GROWTH LAW's, not a reader's. Was _pad704_1, consumed in place.
     draw_mask: u32,                 // 700
     shadow_mask: u32,               // 704
-    _pad720_0: f32,                 // 708
+    // THE TAP COUNT (PANORAMA_1). 16 = the 4x4 kernel; 4 = its inner 2x2.
+    // Mirror of GPUDesignConfig — GROWTH LAW, same commit, same order, same
+    // type. Read by sample_shadow_pcf, and the ONE mask field this room
+    // actually reads. Was _pad720_0.
+    shadow_pcf_taps: u32,           // 708
     _pad720_1: f32,                 // 712
     _pad720_2: f32,                 // 716
 }
@@ -4171,6 +4175,30 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // This is now the SAME arrangement sample_spot_shadow_pcf has always
     // used (its `f32(x) + 0.5` term over -2..=1 gives the identical centres).
     // The spot kernel never combed; only the sun kernel did.
+    // THE TAP DIAL (PANORAMA_1). The 4-tap arm takes the INNER four —
+    // (±0.5, ±0.5) — which are the same centres the 16-tap kernel already
+    // uses, so nothing about the arrangement changes: the tents still sum
+    // flat, the centroid still sits on the fragment, and UMBRA_8's centring
+    // survives. What changes is the support, 5 texels down to 3, because the
+    // comparison sampler makes each tap a 2x2 bilinear.
+    //
+    // NOTHING ELSE MOVES. PCF_RADIUS_TEXELS stays 2.5 for both arms, so the
+    // normal offset is identical and the two arms differ ONLY in the taps —
+    // which is what makes the A/B a reading of the taps rather than of two
+    // different shadow settings. The bounds guard, the edge fade and the return
+    // are shared.
+    if (config.shadow_pcf_taps == 4u) {
+        var s4 = 0.0;
+        s4 += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5, -0.5) * TEXEL_UV, current_depth);
+        s4 += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 0.5, -0.5) * TEXEL_UV, current_depth);
+        s4 += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5,  0.5) * TEXEL_UV, current_depth);
+        s4 += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>( 0.5,  0.5) * TEXEL_UV, current_depth);
+        let shadow4 = s4 * 0.25;
+        let d4    = max(abs(shadow_uv.x * 2.0 - 1.0), abs(shadow_uv.y * 2.0 - 1.0));
+        let fade4 = clamp((1.0 - d4) / 0.12, 0.0, 1.0);
+        return mix(1.0, shadow4, fade4);
+    }
+
     var s = 0.0;
     s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-1.5, -1.5) * TEXEL_UV, current_depth);
     s += textureSampleCompareLevel(shadow_map, shadow_sampler, clamped_uv + vec2<f32>(-0.5, -1.5) * TEXEL_UV, current_depth);

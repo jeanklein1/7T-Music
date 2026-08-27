@@ -872,7 +872,13 @@ namespace t7 {
             // Appended past the boundary, so three fresh pads carry the struct
             // back to it: 704 -> 720.
             uint32_t shadow_mask;          // 704
-            float _pad720_0;               // 708
+            // THE TAP COUNT (PANORAMA_1). 16 (today's 4x4) or 4 (the inner
+            // 2x2). PANORAMA_0 priced the taps at 1-2 ms of main pass and
+            // could not read them; this is the A/B that does. Mirror of the
+            // WGSL twin — GROWTH LAW, same commit, same position, same type.
+            // A pad is consumed IN PLACE, so sizeof 720 is unmoved.
+            // Was _pad720_0.
+            uint32_t shadow_pcf_taps;      // 708
             float _pad720_1;               // 712
             float _pad720_2;               // 716
         };
@@ -1962,7 +1968,7 @@ namespace t7 {
             "and the trailing pad is spent. The witness's two presence dials "
             "met that: no pad to reuse, two appended, two fresh pads to the "
             "boundary; 688 -> 704. PANORAMA_1: the two subtraction masks — one pad consumed IN PLACE, one appended, three fresh pads to the "
-            "boundary; 704 -> 720.)");
+            "boundary; 704 -> 720. PANORAMA_1: the PCF tap count consumes one of those three pads IN PLACE — 720 unmoved.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -3180,6 +3186,9 @@ namespace t7 {
             }
             void set_point_fly_speed(float s) {
                 if (config_.point_fly_speed != s) { config_.point_fly_speed = s; configDirty_ = true; }
+            }
+            void set_shadow_pcf_taps(uint32_t n) {
+                if (config_.shadow_pcf_taps != n) { config_.shadow_pcf_taps = n; configDirty_ = true; }
             }
             void set_draw_mask(uint32_t m) {
                 if (config_.draw_mask != m) { config_.draw_mask = m; configDirty_ = true; }
@@ -5165,6 +5174,8 @@ namespace t7 {
                 // ever sees.
                 config_.draw_mask           = DRAW_MASK_ALL;
                 config_.shadow_mask         = SHADOW_MASK_ALL;
+                // The kernel today, so 16 is the rest and 4 is the question.
+                config_.shadow_pcf_taps     = 16u;
                 config_.field_k             = FIELD_K;
                 config_.field_fmax          = FIELD_FMAX;
                 config_.field_occupier_gain = FIELD_OCCUPIER_GAIN;
