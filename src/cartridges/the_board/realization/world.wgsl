@@ -10279,6 +10279,123 @@ fn compute_vp() {
 // taps here cross the border like any other point. Patch-border normals
 // become continuous across neighbours. A consequence, not a goal.
 //
+// ─── THE NODE TABLE (LATTICE_1b) ────────────────────────────────────
+//
+// DERIVE EACH NODE ONCE PER TILE, not once per (tap, node). A 16x16
+// lattice tile spans 12.11 wu of world; across the six bands it touches at
+// most 77 distinct nodes. Its 256 threads take 5 taps each, and each tap
+// walks a 2x2 per band — 30,720 derivations of those 77 nodes, every one
+// of them ~11 hash_property calls, three Box-Muller draws and two angle
+// transcendentals. The table is 400x less derivation for the same values.
+//
+// THE SPAN, and why the counts are what they are. The tile's 16 lattice
+// points are 15 steps of PATCH_EXTENT / PATCH_MESH_N, and the stencil
+// reaches BAKE_STENCIL_EPS past each end:
+//   15 * (50/64) + 2 * (50/255) = 11.719 + 0.392 = 12.111 wu.
+// For spacing s the walk reads node indices floor(X0/s) .. floor(X1/s)+1,
+// and floor(X1/s) - floor(X0/s) <= floor(L/s) + 1, so floor(L/s) + 3 nodes
+// per axis always suffice. The const_asserts below state exactly that
+// inequality against TERRAIN_BANDS — the table cannot fall out of step with
+// the band spacings without the shader refusing to compile.
+const BAKE_TILE: u32 = 16u;
+const BAKE_NODES_0: u32 = 3u;   // spacing 200 — 12.111/200 = 0.06  -> 0 + 3
+const BAKE_NODES_1: u32 = 3u;   // spacing  80 — 0.151            -> 0 + 3
+const BAKE_NODES_2: u32 = 3u;   // spacing  30 — 0.404            -> 0 + 3
+const BAKE_NODES_3: u32 = 4u;   // spacing  12 — 1.009            -> 1 + 3
+const BAKE_NODES_4: u32 = 5u;   // spacing   5 — 2.422            -> 2 + 3
+const BAKE_NODES_5: u32 = 3u;   // spacing 500 — 0.024            -> 0 + 3
+
+// Prefix sums of n^2 — band b's rectangle occupies [OFF[b], OFF[b+1]).
+const BAKE_TABLE_OFF = array<u32, 7>(0u, 9u, 18u, 27u, 43u, 68u, 77u);
+const BAKE_TABLE_N: u32 = 77u;
+const_assert BAKE_TABLE_OFF[6] == BAKE_TABLE_N;
+
+const BAKE_TILE_SPAN: f32 =
+    f32(BAKE_TILE - 1u) * PATCH_EXTENT / f32(PATCH_MESH_N) + 2.0 * BAKE_STENCIL_EPS;
+const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[0].spacing) + 3.0 <= f32(BAKE_NODES_0);
+const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[1].spacing) + 3.0 <= f32(BAKE_NODES_1);
+const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[2].spacing) + 3.0 <= f32(BAKE_NODES_2);
+const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[3].spacing) + 3.0 <= f32(BAKE_NODES_3);
+const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[4].spacing) + 3.0 <= f32(BAKE_NODES_4);
+const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[5].spacing) + 3.0 <= f32(BAKE_NODES_5);
+
+// 77 * 48 B = 3,696 B, plus 48 B of origins — 3,744 of the 16,384 B
+// floor. THE ARITHMETIC ABOVE IS THE BOUNDS GUARD: `rel` in
+// bake_ground_at is non-negative and below the band's count BY THAT
+// INEQUALITY, never by a clamp. WGSL robustness would clamp a wrong index
+// silently and hand back a neighbour's wave, so a wrong table would read
+// as a subtly wrong world rather than as a fault. If a band spacing moves,
+// the const_assert fires before the shader ever runs.
+var<workgroup> bake_nodes: array<WaveNode, BAKE_TABLE_N>;
+var<workgroup> bake_origin: array<vec2<i32>, TERRAIN_BAND_COUNT>;   // per-band min node index
+
+// Comparisons only — the blessed shape (no loops, no tables).
+fn bake_band_of(k: u32) -> u32 {
+    if (k < BAKE_TABLE_OFF[1]) { return 0u; }
+    if (k < BAKE_TABLE_OFF[2]) { return 1u; }
+    if (k < BAKE_TABLE_OFF[3]) { return 2u; }
+    if (k < BAKE_TABLE_OFF[4]) { return 3u; }
+    if (k < BAKE_TABLE_OFF[5]) { return 4u; }
+    return 5u;
+}
+
+fn bake_nodes_n(b: u32) -> u32 {
+    switch (b) {
+        case 0u: { return BAKE_NODES_0; }
+        case 1u: { return BAKE_NODES_1; }
+        case 2u: { return BAKE_NODES_2; }
+        case 3u: { return BAKE_NODES_3; }
+        case 4u: { return BAKE_NODES_4; }
+        default: { return BAKE_NODES_5; }
+    }
+}
+
+// ground_formed_with_complexity's height, read out of the table.
+//
+// SAME band order, SAME node order (dz outer, dx inner), SAME Hermite
+// weights, SAME per-band partial sum, SAME tile modifiers and pyramids —
+// so this is the analytic function's value, not an approximation of it.
+// Two things are dropped and both are provably inert at t = 0, which is
+// the only time the bake evaluates at:
+//   · the activity field. beat_freq enters only phase_moving, scaled by
+//     t_beats; at t = 0 the moving wave IS the frozen wave, bit for bit.
+//   · the mix. evaluate_lattice_wave returns mix(x, x, band_act) once the
+//     two are equal, which is x to within one ulp — the one departure
+//     (mix is x*(1-a) + x*a, not a no-op in IEEE).
+//   · complexity, which had no reader once the .w channel went to 0.
+fn bake_ground_at(world_xz: vec2<f32>) -> f32 {
+    var height = 0.0;
+    for (var b: u32 = 0u; b < TERRAIN_BAND_COUNT; b++) {
+        let band = TERRAIN_BANDS[b];
+        let n = bake_nodes_n(b);
+        let off = BAKE_TABLE_OFF[b];
+        let origin = bake_origin[b];
+
+        let lattice_pos = world_xz / band.spacing;
+        let lattice_base = vec2<i32>(floor(lattice_pos));
+        let frac = fract(lattice_pos);
+        let w = frac * frac * (3.0 - 2.0 * frac);
+
+        var band_h = 0.0;
+        for (var dz: i32 = 0; dz <= 1; dz++) {
+            for (var dx: i32 = 0; dx <= 1; dx++) {
+                let node = lattice_base + vec2<i32>(dx, dz);
+
+                let wx = select(1.0 - w.x, w.x, dx == 1);
+                let wz = select(1.0 - w.y, w.y, dz == 1);
+                let weight = wx * wz;
+
+                let rel = node - origin;
+                let wn = bake_nodes[off + u32(rel.y) * n + u32(rel.x)];
+                band_h += eval_wave_node(world_xz, wn, 0.0) * weight;
+            }
+        }
+        height += band_h;
+    }
+    let mods = tile_modifiers_at(world_xz);
+    return height * mods.x + mods.y + contrib_pyramids_at(world_xz);
+}
+
 // workgroup_id.z selects the patch: one dispatch bakes the whole batch.
 @compute @workgroup_size(16, 16)
 fn bake_patch_heightfield(
@@ -10286,8 +10403,34 @@ fn bake_patch_heightfield(
     @builtin(workgroup_id) wid: vec3<u32>
 ) {
     let pp = patch_params_batch[wid.z];
-    let ix = wid.x * 16u + lid.x;
-    let iz = wid.y * 16u + lid.y;
+    let t = lid.y * BAKE_TILE + lid.x;
+
+    // The tile's minimum world corner, stencil reach included — the point
+    // every band's origin index is floored from.
+    let tile_min = pp.origin
+        + (vec2(f32(wid.x * BAKE_TILE), f32(wid.y * BAKE_TILE)) / f32(PATCH_MESH_N)
+           - vec2(0.5)) * PATCH_EXTENT
+        - vec2(BAKE_STENCIL_EPS);
+
+    if (t < TERRAIN_BAND_COUNT) {
+        bake_origin[t] = vec2<i32>(floor(tile_min / TERRAIN_BANDS[t].spacing));
+    }
+    workgroupBarrier();
+
+    // 256 threads fill 77 nodes by stride. EVERY thread runs this and both
+    // barriers — the out-of-range bounds check waits until after them.
+    for (var k = t; k < BAKE_TABLE_N; k += BAKE_TILE * BAKE_TILE) {
+        let b = bake_band_of(k);
+        let n = bake_nodes_n(b);
+        let r = k - BAKE_TABLE_OFF[b];
+        let node = bake_origin[b] + vec2<i32>(i32(r % n), i32(r / n));
+        bake_nodes[k] = derive_wave_node(node, lattice_node_seed(config.world_seed, node, b),
+                                         TERRAIN_BANDS[b]);
+    }
+    workgroupBarrier();
+
+    let ix = wid.x * BAKE_TILE + lid.x;
+    let iz = wid.y * BAKE_TILE + lid.y;
     if (ix >= PATCH_HEIGHTFIELD_N || iz >= PATCH_HEIGHTFIELD_N) { return; }
 
     // texel i IS lattice point i: the same uv patch_terrain_vs decodes.
@@ -10295,11 +10438,11 @@ fn bake_patch_heightfield(
     let p  = pp.origin + (uv - vec2(0.5)) * PATCH_EXTENT;
 
     let e   = BAKE_STENCIL_EPS;
-    let h0  = ground_formed_with_complexity(p).x;
-    let hx  = ground_formed_with_complexity(p + vec2(e, 0.0)).x;
-    let hmx = ground_formed_with_complexity(p - vec2(e, 0.0)).x;
-    let hz  = ground_formed_with_complexity(p + vec2(0.0, e)).x;
-    let hmz = ground_formed_with_complexity(p - vec2(0.0, e)).x;
+    let h0  = bake_ground_at(p);
+    let hx  = bake_ground_at(p + vec2(e, 0.0));
+    let hmx = bake_ground_at(p - vec2(e, 0.0));
+    let hz  = bake_ground_at(p + vec2(0.0, e));
+    let hmz = bake_ground_at(p - vec2(0.0, e));
     let grad_x = (hx - hmx) / (2.0 * e);
     let grad_z = (hz - hmz) / (2.0 * e);
 
