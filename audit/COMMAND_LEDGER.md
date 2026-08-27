@@ -5,18 +5,18 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `03fc58ed11fe8e8c24004a609254f43d0a9656e2`
-(DIAL — the sand stands the two collections level: 50/50 (Jean))
+Last commit touching any scanned file: `5f41c91439b202704c00105381026e19633b4122`
+(INSTRUMENT — the mesh-gen firing count, per family, per window (PANORAMA_0 §5.5))
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:cec3f36fcb5621d088beebe90c3d9dff0892714a70f411c7b3fa7a4cca8bb1d9` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:1187b1a6f140da48d90e78e6a6257647686f9fe68999dffeb634e9645e153e57` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f6146489224a835eab184f7078fc520c88fc9461d26d6a93b2d5caec1e070a93` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:f149058ea797e4a1f9ffe98d01fcf482ab3b9e8bdafbe4d6c8e14a84827ccd79` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:5d1dbc55435c46690bf839a52d7dae33c21f918d952c99264a9f0b79bc968da9` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:fcf2c1e6b0a4f64cdbf5e83efab011dce4c8f3c906f04c03dada08f184a2dcac` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:16be98b2188e6543f319dfb5712155753b41ab202e193e98b8eeac02f06bb653` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/the_board.cpp` | `sha256:4308a78ebe68067a4242327a2040179d33ddcc7aa3a22f88f628966e6aaeaf21` |
 | `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |
@@ -40,7 +40,7 @@ in `console.hpp`.
 | 5 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:334` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
 | 6 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:378` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 7 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:550` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2031` | — | — | — |
+| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2058` | — | — | — |
 | 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
 | 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:197` | — | — | — |
 | 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:807` | — | — | — |
