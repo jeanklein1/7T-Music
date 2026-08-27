@@ -507,28 +507,28 @@ struct EntitiesState {
     // ── Arch ─────────────────────────────────────────────────────
     ActiveArch arches[Dim::MAX_ARCH_INSTANCES]{};
     bool       arch_mesh_gen_pending = false;
-    uint32_t   arch_mesh_gen_since = UINT32_MAX;   // the settle's stamp (PANORAMA_1)
+    float      arch_mesh_gen_since = -1.0f;   // the settle's stamp (PANORAMA_1)
 
     // ── Column + Antenna (sibling families, shared mesh-gen flag) ─
     ActiveColumn columns[Dim::MAX_COLUMN_ONLY]{};
     ActiveColumn antennas[Dim::MAX_ANTENNA_ONLY]{};
     bool         column_mesh_gen_pending = false;  // shared by column + antenna
-    uint32_t     column_mesh_gen_since = UINT32_MAX;
+    float        column_mesh_gen_since = -1.0f;
 
     // ── Palm ─────────────────────────────────────────────────────
     ActivePalm palms[Dim::MAX_PALM_INSTANCES]{};
     bool       palm_mesh_gen_pending = false;
-    uint32_t   palm_mesh_gen_since = UINT32_MAX;
+    float      palm_mesh_gen_since = -1.0f;
 
     // ── Cactus ───────────────────────────────────────────────────
     ActiveCactus cacti[Dim::MAX_CACTUS_INSTANCES]{};
     bool         cactus_mesh_gen_pending = false;
-    uint32_t     cactus_mesh_gen_since = UINT32_MAX;
+    float        cactus_mesh_gen_since = -1.0f;
 
     // ── Blade ────────────────────────────────────────────────────
     ActiveBlade blades[Dim::MAX_BLADE_INSTANCES]{};
     bool        blade_mesh_gen_pending = false;
-    uint32_t    blade_mesh_gen_since = UINT32_MAX;
+    float       blade_mesh_gen_since = -1.0f;
 
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
@@ -600,27 +600,29 @@ uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& 
 // against a settle of eight that is exact enough, and it puts the stamp in ONE
 // place instead of at twenty raise sites, where a new raiser could forget it.
 //
-// PACED IN FRAMES, WHICH THE METRONOME HALVES. At pace 2 (PANORAMA_1 U6) a
-// frame is 33 ms and this window is ~266 ms rather than ~133. Named here
-// because it is a real coupling between two units of one round, not because
-// it is known to matter: the arrival is still at the ring's edge. If the eye
-// ever catches it, the fix is to settle on `time_state_.seconds`, which is
-// invariant under pace.
-inline constexpr uint32_t MESH_GEN_SETTLE_FRAMES = 8;
+// PACED IN SECONDS, BECAUSE THE CLAIM WAS ALWAYS A TIME CLAIM (WRAP_0 U6).
+// PANORAMA_1 wrote this as eight FRAMES and argued it in milliseconds — "a
+// ~130 ms delay is invisible" — which are the same number only at 60 Hz. At
+// `?pace=2` a frame is 33 ms and the window silently became ~266 ms. The
+// constant now reads as what the argument always was, and no pace can double
+// it.
+inline constexpr float MESH_GEN_SETTLE_S = 0.133f;
 
-inline bool mesh_gen_settled(bool& pending, uint32_t& since, const WorldState& ws) {
+inline bool mesh_gen_settled(bool& pending, float& since, const TimeState& ts,
+                             const WorldState& ws) {
     if (!pending) return false;
-    if (since == UINT32_MAX) since = ws.frame_index;
-    if (!ws.world_young && ws.frame_index - since < MESH_GEN_SETTLE_FRAMES) return false;
+    if (since < 0.0f) since = ts.seconds;
+    if (!ws.world_young && ts.seconds - since < MESH_GEN_SETTLE_S) return false;
     pending = false;
-    since = UINT32_MAX;
+    since = -1.0f;
     return true;
 }
 
 
 inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!mesh_gen_settled(es.palm_mesh_gen_pending, es.palm_mesh_gen_since, c->world_state_)) return false;
+    if (!mesh_gen_settled(es.palm_mesh_gen_pending, es.palm_mesh_gen_since,
+                          c->time_state_, c->world_state_)) return false;
     uint32_t maxSlot = 0;
     bool anyActive = false;
     for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
@@ -633,7 +635,8 @@ inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue&
 
 inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!mesh_gen_settled(es.cactus_mesh_gen_pending, es.cactus_mesh_gen_since, c->world_state_)) return false;
+    if (!mesh_gen_settled(es.cactus_mesh_gen_pending, es.cactus_mesh_gen_since,
+                          c->time_state_, c->world_state_)) return false;
     uint32_t maxSlot = 0;
     bool anyActive = false;
     for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
@@ -646,7 +649,8 @@ inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queu
 
 inline bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!mesh_gen_settled(es.blade_mesh_gen_pending, es.blade_mesh_gen_since, c->world_state_)) return false;
+    if (!mesh_gen_settled(es.blade_mesh_gen_pending, es.blade_mesh_gen_since,
+                          c->time_state_, c->world_state_)) return false;
     uint32_t maxSlot = 0;
     bool anyActive = false;
     for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
@@ -659,7 +663,8 @@ inline bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue
 
 inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!mesh_gen_settled(es.column_mesh_gen_pending, es.column_mesh_gen_since, c->world_state_)) return false;
+    if (!mesh_gen_settled(es.column_mesh_gen_pending, es.column_mesh_gen_since,
+                          c->time_state_, c->world_state_)) return false;
 
     uint32_t maxSlot = 0;
     bool anyActive = false;
@@ -679,7 +684,8 @@ inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queu
 
 inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!mesh_gen_settled(es.arch_mesh_gen_pending, es.arch_mesh_gen_since, c->world_state_)) return false;
+    if (!mesh_gen_settled(es.arch_mesh_gen_pending, es.arch_mesh_gen_since,
+                          c->time_state_, c->world_state_)) return false;
 
     uint32_t maxSlot = 0;
     bool anyActive = false;
