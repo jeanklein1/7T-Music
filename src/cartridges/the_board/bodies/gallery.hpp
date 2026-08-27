@@ -678,6 +678,30 @@ struct AuthoredStagingRecord {
     // AND on failure — a slot that never clears is a slot the rotation
     // can never reuse.
     bool pending = false;
+    // WHAT THE ROTATION READS (OVERTURE_0 — the WALLS_1 split, ruled).
+    // `consumed` says "on a wall NOW" and is released when the painting
+    // leaves the world; this says "hung at least once THIS world, so rotate
+    // it out at world end". Set at the two authored claim sites, cleared by
+    // rotate_authored_staging for every record it refreshes. A failed
+    // refetch sets it, so the next world re-asks — the shape
+    // authored_fetch_release_slot used to give `consumed`.
+    //
+    // ONE FLAG CARRIED BOTH MEANINGS AND THE OUTDOOR LEAK IS WHY IT COULD
+    // NOT: evict_paintings_for_patch frees an exhibition layer as the pawn
+    // walks and patches churn, and nothing released the record that fed it,
+    // so within one world the authored pool walked down to nothing and
+    // outdoor authored galleries stopped placing until the next portal.
+    // Releasing `consumed` there is the fix, and it would have frozen the
+    // library — the rotation revisits consumed slots, so with few consumed
+    // at teardown the 57-image collection stops cycling through the 32
+    // staging slots. Two facts, two words.
+    bool hung_this_world = false;
+    // THE LAYER THIS RECORD IS SHOWN AT. UINT32_MAX = not exhibited. Nothing
+    // in the tree mapped an exhibition layer back to the record that fed it,
+    // which is the whole reason the release above could not be written.
+    // Written beside `consumed = true` at the claim; read by the release so
+    // an evicted painting frees its record.
+    uint32_t exhibition_layer = UINT32_MAX;
 };
 
 // Pending texture promotions (staging → exhibition, executed in render)
@@ -910,6 +934,7 @@ inline void recompute_slot_high_water(GalleryState& gs) {
 // homes below). Impl-only — not part of the header surface.
 inline void capture_snapshot(GalleryState& gs, GalleryDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue);
 inline uint32_t authored_hangable(const GalleryState& gs);
+inline void authored_release_layer(GalleryState& gs, uint32_t exh);
 inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[]);
 inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t seed, uint32_t prop);
 
@@ -1523,6 +1548,10 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
 
                 gs.exhibition_occupied[exh] = true;
                 gs.authored_staging[auth_stg].consumed = true;
+                // THE CLAIM, WHOLE (OVERTURE_0): on a wall now, hung this
+                // world, and shown at this layer.
+                gs.authored_staging[auth_stg].hung_this_world = true;
+                gs.authored_staging[auth_stg].exhibition_layer = exh;
                 queue_promotion(gs, false, auth_stg, exh);
                 gs.wall_frame_count++;
                 placed_this = true;
@@ -1610,11 +1639,11 @@ inline void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c, int32_t g
         if (gs.painting_slots[i].is_active != 0 &&
             gs.painting_slots[i].patch_gx == gx && gs.painting_slots[i].patch_gz == gz) {
 
-            // Free the exhibition layer — unless the atrium holds it (ATRIUM_7).
+            // Free the exhibition layer, and the record that fed it
+            // (OVERTURE_0 — the leak WALLS_1 named, closed).
             uint32_t exh = gs.painting_slots[i].texture_layer;
-            {
-                gs.exhibition_occupied[exh] = false;
-            }
+            gs.exhibition_occupied[exh] = false;
+            authored_release_layer(gs, exh);
 
             if (gs.painting_slots[i].form_type == FormType::WALL_FRAME) {
                 gs.wall_frame_count--;
@@ -1921,11 +1950,11 @@ inline void recount_authored_staged(GalleryState& gs) {
 // have failed the same way. A network failure is a different animal: a
 // 502, a dropped connection on a phone, a name that lost its file
 // between two dist runs. Left as {valid=false, pending=false,
-// consumed=false} the slot would be unreachable forever:
-// load_authored_textures has latched, and rotate only revisits CONSUMED
-// slots. So a failure marks the slot consumed — still invalid, so
-// nothing can pick it, but now exactly the shape the rotation is looking
-// for, and the next world change re-asks. The disk claim is dropped with
+// hung_this_world=false} the slot would be unreachable forever:
+// load_authored_textures has latched, and rotate only revisits slots that
+// hung something this world. So a failure marks the slot hung — still
+// invalid, so nothing can pick it, but now exactly the shape the rotation
+// is looking for, and the next world change re-asks. The disk claim is dropped with
 // it so the cursor is free to hand that painting to whichever slot comes
 // up.
 inline void authored_fetch_release_slot(GalleryState& gs, uint32_t staging_layer) {
@@ -1938,11 +1967,17 @@ inline void authored_fetch_release_slot(GalleryState& gs, uint32_t staging_layer
     //
     // Now it can. The claim falls back to what is actually shown, so the
     // record is self-consistent again and the rotation will not hand that
-    // picture to a second slot. `consumed` stays true — the slot is still the
-    // shape the rotation looks for, and the next world re-asks.
+    // picture to a second slot.
+    //
+    // AND THE MARK GOES ON THE ROTATION'S FLAG, NOT ON `consumed`
+    // (OVERTURE_0). The slot must still be the shape the rotation looks for
+    // so the next world re-asks — that is what this line has always been for
+    // — and since the split that shape is `hung_this_world`. `consumed` is
+    // deliberately untouched: a failed refetch of a record still hanging on a
+    // wall must leave it on the wall.
     rec.disk_index = rec.shown_disk_index;
     rec.valid = (rec.shown_disk_index != UINT32_MAX);
-    rec.consumed = true;
+    rec.hung_this_world = true;
 }
 
 // One exit for both outcomes: the lane is freed, the context is
@@ -2284,11 +2319,9 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
 
 inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
     if (gs.authored_disk_manifest.empty()) return;
-    // ATRIUM_3 — THE RANGE IN FORCE, not the whole manifest. The rotation
-    // draws only from the collection this world hangs, and it treats a slot
-    // holding the OTHER collection as fodder (slot_reusable): the picture is
-    // not lost — the browser's cache is the exhibition's home now — but it
-    // may not hang here.
+    // THE WHOLE MANIFEST. ATRIUM_3's two collections and the range that chose
+    // between them died with the partition (ATTIC_ATRIUM D2); what is left is
+    // one collection, walked by one cursor.
     const uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
     if (manifest_size == 0u) return;
 
@@ -2332,11 +2365,14 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
     uint32_t& cursor = gs.authored_disk_cursor;
     if (cursor >= manifest_size) cursor = 0u;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        // ATRIUM_3 — CONSUMED, OR HOLDING THE OTHER COLLECTION. The second
-        // arm is what a door change costs: an exhibition painting standing
-        // in the entrance is not fodder because it is spent, it is fodder
-        // because it does not belong here.
-        if (!gs.authored_staging[i].consumed) continue;
+        // HUNG THIS WORLD (OVERTURE_0). There is one collection, so the
+        // second arm ATRIUM_3 wrote here is gone with the partition; and the
+        // selector is no longer `consumed`, which now says only "on a wall
+        // NOW" and is released the moment a painting leaves the world. What
+        // the rotation wants is "the visitor has already seen this one" —
+        // which outlives the eviction that released it, and is exactly the
+        // fact the split gave its own word.
+        if (!gs.authored_staging[i].hung_this_world) continue;
         // A SLOT ALREADY IN FLIGHT IS NOT ROTATED. The loop below reads
         // the disk cursor, ADVANCES it, and then assumes the load took —
         // it marks the painting in use and counts a rotation. On this
@@ -2359,6 +2395,9 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
             // Load this image into the vacated staging slot
             load_authored_image_to_staging(gs, c->gpuState_, queue, i, disk_idx,
                 gs.authored_disk_manifest[disk_idx].c_str());
+            // Refreshed: this slot is asking for a picture the visitor has
+            // not seen, so its debt to the rotation is paid (OVERTURE_0).
+            gs.authored_staging[i].hung_this_world = false;
             if (disk_idx < 256) disk_in_use[disk_idx] = true;
             rotated++;
             break;
@@ -2389,6 +2428,18 @@ inline uint32_t authored_hangable(const GalleryState& gs) {
         if (r.valid && !r.consumed) count++;
     }
     return count;
+}
+
+// THE HAND THAT CLAIMED THE RECORD FREES IT (OVERTURE_0): an exhibition
+// layer going dark releases the record that fed it. A scan of 32 on a
+// placement-event path, never per frame. Snapshot-fed layers match no record
+// — their exhibition_layer is never written — so the scan is a no-op for
+// them, which is correct: a snapshot's `consumed` is permanent by design.
+inline void authored_release_layer(GalleryState& gs, uint32_t exh) {
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+        auto& r = gs.authored_staging[i];
+        if (r.exhibition_layer == exh) { r.consumed = false; r.exhibition_layer = UINT32_MAX; }
+    }
 }
 
 // Count how many valid authored staging entries aren't in usedAuthored[]
@@ -2778,7 +2829,9 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 
                 gs.exhibition_occupied[exh] = true;
                 gs.authored_staging[f.record].consumed = true;
-                usedAuthored[f.record] = true;
+                // THE CLAIM, WHOLE (OVERTURE_0) — see commit_gallery's twin.
+                gs.authored_staging[f.record].hung_this_world = true;
+                gs.authored_staging[f.record].exhibition_layer = exh;
                 queue_promotion(gs, false, f.record, exh);
             }
 
@@ -2832,9 +2885,8 @@ inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
             gs.painting_slots[i].patch_gx == INT32_MAX &&
             gs.painting_slots[i].patch_gz == INT32_MAX) {
             uint32_t exh = gs.painting_slots[i].texture_layer;
-            {
-                gs.exhibition_occupied[exh] = false;
-            }
+            gs.exhibition_occupied[exh] = false;
+            authored_release_layer(gs, exh);
             gs.painting_slots[i].is_active = 0;
             c->gpuState_.deactivate_painting_slot(queue, i);
         }
@@ -2983,7 +3035,14 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++)
         gs.exhibition_occupied[i] = false;
     rotate_authored_staging(gs, c, queue);
-    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gs.authored_staging[i].consumed = false;
+    // Every layer was freed above, so every claim on one dies here too.
+    // `hung_this_world` is NOT cleared: the rotation clears it per record it
+    // actually refreshed, and a record it could not refresh must still be
+    // re-asked for in the next world.
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+        gs.authored_staging[i].consumed = false;
+        gs.authored_staging[i].exhibition_layer = UINT32_MAX;
+    }
 }
 
 // ─── Promotion drain (owner verb) ─ copy staged snapshot/authored layers into the exhibition
