@@ -12787,9 +12787,17 @@ fn cmg_write_vertex(
 
 // ── Compute entry point ───────────────────────────────────────────────
 
-@compute @workgroup_size(1, 1, 1)
-fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let slot = gid.x;
+@compute @workgroup_size(MESHGEN_LANES)
+fn column_mesh_gen(
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>
+) {
+    // ONE WORKGROUP PER SLOT (LATTICE_2). The dispatch shape,
+    // (MAX_COLUMN_INSTANCES, 1, 1), is unchanged. The whole skeleton below
+    // — the profile polyline, the disc records, the trig table — is pure
+    // in (p, eff_h) and replayed by every lane; only emission is strided.
+    let slot = wid.x;
+    let lane = lid.x;
     if (slot >= CMG_MAX_SLOTS) { return; }
 
     let p = cmg_params[slot];
@@ -12814,7 +12822,7 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // ── Inactive: zero all indices ─────────────────────────────
     if (p.is_active == 0u) {
-        for (var i = 0u; i < CMG_MAX_INDICES_PER_SLOT; i++) {
+        for (var i = lane; i < CMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
             cmg_indices[slot_ib + i] = slot_vb;
         }
         return;
@@ -13086,12 +13094,21 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         tbl_sin[si] = sin(theta);
     }
 
-    // ── Revolution: rotate profile around Y axis ───────────────
-    var vi = slot_vb;
-    var ii = slot_ib;
+    // ── THE SECTION BASES (LATTICE_2) ──────────────────────────
+    // The revolution is a rectangle, so its totals are closed forms. The
+    // DISCS are not — a disc is a fan or a strip depending on its inner
+    // radius — so a lane recovers its own disc's base with a pure prefix
+    // loop over the skeleton: the same arithmetic the cursor performed,
+    // no emission. pc >= 1 by construction (both profile branches emit at
+    // least one point), but the trip count is stated defensively: a u32
+    // `pc - 1u` at pc == 0 would be 4 billion, not zero.
+    let pc_quads    = select(pc - 1u, 0u, pc == 0u);   // the wall loop's inner trip count
+    let rev_verts   = (sa + 1u) * pc;
+    let rev_indices = sa * pc_quads * 6u;
 
-    // Vertices: (sa+1) rings × pc points
-    for (var si = 0u; si <= sa; si++) {
+    // ── Revolution: rotate profile around Y axis ───────────────
+    // Vertices: (sa+1) rings × pc points. vi was slot_vb + si * pc + pi.
+    for (var si = lane; si <= sa; si += MESHGEN_LANES) {
         let ct = tbl_cos[si];
         let st = tbl_sin[si];
 
@@ -13117,34 +13134,52 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
                 ny_local = -dr / nlen;
             }
 
-            cmg_write_vertex(vi,
+            cmg_write_vertex(slot_vb + si * pc + pi,
                 p.center_x + r * ct, y, p.center_z + r * st,
                 nx_local * ct, ny_local, nx_local * st,
                 prof_cr[pi], prof_cg[pi], prof_cb[pi], enc);
-            vi++;
         }
     }
 
-    // Wall indices: quads between adjacent rings
+    // Wall indices: quads between adjacent rings.
+    // ii was slot_ib + (si * pc_quads + pi) * 6u + j.
     let rev_vb = slot_vb;
-    for (var si = 0u; si < sa; si++) {
+    for (var si = lane; si < sa; si += MESHGEN_LANES) {
         for (var pi = 0u; pi + 1u < pc; pi++) {
             let i00 = rev_vb + si * pc + pi;
             let i10 = i00 + 1u;
             let i01 = rev_vb + (si + 1u) * pc + pi;
             let i11 = i01 + 1u;
-            cmg_indices[ii] = i00; ii++;
-            cmg_indices[ii] = i01; ii++;
-            cmg_indices[ii] = i10; ii++;
-            cmg_indices[ii] = i10; ii++;
-            cmg_indices[ii] = i01; ii++;
-            cmg_indices[ii] = i11; ii++;
+            let ii = slot_ib + (si * pc_quads + pi) * 6u;
+            cmg_indices[ii + 0u] = i00;
+            cmg_indices[ii + 1u] = i01;
+            cmg_indices[ii + 2u] = i10;
+            cmg_indices[ii + 3u] = i10;
+            cmg_indices[ii + 4u] = i01;
+            cmg_indices[ii + 5u] = i11;
         }
     }
 
     // ── Horizontal discs (using precomputed trig table) ────────
+    //
+    // A LANE OWNS A WHOLE DISC. That is why the body below is verbatim,
+    // `vi++` / `ii++` and all: within one disc the cursor is ordinary
+    // serial state, and no other lane is writing into this disc's range.
+    // Only the disc's STARTING cursor has to be recovered, which the
+    // prefix loop does.
+    for (var di = lane; di < dc; di += MESHGEN_LANES) {
+        // The cursor's value on reaching disc di: the revolution's whole
+        // rectangle, plus every earlier disc's own shape. Reads only the
+        // skeleton, writes nothing.
+        var dv = rev_verts;
+        var dii = rev_indices;
+        for (var k = 0u; k < di; k++) {
+            if (disc_ri[k] < 0.001) { dv += 1u + (sa + 1u); dii += sa * 3u; }
+            else                    { dv += 2u * (sa + 1u); dii += sa * 6u; }
+        }
+        var vi = slot_vb + dv;
+        var ii = slot_ib + dii;
 
-    for (var di = 0u; di < dc; di++) {
         let d_ri = disc_ri[di];
         let d_ro = disc_ro[di];
         let d_y = disc_y[di];
@@ -13226,8 +13261,13 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     // ── Zero remaining indices ─────────────────────────────────
-    let used = ii - slot_ib;
-    for (var i = used; i < CMG_MAX_INDICES_PER_SLOT; i++) {
+    // `used` was ii - slot_ib, which no lane holds any more: the same
+    // prefix run to dc instead of to di.
+    var used = rev_indices;
+    for (var k = 0u; k < dc; k++) {
+        if (disc_ri[k] < 0.001) { used += sa * 3u; } else { used += sa * 6u; }
+    }
+    for (var i = used + lane; i < CMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
         cmg_indices[slot_ib + i] = slot_vb;
     }
 }
