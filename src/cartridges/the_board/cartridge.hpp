@@ -584,9 +584,9 @@ namespace t7 {
                 // console.init asks the browser for an adapter — so the
                 // manifest travels while the device request is still
                 // outstanding, over rAF turns that pump nothing else. It is
-                // therefore normally parsed before the boot's eager
-                // load_authored_textures below, and always before the first
-                // gallery. A manifest that is still in flight is an empty
+                // therefore normally parsed before the conductor's first
+                // fill (the deferred hang's head, OVERTURE_0), and always
+                // before the first gallery. A manifest that is still in flight is an empty
                 // manifest, which is the already-legal no-paintings state.
                 // No device, no queue, no GPU touched: this fetch fills a
                 // vector of names and nothing more.
@@ -746,15 +746,6 @@ namespace t7 {
                     dump_entity_census(&machine_ctx_, "boot");
                 }
 
-                // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part two) ═══════
-                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery).
-                // ROSTER-GATE gallery (c) — P2 DIES STRUCTURALLY:
-                // disabled, the authored-staging textures stay pristine.
-                if constexpr (ROSTER.gallery) {
-                    wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(gallery_state_, gpuState_, q);
-                }
-
                 auto t3 = std::chrono::high_resolution_clock::now();
 
                 std::cout << "[Cartridge] Renderer init:    "
@@ -766,9 +757,11 @@ namespace t7 {
 
                 // PORT_4b — THE BUDGET, once, after the LAST allocation.
                 // Every GPU maker has now run: GPUState::init's five
-                // creators, initOffscreenResources (the three painting
+                // creators and initOffscreenResources (the three painting
                 // arrays — the 416 MiB family the old call site missed
-                // entirely), and load_authored_textures' staging above.
+                // entirely). The authored fill makes nothing: it queues
+                // fetches, and an arrival writes into a texture
+                // initOffscreenResources already created.
                 // Placed after the timings so it reads beneath "Total
                 // init", and BEFORE the ROSTER + [Ground] block so that
                 // block's claim to be the cartridge's last init line

@@ -740,13 +740,12 @@ struct GalleryState {
     AuthoredStagingRecord authored_staging[Dim::STAGING_LAYERS]{};
     uint32_t              authored_write_cursor = 0;
     uint32_t              authored_disk_cursor = 0;     // walks authored_disk_manifest
-    // ATRIUM_3 — A SECOND CURSOR, BECAUSE ONE u32 HOLDS ONE POSITION. The
-    // manifest is two collections now and the rotation walks whichever is
-    // in force; a single cursor clamped into the range in force would lose
-    // the other collection's place every time a visitor crossed a door, so
-    // the exhibition would restart at painting 0 on every return. Two
-    // positions is two words. authored_cursor_for names which is which.
     uint32_t              authored_staged_count = 0;
+    // ONE FILL PER SESSION, AND THIS IS ITS LATCH (OVERTURE_0). Read in two
+    // places: the fill's own early return, and nowhere else since commit's
+    // demotion died. It is NOT set when the manifest is still empty — that
+    // "empty" means "the fetch has not landed", and latching on it would lock
+    // the exhibition out for the session.
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
@@ -1342,21 +1341,13 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     gs.staging_reserved = gs.staging_reserved > plan.reserved_count
         ? gs.staging_reserved - plan.reserved_count : 0u;
 
-    // Resolve site type with content availability
+    // COMMIT NEITHER FILLS NOR DEMOTES (OVERTURE_0). The fill lives at the
+    // conductor's deferred-hang head — one call, one home — and the demotion
+    // that stood here is unreachable once place resolves: an unlatched fill
+    // means authored_hangable is zero, and place has already resolved to the
+    // other pool or DEFERRED the patch on exactly that fact. The site type
+    // arrives resolved.
     uint32_t site_type = plan.site_type;
-    // ATRIUM_3 — THE COLLECTION IN FORCE, resolved once for this gallery.
-    // The outdoor commit reads the LIVE mood; apply_mood has long since
-    // written it by the time a patch commits.
-    if (site_type != GallerySiteType::SNAPSHOT_ONLY) {
-        // The call is its OWN latch now, and the latch is the RANGE's — so
-        // the old `!authored_textures_loaded` test in front of it could only
-        // stop a collection change from ever landing. Leaving the room and
-        // coming back must be able to re-fill the staging.
-        load_authored_textures(gs, c->gpuState_, queue);
-    }
-    if (site_type != GallerySiteType::SNAPSHOT_ONLY && !gs.authored_textures_loaded) {
-        site_type = GallerySiteType::SNAPSHOT_ONLY;
-    }
 
     // Snapshot candidates
     struct Candidate { uint32_t layer; };
@@ -1368,13 +1359,14 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     }
 
     // THE RESIDUAL ZERO-CONTENT ABORTS. SPAWN_4's reservation removed the
-    // dominant path (place DEFERS when nothing is available — OVERTURE_0), but
-    // these three
-    // survive for a reason the reservation structurally cannot cover: the
-    // mono-tier curation below is a per-gallery seed-derived filter that only
-    // commit can apply, and load_authored_textures is a GPU write, barred from
-    // place by the standing law that the place phase writes no GPU state.
-    // Each releases the ground place claimed.
+    // dominant path and OVERTURE_0 removed the rest of it: place resolves the
+    // rolled site type against the pool and DEFERS when neither pool has
+    // anything, so arriving here with the wrong site type is no longer a
+    // shape. These three survive for the one reason the reservation
+    // structurally cannot cover — the mono-tier curation below is a
+    // per-gallery seed-derived filter that only commit can apply, and it can
+    // empty a candidate list place counted as full. Each releases the ground
+    // place claimed.
     bool have_snapshots = candidate_count > 0;
     bool have_authored = authored_hangable(gs) > 0;
     if ((site_type == GallerySiteType::SNAPSHOT_ONLY && !have_snapshots)
@@ -2164,8 +2156,6 @@ inline void exhibition_manifest_onsuccess(emscripten_fetch_t* fetch) {
     gs->authored_disk_manifest.reserve(paintings.size());
     for (const std::string& n : paintings)
         gs->authored_disk_manifest.push_back(std::string(EXHIBITION_PAINTINGS_DIR) + n);
-    // ATRIUM_3 — THE PARTITION IS WRITTEN HERE, once, where the two
-    // collections meet. Everything downstream reads authored_range_for.
 
     std::cout << "[Authored] Scanned " << EXHIBITION_MANIFEST_URL
         << " — found " << paintings.size() << " paintings\n";
@@ -2228,27 +2218,22 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         // it can (init_world runs the whole boot inside one rAF turn,
         // so no fetch callback can fire in the middle of it). Latching
         // here would lock the exhibition out for the session. Left
-        // false, the next caller re-enters and finds the manifest.
-        //
-        // Leaving it false also wakes commit_gallery's demotion at the
-        // top of this file (site_type != SNAPSHOT_ONLY && !loaded ->
-        // SNAPSHOT_ONLY), which was dead code on native and is correct
-        // here: with no manifest there is no authored content, and
-        // snapshot-only is exactly what such a gallery should be.
+        // false, the conductor re-enters next frame and finds the
+        // manifest (OVERTURE_0) — which is the whole of what makes a
+        // late exhibition arrive at all.
         return;
     }
 
-    // ATRIUM_3 — THE FILL IS THE RANGE'S, AND SO IS ITS LATCH. One
-    // manifest, two collections: a world hangs the one its mood names and
-    // nothing of the other. A single "have I loaded" bit was right while
-    // there was one collection; it would now lock the entrance out of a
-    // function the exhibition had already run. The latch is the RANGE the
-    // staging was last filled from, so crossing a door re-enters here
-    // exactly once and standing still costs nothing.
+    // ONE FILL, ONE HOME (OVERTURE_0). There is one collection and one
+    // session, so there is one fill and one plain bool to latch it. The
+    // caller is the conductor's deferred-hang head, every frame — which is
+    // what makes a manifest that lands LATE fill at all. It used to fill
+    // only when some gallery happened to roll a site type that wanted
+    // authored content, which made the exhibition's arrival depend on a
+    // die roll; before that it was three call sites re-entering each other.
     if (gs.authored_textures_loaded) return;
-    if (gs.authored_disk_manifest.empty()) return;   // nothing to fill from, and no latch
 
-    // WHAT THIS RANGE ALREADY HAS IN HAND — claimed (a fetch in flight) or
+    // WHAT THE STAGING ALREADY HAS IN HAND — claimed (a fetch in flight) or
     // shown (a texture still holding it). The rotation's book, kept by the
     // fill too, so the one-index-one-record invariant holds across both.
     // The cap fails OPEN exactly as it does there: an index past the array
@@ -2271,9 +2256,7 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         // A SLOT IN FLIGHT IS SPOKEN FOR. Its fetch is already on its way
         // and its claim is already in the book above.
         if (rec.pending) continue;
-        // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR — but only if it is
-        // this range's picture. A slot holding the other collection is
-        // reusable, which is the whole of what changes at a door.
+        // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR.
         if (rec.valid && !rec.consumed) continue;
         while (disk < manifest_size && disk < 256 && disk_in_use[disk]) disk++;
         if (disk >= manifest_size) break;
@@ -2282,9 +2265,7 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         disk++;
         filled++;
     }
-    // The rotation picks up where the fill left off, IN THIS RANGE. Two
-    // ranges, two cursors — authored_cursor_for is the one line that says
-    // which (GalleryState).
+    // The rotation picks up where the fill left off.
     gs.authored_disk_cursor = disk % manifest_size;
     gs.authored_write_cursor = filled % Dim::STAGING_LAYERS;
     gs.authored_textures_loaded = true;
@@ -2451,7 +2432,10 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
     // Clear any existing wall paintings first (indoor→indoor transitions)
     clear_wall_paintings(gs, c, queue);
 
-    load_authored_textures(gs, c->gpuState_, queue);
+    // NO FILL HERE (OVERTURE_0): the conductor owns it. This call was already
+    // a no-op after the first successful fill — the latch is a session bool —
+    // and the room is entered through a portal, which is many thousands of
+    // conductor frames after that fill.
 
     // ATRIUM_3 — THE COLLECTION IN FORCE, resolved once for this hang. The
     // wall hang runs inside apply_mood, which has already written
