@@ -379,13 +379,56 @@ and the campaign's meter is still its bookend.
   a one-line change, and this entry is the record that it was foreseen.
   Origin: LATTICE_2 R-D. Unblocked by a build.
 - THE WORKGROUP-STORAGE FLOOR IS A LITERAL IN TWO HOMES. The schema's
-  NEEDS row says 3744 and the module's `BAKE_WORKGROUP_BYTES` computes it;
-  witness R-3 resolves only `Dim::<SYM>` sources against state.hpp, so it
-  cannot hold this one. The module's own `const_assert` guards the ceiling
-  (16,384), but nothing guards the schema literal against the module's
-  value drifting apart. Closing it means teaching R-3 a
-  `world.wgsl <CONST>` source form — an instrument commit. Origin:
-  LATTICE_2 R5. Unblocked by someone wanting the instrument.
+  NEEDS row says 4912 (LATTICE_4 moved it from the bake's 3,744 to the
+  card's sum, which is larger) and the module's `CARD_WORKGROUP_BYTES`
+  computes it; witness R-3 resolves only `Dim::<SYM>` sources against
+  state.hpp, so it cannot hold this one. The module's const_asserts guard
+  the ceiling (16,384) and hold the card's sum at or above the bake's, so
+  the row always quotes the larger of the two — but nothing guards the
+  schema literal against the module's value drifting apart. Closing it
+  means teaching R-3 a `world.wgsl <CONST>` source form — an instrument
+  commit. THIS ROUND MOVED THE NUMBER BY HAND, which is the gap doing
+  exactly what the entry says it does. Origin: LATTICE_2 R5, re-paid at
+  LATTICE_4 R6. Unblocked by someone wanting the instrument.
+
+### LATTICE_4 — landed, and what it filed
+
+Origin: LATTICE_4 (three commits on master, base `d7bde104`). The card
+writer fused to one kernel and one dispatch; its band sum reads a per-tile
+node table; the scratch buffer, one pipeline and one dispatch retired. The
+fade overlay's gate moved onto the value the shader reads, at the exact
+quantization bound. NOT MEASURED — the campaign's meter is still its
+bookend.
+
+- THE CARD'S WINDOW WAS NOT SHRUNK, and the reason is a correction of
+  record. LATTICE_4 R1 proposed 640/1000 → 528/825 on the yardstick
+  "the farthest reader is 403.125 wu, the allocation window plus the
+  snap". That is where an entity's ANCHOR can be. Every entity VS samples
+  the card at its VERTEX position, and `arch_vs` has no ring gate — so an
+  arch at the window's edge reads out to anchor + half_span + half_depth.
+  With `cpu_sample_gaussian` clamping z to ±3, MONUMENTAL reaches 53.00 wu
+  and STANDARD 51.95, making the farthest card read 456.125 wu. R1's
+  window guarantees 409.375. Held at 640/1000, which guarantees 496.875
+  (slack 40.75). THE COVENANT IN state.hpp NOW CARRIES THIS: shrink the
+  card against 456.125, never against 403.125.
+  A shrink is still available on the true yardstick — SIZE must satisfy
+  EXTENT = 1.5625·SIZE and SIZE % 16 == 0, so 608/950 guarantees 471.875
+  (slack 15.75, texels 409,600 → 369,664) and 592/925 guarantees 459.375
+  (slack 0.75, too tight to want). That is a dial with a visual
+  consequence if it is ever wrong, so it is Jean's, not a follow-up.
+- `true_band_delta_contribution` IS KERNEL-LOCAL BY CONSTRUCTION. It reads
+  `card_nodes` / `card_origin`, workgroup storage only `write_live_card`
+  fills, and must run after that kernel's table barrier. naga cannot check
+  it; its SINGLE CALLER is the guard. A second caller must restore the
+  derive path — `derive_wave_node(node, lattice_node_seed(seed, node,
+  band_idx), band)` is exactly what the table holds — and give it its own
+  home. Its banner says so.
+- `shadow_pcf_taps` SITS IN THE "Measure" GROUP, not a lighting one.
+  LATTICE_4 R5 asked for it in "Lighting · Sun"; the dial already existed
+  (PANORAMA_1 U4) beside `draw_mask` and `shadow_mask`, the three
+  subtraction dials that were born together, and no "Lighting · Sun" group
+  exists. Moving it would split that trio to create a one-row group. Panel
+  layout is Jean's gate. Origin: LATTICE_4 R5, flagged not acted on.
 
 ### NEXT — TERRAIN_0
 

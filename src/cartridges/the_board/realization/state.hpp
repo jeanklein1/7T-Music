@@ -136,9 +136,24 @@ namespace t7 {
             // (PATCH_PREGEN_RADIUS + 1) · PATCH_EXTENT = 400 wu per axis
             // (patches span [pawnGX−7, pawnGX+7] and the pawn sits anywhere
             // inside its own cell), 403.125 with the snap.
-            // Slack 93.75 wu — was 43.75 at pregen radius 8; OPT_1b's one
-            // ring less widened it. Outside the window a sample returns the
-            // ClampToEdge texel — sample_live_card does no bounds test.
+            //
+            // AND THAT IS WHERE AN ANCHOR CAN BE, NOT WHERE A READ CAN BE
+            // (LATTICE_4 R-A). Every entity VS samples the card at its
+            // VERTEX position, and a mesh reaches past its anchor. The
+            // binding case is the arch: `arch_vs` has NO ring gate (unlike
+            // palm/cactus/blade, which kill per vertex beyond veil_ring), so
+            // an arch anywhere in the allocation window is drawn and read at
+            // every vertex. Its per-axis reach is half_span + half_depth,
+            // and cpu_sample_gaussian clamps z to ±3, so the widest is
+            // STANDARD's SPAN μ50 σ15 → half_span 47.5, plus half-depth 4.45
+            // — 51.95; MONUMENTAL's is 53.00. The farthest card read is
+            // therefore 403.125 + 53 = 456.125 wu, not 403.125.
+            // Slack 40.75 wu against the +x/+z guarantee — was 93.75 when
+            // measured against the anchor alone. Outside the window a sample
+            // returns the ClampToEdge texel — sample_live_card does no bounds
+            // test — so an under-sized window would mis-lift the far legs of
+            // far arches rather than fault. SHRINK THIS WINDOW AGAINST
+            // 456.125, never against 403.125.
 
             // CELL-EXACTNESS — the relation the nearest .a fetch stands on: one
             // patch cell is EXACTLY two card texels, so both texels inside a
