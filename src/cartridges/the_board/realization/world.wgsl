@@ -4114,10 +4114,18 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // receiver normal.
     let current_depth = light_ndc.z;
 
-    // Safety: if somehow outside shadow map, return fully lit
+    // Safety: if somehow outside shadow map, return fully lit.
+    //
+    // TESTED BEFORE THE TAPS (PANORAMA_0 LIGHT_0). This was the last line of
+    // the function — `select(lit, 1.0, out_of_bounds)` — so a fragment outside
+    // the map paid all sixteen textureSampleCompareLevel calls to have their
+    // result discarded. Every input to the test (shadow_uv, light_ndc.z) is
+    // already in hand here, so the early return is bit-identical and simply
+    // stops buying an answer nothing reads.
     let out_of_bounds = shadow_uv.x < 0.0 || shadow_uv.x > 1.0 ||
                         shadow_uv.y < 0.0 || shadow_uv.y > 1.0 ||
                         light_ndc.z < 0.0 || light_ndc.z > 1.0;
+    if (out_of_bounds) { return 1.0; }
 
     let clamped_uv = clamp(shadow_uv, vec2(0.001), vec2(0.999));
 
@@ -4189,11 +4197,11 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // and it is what makes that ladder step safe to take.
     let d    = max(abs(shadow_uv.x * 2.0 - 1.0), abs(shadow_uv.y * 2.0 - 1.0));
     let fade = clamp((1.0 - d) / 0.12, 0.0, 1.0);
-    let lit  = mix(1.0, shadow, fade);
 
-    // out_of_bounds still guards the DEPTH range and anything past the
-    // frustum outright; the fade smooths the uv approach to it.
-    return select(lit, 1.0, out_of_bounds);
+    // The out-of-bounds guard moved to the head of the function, where its
+    // inputs are first known; it still guards the DEPTH range and anything
+    // past the frustum outright, and the fade still smooths the uv approach.
+    return mix(1.0, shadow, fade);
 }
 
 // --- Directional Light
@@ -4214,8 +4222,21 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
     // sun-matrix sample would read spot depths. light_vp itself is no
     // longer overwritten (the per-tile copy died in ATLAS_1revB).
     // Restoring indoor sun shadow needs its own map content — future ruling.
+    //
+    // AND IT STAYS OFF ON GROUND THAT FACES AWAY FROM THE SUN (PANORAMA_0
+    // LIGHT_0). Surface turned from a 17-degree sun is dark by GEOMETRY, and
+    // the return below says so: the product carries ndotl, so at ndotl == 0 it
+    // is zero whatever `shadow` holds. Sixteen taps were being issued to
+    // multiply by nothing.
+    //
+    // THE GUARD IS PROVABLY BIT-NEUTRAL, and reads the SHADING normal on
+    // purpose. ndotl is max(dot(normal, light_dir), 0.0), so `ndotl > 0.0` is
+    // false exactly where the product is zero; sample_shadow_pcf's own
+    // geo_normal argument is unchanged and still decides the normal offset
+    // wherever the taps do run. Skipping the call cannot move a pixel because
+    // the pixel was never reading the call's answer.
     var shadow = 1.0;
-    if (frame_r.lighting.spots.count == 0u) {
+    if (ndotl > 0.0 && frame_r.lighting.spots.count == 0u) {
         shadow = sample_shadow_pcf(world_pos, geo_normal);
     }
 
