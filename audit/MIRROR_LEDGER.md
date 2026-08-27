@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `aec2c0cb2f6f5c52e870b6b9b444d595da241788` |
-| | LEDGER — the five re-stamp after LATTICE_2 / LATTICE_3 |
+| source commit | `382fbe4dc243a0ade170985b326cac454b3e4a64` |
+| | LATTICE_3/G fixup — the schema states the patch IBs' new labels and sizes |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:3a499509e86b3904f77a30ee426b896b132d96ba786c393fad7e0df5204a6f88` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:337b4ade061e56cf651b86ad910707bc9e816b23d3eee929b233048d6346d688` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:4bcc48530998a280dad28ddc714f7b7d58187a853e3497c8cdefe2bf89454162` |
