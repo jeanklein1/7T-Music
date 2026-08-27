@@ -142,7 +142,12 @@ GREP_MANIFEST = {
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.cube',    r'[^;]*?\.prepare_mesh'))],
     'gol':      [('cartridge.hpp', 'teardown',  imm(r'ROSTER\.gol',     r'teardown_gol')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gol',     r'[^;]*?\.prepare_mesh'))],
-    'gallery':  [('cartridge.hpp', 'boot textures (P2 dead)', blk(r'ROSTER\.gallery', 'load_authored_textures')),
+    # OVERTURE_0 U4a moved the authored fill's ONE home from initialize()'s
+    # eager boot call to the conductor's deferred-hang head, so the gate that
+    # kills it structurally moved with it. Same property, new site: with
+    # gallery off the conductor never wakes the verb, the verb is the fill's
+    # only caller, and the authored-staging textures stay pristine.
+    'gallery':  [('surface/patch_system.hpp', 'deferred hang (P2 dead)', imm(r'ROSTER\.gallery', r'tick_gallery_deferred_hang')),
                  ('cartridge.hpp', 'teardown (shared organ)', imm(r'ROSTER\.gallery \|\| ROSTER\.indoor_shell', r'teardown_gallery')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gallery', r'[^;]*?\.prepare_mesh'))],
     'pawn_aura':[('cartridge.hpp', 'teardown',  imm(r'ROSTER\.pawn_aura', r'teardown_pawn_aura'))],
