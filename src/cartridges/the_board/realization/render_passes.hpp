@@ -663,10 +663,16 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     pass.SetBindGroup(1, c->gpuState_.empty_group());
     pass.SetBindGroup(2, c->gpuState_.empty_group());
     pass.SetBindGroup(3, c->gpuState_.empty_group());
+    // ONE FACT, ONE HOME (LATTICE_4). The gate inside draw_fade_overlay
+    // decides whether the blend can move a pixel, and the shader reads
+    // config.fade_alpha — so the gate must read the STAGED value too, not
+    // the CPU-side mood field it was staged from. They agree today
+    // (phase_stage_fade_and_upload runs set_fade every frame), and that is
+    // exactly the kind of agreement that quietly stops being true.
     if (dmask & DrawBit::FADE)
     c->renderer_.draw_fade_overlay(
         pass,
-        c->mood_state_.transition_fade_alpha
+        c->gpuState_.config().fade_alpha
     );
 
     pass.End();

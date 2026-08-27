@@ -757,7 +757,7 @@ NEEDS = {
     'maxUniformBufferBindingSize': {'floor': 65536, 'source': 'core-default', 'note': 'every uniform window sits well under 64 KiB'},
     'maxBindGroups': {'floor': 4, 'source': 'core-default', 'note': 'the LOOM recut spends all four strata at every pipeline — 4 of 4 is the design'},
     'maxDynamicUniformBuffersPerPipelineLayout': {'floor': 1, 'source': 'core-default', 'note': 'one dynamic seat (shadow_slot on frame R) — 1 of 8'},
-    'maxComputeWorkgroupStorageSize': {'floor': 3744, 'source': 'world.wgsl BAKE_WORKGROUP_BYTES', 'note': "the bake's node table + origins, the program's largest per-entry-point sum; the card resolve's sh_card_h is 1,600 B in its own entry point. 3,744 of the 16,384 core default. The module carries its own const_assert against 16384 — R-3 cannot source this one (it resolves Dim:: symbols in state.hpp, not WGSL consts), so the literal here and the assert there are two homes for one fact"},
+    'maxComputeWorkgroupStorageSize': {'floor': 4912, 'source': 'world.wgsl CARD_WORKGROUP_BYTES', 'note': "the card writer's node table + origins + its 20x20 tile, the program's largest per-entry-point sum since LATTICE_4 fused the card (68*48 + 6*8 + 400*4); the bake's BAKE_WORKGROUP_BYTES is 3,744 in its own entry point, and a const_assert in the module holds the card's at or above it. 4,912 of the 16,384 core default. The module carries its own const_assert against 16384 — R-3 cannot source this one (it resolves Dim:: symbols in state.hpp, not WGSL consts), so the literal here and the assert there are two homes for one fact"},
 }
 
 # ═══ THE FEATURE WALLET (PROBATE_F) ═════════════════════════════════

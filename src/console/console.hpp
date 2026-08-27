@@ -678,11 +678,16 @@ namespace t7 {
                         //     the second — patch_params left the dynamic seat
                         //     for a read-only storage array when the bake
                         //     became one batched dispatch.)
-                        //   maxComputeWorkgroupStorageSize — the bake's node
-                        //     table, 3,744 B of the 16,384 default. The module
-                        //     states the number itself (BAKE_WORKGROUP_BYTES)
-                        //     and carries its own const_assert against the
-                        //     default; this print is the runtime half.
+                        //   maxComputeWorkgroupStorageSize — the CARD writer's
+                        //     node table + origins + its 20x20 tile, 4,912 B of
+                        //     the 16,384 default, and the program's largest
+                        //     per-entry-point sum since LATTICE_4 fused the
+                        //     card. The module states the number itself
+                        //     (CARD_WORKGROUP_BYTES) and carries two
+                        //     const_asserts: under the default, and at or above
+                        //     the bake's BAKE_WORKGROUP_BYTES (3,744) so this
+                        //     row always quotes the larger. This print is the
+                        //     runtime half.
                         // The floors read the NEEDS table's emitted
                         // constants; no literal lives in the C++.
                         std::cout << "[Device] granted vs floor:"

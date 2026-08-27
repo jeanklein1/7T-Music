@@ -1039,12 +1039,23 @@ namespace t7 {
                 pass.Draw(verts);
             }
 
+            // HALF AN LSB IS THE BOUND (LATTICE_4 R4). The overlay is a
+            // fullscreen alpha blend over an 8-bit target: at
+            // fadeAlpha < 0.5/255 every channel's blend quantizes back to
+            // the destination, so the skipped draw is PIXEL-IDENTICAL to the
+            // drawn one — not approximately, exactly. The 0.001 that stood
+            // here was an arbitrary epsilon that happened to be smaller;
+            // this is the number the argument actually rests on.
+            //
+            // The caller passes config().fade_alpha — the same value
+            // fade_overlay_fs reads — so the gate and the shader cannot
+            // disagree about whether the frame is at rest.
             void draw_fade_overlay(
                 wgpu::RenderPassEncoder& pass,
                 float fadeAlpha
             ) {
                 if constexpr (!(ROSTER.transitions)) return;  // ROSTER-GATE transitions (a') — pipeline never created; the holder tolerates
-                if (fadeAlpha < 0.001f) return;
+                if (fadeAlpha < 0.5f / 255.0f) return;
                 pass.SetPipeline(fadeOverlayPipeline_);
                 pass.Draw(3);  // fullscreen triangle from vertex ID
             }
