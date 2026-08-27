@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `30eda9344056313c7aad94ee3716a2562abb7097` |
-| | LATTICE_2/F — the blade cluster gains lanes; the banners stop saying "thread" |
+| source commit | `a422f35e5fe189528ca40af217313e73405d546e` |
+| | LATTICE_3/G — the patch index buffers are uint16 |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:78ce78d9a65cddbae3710f04f636f886cfe2a0c0a692ddd7d8aa9b2bc989f08f` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:44912f1ee0304bd52e2279b90f6f9371d1a848a4d459f59de043447377e194e6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:3a499509e86b3904f77a30ee426b896b132d96ba786c393fad7e0df5204a6f88` |

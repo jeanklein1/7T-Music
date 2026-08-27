@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `30eda9344056313c7aad94ee3716a2562abb7097` |
-| | LATTICE_2/F — the blade cluster gains lanes; the banners stop saying "thread" |
+| source commit | `a422f35e5fe189528ca40af217313e73405d546e` |
+| | LATTICE_3/G — the patch index buffers are uint16 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:3a499509e86b3904f77a30ee426b896b132d96ba786c393fad7e0df5204a6f88` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:337b4ade061e56cf651b86ad910707bc9e816b23d3eee929b233048d6346d688` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:78ce78d9a65cddbae3710f04f636f886cfe2a0c0a692ddd7d8aa9b2bc989f08f` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:44912f1ee0304bd52e2279b90f6f9371d1a848a4d459f59de043447377e194e6` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:75bc025b8c6e5100b0514d62dc3e6667eb12e06a1ee8625e7f77092aedb3a2b6` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:19c0f8c410f050bb1993b385ae764353af6614c23265e0449abc55243e39988f` |
+| `audit/BINDING_LEDGER.md` | `sha256:bcc94e291cea1de8136a1a26e453da03b4fa1661ee751e30fcd700a2fb6f38b9` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

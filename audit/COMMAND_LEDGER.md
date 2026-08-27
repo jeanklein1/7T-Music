@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `30eda9344056313c7aad94ee3716a2562abb7097`
-(LATTICE_2/F — the blade cluster gains lanes; the banners stop saying "thread")
+Last commit touching any scanned file: `a422f35e5fe189528ca40af217313e73405d546e`
+(LATTICE_3/G — the patch index buffers are uint16)
 
 | file scanned | sha256 |
 |---|---|
