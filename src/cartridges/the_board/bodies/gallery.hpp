@@ -1865,15 +1865,23 @@ inline constexpr const char* EXHIBITION_PAINTINGS_DIR = "paintings/";
 // ATRIUM_3 — the entrance's own folder, written by tools/web_dist.py from
 // assets/atrium. The manifest names files; the program joins the folder.
 
-// ONE PAINTING IN THE AIR AT A TIME. Each arrival is one decode and one
-// 1 MiB WriteTexture, and with one lane the arrivals pace themselves at the
-// network's round trip — one upload every few frames instead of several to
-// a frame. That spacing is what keeps the browser's staging footprint at one
-// painting: Firefox's WebGPU serves uploads from blocks it sub-allocates and
-// a burst opens blocks the per-frame trickle never lets empty (OPEN.md,
-// FIREFOX STAGING RATCHET). It also turns the boot's painting hitch into a
-// trickle. The rest wait here, in a queue this file can see.
-inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 1;
+// FOUR PAINTINGS IN THE AIR, SIZED FOR THE BOOT (OVERTURE_0). The ring is
+// born before its exhibition arrives and dresses from the first arrivals, so
+// what this number really sets is how long the first field stands bare. Four
+// lanes reach the exhibition floor in two round trips instead of six.
+//
+// The cost is bounded and small: each arrival is one 512-px JPEG decode
+// (PAINTING_CAP) and one 1 MiB WriteTexture, a few ms, and four of them in
+// one event turn is still a few ms. They do not even land together — four
+// round trips do not answer in lockstep.
+//
+// ONE LANE WAS A FIREFOX MEASURE, NOT A GENERAL ONE. ORGAN_8 P3 paced the
+// uploads to a trickle because Firefox's WebGPU serves them from blocks it
+// sub-allocates and a burst opens blocks the trickle never lets empty
+// (OPEN.md, FIREFOX STAGING RATCHET). Firefox is HELD at the fallback card:
+// the lane count is sized for the browsers that can run the piece, and the
+// pacing question is re-owed the day Firefox returns.
+inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 4;
 
 // A request that never answers holds its lane forever, so every request
 // is given an end. Generous, because a phone on a slow connection
@@ -1991,8 +1999,8 @@ inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
     //     the LOST card: console.hpp's loss callback prints
     //     "[Device] LOST", and web/index.html treats that line as
     //     terminal and replaces the world with the card.
-    //   · The exposure is bounded by AUTHORED_FETCH_INFLIGHT_CAP — one
-    //     upload, once, into a page that is already over.
+    //   · The exposure is bounded by AUTHORED_FETCH_INFLIGHT_CAP — at
+    //     most that many uploads, once, into a page that is already over.
     //
     // So: NO SIGNAL, NO PLUMBING. Carrying a device-lost flag down to
     // this callback would add a second source of truth about the
@@ -2076,7 +2084,7 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
     // at REQUEST time, which threw the image away the instant a
     // replacement was asked for — and the room is hung in the SAME FRAME,
     // 47 lines after teardown_gallery, from whatever survived. At
-    // AUTHORED_FETCH_INFLIGHT_CAP 1 the replacements arrive over round
+    // any AUTHORED_FETCH_INFLIGHT_CAP the replacements arrive over round
     // trips long after the walls are up, so a four-wall room that used 28
     // of 32 records left the next one four pictures to hang.
     //
