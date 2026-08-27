@@ -287,28 +287,37 @@ struct GalleryConfig {
 
     // ─── Content×Form Mixing ─────────────────────────────────
     //
-    // THE PAINTINGS ARE THE SUBJECT; THE PHOTOGRAPHER'S SHOTS ARE THE DIARY.
-    // The three numbers below are one ruling, and they used to state the
-    // opposite one: four outdoor sites in five were snapshot-only, and the
-    // expected authored share of an outdoor painting came to 0.15 + 0.05 x
-    // 0.35 — seventeen percent. The program's own exhibition was a minority
-    // of itself, and a visitor could walk a long way past the diary before
-    // meeting a work.
+    // OUTDOORS THE TWO COLLECTIONS STAND LEVEL: a painting and a photograph
+    // are equally likely on the sand. The row said seventeen percent authored
+    // once (four sites in five snapshot-only), then sixty-eight; this is the
+    // ruling that settles it at one in two.
     //
-    // Read as a partition of the site roll: [0.00, 0.20) SNAPSHOT_ONLY,
-    // [0.20, 0.50) MIXED, and the residual [0.50, 1.00) is AUTHORED_ONLY at
-    // one site in two. Expected authored share of an outdoor painting is
-    // 0.50 + 0.30 x 0.60 = sixty-eight percent.
+    // THE FIFTY IS SYMMETRIC, NOT ARITHMETIC — it holds at every level rather
+    // than only in the aggregate:
+    //   · the two PURE bands are equal, 0.35 each;
+    //   · the MIXED band between them is an even coin, so a mixed site is
+    //     genuinely mixed and does not lean to either collection.
+    // Read as a partition of the site roll: [0.00, 0.35) SNAPSHOT_ONLY,
+    // [0.35, 0.65) MIXED, residual [0.65, 1.00) AUTHORED_ONLY. Expected
+    // authored share of an outdoor painting is 0.35 + 0.30 x 0.50 = one half.
     //
-    // Indoor is untouched: a room is already 80% authored-only (WALL_ART's
-    // snapshot_only_share 0.15 + mixed_share 0.05).
-    static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.20f;  // [0.00, 0.20)
-    static constexpr float OUTDOOR_MIXED = 0.30f;  // [0.20, 0.50); residual AUTHORED_ONLY 0.50
+    // The symmetry is also what makes the row safe to tune: while the two
+    // pure bands stay equal and the mix stays 0.50, the aggregate is 0.50 for
+    // ANY width of the mixed band — so MIXED can be widened or narrowed to
+    // taste (how often a site blends the two) without touching the balance.
+    //
+    // Indoor is untouched, and deliberately unequal: a room is 83% authored
+    // (WALL_ART's snapshot_only_share 0.15 + mixed_share 0.05 residual, and
+    // mix_snapshot_chance 0.40 — that dial's sense is inverted from this
+    // one). The rooms are the exhibition; the sand is where the diary meets
+    // it.
+    static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.35f;  // [0.00, 0.35)
+    static constexpr float OUTDOOR_MIXED = 0.30f;  // [0.35, 0.65); residual AUTHORED_ONLY 0.35
 
-    // In mixed mode: per-painting chance of being the AUTHORED content. It is
-    // no longer the minority share — a mixed site hangs three of Jean's to
-    // every two of the photographer's.
-    static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.60f;  // chance each outdoor painting is authored
+    // In mixed mode: per-painting chance of being the AUTHORED content. An
+    // even coin — the mixed site is the one that shows them side by side, so
+    // it is the one place the balance must not lean.
+    static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.50f;  // chance each outdoor painting is authored
 
     // Photographer pacing by archetype. FLAT, AND DELIBERATELY SO (SAND_1).
     // The old row slowed the photographer to 1.5x trigger distance on basin

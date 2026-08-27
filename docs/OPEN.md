@@ -243,9 +243,11 @@ was born before its exhibition arrived and nothing let a born patch be dressed
 later; the deferred hang, the pool resolution and the flag split landed. What
 follows is what the campaign measured and left.
 
-- GALLERY BIOGRAPHY IS FROZEN AT `d21c680a`. U1 (the outdoor proportions) and
-  U2 (the roll resolves against the pool) change every open world's galleries,
-  so `?seed=N` no longer reproduces galleries pinned before that sha. The
+- GALLERY BIOGRAPHY IS FROZEN AT `581693e3`. Two edits moved it: OVERTURE_0's
+  U1/U2 (the outdoor proportions, and the roll resolving against the pool),
+  and the fifty-fifty ruling that followed. `?seed=N` no longer reproduces
+  galleries pinned before the sha above — which is the LATEST freeze, and the
+  only one that matters, since anything pinned before it is before both. The
   PORTAL_3 E1/E2 precedent: the number is recorded here and not in a comment
   (L34).
 - PER-EVICTION REFETCH, priced not built: a released, hung record is refetched
