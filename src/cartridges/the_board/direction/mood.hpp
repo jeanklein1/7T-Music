@@ -1454,19 +1454,34 @@ inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineC
 // ── force_spawn_door_fallback ──
 //
 // THE DOOR GUARANTEE (U2). Runs once per world, after the synchronous
-// population, behind a count-gate over the live arches: if any active
-// portal already stands — the finite machinery's back portal, or a
-// Channel A DOORWAY arch (portal_density 1.0, entity_pipeline.hpp) —
-// this is a no-op and the world changes by nothing. Only a world that
-// populated DOORLESS gets one forced door: an open-world roll can
-// commit zero DOORWAY arches in the priority window, and a boot world
-// raises forward_portals_pending but no back (ATRIUM_0). No new
-// placement grammar: the
+// population. Only a world that populated with no door WITHIN REACH gets
+// one forced door: an open-world roll can commit zero DOORWAY arches in
+// the priority window, and a boot world raises forward_portals_pending
+// but no back (ATRIUM_0). No new placement grammar: the
 // destination is the forward-portal grammar (pick_portal_mood +
 // derive_finite_radius, fresh 88xx salts beside the 66xx/77xx series),
 // and the spot is a seeded bearing at twice the back-portal grammar's
 // MIN_FROM_ORIGIN — 60 wu, inside the LOD0 core and the bootstrap
 // tile ring — with the opening facing the spawn anchor.
+//
+// A DOOR WITHIN REACH (OVERTURE_0). The gate used to be "does any portal
+// stand", and a rolled door 300 wu behind the pawn satisfied it — so the
+// first field could open with its only way out over the horizon. The
+// guarantee is MEASURED from the spawn anchor now, the same origin door_r
+// is struck from, so the first field always has a way out inside its own
+// view.
+//
+// IN A FINITE WORLD THE OLD GATE STANDS, AND IT MUST. A room's doors sit
+// on its WALLS, and the walls run from -finite_radius*PATCH_EXTENT to
+// (finite_radius+1)*PATCH_EXTENT: at radius 2 the far wall is 142 wu out,
+// at radius 4 it is 192, and the along-wall jitter only adds. So a room
+// that is correctly doored has every door outside DOOR_NEAR_RADIUS at most
+// rolled radii, and a reach test would force a second portal into the
+// middle of its floor — a door standing in open room, beside walls that
+// already carry two. The room's own machinery (force_spawn_back_portal,
+// force_spawn_forward_portals) is the guarantee there; reach is the OPEN
+// world's question, and this is the line that keeps the ruling's own
+// promise that nothing in a finite world changes.
 inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
     // ONE SHOT per world, mirroring back_portal_pending: fullRegen is
     // NOT once-per-world — request_recenter re-arms it mid-world (the
@@ -1477,9 +1492,17 @@ inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCt
     if (!c->mood_state_.door_fallback_pending) return;
     c->mood_state_.door_fallback_pending = false;
 
+    // 2 x door_r: a door struck at 60 wu is itself well within reach, so the
+    // radius is the band in which a rolled door makes the forced one needless.
+    constexpr float DOOR_NEAR_RADIUS = 120.0f;
+    constexpr float DOOR_NEAR_RADIUS_SQ = DOOR_NEAR_RADIUS * DOOR_NEAR_RADIUS;
+    const bool walled = c->world_state_.finite_mode;
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         const auto& aa = c->entities_state_.arches[i];
-        if (aa.active && aa.is_portal) return;   // a door already stands
+        if (!aa.active || !aa.is_portal) continue;
+        if (walled) return;                      // a door already stands, and the walls placed it
+        if (aa.world_x * aa.world_x + aa.world_z * aa.world_z <= DOOR_NEAR_RADIUS_SQ)
+            return;                              // a door already stands within reach
     }
 
     const float door_r = 60.0f;   // 2 x MIN_FROM_ORIGIN
