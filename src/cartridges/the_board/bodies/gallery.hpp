@@ -332,6 +332,11 @@ struct GallerySiteType {
     static constexpr uint32_t AUTHORED_ONLY = 2;
 };
 
+// What place says back. REFUSED is ground (containment, position, a
+// full registry) and is final for this patch; DEFERRED is content and is
+// the conductor's to retry.
+enum class GalleryPlaceResult : uint32_t { PLACED, DEFERRED, REFUSED };
+
 // ── Wall art configuration (indoor) ──────────────────────────────
 
 struct WallArtScaleBucket {
@@ -791,6 +796,11 @@ struct GalleryState {
 
     GalleryCenter gallery_centers[MAX_GALLERIES]{};
 
+    // THE DEFERRED HANG'S TALLY (OVERTURE_0): galleries this world dressed on
+    // the retry rather than at their patch's spawn. Zeroed at teardown, so it
+    // reads per world — which is the only scale the number means anything at.
+    uint32_t deferred_dressed = 0;
+
     PendingSnapshot pending_snapshot;
 };
 
@@ -808,7 +818,7 @@ void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::CommandEncoder
 // Outdoor lifecycle (three-phase)
 bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GallerySelection& sel);
-bool place_gallery_from_selection(MachineCtx* c,
+GalleryPlaceResult place_gallery_from_selection(MachineCtx* c,
     const GallerySelection& sel, GalleryPlacement& plan);
 void commit_gallery(GalleryState& gs, MachineCtx* c,
     const GalleryPlacement& plan,
@@ -836,6 +846,7 @@ void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 // Authored image loading
 void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);  // GPUState& deps-form: context-agnostic dual-entry door
 void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
+void tick_gallery_deferred_hang(MachineCtx* c, wgpu::Queue& queue);
 void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEncoder& encoder);
 
@@ -1244,7 +1255,7 @@ inline uint32_t gallery_available_staging(const GalleryState& gs, uint32_t site_
     return pool > gs.staging_reserved ? pool - gs.staging_reserved : 0u;
 }
 
-inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& sel, GalleryPlacement& plan) {
+inline GalleryPlaceResult place_gallery_from_selection(MachineCtx* c, const GallerySelection& sel, GalleryPlacement& plan) {
     auto& gs = c->gallery_state_;
 
     // THE ROLL IS A PREFERENCE; THE POOL DECIDES (OVERTURE_0). A rolled pool
@@ -1266,7 +1277,7 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     // draws from this instead of discovering scarcity after the ground is
     // already claimed.
     const uint32_t reserved = sel.painting_count < avail ? sel.painting_count : avail;
-    if (reserved == 0) return false;   // no content of either kind — the patch waits
+    if (reserved == 0) return GalleryPlaceResult::DEFERRED;   // no content of either kind — the patch waits
 
     // ONE extent, used for both questions, and they are the same question.
     // The old code passed the SAME VARIABLE for footprint and containment too
@@ -1277,16 +1288,16 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
 
     float cx = sel.cx, cz = sel.cz;
     if (!indoor_bounds_clamp(c, PopFamily::GALLERY, footprint_r, footprint_r, cx, cz))
-        return false;
+        return GalleryPlaceResult::REFUSED;
     if (!check_position(c, cx, cz, footprint_r, PopFamily::GALLERY))
-        return false;
+        return GalleryPlaceResult::REFUSED;
 
     int32_t host_gx = (int32_t)std::floor(cx / Dim::PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(cz / Dim::PATCH_EXTENT);
 
     if (register_footprint(c, cx, cz, footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.slot, sel.archetype) == UINT32_MAX)
-        return false;
+        return GalleryPlaceResult::REFUSED;
 
     gs.staging_reserved += reserved;   // released at commit, by the same value
 
@@ -1307,7 +1318,7 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     plan.gallery_size_mean = sel.gallery_size_mean;
     plan.site_type = site;   // the RESOLVED one, not the rolled one
 
-    return true;
+    return GalleryPlaceResult::PLACED;
 }
 
 // ── commit_gallery ──
@@ -1357,7 +1368,8 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     }
 
     // THE RESIDUAL ZERO-CONTENT ABORTS. SPAWN_4's reservation removed the
-    // dominant path (place rejects when nothing is available), but these three
+    // dominant path (place DEFERS when nothing is available — OVERTURE_0), but
+    // these three
     // survive for a reason the reservation structurally cannot cover: the
     // mono-tier curation below is a per-gallery seed-derived filter that only
     // commit can apply, and load_authored_textures is a GPU write, barred from
@@ -2849,13 +2861,15 @@ inline bool dispatch_select_gallery(MachineCtx* self,
 inline bool dispatch_place_gallery(MachineCtx* self,
     EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (place_gallery_from_selection(self, e.gallery, pe.gallery)) {
-        return true;
-    }
-    else {
-        self->gallery_state_.gallery_centers[e.gallery.slot].active = false;
-        return false;
-    }
+    const GalleryPlaceResult r = place_gallery_from_selection(self, e.gallery, pe.gallery);
+    if (r == GalleryPlaceResult::PLACED) return true;
+    // Either way the centre slot select reserved is released. Only DEFERRED
+    // leaves anything behind: the bit on the TRIGGER patch (OVERTURE_0) — the
+    // one being spawned, or the one being retried.
+    self->gallery_state_.gallery_centers[e.gallery.slot].active = false;
+    if (r == GalleryPlaceResult::DEFERRED)
+        if (auto* p = find_patch(self, e.gx, e.gz)) p->gallery_deferred = true;
+    return false;
 }
 
 inline void dispatch_commit_gallery(MachineCtx* self,
@@ -2873,6 +2887,61 @@ inline void dispatch_commit_gallery(MachineCtx* self,
         unregister_footprint_for(self, PopFamily::GALLERY, pe.gallery.slot);
         self->gallery_state_.gallery_centers[pe.gallery.slot].active = false;
     }
+}
+
+// ═══ THE DEFERRED HANG (OVERTURE_0) — owner verb, conductor-called ═
+//
+// A patch whose gallery the pool could not dress is retried here,
+// nearest first, one a frame, only while the pool holds something.
+//
+// The fill sits at the head because it is its own latch and the manifest
+// may land after boot: this is the ONE place the exhibition is asked
+// for. Boot is not special here — a transition arrives with its pictures
+// in hand and defers nothing, so boot is the only live case and it is
+// not a special one.
+//
+// It calls the gallery's dispatch trio DIRECTLY and never touches
+// entityQueue_ / placementResults_, so spawn_selected_patches remains the
+// SOLE caller of the three queue verbs and SPAWN_QUEUE_MAX's bound stands.
+// staging_reserved balances inside the call — place reserves, commit
+// releases — for the same reason it does on the spawn path.
+//
+// collect_sorted_patches is a template declared in the surface's decl tier
+// and defined at the cohort tail; the pre-tail call binds at end-of-TU
+// instantiation, which is the same reach bodies/ribbon.hpp already makes
+// for run_spawn_preamble.
+inline void tick_gallery_deferred_hang(MachineCtx* c, wgpu::Queue& queue) {
+    auto& gs = c->gallery_state_;
+    load_authored_textures(gs, c->gpuState_, queue);
+    if (gallery_available_staging(gs, GallerySiteType::MIXED) == 0) return;   // the pool's sum
+    PatchCandidate cands[Dim::MAX_ACTIVE_PATCHES];
+    const uint32_t n = collect_sorted_patches(c, cands, c->point_.x, c->point_.z,
+        [](const ActivePatch& p) { return p.gallery_deferred; }, true);
+    if (n == 0) return;
+    ActivePatch& p = c->patch_system_state_.patches_[cands[0].idx];
+    p.gallery_deferred = false;          // re-raised by place if the pool ran dry under us
+
+    // THE TRIGGER FIELDS ARE THE CALLER'S, exactly as on the spawn path
+    // (select_entities_for_patch fills them before try_select). The funnel
+    // copies them into the placement, and the DEFERRED arm above finds this
+    // patch by them.
+    EntityQueueEntry e{};
+    e.family = PopFamily::GALLERY;
+    e.gx = p.grid_x; e.gz = p.grid_z;
+    if (!dispatch_select_gallery(c, p.grid_x, p.grid_z, e)) return;
+    PlacementEntry pe{};
+    if (!dispatch_place_gallery(c, e, pe)) return;
+    dispatch_commit_gallery(c, pe, queue);
+    gs.deferred_dressed++;
+    // THE Y-CORRECTION THIS GALLERY WOULD OTHERWISE NEVER GET. At spawn the
+    // raise comes from the patch's own generation; a deferred gallery lands on
+    // a patch that is already GENERATED, and commit_gallery raises nothing.
+    // R16 consumes this in the same frame — stream_patches runs before it, and
+    // the conductor's tail ORs rather than assigns.
+    c->world_state_.placement_dirty = true;
+    if (n == 1)
+        std::cout << "[Gallery] Deferred hang: " << gs.deferred_dressed
+                  << " dressed this world, none waiting\n";
 }
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
@@ -2899,6 +2968,7 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     }
     gs.pending_snapshot.active = false;
     gs.pending_promotion_count = 0;
+    gs.deferred_dressed = 0;
     gs.wall_frame_count = 0;
     gs.active_painting_count = 0;
     gs.slot_high_water = 0;

@@ -108,7 +108,9 @@ enum class PatchPhase : uint8_t {
     GENERATED,      // heightfield computed. EVERY family — gallery and GoL
                     //   included — was already placed at ALLOCATED->SPAWNED,
                     //   before this heightfield existed; Y-correction is
-                    //   additive and lands later (compute_entity_placement).
+                    //   additive and lands later (compute_entity_placement);
+                    //   a gallery the pool could not dress then is placed
+                    //   later by the deferred hang (OVERTURE_0).
     NEEDS_REGEN,    // heightfield stale (new pyramid in range)
 };
 
@@ -118,6 +120,13 @@ struct ActivePatch {
     uint32_t layer = 0;
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
+
+    // THE DEFERRED HANG (OVERTURE_0). This patch rolled a gallery the pool
+    // could not dress; the conductor retries it while the patch lives. Raised
+    // at place (dispatch_place_gallery, on DEFERRED), lowered by the retry
+    // whatever its outcome, and re-raised only by a second DEFERRED. Dies
+    // with the patch: the retry reads .valid first.
+    bool gallery_deferred = false;
 
     // Entity ownership (recorded at commit, read at eviction)
     struct EntityRef {
