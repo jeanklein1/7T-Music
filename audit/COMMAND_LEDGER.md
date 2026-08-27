@@ -5,13 +5,13 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `99b4d02c304a9955ef69bc20e1ae8754777f4a27`
-(LATTICE_2/A — the workgroup-storage floor, and LATTICE_1's last two loose ends)
+Last commit touching any scanned file: `30eda9344056313c7aad94ee3716a2562abb7097`
+(LATTICE_2/F — the blade cluster gains lanes; the banners stop saying "thread")
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e4cba2c043d9b83ba8bf0dd1e43c652e17640b593786bbde88115aa8f7d66621` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:0f81378e08f44082ae221a08bc24ce0e9ec518e021db68786fd1a1d6dc632368` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:75bc025b8c6e5100b0514d62dc3e6667eb12e06a1ee8625e7f77092aedb3a2b6` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:444d27b0166e20e7167f6fd4959d836a3e8464b83ad6ff1c4582ce5ec520f674` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:1b1c3c116721dd10a5644190951aa680dc2bdd2fcd06b6677ed41bf3698bf500` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |

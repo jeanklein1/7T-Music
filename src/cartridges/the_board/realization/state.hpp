@@ -4355,6 +4355,28 @@ namespace t7 {
             }
 
             bool createMeshBuffers() {
+                // THE PATCH INDEX BUFFERS ARE UINT16 (LATTICE_3). Every index
+                // the three builders emit is a vertex ordinal under the
+                // unified decode's address space, so 16 bits is not a
+                // narrowing choice — it is the width the data always had.
+                // Halves the index fetch per LOD0 instance (~203 KB -> ~101 KB)
+                // and costs nothing: zero visual change, same draw counts.
+                //
+                // The FIVE MESH-GEN FAMILIES keep uint32 — their indices are
+                // slot-based absolute addresses into a shared VB and run well
+                // past 65,535.
+                static_assert(Dim::UG_DECODE_VERTS - 1 <= 0xFFFFu,
+                    "LATTICE_3: the unified ground addresses in 16 bits");
+
+                // WriteBuffer wants a 4-byte multiple and an odd index count is
+                // 2 mod 4. Pad with one index that is never drawn — the draw
+                // reads the count, which is captured BEFORE this runs. Every
+                // builder emits triangles in quad pairs, so the counts are even
+                // today; a bound stated is a bound that cannot rot.
+                auto pad_u16 = [](std::vector<uint16_t>& v) {
+                    if (v.size() & 1u) v.push_back(0);
+                };
+
                 // Patch index buffer -- CPU-generated, shared by all patch instances
                 // SKIRTS (weld #2): each LOD appends a full-perimeter skirt — the
                 // edge ring duplicated as verts [SKIRT_GRID_VERTS + k], which the
@@ -4412,7 +4434,7 @@ namespace t7 {
                 // curtain band absent (indices shift down; bands stay in cap,
                 // [curtain,] skirt order).
                 auto build_lod0_ib = [&](bool with_curtains) {
-                    std::vector<uint32_t> idx;
+                    std::vector<uint16_t> idx;
                     idx.reserve(Dim::UG_CELLS_PER_PATCH * (16 + 16) * 6 + 4 * Dim::PATCH_MESH_N * 6);
                     // CAP QUADS — 256 cells × 16 quads (the house winding).
                     for (uint32_t cell = 0; cell < Dim::UG_CELLS_PER_PATCH; cell++) {
@@ -4423,8 +4445,8 @@ namespace t7 {
                                 uint32_t i10 = i00 + 1;
                                 uint32_t i01 = i00 + Dim::UG_CAP_STRIDE_C;
                                 uint32_t i11 = i01 + 1;
-                                idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
-                                idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
+                                idx.push_back(static_cast<uint16_t>(i00)); idx.push_back(static_cast<uint16_t>(i01)); idx.push_back(static_cast<uint16_t>(i10));
+                                idx.push_back(static_cast<uint16_t>(i10)); idx.push_back(static_cast<uint16_t>(i01)); idx.push_back(static_cast<uint16_t>(i11));
                             }
                         }
                     }
@@ -4446,8 +4468,8 @@ namespace t7 {
                             uint32_t b  = cap0 + lz1 * Dim::UG_CAP_STRIDE_C + lx1;
                             uint32_t sa = base0 + k;
                             uint32_t sb = base0 + k1;
-                            idx.push_back(a); idx.push_back(b); idx.push_back(sa);
-                            idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
+                            idx.push_back(static_cast<uint16_t>(a)); idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sa));
+                            idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sb)); idx.push_back(static_cast<uint16_t>(sa));
                         }
                     }
                     // SKIRT RING — the legacy loop; top edge = cap outer verts;
@@ -4460,33 +4482,35 @@ namespace t7 {
                         uint32_t b  = skirt_cap_index(k1);
                         uint32_t sa = SKIRT_GRID_V + k;
                         uint32_t sb = SKIRT_GRID_V + k1;
-                        idx.push_back(a); idx.push_back(b); idx.push_back(sa);
-                        idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
+                        idx.push_back(static_cast<uint16_t>(a)); idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sa));
+                        idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sb)); idx.push_back(static_cast<uint16_t>(sa));
                     }
                     return idx;
                 };
                 {
-                    std::vector<uint32_t> idx = build_lod0_ib(true);
-                    patchIndexCount_ = (uint32_t)idx.size();
-                    patchIndexBuffer_ = makeBuffer("Patch IB",
-                        patchIndexCount_ * 4,
+                    std::vector<uint16_t> idx = build_lod0_ib(true);
+                    patchIndexCount_ = (uint32_t)idx.size();   // the DRAW count, before the pad
+                    pad_u16(idx);
+                    patchIndexBuffer_ = makeBuffer("Patch IB (u16)",
+                        idx.size() * 2,
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBuffer_) return false;
                     auto q = device_.GetQueue();
-                    q.WriteBuffer(patchIndexBuffer_, 0, idx.data(), idx.size() * 4);
+                    q.WriteBuffer(patchIndexBuffer_, 0, idx.data(), idx.size() * 2);
                 }
                 {
                     // ECONOMY_1 E1: the cap-only twin — caps + skirt, no curtain
                     // band. Selected by the lift-conservative switch when no
                     // zone lift can be nonzero.
-                    std::vector<uint32_t> idx = build_lod0_ib(false);
-                    patchIndexCountCapOnly_ = (uint32_t)idx.size();
-                    patchIndexBufferCapOnly_ = makeBuffer("Patch IB Cap-Only",
-                        patchIndexCountCapOnly_ * 4,
+                    std::vector<uint16_t> idx = build_lod0_ib(false);
+                    patchIndexCountCapOnly_ = (uint32_t)idx.size();   // the DRAW count, before the pad
+                    pad_u16(idx);
+                    patchIndexBufferCapOnly_ = makeBuffer("Patch IB Cap-Only (u16)",
+                        idx.size() * 2,
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBufferCapOnly_) return false;
                     auto q = device_.GetQueue();
-                    q.WriteBuffer(patchIndexBufferCapOnly_, 0, idx.data(), idx.size() * 4);
+                    q.WriteBuffer(patchIndexBufferCapOnly_, 0, idx.data(), idx.size() * 2);
                 }
 
                 {
@@ -4504,7 +4528,7 @@ namespace t7 {
                     // skirt copies; the legacy grid [0, PATCH_GRID_VERT_COUNT)
                     // has no reader.
                     constexpr uint32_t s = Dim::UG_QUADS_PER_CELL / 2;   // stride-2 lattice
-                    std::vector<uint32_t> idx;
+                    std::vector<uint16_t> idx;
                     idx.reserve(Dim::UG_CELLS_PER_PATCH * (4 + 8) * 6
                               + (4 * Dim::PATCH_MESH_N / s) * 6);  // 19200
                     // caps: 2×2 quads per cell on the corner lattice
@@ -4516,8 +4540,8 @@ namespace t7 {
                                 uint32_t i10 = i00 + s;
                                 uint32_t i01 = i00 + s * Dim::UG_CAP_STRIDE_C;
                                 uint32_t i11 = i01 + s;
-                                idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
-                                idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
+                                idx.push_back(static_cast<uint16_t>(i00)); idx.push_back(static_cast<uint16_t>(i01)); idx.push_back(static_cast<uint16_t>(i10));
+                                idx.push_back(static_cast<uint16_t>(i10)); idx.push_back(static_cast<uint16_t>(i01)); idx.push_back(static_cast<uint16_t>(i11));
                             }
                         }
                     }
@@ -4529,8 +4553,8 @@ namespace t7 {
                         uint32_t b  = skirt_cap_index(k1);
                         uint32_t sa = SKIRT_GRID_VERTS + k;
                         uint32_t sb = SKIRT_GRID_VERTS + k1;
-                        idx.push_back(a); idx.push_back(b); idx.push_back(sa);
-                        idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
+                        idx.push_back(static_cast<uint16_t>(a)); idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sa));
+                        idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sb)); idx.push_back(static_cast<uint16_t>(sa));
                     }
                     // caps + skirt is a usable prefix: the clean count stops here
                     patchIndexCountRingClean_ = (uint32_t)idx.size();
@@ -4547,17 +4571,18 @@ namespace t7 {
                             uint32_t b  = cap0 + lz1 * Dim::UG_CAP_STRIDE_C + lx1;
                             uint32_t sa = base0 + k;
                             uint32_t sb = base0 + k1;
-                            idx.push_back(a); idx.push_back(b); idx.push_back(sa);
-                            idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
+                            idx.push_back(static_cast<uint16_t>(a)); idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sa));
+                            idx.push_back(static_cast<uint16_t>(b)); idx.push_back(static_cast<uint16_t>(sb)); idx.push_back(static_cast<uint16_t>(sa));
                         }
                     }
-                    patchIndexCountRingZoned_ = (uint32_t)idx.size();
-                    patchIndexBufferLOD1_ = makeBuffer("Patch IB LOD1",
-                        patchIndexCountRingZoned_ * 4,
+                    patchIndexCountRingZoned_ = (uint32_t)idx.size();   // the DRAW count, before the pad
+                    pad_u16(idx);
+                    patchIndexBufferLOD1_ = makeBuffer("Patch IB LOD1 (u16)",
+                        idx.size() * 2,
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBufferLOD1_) return false;
                     auto q = device_.GetQueue();
-                    q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), idx.size() * 4);
+                    q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), idx.size() * 2);
                 }
 
                 return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createBladeMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();

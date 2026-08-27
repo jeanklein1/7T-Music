@@ -800,7 +800,10 @@ namespace t7 {
             ) {
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetVertexBuffer(0, visibleList, visibleOffset, visibleBytes);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                // LATTICE_3: the three patch IBs are uint16. The indirect args
+                // carry indexCount / firstIndex as COUNTS, not bytes, so
+                // reset_frustum_indirect is untouched by the width change.
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16);
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
@@ -825,7 +828,7 @@ namespace t7 {
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
                 pass.SetVertexBuffer(0, visibleList);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16);   // LATTICE_3
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
 
@@ -1089,7 +1092,9 @@ namespace t7 {
                 uint32_t instanceCount
             ) {
                 pass.SetPipeline(shadowPatchTerrainPipeline_);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                // LATTICE_3. Band 1 below reuses this bind, so both shadow
+                // bands cross to uint16 together — they always shared the IB.
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16);
                 pass.DrawIndexed(indexCount, instanceCount);
             }
 
