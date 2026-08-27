@@ -1755,12 +1755,30 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     pass.SetBindGroup(2, c->gpuState_.scene_state_group());   // B5 (R2): the one scene group
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
 
+    // THE PHOTOGRAPH IS TAKEN AT LOD1 (PANORAMA_1 U5). This one draw was the
+    // whole `snapshot_pass` maximum — 16-55 ms on the laptop, 19-25 on the
+    // Pixel, fired every ~30 wu walked and in bursts of up to four: the FULL
+    // window (render_patch_count, 147 patches) at FULL mesh, ~2.4 M triangles,
+    // uncalled by any frustum, for a 512x512 image of 262k pixels. The
+    // photograph was buying a triangle for every ninth pixel.
+    //
+    // LOD1 is the same terrain at a quarter of the triangles, and it is the
+    // band the SHADOW pass has always drawn the whole ring at — so this is not
+    // a new level of detail, it is the one the tree already trusts for a
+    // second view of the same world. At 512 px the difference is sub-pixel
+    // over most of the frame; Jean's gate is two photographs at the size they
+    // hang at.
+    //
+    // The pose is untouched: the photographer's VP, the entity table below and
+    // both painting draws are exactly as they were. Only the terrain's index
+    // band moves. D-2 — the photographer's own cull window and the two-frame
+    // composite — waits behind that stamp.
     c->renderer_.draw_patch_terrain_direct(pass,
         c->gpuState_.scene_state_group(),
         c->gpuState_.scene_textures_group(),
         c->gpuState_.visible_patch_indices_buffer(),   // B3: slot-0 bound, attribute unread (direct variant)
-        c->gpuState_.patch_index_buffer_lod0_live(),
-        c->gpuState_.patch_index_count_lod0_live(),
+        c->gpuState_.patch_index_buffer_lod1(),
+        c->gpuState_.patch_index_count_lod1_live(),
         c->world_state_.render_patch_count);
 
     // The drawable table — snapshot members, canonical order (the photographer's
