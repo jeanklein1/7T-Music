@@ -410,6 +410,17 @@ namespace t7 {
             // Timing is world-agnostic — no world_gen capture needed.
             enum class MeterReadbackState { IDLE, COPIED, MAPPING };
             MeterReadbackState meterReadbackState_ = MeterReadbackState::IDLE;
+            // WRAP_0 U4 — THE SLOT LINE'S SAMPLE. The draw plan's three
+            // instance counters live only on the GPU, so the terrain's
+            // milliseconds could never be divided by its geometry. Same
+            // grammar as the meter's own readback and the same SKIP-IF-BUSY,
+            // which is right here rather than wrong: one sample is wanted per
+            // window, not per frame, and a count of visible patches is
+            // geometry — it moves at walking pace, so a sample a second or two
+            // old is still a true reading, where a timing sample would not be.
+            MeterReadbackState slotReadbackState_ = MeterReadbackState::IDLE;
+            uint32_t slotInstances_[3] = {};
+            bool     slotSampleValid_ = false;
             bool meter_gpu_ = false;   // device carries timestamp-query (set at initialize)
 
             // ROSTER-RESIDUE gol (2e) instrumentation: count of frames the GoL
@@ -1918,6 +1929,24 @@ namespace t7 {
                                 std::cout << mg;
                             }
                         }
+                        // WRAP_0 U4 — THE SLOT LINE: milliseconds divided by
+                        // geometry. `main_pass` is 11-12 ms on Kepler for a
+                        // vertex and pixel count that does not explain it, and
+                        // the three terrain plan slots are where the vertices
+                        // are. n is the VISIBLE INSTANCE count the cull kernel
+                        // wrote (its three atomics); I is the slot's index
+                        // count — so n x I is the slot's triangles x 3, and the
+                        // three products are what the pass is actually drawing.
+                        // TERRAIN_0 opens on this line and the mask table.
+                        if (slotSampleValid_) {
+                            char sl[160];
+                            std::snprintf(sl, sizeof sl,
+                                "[METER] terrain  A %ux%u  B %ux%u  C %ux%u\n",
+                                slotInstances_[0], gpuState_.patch_index_count(),
+                                slotInstances_[1], gpuState_.patch_index_count_cap_only(),
+                                slotInstances_[2], gpuState_.patch_index_count_lod1_live());
+                            std::cout << sl;
+                        }
                         double u_sum = 0.0, r_sum = 0.0;
                         for (const URow& row : UPDATE_SPINE) {
                             if (!row.enabled) continue;
@@ -2713,6 +2742,30 @@ namespace t7 {
                 // no ResolveQuerySet, no staging copy, and no MapAsync, and
                 // keeps no readback in flight (core/instruments.hpp).
                 if constexpr (INSTRUMENTS.frame_meter) {
+                    if (slotReadbackState_ == MeterReadbackState::COPIED) {
+                        slotReadbackState_ = MeterReadbackState::MAPPING;
+                        gpuState_.frustum_count_readback().MapAsync(
+                            wgpu::MapMode::Read, 0, GPUState::frustum_indirect_size(),
+                            wgpu::CallbackMode::AllowSpontaneous,
+                            [](wgpu::MapAsyncStatus status, wgpu::StringView, Cartridge* self) {
+                                if (status == wgpu::MapAsyncStatus::Success) {
+                                    const auto* a = static_cast<const uint32_t*>(
+                                        self->gpuState_.frustum_count_readback().GetConstMappedRange(
+                                            0, GPUState::frustum_indirect_size()));
+                                    if (a) {
+                                        // instanceCounts at 1 / 6 / 11 — the three
+                                        // 5-u32 draw-arg slots (state.hpp's
+                                        // reset_frustum_indirect names the layout).
+                                        self->slotInstances_[0] = a[1];
+                                        self->slotInstances_[1] = a[6];
+                                        self->slotInstances_[2] = a[11];
+                                        self->slotSampleValid_ = true;
+                                    }
+                                    self->gpuState_.frustum_count_readback().Unmap();
+                                }
+                                self->slotReadbackState_ = MeterReadbackState::IDLE;
+                            }, this);
+                    }
                     if (meterReadbackState_ == MeterReadbackState::COPIED) {
                         meterReadbackState_ = MeterReadbackState::MAPPING;
                         gpuState_.meter_readback_staging().MapAsync(
@@ -2840,6 +2893,16 @@ namespace t7 {
                         for (uint32_t p = 0; p < meter_.snap_pair_count; p++)
                             meter_.snap_pairs[p] = gpuState_.meter_pairs()[p];
                         meterReadbackState_ = MeterReadbackState::COPIED;
+                    }
+                    // U4 — the plan's counters, this frame's. The cull pass
+                    // reset and rewrote them earlier in this same encoder, so
+                    // the copy takes the frame it was encoded in.
+                    if (meter_gpu_ && slotReadbackState_ == MeterReadbackState::IDLE) {
+                        encoder.CopyBufferToBuffer(
+                            gpuState_.frustum_compute_buffer(), 0,
+                            gpuState_.frustum_count_readback(), 0,
+                            GPUState::frustum_indirect_size());
+                        slotReadbackState_ = MeterReadbackState::COPIED;
                     }
                 }
             }

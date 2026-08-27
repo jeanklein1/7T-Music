@@ -2549,6 +2549,12 @@ namespace t7 {
             // LOD1 always uses direct DrawIndexed; CPU computes its count.
             wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — 3 x 5-u32 draw-args (the plan)
             wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
+            // WRAP_0 U4 — the slot line's staging. The draw plan's three
+            // instance counters are GPU-side atomics; this is the only way to
+            // read them, and it is read ONCE PER METER WINDOW, so its cost is
+            // one 60-byte copy and one map a second. The source already
+            // carries CopySrc for its own indirect draws.
+            wgpu::Buffer frustumCountReadback_;
             wgpu::Buffer drawPlanBuffer_;                 // Uniform — counts + zone rects for the cull kernel
             // OIL_1 U7 (ledger: R17, C1): the shadow of the last-uploaded
             // plan + a first-upload flag. The plan's inputs move per band
@@ -3465,6 +3471,8 @@ namespace t7 {
             // --- GPU frustum culling ---
             wgpu::Buffer frustum_indirect_lod0() const { return frustumIndirectLOD0_; }
             wgpu::Buffer frustum_compute_buffer() const { return frustumComputeBuffer_; }
+            wgpu::Buffer frustum_count_readback() const { return frustumCountReadback_; }
+            static constexpr size_t frustum_indirect_size() { return 15 * sizeof(uint32_t); }
             wgpu::Buffer visible_patch_indices_buffer() const { return visiblePatchIndicesBuffer_; }
 
             void reset_frustum_indirect(wgpu::Queue& queue) {
@@ -4295,6 +4303,13 @@ namespace t7 {
                 frustumComputeBuffer_ = makeBuffer("Frustum Compute Staging",
                     FC_ARGS_BYTES,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
+                // WRAP_0 U4 — created only with the meter, like the meter's own
+                // staging: the audience's build allocates nothing for a reading
+                // it never takes.
+                if (meterEnabled_)
+                    frustumCountReadback_ = makeBuffer("Frustum Count Readback",
+                        FC_ARGS_BYTES,
+                        wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead);
                 visiblePatchIndicesBuffer_ = makeBuffer("Visible Patch Indices",
                     FC_LIST_BYTES,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
