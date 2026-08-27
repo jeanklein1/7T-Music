@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `ce366a2340ac9726d94355802dc4f15c95bce101`
-(BUNDLE_1/B — the verbs and the table become encoder-generic)
+Last commit touching any scanned file: `56961f46f8094f415fc6baf31a13034ce9a80059`
+(BUNDLE_1/C — the two bundles: the frame's draw list is said once)
 
 | file scanned | sha256 |
 |---|---|
@@ -65,6 +65,20 @@ in `console.hpp`.
 2 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
 phase table marks it `F_SUBMIT`, cartridge.hpp).
+
+### Render bundles (BUNDLE_1)
+
+A bundle is a draw list recorded ONCE and executed by a pass with
+one call. Its descriptor states the formats of the pass that will
+execute it — Dawn rejects a mismatch — so the two are a mirror,
+held by C-8a/C-8b. The equality is TEXTUAL: a render pass names
+TextureViews and their formats come from the swapchain and from
+console.hpp's depth buffer, neither of which this census reads.
+
+| # | label | colour | depth | samples | recorded in | site |
+|---|---|---|---|---|---|---|
+| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:354` |
+| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:363` |
 
 ### Encoder-creation sites (the label law, DOMESDAY_1 A9)
 
@@ -148,3 +162,5 @@ carries the same op (PASS_0 F2, `gallery.hpp`
 | `C-5` | **PASS** | exactly one main scene pass row (label 'Rasterized Scene'): found 1 |
 | `C-6` | **PASS** | (a) no depth LoadOp::Load anywhere (0), no other pass names the main depth view (none); (b) Table A depth bindings are shadow_map/spot_shadow_map and the console depth usage is wgpu::TextureUsage::RenderAttachment |
 | `C-7` | **PASS** | label law: every encoder-creation site (2) and pass-begin site (19) carries a label |
+| `C-8a` | **PASS** | every render-bundle encoder states colorFormatCount, depthStencilFormat and sampleCount, and carries a label (2 site(s)) |
+| `C-8b` | **PASS** | every bundle's colour declaration is internally consistent (2 site(s); the pass-format equality is textual — a pass names views, whose formats this census cannot resolve) |

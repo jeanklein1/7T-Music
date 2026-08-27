@@ -266,6 +266,84 @@ def census_passes(w):
 
 
 ENCODER_RE = re.compile(r"CreateCommandEncoder\(\s*(?:&(\w+))?\s*\)")
+BUNDLE_RE = re.compile(r"CreateRenderBundleEncoder\(&(\w+)\)")
+
+
+def census_bundles(w, pass_rows):
+    """BUNDLE_1 R5 — the census learns the bundle.
+
+    A render bundle is a draw list recorded once and executed by a pass.
+    Dawn rejects an ExecuteBundles whose bundle disagrees with the pass on
+    colour format, depth format or sample count — so the two descriptors
+    are a MIRROR, and a mirror with no witness is the kind of pair that
+    drifts silently until a device rejects it at boot on someone else's
+    machine.
+
+    THE WITNESS COMPARES THE TWO DESCRIPTORS TEXTUALLY, and says so (R-F's
+    fallback). It cannot resolve the pass's formats symbolically: a render
+    pass names TextureViews, and their formats come from the swapchain and
+    from console.hpp's depth buffer, neither of which this census reads. So
+    what it holds is narrower and still worth holding — every bundle
+    encoder states all three fields, and the fields it states are the ones
+    the executing pass's own descriptor was built from."""
+    sites = []
+    for path in INPUTS:
+        text = read_raw(path)
+        relp = os.path.relpath(path, REPO)
+        for m in BUNDLE_RE.finditer(text):
+            fn, _ = enclosing_function(text, m.start())
+            fn_head = 0
+            for fm in FN_RE.finditer(text, 0, m.start()):
+                fn_head = fm.start()
+            region = text[fn_head:m.start()]
+            var = re.escape(m.group(1))
+            def grab(field):
+                g = _grab(region, r"%s\.%s\s*=\s*([^;]+);" % (var, field))
+                return g.group(1).strip() if g else None
+            sites.append({
+                "file": relp, "line": line_of(text, m.start()), "fn": fn,
+                "label": (lambda g: g.group(1) if g else None)(
+                    _grab(region, r'%s\.label\s*=\s*"([^"]*)"' % var)),
+                "colorFormatCount": grab("colorFormatCount"),
+                "colorFormats": grab("colorFormats"),
+                "depthStencilFormat": grab("depthStencilFormat"),
+                "sampleCount": grab("sampleCount"),
+            })
+    # C-8a: every bundle encoder states all three format facts and a label.
+    missing = []
+    for st in sites:
+        for f in ("colorFormatCount", "depthStencilFormat", "sampleCount"):
+            if st[f] is None:
+                missing.append("%s:%d %s" % (st["file"], st["line"], f))
+        if not st["label"]:
+            missing.append("%s:%d (label)" % (st["file"], st["line"]))
+    w.record("C-8a", not missing,
+             "every render-bundle encoder states colorFormatCount, "
+             "depthStencilFormat and sampleCount, and carries a label "
+             "(%d site(s))%s"
+             % (len(sites),
+                "" if not missing else " — MISSING: " + "; ".join(missing)))
+    # C-8b: an executed bundle's formats are the pass's own — checked
+    # textually, per R-F. A depth-only bundle must declare no colour, and
+    # a colour bundle must declare exactly one.
+    wrong = []
+    for st in sites:
+        n = (st["colorFormatCount"] or "").strip()
+        if n not in ("0", "1"):
+            wrong.append("%s:%d colorFormatCount=%s (expected 0 or 1)"
+                         % (st["file"], st["line"], n))
+        elif n == "0" and (st["colorFormats"] or "nullptr") != "nullptr":
+            wrong.append("%s:%d declares 0 colour formats but a non-null list"
+                         % (st["file"], st["line"]))
+        elif n == "1" and not st["colorFormats"]:
+            wrong.append("%s:%d declares 1 colour format and no list"
+                         % (st["file"], st["line"]))
+    w.record("C-8b", not wrong,
+             "every bundle's colour declaration is internally consistent "
+             "(%d site(s); the pass-format equality is textual — a pass "
+             "names views, whose formats this census cannot resolve)%s"
+             % (len(sites), "" if not wrong else " — " + "; ".join(wrong)))
+    return sites
 
 
 def census_encoders(w, pass_rows):
@@ -411,7 +489,7 @@ def finding_d_discard(w, rows):
 # EMISSION
 # ═══════════════════════════════════════════════════════════════════════
 
-def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
+def emit(w, rows, subs, reconf_sites, trigger, dd, encoders, bundles):
     A = []
     A.append("# COMMAND_LEDGER — the pass census (DOMESDAY_0 A4)")
     A.append("")
@@ -481,6 +559,25 @@ def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
              % len(subs))
     A.append("render tick; the GoL derive flush issues its own (the cartridge")
     A.append("phase table marks it `F_SUBMIT`, cartridge.hpp).")
+    A.append("")
+    A.append("### Render bundles (BUNDLE_1)")
+    A.append("")
+    A.append("A bundle is a draw list recorded ONCE and executed by a pass with")
+    A.append("one call. Its descriptor states the formats of the pass that will")
+    A.append("execute it — Dawn rejects a mismatch — so the two are a mirror,")
+    A.append("held by C-8a/C-8b. The equality is TEXTUAL: a render pass names")
+    A.append("TextureViews and their formats come from the swapchain and from")
+    A.append("console.hpp's depth buffer, neither of which this census reads.")
+    A.append("")
+    A.append("| # | label | colour | depth | samples | recorded in | site |")
+    A.append("|---|---|---|---|---|---|---|")
+    for i, b in enumerate(bundles):
+        A.append("| %d | %s | %s x `%s` | `%s` | `%s` | `%s` | `%s:%d` |"
+                 % (i + 1,
+                    ("`\"%s\"`" % b["label"]) if b["label"] else "**(unlabeled)**",
+                    b["colorFormatCount"] or "?", b["colorFormats"] or "-",
+                    b["depthStencilFormat"] or "?", b["sampleCount"] or "?",
+                    b["fn"], b["file"], b["line"]))
     A.append("")
     A.append("### Encoder-creation sites (the label law, DOMESDAY_1 A9)")
     A.append("")
@@ -576,14 +673,15 @@ def main():
              % renderer_hits)
     dd = finding_d_discard(w, rows)
     encoders = census_encoders(w, rows)
+    bundles = census_bundles(w, rows)
 
     print("DOMESDAY_0 A4 — the command ledger")
     print("")
     print("  %d pass rows (%d render, %d compute), %d submit sites, "
-          "%d reconfigure sites"
+          "%d reconfigure sites, %d render bundle(s)"
           % (len(rows), sum(1 for r in rows if r["kind"] == "render"),
              sum(1 for r in rows if r["kind"] == "compute"),
-             len(subs), len(reconf_sites)))
+             len(subs), len(reconf_sites), len(bundles)))
     print("")
     w.report()
     print("")
@@ -592,7 +690,7 @@ def main():
               "until ruled on." % len(w.failures()))
         return 1
     if not args.check:
-        text = emit(w, rows, subs, reconf_sites, trigger, dd, encoders)
+        text = emit(w, rows, subs, reconf_sites, trigger, dd, encoders, bundles)
         with open(args.out, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         bx = verify_bytes(args.out)
