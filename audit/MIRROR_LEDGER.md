@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `382fbe4dc243a0ade170985b326cac454b3e4a64` |
-| | LATTICE_3/G fixup — the schema states the patch IBs' new labels and sizes |
+| source commit | `f3846d0bbbe7476620e7e969495151c4c279a3ab` |
+| | LEDGER — the binding ledger provenance stanza converges |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:3a499509e86b3904f77a30ee426b896b132d96ba786c393fad7e0df5204a6f88` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:337b4ade061e56cf651b86ad910707bc9e816b23d3eee929b233048d6346d688` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:4bcc48530998a280dad28ddc714f7b7d58187a853e3497c8cdefe2bf89454162` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:44912f1ee0304bd52e2279b90f6f9371d1a848a4d459f59de043447377e194e6` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:75bc025b8c6e5100b0514d62dc3e6667eb12e06a1ee8625e7f77092aedb3a2b6` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:71a9bc6fb82079a8f81a13d069068fea531d48769295080182a6783a26445b39` |
+| `audit/BINDING_LEDGER.md` | `sha256:d9199ea830df7ad66633ed58a9ebda3591ea2af194235ad170f6ca86b7b4d1f8` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
