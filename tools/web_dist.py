@@ -418,9 +418,37 @@ def write_posters(resolved):
     return paths, failures
 
 
+# THE MARKERS. Each is a format-string literal that exists only inside an
+# `if constexpr (INSTRUMENTS.frame_meter)` block, so a release build emits
+# none of them. Two rooms — the cartridge's window table and the console's
+# present histogram — because a marker set drawn from one file is a marker
+# set one refactor can empty.
+INSTRUMENT_MARKERS = [
+    b"[METER] mesh-gen firings",   # cartridge.hpp, the window's firing line
+    b"-> purse ",                  # cartridge.hpp, the window header's envelope
+    b"[PRESENT] refresh ",         # console.hpp, the present histogram
+]
+
+
+def instruments_verdict():
+    """(is_instrumented, markers_found) — or (None, []) if the wasm is absent.
+
+    A byte scan, deliberately: the strings live in the wasm's data segment and
+    asking the artifact is the one question a build cannot answer wrongly."""
+    wasm = os.path.join(WEB, "the_board.wasm")
+    if not os.path.isfile(wasm):
+        return None, []
+    with open(wasm, "rb") as fh:
+        blob = fh.read()
+    found = [m.decode("ascii") for m in INSTRUMENT_MARKERS if m in blob]
+    return (len(found) > 0), found
+
+
 def main():
     ap = argparse.ArgumentParser(description="SHIP_0 U4 — web dist assembly + host verdict")
     ap.add_argument("--check", action="store_true", help="inventory and verdict only; write nothing")
+    ap.add_argument("--lab", action="store_true",
+                    help="permit writing dist/ from an instrumented (meter) build — a capture, not a deploy")
     args = ap.parse_args()
 
     missing = [f for f in ARTIFACTS if not os.path.isfile(os.path.join(WEB, f))]
@@ -583,6 +611,45 @@ def main():
     # serve nothing witnesses, which is precisely the state the Pixel
     # incident found the program in. Shipping that silently would retire
     # the witness by omission — the one failure mode a witness must not
+    # ── WRAP_0 U7 — THE AUDIENCE DOES NOT GET THE LAB'S BUILD ────────────
+    #
+    # `[METER]`, `[PRESENT]` and `[STREAM]` were printing from
+    # everexpandingboard.com, because the two presets differ only by a CMake
+    # cache variable and nothing downstream could tell them apart. The meter
+    # is not free where it is most expensive: its timestamp writes at every
+    # pass boundary serialize passes a tiler would otherwise overlap — which
+    # is the floor device — and its census prints block the main thread for
+    # tens of milliseconds a firing.
+    #
+    # THE ARTIFACT IS ASKED, NOT THE BUILD SYSTEM. A stamp written by CMake
+    # is a stamp a build can forget; the wasm either contains the
+    # instruments' format strings or it does not, because the whole meter
+    # rides `if constexpr (INSTRUMENTS.frame_meter)` and a false constexpr
+    # emits no literal. Three markers rather than one, from two rooms, so a
+    # single reworded line cannot silently disarm the check.
+    if not args.check:
+        verdict, found = instruments_verdict()
+        print("")
+        if verdict is None:
+            print("BUILD PRESET: UNREADABLE — %s is missing; cannot tell lab from audience." % ARTIFACTS[3])
+        elif verdict:
+            print("BUILD PRESET: THE-BOARD-WEB-METER (instrumented).")
+            for m in found:
+                print("    marker present: %s" % m)
+            if not args.lab:
+                print("")
+                print("REFUSING TO SHIP THE LAB'S BUILD.")
+                print("  This wasm carries the frame meter. Its timestamp writes serialize")
+                print("  passes a tile-based GPU would overlap, and its census prints block")
+                print("  the main thread — both worst on the floor device.")
+                print("  Build the audience's preset:")
+                print("    cmake --preset the-board-web && cmake --build --preset the-board-web")
+                print("  Or pass --lab if this dist IS a capture and you mean it.")
+                return 7
+            print("  --lab given: writing an instrumented dist deliberately.")
+        else:
+            print("BUILD PRESET: the-board-web (audience). No instrument markers in the wasm.")
+
     # have.
     if SHADER_SHA_PLACEHOLDER not in shell_src:
         print("")
