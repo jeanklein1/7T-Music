@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `ce366a2340ac9726d94355802dc4f15c95bce101` |
-| | BUNDLE_1/B — the verbs and the table become encoder-generic |
+| source commit | `56961f46f8094f415fc6baf31a13034ce9a80059` |
+| | BUNDLE_1/C — the two bundles: the frame's draw list is said once |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:daa6f7c26271f00da8b249993c9f7edd14275014d1d34f3d71796d14d1099ad6` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:1da446dec47908bd6a0fda5d8ce341a4241df275feb5f54a32f8e000dcd97f13` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |

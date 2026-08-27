@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `63745db7a3463d9808d52ddf8173fc5f2571f631` |
-| | INSTRUMENT — P-seq reads the drawable table's templated rows (BUNDLE_1) |
+| source commit | `56961f46f8094f415fc6baf31a13034ce9a80059` |
+| | BUNDLE_1/C — the two bundles: the frame's draw list is said once |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:455ae568086f942dfa1a74ab21f6761c9c721d88a9060c6356c4863423e19645` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:daa6f7c26271f00da8b249993c9f7edd14275014d1d34f3d71796d14d1099ad6` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:1da446dec47908bd6a0fda5d8ce341a4241df275feb5f54a32f8e000dcd97f13` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:d29cd56df0435ad7c198ad70cfbed4e4d54f6114d8e867f0f68725f02e4b86be` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:bf445b6ef3779513e737ccd0e5b50eae839abb201e324891bbf07d781ed69437` |
+| `audit/BINDING_LEDGER.md` | `sha256:d8b45979812530f7a992db1e465447d755537db545c6262eb57c096d6f245dd5` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
