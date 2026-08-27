@@ -4883,16 +4883,16 @@ fn patch_terrain_vs(
         f32(d.vz) / f32(PATCH_MESH_N)
     );
 
-    // Remap UV to align with texel centers in the heightfield.
-    let res = f32(PATCH_HEIGHTFIELD_N);
-    let sample_uv = (uv * (res - 1.0) + 0.5) / res;
-
-    // Sample heightfield from this patch's array layer
+    // THE LATTICE IS THE TEXEL GRID (LATTICE_1). d.vx / d.vz index the
+    // heightfield DIRECTLY — texel i is lattice point i, both in
+    // [0, PATCH_MESH_N] — so there is no uv to remap and no filter to
+    // straddle: an exact fetch of the value the bake wrote for this
+    // vertex. `uv` stays, because it positions the vertex and feeds
+    // patch_uv; it just no longer addresses the texture.
     // .x = height, .yz = gradients, .w = unused (was complexity — swept)
-    let height_data = textureSampleLevel(
-        patch_heightfield_array_read, bilinear_sampler,
-        sample_uv, i32(pi.layer), 0.0
-    );
+    let height_data = textureLoad(patch_heightfield_array_read,
+                                  vec2<i32>(i32(d.vx), i32(d.vz)),
+                                  i32(pi.layer), 0);
 
     // World position: patch origin + local offset
     let half = pi.extent * 0.5;
@@ -5208,13 +5208,11 @@ fn shadow_patch_terrain_vs(
         f32(d.vz) / f32(PATCH_MESH_N)
     );
 
-    let res = f32(PATCH_HEIGHTFIELD_N);
-    let sample_uv = (uv * (res - 1.0) + 0.5) / res;
-
-    let height_data = textureSampleLevel(
-        patch_heightfield_array_read, bilinear_sampler,
-        sample_uv, i32(pi.layer), 0.0
-    );
+    // The same exact fetch patch_terrain_vs makes (LATTICE_1): texel i is
+    // lattice point i, so the caster reads the drawn surface's own value.
+    let height_data = textureLoad(patch_heightfield_array_read,
+                                  vec2<i32>(i32(d.vx), i32(d.vz)),
+                                  i32(pi.layer), 0);
 
     let wx = pi.origin.x + (uv.x - 0.5) * pi.extent;
     let wz = pi.origin.y + (uv.y - 0.5) * pi.extent;
@@ -11080,7 +11078,8 @@ fn sample_terrain_y_at(world_xz: vec2<f32>) -> f32 {
     let origin = vec2(f32(gx) + 0.5, f32(gz) + 0.5) * patch_grid.cell_extent;
     let local = world_xz - origin;
     let uv = local / patch_grid.cell_extent + 0.5;
-    // Remap UV to texel centers (same as patch_terrain_vs)
+    // Remap UV to texel centers (texel i is lattice point i; bilinear
+    // between lattice points is the drawn surface)
     let res = f32(PATCH_HEIGHTFIELD_N);
     let sample_uv = (uv * (res - 1.0) + 0.5) / res;
     return textureSampleLevel(photo_heightfield, photo_sampler,
