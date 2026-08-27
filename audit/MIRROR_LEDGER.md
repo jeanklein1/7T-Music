@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `707200d23ffcde85251783c76987c3b01aa906ef` |
-| | LIGHT_0/1 — the PCF stops buying answers nothing reads (PANORAMA_0) |
+| source commit | `6a9bff0bebaafe3220298aa5e915f5b0feae4e94` |
+| | LEDGER — the five re-stamp after RIDE_0, RIDE_1 and LIGHT_0 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:fe488cfa5119513295deb87b13b9754a8d88b560b9e502c3edfdd7661c316474` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:2a162b2e10259b249dade82bb38333def15db21b16a8fa67a6ec1237b4e40368` |
