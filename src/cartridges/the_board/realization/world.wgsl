@@ -8763,8 +8763,10 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 //   update_player_agent  — 0D (1 thread, the possessed slot only).
 //                          Walker policy + portal trigger + tilt.
 //                          Compile cost contained by isolation.
-//   update_other_agents  — 1D (32 threads, one per slot).
-//                          Algorithmic behaviors + eviction.
+//   update_other_agents  — 1D (one thread per FIELD lane, 296).
+//                          Lanes 0-31 are the agent slots and also run
+//                          algorithmic behaviors + eviction; the rest
+//                          write their field lane and end.
 //                          Skips the possessed slot internally.
 // Order matters: dispatch player BEFORE other_agents so the player's
 // updated position is visible to neighbor-sampling behaviors in the
@@ -8794,7 +8796,8 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 //   update_player_agent   — 1 thread. Only the possessed slot, only
 //                           behavior_player_controlled. The walker
 //                           policy is compiled once, for one slot.
-//   update_other_agents   — 32 threads. All non-possessed slots,
+//   update_other_agents   — one thread per field lane. Lanes 0-31 are
+//                           the non-possessed agent slots and carry the
 //                           behavior switch for algorithmic behaviors.
 //                           The walker policy is NOT inlined here.
 //
@@ -8945,9 +8948,10 @@ fn update_player_agent() {
 }
 
 // ─── Other-agents kernel ─────────────────────────────────────────
-// 32 threads, one per slot. Skips the possessed slot (handled by
-// update_player_agent). Runs algorithmic behaviors only — the heavy
-// walker-policy path never inlines here.
+// One thread per FIELD lane (PANORAMA_0 RIDE_0); lanes 0-31 are the agent
+// slots. Skips the possessed slot (handled by update_player_agent). Runs
+// algorithmic behaviors only — the heavy walker-policy path never inlines
+// here.
 // ─── THE FIELD — ONE PRESENCE LAW (FIELD_2 → FIELD_B) ────────────
 // THE ENDPOINT, AS LAW: not one mechanism — ONE PRESENCE LAW. The
 // body arc is CLOSED (every body-class presence pair lives here);
@@ -9162,24 +9166,42 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     return f * gain;
 }
 
-@compute @workgroup_size(32)
+// ONE THREAD PER FIELD LANE (PANORAMA_0 RIDE_0). This kernel used to run 32
+// threads, and each of them walked NINE OR TEN field lanes in a strided loop
+// (slot, slot+32, …) — every lane a field_sum over ~450 pair evaluations
+// (32 agents + 8 spheres + 256 cubes + ribbon segments + 32 columns + 32 arch
+// legs), each with a dependent storage load. Ten of those, serially, on one
+// thread, while 264 lanes' worth of parallelism sat unused.
+//
+// The dispatch is now FIELD_SUBSCRIBERS wide and the strided loop is gone:
+// thread `i` computes exactly one lane. The agent path below still belongs to
+// lanes 0..31 — the agent slots — and it reads `field_forces[slot]`, which is
+// THE SAME THREAD'S OWN WRITE. That is why no barrier is needed and none is
+// added: nothing here reads a lane it did not write.
+//
+// The lane-coverage rule the old strided loop existed to protect is now
+// structural rather than ordered. It wrote every lane BEFORE the possession
+// and liveness returns so that a returned agent thread could not strand its
+// sphere and cube lanes; with one thread per lane there is no shared thread to
+// strand, and the returns below can only end the thread that took them.
+//
+// The agent-agent read race in the contact gather is unchanged and disclosed
+// where it lives: it was a race between the 32 agent threads before and is the
+// same race between the same 32 threads now.
+@compute @workgroup_size(64)
 fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (!dynamics_0d_active()) { return; }
 
     let slot = gid.x;
-    if (slot >= 32u) { return; }
+    if (slot >= FIELD_SUBSCRIBERS) { return; }
 
-    // ── THE FIELD (FIELD_2): the summation lanes ───────────────────
-    // Every thread walks its lanes (slot, slot+32, …) BEFORE the
-    // possession/liveness returns below — a returned thread must not
-    // starve its sphere/cube lanes. Reads positions only, which
-    // nothing writes between here and agent_settle, so the read set
-    // equals an after-the-gather placement; lane coverage is why it
-    // sits here. Dead/possessed subscribers write rest (vec4(0)).
-    for (var lane = slot; lane < FIELD_SUBSCRIBERS; lane += 32u) {
-        field_forces[lane] = vec4(field_sum(lane), 0.0);
-    }
+    // ── THE FIELD (FIELD_2): this thread's one lane ────────────────
+    // Reads positions only, which nothing writes between here and
+    // agent_settle, so the read set equals an after-the-gather
+    // placement. Dead/possessed subscribers write rest (vec4(0)).
+    field_forces[slot] = vec4(field_sum(slot), 0.0);
 
+    if (slot >= 32u) { return; }                     // the field lanes end here
     if (slot == config.possessed_slot) { return; }   // handled separately
 
     var agent = agent_state[slot];

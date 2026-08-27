@@ -26,7 +26,7 @@ namespace t7 {
         namespace Entry {
             // Compute — split world update (ordered by dependency)
             constexpr const char* UPDATE_PLAYER_AGENT = "update_player_agent";        // 0D (1 thread, possessed slot)
-            constexpr const char* UPDATE_OTHER_AGENTS = "update_other_agents";        // 1D (32 threads, non-possessed slots)
+            constexpr const char* UPDATE_OTHER_AGENTS = "update_other_agents";        // 1D (296 field lanes; slots 0-31 also walk)
             constexpr const char* UPDATE_CAMERA = "update_camera";                  // 0D
             constexpr const char* UPDATE_SPHERE = "update_sphere";                  // 0D
             constexpr const char* UPDATE_CUBE = "update_cube";                      // 1D (256 threads, one per cube slot)
@@ -218,7 +218,7 @@ namespace t7 {
 
             // Compute pipelines -- per-frame (split world update)
             wgpu::ComputePipeline updatePlayerAgentPipeline_;    // 0D (1 thread, possessed slot)
-            wgpu::ComputePipeline updateOtherAgentsPipeline_;    // 1D (32 threads, non-possessed)
+            wgpu::ComputePipeline updateOtherAgentsPipeline_;    // 1D (one thread per field lane)
             wgpu::ComputePipeline updateCameraPipeline_;         // 0D
             wgpu::ComputePipeline updateSpherePipeline_;         // 0D
             wgpu::ComputePipeline updateCubePipeline_;           // 0D
@@ -410,7 +410,11 @@ namespace t7 {
             void dispatch_update_other_agents(wgpu::ComputePassEncoder& pass) {
                 if constexpr (!(ROSTER.wanderers)) return;  // ROSTER-GATE wanderers (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateOtherAgentsPipeline_);
-                pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 32 threads = all non-player slots
+                // ONE THREAD PER FIELD LANE (PANORAMA_0 RIDE_0): 5 x 64 = 320
+                // covers FIELD_SUBSCRIBER_CAP 296. Lanes 0..31 are the agent
+                // slots and run the walker below their own lane's field sum;
+                // the rest write a field lane and end.
+                pass.DispatchWorkgroups(GPUState::field_lane_workgroups(), 1, 1);
             }
 
             void dispatch_update_camera(wgpu::ComputePassEncoder& pass,
@@ -1571,14 +1575,14 @@ namespace t7 {
                 if (!makeComputePipeline("update_player_agent", "Update Player Agent (0D, 1 thread)",
                     roomComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
 
-                // Pipeline: update_other_agents (1D, 32 threads — non-possessed slots)
+                // Pipeline: update_other_agents (1D, one thread per field lane)
                 // Room layout (live-contributor pair + the room) —
                 // query_ground_walker_agent reads aura
                 // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
                 // The walker-policy heavy path is NOT inlined here; algorithmic
                 // behaviors only.
                 if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — shader compile skipped when disabled
-                if (!makeComputePipeline("update_other_agents", "Update Other Agents (1D, 32 threads)",
+                if (!makeComputePipeline("update_other_agents", "Update Other Agents (1D, one thread per field lane)",
                     roomComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
 
