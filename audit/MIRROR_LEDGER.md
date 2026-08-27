@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `73f101b7eb461e666daf886749fbdb4cb7f496d6` |
-| | U3 — the subtraction dials: the instrument the meter lacks (PANORAMA_1) |
+| source commit | `4f3d73f41914571c7ff6bfa896df8935aca0dd96` |
+| | U4 — the PCF tap dial: 16 or 4, measurable and comparable (PANORAMA_1) |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:2a45118250b3fb3f2a1079db4dbe26cf752e53426030619fb03cce10684bed94` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:51bc6c7999abcdc7ddff5761ac026a26fb853256682f9c82fc51718f9debc91e` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:6a637696ec6414214aecf5d1a6d02513edaf45dd29b9a3fc714b79509fb62ab9` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:f6146489224a835eab184f7078fc520c88fc9461d26d6a93b2d5caec1e070a93` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:12365774882c18a2475dd0c4b94ea107f6d919988d6334c75ab46bde85d8beec` |
+| `audit/BINDING_LEDGER.md` | `sha256:17698a5badf4148870a046402d5b0d155df9e2325e5c2dfcc48fb186cb77b209` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -1051,8 +1051,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `gallery.hpp:1754` | `render_snapshot_pass` | 1 | `framePhotographerGroup_` | `1, &kFrameSlotZero` |
 | `gallery.hpp:1755` | `render_snapshot_pass` | 2 | `sceneStateGroup_` | — |
 | `gallery.hpp:1756` | `render_snapshot_pass` | 3 | `sceneTexturesGroup_` | — |
-| `gallery.hpp:1784` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
-| `gallery.hpp:1785` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
+| `gallery.hpp:1802` | `render_snapshot_pass` | 2 | `galleryStateGroup_` | — |
+| `gallery.hpp:1803` | `render_snapshot_pass` | 3 | `galleryTexturesGroup_` | — |
 | `gol_zones.hpp:809` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
 | `gol_zones.hpp:810` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:897` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |

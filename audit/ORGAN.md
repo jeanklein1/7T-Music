@@ -401,19 +401,22 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Debug ·  | mute signal | `CONFIG.mute_signal` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | freeze sphere | `CONFIG.freeze_sphere` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | FPV mode (key-shared) | `CONFIG.fpv_mode` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
+| Measure ·  | main draw mask (bits: A/B/C terrain, table, ribbon, paintings, orbs, fade) | `CONFIG.draw_mask` | CONFIG | U32 | 0 … 255 | 1 | live | none |  |
+| Measure ·  | shadow draw mask (bit0 terrain, bit1 entities+artworks) | `CONFIG.shadow_mask` | CONFIG | U32 | 0 … 3 | 1 | live | none |  |
+| Measure ·  | sun PCF taps (4 or 16) | `CONFIG.shadow_pcf_taps` | CONFIG | U32 | 4 … 16 | 12 | live | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **378** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 |
-| by cadence | boundary 188 · driven 20 · gen 42 · live 128 |
-| by macro form | PARAM 132 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 42 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 194 · ORB_MOOD 19 · TIER 32 |
+| entries | **381** |
+| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 188 · driven 20 · gen 42 · live 131 |
+| by macro form | PARAM 135 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 42 · PARAM_RO 20 |
+| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 197 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 20 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 363 |
+| namespaces | canvas 15 · the_board 366 |
 
 ### Doors
 
@@ -483,7 +486,7 @@ THE ANSWER, ROW BY ROW
   proved    280   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    20   an _RO meter: the question is inverted (blind spot 5)
-  scope      78   GPU-side or whole-struct (blind spots 2, 3)
+  scope      81   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.
