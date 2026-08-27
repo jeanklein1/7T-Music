@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `c34b8ab6e67a660e9bc636ab5145a4f316211fe5`
-(LATTICE_4/B — the card writer fuses; the scratch buffer retires)
+Last commit touching any scanned file: `70338a1c2d6aeaa887a263b240c47f335ad0e91e`
+(LATTICE_4/D+F — the fade gate reads what the shader reads; the floor moves to the card)
 
 | file scanned | sha256 |
 |---|---|
