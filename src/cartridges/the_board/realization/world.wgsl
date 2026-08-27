@@ -238,7 +238,16 @@ fn sw_motor_point(m: Motor, p: Point) -> Point {
 // §1.3 COORDINATE SYSTEMS
 
 // Patch system — streaming terrain
-const PATCH_HEIGHTFIELD_N: u32 = 256u;  // texels per patch heightfield side
+// THE BAKE IS THE READER'S SHADOW (LATTICE_1). Texel i IS lattice point i —
+// the grid patch_terrain_vs decodes. Twin of Dim::PATCH_HEIGHTFIELD_N.
+const PATCH_HEIGHTFIELD_N: u32 = PATCH_MESH_N + 1u;   // 65
+const_assert PATCH_HEIGHTFIELD_N == PATCH_MESH_STRIDE;
+// The stencil the normals were tuned under: the pitch of the RETIRED
+// 256-texel field. The gradient stays a 5-tap central difference at this
+// spacing rather than becoming analytic — analytic would carry the fine
+// band's slope ~1.7x stronger, which is a different picture, not a better
+// number.
+const BAKE_STENCIL_EPS: f32 = PATCH_EXTENT / 255.0;
 const PATCH_CELL_N: u32 = 16u;          // cell color texture side per patch
 const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 // THE CELL — one spelling, and this is it. The card's window snap, the
@@ -257,7 +266,7 @@ fn live_card_origin() -> vec2<f32> {
             - vec2(LIVE_CARD_EXTENT * 0.5);
     return floor(raw / cs) * cs;                          // cell snap
 }
-const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (VS bilinear-samples 256-texel heightfield)
+const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (LOD-0)
 const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
 // THE ONE-ADDRESS LAW (SEAMLESSNESS corollary — charter C8). A cell

@@ -92,7 +92,6 @@ namespace t7 {
 
             // Patch streaming system
             constexpr float    PATCH_EXTENT = 50.0f;    // world units per patch side
-            constexpr uint32_t PATCH_HEIGHTFIELD_N = 256;     // texels per patch heightfield side
             constexpr uint32_t PATCH_CELL_N = 16;      // cell color texture side per patch
             // THE CELL — one spelling, and this is it. The pawn aura, the GoL
             // zone extent + corner snap, the card's window origin and the
@@ -221,6 +220,16 @@ namespace t7 {
             constexpr float MOSAIC_BLEND_DEFAULT      = 0.18f;
             constexpr float MOSAIC_FACET_DEFAULT      = 0.25f;
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
+            // THE BAKE IS THE READER'S SHADOW (LATTICE_1). The heightfield is
+            // baked at the lattice patch_terrain_vs decodes: texel i IS lattice
+            // point i, so the VS reads a value that was computed FOR it rather
+            // than interpolated toward it. It was 256 — four texels per mesh
+            // step, 15.5x the memory, and every one of them thrown away by a
+            // bilinear fetch that landed between them.
+            //
+            // DECLARED HERE, after PATCH_MESH_N, because C++ needs the operand
+            // first; WGSL's twin may sit anywhere and does.
+            constexpr uint32_t PATCH_HEIGHTFIELD_N = PATCH_MESH_N + 1;   // 65 — one texel per lattice point
             constexpr uint32_t PATCH_INDEX_COUNT = PATCH_MESH_N * PATCH_MESH_N * 6;
 
             // ── THE UNIFIED GROUND (UNIFIED_GROUND_1) ──
@@ -2365,7 +2374,11 @@ namespace t7 {
             // is correct exactly at rest. Defaults zoned (conservative).
             bool zonesActiveAnywhere_ = true;
 
-            // Patch heightfield texture array (MAX_ACTIVE_PATCHES = 225 layers × 256×256, RGBA16Float)
+            // Patch heightfield texture array — MAX_ACTIVE_PATCHES = 225
+            // layers of PATCH_HEIGHTFIELD_N² (65×65), RGBA16Float. 7.6 MB,
+            // from 118 (LATTICE_1): a texel per lattice point instead of
+            // sixteen per mesh quad. RGBA16Float and not rg16float because
+            // rg16float is not a core storage format; .zw stay unused.
             wgpu::Texture patchHeightfieldArrayTexture_;
             wgpu::TextureView patchHeightfieldArrayWriteView_;  // full array for storage write
             wgpu::TextureView patchHeightfieldArrayReadView_;   // full array for sampling
@@ -3900,7 +3913,9 @@ namespace t7 {
             }
 
             // --- Dispatch dimensions ---
-            static constexpr uint32_t patch_heightfield_workgroups() { return Dim::PATCH_HEIGHTFIELD_N / 16; }
+            // Rounds UP: 65 is not a multiple of the 16x16 tile, so the
+            // kernel guards its own upper bound and the edge tile idles.
+            static constexpr uint32_t patch_heightfield_workgroups() { return (Dim::PATCH_HEIGHTFIELD_N + 15) / 16; }
             static constexpr uint32_t patch_cell_workgroups() { return Dim::PATCH_CELL_N / 8; }
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
             // PANORAMA_0 RIDE_0 — the two kernels that stopped being 0D/32-wide.
@@ -5037,7 +5052,7 @@ namespace t7 {
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA16Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    patchHeightfieldArrayTexture_ = makeTexture("Patch Heightfield Array (225x256x256, RGBA16Float; 225 = Dim::MAX_ACTIVE_PATCHES)", desc);
+                    patchHeightfieldArrayTexture_ = makeTexture("Patch Heightfield Array (225x65x65, RGBA16Float; 225 = Dim::MAX_ACTIVE_PATCHES)", desc);
                     if (!patchHeightfieldArrayTexture_) return false;
 
                     wgpu::TextureViewDescriptor viewDesc{};
