@@ -35,6 +35,42 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   which costs the veil a row between 400 and 542 where its column still works.
   Origin: ENTRANCE_0 E6. Unblocked by Jean picking one, or by ruling that a
   failure card in a short window may spill.
+- THE HARNESS SELECTS ITSELF FROM ITSELF. `src/the_board.cpp` is a "Render
+  Cartridge Development Harness" for a cartridge set of one, chosen by
+  `T7_RENDER_CARTRIDGE`, a dial with one legal value — and after NAME_0 the
+  harness, the dial's only value and the program all spell `the_board`. Whether
+  the harness and the selector survive as expressible concepts, or whether the
+  program is always the whole program, is the question. NAME_0 asked that this
+  be filed beside the entry DEMO removal already holds open on piece-presence,
+  to be answered together or not at all — THAT ENTRY IS NOT IN THIS FILE. No
+  `INCUBATE`, no "whole program", no piece-presence row: the register does not
+  carry it, so this one stands alone and carries the pairing instruction
+  instead. Origin: NAME_0, filed not acted on. Unblocked by the piece-presence
+  ruling, whenever it is written down.
+- THE WORDMARK IS `the_board`, LOWERCASE AND SNAKE, on the veil and on the
+  fallback card, and `<title>the_board</title>` with it. Whether it becomes
+  "The Board" is a typographic decision on the face of the piece, not a rename,
+  and NAME_0's orthography does not decide it: prose is "The Board", artifacts
+  are `the_board`, and a wordmark is arguably both. JEAN'S STAMP.
+  Recommendation, carried from NAME_0: leave it — the machine spelling is the
+  tone. Origin: NAME_0.
+- ONE NAME_0 ROW COULD NOT BE CLASSIFIED. `tools/command_census.py` writes the
+  ledger sentence "The frame's one submit rides the pawn's render tick". Read
+  as the harness it is a program row and should now say `the_board`; read as
+  the figure it is the frozen entity noun. The entity has no render tick of its
+  own, which argues program — but that is an argument, not a classification, so
+  the row was logged and left. It reaches `audit/COMMAND_LEDGER.md`, so
+  whichever way it is ruled the fix is one string in the tool and one
+  regeneration. Origin: NAME_0 recon.
+- NAME_1 IS PARKED ON JEAN'S HAND. CC cannot rename a GitHub repository. Until
+  `jeanklein1/7T-Pawns` becomes `jeanklein1/7T-Board`, four R rows stand
+  deliberately unchanged: the CONTACT link in `web/index.html`
+  (`…/7T-Pawns/issues`), the Pages URL printed by `tools/web_dist.py`
+  (`jeanklein1.github.io/7T-Pawns/`), the section comment in `.gitignore`, and
+  the git remote itself. GitHub keeps a redirect at the moment of the rename,
+  so nothing breaks when it happens; the sweep is `git remote set-url origin`,
+  one `git fetch` to verify, then those three files. Origin: NAME_0 / NAME_1.
+  Unblocked by Jean stamping the repository name.
 - MOOD_ATRIUM STILL EXISTS, AND ONLY BECAUSE A PRESET REMEMBERS ITS ID.
   ATTIC_ATRIUM deleted the entrance's every mechanism — the hang, the
   partition, the arc, the arrival orbit, the colours — and stopped at the ROW.
