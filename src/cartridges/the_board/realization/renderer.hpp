@@ -29,7 +29,7 @@ namespace t7 {
             constexpr const char* UPDATE_OTHER_AGENTS = "update_other_agents";        // 1D (32 threads, non-possessed slots)
             constexpr const char* UPDATE_CAMERA = "update_camera";                  // 0D
             constexpr const char* UPDATE_SPHERE = "update_sphere";                  // 0D
-            constexpr const char* UPDATE_CUBE = "update_cube";                      // 0D
+            constexpr const char* UPDATE_CUBE = "update_cube";                      // 1D (256 threads, one per cube slot)
             constexpr const char* COMPUTE_VP = "compute_vp";                    // 0D
 
             // On-demand compute
@@ -432,7 +432,11 @@ namespace t7 {
             void dispatch_update_cube(wgpu::ComputePassEncoder& pass) {
                 if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(updateCubePipeline_);
-                pass.DispatchWorkgroups(1, 1, 1);
+                // ONE LANE PER CUBE (PANORAMA_0 RIDE_0): 4 x 64 = 256 =
+                // Dim::CUBE_SLOT_COUNT exactly. Derived, not written as 4, so
+                // a slot-count edit moves the dispatch with it; the kernel
+                // guards gid.x >= CUBE_SLOT_COUNT either way.
+                pass.DispatchWorkgroups(GPUState::cube_workgroups(), 1, 1);
             }
 
             void dispatch_compute_vp(wgpu::ComputePassEncoder& pass,

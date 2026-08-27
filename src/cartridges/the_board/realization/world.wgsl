@@ -9752,9 +9752,29 @@ fn cube_behavior_force(fe: FloatingEntityState, t: f32, point_xz: vec2<f32>, coo
     return f + cube_force_witness(fe);
 }
 
-@compute @workgroup_size(1)
-fn update_cube() {
+// ONE LANE PER CUBE (PANORAMA_0 RIDE_0). This kernel was @workgroup_size(1)
+// dispatched (1,1,1), walking `for slot in CUBE_SLOT_OFFSET..+256` on a single
+// GPU lane — two manifold_position queries per cube (a heightfield fetch
+// through the patch grid plus the pyramid/zone/pulse overlay loops), the
+// behavior force, the push response and the drift integrator, 256 times,
+// serially. It was the `dispatch_compute` mean and all of its spikes.
+//
+// THE LOOP WAS ALWAYS EMBARRASSINGLY PARALLEL, which is what makes this a
+// mapping change and not a design one. Verified rather than assumed: every
+// write in the body is to `floating_entities.entities[slot]` — its own slot,
+// both the eviction store and the final write-back — and the only reads that
+// leave the slot are `point_pos()` (a uniform) and `field_forces[32u + slot]`,
+// the cube's OWN lane, written by update_other_agents in an EARLIER dispatch
+// of this same pass. No iteration reads another iteration's slot, so the
+// arithmetic and the results are identical lane for lane.
+//
+// GPUState::cube_workgroups() rounds up: 4 x 64 = 256 = CUBE_SLOT_COUNT.
+@compute @workgroup_size(64)
+fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (!dynamics_0d_active()) { return; }
+
+    if (gid.x >= CUBE_SLOT_COUNT) { return; }
+    let slot = CUBE_SLOT_OFFSET + gid.x;
 
     let dt = signal.dt;
     let point_xz = point_pos().xz;
@@ -9772,10 +9792,9 @@ fn update_cube() {
     // visual parity with the pre-substrate hover-bob. Future behaviors
     // (CurlField, PhaseWave, …) push drift around without touching
     // the analytical home.
-    let cube_end = CUBE_SLOT_OFFSET + CUBE_SLOT_COUNT;
-    for (var slot = CUBE_SLOT_OFFSET; slot < cube_end; slot++) {
+    {
         var fe = floating_entities.entities[slot];
-        if (fe.is_active == 0u) { continue; }
+        if (fe.is_active == 0u) { return; }
 
         // Lifecycle: point-distance eviction (was the pawn —
         // floaters follow the point). Cube stays alive as long as its
@@ -9785,7 +9804,7 @@ fn update_cube() {
         let to_point = fe.pos.xz - point_xz;
         if (dot(to_point, to_point) > FLOATER_EVICTION_RADIUS_SQ) {
             floating_entities.entities[slot].is_active = 0u;
-            continue;
+            return;
         }
 
         if (!sphere_frozen()) {

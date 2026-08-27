@@ -389,8 +389,9 @@ namespace t7 {
 
             // Floating entity system — split into sphere (orbital) + cube (hover-bob)
             constexpr uint32_t MAX_SPHERE_INSTANCES = 8;
-            // 256 slots: drone-show populations. update_cube is single-thread
-            // (@workgroup_size(1)) — cost scales linearly, ~7.5K ops/frame.
+            // 256 slots: drone-show populations. update_cube runs ONE LANE
+            // PER SLOT since PANORAMA_0 RIDE_0 (4 workgroups of 64), so the
+            // cost is a constant depth rather than linear in the population.
             constexpr uint32_t MAX_CUBE_INSTANCES = 256;
             constexpr uint32_t CUBE_SLOT_OFFSET = MAX_SPHERE_INSTANCES;
             constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 264
@@ -3827,6 +3828,12 @@ namespace t7 {
             static constexpr uint32_t patch_heightfield_workgroups() { return Dim::PATCH_HEIGHTFIELD_N / 16; }
             static constexpr uint32_t patch_cell_workgroups() { return Dim::PATCH_CELL_N / 8; }
             static constexpr uint32_t ribbon_ring_workgroups() { return (Dim::RIBBON_MAX_RINGS + 63) / 64; }
+            // PANORAMA_0 RIDE_0 — the two kernels that stopped being 0D/32-wide.
+            // Both round UP: the kernels guard their own upper bound, so a
+            // count that is not a multiple of 64 costs idle lanes, never a
+            // dropped slot.
+            static constexpr uint32_t cube_workgroups() { return (Dim::MAX_CUBE_INSTANCES + 63) / 64; }
+            static constexpr uint32_t field_lane_workgroups() { return (Dim::FIELD_SUBSCRIBER_CAP + 63) / 64; }
 
             // --- Batch patch generation ---
             // PROBATE_I: the three staging doors — patch_params_buffer,
