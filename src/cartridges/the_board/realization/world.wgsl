@@ -580,19 +580,49 @@ fn evaluate_radial_wave(
 // return (frozen, moving) instead of mixing. band_act stays in the
 // signature for stability (the mix consumer applies it; the delta
 // consumer applies it per node).
-fn evaluate_lattice_wave_pair(
-    world_xz: vec2<f32>,
-    node: vec2<i32>,
-    node_seed: u32,
-    band: TerrainBand,
-    band_act: f32,       // activity level for this band [0,1] (from hierarchy)
-    beat_freq: f32,      // cycles per beat from activity field
-    t_beats: f32,        // current time in beats
-) -> vec2<f32> {
+// THE NODE, DERIVED (LATTICE_1b). A lattice node's parameters are a pure
+// function of (node, node_seed, band, config.terrain_amp_ceiling) — R-F
+// verified end to end: `world_xz` enters ONLY the two wave primitives. So
+// the derivation — ~11 hash_property calls, three Box-Muller draws and two
+// angle transcendentals — can be done ONCE per node and reused by every
+// query point that touches it, instead of once per (point, node) pair.
+//
+// `kind` folds the activation gate in: 0 is a silent node, and nothing
+// else on the struct is meaningful for it. `anchor` is node_world for a
+// directional node and the offset center for a radial one; `dir` is
+// (0,0) for radial and unread.
+struct WaveNode {
+    freq: f32,
+    amp: f32,
+    damping: f32,
+    phase: f32,          // phase_base — the frozen phase; the caller adds the offset
+    anchor: vec2<f32>,   // directional: node_world; radial: center
+    dir: vec2<f32>,      // directional only; (0,0) for radial
+    kind: u32,           // 0 silent (activation gate), 1 directional, 2 radial
+    _p0: u32,
+    _p1: u32,
+    _p2: u32,
+}
+
+// The parameter half of the old evaluate_lattice_wave_pair, expression for
+// expression in its float order (the U5a discipline).
+fn derive_wave_node(node: vec2<i32>, node_seed: u32, band: TerrainBand) -> WaveNode {
+    var n: WaveNode;
+    n.freq = 0.0;
+    n.amp = 0.0;
+    n.damping = 0.0;
+    n.phase = 0.0;
+    n.anchor = vec2(0.0);
+    n.dir = vec2(0.0);
+    n.kind = 0u;
+    n._p0 = 0u;
+    n._p1 = 0u;
+    n._p2 = 0u;
+
     // Activation gate: if draw exceeds band activation, this node is silent.
     // Spatially coherent — a silent node is silent for all query points.
     if (hash_property(node_seed, WAVE_PROP_ACTIVE) > band.activation) {
-        return vec2(0.0, 0.0);
+        return n;
     }
 
     // Derive parameters from seed via Gaussian / uniform draws
@@ -606,29 +636,61 @@ fn evaluate_lattice_wave_pair(
     let damping = max(abs(sample_gaussian(node_seed, WAVE_PROP_DAMPING, band.damping_mean, band.damping_sigma)), band.damping_min);
     let phase_base = hash_property(node_seed, WAVE_PROP_PHASE) * 2.0 * PI;
 
-    // Two phases: frozen is the reference shape, moving advances with beats.
-    // band.temporal_freq scales the pool's beat_freq per band:
-    //   fine bands ripple fast, continental bands swell slowly.
-    let phase_frozen = phase_base;
-    let phase_moving = phase_base + t_beats * beat_freq * band.temporal_freq * 2.0 * PI;
-
     // Node world position: center of this lattice cell
     let node_world = (vec2<f32>(node) + 0.5) * band.spacing;
+
+    n.freq = freq;
+    n.amp = amp;
+    n.damping = damping;
+    n.phase = phase_base;
 
     if (is_radial) {
         let offset_angle = hash_property(node_seed, WAVE_PROP_DIR_ANGLE) * 2.0 * PI;
         let offset_r = hash_property(node_seed, WAVE_PROP_CENTER_R) * band.spacing * 0.3;
-        let center = node_world + vec2(cos(offset_angle), sin(offset_angle)) * offset_r;
-        let val_frozen = evaluate_radial_wave(world_xz, center, freq, amp, damping, phase_frozen);
-        let val_moving = evaluate_radial_wave(world_xz, center, freq, amp, damping, phase_moving);
-        return vec2(val_frozen, val_moving);
+        n.anchor = node_world + vec2(cos(offset_angle), sin(offset_angle)) * offset_r;
+        n.kind = 2u;
     } else {
         let dir_angle = hash_property(node_seed, WAVE_PROP_DIR_ANGLE) * 2.0 * PI;
-        let dir = vec2(cos(dir_angle), sin(dir_angle));
-        let val_frozen = evaluate_directional_wave(world_xz, node_world, freq, amp, damping, dir, phase_frozen);
-        let val_moving = evaluate_directional_wave(world_xz, node_world, freq, amp, damping, dir, phase_moving);
-        return vec2(val_frozen, val_moving);
+        n.anchor = node_world;
+        n.dir = vec2(cos(dir_angle), sin(dir_angle));
+        n.kind = 1u;
     }
+    return n;
+}
+
+// The evaluation half. `phase_offset` is what the caller adds to the frozen
+// phase — 0.0 for frozen, the beat term for moving. `x + 0.0 == x` for
+// finite x in IEEE, so the frozen call is bit-identical to the old
+// phase_frozen = phase_base path.
+fn eval_wave_node(world_xz: vec2<f32>, n: WaveNode, phase_offset: f32) -> f32 {
+    if (n.kind == 0u) { return 0.0; }
+    if (n.kind == 2u) {
+        return evaluate_radial_wave(world_xz, n.anchor, n.freq, n.amp, n.damping,
+                                    n.phase + phase_offset);
+    }
+    return evaluate_directional_wave(world_xz, n.anchor, n.freq, n.amp, n.damping,
+                                     n.dir, n.phase + phase_offset);
+}
+
+fn evaluate_lattice_wave_pair(
+    world_xz: vec2<f32>,
+    node: vec2<i32>,
+    node_seed: u32,
+    band: TerrainBand,
+    band_act: f32,       // activity level for this band [0,1] (from hierarchy)
+    beat_freq: f32,      // cycles per beat from activity field
+    t_beats: f32,        // current time in beats
+) -> vec2<f32> {
+    let n = derive_wave_node(node, node_seed, band);
+    if (n.kind == 0u) { return vec2(0.0, 0.0); }
+
+    // Two phases: frozen is the reference shape, moving advances with beats.
+    // band.temporal_freq scales the pool's beat_freq per band:
+    //   fine bands ripple fast, continental bands swell slowly.
+    // The product keeps the old phase_moving's association exactly.
+    let moving_offset = t_beats * beat_freq * band.temporal_freq * 2.0 * PI;
+    return vec2(eval_wave_node(world_xz, n, 0.0),
+                eval_wave_node(world_xz, n, moving_offset));
 }
 
 fn evaluate_lattice_wave(
