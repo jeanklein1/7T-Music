@@ -2280,7 +2280,26 @@ namespace t7 {
         inline constexpr uint32_t kFrameSlotZero = 0;
 
         class GPUState {
+          public:
+            // THE DRAW LEDGER'S VOCABULARY (BUNDLE_1) — declared at the head
+            // of the class because the members below are of these types, and
+            // public because the draw sites name records by hand
+            // (GPUState::DR_ARCH). The ledger's own prose lives with its
+            // methods, beside reset_frustum_indirect.
+            enum DrawRecord : uint32_t {
+                DR_ARCH, DR_COLUMN, DR_PALM, DR_CACTUS, DR_BLADE, DR_SHELL,
+                DR_RIBBON, DR_WALL, DR_GALLERY_FRAME, DR_ORBS,
+                DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
+                DR_COUNT
+            };
+            // Stride 32 (not 20) so a record starts on a readable hex-dump
+            // boundary; DrawIndexedIndirect takes any 4-aligned offset.
+            static constexpr uint32_t DRAW_RECORD_STRIDE = 32;
+            // indexed:     indexCount, instanceCount, firstIndex, baseVertex, firstInstance
+            // non-indexed: vertexCount, instanceCount, firstVertex, firstInstance, (unused)
+            struct DrawArgs { uint32_t a[5]; };
 
+          private:
             wgpu::Device device_;
             GPUDesignConfig config_{};
             // ORGAN — one bit per panel-writable block, raised by
@@ -2376,6 +2395,12 @@ namespace t7 {
             uint32_t lastPatchInstanceCount_ = 0;
             bool patchInstancesEverUploaded_ = false;
             wgpu::Buffer patchGridBuffer_;         // GPUPatchGrid — O(1) spatial index for sample_terrain_y_at
+            // The draw ledger (BUNDLE_1) — the stage, what the GPU holds,
+            // and the buffer the indirect draws read.
+            DrawArgs drawLedgerStage_[DR_COUNT]{};
+            DrawArgs drawLedgerShipped_[DR_COUNT]{};
+            wgpu::Buffer drawLedgerBuffer_;
+
             wgpu::Buffer patchIndexBuffer_;
             wgpu::Buffer patchIndexBufferLOD1_;   // half-res index buffer for distant patches
             wgpu::Buffer patchIndexBufferCapOnly_; // ECONOMY_1 E1 — caps + skirt, no curtain band
@@ -3508,6 +3533,71 @@ namespace t7 {
             static constexpr size_t frustum_indirect_size() { return 15 * sizeof(uint32_t); }
             wgpu::Buffer visible_patch_indices_buffer() const { return visiblePatchIndicesBuffer_; }
 
+            // ═══ THE DRAW LEDGER (BUNDLE_1) ══════════════════════════════
+            //
+            // ONE RECORD PER DRAWABLE WHOSE COUNT THE CPU AUTHORS, and every
+            // draw of it is an indirect draw from that record. The CPU writes
+            // a record only when its number moves (compare-before-write, the
+            // OIL_1 idiom). The terrain's own records stay the cull's
+            // (frustumComputeBuffer_ — GPU-authored); this is the
+            // conductor's half.
+            //
+            // A RECORD IS PER DRAWABLE, NOT PER (PASS, DRAWABLE). Every
+            // shadow verb takes the same count as its main twin and passes
+            // it through the same way — draw_shadow_arch and draw_arch are
+            // one number — so both passes read one record. Two records for
+            // one number would be two homes for one fact.
+            //
+            // WHY THIS EXISTS: an indirect draw's count lives on the GPU, so
+            // the draw can be RECORDED ONCE into a render bundle and replayed
+            // every frame while its number keeps moving. Without it a bundle
+            // would freeze the counts it was recorded with.
+            //
+            // THE GUARDS DISSOLVE INTO THE RECORDS. Every `if (count == 0)
+            // return;` and every `if (!active) return;` that used to sit in
+            // a draw verb was an ENCODER-TIME skip — exactly what a bundle
+            // cannot do, because a bundle recorded in a frame where a family
+            // was empty would omit that family forever, and every family is
+            // empty at boot. A record of zeros draws nothing, so the guard
+            // becomes the number. stage_draw_ledger (render_passes.hpp) is
+            // where every one of them now lives, in one readable place.
+            static constexpr uint64_t draw_record_offset(DrawRecord r) {
+                return static_cast<uint64_t>(r) * DRAW_RECORD_STRIDE;
+            }
+            wgpu::Buffer draw_ledger_buffer() const { return drawLedgerBuffer_; }
+
+            void stage_draw_indexed(DrawRecord r, uint32_t indexCount, uint32_t instanceCount) {
+                drawLedgerStage_[r] = DrawArgs{ { indexCount, instanceCount, 0u, 0u, 0u } };
+            }
+            void stage_draw_verts(DrawRecord r, uint32_t vertexCount, uint32_t instanceCount) {
+                drawLedgerStage_[r] = DrawArgs{ { vertexCount, instanceCount, 0u, 0u, 0u } };
+            }
+
+            // FIRST-INSTANCE IS ALWAYS ZERO in this ledger, and that is a
+            // constraint, not a choice: core WebGPU forbids a non-zero
+            // firstInstance in an INDIRECT draw without the
+            // `indirect-first-instance` feature, which the wallet does not
+            // request. The one draw that needs one — the monolith's
+            // Dim::CUBE_SLOT_OFFSET — is run-constant and stays a literal
+            // direct draw for exactly this reason.
+            static_assert(sizeof(DrawArgs) == 5 * sizeof(uint32_t),
+                "a draw record is the five u32 the indirect draw reads");
+
+            // The frame boundary's write: at most DR_COUNT small WriteBuffers,
+            // and in a steady frame zero. A writeBuffer issued before the
+            // submit lands ahead of the command buffer on the queue timeline
+            // — the same ordering upload_patch_params relies on.
+            void flush_draw_ledger(wgpu::Queue& queue) {
+                for (uint32_t r = 0; r < DR_COUNT; r++) {
+                    if (std::memcmp(&drawLedgerStage_[r], &drawLedgerShipped_[r],
+                                    sizeof(DrawArgs)) == 0) continue;
+                    queue.WriteBuffer(drawLedgerBuffer_,
+                        draw_record_offset(static_cast<DrawRecord>(r)),
+                        &drawLedgerStage_[r], sizeof(DrawArgs));
+                    drawLedgerShipped_[r] = drawLedgerStage_[r];
+                }
+            }
+
             void reset_frustum_indirect(wgpu::Queue& queue) {
                 // THE DRAW PLAN: three 5-u32 arg slots — A full IB, B
                 // cap-only IB, C LOD1 IB. A and B's indexCounts are
@@ -4286,6 +4376,13 @@ namespace t7 {
                 patchParamsBuffer_ = makeBuffer("Patch Params Batch",
                     Dim::MAX_ACTIVE_PATCHES * sizeof(GPUPatchParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                // The draw ledger (BUNDLE_1) — one record per drawable whose
+                // count the CPU authors. Zero-initialised, which is the right
+                // rest: every family is empty until something stages it, and
+                // a record of zeros draws nothing.
+                drawLedgerBuffer_ = makeBuffer("Draw Ledger",
+                    DR_COUNT * DRAW_RECORD_STRIDE,
+                    wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst);
                 // Self-Portrait Gallery
                 photographerVPBuffer_ = makeBuffer("Photographer VP",
                     sizeof(GPUVPMatrix),
@@ -4359,7 +4456,7 @@ namespace t7 {
                     vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
                     shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
-                    patchGridBuffer_ && patchParamsBuffer_ &&
+                    patchGridBuffer_ && patchParamsBuffer_ && drawLedgerBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
                     agentRoomBuffer_ && sceneConstantsBuffer_ &&

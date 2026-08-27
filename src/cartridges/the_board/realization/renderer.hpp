@@ -621,10 +621,12 @@ namespace t7 {
                 wgpu::Buffer quadVB,
                 wgpu::Buffer quadIB,
                 wgpu::Buffer orbStateVB,
-                uint32_t orbCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates
-                if (orbCount == 0) return;
+                // The count and the `os.active` guard are the record's
+                // (BUNDLE_1): zero instances draw nothing.
                 pass.SetPipeline(orbRenderPipeline_);
                 // LOOM_2: the scene strata (0-3) ride the pass-head binds —
                 // the orb sky layer is SCENE family and rebinds nothing.
@@ -633,7 +635,7 @@ namespace t7 {
                 // replaced the binding-400 storage read in orb_vs.
                 pass.SetVertexBuffer(1, orbStateVB);
                 pass.SetIndexBuffer(quadIB, wgpu::IndexFormat::Uint16);
-                pass.DrawIndexed(6, orbCount, 0, 0, 0);
+                pass.DrawIndexedIndirect(ledger, ledgerOffset);
             }
 
             void dispatch_zone_gol_sync(
@@ -869,6 +871,29 @@ namespace t7 {
             // rather than a live count, so a family with nothing live still
             // arrives here with 0. Replacing the prefix with a live count
             // is the ARENA-era fix; this only stops the warning.
+            // THE INDIRECT SIBLING (BUNDLE_1). Same shape, but the count
+            // comes from a draw-ledger record instead of an argument — so
+            // the draw can be RECORDED ONCE into a bundle and replayed while
+            // its number keeps moving. The `indexCount == 0` early-out below
+            // has no twin here and needs none: a record of zeros draws
+            // nothing, and it is the record that carries the guard now.
+            // (TIDY_0d's reason for that early-out — Dawn logging "Draw with
+            // an index count of 0 is unusual" for a submitted zero-count draw
+            // — does not arise: the count is not known at encode time.)
+            void draw_indexed_mesh_indirect(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::RenderPipeline pipeline,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
+            ) {
+                pass.SetPipeline(pipeline);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexedIndirect(ledger, ledgerOffset);
+            }
+
             void draw_indexed_mesh(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::RenderPipeline pipeline,
@@ -919,68 +944,79 @@ namespace t7 {
                     Dim::MAX_CUBE_INSTANCES, Dim::CUBE_SLOT_OFFSET);
             }
 
+            // RIBBON_1's LIVE count, now a record (BUNDLE_1). The
+            // `ribbon_active` guard the drawable table used to carry went
+            // with it: an inactive ribbon stages zero vertices, which draws
+            // nothing — and unlike an encoder-time skip, that survives being
+            // recorded into a bundle.
             void draw_ribbon(
                 wgpu::RenderPassEncoder& pass,
-                uint32_t vertexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(ribbonPipeline_);
-                pass.Draw(vertexCount);
+                pass.DrawIndirect(ledger, ledgerOffset);
             }
 
             void draw_arch(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh(pass, archPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_indexed_mesh_indirect(pass, archPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_column(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh(pass, columnPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_indexed_mesh_indirect(pass, columnPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_palm(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh(pass, palmPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_indexed_mesh_indirect(pass, palmPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_cactus(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh(pass, cactusPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_indexed_mesh_indirect(pass, cactusPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_blade(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh(pass, bladePipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_indexed_mesh_indirect(pass, bladePipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
@@ -989,54 +1025,56 @@ namespace t7 {
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates
-                // Helper's `if (indexCount == 0) return;` covers the early-out
-                // that this wrapper used to carry explicitly (the shadow twin
-                // says the same at draw_shadow_shell).
-                draw_indexed_mesh(pass, shellPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                // The zero early-out went with the count: the shell's record
+                // carries the guard now (BUNDLE_1), and the shadow twin says
+                // the same at draw_shadow_shell.
+                draw_indexed_mesh_indirect(pass, shellPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             // OIL_1 U13: the gallery pair is bound ONCE by the caller
             // before the wall/frame draws (they share the gallery layout).
+            // The instance count is the live mark, not Dim::PAINTING_MAX_SLOTS.
+            // The shader culls per slot either way, so the constant meant
+            // paying for the ceiling every frame; gallery_frame_vs's bounds
+            // guard (B1) makes drawing fewer safe by construction. Both the
+            // mark and the `activePaintingCount == 0` guard are in the record
+            // now (BUNDLE_1) — zero instances draw nothing.
             void draw_gallery_frames(
                 wgpu::RenderPassEncoder& pass,
-                uint32_t activePaintingCount,
-                uint32_t slotHighWater          // one past the highest ACTIVE slot
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                if (activePaintingCount == 0 || slotHighWater == 0) return;
                 pass.SetPipeline(galleryFramePipeline_);
-                // Instance count is the live mark, not Dim::PAINTING_MAX_SLOTS.
-                // The shader culls per slot either way, so the constant meant
-                // paying for the ceiling every frame; gallery_frame_vs's bounds
-                // guard (B1) makes drawing fewer safe by construction.
-                pass.Draw(Dim::PAINTING_QUAD_VERTS, slotHighWater);
+                pass.DrawIndirect(ledger, ledgerOffset);
             }
 
+            // Both passes walk vid/PAINTING_FRAME_VERTS_PER as a slot index,
+            // so the vertex count is the live mark x the per-frame stride
+            // rather than Dim::PAINTING_FRAME_VERTEX_COUNT's ceiling.
+            // wall_painting_vs already guards the decoded index (world.wgsl).
+            //
+            // TWO DRAWS, ONE RECORD: the canvas and the frame walk the same
+            // vertices with different pipelines, so their count is one number
+            // and gets one home. The `wallFrameCount == 0` guard is in it.
             void draw_wall_paintings(
                 wgpu::RenderPassEncoder& pass,
-                uint32_t wallFrameCount,
-                uint32_t slotHighWater          // one past the highest ACTIVE slot
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                if (wallFrameCount == 0 || slotHighWater == 0) return;
-
-                // Both passes walk vid/PAINTING_FRAME_VERTS_PER as a slot index,
-                // so the vertex count is the live mark x the per-frame stride
-                // rather than Dim::PAINTING_FRAME_VERTEX_COUNT's ceiling.
-                // wall_painting_vs already guards the decoded index (world.wgsl).
-                const uint32_t verts = slotHighWater * Dim::PAINTING_FRAME_VERTS_PER;
-
                 // Canvas pass (textured surface)
                 pass.SetPipeline(wallPaintingCanvasPipeline_);
-                pass.Draw(verts);
+                pass.DrawIndirect(ledger, ledgerOffset);
 
                 // Frame pass (solid color) — same pair, already bound.
                 pass.SetPipeline(wallPaintingFramePipeline_);
-                pass.Draw(verts);
+                pass.DrawIndirect(ledger, ledgerOffset);
             }
 
             // HALF AN LSB IS THE BOUND (LATTICE_4 R4). The overlay is a
@@ -1076,6 +1114,22 @@ namespace t7 {
             // gallery draws are NOT under this contract: they carry
             // their own layout and bind their own pair, once, at the
             // tail of draw_shadow_all.
+            // The shadow twin of draw_indexed_mesh_indirect. Same record —
+            // a family's index count is one number, not one per pass.
+            void draw_shadow_indexed_mesh_indirect(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::RenderPipeline pipeline,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
+            ) {
+                pass.SetPipeline(pipeline);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexedIndirect(ledger, ledgerOffset);
+            }
+
             void draw_shadow_indexed_mesh(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::RenderPipeline pipeline,
@@ -1092,17 +1146,26 @@ namespace t7 {
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
 
+            // ONE DRAW WHERE THERE WERE TWO (BUNDLE_1, R-G). The two shadow
+            // terrain bands shared this pipeline AND this index buffer and
+            // differed only in their instance RANGE — [0, lod0) here, then
+            // [lod0, render) in a raw DrawIndexed at the call site. Their
+            // union is [0, render), which is one draw of render_patch_count
+            // instances: the shader sees the same instance_index set either
+            // way. Folding them also removes the only non-zero firstInstance
+            // on this path, which an indirect draw could not have carried
+            // without the `indirect-first-instance` feature.
             void draw_shadow_patch_terrain(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount,
-                uint32_t instanceCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 pass.SetPipeline(shadowPatchTerrainPipeline_);
-                // LATTICE_3. Band 1 below reuses this bind, so both shadow
-                // bands cross to uint16 together — they always shared the IB.
+                // LATTICE_3 — the LOD1 ring IB, uint16 since the patch IBs
+                // crossed together.
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16);
-                pass.DrawIndexed(indexCount, instanceCount);
+                pass.DrawIndexedIndirect(ledger, ledgerOffset);
             }
 
             void draw_shadow_pawn(
@@ -1139,66 +1202,72 @@ namespace t7 {
 
             void draw_shadow_ribbon(
                 wgpu::RenderPassEncoder& pass,
-                uint32_t vertexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates
                 pass.SetPipeline(shadowRibbonPipeline_);
-                pass.Draw(vertexCount);
+                pass.DrawIndirect(ledger, ledgerOffset);
             }
 
             void draw_shadow_arch(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh(pass, shadowArchPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_shadow_indexed_mesh_indirect(pass, shadowArchPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_shadow_column(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh(pass, shadowColumnPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_shadow_indexed_mesh_indirect(pass, shadowColumnPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_shadow_palm(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh(pass, shadowPalmPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_shadow_indexed_mesh_indirect(pass, shadowPalmPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_shadow_cactus(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh(pass, shadowCactusPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_shadow_indexed_mesh_indirect(pass, shadowCactusPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             void draw_shadow_blade(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh(pass, shadowBladePipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                draw_shadow_indexed_mesh_indirect(pass, shadowBladePipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             // draw_shadow_pyramid CUT — caller-free
@@ -1207,13 +1276,13 @@ namespace t7 {
                 wgpu::RenderPassEncoder& pass,
                 wgpu::Buffer vertexBuffer,
                 wgpu::Buffer indexBuffer,
-                uint32_t indexCount
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates
-                // Helper's `if (indexCount == 0) return;` covers the early-out
-                // that the original draw_shadow_shell had explicitly.
-                draw_shadow_indexed_mesh(pass, shadowShellPipeline_,
-                    vertexBuffer, indexBuffer, indexCount);
+                // Record-guarded, as the colour twin is (BUNDLE_1).
+                draw_shadow_indexed_mesh_indirect(pass, shadowShellPipeline_,
+                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
             // OIL_1 U12: the gallery pair is bound ONCE by the caller
@@ -1221,26 +1290,25 @@ namespace t7 {
             // sit at the tail of draw_shadow_all).
             void draw_shadow_gallery_frames(
                 wgpu::RenderPassEncoder& pass,
-                uint32_t activePaintingCount,
-                uint32_t slotHighWater          // one past the highest ACTIVE slot
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.gallery)) return;
-                if (activePaintingCount == 0 || slotHighWater == 0) return;
                 pass.SetPipeline(shadowGalleryFramePipeline_);
-                pass.Draw(Dim::PAINTING_QUAD_VERTS, slotHighWater);
+                pass.DrawIndirect(ledger, ledgerOffset);
             }
 
             void draw_shadow_wall_paintings(
                 wgpu::RenderPassEncoder& pass,
-                uint32_t wallFrameCount,
-                uint32_t slotHighWater          // one past the highest ACTIVE slot
+                wgpu::Buffer ledger,
+                uint64_t ledgerOffset
             ) {
                 if constexpr (!(ROSTER.gallery)) return;
-                if (wallFrameCount == 0 || slotHighWater == 0) return;
                 // ONE draw where the color pass needs two: with no fragment
                 // stage the canvas/frame split has nothing to distinguish.
+                // Same record as the colour pass — one vertex count.
                 pass.SetPipeline(shadowWallPaintingPipeline_);
-                pass.Draw(slotHighWater * Dim::PAINTING_FRAME_VERTS_PER);
+                pass.DrawIndirect(ledger, ledgerOffset);
             }
 
             // Gate (a'): compile-time count of pipelines the

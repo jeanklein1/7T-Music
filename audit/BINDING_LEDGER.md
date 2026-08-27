@@ -16,10 +16,10 @@ merge rows the API charges separately.
 | demo column censused | `full` |
 | source commit | `516f537ffb26ac077c7895f2d264a135b534ff36` |
 | | RECORD — what LATTICE_4 filed, and the covenant's corrected yardstick (L32) |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:7758304876162121a99f574e20f227927dd27e4a0d57aa0161c9e31d4da20c50` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:acfe011ce3c04b388ae1f768caf0db1d5924d50e9f1125ed9feb2ca15998db72` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:1da446dec47908bd6a0fda5d8ce341a4241df275feb5f54a32f8e000dcd97f13` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:bf76be62ae3e73ac3ce0ac47262f284da6639b5b81fc5e8523a11d6da2fd9f03` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:58e195c7aea92ef695cc63ef6c61e4c466fd446c41a3f2c092aacd1d6146dc06` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:455ae568086f942dfa1a74ab21f6761c9c721d88a9060c6356c4863423e19645` |
 
 
@@ -29,14 +29,14 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `924cabe08a921320c79177daf6209bb80cb7ee7786902741078e2840b108396b` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `724974fea63481f6914145bd24050c63f3c8a0daa7fb745700b2e754284c22bf` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `a5e24a3a64ddb1406144e31041dd579316a075d0790320e3cbaa6553c5139409` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `444d27b0166e20e7167f6fd4959d836a3e8464b83ad6ff1c4582ce5ec520f674` |
+| `src/cartridges/the_board/cartridge.hpp` | `81a4f35994788691056445f5759427e274a4035a73aaaa526f667057e74345ff` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `1e797a5ae1f0d34e7e57a865c14f1401ed9a6204e6d6d3496fef8d3542d5534e` |
 | `src/cartridges/the_board/direction/mood.hpp` | `6ac82e8609ffc2d8b612522ed75a975f59119db8889d755894b77e5ddb611fbd` |
-| `src/cartridges/the_board/realization/render_passes.hpp` | `6513b0fc92d1290914ed4cb37a0014c7d728a3045b0edafc0ba30c7af1ebc544` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `a2374fcfeb70d1cc473e382d70a623906a98f0a06152b3965a32c32b24c64ce7` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `1b1c3c116721dd10a5644190951aa680dc2bdd2fcd06b6677ed41bf3698bf500` |
 
 The source commit is the last commit touching any of the four primary
@@ -101,8 +101,8 @@ matters only where a binding is a window onto a shared buffer.
 | `W2-1` | **PASS** | 1019 access sites classified, every one on a declared binding |
 | `W2-2` | **PASS** | classification total: builtin_derived 58, builtin_sequential 3, indirected 78, other 90, scalar 790; `other` rows enumerated below |
 | `W2-3` | **PASS** | positive control: patch_terrain_vs reads patch_instances[actual_id] as other(vertex attribute @location(0)) (direct-path sequential joined with the B3 vertex-attribute input) |
-| `W3-0` | **PASS** | renderer.hpp: 44 Draw*/DispatchWorkgroups call sites, all inside a parsed function |
-| `W3-1` | **PASS** | 58 pipelines: 57 with exactly one call shape, 1 with several (all listed), 0 never invoked |
+| `W3-0` | **PASS** | renderer.hpp: 46 Draw*/DispatchWorkgroups call sites, all inside a parsed function |
+| `W3-1` | **PASS** | 58 pipelines: 58 with exactly one call shape, 0 with several (all listed), 0 never invoked |
 | `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (9 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 8 (compute_entity_placement, compute_photographer_vp, compute_vp, ribbon_head, update_camera, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 7 (compute_entity_placement, compute_photographer_vp, compute_vp, ribbon_head, update_camera, update_player_agent, update_sphere). The 1 that differ: zone_derive_params (wg1=True, single-dispatch=False). |
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
@@ -936,31 +936,30 @@ the caller, and witness `W3-3` forbids it.
 | Pawn Entity (Chess Pawn) | render | `pawn_vs`, `entity_fs` | `Draw` | `Dim::MAX_AGENTS` | — | draw_pawn |
 | Sphere Entity (Rasterized) | render | `sphere_vs`, `entity_fs` | `DrawIndexed` | `Dim::MAX_SPHERE_INSTANCES` | — | argument at the call site |
 | Monolith Entity (Rasterized) | render | `monolith_vs`, `entity_fs` | `DrawIndexed` | `Dim::MAX_CUBE_INSTANCES` | — | argument at the call site |
-| Catenary Arch (Rasterized) | render | `arch_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Generative Column (Rasterized) | render | `column_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Palm Tree (Rasterized) | render | `palm_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Cactus (Rasterized) | render | `cactus_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Blade Cluster (Rasterized) | render | `blade_cluster_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Indoor Shell (Ceiling + Walls) | render | `shell_vs`, `entity_fs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Sky Ribbon Entity | render | `ribbon_vs`, `ribbon_fs` | `Draw` | `1` | — | default (argument omitted) |
-| Orb Sky Layer | render | `orb_vs`, `orb_fs` | `DrawIndexed` | `os.count` | — | parameter `orbCount` of draw_orbs, resolved at its call sites |
-| Gallery Frame | render | `gallery_frame_vs`, `gallery_frame_fs` | `Draw` | `c->gallery_state_.slot_high_water \| gs.slot_high_water` | — | parameter `slotHighWater` of draw_gallery_frames, resolved at its call sites |
-| Wall Painting Canvas | render | `wall_painting_vs`, `wall_painting_canvas_fs` | `Draw` | `1` | — | default (argument omitted) |
-| Wall Painting Frame | render | `wall_painting_vs`, `wall_painting_frame_fs` | `Draw` | `1` | — | default (argument omitted) |
-| Shadow Patch Terrain | render | `shadow_patch_terrain_vs` | `DrawIndexed` | `c->world_state_.lod0_patch_count` | — | parameter `instanceCount` of draw_shadow_patch_terrain, resolved at its call sites |
-| Shadow Patch Terrain | render | `shadow_patch_terrain_vs` | `DrawIndexed` | `c->world_state_.render_patch_count - c->world_state_.lod0_patch_count` | — | raw draw at the pass head |
+| Catenary Arch (Rasterized) | render | `arch_vs`, `entity_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Generative Column (Rasterized) | render | `column_vs`, `entity_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Palm Tree (Rasterized) | render | `palm_vs`, `entity_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Cactus (Rasterized) | render | `cactus_vs`, `entity_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Blade Cluster (Rasterized) | render | `blade_cluster_vs`, `entity_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Indoor Shell (Ceiling + Walls) | render | `shell_vs`, `entity_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Sky Ribbon Entity | render | `ribbon_vs`, `ribbon_fs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
+| Orb Sky Layer | render | `orb_vs`, `orb_fs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Gallery Frame | render | `gallery_frame_vs`, `gallery_frame_fs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
+| Wall Painting Canvas | render | `wall_painting_vs`, `wall_painting_canvas_fs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
+| Wall Painting Frame | render | `wall_painting_vs`, `wall_painting_frame_fs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Patch Terrain | render | `shadow_patch_terrain_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
 | Shadow Pawn | render | `shadow_pawn_vs` | `Draw` | `Dim::MAX_AGENTS` | — | draw_shadow_pawn |
 | Shadow Sphere | render | `shadow_sphere_vs` | `DrawIndexed` | `Dim::MAX_SPHERE_INSTANCES` | — | argument at the call site |
 | Shadow Monolith | render | `shadow_monolith_vs` | `DrawIndexed` | `Dim::MAX_CUBE_INSTANCES` | — | argument at the call site |
-| Shadow Catenary Arch | render | `shadow_arch_vs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Shadow Generative Column | render | `shadow_column_vs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Shadow Palm Tree | render | `shadow_palm_vs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Shadow Cactus | render | `shadow_cactus_vs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Shadow Blade Cluster | render | `shadow_blade_cluster_vs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Shadow Indoor Shell | render | `shadow_shell_vs` | `DrawIndexed` | `1` | — | argument at the call site |
-| Shadow Sky Ribbon | render | `shadow_ribbon_vs` | `Draw` | `1` | — | default (argument omitted) |
-| Shadow Gallery Frame | render | `shadow_gallery_frame_vs` | `Draw` | `c->gallery_state_.slot_high_water` | — | parameter `slotHighWater` of draw_shadow_gallery_frames, resolved at its call sites |
-| Shadow Wall Painting | render | `shadow_wall_painting_vs` | `Draw` | `1` | — | default (argument omitted) |
+| Shadow Catenary Arch | render | `shadow_arch_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Generative Column | render | `shadow_column_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Palm Tree | render | `shadow_palm_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Cactus | render | `shadow_cactus_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Blade Cluster | render | `shadow_blade_cluster_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Indoor Shell | render | `shadow_shell_vs` | `DrawIndexedIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Sky Ribbon | render | `shadow_ribbon_vs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Gallery Frame | render | `shadow_gallery_frame_vs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
+| Shadow Wall Painting | render | `shadow_wall_painting_vs` | `DrawIndirect` | `indirect` | — | from the indirect args buffer |
 | Fade Overlay | render | `fade_overlay_vs`, `fade_overlay_fs` | `Draw` | `1` | — | default (argument omitted) |
 
 ### The single-thread reconciliation (G3)
@@ -1058,20 +1057,20 @@ one column that can.
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
 | `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 80 | `law-ref` | A:proximity |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2603 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2606 | `measured` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2671 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2674 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5296 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5386 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5498 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5545 | `law-ref` | A:proximity |
-| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5596 | `law-ref` | A:proximity |
-| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5601 | `law-ref` | A:proximity |
-| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5669 | `law-ref`, `witness` | A:proximity, B:named |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5740 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5753 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 6007 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 6007 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5393 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5483 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5595 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5642 | `law-ref` | A:proximity |
+| `Gallery State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5693 | `law-ref` | A:proximity |
+| `Gallery State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5698 | `law-ref` | A:proximity |
+| `Photo K State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5766 | `law-ref`, `witness` | A:proximity, B:named |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5837 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5850 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 6104 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 6104 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 277 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 424 | `law-ref` | A:proximity, B:named |

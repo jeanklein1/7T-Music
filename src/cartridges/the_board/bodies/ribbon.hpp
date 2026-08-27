@@ -417,7 +417,9 @@ void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
 // not the rings it could have: at the tiers' means that is ~1 700 vertices,
 // where the 400-ring ceiling was 9 588 and the VS early-out retired four
 // fifths of them — twice a pass, main and shadow. 0 when nothing is
-// rendered, so this and dt_ribbon's ribbon_active guard cannot disagree.
+// rendered, which is why BUNDLE_1 could retire dt_ribbon's liveness guard
+// into the DR_RIBBON record: the two could never have disagreed, and a
+// number survives being recorded into a bundle where a skip does not.
 inline uint32_t ribbon_draw_verts(const RibbonState& rs) {
     if (rs.rendered_slot == UINT32_MAX) return 0u;
     const uint32_t n = std::min(rs.gpu[rs.rendered_slot].cube_count,

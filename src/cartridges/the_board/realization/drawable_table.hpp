@@ -53,10 +53,17 @@ enum DrawPass : uint32_t { DRAW_SHADOW = 1u, DRAW_MAIN = 2u, DRAW_SNAPSHOT = 4u 
 // entity window, group1 = its texture group) and the thunks set only
 // pipeline + vertex/index buffers — so the pair is pass state, named
 // where the pass begins, not a parameter re-set at every draw.
+// BUNDLE_1: the ribbon's LIVENESS and its VERTEX COUNT left this struct —
+// both are one record in the draw ledger now, staged at the frame boundary,
+// because an encoder-time skip cannot survive being recorded into a bundle.
+// Its MASK BIT stays, because a mask bit is a different kind of fact: it is
+// a measurement dial, and PANORAMA_1's rule is that a cleared bit is skipped
+// AT THE ENCODER so the pass row reads the absence. Under bundles "at the
+// encoder" becomes "at the recording", which is still a real skip — the
+// mask setters raise bundlesDirty_ so the dial re-records when it turns.
 struct DrawBind {
     bool shadow;                // shadow pass -> draw_shadow_X ; else draw_X
-    bool ribbon_active;         // ribbon_state_.rendered_slot != UINT32_MAX
-    uint32_t ribbon_verts;      // RIBBON_1: the LIVE vertex count (ribbon_draw_verts)
+    bool ribbon_bit;            // the pass's own say: DrawBit::RIBBON in main, true elsewhere
 };
 
 struct Drawable {
@@ -80,37 +87,53 @@ inline void dt_monolith(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, co
     else          r.draw_monolith       (p, g.monolith_vertex_buffer(), g.monolith_index_buffer(), g.monolith_index_count());
 }
 inline void dt_ribbon(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    (void)g;
     // RIBBON_1: the draw is the LIVE count. It used to be the 400-ring
-    // ceiling with the VS early-out retiring four fifths of it twice a pass;
-    // the guard stays as the guard and the count is now the ribbon's own.
-    if (!b.ribbon_active || b.ribbon_verts == 0u) return;
-    if (b.shadow) r.draw_shadow_ribbon(p, b.ribbon_verts);
-    else          r.draw_ribbon       (p, b.ribbon_verts);
+    // ceiling with the VS early-out retiring four fifths of it twice a pass.
+    // BUNDLE_1: the count AND the `rendered_slot != UINT32_MAX` guard are
+    // the record's now — an inactive ribbon stages zero vertices. The guard
+    // could not stay here: an encoder-time skip recorded into a bundle
+    // during a rideless frame would omit the ribbon forever.
+    if (!b.ribbon_bit) return;
+    if (b.shadow) r.draw_shadow_ribbon(p, g.draw_ledger_buffer(),
+                                       GPUState::draw_record_offset(GPUState::DR_RIBBON));
+    else          r.draw_ribbon       (p, g.draw_ledger_buffer(),
+                                       GPUState::draw_record_offset(GPUState::DR_RIBBON));
 }
 inline void dt_arch(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
-    else          r.draw_arch       (p, g.arch_vertex_buffer(), g.arch_index_buffer(), g.arch_index_count());
+    if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_ARCH));
+    else          r.draw_arch       (p, g.arch_vertex_buffer(), g.arch_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_ARCH));
 }
 inline void dt_column(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_column(p, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
-    else          r.draw_column       (p, g.column_vertex_buffer(), g.column_index_buffer(), g.column_index_count());
+    if (b.shadow) r.draw_shadow_column(p, g.column_vertex_buffer(), g.column_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_COLUMN));
+    else          r.draw_column       (p, g.column_vertex_buffer(), g.column_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_COLUMN));
 }
 inline void dt_palm(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_palm(p, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
-    else          r.draw_palm       (p, g.palm_vertex_buffer(), g.palm_index_buffer(), g.palm_index_count());
+    if (b.shadow) r.draw_shadow_palm(p, g.palm_vertex_buffer(), g.palm_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
+    else          r.draw_palm       (p, g.palm_vertex_buffer(), g.palm_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
 }
 inline void dt_cactus(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
-    else          r.draw_cactus       (p, g.cactus_vertex_buffer(), g.cactus_index_buffer(), g.cactus_index_count());
+    if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
+    else          r.draw_cactus       (p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
 }
 inline void dt_blade(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_blade(p, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
-    else          r.draw_blade       (p, g.blade_vertex_buffer(), g.blade_index_buffer(), g.blade_index_count());
+    if (b.shadow) r.draw_shadow_blade(p, g.blade_vertex_buffer(), g.blade_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_BLADE));
+    else          r.draw_blade       (p, g.blade_vertex_buffer(), g.blade_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_BLADE));
 }
 inline void dt_shell(Renderer& r, GPUState& g, wgpu::RenderPassEncoder& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
-    else          r.draw_shell       (p, g.shell_vertex_buffer(), g.shell_index_buffer(), g.shell_index_count());
+    if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
+    else          r.draw_shell       (p, g.shell_vertex_buffer(), g.shell_index_buffer(),
+                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
 }
 
 // THE CANONICAL ORDER (== the shadow order). Membership is which passes a

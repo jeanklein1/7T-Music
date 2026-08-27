@@ -808,12 +808,16 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
 
 // Additive billboard draw into the main render pass.
 inline void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass) {
-    if (!os.active || os.count == 0) return;
+    // BUNDLE_1: the `!os.active || os.count == 0` guard is the record's now
+    // (stage_draw_ledger stages zero instances for either) — an encoder-time
+    // skip would be frozen into the bundle that records this draw.
+    (void)os;
     c->renderer_.draw_orbs(pass,
         c->gpuState_.orb_quad_vb(),
         c->gpuState_.orb_quad_ib(),
         c->gpuState_.orb_state_buffer(),
-        os.count);
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_ORBS));
 }
 
 } // namespace the_board

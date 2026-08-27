@@ -1784,9 +1784,7 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     // The drawable table — snapshot members, canonical order (the photographer's
     // own entity group). Terrain above is the per-pass FORK (a single direct
     // draw over render_patch_count, no LOD split). Zone is not a snapshot member.
-    DrawBind b{ /*shadow=*/false,
-                c->ribbon_state_.rendered_slot != UINT32_MAX,
-                ribbon_draw_verts(c->ribbon_state_) };
+    DrawBind b{ /*shadow=*/false, /*ribbon_bit=*/true };
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SNAPSHOT);
 
     // FORKS — the artworks, on the gallery layout bound to the
@@ -1804,13 +1802,13 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     }
     c->renderer_.draw_wall_paintings(
         pass,
-        gs.wall_frame_count,
-        gs.slot_high_water
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_WALL)
     );
     c->renderer_.draw_gallery_frames(
         pass,
-        gs.active_painting_count,
-        gs.slot_high_water
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_GALLERY_FRAME)
     );
 
     pass.End();

@@ -2731,6 +2731,15 @@ namespace t7 {
                 RenderCtx ctx{ encoder, queue_, backbuffer, msaaColor, depth };   // OIL_1 U1: the cached queue — no per-frame GetQueue
                 if constexpr (INSTRUMENTS.frame_meter) meter_.window_frames++;
 
+                // THE DRAW LEDGER'S FRAME BOUNDARY (BUNDLE_1). Every count
+                // the CPU authors is staged here and flushed before a single
+                // pass is encoded — the update spine has run, so the numbers
+                // are this frame's, and a WriteBuffer issued now lands ahead
+                // of the command buffer on the queue timeline. flush writes
+                // only what moved; a steady frame writes nothing.
+                stage_draw_ledger(&machine_ctx_, orbs_state_);
+                gpuState_.flush_draw_ledger(queue_);
+
                 // THE FRAME METER — GPU half, harvest side. Mirrors the
                 // floater readback grammar exactly (COPIED → MapAsync →
                 // MAPPING; callback accumulates, Unmaps, → IDLE;

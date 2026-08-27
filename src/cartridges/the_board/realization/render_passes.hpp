@@ -32,6 +32,7 @@ struct OrbsState; struct OrbsDeps;
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Pre-render data preparation
+void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_);
 void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue);
 void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder);
 // GPU compute dispatch
@@ -168,6 +169,67 @@ inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encode
         compute, c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group()
     );
     compute.End();
+}
+
+// ═══ THE DRAW LEDGER'S STAGE (BUNDLE_1) ══════════════════════════
+//
+// ONE SITE that reads every count the CPU authors and stages it. It runs at
+// the frame boundary — after the update spine, so every count is this
+// frame's, and before the encoder, so the WriteBuffer lands ahead of the
+// command buffer on the queue timeline (the ordering upload_patch_params
+// relies on).
+//
+// WHY ONE SITE AND NOT TWELVE. Each of these numbers already has a home —
+// the family setters, gallery_state_, os.count. What did NOT have a home is
+// the set of GUARDS: `if (indexCount == 0) return;`, `if (!os.active)
+// return;`, `rendered_slot != UINT32_MAX`. Those lived in the draw verbs as
+// encoder-time skips, and an encoder-time skip cannot be recorded into a
+// bundle — a bundle taken in a frame where a family was empty would omit it
+// forever, and every family is empty at boot. A record of zeros draws
+// nothing, so each guard becomes its record's number, and this is where
+// "what will be drawn this frame" is said once and read once.
+//
+// flush_draw_ledger writes only what moved, so a steady frame writes zero
+// bytes however many times this stages the same numbers.
+inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
+    GPUState& g = c->gpuState_;
+
+    // The five generated families + the shell: their index counts are
+    // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
+    g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
+    g.stage_draw_indexed(GPUState::DR_COLUMN, g.column_index_count(), 1u);
+    g.stage_draw_indexed(GPUState::DR_PALM,   g.palm_index_count(),   1u);
+    g.stage_draw_indexed(GPUState::DR_CACTUS, g.cactus_index_count(), 1u);
+    g.stage_draw_indexed(GPUState::DR_BLADE,  g.blade_index_count(),  1u);
+    g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
+
+    // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon
+    // with no rendered slot stages zero — that IS the old guard.
+    const bool ribbon_live = c->ribbon_state_.rendered_slot != UINT32_MAX;
+    g.stage_draw_verts(GPUState::DR_RIBBON,
+        ribbon_live ? ribbon_draw_verts(c->ribbon_state_) : 0u, 1u);
+
+    // The artworks. slot_high_water is one past the highest ACTIVE slot; the
+    // two counts that gated the draws (wall_frame_count,
+    // active_painting_count) are folded in as zero-or-not.
+    const uint32_t hw = c->gallery_state_.slot_high_water;
+    g.stage_draw_verts(GPUState::DR_WALL,
+        c->gallery_state_.wall_frame_count == 0u ? 0u : hw * Dim::PAINTING_FRAME_VERTS_PER, 1u);
+    g.stage_draw_verts(GPUState::DR_GALLERY_FRAME,
+        Dim::PAINTING_QUAD_VERTS,
+        c->gallery_state_.active_painting_count == 0u ? 0u : hw);
+
+    // The orbs: six indices of a quad, one instance per orb. `os.active`
+    // and a zero count are the same fact to the ledger.
+    g.stage_draw_indexed(GPUState::DR_ORBS, 6u,
+        orbs_state_.active ? orbs_state_.count : 0u);
+
+    // The sun's terrain: ONE draw over both bands (R-G). The instance range
+    // is [0, render_patch_count) — the union of the two the fork used to
+    // issue — at the LOD1 ring's live index count.
+    g.stage_draw_indexed(GPUState::DR_SHADOW_TERRAIN,
+        g.patch_index_count_lod1_live(),
+        c->world_state_.render_patch_count);
 }
 
 // ═══ GPU COMPUTE DISPATCH ════════════════════════════════════════
@@ -449,25 +511,21 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // the absence. `cast_terrain` is the MOOD's word and stays ahead of it.
     const uint32_t smask = c->gpuState_.config().shadow_mask;
 
+    // ONE DRAW, ONE RECORD (BUNDLE_1, R-G). The two bands shared this
+    // pipeline and this index buffer and differed only in their instance
+    // RANGE: [0, lod0) then [lod0, render). Their union is [0, render) — one
+    // draw of render_patch_count instances, staged by stage_draw_ledger.
     if (cast_terrain && (smask & ShadowBit::TERRAIN)) {
         c->renderer_.draw_shadow_patch_terrain(
             pass,
             c->gpuState_.patch_index_buffer_lod1(),
-            c->gpuState_.patch_index_count_lod1_live(),
-            c->world_state_.lod0_patch_count
+            c->gpuState_.draw_ledger_buffer(),
+            GPUState::draw_record_offset(GPUState::DR_SHADOW_TERRAIN)
         );
-        if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
-            // Band 1 — same IB, already bound by the band-0 helper; the
-            // redundant re-bind collapsed (trivially adjacent).
-            pass.DrawIndexed(c->gpuState_.patch_index_count_lod1_live(),
-                c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
-        }
     }
 
     // The drawable table — shadow members, canonical order.
-    DrawBind b{ /*shadow=*/true,
-                c->ribbon_state_.rendered_slot != UINT32_MAX,
-                ribbon_draw_verts(c->ribbon_state_) };
+    DrawBind b{ /*shadow=*/true, /*ribbon_bit=*/true };
     if (smask & ShadowBit::TABLE)
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 
@@ -494,13 +552,13 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     if (smask & ShadowBit::TABLE) {
     c->renderer_.draw_shadow_wall_paintings(
         pass,
-        c->gallery_state_.wall_frame_count,
-        c->gallery_state_.slot_high_water
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_WALL)
     );
     c->renderer_.draw_shadow_gallery_frames(
         pass,
-        c->gallery_state_.active_painting_count,
-        c->gallery_state_.slot_high_water
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_GALLERY_FRAME)
     );
     }
 }
@@ -613,10 +671,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // ribbon's ordinal drift dies (it now draws with the entities, not late).
     // The ribbon is a table MEMBER, so its bit is subtracted through the
     // bind rather than by skipping the table it shares.
-    DrawBind b{ /*shadow=*/false,
-                (dmask & DrawBit::RIBBON) != 0u
-                    && c->ribbon_state_.rendered_slot != UINT32_MAX,
-                ribbon_draw_verts(c->ribbon_state_) };
+    DrawBind b{ /*shadow=*/false, /*ribbon_bit=*/(dmask & DrawBit::RIBBON) != 0u };
     if (dmask & DrawBit::TABLE)
         draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
@@ -634,15 +689,15 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     if (dmask & DrawBit::PAINTINGS) {
     c->renderer_.draw_wall_paintings(
         pass,
-        c->gallery_state_.wall_frame_count,
-        c->gallery_state_.slot_high_water
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_WALL)
     );
 
     // Gallery frames (self-portrait paintings on terrain)
     c->renderer_.draw_gallery_frames(
         pass,
-        c->gallery_state_.active_painting_count,
-        c->gallery_state_.slot_high_water
+        c->gpuState_.draw_ledger_buffer(),
+        GPUState::draw_record_offset(GPUState::DR_GALLERY_FRAME)
     );
     }
 
