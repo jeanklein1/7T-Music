@@ -346,6 +346,47 @@ pawn on a pyramid face) are what stand between the arithmetic and belief.
   sharpens it. If W3 reads the ripple as harsher, this is the number to move,
   and it should be moved with a reading beside it, not blind.
 
+### LATTICE_2 / LATTICE_3 — landed, and what they filed
+
+Origin: LATTICE_2 + LATTICE_3 (seven commits on master, base `d1f98eb3`).
+The five mesh-gen kernels stopped being single-threaded: one workgroup per
+slot, 64 lanes, outermost loop strided by lane, inner loops verbatim. And
+the three patch index buffers became uint16.
+
+NOT MEASURED, same as LATTICE_1. The five kernels' output is byte-identical
+BY CONSTRUCTION and that much is checked — both address-generation forms
+were simulated against each other over 38,781 parameter configurations in
+all (arch 4,704, column 1,977, palm 17,424, cactus 12,960, blade 1,716),
+comparing full address → value maps and asserting no address is written
+twice. What is NOT checked is that it is FASTER: no meter reading exists,
+and the campaign's meter is still its bookend.
+
+- MESH GEN'S INNER LOOPS ARE SERIAL PER LANE. The stride law strides the
+  OUTERMOST loop only, which takes each kernel from one lane to tens. The
+  ideal — "an invocation is one output" — would stride the inner loops
+  too, and is the horizon, not the landed state. Two things stand in its
+  way and both are real: the cactus arm's `apx/apy/apz` path walk is
+  loop-carried down the arm (R3), and the column's per-disc emission is a
+  fan-or-strip whose base is a prefix over earlier discs. Filed for a
+  measurement that asks; not done. Origin: LATTICE_2 R4.
+- `MESHGEN_LANES` IS 64 FOR ALL FIVE, and nothing has compiled them under
+  Tint/DXC yet. The column carries ~200 floats of private arrays per lane
+  (five 32-entry profile arrays, seven 12-entry disc arrays, two 29-entry
+  trig tables); at 64 lanes that is 64× the serial kernel's register
+  pressure. naga validates the module, but naga does not allocate
+  registers. If Jean's build (G-LAW 1) refuses one of them, the handoff's
+  ruling is a per-kernel override to 32 lanes for that kernel only —
+  a one-line change, and this entry is the record that it was foreseen.
+  Origin: LATTICE_2 R-D. Unblocked by a build.
+- THE WORKGROUP-STORAGE FLOOR IS A LITERAL IN TWO HOMES. The schema's
+  NEEDS row says 3744 and the module's `BAKE_WORKGROUP_BYTES` computes it;
+  witness R-3 resolves only `Dim::<SYM>` sources against state.hpp, so it
+  cannot hold this one. The module's own `const_assert` guards the ceiling
+  (16,384), but nothing guards the schema literal against the module's
+  value drifting apart. Closing it means teaching R-3 a
+  `world.wgsl <CONST>` source form — an instrument commit. Origin:
+  LATTICE_2 R5. Unblocked by someone wanting the instrument.
+
 ### NEXT — TERRAIN_0
 
 Opens on two readings and is not written until they exist: the three terrain
