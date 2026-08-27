@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `879006a7c02269fd36230ec8ca99542fc7dc6479` |
-| | U4 — the terrain slot line: milliseconds divided by geometry (WRAP_0) |
+| source commit | `399e7c1a3c6ad09c546e419b5edb826e21edf8f7` |
+| | LEDGER — the five re-stamp after WRAP_0 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:2a45118250b3fb3f2a1079db4dbe26cf752e53426030619fb03cce10684bed94` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:ae51373b1be69193e777d3a640724965e9669454e6c8449076b17daf1e575ef0` |
