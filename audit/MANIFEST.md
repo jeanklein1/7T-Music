@@ -17,7 +17,7 @@ the header.
 | pipeline | member | stage | uniform /12 | storage /8 | sampled /16 | samplers /16 | storagetex /4 |
 |---|---|---|---|---|---|---|---|
 | Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
-| Update Other Agents (1D, 32 threads) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Other Agents (1D, one thread per field lane) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
