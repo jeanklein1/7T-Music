@@ -806,8 +806,8 @@ struct GalleryState {
     // The manifest is requested once per session, at the earliest
     // instant a GalleryState exists (the cartridge constructor).
     bool authored_manifest_requested = false;
-    // "No paintings folder found" is a true sentence every time it is
-    // asked before the manifest lands; it is only worth SAYING once.
+    // The manifest's absence is a true fact every time it is asked before the
+    // fetch lands; it is only worth SAYING once (scan_paintings_folder).
     bool authored_absence_logged = false;
 
     // The occupancy array is the whole record. A companion count used to
@@ -2253,13 +2253,27 @@ inline void kick_exhibition_manifest_fetch(GalleryState& gs) {
 // There is no directory to walk on this twin, so the honest answer is
 // whatever the fetch has delivered so far — and before it lands, that
 // is nothing. Not an error: the empty manifest is the already-legal
-// no-paintings state, and the sentence that names it is the native
-// one. Said once, because it stays true until it stops being asked.
+// no-paintings state.
+//
+// THE SENTENCE IS THE MANIFEST'S, NOT THE FOLDER'S (PANORAMA_0 F14). It read
+// "No paintings folder found" — the native twin's verdict, where the folder
+// had been walked and was empty. Here the same emptiness means "the fetch has
+// not landed", and since the conductor owns the fill this is now printed on
+// the FIRST FRAME, before any manifest could have arrived. It was a false
+// sentence in the one place it was guaranteed to be said.
+//
+// It was also read. web/index.html's classify() fires on a line carrying both
+// "found" and "paintings", so the veil announced "Hanging the paintings" at
+// frame one with nothing staged and nothing on its way yet. The wording below
+// carries neither word, so the veil now says that when the manifest actually
+// lands and names a count — which is the line that sets the total.
+//
+// Said once, because it stays true until it stops being asked.
 inline void scan_paintings_folder(GalleryState& gs) {
     if (!gs.authored_disk_manifest.empty()) return;
     if (gs.authored_absence_logged) return;
     gs.authored_absence_logged = true;
-    std::cout << "[Authored] No paintings folder found\n";
+    std::cout << "[Authored] The exhibition has not arrived yet\n";
 }
 
 
