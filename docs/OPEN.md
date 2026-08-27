@@ -236,173 +236,109 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
-## PANORAMA_1 — the free events, the dials, the pace
+## PERFORMANCE — the one home (three campaigns, one register)
 
-Origin: PANORAMA_1 (the work order rides `docs/HANDOFFS/PANORAMA_1.md` while
-its held half is open). LANDED: U1 the ceiling gate, U2 the settle, U3 the
-subtraction dials, U4 the PCF tap dial, U5 the photograph at LOD1, U6a the
-forced metronome, and the TU gate widened to read the harness.
+PANORAMA_0, PANORAMA_1 and WRAP_0 ran as one arc and are recorded as one
+section; their handoffs die at this close (L31). The next session starts from
+this and the tree.
 
-- THE SUBTRACTION TABLE IS THE ROUND'S DELIVERABLE AND IT IS NOT TAKEN YET.
-  `draw_mask` and `shadow_mask` (Measure, in the panel) subtract one draw at
-  the encoder so the pass row reads its absence. The table is eight main-pass
-  masks and two shadow masks, one window each, walking, on both devices —
-  Jean's gate 2. ROUND THREE IS DESIGNED FROM IT: `shadow_mask` decides
-  between E-2's static/dynamic split, a smaller map, and a near cascade;
-  `draw_mask` names the main pass's whale, which its vertex and pixel counts
-  do not explain. Until the table exists, no design may be spent on either
-  pass. Unblocked by the two console captures.
-- ROUND THREE'S ORDER IS DECIDED BY A PIXEL CONSOLE after this round, walking
-  and riding — the floor device chooses, not the laptop. It carries the
-  post-round mesh-gen firing count (which prices F3, above), the subtraction
-  table, and the `[PRESENT]` histogram at each pace.
-- U6b, THE GOVERNOR, IS HELD. U6a landed the switch and `?pace=1|2`, which is
-  what the taste gate needs. The governor that CHOOSES by measurement is
-  specified — `wgpuQueueOnSubmittedWorkDone`'s callback timestamps a frame's
-  GPU envelope, a trailing 60-frame mean over 15.5 ms for three windows
-  engages pace 2 and under 12.5 for three disengages — and is release-safe by
-  design, which is exactly why it cannot ride the meter's own
-  `gpu_envelope` instead. It is held because it is a GPU completion callback
-  in the frame loop: the pinned surface carries `OnSubmittedWorkDone` with a
-  CallbackMode and a Future, the tree's only precedent for that shape is
-  console.hpp's device/adapter requests, and a governor that never fires or
-  fires on a stale reading is worse than none. Unblocked by a build to watch
-  the `[PACE]` line on.
-- U7, THE DEPLOY RULING, IS STOPPED AS THE ORDER PROVIDES, and the ruling
-  stands as a ruling: the audience gets `the-board-web`, captures get
-  `the-board-web-meter`. The stamp cannot be written from `web_dist.py`. The
-  presets differ only by the `T7_INSTRUMENTS` cache variable, CMake's
-  `RUNTIME_OUTPUT_DIRECTORY` is `web/`, and nothing there writes a stamp
-  beside the artifacts — so a preset name reaching the dist script needs a
-  CMakeLists change, which this round's Touches exclude. Two ways forward for
-  whoever takes it: `file(WRITE web/build_preset.txt ...)` at configure time,
-  or — needing no CMake at all and impossible to forget — `web_dist.py`
-  scanning the built artifact for a meter-only string, since the instruments
-  fold to nothing when the dial is off.
-- THE SETTLE IS PACED IN FRAMES, WHICH THE METRONOME HALVES. At `?pace=2` U2's
-  eight frames are ~266 ms rather than ~133. Recorded because it is a real
-  coupling between two units of one round, not because it is known to matter —
-  the arrival is at the ring's edge either way. If Jean's eye catches a pop
-  while riding at pace 2, the fix is to settle on `time_state_.seconds`, which
-  is invariant under pace.
-- F (THE CELL COLOUR BAKE) IS COLD UNTIL THE ANALYSER SOCKET BINDS. The
-  per-pixel `animated_cell_color` branch wakes only when a music dial is
-  non-zero, and the captures read `12 sources unbound` — so its cost has never
-  been on screen and §5.4's before-reading cannot be taken. Re-opened by the
-  socket's own campaign, not by this one.
-- BOOT_0 IS THE NEXT CAMPAIGN AFTER THIS ROUND'S TABLE: async pipeline
-  creation with a first-frame set (60 serial compiles, 57 s cold on the
-  laptop), a warm-up pass behind the veil (Mali compiles again at first
-  dispatch — 1,604 ms on the Pixel's first bake against 206 later), and the
-  bundle (`world.wgsl` crosses uncompressed inside `the_board.data`). Shape at
-  PANORAMA_0 §4; unblocked by Jean stamping the campaign.
+### LANDED
 
-## PANORAMA_0 — the frame's cost; what landed and what is held
+Compute lanes (`update_cube` 64×4 threads; `update_other_agents` one lane per
+field subscriber). `SPAWN_QUEUE_MAX = PopFamily::COUNT` with the queue drained
+per patch — the old bound overflowed at every boot and portal and dropped the
+tail of PLACEMENT_ORDER, galleries first. PCF early-outs at the caller
+(bit-identical: `ndotl == 0` already zeroed the product). The column ceiling
+gate — the re-raise fired on every corrected frame outdoors for a rebake that
+could not change a byte. The settle: one regeneration per 0.133 s outside a
+world's birth, `world_young` the birth bypass, stamped at first sight. The
+mesh-gen firing counter. `draw_mask` / `shadow_mask` / `shadow_pcf_taps`
+(config 704 → 720). The photograph at LOD1. `?pace=1|2`, armed from inside the
+loop. The refresh pinned to the 5th percentile. The window's self-description
+and the terrain slot line. The deploy scan. And `src/the_board.cpp` under the
+TU gate, which nothing had ever compiled.
 
-Origin: PANORAMA_0 (the work order rides `docs/HANDOFFS/PANORAMA_0.md` while
-its held half is open). The reading: both devices are GPU-bound and the CPU is
-asleep at ~2 ms of a 16.6 ms frame. Kepler's envelope is 20.3-23.4 ms and
-cannot make 60 at any window size; the Pixel's is 13.6-16.1 with 0.5-1.4 ms of
-purse, so every event costing more than the purse drops a vblank. On the Pixel
-the pass spans SUM to ~24 ms inside a 15 ms envelope — a tiler overlaps them,
-so per-pass gains there are upper bounds; on Kepler the sum equals the envelope
-and every pass millisecond is a frame millisecond.
+### MEASURED (laptop Kepler, meter build)
 
-LANDED: RIDE_1 (the queue bound), RIDE_0's two compute kernels, LIGHT_0's PCF
-early-outs, F14's absence sentence, and §5.5's mesh-gen firing instrument.
+Walking, first world: envelope 17.95 ms, from 20.4. Rides 19.5–21.5. Compute
+1.3 flat. Firings 38–130 a window, from ~500. Photograph max 2.5–12, from
+16–55. **Pixel: not captured since the compute lanes landed — owed, and it is
+the floor device that decides what comes next.**
 
-- RIDE_0'S MESH HALF (F3) IS PRICED AND WAITS ON A COUNT. PANORAMA_1 removed
-  the FIRINGS, not the per-firing cost: U1's ceiling gate killed the re-raise
-  outdoors (378 of 498 firings in one window), and U2's settle coalesces a
-  crossing's burst into one regeneration per eight frames. What is left is the
-  cost of a regeneration that IS owed — every slot of a family rebuilt because
-  one slot changed, 4-8 ms on Mali. The two fixes are unchanged and still
-  independent: (a) per-slot regeneration, which needs a slot base or slot list
-  in the params ring and is therefore a BINDING-SURFACE change with its own
-  gate; (b) a workgroup per mesh, which needs each kernel's running vertex
-  cursor (`var vi = 0u`, incremented across nested loops) re-derived as a
-  function of the element index, per kernel, with a visual gate — a wrong base
-  is garbled geometry. Unblocked by the post-round Pixel firing count: if the
-  settle has taken the ride's firings into the single digits, neither half is
-  worth its risk yet.
-- THE BAKE BY ROWS (RIDE_2 / C) IS HELD: a crossing demands 15 bakes at 2-4 ms
-  each, one per frame — fifteen consecutive frames over the purse. The row
-  cursor lives in the params ring and the scratch must persist across slices,
-  and §5.6 wants `BAKE_ROWS_PER_FRAME` tuned by eye and meter from the first
-  commit. Unblocked by that dial being tunable, i.e. by a build.
-- THE PHOTOGRAPH (RIDE_3 / D) IS HELD ON A TASTE GATE: LOD1 terrain, the
-  photographer's own cull window, and a two-frame composite remove a 16-55 ms
-  hitch every ~2 s of walking on both devices. The pose is frozen so content
-  cannot move between the halves; what changes is the photo's terrain detail,
-  which is Jean's eye on two photographs.
-- THE STATIC/DYNAMIC SHADOW (LIGHT_0's second half / E-2) IS HELD FOR A DESIGN
-  ROUND. `coupling_pawn_to_sun_vp` already snaps the light VP to whole shadow
-  texels, so between crossings the map is bit-stable; the design is two depth
-  targets, the static one rebuilt over N=4 frames and copied in each frame at
-  the snap's texel offset, dynamics drawn on top. 8 -> ~3.5 ms flat on Mali,
-  6 -> ~2.5 on Kepler. The uncovered strip a moving pawn opens is 3 texels
-  walking and ~32 riding, all inside the 78 wu of margin between the map's
-  420 and the veil ring's 342. Unblocked by Jean stamping the round.
-- THE CELL COLOUR (CELL_0 / F) IS HELD ON ITS OWN MEASUREMENT, WHICH DOES NOT
-  EXIST. `patch_terrain_fs` calls `animated_cell_color` per PIXEL for a value
-  that depends only on the cell, whenever any music dial is non-zero — a
-  500-line lattice stack, twice when palette drift is on, for a fact
-  `generate_patch_cells` already knows how to bake. The captures had the music
-  unbound, so the branch was cold and the cost has never been read. §5.4 (a
-  `main_pass` window with music driving `checker_music_amount`) must be taken
-  BEFORE the fix, or there is nothing to compare against.
-- THE HEIGHTFIELD AT 128 (FIELD_0 / G) IS HELD ON JEAN'S EYE.
-  `PATCH_HEIGHTFIELD_N` 256 against `PATCH_MESH_N` 64 is 4x denser than any
-  reader: the VS samples once per vertex, the FS reads an interpolated
-  varying, the walkers sample bilinearly. 128 is two texels per LOD0 vertex,
-  the bake is 4x cheaper (the Pixel's 206 ms portal -> ~50), and the array
-  drops 112.5 -> 28 MiB, the largest allocation on the floor device. One `Dim`
-  constant, one WGSL mirror, and a pinned-seed side-by-side — the one case
-  where a pinned seed is the right witness.
-- THE METRONOME (PACE_0 / H) IS HELD ON A RULING. After every campaign above,
-  a Kepler laptop at full width still cannot make 16.6, and the honest answer
-  is a steady 30 rather than a juddering 45: when the measured envelope
-  exceeds budget for three windows, present on every second vblank and serve
-  the steady clock 33.3 ms, returning with hysteresis. A film at 24 is smooth;
-  a game at 45 is not. The optional second dial — render scale keyed to the
-  point's speed on the ribbon — is a separate taste gate.
-- THE BOOT CAMPAIGN (§4.1/4.2) IS HELD AS ITS OWN: sixty pipelines compile
-  SERIALLY on the main thread before the first frame (57 s on a cold laptop
-  visit, 204 s in one capture, 31 ms cached), and Mali compiles AGAIN at first
-  dispatch (the Pixel's first bake cost 1,604 ms against 206 later).
-  `CreateRenderPipelineAsync` / `CreateComputePipelineAsync` plus a first-frame
-  pipeline set, and a warm-up pass behind the veil. Unblocked by Jean stamping
-  the campaign.
-- THE BUNDLE (§4.4): `world.wgsl` ships inside `the_board.data` as
-  octet-stream, which Cloudflare does not compress by default, so 698 KB cross
-  the wire uncompressed on every first visit while the `.wasm` is compressed.
-  Either a `_headers` content-type rule or `web_dist.py` stripping the
-  shader's comments into `dist/` and computing the serve digest from the
-  stripped bytes — the `[Dist] world.wgsl sha ... MATCH` witness holds either
-  way, since both halves read the shipped file. ~700 KB -> ~150 KB.
-- WHICH PRESET THE SITE SERVES (§4.6) IS JEAN'S. `[METER]`, `[PRESENT]` and
-  `[STREAM]` print from everexpandingboard.com today: the meter's timestamp
-  writes at every pass boundary serialize passes a tiler would overlap, and
-  the census prints cost 31-98 ms of CPU per firing. `the-board-web` for the
-  audience, `the-board-web-meter` for captures.
-- THE LIVE CARD BY HALVES (CARD_0 / I): 410k texels rewritten every frame
-  while any zone is live anywhere; writing half the rows per frame puts each
-  texel at 30 Hz for 1.2 -> 0.6 ms. Lowest priority; real but small.
-- F14'S FIRST HALF DOES NOT MATCH THE TREE, and is recorded rather than acted
-  on. The work order reads the READY floor's 5 s clock as "armed from boot,
-  not from the first frame". It is armed from the first frame: `world_live` is
-  stamped at the END of `init_world()` — after the pipeline compile, at the
-  instant the frame loop goes live — and `offer_controls_when_ready()` cannot
-  run before that, since the same `frame()` guard that calls `init_world` sits
-  above it. So the laptop's timeout firing before `PAINTING_1` is not a clock
-  bug; it is the exhibition genuinely taking more than five seconds to land
-  six paintings on that device. If the ruling wants a floor that cannot fire
-  empty it needs a NEW ruling (R-I forbade a third arm), not a one-line fix.
-- §5's REMAINING INSTRUMENTS ARE NOT BUILT: a shadow-terrain-OFF organ dial
-  (gates E-2's design) and a PCF 4-vs-16 dial (gates E-1's second half). Both
-  need an entry in the organ registry and the panel seam the shell gate
-  checks; §5.1 and §5.4 need no code, only a capture. §5.6's
-  `BAKE_ROWS_PER_FRAME` belongs to C.
+### FINDING — the main pass is geometry, not fill
+
+Canvas 689×607 → 1366×607 (+98% pixels) moved `main_pass` 11.86 → 13.6 ms over
+16 windows (+15%); `shadow_pass` 6.13 → 5.82 on a fixed-size target, the
+control. Fragment is ≈ 1.6 of 12 ms; ~10 ms is vertex and submission. Patches
+are already frustum-culled through the draw plan. Levers, in aesthetic-price
+order: `patch_terrain_vs`'s per-vertex cost and its dependent fetches; the
+heightfield at 128² (reweighted — two texels of stride per LOD0 vertex step
+instead of four is a VS cache win, not only a bake win); curtain granularity (a
+zone overlap promotes a whole patch from cap-only to the full IB, and the
+eight-zone world ran ~3.5 ms hotter than the one-zone world); the LOD0 radius
+and `PATCH_MESH_N`, which are Jean's.
+
+### FINDINGS, mechanical
+
+- The PRESENT estimator had ADAPTED to the judder and hidden it — an EWMA over
+  frame times cannot tell a slow display from a slow world. Fixed at WRAP_0 U1;
+  the period is now the 5th percentile of 300 deltas and may only decrease.
+- `?pace=` was INERT: the timing call sat after `emscripten_set_main_loop`,
+  which never returns. Fixed at WRAP_0 U2.
+- GPU SAMPLING COLLAPSES UNDER BACK-PRESSURE, and the fix as specified does not
+  reach its own witness. The meter allows one readback in flight, so the sample
+  rate IS the map-completion rate: 126–235 sampled frames of ~1,300 at 689×607
+  (1 per 5.5–10 frames) against 3–13 at 1366×607 (1 per 100–433). A 3-deep ring
+  divides that by three — 1 per 33–144 — where the witness wants 1 per ≤ 11. The
+  depth that would reach it is 9–39, which says the ring is not the whole
+  answer and MAP-COMPLETION LATENCY is. Unblocked by measuring that latency
+  directly (stamp at MapAsync, stamp in the callback, mean per window) — an
+  instrument that does not exist. The ring was attempted and reverted: the
+  binding gate's RESOURCES scanner reads a scalar buffer declaration and not an
+  array, so even the partial fix needs either three named members or a change to
+  the gate's parser.
+- At full canvas the CPU blocks 13.7 ms in `finish_submit` — GPU back-pressure,
+  the saturation signature, and the same fact the sampling collapse reports.
+
+### NEXT — TERRAIN_0
+
+Opens on two readings and is not written until they exist: the three terrain
+mask bits, one window each, both devices; and the slot line. Then the levers
+above in order. PRESENT_0's remainder — the governor (PANORAMA_1 U6b) — after
+Jean's eye at `?pace=2`, now that the pace is real and the histogram honest.
+
+### PRICED, NOT BUILT
+
+F3 proper (per-slot mesh regeneration; workgroup-per-mesh) — the settle may
+have emptied it, so re-read the Pixel's firing count first. E-2, the
+static/dynamic shadow split — a design round, after the `shadow_mask` reading.
+D-2, the photographer's own cull window and the two-frame composite. C, the
+runway (bake by rows) — likely unnecessary after the heightfield lever. I, the
+live card by halves. F, the cell-colour bake — cold until the analyser socket
+binds (`12 sources unbound`), so its cost has never been on screen. BOOT_0:
+async pipelines with a first-frame set, the warm-up pass, the compressed
+bundle. Render scale on the ribbon (taste).
+
+### OWED, Jean's
+
+The mask table (U3 makes each window self-describing). A Pixel console, walking
+and riding. The pace by eye at `?pace=1` and `?pace=2`. A shadow edge at 16 and
+4 taps. Two photographs, LOD0 and LOD1. The ring's edge while riding, for the
+settle. And OVERTURE_0's own visual gate at spawn, never recorded.
+
+### CORRECTIONS OF RECORD (this session)
+
+The cohort order — `gallery.hpp` precedes `patch_system.hpp`, not the reverse.
+Eviction precedes the budgeted spawn in `stream_patches`. The plan slots are A
+full-IB / B cap-only / C LOD1, and the mask bits follow the code. F5's guard
+belongs at `calc_directional_light`, where `ndotl == 0` already zeroes the
+product, not inside the PCF. F14's READY clock was armed at the first frame —
+the early fire was a slow exhibition, not a bug. R-F's reach test is the open
+world's only: `MIN_FROM_ORIGIN` is a floor, and a room's far wall stands at
+142–192 wu, so a bare reach test would force a second door into a correctly
+doored room. `update_cube` makes two `manifold_position` calls, not three. And
+the arithmetic that read the main pass as fill-bound, refuted by the pass
+itself at two canvas sizes.
 
 ## OVERTURE_0 — the first seconds; what the campaign priced and did not build
 
