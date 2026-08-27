@@ -430,6 +430,50 @@ bookend.
   exists. Moving it would split that trio to create a one-row group. Panel
   layout is Jean's gate. Origin: LATTICE_4 R5, flagged not acted on.
 
+### BUNDLE_1 — landed, and what it filed
+
+Origin: BUNDLE_1 (five commits on master, base `c1ad23de`). The frame's
+draw list is spoken once: a draw ledger of eleven indirect records, the
+draw verbs and the drawable table templated over the encoder type, and the
+main pass's opaque list and the sun shadow pass's each recorded into a
+render bundle executed with one call. NOT MEASURED — no reading exists,
+and this round's whole claim is a CPU one, so the browser's own Performance
+track is the witness of record (LATTICE_4 §5's last row).
+
+- A DRAWABLE IS A ROW AND A RECORD. Adding one is one `DRAWABLES` row and,
+  if its count can move, one `DrawRecord` staged in `stage_draw_ledger`.
+  There is no third site. If its count CANNOT move it stays a literal in
+  the bundle — and if it needs a non-zero `firstInstance` it must stay a
+  literal, because core WebGPU forbids one in an indirect draw without the
+  `indirect-first-instance` feature and the wallet does not request it.
+  The monolith is the standing example.
+- BUNDLES CAPTURE OBJECTS, NOT VALUES. A bundle holds the bind groups and
+  buffers it was recorded with, so a re-record is needed when one of those
+  OBJECTS is recreated. R-B found ZERO post-boot recreation sites today
+  (`galleryTexturesGroup_` is the one rebuildable group and only boot calls
+  its rebuild), so `bundlesDirty_` fires at boot and on a mask turn and
+  never otherwise. A NEW recreation site must raise it. Nothing enforces
+  that — it is not a type error, not a validation error, and not a wrong
+  pixel, it is a stale draw list — so it is written down here.
+- AN ENCODER-TIME SKIP CANNOT LIVE IN A BUNDLE. Every `if (count == 0)
+  return;` in a draw verb was one, and a bundle recorded while a family was
+  empty would omit it forever. They are records now. The rule for the next
+  campaign: a guard that decides WHETHER to draw belongs in the number, not
+  in the verb — unless it is a dial, in which case it belongs in the verb
+  AND its setter raises `bundlesDirty_`.
+- THE INDOOR ATLAS IS DIRECT BY NECESSITY. Viewport, scissor and the
+  per-light group-1 rebind are pass-encoder-only; a bundle can carry none
+  of them. A WebGPU that let bundles carry a viewport would let the atlas
+  bundle too — priced at one bundle per tile, which buys nothing today
+  because the tile loop is two lights, not twenty.
+- THE BUNDLE/PASS FORMAT EQUALITY IS TEXTUAL. C-8a/C-8b hold that every
+  bundle states its three format facts and that its colour declaration is
+  self-consistent; they do NOT prove the formats equal the executing pass's,
+  because a pass names TextureViews whose formats come from the swapchain
+  and console.hpp. Dawn will reject a real mismatch at ExecuteBundles —
+  which means the first witness of a drift is a boot failure on a device,
+  not a gate. Closing it means teaching the census the swapchain's format.
+
 ### NEXT — TERRAIN_0
 
 Opens on two readings and is not written until they exist: the three terrain

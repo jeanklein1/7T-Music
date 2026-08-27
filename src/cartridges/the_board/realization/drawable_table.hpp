@@ -1,8 +1,9 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════
 // THE DRAWABLE TABLE — one row per drawable; the
-// three render passes (shadow / main / snapshot) iterate it FILTERED by
-// membership. Kills the triplication (a drawable was enumerated once per
+// two bundles and the direct passes iterate it through ONE template
+// (BUNDLE_1), FILTERED by membership (shadow / main / snapshot).
+// Kills the triplication (a drawable was enumerated once per
 // list, ~3 hand-synced sites) and the ribbon's ordinal DRIFT (the lists had
 // ribbon at different positions) — there is now ONE canonical order.
 // A new drawable is ONE row instead of a 3-site edit.
