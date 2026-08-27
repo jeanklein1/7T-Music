@@ -236,6 +236,115 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## PANORAMA_0 — the frame's cost; what landed and what is held
+
+Origin: PANORAMA_0 (the work order rides `docs/HANDOFFS/PANORAMA_0.md` while
+its held half is open). The reading: both devices are GPU-bound and the CPU is
+asleep at ~2 ms of a 16.6 ms frame. Kepler's envelope is 20.3-23.4 ms and
+cannot make 60 at any window size; the Pixel's is 13.6-16.1 with 0.5-1.4 ms of
+purse, so every event costing more than the purse drops a vblank. On the Pixel
+the pass spans SUM to ~24 ms inside a 15 ms envelope — a tiler overlaps them,
+so per-pass gains there are upper bounds; on Kepler the sum equals the envelope
+and every pass millisecond is a frame millisecond.
+
+LANDED: RIDE_1 (the queue bound), RIDE_0's two compute kernels, LIGHT_0's PCF
+early-outs, F14's absence sentence, and §5.5's mesh-gen firing instrument.
+
+- RIDE_0'S MESH HALF (F3) IS HELD, and it is the largest single event on a
+  ride: every arch, palm, cactus, blade and column that spawns or evicts
+  regenerates its ENTIRE family (4-8 ms on Mali per firing), because the
+  pending flag is one bool per family and `prepare_*_mesh_gen` re-dispatches
+  all slots. Two independent fixes, each an order of magnitude: (a) per-slot
+  regeneration — the pending bool becomes a bitmask and the dispatch covers
+  only pending slots, which needs a slot base or slot list in the params ring
+  and is therefore a BINDING-SURFACE change with its own gate; (b) a workgroup
+  per mesh instead of one lane — which needs each kernel's running vertex
+  cursor (`var vi = 0u`, incremented across a nested loop) re-derived as a
+  pure function of the element index, per kernel, with a visual gate, since a
+  wrong base is garbled geometry. Neither is witnessable without a build.
+  Unblocked by §5.5's count read on a ride, then Jean's stamp on which half.
+- THE BAKE BY ROWS (RIDE_2 / C) IS HELD: a crossing demands 15 bakes at 2-4 ms
+  each, one per frame — fifteen consecutive frames over the purse. The row
+  cursor lives in the params ring and the scratch must persist across slices,
+  and §5.6 wants `BAKE_ROWS_PER_FRAME` tuned by eye and meter from the first
+  commit. Unblocked by that dial being tunable, i.e. by a build.
+- THE PHOTOGRAPH (RIDE_3 / D) IS HELD ON A TASTE GATE: LOD1 terrain, the
+  photographer's own cull window, and a two-frame composite remove a 16-55 ms
+  hitch every ~2 s of walking on both devices. The pose is frozen so content
+  cannot move between the halves; what changes is the photo's terrain detail,
+  which is Jean's eye on two photographs.
+- THE STATIC/DYNAMIC SHADOW (LIGHT_0's second half / E-2) IS HELD FOR A DESIGN
+  ROUND. `coupling_pawn_to_sun_vp` already snaps the light VP to whole shadow
+  texels, so between crossings the map is bit-stable; the design is two depth
+  targets, the static one rebuilt over N=4 frames and copied in each frame at
+  the snap's texel offset, dynamics drawn on top. 8 -> ~3.5 ms flat on Mali,
+  6 -> ~2.5 on Kepler. The uncovered strip a moving pawn opens is 3 texels
+  walking and ~32 riding, all inside the 78 wu of margin between the map's
+  420 and the veil ring's 342. Unblocked by Jean stamping the round.
+- THE CELL COLOUR (CELL_0 / F) IS HELD ON ITS OWN MEASUREMENT, WHICH DOES NOT
+  EXIST. `patch_terrain_fs` calls `animated_cell_color` per PIXEL for a value
+  that depends only on the cell, whenever any music dial is non-zero — a
+  500-line lattice stack, twice when palette drift is on, for a fact
+  `generate_patch_cells` already knows how to bake. The captures had the music
+  unbound, so the branch was cold and the cost has never been read. §5.4 (a
+  `main_pass` window with music driving `checker_music_amount`) must be taken
+  BEFORE the fix, or there is nothing to compare against.
+- THE HEIGHTFIELD AT 128 (FIELD_0 / G) IS HELD ON JEAN'S EYE.
+  `PATCH_HEIGHTFIELD_N` 256 against `PATCH_MESH_N` 64 is 4x denser than any
+  reader: the VS samples once per vertex, the FS reads an interpolated
+  varying, the walkers sample bilinearly. 128 is two texels per LOD0 vertex,
+  the bake is 4x cheaper (the Pixel's 206 ms portal -> ~50), and the array
+  drops 112.5 -> 28 MiB, the largest allocation on the floor device. One `Dim`
+  constant, one WGSL mirror, and a pinned-seed side-by-side — the one case
+  where a pinned seed is the right witness.
+- THE METRONOME (PACE_0 / H) IS HELD ON A RULING. After every campaign above,
+  a Kepler laptop at full width still cannot make 16.6, and the honest answer
+  is a steady 30 rather than a juddering 45: when the measured envelope
+  exceeds budget for three windows, present on every second vblank and serve
+  the steady clock 33.3 ms, returning with hysteresis. A film at 24 is smooth;
+  a game at 45 is not. The optional second dial — render scale keyed to the
+  point's speed on the ribbon — is a separate taste gate.
+- THE BOOT CAMPAIGN (§4.1/4.2) IS HELD AS ITS OWN: sixty pipelines compile
+  SERIALLY on the main thread before the first frame (57 s on a cold laptop
+  visit, 204 s in one capture, 31 ms cached), and Mali compiles AGAIN at first
+  dispatch (the Pixel's first bake cost 1,604 ms against 206 later).
+  `CreateRenderPipelineAsync` / `CreateComputePipelineAsync` plus a first-frame
+  pipeline set, and a warm-up pass behind the veil. Unblocked by Jean stamping
+  the campaign.
+- THE BUNDLE (§4.4): `world.wgsl` ships inside `the_board.data` as
+  octet-stream, which Cloudflare does not compress by default, so 698 KB cross
+  the wire uncompressed on every first visit while the `.wasm` is compressed.
+  Either a `_headers` content-type rule or `web_dist.py` stripping the
+  shader's comments into `dist/` and computing the serve digest from the
+  stripped bytes — the `[Dist] world.wgsl sha ... MATCH` witness holds either
+  way, since both halves read the shipped file. ~700 KB -> ~150 KB.
+- WHICH PRESET THE SITE SERVES (§4.6) IS JEAN'S. `[METER]`, `[PRESENT]` and
+  `[STREAM]` print from everexpandingboard.com today: the meter's timestamp
+  writes at every pass boundary serialize passes a tiler would overlap, and
+  the census prints cost 31-98 ms of CPU per firing. `the-board-web` for the
+  audience, `the-board-web-meter` for captures.
+- THE LIVE CARD BY HALVES (CARD_0 / I): 410k texels rewritten every frame
+  while any zone is live anywhere; writing half the rows per frame puts each
+  texel at 30 Hz for 1.2 -> 0.6 ms. Lowest priority; real but small.
+- F14'S FIRST HALF DOES NOT MATCH THE TREE, and is recorded rather than acted
+  on. The work order reads the READY floor's 5 s clock as "armed from boot,
+  not from the first frame". It is armed from the first frame: `world_live` is
+  stamped at the END of `init_world()` — after the pipeline compile, at the
+  instant the frame loop goes live — and `offer_controls_when_ready()` cannot
+  run before that, since the same `frame()` guard that calls `init_world` sits
+  above it. So the laptop's timeout firing before `PAINTING_1` is not a clock
+  bug; it is the exhibition genuinely taking more than five seconds to land
+  six paintings on that device. If the ruling wants a floor that cannot fire
+  empty it needs a NEW ruling (R-I forbade a third arm), not a one-line fix.
+- §5's REMAINING INSTRUMENTS ARE NOT BUILT: a shadow-terrain-OFF organ dial
+  (gates E-2's design) and a PCF 4-vs-16 dial (gates E-1's second half). Both
+  need an entry in the organ registry and the panel seam the shell gate
+  checks; §5.1 and §5.4 need no code, only a capture. §5.6's
+  `BAKE_ROWS_PER_FRAME` belongs to C.
+- NO GATE COMPILES `src/the_board.cpp` — carried from OVERTURE_0 and still
+  true, and this round edited that file again. Its one missing stub
+  declaration is named in that entry.
+
 ## OVERTURE_0 — the first seconds; what the campaign priced and did not build
 
 Origin: OVERTURE_0 (eleven commits on master, base `c17569ae`). The boot world
