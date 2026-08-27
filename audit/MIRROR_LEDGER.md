@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `a422f35e5fe189528ca40af217313e73405d546e` |
-| | LATTICE_3/G — the patch index buffers are uint16 |
+| source commit | `aec2c0cb2f6f5c52e870b6b9b444d595da241788` |
+| | LEDGER — the five re-stamp after LATTICE_2 / LATTICE_3 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:3a499509e86b3904f77a30ee426b896b132d96ba786c393fad7e0df5204a6f88` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:337b4ade061e56cf651b86ad910707bc9e816b23d3eee929b233048d6346d688` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:78ce78d9a65cddbae3710f04f636f886cfe2a0c0a692ddd7d8aa9b2bc989f08f` |
