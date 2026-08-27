@@ -13325,9 +13325,14 @@ fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
     palmg_vertices[base + 9u] = f32(entity_idx);
 }
 
-@compute @workgroup_size(1, 1, 1)
-fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let slot = gid.x;
+@compute @workgroup_size(MESHGEN_LANES)
+fn palm_mesh_gen(
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>
+) {
+    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
+    let slot = wid.x;
+    let lane = lid.x;
     if (slot >= PALMG_MAX_SLOTS) { return; }
 
     let p = palmg_params[slot];
@@ -13335,14 +13340,11 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let ib_base = slot * PALMG_MAX_INDICES_PER_SLOT;
 
     if (p.is_active == 0u) {
-        for (var i = 0u; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
+        for (var i = lane; i < PALMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
             palmg_indices[ib_base + i] = vb_base;
         }
         return;
     }
-
-    var vi = 0u;
-    var ii = 0u;
 
     let cx = p.center_x;
     let cz = p.center_z;
@@ -13355,7 +13357,18 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let trunk_rings = min(u32(max(8.0, p.bark_rings)), 40u);
     let trunk_segs = min(p.trunk_segs, 24u);
 
-    for (var ring = 0u; ring <= trunk_rings; ring++) {
+    // THE SECTION BASES (LATTICE_2). Hoisted from the frond block, where
+    // they were already named for the ceiling arithmetic — the crown cap
+    // needs them too now, and one number has one home. Every count here is
+    // pure in (trunk_rings, trunk_segs), which are uniform per workgroup.
+    let cap_tip_vi    = (trunk_rings + 1u) * trunk_segs;   // vi at the crown tip
+    let cap_ring_vi   = cap_tip_vi + 1u;                   // vi at the crown ring
+    let cap_fan_ii    = trunk_rings * trunk_segs * 6u;     // ii at the crown fan
+    let trunk_verts   = cap_ring_vi + trunk_segs;
+    let trunk_indices = cap_fan_ii + trunk_segs * 3u;
+
+    // vi was ring * trunk_segs + seg.
+    for (var ring = lane; ring <= trunk_rings; ring += MESHGEN_LANES) {
         let t = f32(ring) / f32(trunk_rings);
 
         var r = p.base_r + (p.top_r - p.base_r) * t;
@@ -13378,16 +13391,16 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             let ca = cos(angle);
             let sa = sin(angle);
 
-            palmg_write_vertex(vb_base + vi,
+            palmg_write_vertex(vb_base + ring * trunk_segs + seg,
                 cx + lean_x + ca * r, y, cz + lean_z + sa * r,
                 ca, 0.0, sa,
                 cr, cg, cb, slot);
-            vi++;
         }
     }
 
-    // Trunk indices: quads between consecutive rings
-    for (var ring = 0u; ring < trunk_rings; ring++) {
+    // Trunk indices: quads between consecutive rings.
+    // ii was (ring * trunk_segs + seg) * 6u + j.
+    for (var ring = lane; ring < trunk_rings; ring += MESHGEN_LANES) {
         for (var seg = 0u; seg < trunk_segs; seg++) {
             let next_seg = (seg + 1u) % trunk_segs;
             let row0 = ring * trunk_segs;
@@ -13398,12 +13411,13 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             let v11 = vb_base + row1 + next_seg;
             let v01 = vb_base + row0 + next_seg;
 
-            palmg_indices[ib_base + ii] = v00; ii++;
-            palmg_indices[ib_base + ii] = v10; ii++;
-            palmg_indices[ib_base + ii] = v11; ii++;
-            palmg_indices[ib_base + ii] = v00; ii++;
-            palmg_indices[ib_base + ii] = v11; ii++;
-            palmg_indices[ib_base + ii] = v01; ii++;
+            let ii = ib_base + (ring * trunk_segs + seg) * 6u;
+            palmg_indices[ii + 0u] = v00;
+            palmg_indices[ii + 1u] = v10;
+            palmg_indices[ii + 2u] = v11;
+            palmg_indices[ii + 3u] = v00;
+            palmg_indices[ii + 4u] = v11;
+            palmg_indices[ii + 5u] = v01;
         }
     }
 
@@ -13419,30 +13433,30 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let crown_cg = p.trunk_g * 0.6 + p.frond_g * 0.4;
     let crown_cb = p.trunk_b * 0.6 + p.frond_b * 0.4;
 
-    let cap_tip_vi = vi;
-    palmg_write_vertex(vb_base + vi,
-        cx + crown_lean_x, crown_y + crown_r * 0.6, cz + crown_lean_z,
-        0.0, 1.0, 0.0,
-        crown_cr, crown_cg, crown_cb, slot);
-    vi++;
+    // ONE VERTEX, ONE LANE: the tip is not a loop, so lane 0 writes it.
+    if (lane == 0u) {
+        palmg_write_vertex(vb_base + cap_tip_vi,
+            cx + crown_lean_x, crown_y + crown_r * 0.6, cz + crown_lean_z,
+            0.0, 1.0, 0.0,
+            crown_cr, crown_cg, crown_cb, slot);
+    }
 
-    let cap_ring_vi = vi;
-    for (var seg = 0u; seg < trunk_segs; seg++) {
+    for (var seg = lane; seg < trunk_segs; seg += MESHGEN_LANES) {
         let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
-        palmg_write_vertex(vb_base + vi,
+        palmg_write_vertex(vb_base + cap_ring_vi + seg,
             cx + crown_lean_x + cos(angle) * crown_r,
             crown_y,
             cz + crown_lean_z + sin(angle) * crown_r,
             0.0, 1.0, 0.0,
             crown_cr, crown_cg, crown_cb, slot);
-        vi++;
     }
 
-    for (var seg = 0u; seg < trunk_segs; seg++) {
+    for (var seg = lane; seg < trunk_segs; seg += MESHGEN_LANES) {
         let next_seg = (seg + 1u) % trunk_segs;
-        palmg_indices[ib_base + ii] = vb_base + cap_tip_vi; ii++;
-        palmg_indices[ib_base + ii] = vb_base + cap_ring_vi + seg; ii++;
-        palmg_indices[ib_base + ii] = vb_base + cap_ring_vi + next_seg; ii++;
+        let ii = ib_base + cap_fan_ii + seg * 3u;
+        palmg_indices[ii + 0u] = vb_base + cap_tip_vi;
+        palmg_indices[ii + 1u] = vb_base + cap_ring_vi + seg;
+        palmg_indices[ii + 2u] = vb_base + cap_ring_vi + next_seg;
     }
 
     // ── FRONDS: radial quad strips with golden-angle packing ──
@@ -13456,9 +13470,8 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // The authored floor of 3 yields to the ceiling: a floor that can
     // overrun the slot is not a guard. The two saturating min() calls keep
     // the subtraction total rather than dependent on the ring/seg clamps
-    // above staying where they are.
-    let trunk_verts   = (trunk_rings + 1u) * trunk_segs + 1u + trunk_segs;
-    let trunk_indices = trunk_rings * trunk_segs * 6u + trunk_segs * 3u;
+    // above staying where they are. (`trunk_verts` / `trunk_indices` are
+    // hoisted to the section-base block now; the crown cap needs them too.)
     let verts_left    = PALMG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   PALMG_MAX_VERTS_PER_SLOT);
     let indices_left  = PALMG_MAX_INDICES_PER_SLOT - min(trunk_indices, PALMG_MAX_INDICES_PER_SLOT);
     let frond_ceiling = min(verts_left / ((frond_segs + 1u) * 2u),
@@ -13467,7 +13480,14 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let n_fronds = min(u32(max(3.0, p.frond_count)), frond_ceiling);
     let crown_frond_y = crown_y + crown_r * 0.3;
 
-    for (var f = 0u; f < n_fronds; f++) {
+    // A LANE OWNS A WHOLE FROND, so the body below is verbatim — the
+    // per-frond cursor is ordinary serial state inside one lane's range.
+    // Only the frond's starting cursor is arithmetic, and every frond is
+    // the same size, so no prefix loop is needed.
+    for (var f = lane; f < n_fronds; f += MESHGEN_LANES) {
+        var vi = trunk_verts + f * (frond_segs + 1u) * 2u;
+        var ii = trunk_indices + f * frond_segs * 6u;
+
         let base_angle = f32(f) * golden_angle;
         let rank = f32(f) / max(1.0, f32(n_fronds - 1u));
 
@@ -13575,8 +13595,10 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
     }
 
-    // Zero remaining indices (degenerate padding)
-    for (var i = ii; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
+    // Zero remaining indices (degenerate padding).
+    // `used` was the final ii, which no lane holds any more.
+    let used = trunk_indices + n_fronds * frond_segs * 6u;
+    for (var i = used + lane; i < PALMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
         palmg_indices[ib_base + i] = vb_base;
     }
 }
