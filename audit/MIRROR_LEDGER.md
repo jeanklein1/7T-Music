@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `516f537ffb26ac077c7895f2d264a135b534ff36` |
-| | RECORD — what LATTICE_4 filed, and the covenant's corrected yardstick (L32) |
+| source commit | `115d701a8705216d4201f7c7f7caa8d05b34971b` |
+| | LEDGER — the five re-stamp after LATTICE_4 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:455ae568086f942dfa1a74ab21f6761c9c721d88a9060c6356c4863423e19645` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:7758304876162121a99f574e20f227927dd27e4a0d57aa0161c9e31d4da20c50` |
