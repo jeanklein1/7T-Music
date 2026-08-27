@@ -1,4 +1,4 @@
-# 7T-Pawns : C++ / WebGPU engine + React design tools
+# The Board : C++ / WebGPU engine + React design tools
 cmake_minimum_required(VERSION 3.16)
 project(the_board VERSION 0.1.0 LANGUAGES CXX)
 
@@ -53,7 +53,7 @@ endif()
 # ACTIVE CARTRIDGE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Controls which render cartridge the pawn target includes.
+# Controls which render cartridge the the_board target includes.
 # IntelliSense will only index it — no noise from other cartridges.
 #
 # Change here to switch focus. No need to edit .cpp files.
@@ -96,7 +96,7 @@ endif()
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
-message(STATUS "  pawn -> render: ${T7_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
+message(STATUS "  the_board -> render: ${T7_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
 message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
 if(T7_WORLD_SEED STREQUAL "")
     message(STATUS "  World seed:     drawn at boot (wall clock)")
@@ -118,7 +118,7 @@ message(STATUS "")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAWN — Render cartridge development
+# THE BOARD — Render cartridge development
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # The render cartridge (the_board) driven by the BeatClock.

@@ -8,7 +8,7 @@
 # those references to buy a tidier path. The gate is the script.
 #
 # WHY THIS EXISTS. glaw1's translation unit is cartridge.hpp, and
-# cartridge.hpp does not include console.hpp — only pawn.cpp
+# cartridge.hpp does not include console.hpp — only the_board.cpp
 # does, and nothing compiles that here. So for the whole life of the tree
 # glaw1 answered GREEN to every console edit without reading one line of
 # it. That is not a weak witness; it is an absent one wearing a witness's

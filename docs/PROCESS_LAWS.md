@@ -380,6 +380,6 @@ configuration, and the assert/witness census is the gate on that.
 
 *The FXC reframe, beside it:* FXC's cost is now visible rather than buried —
 `patch_terrain` 4.9 s, `patch_terrain_indirect` 4.8 s, `monolith` 3.7 s,
-`pawn` 3.5 s of a 55 s boot. FXC's **behavior** (the `world.wgsl` banner's hang
+`the_board` 3.5 s of a 55 s boot. FXC's **behavior** (the `world.wgsl` banner's hang
 cliff) is unchanged by build configuration; only its **price** is now
 measurable.

@@ -160,11 +160,11 @@ public:
         return wgpu::TextureFormat::Depth24Plus;
     }
     
-    // ── Hot Reload (Pawn harness support) ────────────────────────
+    // ── Hot Reload (the_board harness support) ───────────────────
     
     /**
      * Reload shaders from disk and recreate pipelines.
-     * Called by the pawn harness when shader file changes.
+     * Called by the the_board harness when shader file changes.
      * 
      * Default: no-op (returns false).
      * Override in cartridges that support hot-reload.

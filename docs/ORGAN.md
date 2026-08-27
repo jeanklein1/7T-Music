@@ -122,7 +122,7 @@ beside each mask.
 
 The frame boundary itself — doors, the re-speaks, the mask routing, the rule
 window, the flush — is `src/cartridges/the_board/organ_boundary.inc`, member
-functions of the cartridge, taken once per frame from `pawn.cpp`.
+functions of the cartridge, taken once per frame from `the_board.cpp`.
 
 ## Doors
 

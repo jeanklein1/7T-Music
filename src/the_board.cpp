@@ -1,11 +1,11 @@
 /**
- * PAWN -- Render Cartridge Development Harness
- * ============================================
+ * THE BOARD -- Render Cartridge Development Harness
+ * =================================================
  *
  * Minimal runtime for the render cartridge. Cartridge selection is
  * controlled from CMakeLists.txt:
  *
- *   set(PAWN_RENDER_CARTRIDGE "the_board")
+ *   set(T7_RENDER_CARTRIDGE "the_board")
  *
  * CMake passes it as a compile definition (INCUBATE_RENDER).
  * No need to edit this file to switch cartridges.
@@ -14,7 +14,7 @@
  *   Render cartridges:
  *   | Folder name          | Namespace              | Class     |
  *   |----------------------|------------------------|-----------|
- *   | the_board/     | t7::the_board    | Cartridge |
+ *   | the_board/           | t7::the_board          | Cartridge |
  *
  * The analysis side is the BeatClock (CUT_1c, ruling R7): advancing
  * clocks at a variable BPM, empty stat layout. All input goes to the
@@ -258,7 +258,7 @@ int main(int argc, char* argv[]) {
     // FileWatcher class, its member, the watch() call and the per-frame
     // check went with the native arm (SUNSET_1), so there is no hot
     // reload to announce and no longer any twin to contrast against.
-    std::cout << "  PAWN (web twin — no hot reload)\n";
+    std::cout << "  THE BOARD (web twin — no hot reload)\n";
     std::cout << "  Clock:    BeatClock\n";
     std::cout << "  Render:   " << RENDER_NAME << "\n";
     std::cout << "========================================\n";
@@ -266,7 +266,7 @@ int main(int argc, char* argv[]) {
 
     // --- Initialize Console -------------------------------------------------
     app = new App();
-    if (!app->console.init("Pawn", 1280, 720)) {
+    if (!app->console.init("The Board", 1280, 720)) {
         std::cerr << "Failed to initialize console\n";
         // EXHIBIT_0 — A REFERENCE OUTLIVES ITS REFERENT (LAWS L15), and
         // here the reference is a fetch. The cartridge constructor ran

@@ -20,7 +20,7 @@
 # the tree places pass encoders more widely — renderer.hpp holds
 # pipeline creation and NO Begin*Pass site, while the cartridge, four
 # bodies files and the patch surface each encode passes of their own,
-# the frame submit lives in pawn.cpp, and the reconfigure
+# the frame submit lives in the_board.cpp, and the reconfigure
 # trigger in console.hpp. The census scans where the facts are and
 # says so; witness C-4 pins renderer.hpp's zero so the widening stays
 # an observation, not an assumption.
@@ -435,7 +435,7 @@ def emit(w, rows, subs, reconf_sites, trigger, dd, encoders):
     A.append("files above. `renderer.hpp` carries pipeline creation and ZERO")
     A.append("`Begin*Pass` sites (witness C-4 pins that zero); the cartridge,")
     A.append("bodies, and patch surface encode passes of their own; the frame")
-    A.append("submit lives in `pawn.cpp`; the reconfigure trigger")
+    A.append("submit lives in `the_board.cpp`; the reconfigure trigger")
     A.append("in `console.hpp`.")
     A.append("")
     A.append("## §1 — the passes, one row each")

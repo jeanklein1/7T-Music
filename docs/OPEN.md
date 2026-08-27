@@ -112,7 +112,7 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   by the gates sitting.
 - L26 docket — fields marked dead, awaiting the sitting that next opens their
   struct: `OrbConfig`'s driverless gen-1 block, `Instruments.watcher_ticks` (driver
-  went with the FileWatcher at SUNSET_1; `pawn.cpp:60` still names the dial),
+  went with the FileWatcher at SUNSET_1; `the_board.cpp:60` still names the dial),
   `OrbMoodConfig.base_hue` / `.hue_variance` (dead BY CONSTRUCTION — every
   ORB_PALETTES row carries count ≥ 1, so `pack_palette_` never leaves
   `palette_count` at 0 and the kernel's legacy single-hue arm is
@@ -137,12 +137,12 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   5-slot stride). Origin: PROCESS_LAWS SCHEDULING RECORD, moved by
   RECENSION_3 when its dated owner (the control-panel campaign) ran without
   collecting it. Unblocked by any campaign that enumerates those files.
-- pawn.cpp IS UNGATED: no gate compiles the TU that owns main(), the rAF
+- the_board.cpp IS UNGATED: no gate compiles the TU that owns main(), the rAF
   driver and the boot sequence — glaw1 compiles tu.cpp, console_gate compiles
   cartridge.hpp and console.hpp. One missing declaration is the whole reason:
   tools/gates/console_gate/stubs/emscripten.h stubs
   emscripten_set_main_loop_arg but not emscripten_set_main_loop, the form
-  pawn.cpp calls. CC verified everything else in the TU compiles clean under
+  the_board.cpp calls. CC verified everything else in the TU compiles clean under
   the existing gate flags. Cure is one stub line; adding to the pinned stub
   set is a gates decision. Origin: RECENSION_2 FLAG-U5c. Unblocked by the
   gates sitting.
@@ -704,7 +704,7 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   Witness (5) below is what to check if judder survives it.
   (b) `dispatch_compute` is an unconditional row of `RENDER_SPINE`
   (`cartridge.hpp`), so it is recorded on EVERY rendered frame. But
-  `update()` runs on frames that are never rendered — `pawn.cpp` returns
+  `update()` runs on frames that are never rendered — `the_board.cpp` returns
   before the encoder when `acquire_surface_texture()` fails — and
   `phase_fill_signal` has already written that frame's dt, which the next
   update overwrites. A dropped acquire therefore does not stretch the
@@ -715,7 +715,7 @@ Origin: RIBBON_2 (three commits on `claude/ribbon-1`, base `a76bbed`).
   of deleting itself. The sum carries the same 100 ms ceiling the raw
   measurement does — a stretch is a stretch, a teleport is not.
   (c) The web main loop is `requestAnimationFrame`
-  (`emscripten_set_main_loop(frame, 0, true)`, `pawn.cpp`).
+  (`emscripten_set_main_loop(frame, 0, true)`, `the_board.cpp`).
   The gesture clock is NOT a suspect: `ribbon_frame_tick` advances
   `par.phase += beat_rate × (60 / reference_bpm) × dt` every frame — a
   smooth per-frame float, never a beat-quantized tick — which is why §3.5
