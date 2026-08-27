@@ -236,6 +236,67 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## PANORAMA_1 — the free events, the dials, the pace
+
+Origin: PANORAMA_1 (the work order rides `docs/HANDOFFS/PANORAMA_1.md` while
+its held half is open). LANDED: U1 the ceiling gate, U2 the settle, U3 the
+subtraction dials, U4 the PCF tap dial, U5 the photograph at LOD1, U6a the
+forced metronome, and the TU gate widened to read the harness.
+
+- THE SUBTRACTION TABLE IS THE ROUND'S DELIVERABLE AND IT IS NOT TAKEN YET.
+  `draw_mask` and `shadow_mask` (Measure, in the panel) subtract one draw at
+  the encoder so the pass row reads its absence. The table is eight main-pass
+  masks and two shadow masks, one window each, walking, on both devices —
+  Jean's gate 2. ROUND THREE IS DESIGNED FROM IT: `shadow_mask` decides
+  between E-2's static/dynamic split, a smaller map, and a near cascade;
+  `draw_mask` names the main pass's whale, which its vertex and pixel counts
+  do not explain. Until the table exists, no design may be spent on either
+  pass. Unblocked by the two console captures.
+- ROUND THREE'S ORDER IS DECIDED BY A PIXEL CONSOLE after this round, walking
+  and riding — the floor device chooses, not the laptop. It carries the
+  post-round mesh-gen firing count (which prices F3, above), the subtraction
+  table, and the `[PRESENT]` histogram at each pace.
+- U6b, THE GOVERNOR, IS HELD. U6a landed the switch and `?pace=1|2`, which is
+  what the taste gate needs. The governor that CHOOSES by measurement is
+  specified — `wgpuQueueOnSubmittedWorkDone`'s callback timestamps a frame's
+  GPU envelope, a trailing 60-frame mean over 15.5 ms for three windows
+  engages pace 2 and under 12.5 for three disengages — and is release-safe by
+  design, which is exactly why it cannot ride the meter's own
+  `gpu_envelope` instead. It is held because it is a GPU completion callback
+  in the frame loop: the pinned surface carries `OnSubmittedWorkDone` with a
+  CallbackMode and a Future, the tree's only precedent for that shape is
+  console.hpp's device/adapter requests, and a governor that never fires or
+  fires on a stale reading is worse than none. Unblocked by a build to watch
+  the `[PACE]` line on.
+- U7, THE DEPLOY RULING, IS STOPPED AS THE ORDER PROVIDES, and the ruling
+  stands as a ruling: the audience gets `the-board-web`, captures get
+  `the-board-web-meter`. The stamp cannot be written from `web_dist.py`. The
+  presets differ only by the `T7_INSTRUMENTS` cache variable, CMake's
+  `RUNTIME_OUTPUT_DIRECTORY` is `web/`, and nothing there writes a stamp
+  beside the artifacts — so a preset name reaching the dist script needs a
+  CMakeLists change, which this round's Touches exclude. Two ways forward for
+  whoever takes it: `file(WRITE web/build_preset.txt ...)` at configure time,
+  or — needing no CMake at all and impossible to forget — `web_dist.py`
+  scanning the built artifact for a meter-only string, since the instruments
+  fold to nothing when the dial is off.
+- THE SETTLE IS PACED IN FRAMES, WHICH THE METRONOME HALVES. At `?pace=2` U2's
+  eight frames are ~266 ms rather than ~133. Recorded because it is a real
+  coupling between two units of one round, not because it is known to matter —
+  the arrival is at the ring's edge either way. If Jean's eye catches a pop
+  while riding at pace 2, the fix is to settle on `time_state_.seconds`, which
+  is invariant under pace.
+- F (THE CELL COLOUR BAKE) IS COLD UNTIL THE ANALYSER SOCKET BINDS. The
+  per-pixel `animated_cell_color` branch wakes only when a music dial is
+  non-zero, and the captures read `12 sources unbound` — so its cost has never
+  been on screen and §5.4's before-reading cannot be taken. Re-opened by the
+  socket's own campaign, not by this one.
+- BOOT_0 IS THE NEXT CAMPAIGN AFTER THIS ROUND'S TABLE: async pipeline
+  creation with a first-frame set (60 serial compiles, 57 s cold on the
+  laptop), a warm-up pass behind the veil (Mali compiles again at first
+  dispatch — 1,604 ms on the Pixel's first bake against 206 later), and the
+  bundle (`world.wgsl` crosses uncompressed inside `the_board.data`). Shape at
+  PANORAMA_0 §4; unblocked by Jean stamping the campaign.
+
 ## PANORAMA_0 — the frame's cost; what landed and what is held
 
 Origin: PANORAMA_0 (the work order rides `docs/HANDOFFS/PANORAMA_0.md` while
@@ -250,19 +311,20 @@ and every pass millisecond is a frame millisecond.
 LANDED: RIDE_1 (the queue bound), RIDE_0's two compute kernels, LIGHT_0's PCF
 early-outs, F14's absence sentence, and §5.5's mesh-gen firing instrument.
 
-- RIDE_0'S MESH HALF (F3) IS HELD, and it is the largest single event on a
-  ride: every arch, palm, cactus, blade and column that spawns or evicts
-  regenerates its ENTIRE family (4-8 ms on Mali per firing), because the
-  pending flag is one bool per family and `prepare_*_mesh_gen` re-dispatches
-  all slots. Two independent fixes, each an order of magnitude: (a) per-slot
-  regeneration — the pending bool becomes a bitmask and the dispatch covers
-  only pending slots, which needs a slot base or slot list in the params ring
-  and is therefore a BINDING-SURFACE change with its own gate; (b) a workgroup
-  per mesh instead of one lane — which needs each kernel's running vertex
-  cursor (`var vi = 0u`, incremented across a nested loop) re-derived as a
-  pure function of the element index, per kernel, with a visual gate, since a
-  wrong base is garbled geometry. Neither is witnessable without a build.
-  Unblocked by §5.5's count read on a ride, then Jean's stamp on which half.
+- RIDE_0'S MESH HALF (F3) IS PRICED AND WAITS ON A COUNT. PANORAMA_1 removed
+  the FIRINGS, not the per-firing cost: U1's ceiling gate killed the re-raise
+  outdoors (378 of 498 firings in one window), and U2's settle coalesces a
+  crossing's burst into one regeneration per eight frames. What is left is the
+  cost of a regeneration that IS owed — every slot of a family rebuilt because
+  one slot changed, 4-8 ms on Mali. The two fixes are unchanged and still
+  independent: (a) per-slot regeneration, which needs a slot base or slot list
+  in the params ring and is therefore a BINDING-SURFACE change with its own
+  gate; (b) a workgroup per mesh, which needs each kernel's running vertex
+  cursor (`var vi = 0u`, incremented across nested loops) re-derived as a
+  function of the element index, per kernel, with a visual gate — a wrong base
+  is garbled geometry. Unblocked by the post-round Pixel firing count: if the
+  settle has taken the ride's firings into the single digits, neither half is
+  worth its risk yet.
 - THE BAKE BY ROWS (RIDE_2 / C) IS HELD: a crossing demands 15 bakes at 2-4 ms
   each, one per frame — fifteen consecutive frames over the purse. The row
   cursor lives in the params ring and the scratch must persist across slices,
@@ -341,9 +403,6 @@ early-outs, F14's absence sentence, and §5.5's mesh-gen firing instrument.
   need an entry in the organ registry and the panel seam the shell gate
   checks; §5.1 and §5.4 need no code, only a capture. §5.6's
   `BAKE_ROWS_PER_FRAME` belongs to C.
-- NO GATE COMPILES `src/the_board.cpp` — carried from OVERTURE_0 and still
-  true, and this round edited that file again. Its one missing stub
-  declaration is named in that entry.
 
 ## OVERTURE_0 — the first seconds; what the campaign priced and did not build
 
@@ -378,14 +437,6 @@ follows is what the campaign measured and left.
   Above ~13 dressed galleries `find_free_exhibition_layer` fails at commit and
   a fan ends short. Inert at `MIN_GALLERY_DISTANCE` 110; binding below ~94, so
   it is the density dial's companion and must move with it.
-- NO GATE COMPILES `src/the_board.cpp` — the program's ONLY translation unit.
-  The TU gate's subjects are `cartridge.hpp` and `console.hpp`, and glaw1
-  builds `cartridge.hpp`; the file that includes them both, holds `main()`,
-  the rAF driver and the READY offer, is read by nothing until Jean's emcc
-  runs. Adding it as a third TU costs one line in the gate's `TUS` table plus
-  one missing declaration in its own `emscripten.h` stub, which declares
-  `emscripten_set_main_loop_arg` but not `emscripten_set_main_loop`. Found at
-  OVERTURE_0 U9, which edited that file. Unblocked by a ruling on gate scope.
 - THE READY OFFER HOLDS A GALLERY-LESS BUILD FOR THE FULL TIMEOUT. U9's floor
   is `authored_staged_count >= 6` OR 5 s; with `ROSTER.gallery` off the count
   can never rise, so such a build always pays the 5 s. Ruled acceptable at
