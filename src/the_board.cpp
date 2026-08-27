@@ -170,6 +170,7 @@ static bool init_world() {
 static void apply_pace_once() {
     if (app->pace_applied) return;
     app->pace_applied = true;
+    t7::g_present_pace = app->pace;   // U3: the meter's window header names it
     if (app->pace == 1u) return;   // the default needs no call
     emscripten_set_main_loop_timing(EM_TIMING_RAF, (int)app->pace);
     std::cout << "[PACE] forced " << (60u / app->pace)
