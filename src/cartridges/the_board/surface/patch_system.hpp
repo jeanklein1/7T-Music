@@ -312,6 +312,28 @@ inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx
 }
 
 // Process entity spawn for pre-collected patch candidates.
+//
+// ONE PATCH, DRAINED WHOLE (PANORAMA_0 RIDE_1). The three verbs used to run
+// as three passes over the whole candidate list: every patch selected, then
+// everything placed, then everything committed. That made the queue's
+// capacity a function of the CANDIDATE COUNT, and the fullRegen arm hands
+// this function all 49 patches of the priority window in one call — so the
+// queue overflowed at boot and at every portal, and what it dropped was the
+// tail of PLACEMENT_ORDER: galleries first, then arches, cubes, columns,
+// GoL. The birth of every world was being truncated by a bound that called
+// itself proven.
+//
+// Draining per patch makes the bound true instead of arguing it: at most one
+// patch's selections are ever in flight, so PopFamily::COUNT is the real
+// ceiling and no candidate list can reach it.
+//
+// PLACEMENT ORDER IS UNCHANGED. Select already queued patch-by-patch, and
+// footprints register at PLACE — so patch N+1's place sees exactly the ground
+// it saw before, whether patch N's place happened one iteration earlier or one
+// pass earlier. The one difference is real and is an improvement: a commit
+// that RELEASES ground (a gallery that placed no paintings unregisters its
+// footprint) now does so before the next patch places, so ground that is
+// genuinely free can be used by it.
 inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::Queue& queue,
     ThemesState& themes_state) {
@@ -321,9 +343,9 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
             tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
         select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;
+        place_entity_queue(c);
+        commit_entity_queue(c, queue);
     }
-    place_entity_queue(c);
-    commit_entity_queue(c, queue);
 
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;

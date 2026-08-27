@@ -151,26 +151,33 @@ inline constexpr bool proximity_row_active(uint32_t family) {
 // for GPU commit.
 
 // Instance (spawn_engine_state_) lives at the composition root.
-// THE BOUND, PROVEN — not estimated. spawn_selected_patches
-// (surface/patch_system.hpp) is the SOLE caller of all three queue verbs and
-// runs them as one straight line, within a single frame:
+// THE BOUND, PROVEN — and the proof is now structural rather than budgetary
+// (PANORAMA_0 RIDE_1). spawn_selected_patches (surface/patch_system.hpp) is
+// the SOLE caller of all three queue verbs, and it now runs them PER PATCH:
 //
-//   fill    select_entities_for_patch, once per patch, for at most
-//           SPAWN_BUDGET_PER_FRAME patches; each pushes at most one entry per
-//           family, so at most PopFamily::COUNT per patch
+//   fill    select_entities_for_patch, for ONE patch; it pushes at most one
+//           entry per family, so at most PopFamily::COUNT
 //   drain   place_entity_queue  — unconditional full-range loop, then an
 //           unconditional reset of the count
 //   drain   commit_entity_queue — same shape
 //
 // There is NO partial drain and no early exit in either drain, so nothing can
-// carry into the next frame's fill. That is what makes the bound a bound.
-// placementResults_ takes at most one push per entityQueue_ entry, so it
-// shares the ceiling and cannot exceed it.
+// carry to the next patch's fill, let alone the next frame's. That is what
+// makes the bound a bound. placementResults_ takes at most one push per
+// entityQueue_ entry, so it shares the ceiling and cannot exceed it.
 //
-// Derived symbolically rather than written as 48: raising the spawn budget or
-// adding a family moves the capacity with it, instead of silently outgrowing a
-// literal.
-inline constexpr uint32_t SPAWN_QUEUE_MAX = SPAWN_BUDGET_PER_FRAME * PopFamily::COUNT;
+// THE OLD FACTOR WAS A FICTION, AND IT FIRED AT EVERY BIRTH. The capacity read
+// SPAWN_BUDGET_PER_FRAME x PopFamily::COUNT, which described the STEADY-STATE
+// caller — the per-frame budgeted spawn, two patches. The fullRegen arm hands
+// the same function all 49 patches of the priority window in one call, and the
+// budget is not consulted there: 49 x 12 selections into 24 slots. The
+// `[SPAWN] entityQueue_ OVERFLOW` line fired at boot and at every portal on
+// every device, and the families it dropped were the tail of PLACEMENT_ORDER —
+// galleries first. No number would have fixed that; only the drain does.
+//
+// Derived symbolically rather than written as 12: adding a family moves the
+// capacity with it, instead of silently outgrowing a literal.
+inline constexpr uint32_t SPAWN_QUEUE_MAX = PopFamily::COUNT;
 
 struct SpawnEngineState {
     EntityQueueEntry entityQueue_[SPAWN_QUEUE_MAX]{};
