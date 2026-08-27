@@ -12276,6 +12276,43 @@ fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 //
 // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
+//
+// ─── THE STRIDE LAW (LATTICE_2) ──────────────────────────────────────
+//
+// ONE WORKGROUP PER SLOT, MESHGEN_LANES LANES INSIDE IT. Every family's
+// kernel used to be @workgroup_size(1): one thread built a whole entity,
+// serially, while 63 lanes of the same wave sat idle — mesh gen fires on
+// spawn frames, which is exactly where a frame can least afford it.
+//
+// The transformation is the same five times and it is deliberately narrow:
+//
+//   · the slot (and the arch's sub-mesh) comes from `workgroup_id`;
+//     `global_invocation_id` is no longer the slot. Host dispatch shapes
+//     do not change — they were already one workgroup per slot.
+//   · in every emission section the OUTERMOST loop is strided by the lane
+//     (`for (var o = lane; o < N; o += MESHGEN_LANES)`); every INNER loop
+//     stays verbatim.
+//   · the `vi++` / `ii++` cursors become closed-form arithmetic — the
+//     value the cursor HELD at that iteration, so the write addresses are
+//     the same numbers in a different order.
+//   · the skeleton before emission (profiles, trig tables, counts,
+//     ceilings) is replayed verbatim by EVERY lane. It is pure in the
+//     slot's params, so 64 lanes computing it agree by construction.
+//     No var<workgroup>, no barrier, nothing to synchronize.
+//
+// Lanes write DISJOINT addresses: each section's write index is a
+// bijection of (outer, inner), and the outer values partition across
+// lanes. Output is byte-identical to the serial kernel's.
+//
+// LOOP-CARRIED STATE STAYS INSIDE A LANE. Where an outer iteration
+// accumulates (the cactus arm's `apx/apy/apz` walk), that loop is the
+// strided one and a lane walks its whole arm serially, exactly as before.
+// This is why the stride is the OUTER loop and never the vertex.
+//
+// The ideal — an invocation is one output — is the horizon, not this
+// round: the outer stride already takes each kernel from one lane to
+// tens. If a measurement asks for more, the inner loops are next.
+const MESHGEN_LANES: u32 = 64u;
 
 
 // ─── §9.1 ARCH MESH GENERATION (catenary barrel vault) ───────────────
@@ -12369,19 +12406,23 @@ fn amg_write_vertex(
     amg_vertices[i + 9u] = f32(entity_idx);
 }
 
-// ── Shell generation (one sub-mesh thread) ────────────────────────────
+// ── Shell generation (one workgroup per sub-mesh, outer loop strided) ──
 //
 // Writes (su+1)*(sv+1) vertices and su*sv*6 indices at the given offsets.
 // offset = +half_t (outer) or -half_t (inner).
 // nsign = +1.0 (outer) or -1.0 (inner).
 //
-// Catenary profile is precomputed once per invocation into thread-local
-// arrays, then reused across all v-rows. This eliminates (sv) redundant
-// exp() evaluations per u-column (13× reduction for monumental arches).
+// Catenary profile is precomputed into lane-local arrays and reused across
+// all v-rows, which eliminates (sv) redundant exp() evaluations per
+// u-column (13× reduction for monumental arches). Under the stride law it
+// is SKELETON: every lane replays it, because it is pure in (p, offset)
+// and both are uniform across the workgroup.
+//
+// The v-row is the strided loop, the u-column the verbatim inner one.
 
 
 fn amg_gen_shell(
-    p: ArchMeshParams, slot: u32,
+    p: ArchMeshParams, slot: u32, lane: u32,
     vb_start: u32, ib_start: u32,
     offset: f32, nsign: f32,
     co: f32, si: f32, base_y: f32, a: f32, H: f32
@@ -12417,8 +12458,8 @@ fn amg_gen_shell(
     }
 
     // ── Vertices: sweep profile across depth ──
-    var vi = vb_start;
-    for (var iv = 0u; iv <= sv; iv++) {
+    // vi was vb_start + iv * stride + iu; that is the write index now.
+    for (var iv = lane; iv <= sv; iv += MESHGEN_LANES) {
         let v = f32(iv) / f32(sv);
         let lz = -half_d + p.depth * v;
         for (var iu = 0u; iu <= su; iu++) {
@@ -12430,47 +12471,50 @@ fn amg_gen_shell(
             let wny = cat_pny[iu] * nsign;
             let wnz = (cat_pnx[iu] * nsign) * si;
 
-            amg_write_vertex(vi, wx, wy, wz, wnx, wny, wnz,
+            amg_write_vertex(vb_start + iv * stride + iu, wx, wy, wz, wnx, wny, wnz,
                 p.color_r, p.color_g, p.color_b, enc);
-            vi++;
         }
     }
 
     // ── Indices ──
-    var ii = ib_start;
-    for (var iv = 0u; iv < sv; iv++) {
+    // ii was ib_start + (iv * su + iu) * 6u + j.
+    for (var iv = lane; iv < sv; iv += MESHGEN_LANES) {
         for (var iu = 0u; iu < su; iu++) {
             let i00 = vb_start + iv * stride + iu;
             let i10 = i00 + 1u;
             let i01 = i00 + stride;
             let i11 = i01 + 1u;
+            let ii = ib_start + (iv * su + iu) * 6u;
             if (nsign > 0.0) {
-                amg_indices[ii] = i00; ii++;
-                amg_indices[ii] = i01; ii++;
-                amg_indices[ii] = i10; ii++;
-                amg_indices[ii] = i10; ii++;
-                amg_indices[ii] = i01; ii++;
-                amg_indices[ii] = i11; ii++;
+                amg_indices[ii + 0u] = i00;
+                amg_indices[ii + 1u] = i01;
+                amg_indices[ii + 2u] = i10;
+                amg_indices[ii + 3u] = i10;
+                amg_indices[ii + 4u] = i01;
+                amg_indices[ii + 5u] = i11;
             } else {
-                amg_indices[ii] = i00; ii++;
-                amg_indices[ii] = i10; ii++;
-                amg_indices[ii] = i01; ii++;
-                amg_indices[ii] = i10; ii++;
-                amg_indices[ii] = i11; ii++;
-                amg_indices[ii] = i01; ii++;
+                amg_indices[ii + 0u] = i00;
+                amg_indices[ii + 1u] = i10;
+                amg_indices[ii + 2u] = i01;
+                amg_indices[ii + 3u] = i10;
+                amg_indices[ii + 4u] = i11;
+                amg_indices[ii + 5u] = i01;
             }
         }
     }
 }
 
-// ── Cap generation (one sub-mesh thread) ──────────────────────────────
+// ── Cap generation (one workgroup per sub-mesh, outer loop strided) ────
 //
 // Writes 2*(su+1) vertices and su*6 indices at the given offsets.
 // lz_pos = +half_d (front) or -half_d (back).
 // nz_sign = +1.0 (front) or -1.0 (back).
+//
+// The u-column is the strided loop; it writes an outer/inner PAIR, so the
+// pair's base is vb_start + iu * 2u — the two values the cursor held.
 
 fn amg_gen_cap(
-    p: ArchMeshParams, slot: u32,
+    p: ArchMeshParams, slot: u32, lane: u32,
     vb_start: u32, ib_start: u32,
     lz_pos: f32, nz_sign: f32,
     co: f32, si: f32, base_y: f32, a: f32, H: f32
@@ -12487,8 +12531,8 @@ fn amg_gen_cap(
     let cap_nz = nz_sign * co;
 
     // Vertices: outer/inner pairs along catenary profile
-    var vi = vb_start;
-    for (var iu = 0u; iu <= su; iu++) {
+    for (var iu = lane; iu <= su; iu += MESHGEN_LANES) {
+        let vi = vb_start + iu * 2u;
         let u = f32(iu) / f32(su);
         let t = -p.half_span + 2.0 * p.half_span * u;
 
@@ -12507,41 +12551,40 @@ fn amg_gen_cap(
             p.center_z + olx * si + lz_pos * co,
             cap_nx, cap_ny, cap_nz,
             p.color_r, p.color_g, p.color_b, enc);
-        vi++;
 
         // Inner vertex
         let ilx = t - pnx * half_t;
         let ily = base_y + y - pny * half_t;
-        amg_write_vertex(vi,
+        amg_write_vertex(vi + 1u,
             p.center_x + ilx * co - lz_pos * si,
             ily,
             p.center_z + ilx * si + lz_pos * co,
             cap_nx, cap_ny, cap_nz,
             p.color_r, p.color_g, p.color_b, enc);
-        vi++;
     }
 
     // Indices: quad strip between outer/inner
-    var ii = ib_start;
-    for (var iu = 0u; iu < su; iu++) {
+    // ii was ib_start + iu * 6u + j.
+    for (var iu = lane; iu < su; iu += MESHGEN_LANES) {
         let o0 = vb_start + iu * 2u;
         let i0 = o0 + 1u;
         let o1 = vb_start + (iu + 1u) * 2u;
         let i1 = o1 + 1u;
+        let ii = ib_start + iu * 6u;
         if (nz_sign > 0.0) {
-            amg_indices[ii] = o0; ii++;
-            amg_indices[ii] = i0; ii++;
-            amg_indices[ii] = o1; ii++;
-            amg_indices[ii] = o1; ii++;
-            amg_indices[ii] = i0; ii++;
-            amg_indices[ii] = i1; ii++;
+            amg_indices[ii + 0u] = o0;
+            amg_indices[ii + 1u] = i0;
+            amg_indices[ii + 2u] = o1;
+            amg_indices[ii + 3u] = o1;
+            amg_indices[ii + 4u] = i0;
+            amg_indices[ii + 5u] = i1;
         } else {
-            amg_indices[ii] = o0; ii++;
-            amg_indices[ii] = o1; ii++;
-            amg_indices[ii] = i0; ii++;
-            amg_indices[ii] = o1; ii++;
-            amg_indices[ii] = i1; ii++;
-            amg_indices[ii] = i0; ii++;
+            amg_indices[ii + 0u] = o0;
+            amg_indices[ii + 1u] = o1;
+            amg_indices[ii + 2u] = i0;
+            amg_indices[ii + 3u] = o1;
+            amg_indices[ii + 4u] = i1;
+            amg_indices[ii + 5u] = i0;
         }
     }
 }
@@ -12562,10 +12605,18 @@ fn amg_gen_cap(
 //   sub 2 (front cap):   vb=2*shell_verts,     ib=2*shell_indices
 //   sub 3 (back cap):    vb=2*shell_verts+cap, ib=2*shell_indices+cap_indices
 
-@compute @workgroup_size(1, 1, 1)
-fn arch_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let slot = gid.x;
-    let sub_mesh = gid.y;
+@compute @workgroup_size(MESHGEN_LANES)
+fn arch_mesh_gen(
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>
+) {
+    // THE WORKGROUP IS (slot, sub_mesh) — the dispatch shape is unchanged
+    // (MAX_ARCH_INSTANCES, 4, 1); it just names workgroups now, not
+    // threads. The guard is uniform across the workgroup: every lane of a
+    // dead (slot, sub_mesh) returns together.
+    let slot = wid.x;
+    let sub_mesh = wid.y;
+    let lane = lid.x;
     if (slot >= AMG_MAX_SLOTS || sub_mesh >= 4u) { return; }
 
     let p = amg_params[slot];
@@ -12576,7 +12627,7 @@ fn arch_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (p.is_active == 0u) {
         let chunk = AMG_MAX_INDICES_PER_SLOT / 4u;
         let start = slot_ib + sub_mesh * chunk;
-        for (var i = 0u; i < chunk; i++) {
+        for (var i = lane; i < chunk; i += MESHGEN_LANES) {
             amg_indices[start + i] = slot_vb;
         }
         return;
@@ -12602,14 +12653,14 @@ fn arch_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     switch (sub_mesh) {
         case 0u: {
             // Outer shell
-            amg_gen_shell(p, slot,
+            amg_gen_shell(p, slot, lane,
                 slot_vb, slot_ib,
                 half_t, 1.0,
                 co, si, base_y, a, H);
         }
         case 1u: {
             // Inner shell
-            amg_gen_shell(p, slot,
+            amg_gen_shell(p, slot, lane,
                 slot_vb + shell_verts,
                 slot_ib + shell_indices,
                 -half_t, -1.0,
@@ -12617,22 +12668,23 @@ fn arch_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
         case 2u: {
             // Front cap
-            amg_gen_cap(p, slot,
+            amg_gen_cap(p, slot, lane,
                 slot_vb + 2u * shell_verts,
                 slot_ib + 2u * shell_indices,
                 half_d, 1.0,
                 co, si, base_y, a, H);
 
-            // This thread also zeroes unused indices after the caps.
-            // Total used = 2*shell_indices + 2*cap_indices.
+            // This SUB-MESH also zeroes unused indices after the caps,
+            // strided across its lanes. Total used = 2*shell_indices +
+            // 2*cap_indices.
             let total_used = 2u * shell_indices + 2u * cap_indices;
-            for (var i = total_used; i < AMG_MAX_INDICES_PER_SLOT; i++) {
+            for (var i = total_used + lane; i < AMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
                 amg_indices[slot_ib + i] = slot_vb;
             }
         }
         case 3u: {
             // Back cap
-            amg_gen_cap(p, slot,
+            amg_gen_cap(p, slot, lane,
                 slot_vb + 2u * shell_verts + cap_verts,
                 slot_ib + 2u * shell_indices + cap_indices,
                 -half_d, -1.0,
