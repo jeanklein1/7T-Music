@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `56961f46f8094f415fc6baf31a13034ce9a80059` |
-| | BUNDLE_1/C — the two bundles: the frame's draw list is said once |
+| source commit | `3ef21cea4487dd708d07a66aeffd0d74c293437b` |
+| | LEDGER — the five re-stamp after BUNDLE_1 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:455ae568086f942dfa1a74ab21f6761c9c721d88a9060c6356c4863423e19645` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:daa6f7c26271f00da8b249993c9f7edd14275014d1d34f3d71796d14d1099ad6` |
