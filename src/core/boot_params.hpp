@@ -38,6 +38,13 @@ namespace t7 {
         bool has_mood = false; uint32_t mood = 0;
         bool has_cap  = false; float    cap  = 1.0f;
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
+        // PANORAMA_1 U6 — THE METRONOME, forced. rAF callbacks per presented
+        // frame: 1 = every vblank, 2 = every second one (a steady 30 on a
+        // 60 Hz panel). Present ONLY to make the taste gate takeable — Jean
+        // rides the same world at each and says which is the piece. When the
+        // param is present the governor never engages: a forced pace is an
+        // instruction, not a starting point.
+        bool has_pace = false; uint32_t pace = 1;   // {1, 2}; anything else -> 1
     };
 
     // Set once by parse_boot_params (main, before any consumer);
@@ -66,12 +73,16 @@ namespace t7 {
         if (p.has_msaa && p.msaa != 4u) {
             p.msaa = 1u;   // B10: {1, 4} only; anything else -> 1
         }
-        if (p.has_seed || p.has_mood || p.has_cap || p.has_msaa) {
+        if (p.has_pace && p.pace != 2u) {
+            p.pace = 1u;   // U6: {1, 2} only; anything else -> 1
+        }
+        if (p.has_seed || p.has_mood || p.has_cap || p.has_msaa || p.has_pace) {
             std::cout << "[Params]";
             if (p.has_seed) std::cout << " seed=" << p.seed;
             if (p.has_mood) std::cout << " mood=" << p.mood;
             if (p.has_cap)  std::cout << " cap=" << p.cap;
             if (p.has_msaa) std::cout << " msaa=" << p.msaa;
+            if (p.has_pace) std::cout << " pace=" << p.pace;
             std::cout << "\n";
         }
     }
@@ -81,7 +92,7 @@ namespace t7 {
     // NaN = absent-or-malformed; integer/range checks land on the C++
     // side so the rule has one spelling per twin.
     inline void parse_boot_params(int, char**) {
-        double vals[4];
+        double vals[5];
         EM_ASM({
             var q = new URLSearchParams(location.search);
             var o = $0 >> 3;
@@ -95,6 +106,7 @@ namespace t7 {
             HEAPF64[o + 1] = num('mood');
             HEAPF64[o + 2] = num('cap');
             HEAPF64[o + 3] = num('msaa');
+            HEAPF64[o + 4] = num('pace');
         }, vals);
         BootParams& p = boot_params();
         if (!std::isnan(vals[0]) && vals[0] >= 0.0 && vals[0] <= 4294967295.0
@@ -107,6 +119,10 @@ namespace t7 {
         }
         if (!std::isnan(vals[2])) {
             p.has_cap = true; p.cap = static_cast<float>(vals[2]);
+        }
+        if (!std::isnan(vals[4]) && vals[4] == std::floor(vals[4])
+                && vals[4] >= 0.0 && vals[4] <= 4294967295.0) {
+            p.has_pace = true; p.pace = static_cast<uint32_t>(vals[4]);
         }
         if (!std::isnan(vals[3]) && vals[3] == std::floor(vals[3])
                 && vals[3] >= 0.0 && vals[3] <= 4294967295.0) {

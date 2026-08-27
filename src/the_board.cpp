@@ -113,6 +113,9 @@ struct App {
     // One-shot by construction — once printed, the test is never evaluated again.
     std::chrono::steady_clock::time_point world_live{};
     bool controls_offered = false;
+    // PANORAMA_1 U6 — THE METRONOME. rAF callbacks per presented frame.
+    // 1 = every vblank; 2 = every second one, a steady 30 on a 60 Hz panel.
+    uint32_t pace = 1;
 };
 
 static App* app = nullptr;
@@ -337,6 +340,34 @@ int main(int argc, char* argv[]) {
     // Boot continues asynchronously from here; frame() pumps the boot state
     // and runs init_world() once the device lands. 0 = rAF-paced; true =
     // this call never returns.
+    // ═══ THE METRONOME (PANORAMA_1 U6) ═══════════════════════════════════
+    //
+    // A vsynced display shows a frame at 16.6, 33.3 or 50 ms — never at 20.
+    // A device whose frame costs 20 ms does not run at 50 fps; it alternates
+    // between one and two refreshes, and the eye reads that alternation as
+    // stutter where it reads a steady 30 as slowness. A film at 24 is smooth;
+    // a game at 45 is not. On the laptop a 1.3 ms difference between two
+    // worlds flipped it from 48 fps to a 12/24 ms alternation at 40 — which
+    // is the whole argument: between one and two vblanks, PACE is the cure
+    // and shaving load is chasing a threshold.
+    //
+    // THE STEADY CLOCK NEEDS NOTHING. It already expresses each frame as an
+    // integer multiple k of a MEASURED refresh period and serves k x period
+    // exactly (console.hpp, THE PRESENTATION LAW). At pace 2 every frame is
+    // k = 2 — well inside PRESENT_MAX_MULTIPLE 4 — so the world is integrated
+    // for exactly the time it is displayed, with no term anywhere that
+    // assumes 16.7 ms.
+    //
+    // `?pace=2` forces it, and is here so the taste gate can be taken: the
+    // same world, the same ride, at each pace, and Jean says which is the
+    // piece. The governor that would choose this by measurement is NOT in
+    // this round — see docs/OPEN.md.
+    app->pace = t7::boot_params().has_pace ? t7::boot_params().pace : 1u;
     emscripten_set_main_loop(frame, 0, true);
+    if (app->pace != 1u) {
+        emscripten_set_main_loop_timing(EM_TIMING_RAF, (int)app->pace);
+        std::cout << "[PACE] forced " << (60u / app->pace)
+                  << " fps target (rAF every " << app->pace << " vblank(s))\n";
+    }
     return 0;
 }
