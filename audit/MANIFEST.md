@@ -30,16 +30,15 @@ the header.
 | Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 5 / 3 | 2 / 14 | 3 / 13 | 1 / 3 |
 | Frustum Cull Patches | `frustumCullPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 1 / 3 |
-| Live Card Heights (2D) | `liveCardHeightsPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Live Card Resolve (2D) | `liveCardResolvePipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Live Card Write (2D, fused) | `liveCardPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Orb Init | `orbInitPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Orb Dynamics | `orbDynamicsPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Orb Recolor | `orbRecolorPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Orb State Prev Copy | `orbCopyPrevPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 0 / 4 |
-| GoL Zone Sync | `zoneGolSyncPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
-| GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Zone Derive Params | `zoneDeriveParamsPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | 4 / 8 | 3 / 5 | 0 / 16 | 2 / 14 | 2 / 2 |
+| GoL Zone Sync | `zoneGolSyncPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
+| GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Zone Derive Params | `zoneDeriveParamsPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
+| Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Arch Mesh Gen | `archMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Column Mesh Gen | `columnMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
@@ -101,7 +100,7 @@ the header.
 | storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+5 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
 | samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
-| storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+7 more) |
+| storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column
 
@@ -155,7 +154,6 @@ declaration alone — no hand-authored field.
 | `pawn_aura_cells` | 2:21 | storage, read_write | `array<PawnAuraCell>` | storage |
 | `pawn_aura_tex_write` | 3:20 | handle | `texture_storage_2d<rgba16float, write>` | storagetex |
 | `live_card_write` | 3:100 | handle | `texture_storage_2d<rgba16float, write>` | storagetex |
-| `live_card_scratch` | 2:100 | storage, read_write | `array<f32>` | storage |
 | `zone_derive_requests` | 2:103 | uniform | `ZoneDeriveRequestArray` | uniform |
 | `photographer_config` | 2:160 | uniform | `PhotographerConfig` | uniform |
 | `photographer_vp` | 2:161 | storage, read_write | `VPMatrix` | storage |
@@ -202,7 +200,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 76
+Lane sums equal per-seat counts on every one of the 75
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

@@ -38,8 +38,7 @@ namespace t7 {
             constexpr const char* RIBBON_HEAD = "ribbon_head";                                // 0D -- one thread: intent, the Sky Rule, flight, the spine
             constexpr const char* RIBBON_BODY = "ribbon_body";                                // 1D -- per ring: rest, gesture, tension, frame, motor
             constexpr const char* COMPUTE_PAWN_AURA = "compute_pawn_aura";                  // 2D -- toroidal grid
-            constexpr const char* WRITE_LIVE_CARD_HEIGHTS = "write_live_card_heights";      // 2D -- card pass 1 (TRUEBAND_CONTACT_1)
-            constexpr const char* WRITE_LIVE_CARD_RESOLVE = "write_live_card_resolve";      // 2D -- card pass 2 (gradients + store)
+            constexpr const char* WRITE_LIVE_CARD = "write_live_card";                      // 2D -- the card, one fused pass (LATTICE_4)
             constexpr const char* ZONE_SEED_MASK = "zone_seed_mask";                        // 2D -- the vocabulary mask (UNIFIED_GROUND_1)
 
             // Render
@@ -276,8 +275,7 @@ namespace t7 {
             wgpu::ComputePipeline entityPlacementPipeline_;
             wgpu::ComputePipeline frustumCullPipeline_;
             wgpu::ComputePipeline pawnAuraPipeline_;
-            wgpu::ComputePipeline liveCardHeightsPipeline_;  // TRUEBAND_CONTACT_1 (two-pass writer)
-            wgpu::ComputePipeline liveCardResolvePipeline_;
+            wgpu::ComputePipeline liveCardPipeline_;         // TRUEBAND_CONTACT_1, fused at LATTICE_4
             wgpu::ComputePipeline zoneSeedMaskPipeline_;     // UNIFIED_GROUND_1 U5
 
             // Orb sky layer pipelines
@@ -554,16 +552,14 @@ namespace t7 {
             void dispatch_live_card_write(wgpu::ComputePassEncoder& pass,
                                           wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup) {
-                // Two-pass writer (TRUEBAND_CONTACT_1): heights → scratch,
-                // then resolve (gradients + store). Sequential dispatches in
-                // ONE pass — storage-buffer visibility between dispatches is
-                // guaranteed (the U5a same-pass law).
-                pass.SetPipeline(liveCardHeightsPipeline_);
+                // ONE PASS, ONE DISPATCH (LATTICE_4). It was a pair: heights
+                // into a scratch buffer, then a resolve that read the
+                // neighbourhood back. Each workgroup now evaluates its own
+                // 20x20 halo tile in workgroup memory, so there is nothing to
+                // hand between dispatches and no visibility rule to lean on.
+                pass.SetPipeline(liveCardPipeline_);
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::LIVE_CARD_SIZE / 8u,
-                                        Dim::LIVE_CARD_SIZE / 8u, 1);
-                pass.SetPipeline(liveCardResolvePipeline_);
                 pass.DispatchWorkgroups(Dim::LIVE_CARD_SIZE / 16u,
                                         Dim::LIVE_CARD_SIZE / 16u, 1);
             }
@@ -1675,15 +1671,13 @@ namespace t7 {
                         pl, Entry::COMPUTE_PAWN_AURA, pawnAuraPipeline_)) return false;
                 }
 
-                // Live card writer pipelines (two-pass — TRUEBAND_CONTACT_1;
-                // the patch-gen dispatch-pair shape at card size)
+                // The live card writer — ONE pipeline since LATTICE_4 fused
+                // the pair (the patch-gen fusion, at card size)
                 {
                     wgpu::PipelineLayout pl = strataLayoutFor("zonesComputeLayout", frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
                     if (!pl) return false;
-                    if (!makeComputePipeline("write_live_card_heights", "Live Card Heights (2D)",
-                        pl, Entry::WRITE_LIVE_CARD_HEIGHTS, liveCardHeightsPipeline_)) return false;
-                    if (!makeComputePipeline("write_live_card_resolve", "Live Card Resolve (2D)",
-                        pl, Entry::WRITE_LIVE_CARD_RESOLVE, liveCardResolvePipeline_)) return false;
+                    if (!makeComputePipeline("write_live_card", "Live Card Write (2D, fused)",
+                        pl, Entry::WRITE_LIVE_CARD, liveCardPipeline_)) return false;
                 }
 
                 // Orb compute pipelines (init + dynamics + recolor share the A face set)

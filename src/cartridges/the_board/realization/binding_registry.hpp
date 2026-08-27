@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (89 declarations over 74 slots;
+// The WGSL @binding literals in world.wgsl (88 declarations over 73 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -90,7 +90,6 @@ namespace t7 {
                 inline constexpr uint32_t painting_slots              = 85;
 
                 // ZONES (100–119)
-                inline constexpr uint32_t live_card_scratch           = 100;  // TRUEBAND_CONTACT_1: two-pass writer scratch (stride-2: Δh, gol)
                 inline constexpr uint32_t zone_config                 = 101;
                 inline constexpr uint32_t zone_life                   = 102;
                 inline constexpr uint32_t zone_derive_requests        = 103;

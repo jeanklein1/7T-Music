@@ -7503,7 +7503,6 @@ struct PawnAuraCell {
 @group(2) @binding(21) var<storage, read_write> pawn_aura_cells: array<PawnAuraCell>;
 @group(3) @binding(20) var pawn_aura_tex_write: texture_storage_2d<rgba16float, write>;
 @group(3) @binding(100) var live_card_write: texture_storage_2d<rgba16float, write>;  // GROUND_CARD_1: writer kernel
-@group(2) @binding(100) var<storage, read_write> live_card_scratch: array<f32>;  // stride-2: Δh, gol — the two-pass writer (TRUEBAND_CONTACT_1)
 
 // --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
 //
@@ -10920,11 +10919,28 @@ fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
     return textureSampleLevel(live_card_read, nearest_sampler,
                               live_card_uv(world_xz), 0.0).w;
 }
-// THE TWO-PASS WRITER (TRUEBAND_CONTACT_1 T1b — the bake's model at
-// card size). Pass 1 evaluates the TRUE-BAND delta (the terrain's own
-// waves: Σ bands of blend × Σnodes band_act (moving − frozen)) + pulses
-// into the stride-2 scratch; pass 2 resolves gradients (the bake's
-// cooperative-tile stencils) and stores vec4(h, gx, gz, gol).
+// THE CARD WRITER (TRUEBAND_CONTACT_1 T1b, fused at LATTICE_4). ONE
+// kernel: each workgroup evaluates its own 20x20 tile (16x16 interior +
+// a 2-texel halo) into `sh_card_h`, barriers, and stores
+// vec4(h, gx, gz, gol) for the interior.
+//
+// IT WAS TWO PASSES AND A 3.3 MB SCRATCH BUFFER. Pass 1 evaluated every
+// texel and wrote it to storage; pass 2 read a 20x20 neighbourhood back
+// and differenced it. That shape paid the evaluation once per texel — the
+// bake's model, at card size. The bake stopped needing it at LATTICE_1
+// for the same reason the card does not need it here: a halo texel's
+// value is a function of a WORLD POSITION, and the field is
+// world-continuous, so a lane can evaluate the halo as cheaply as it can
+// read it. 400 evaluations per workgroup against 256 stores: the tile
+// pays 1.5625 evaluations per output texel and no bus traffic at all.
+//
+// THE STENCIL IS CENTRAL EVERYWHERE, which the two-pass form could not
+// manage: pass 2 clamped its halo reads to the card's edge, so the first
+// and last row/column fell back to a one-sided 3-point difference. Here
+// the halo is evaluated, not fetched, so texels outside the window carry
+// the TRUE field and the edge branches are gone. The window edge lies far
+// beyond the veil ring; no pixel could see the difference either way.
+//
 // THE REST LAW IS A CONJUNCTION, and only two of its three conjuncts
 // are MUSICAL. The card is zero — and every consumer therefore adds 0 —
 // only when ALL of:
@@ -10940,63 +10956,58 @@ fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
 // Conjunct (3) is why the one-way "terrain_time <= 0 => zeros" claim was
 // tempting and wrong: silence the music and a living zone still lifts.
 // Boot pins all three: REST_TERRAIN_TIME and REST_PULSE_COUNT
-// (surface/terrain_looks.hpp ROW 2) and an empty zone table.
+// (surface/terrain_looks.hpp ROW 2) and an empty zone table. The rest law
+// is enforced by the CALLER — phase_live_card_write returns before the
+// dispatch when the card is clean (liveCardRestClean_), so this kernel
+// never runs at rest and inherits the law unchanged.
 //
-// Waking anti-teleport is inherited: t_eff = 0 at the origin ⇒ moving ≡
-// frozen ⇒ a woken band grows out of the frozen shape.
-@compute @workgroup_size(8, 8, 1)
-fn write_live_card_heights(@builtin(global_invocation_id) gid: vec3<u32>) {
-    if (gid.x >= LIVE_CARD_SIZE || gid.y >= LIVE_CARD_SIZE) { return; }
-    let texel = LIVE_CARD_EXTENT / f32(LIVE_CARD_SIZE);
-    let p = live_card_origin()
-          + (vec2<f32>(gid.xy) + vec2(0.5)) * texel;
-    var dh = 0.0;
-    if (config.terrain_time > 0.0) {
-        let af = terrain_activity_at(p, config.world_seed);
-        for (var b = 0u; b < TERRAIN_BAND_COUNT; b++) {
-            if (b == 4u) { continue; }   // the fine ripple stays bake-only —
-                                         // the Nyquist ruling (campaign v2 §6)
-            let blend = get_band_blend(b);
-            if (blend <= 0.0) { continue; }   // −1 sentinel + 0
-            let t_eff = config.terrain_time - get_band_phase_origin(b);
-            dh += clamp(blend, 0.0, 1.0)
-                * true_band_delta_contribution(p, config.world_seed,
-                      t_eff, b, af.x, af.y);
-        }
-    }
-    dh += contrib_radial_pulses_at(p, signal.t_seconds);
-    let base = (gid.y * LIVE_CARD_SIZE + gid.x) * 2u;
-    live_card_scratch[base]      = dh;
-    live_card_scratch[base + 1u] = contrib_gol_zones_at(p);
-}
+// Waking anti-teleport is inherited: t_eff = 0 at the origin => moving ==
+// frozen => a woken band grows out of the frozen shape.
 
-// Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo
-// for the 3-point edge stencils) — the bake's pass-2 clone at card size.
+// Workgroup shared tile: 20x20 heights (16x16 interior + a 2-texel halo
+// for the central stencil).
 var<workgroup> sh_card_h: array<f32, 400>;
 
 @compute @workgroup_size(16, 16)
-fn write_live_card_resolve(
-    @builtin(global_invocation_id) id: vec3<u32>,
+fn write_live_card(
     @builtin(local_invocation_id) lid: vec3<u32>,
     @builtin(workgroup_id) wid: vec3<u32>
 ) {
-    let res = LIVE_CARD_SIZE;
-    let res_i = i32(res);
+    let texel = LIVE_CARD_EXTENT / f32(LIVE_CARD_SIZE);
+    let origin = live_card_origin();
+    let t = lid.y * 16u + lid.x;
+    let tile_x0 = i32(wid.x * 16u) - 2;
+    let tile_y0 = i32(wid.y * 16u) - 2;
 
-    let thread_id = lid.y * 16u + lid.x;
-    let tile_origin_x = i32(wid.x * 16u) - 2;
-    let tile_origin_y = i32(wid.y * 16u) - 2;
-
-    for (var t = thread_id; t < 400u; t += 256u) {
-        let tx = i32(t % 20u);
-        let ty = i32(t / 20u);
-        let gx = clamp(tile_origin_x + tx, 0, res_i - 1);
-        let gy = clamp(tile_origin_y + ty, 0, res_i - 1);
-        sh_card_h[t] = live_card_scratch[(u32(gy) * res + u32(gx)) * 2u];
+    // 400 tile texels over 256 threads — the resolve's own load loop,
+    // evaluating where it used to fetch.
+    for (var k = t; k < 400u; k += 256u) {
+        let tx = tile_x0 + i32(k % 20u);
+        let ty = tile_y0 + i32(k / 20u);
+        // Beyond the window is still the field: no clamp, no edge case.
+        let p = origin + (vec2<f32>(f32(tx), f32(ty)) + vec2(0.5)) * texel;
+        var dh = 0.0;
+        if (config.terrain_time > 0.0) {
+            let af = terrain_activity_at(p, config.world_seed);
+            for (var b = 0u; b < TERRAIN_BAND_COUNT; b++) {
+                if (b == 4u) { continue; }   // the fine ripple stays bake-only —
+                                             // the Nyquist ruling (campaign v2 §6)
+                let blend = get_band_blend(b);
+                if (blend <= 0.0) { continue; }   // −1 sentinel + 0
+                let t_eff = config.terrain_time - get_band_phase_origin(b);
+                dh += clamp(blend, 0.0, 1.0)
+                    * true_band_delta_contribution(p, config.world_seed,
+                          t_eff, b, af.x, af.y);
+            }
+        }
+        dh += contrib_radial_pulses_at(p, signal.t_seconds);
+        sh_card_h[k] = dh;
     }
     workgroupBarrier();
 
-    if (id.x >= res || id.y >= res) { return; }
+    let ix = wid.x * 16u + lid.x;
+    let iy = wid.y * 16u + lid.y;
+    if (ix >= LIVE_CARD_SIZE || iy >= LIVE_CARD_SIZE) { return; }   // after the barrier
 
     let cx = lid.x + 2u;
     let cy = lid.y + 2u;
@@ -11005,49 +11016,15 @@ fn write_live_card_resolve(
     // eps = texel-CENTER spacing (extent / res): the card maps texel
     // centers across the window, unlike the bake's corner-pinned
     // (res − 1) grid — the one mapping difference from the model.
-    let eps = LIVE_CARD_EXTENT / f32(LIVE_CARD_SIZE);
+    let eps = texel;
+    let grad_x = (sh_card_h[cy * 20u + cx + 1u] - sh_card_h[cy * 20u + cx - 1u]) / (2.0 * eps);
+    let grad_z = (sh_card_h[(cy + 1u) * 20u + cx] - sh_card_h[(cy - 1u) * 20u + cx]) / (2.0 * eps);
 
-    let ix = id.x;
-    let iy = id.y;
-    let max_i = res - 1u;
-
-    var grad_x: f32;
-    if (ix == 0u) {
-        let h0 = height;
-        let h1 = sh_card_h[cy * 20u + cx + 1u];
-        let h2 = sh_card_h[cy * 20u + cx + 2u];
-        grad_x = (-3.0 * h0 + 4.0 * h1 - h2) / (2.0 * eps);
-    } else if (ix == max_i) {
-        let h0 = height;
-        let h1 = sh_card_h[cy * 20u + cx - 1u];
-        let h2 = sh_card_h[cy * 20u + cx - 2u];
-        grad_x = (3.0 * h0 - 4.0 * h1 + h2) / (2.0 * eps);
-    } else {
-        let h_px = sh_card_h[cy * 20u + cx + 1u];
-        let h_mx = sh_card_h[cy * 20u + cx - 1u];
-        grad_x = (h_px - h_mx) / (2.0 * eps);
-    }
-
-    var grad_z: f32;
-    if (iy == 0u) {
-        let h0 = height;
-        let h1 = sh_card_h[(cy + 1u) * 20u + cx];
-        let h2 = sh_card_h[(cy + 2u) * 20u + cx];
-        grad_z = (-3.0 * h0 + 4.0 * h1 - h2) / (2.0 * eps);
-    } else if (iy == max_i) {
-        let h0 = height;
-        let h1 = sh_card_h[(cy - 1u) * 20u + cx];
-        let h2 = sh_card_h[(cy - 2u) * 20u + cx];
-        grad_z = (3.0 * h0 - 4.0 * h1 + h2) / (2.0 * eps);
-    } else {
-        let h_pz = sh_card_h[(cy + 1u) * 20u + cx];
-        let h_mz = sh_card_h[(cy - 1u) * 20u + cx];
-        grad_z = (h_pz - h_mz) / (2.0 * eps);
-    }
-
-    let base = (id.y * res + id.x) * 2u;
-    textureStore(live_card_write, vec2<i32>(id.xy),
-                 vec4(height, grad_x, grad_z, live_card_scratch[base + 1u]));
+    // .a runs once per INTERIOR texel, as it did — pass 1 wrote it per
+    // texel and pass 2 copied it across; the halo never needed it.
+    let p_here = origin + (vec2<f32>(f32(ix), f32(iy)) + vec2(0.5)) * texel;
+    textureStore(live_card_write, vec2<i32>(i32(ix), i32(iy)),
+                 vec4(height, grad_x, grad_z, contrib_gol_zones_at(p_here)));
 }
 
 // §7.4 PAWN AURA — Persistent terrain influence via toroidal spring grid

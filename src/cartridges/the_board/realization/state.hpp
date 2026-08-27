@@ -110,11 +110,15 @@ namespace t7 {
             constexpr uint32_t UNIFORM_DYNAMIC_STRIDE = 256;
 
             // ── THE LIVE CARD (GROUND_CARD_1) ──
-            // One 2D RGBA16F field over the ground window, point-centered,
-            // fully rewritten per frame. R = waves+pulses Δh; G/B = wave ∂x/∂z
-            // (waves-only this campaign — pulse shading is Stage 6); A = raw
-            // GoL lift. Window ORIGIN SNAPS to the PATCH_CELL_SIZE grid so a
-            // nearest fetch of .a is cell-exact.
+            // One 2D RGBA16F field over the ground window, point-centered.
+            // R = waves+pulses Δh; G/B = wave ∂x/∂z (waves-only this campaign
+            // — pulse shading is Stage 6); A = raw GoL lift. Window ORIGIN
+            // SNAPS to the PATCH_CELL_SIZE grid so a nearest fetch of .a is
+            // cell-exact.
+            // NOT "fully rewritten per frame" — it is rewritten every frame
+            // the card is LIVE, and the rest law (world.wgsl, above
+            // write_live_card) skips the whole dispatch when it is not: the
+            // caller returns before it, one clearing write on entry to rest.
             // L3 MIRROR: world.wgsl LIVE_CARD_SIZE / LIVE_CARD_EXTENT — same
             // names, same values, both rooms change together.
             constexpr uint32_t LIVE_CARD_SIZE   = 640;
@@ -152,14 +156,15 @@ namespace t7 {
             static_assert(2.0f * LIVE_CARD_EXTENT == PATCH_CELL_SIZE * (float)LIVE_CARD_SIZE,
                 "live card: 2 × extent must equal PATCH_CELL_SIZE × size");
 
-            // The two writer dispatches divide the card side by 8 (pass 1,
-            // write_live_card_heights) and 16 (pass 2, write_live_card_resolve).
-            // Neither kernel guards a remainder, so a size that is not a
-            // multiple of BOTH silently under-dispatches and leaves a strip of
-            // the card never written.
-            static_assert(LIVE_CARD_SIZE % 8u == 0u && LIVE_CARD_SIZE % 16u == 0u,
-                "live card: SIZE must divide by both writer workgroup sizes "
-                "(8 = write_live_card_heights, 16 = write_live_card_resolve)");
+            // ONE writer dispatch since LATTICE_4 fused the pair; it divides
+            // the card side by 16. The kernel's bounds check sits AFTER its
+            // barrier (every lane must reach the barrier), so it tolerates a
+            // remainder — but a remainder would still mean a partly-idle
+            // trailing workgroup, and the divisibility is free. Pass 1's
+            // by-8 half of this assert retired with pass 1.
+            static_assert(LIVE_CARD_SIZE % 16u == 0u,
+                "live card: SIZE must divide by the writer's workgroup side "
+                "(16 = write_live_card)");
 
             // TILE_GRID ceiling — the pinned capacity pair's C++ half;
             // twin: world.wgsl TILE_GRID_CAPACITY. Authored, NOT derived
@@ -2517,7 +2522,6 @@ namespace t7 {
             wgpu::Texture liveCardTexture_;         // compute writes, VS/FS/compute read
             wgpu::TextureView liveCardWriteView_;   // storage texture write (writer kernel)
             wgpu::TextureView liveCardView_;        // sampled read (render + compute)
-            wgpu::Buffer liveCardScratchBuffer_;    // LIVE_CARD_SIZE² × 2 floats (Δh + gol) — two-pass writer scratch (TRUEBAND_CONTACT_1)
 
             // ── Orb sky layer ────────────────────────────────────────
             wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
@@ -4267,12 +4271,6 @@ namespace t7 {
                 patchParamsBuffer_ = makeBuffer("Patch Params Batch",
                     Dim::MAX_ACTIVE_PATCHES * sizeof(GPUPatchParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // The card writer's two-pass scratch (the patch pattern at card
-                // size — TRUEBAND_CONTACT_1)
-                liveCardScratchBuffer_ = makeBuffer("Live Card Scratch",
-                    Dim::LIVE_CARD_SIZE * Dim::LIVE_CARD_SIZE * 2 * sizeof(float),
-                    wgpu::BufferUsage::Storage);
-
                 // Self-Portrait Gallery
                 photographerVPBuffer_ = makeBuffer("Photographer VP",
                     sizeof(GPUVPMatrix),
@@ -4347,7 +4345,6 @@ namespace t7 {
                     shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ && patchParamsBuffer_ &&
-                    liveCardScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
                     agentRoomBuffer_ && sceneConstantsBuffer_ &&
@@ -5048,8 +5045,9 @@ namespace t7 {
                     pawnAuraReadView_ = pawnAuraTexture_.CreateView();
                 }
 
-                // Live card (RGBA16Float, LIVE_CARD_SIZE² — GROUND_CARD_1; writer kernel
-                // rewrites it per frame, render + compute sample it)
+                // Live card (RGBA16Float, LIVE_CARD_SIZE² — GROUND_CARD_1; the
+                // writer kernel rewrites it on every live frame, render +
+                // compute sample it)
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.size = { Dim::LIVE_CARD_SIZE, Dim::LIVE_CARD_SIZE, 1 };

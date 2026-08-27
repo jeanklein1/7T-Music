@@ -949,24 +949,20 @@
 
                 // Zones State Layout — stratum 2 (Zones family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = bind::g2::live_card_scratch;  // two-pass scratch (TRUEBAND_CONTACT_1)
+                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
+                    entries[0].binding = bind::g2::zone_config;  // zone_config (storage, rw)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
-                    entries[1].binding = bind::g2::zone_config;  // zone_config (storage, rw)
+                    entries[1].binding = bind::g2::zone_life;  // zone_life (storage, read/write)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g2::zone_life;  // zone_life (storage, read/write)
+                    entries[2].binding = bind::g2::zone_derive_requests;  // zone_derive_requests (uniform)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g2::zone_derive_requests;  // zone_derive_requests (uniform)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Zones State Layout";
@@ -1910,23 +1906,19 @@
 
                 // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_, zoneMaskGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g2::live_card_scratch;
-                    entries[0].buffer = liveCardScratchBuffer_;
-                    entries[0].size = Dim::LIVE_CARD_SIZE * Dim::LIVE_CARD_SIZE * 2 * sizeof(float);
+                    entries[0].binding = bind::g2::zone_config;
+                    entries[0].buffer = zoneConfigBuffer_;
+                    entries[0].size = sizeof(GPUGoLZoneArray);
 
-                    entries[1].binding = bind::g2::zone_config;
-                    entries[1].buffer = zoneConfigBuffer_;
-                    entries[1].size = sizeof(GPUGoLZoneArray);
+                    entries[1].binding = bind::g2::zone_life;
+                    entries[1].buffer = zoneLifeBuffer_;
+                    entries[1].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
 
-                    entries[2].binding = bind::g2::zone_life;
-                    entries[2].buffer = zoneLifeBuffer_;
-                    entries[2].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
-
-                    entries[3].binding = bind::g2::zone_derive_requests;
-                    entries[3].buffer = zoneDeriveRequestBuffer_;
-                    entries[3].size = sizeof(GPUZoneDeriveRequestArray);
+                    entries[2].binding = bind::g2::zone_derive_requests;
+                    entries[2].buffer = zoneDeriveRequestBuffer_;
+                    entries[2].size = sizeof(GPUZoneDeriveRequestArray);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Zones State BindGroup";
