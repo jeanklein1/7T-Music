@@ -5,20 +5,20 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `0aae087a62f5ac3b7c9ebdfd121300f63f5f5cc1`
-(C3 — the prose stops saying PAWN about the program (NAME_0))
+Last commit touching any scanned file: `8f861a1c640cb766dd760f23b301b0a275063b26`
+(U9 — the READY offer waits for the exhibition floor (OVERTURE_0))
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:e42b0b8db319611d20b2ff23496fd7d87727e81138d90a5eebd52206feba5672` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:5415111727fafe1e4156791470c4cdadfa50fcc92d341e02325003bcbcc2c86f` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:564de76198597221b097f2c7dc6f0760cefed19d0735c4def0e76547d0bab781` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:cec3f36fcb5621d088beebe90c3d9dff0892714a70f411c7b3fa7a4cca8bb1d9` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:1187b1a6f140da48d90e78e6a6257647686f9fe68999dffeb634e9645e153e57` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:da5b1953215e68fad4f6c45659c919bc5dfcaa2a1ce26f93ba18ebf0c6313b58` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:3a121d14b27d948c105c9b87e0f8d90d1a704c0080951fe3b142f75ffa968fbd` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
-| `src/the_board.cpp` | `sha256:450fae127f61d08c41f735cf0ae4f4adf6e206cd8f90dd997d4990cfec382df2` |
+| `src/the_board.cpp` | `sha256:4308a78ebe68067a4242327a2040179d33ddcc7aa3a22f88f628966e6aaeaf21` |
 | `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
@@ -40,15 +40,15 @@ in `console.hpp`.
 | 5 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:334` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
 | 6 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:378` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 7 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:550` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2038` | — | — | — |
+| 8 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2031` | — | — | — |
 | 9 | Patch Heights (pass 1) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
 | 10 | Patch Gradients + Cells (pass 2) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:197` | — | — | — |
 | 11 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:807` | — | — | — |
 | 12 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:895` | — | — | — |
 | 13 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:908` | — | — | — |
 | 14 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1578` | — | — | — |
-| 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1637` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
+| 15 | Photographer VP Compute | compute | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1676` | — | — | — |
+| 16 | Photographer Snapshot | render | `render_snapshot_pass` | `src/cartridges/the_board/bodies/gallery.hpp:1735` | Clear/Store or Discard → `c->gpuState_.offscreen_color_view() or c->gpuState_.offscreen_msaa_color_view()` resolve → `c->gpuState_.offscreen_color_view()` | Clear/Discard, readOnly (absent) → `c->gpuState_.offscreen_depth_view()` | (no stencil aspect) |
 | 17 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:743` | — | — | — |
 | 18 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:764` | — | — | — |
 | 19 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:779` | — | — | — |
@@ -61,7 +61,7 @@ in `console.hpp`.
 | # | receiver | enclosing function | site |
 |---|---|---|---|
 | 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` |
-| 2 | `app->queue.Submit` | `frame` | `src/the_board.cpp:220` |
+| 2 | `app->queue.Submit` | `frame` | `src/the_board.cpp:267` |
 
 2 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
@@ -76,7 +76,7 @@ every landing.
 | # | label | enclosing function | site |
 |---|---|---|---|
 | 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:800` |
-| 2 | `"frame"` | `frame` | `src/the_board.cpp:211` |
+| 2 | `"frame"` | `frame` | `src/the_board.cpp:258` |
 
 ## §3 — the swapchain reconfigure trigger
 

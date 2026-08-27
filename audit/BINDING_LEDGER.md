@@ -29,15 +29,15 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `da5b1953215e68fad4f6c45659c919bc5dfcaa2a1ce26f93ba18ebf0c6313b58` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `3a121d14b27d948c105c9b87e0f8d90d1a704c0080951fe3b142f75ffa968fbd` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `5415111727fafe1e4156791470c4cdadfa50fcc92d341e02325003bcbcc2c86f` |
+| `src/cartridges/the_board/cartridge.hpp` | `cec3f36fcb5621d088beebe90c3d9dff0892714a70f411c7b3fa7a4cca8bb1d9` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `1e797a5ae1f0d34e7e57a865c14f1401ed9a6204e6d6d3496fef8d3542d5534e` |
-| `src/cartridges/the_board/direction/mood.hpp` | `ceedf16497d6e1c100c9b21e08994f3ebd1928d22feb53ea1c298b47b3c43a15` |
+| `src/cartridges/the_board/direction/mood.hpp` | `6ac82e8609ffc2d8b612522ed75a975f59119db8889d755894b77e5ddb611fbd` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `95af2df210c566b486fac725911cc2d7cda5c610e5b2cbca20f9cef56adb6a0d` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `564de76198597221b097f2c7dc6f0760cefed19d0735c4def0e76547d0bab781` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `1187b1a6f140da48d90e78e6a6257647686f9fe68999dffeb634e9645e153e57` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
