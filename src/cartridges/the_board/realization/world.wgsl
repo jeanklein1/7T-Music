@@ -789,6 +789,13 @@ fn terrain_band_contribution(
 // band_act × (moving − frozen) per node; no complexity accumulation.
 // band_act via band_activity_level: the seeded pools SHAPE where a
 // woken band breathes (campaign v2 §6).
+//
+// THIS IS THE CARD KERNEL'S FORM (LATTICE_4) and it MUST run after
+// write_live_card's table barrier: it reads `card_nodes` / `card_origin`,
+// which only that kernel fills. naga cannot check that; its SINGLE
+// CALLER is the guard. A second caller must restore the derive path —
+// `derive_wave_node(node, lattice_node_seed(seed, node, band_idx), band)`
+// is exactly what the table holds — and give it its own home.
 fn true_band_delta_contribution(world_xz: vec2<f32>, seed: u32,
     t_eff_beats: f32, band_idx: u32,
     raw_activity: f32, beat_freq: f32) -> f32 {
@@ -800,21 +807,30 @@ fn true_band_delta_contribution(world_xz: vec2<f32>, seed: u32,
     let frac = fract(lattice_pos);
     let w = frac * frac * (3.0 - 2.0 * frac);
 
+    // THE MOVING PHASE'S OFFSET, hoisted out of the node loop but in the
+    // pair's own association: evaluate_lattice_wave_pair computed
+    // phase_moving = phase_base + t * beat_freq * temporal_freq * 2 * PI,
+    // and this is that product, unchanged.
+    let moving_offset = t_eff_beats * beat_freq * band.temporal_freq * 2.0 * PI;
+
     var delta: f32 = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
             let node = lattice_base + vec2<i32>(dx, dz);
-            let node_seed = lattice_node_seed(seed, node, band_idx);
 
             let wx = select(1.0 - w.x, w.x, dx == 1);
             let wz = select(1.0 - w.y, w.y, dz == 1);
             let weight = wx * wz;
 
-            let pair = evaluate_lattice_wave_pair(
-                world_xz, node, node_seed, band,
-                band_act, beat_freq, t_eff_beats
-            );
-            delta += band_act * (pair.y - pair.x) * weight;
+            // The node, DERIVED ONCE PER TILE (LATTICE_4). The pair returned
+            // vec2(frozen, moving) and this took pair.y − pair.x; these are
+            // the same two values from the same parameters, so the
+            // subtraction is the same subtraction.
+            let rel = node - card_origin[band_idx];
+            let n = card_nodes[CARD_TABLE_OFF[band_idx]
+                             + u32(rel.y) * card_nodes_n(band_idx) + u32(rel.x)];
+            delta += band_act * (eval_wave_node(world_xz, n, moving_offset)
+                               - eval_wave_node(world_xz, n, 0.0)) * weight;
         }
     }
     return delta;
@@ -10964,9 +10980,82 @@ fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
 // Waking anti-teleport is inherited: t_eff = 0 at the origin => moving ==
 // frozen => a woken band grows out of the frozen shape.
 
+// ─── THE CARD'S NODE TABLE (LATTICE_4) ──────────────────────────────
+//
+// The bake's table, at card size — LATTICE_1b's split earning its second
+// consumer. A 20x20 card tile spans 20 texels of 1.5625 wu = 31.25 wu of
+// world; across the five bands the card sums it touches at most 68
+// distinct lattice nodes, and every texel of the tile would otherwise
+// re-derive each of them (~11 hash_property calls, three Box-Muller draws,
+// two angle transcendentals). Derive each once.
+//
+// BAND 4 IS ABSENT BY RULING, not by omission: the fine ripple stays
+// bake-only (the Nyquist ruling, campaign v2 §6), so its slot is empty and
+// CARD_TABLE_OFF[4] == CARD_TABLE_OFF[5].
+//
+// Nodes per axis = floor(CARD_TILE_SPAN / spacing) + 3, the same
+// inequality the bake's table stands on, stated below as const_asserts
+// against TERRAIN_BANDS so a band spacing cannot move without the shader
+// refusing to compile. The tile's own halo IS the evaluation, so unlike
+// the bake there is no stencil margin to add.
+const CARD_NODES_0: u32 = 3u;   // spacing 200 — 31.25/200 = 0.16  -> 0 + 3
+const CARD_NODES_1: u32 = 3u;   // spacing  80 — 0.39            -> 0 + 3
+const CARD_NODES_2: u32 = 4u;   // spacing  30 — 1.04            -> 1 + 3
+const CARD_NODES_3: u32 = 5u;   // spacing  12 — 2.60            -> 2 + 3
+const CARD_NODES_4: u32 = 0u;   // excluded — the Nyquist ruling
+const CARD_NODES_5: u32 = 3u;   // spacing 500 — 0.06            -> 0 + 3
+
+// Prefix sums of n^2 — band b's rectangle occupies [OFF[b], OFF[b+1]).
+const CARD_TABLE_OFF = array<u32, 7>(0u, 9u, 18u, 34u, 59u, 59u, 68u);
+const CARD_TABLE_N: u32 = 68u;
+const_assert CARD_TABLE_OFF[6] == CARD_TABLE_N;
+
+const CARD_TILE_SPAN: f32 = 20.0 * LIVE_CARD_EXTENT / f32(LIVE_CARD_SIZE);
+const_assert floor(CARD_TILE_SPAN / TERRAIN_BANDS[0].spacing) + 3.0 <= f32(CARD_NODES_0);
+const_assert floor(CARD_TILE_SPAN / TERRAIN_BANDS[1].spacing) + 3.0 <= f32(CARD_NODES_1);
+const_assert floor(CARD_TILE_SPAN / TERRAIN_BANDS[2].spacing) + 3.0 <= f32(CARD_NODES_2);
+const_assert floor(CARD_TILE_SPAN / TERRAIN_BANDS[3].spacing) + 3.0 <= f32(CARD_NODES_3);
+const_assert floor(CARD_TILE_SPAN / TERRAIN_BANDS[5].spacing) + 3.0 <= f32(CARD_NODES_5);
+
+// THE ARITHMETIC ABOVE IS THE BOUNDS GUARD, as it is for the bake: `rel`
+// in true_band_delta_contribution is non-negative and below its band's
+// count BY THAT INEQUALITY, never by a clamp. WGSL robustness would clamp
+// a wrong index silently and hand back a neighbour's wave — a wrong table
+// would read as a subtly wrong world, not as a fault.
+var<workgroup> card_nodes: array<WaveNode, CARD_TABLE_N>;
+var<workgroup> card_origin: array<vec2<i32>, TERRAIN_BAND_COUNT>;   // per-band min node index
+
 // Workgroup shared tile: 20x20 heights (16x16 interior + a 2-texel halo
 // for the central stencil).
 var<workgroup> sh_card_h: array<f32, 400>;
+
+// THE CARD'S WORKGROUP-STORAGE NEED (LATTICE_2 R5's row, moved here at
+// LATTICE_4 — this sum is the program's largest now, past the bake's
+// 3,744). 48 = the WGSL size of WaveNode; 8 = vec2<i32>; 4 = f32.
+const CARD_WORKGROUP_BYTES: u32 =
+    CARD_TABLE_N * 48u + TERRAIN_BAND_COUNT * 8u + 400u * 4u;   // 4,912
+const_assert CARD_WORKGROUP_BYTES <= 16384u;   // maxComputeWorkgroupStorageSize, core default
+const_assert CARD_WORKGROUP_BYTES >= BAKE_WORKGROUP_BYTES;      // the floor row quotes the larger
+
+// Comparisons only — the blessed shape. Band 4 is empty, so no k ever
+// lands in it (OFF[4] == OFF[5]) and this never returns 4.
+fn card_band_of(k: u32) -> u32 {
+    if (k < CARD_TABLE_OFF[1]) { return 0u; }
+    if (k < CARD_TABLE_OFF[2]) { return 1u; }
+    if (k < CARD_TABLE_OFF[3]) { return 2u; }
+    if (k < CARD_TABLE_OFF[4]) { return 3u; }
+    return 5u;
+}
+
+fn card_nodes_n(b: u32) -> u32 {
+    switch (b) {
+        case 0u: { return CARD_NODES_0; }
+        case 1u: { return CARD_NODES_1; }
+        case 2u: { return CARD_NODES_2; }
+        case 3u: { return CARD_NODES_3; }
+        default: { return CARD_NODES_5; }
+    }
+}
 
 @compute @workgroup_size(16, 16)
 fn write_live_card(
@@ -10978,6 +11067,31 @@ fn write_live_card(
     let t = lid.y * 16u + lid.x;
     let tile_x0 = i32(wid.x * 16u) - 2;
     let tile_y0 = i32(wid.y * 16u) - 2;
+
+    // ── THE NODE TABLE (LATTICE_4) ────────────────────────────────
+    // THREE UNCONDITIONAL BARRIERS. The two fills sit inside branches on
+    // `bands_awake`, which is a UNIFORM value (config.terrain_time is a
+    // uniform read, identical in every lane), and neither branch contains
+    // a barrier — so every lane of the workgroup reaches all three.
+    let tile_min = origin + vec2<f32>(f32(tile_x0), f32(tile_y0)) * texel;   // the halo's own corner
+    let bands_awake = config.terrain_time > 0.0;
+
+    if (bands_awake && t < TERRAIN_BAND_COUNT) {
+        card_origin[t] = vec2<i32>(floor(tile_min / TERRAIN_BANDS[t].spacing));
+    }
+    workgroupBarrier();                                   // 1: origins
+
+    if (bands_awake) {
+        for (var k = t; k < CARD_TABLE_N; k += 256u) {
+            let b = card_band_of(k);
+            let n = card_nodes_n(b);
+            let r = k - CARD_TABLE_OFF[b];
+            let node = card_origin[b] + vec2<i32>(i32(r % n), i32(r / n));
+            card_nodes[k] = derive_wave_node(node,
+                lattice_node_seed(config.world_seed, node, b), TERRAIN_BANDS[b]);
+        }
+    }
+    workgroupBarrier();                                   // 2: the table
 
     // 400 tile texels over 256 threads — the resolve's own load loop,
     // evaluating where it used to fetch.
@@ -11003,7 +11117,7 @@ fn write_live_card(
         dh += contrib_radial_pulses_at(p, signal.t_seconds);
         sh_card_h[k] = dh;
     }
-    workgroupBarrier();
+    workgroupBarrier();                                   // 3: the tile
 
     let ix = wid.x * 16u + lid.x;
     let iy = wid.y * 16u + lid.y;

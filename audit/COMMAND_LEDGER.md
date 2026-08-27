@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `a422f35e5fe189528ca40af217313e73405d546e`
-(LATTICE_3/G — the patch index buffers are uint16)
+Last commit touching any scanned file: `c34b8ab6e67a660e9bc636ab5145a4f316211fe5`
+(LATTICE_4/B — the card writer fuses; the scratch buffer retires)
 
 | file scanned | sha256 |
 |---|---|
