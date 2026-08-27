@@ -507,23 +507,28 @@ struct EntitiesState {
     // ── Arch ─────────────────────────────────────────────────────
     ActiveArch arches[Dim::MAX_ARCH_INSTANCES]{};
     bool       arch_mesh_gen_pending = false;
+    uint32_t   arch_mesh_gen_since = UINT32_MAX;   // the settle's stamp (PANORAMA_1)
 
     // ── Column + Antenna (sibling families, shared mesh-gen flag) ─
     ActiveColumn columns[Dim::MAX_COLUMN_ONLY]{};
     ActiveColumn antennas[Dim::MAX_ANTENNA_ONLY]{};
     bool         column_mesh_gen_pending = false;  // shared by column + antenna
+    uint32_t     column_mesh_gen_since = UINT32_MAX;
 
     // ── Palm ─────────────────────────────────────────────────────
     ActivePalm palms[Dim::MAX_PALM_INSTANCES]{};
     bool       palm_mesh_gen_pending = false;
+    uint32_t   palm_mesh_gen_since = UINT32_MAX;
 
     // ── Cactus ───────────────────────────────────────────────────
     ActiveCactus cacti[Dim::MAX_CACTUS_INSTANCES]{};
     bool         cactus_mesh_gen_pending = false;
+    uint32_t     cactus_mesh_gen_since = UINT32_MAX;
 
     // ── Blade ────────────────────────────────────────────────────
     ActiveBlade blades[Dim::MAX_BLADE_INSTANCES]{};
     bool        blade_mesh_gen_pending = false;
+    uint32_t    blade_mesh_gen_since = UINT32_MAX;
 
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
@@ -574,10 +579,48 @@ uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& 
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
 
+// THE SETTLE (PANORAMA_1). A family regenerates at most once per
+// MESH_GEN_SETTLE_FRAMES outside a world's birth. A crossing raises
+// `pending` on several consecutive frames; without this each raise was a
+// whole-family rebake (4–8 ms on the floor device), so a burst of spawns
+// bought a burst of firings. What arrives late arrives at the ring's edge,
+// materializing through the icing, where a ~130 ms delay is invisible; what
+// leaves late leaves beyond the ring, where it is already veiled — eviction
+// is radius-driven and fires outside the render window by construction.
+//
+// THE BIRTH BURST BYPASSES IT, and `world_young` is the whole signal: it
+// boots true, `reset_surface` re-raises it on every rebirth BEFORE
+// teardown_entities runs in the same block, and `request_recenter` raises it
+// on a radius change. So a boot, a portal and a re-centre all regenerate at
+// once — behind the veil or behind the fade — and the settle governs only
+// the steady world, which is the only place it was ever paying for anything.
+//
+// STAMPED AT FIRST SIGHT, NOT AT THE RAISE. The preparers run every frame, so
+// the first frame that observes a raise is the raise's own frame or the next;
+// against a settle of eight that is exact enough, and it puts the stamp in ONE
+// place instead of at twenty raise sites, where a new raiser could forget it.
+//
+// PACED IN FRAMES, WHICH THE METRONOME HALVES. At pace 2 (PANORAMA_1 U6) a
+// frame is 33 ms and this window is ~266 ms rather than ~133. Named here
+// because it is a real coupling between two units of one round, not because
+// it is known to matter: the arrival is still at the ring's edge. If the eye
+// ever catches it, the fix is to settle on `time_state_.seconds`, which is
+// invariant under pace.
+inline constexpr uint32_t MESH_GEN_SETTLE_FRAMES = 8;
+
+inline bool mesh_gen_settled(bool& pending, uint32_t& since, const WorldState& ws) {
+    if (!pending) return false;
+    if (since == UINT32_MAX) since = ws.frame_index;
+    if (!ws.world_young && ws.frame_index - since < MESH_GEN_SETTLE_FRAMES) return false;
+    pending = false;
+    since = UINT32_MAX;
+    return true;
+}
+
+
 inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!es.palm_mesh_gen_pending) return false;
-    es.palm_mesh_gen_pending = false;
+    if (!mesh_gen_settled(es.palm_mesh_gen_pending, es.palm_mesh_gen_since, c->world_state_)) return false;
     uint32_t maxSlot = 0;
     bool anyActive = false;
     for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
@@ -590,8 +633,7 @@ inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue&
 
 inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!es.cactus_mesh_gen_pending) return false;
-    es.cactus_mesh_gen_pending = false;
+    if (!mesh_gen_settled(es.cactus_mesh_gen_pending, es.cactus_mesh_gen_since, c->world_state_)) return false;
     uint32_t maxSlot = 0;
     bool anyActive = false;
     for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
@@ -604,8 +646,7 @@ inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queu
 
 inline bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!es.blade_mesh_gen_pending) return false;
-    es.blade_mesh_gen_pending = false;
+    if (!mesh_gen_settled(es.blade_mesh_gen_pending, es.blade_mesh_gen_since, c->world_state_)) return false;
     uint32_t maxSlot = 0;
     bool anyActive = false;
     for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
@@ -618,8 +659,7 @@ inline bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue
 
 inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!es.column_mesh_gen_pending) return false;
-    es.column_mesh_gen_pending = false;
+    if (!mesh_gen_settled(es.column_mesh_gen_pending, es.column_mesh_gen_since, c->world_state_)) return false;
 
     uint32_t maxSlot = 0;
     bool anyActive = false;
@@ -639,8 +679,7 @@ inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queu
 
 inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
-    if (!es.arch_mesh_gen_pending) return false;
-    es.arch_mesh_gen_pending = false;
+    if (!mesh_gen_settled(es.arch_mesh_gen_pending, es.arch_mesh_gen_since, c->world_state_)) return false;
 
     uint32_t maxSlot = 0;
     bool anyActive = false;

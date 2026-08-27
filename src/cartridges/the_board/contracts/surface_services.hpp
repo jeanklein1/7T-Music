@@ -94,6 +94,16 @@ struct WorldState {
 
     // ── Free-layer pool ──
     uint32_t free_layer_count = Dim::MAX_ACTIVE_PATCHES;
+
+    // THE WORLD'S FRAME CLOCK (PANORAMA_1). A monotonic count of served
+    // frames, advanced once in phase_advance_clock beside the seconds and the
+    // beats — the frame's other two clocks. It exists because the mesh-gen
+    // settle needs to say "not again for N frames" and the only counter in
+    // the tree was the gallery's own, which is ROSTER-gated and owned by the
+    // photographer. Never reset: a world change is a `world_young` fact, not
+    // a clock fact, and a settle that read a restarting clock would fire on
+    // the wrap instead of on the wait.
+    uint32_t frame_index = 0;
 };
 
 // One spelling: patch dimensions are Dim:: everywhere (the veil-chain law).

@@ -1073,6 +1073,9 @@ namespace t7 {
                 time_state_.beats = signal.t_beats;
                 time_state_.seconds = signal.t_seconds;
                 time_state_.dt = signal.dt;
+                // The frame's third clock (PANORAMA_1) — advanced HERE, with
+                // the other two, so there is one place a frame begins.
+                world_state_.frame_index++;
                 {
                     const float db = signal.t_beats - time_state_.prev_beats;
                     if (db > 1e-6f && time_state_.dt > 1e-6f)
