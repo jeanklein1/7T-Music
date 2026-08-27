@@ -272,8 +272,9 @@ Canvas 689×607 → 1366×607 (+98% pixels) moved `main_pass` 11.86 → 13.6 ms 
 control. Fragment is ≈ 1.6 of 12 ms; ~10 ms is vertex and submission. Patches
 are already frustum-culled through the draw plan. Levers, in aesthetic-price
 order: `patch_terrain_vs`'s per-vertex cost and its dependent fetches; the
-heightfield at 128² (reweighted — two texels of stride per LOD0 vertex step
-instead of four is a VS cache win, not only a bake win); curtain granularity (a
+heightfield resolution — SPENT, and further than this line proposed: LATTICE_1
+took it to one texel per lattice point (65², 7.6 MB from 118) and turned the
+VS's dependent bilinear fetch into an exact `textureLoad`; curtain granularity (a
 zone overlap promotes a whole patch from cap-only to the full IB, and the
 eight-zone world ran ~3.5 ms hotter than the one-zone world); the LOD0 radius
 and `PATCH_MESH_N`, which are Jean's.
@@ -299,6 +300,52 @@ and `PATCH_MESH_N`, which are Jean's.
   the gate's parser.
 - At full canvas the CPU blocks 13.7 ms in `finish_submit` — GPU back-pressure,
   the saturation signature, and the same fact the sampling collapse reports.
+
+### LATTICE_1 — landed, and what it filed
+
+Origin: LATTICE_1 (five commits on master, base `06faef85`). The heightfield is
+the lattice: `PATCH_HEIGHTFIELD_N = PATCH_MESH_N + 1`, one texel per mesh
+vertex. The bake is one fused kernel over the frame's whole batch, reading its
+params from a read-only storage array indexed by `workgroup_id.z`; the 512 KB
+scratch buffer, the second pass, the dynamic uniform seat and its 256-byte ring
+are all retired. Both terrain VSes `textureLoad` at the lattice texel instead of
+bilinear-sampling toward it. And the bake derives each lattice node ONCE per
+16×16 tile into workgroup memory rather than once per (tap, node) pair.
+
+NOT MEASURED. The arithmetic says ~3× fewer ground evaluations, 15.5× less
+heightfield memory, and ~20× less derivation work; no meter reading confirms
+any of it. The campaign's meter is its bookend, run once before LATTICE_1 and
+once after LATTICE_4 — so LATTICE_1's own numbers are predictions until then.
+Jean's witnesses W1–W5 (the ~7.6 MB budget line, the patch-border seam in
+raking light, the fine band's shading, the ribbon hitch at full throttle, the
+pawn on a pyramid face) are what stand between the arithmetic and belief.
+
+- WALKER TILT NOW READS THE LATTICE SURFACE. `query_ground_walker_pair`'s base
+  is `sample_terrain_y_at`, which samples the baked heightfield — so
+  `terrain_normal_at`'s 0.5-wu finite difference and `slope_passable` now see
+  bilinear between lattice points 0.78 wu apart where they used to see a
+  0.196-wu texel grid. A 0.5-wu difference straddles at most one lattice cell
+  now, so it reads a plane rather than sub-texel jitter.
+  `PAWN_SLOPE_NOISE_FLOOR` exists to reject exactly that jitter ("under it, the
+  tilt query's own finite-diff jitter dominates dh") and may be dead after
+  LATTICE_1. Not touched; witness first. Origin: LATTICE_1, filed not acted on.
+  Unblocked by Jean walking a slope and reporting whether the tilt reads calmer.
+- THE WORLD CAN RE-BAKE IN A FRAME. With the batch shape, marking all 225
+  patches `NEEDS_REGEN` is one dispatch, not 225 pass pairs. That makes the
+  terrain design constants — `TERRAIN_BANDS`, `BAKE_STENCIL_EPS`, the tile
+  modifiers — ORGAN-eligible as definition-mode dials that trigger a full
+  regen. Filed for ORGAN, not done here. Origin: LATTICE_1. Unblocked by an
+  ORGAN round that wants them.
+- `compute_entity_placement` AND `zone_derive_params` REMAIN `@workgroup_size(1)`
+  LOOP KERNELS. PANORAMA_0 measured both trivial, so the aphorism ("an
+  invocation is one output") is not enforced on them. Recorded so the next
+  reader does not rediscover them as a finding. Origin: PANORAMA_0, restated at
+  LATTICE_1.
+- `BAKE_STENCIL_EPS` IS A DIAL NOBODY HAS TURNED. It is `PATCH_EXTENT / 255` —
+  the old heightfield's texel step, kept so the gradients carry the same
+  smoothing they always did. Larger softens the fine band's shading, smaller
+  sharpens it. If W3 reads the ripple as harsher, this is the number to move,
+  and it should be moved with a reading beside it, not blind.
 
 ### NEXT — TERRAIN_0
 

@@ -4916,9 +4916,12 @@ struct PatchTerrainVarying {
 //
 // Keep consistent with POLICY_TERRAIN_RENDER: if that policy's mask
 // gains or loses a contributor, update this function to match — or
-// document the divergence at the mask block. The patch VS runs ~256×256
-// invocations per patch, so a function-call-per-contributor dispatch
-// would dominate frame time; that's why this stays hand-fused.
+// document the divergence at the mask block. The patch VS runs ~15,000
+// invocations per patch (the 65×65 lattice plus the skirt, cap and base
+// bands), so a function-call-per-contributor dispatch would dominate
+// frame time; that's why this stays hand-fused. (LATTICE_1 corrected the
+// old "~256×256" here: that was the retired heightfield's texel count,
+// never this VS's vertex count.)
 //
 // See contracts/ground_architecture.hpp (fused inline evaluations).
 @vertex
