@@ -5,13 +5,13 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `879006a7c02269fd36230ec8ca99542fc7dc6479`
-(U4 — the terrain slot line: milliseconds divided by geometry (WRAP_0))
+Last commit touching any scanned file: `5d2b5f84684cc9451c4045f3b3958ed7e178e9f0`
+(LATTICE_1a/B — one pass, one dispatch: the bake is fused and the batch rides z)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e4cba2c043d9b83ba8bf0dd1e43c652e17640b593786bbde88115aa8f7d66621` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6a79357301cdc105527ea251f1a5fe66b0d995096a71f63db19280ab80998465` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:daf86d8c12df3d9dbc61895b9f8ef7432c3a47f139b99540f900aacd88b1c21d` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:444d27b0166e20e7167f6fd4959d836a3e8464b83ad6ff1c4582ce5ec520f674` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:58498b7bfda6335e3582d62c83ca749e997d46d262895ed313f12a87da0c3a34` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
