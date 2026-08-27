@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `432f94931ae6637aead45285d89d3d6d87c9e974` |
-| | ATTIC_ATRIUM: the ledgers re-stamp after the rebase onto the ribbon commit |
+| source commit | `6bae450382658c871157d70548cf1d59e425fce8` |
+| | LEDGER — the five re-stamp at the campaign's tip (OVERTURE_0) |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3f541b23108c978ef6dc59ad4810a1952bd83ebaf49b80d84f7b3154cf511d9f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:29a7412428c8d924ce9a13e0f72af47f6696b8a1fcb7093cfae8d26b0b64f804` |
