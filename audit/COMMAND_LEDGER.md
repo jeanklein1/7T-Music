@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `f4dab6c14624a34dc5882c4f80cd337b7172ef29`
-(D5 — the entrance's own colours and its surface, deleted (ATTIC_ATRIUM))
+Last commit touching any scanned file: `0aae087a62f5ac3b7c9ebdfd121300f63f5f5cc1`
+(C3 — the prose stops saying PAWN about the program (NAME_0))
 
 | file scanned | sha256 |
 |---|---|
@@ -18,7 +18,7 @@ Last commit touching any scanned file: `f4dab6c14624a34dc5882c4f80cd337b7172ef29
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:da5b1953215e68fad4f6c45659c919bc5dfcaa2a1ce26f93ba18ebf0c6313b58` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
-| `src/pawn.cpp` | `sha256:e7ae20cb9d84139e6f795bbe79c539d236bf0034f3d64617b56c5d2c53487ce4` |
+| `src/the_board.cpp` | `sha256:450fae127f61d08c41f735cf0ae4f4adf6e206cd8f90dd997d4990cfec382df2` |
 | `src/console/console.hpp` | `sha256:8278e039a46ad400652024811506ef2d52d5c4fe9774aea21b0cd767a2158b99` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
@@ -26,7 +26,7 @@ tree places pass encoders more widely, so the census scans the
 files above. `renderer.hpp` carries pipeline creation and ZERO
 `Begin*Pass` sites (witness C-4 pins that zero); the cartridge,
 bodies, and patch surface encode passes of their own; the frame
-submit lives in `pawn.cpp`; the reconfigure trigger
+submit lives in `the_board.cpp`; the reconfigure trigger
 in `console.hpp`.
 
 ## §1 — the passes, one row each
@@ -61,7 +61,7 @@ in `console.hpp`.
 | # | receiver | enclosing function | site |
 |---|---|---|---|
 | 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` |
-| 2 | `app->queue.Submit` | `frame` | `src/pawn.cpp:220` |
+| 2 | `app->queue.Submit` | `frame` | `src/the_board.cpp:220` |
 
 2 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
@@ -76,7 +76,7 @@ every landing.
 | # | label | enclosing function | site |
 |---|---|---|---|
 | 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:800` |
-| 2 | `"frame"` | `frame` | `src/pawn.cpp:211` |
+| 2 | `"frame"` | `frame` | `src/the_board.cpp:211` |
 
 ## §3 — the swapchain reconfigure trigger
 
