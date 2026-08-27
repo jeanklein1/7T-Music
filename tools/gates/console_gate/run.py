@@ -102,9 +102,20 @@ WEBGPU_C_INC = os.path.join(PKG, "webgpu", "include")
 # cartridge.hpp is glaw1's own TU and reaches renderer.hpp, state.hpp and
 # the whole realization family. console.hpp is the one glaw1 never sees.
 # Between them every hand-edited header in the program is compiled.
+TU_LABEL = {"cartridge": "cartridge.hpp", "console": "console.hpp",
+            "the_board": "the_board.cpp"}
+
 TUS = [
     ("cartridge", '#include "cartridges/the_board/cartridge.hpp"\n'),
     ("console", '#include "console/console.hpp"\n'),
+    # PANORAMA_1: the harness itself. It is the program's ONLY real
+    # translation unit — it holds main(), the rAF driver and the READY
+    # offer — and until now nothing here opened it: glaw1 builds
+    # cartridge.hpp, this gate built cartridge.hpp and console.hpp, and the
+    # file that includes them both was read by no compiler but Jean's emcc.
+    # Two rounds edited it blind (OVERTURE_0 U9, PANORAMA_1 U6). It needs no
+    # -D: the file defaults INCUBATE_RENDER itself.
+    ("the_board", '#include "the_board.cpp"\n'),
 ]
 
 # ── THE EM_ASM LINT ─────────────────────────────────────────────────
@@ -260,7 +271,10 @@ def main() -> int:
         print("tu-gate: PASS — %d TU(s) parse, scope and type-check against the "
               "pinned emdawnwebgpu surface with ZERO diagnostics [%s]"
               % (len(TUS), os.path.basename(cxx)))
-        print("  TUs: %s" % ", ".join("%s.hpp" % n for n, _ in TUS))
+        # The extension rides the TU, not the printer: the third subject is a
+        # .cpp and calling it a header would be the gate lying in its own
+        # verdict line.
+        print("  TUs: %s" % ", ".join(TU_LABEL[n] for n, _ in TUS))
         print("  EM_ASM lint: clean (no empty single-quoted literal in any body)")
         return 0
     finally:
