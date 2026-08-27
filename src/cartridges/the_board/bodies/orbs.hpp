@@ -312,7 +312,8 @@ void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& en
 void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder,
     wgpu::Queue& queue);
 // Render
-void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass);
+template <class Enc>
+void render_orbs(OrbsState& os, OrbsDeps* c, Enc& pass);
 
 // The orb mood table + OrbMoodConfig graduated to
 // contracts/orb_surface.hpp (ORGAN_3b P3), where ORB_MOOD_LIVE stands
@@ -807,7 +808,8 @@ inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncod
 // ═══ RENDER ══════════════════════════════════════════════════════
 
 // Additive billboard draw into the main render pass.
-inline void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass) {
+template <class Enc>
+inline void render_orbs(OrbsState& os, OrbsDeps* c, Enc& pass) {
     // BUNDLE_1: the `!os.active || os.count == 0` guard is the record's now
     // (stage_draw_ledger stages zero instances for either) — an encoder-time
     // skip would be frozen into the bundle that records this draw.

@@ -2400,6 +2400,7 @@ namespace t7 {
             DrawArgs drawLedgerStage_[DR_COUNT]{};
             DrawArgs drawLedgerShipped_[DR_COUNT]{};
             wgpu::Buffer drawLedgerBuffer_;
+            bool bundlesDirty_ = true;      // BUNDLE_1 — record before the first frame
 
             wgpu::Buffer patchIndexBuffer_;
             wgpu::Buffer patchIndexBufferLOD1_;   // half-res index buffer for distant patches
@@ -3254,12 +3255,31 @@ namespace t7 {
             void set_shadow_pcf_taps(uint32_t n) {
                 if (config_.shadow_pcf_taps != n) { config_.shadow_pcf_taps = n; configDirty_ = true; }
             }
+            // THE SUBTRACTION MASKS ARE THE BUNDLES' ONE LIVE RAISER
+            // (BUNDLE_1). PANORAMA_1's rule is that a cleared bit is skipped
+            // AT THE ENCODER, so the pass row reads the absence — culling in
+            // the shader would still pay the vertex work and the meter would
+            // read no difference. Under a bundle the encoder-time skip is
+            // taken at RECORDING, so a mask that changed without a re-record
+            // would do nothing at all and the instrument would silently stop
+            // working. Nothing in the tree could have caught that: it is not
+            // a type error, not a validation error, and not a wrong pixel —
+            // it is a dial that stopped answering.
             void set_draw_mask(uint32_t m) {
-                if (config_.draw_mask != m) { config_.draw_mask = m; configDirty_ = true; }
+                if (config_.draw_mask != m) { config_.draw_mask = m; configDirty_ = true; bundlesDirty_ = true; }
             }
             void set_shadow_mask(uint32_t m) {
-                if (config_.shadow_mask != m) { config_.shadow_mask = m; configDirty_ = true; }
+                if (config_.shadow_mask != m) { config_.shadow_mask = m; configDirty_ = true; bundlesDirty_ = true; }
             }
+
+            // BUNDLES CAPTURE OBJECTS, NOT VALUES. Raised by every site that
+            // recreates a bind group or a buffer a bundle holds — R-B found
+            // none post-boot today, so in practice this fires once at boot
+            // and again whenever a mask dial turns. A NEW recreation site
+            // must raise it; that is the standing rule, filed in OPEN.md.
+            bool bundles_dirty() const { return bundlesDirty_; }
+            void raise_bundles_dirty() { bundlesDirty_ = true; }
+            void clear_bundles_dirty() { bundlesDirty_ = false; }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
             }

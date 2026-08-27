@@ -153,6 +153,10 @@ namespace t7 {
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
+            // ═══ THE BUNDLES (BUNDLE_1) — storage; the API is public below.
+            wgpu::RenderBundle mainBundle_;
+            wgpu::RenderBundle shadowSunBundle_;
+
             wgpu::ShaderModule shaderModule_;
             std::string shaderSource_;
             std::string shaderPath_;
@@ -310,6 +314,57 @@ namespace t7 {
             wgpu::ComputePipeline bladeMeshGenPipeline_;
 
         public:
+            // ═══ THE BUNDLES (BUNDLE_1) ═══════════════════════════════════
+            //
+            // The main pass's opaque list and the sun shadow pass's are each
+            // recorded ONCE into a GPURenderBundle and executed with one call
+            // per frame. The browser's per-command validation moves from
+            // every frame to the recording; the GPU work is unchanged by
+            // construction, because the same pipelines, groups, buffers and
+            // counts are issued in the same order.
+            //
+            // A BUNDLE CAPTURES OBJECTS, NOT VALUES. It holds the bind groups
+            // and buffers it was recorded with, so a re-record is needed only
+            // when one of those OBJECTS is recreated — R-B found exactly zero
+            // post-boot recreation sites today (galleryTexturesGroup_ is the
+            // one rebuildable group and nothing calls its rebuild after boot).
+            // What it does NOT capture is the ledger's CONTENTS: an indirect
+            // draw reads its count at execution, which is the whole reason
+            // Commit A exists.
+            //
+            // The descriptor states the pass's formats. colorFormat_,
+            // depthFormat_ and effective_msaa() are all boot-read and cannot
+            // move afterwards (the surface reconfigure keeps the format), so
+            // no format change can invalidate a bundle without a reboot.
+            bool main_bundle_ready() const { return mainBundle_ != nullptr; }
+            bool shadow_sun_bundle_ready() const { return shadowSunBundle_ != nullptr; }
+            wgpu::RenderBundle main_bundle() const { return mainBundle_; }
+            wgpu::RenderBundle shadow_sun_bundle() const { return shadowSunBundle_; }
+
+            // The two encoders, made where the formats live. The pass that
+            // executes a bundle must agree with these exactly — the census
+            // holds that (R5), and Dawn rejects a mismatch at ExecuteBundles.
+            wgpu::RenderBundleEncoder make_main_bundle_encoder() {
+                wgpu::RenderBundleEncoderDescriptor d{};
+                d.label = "Main Bundle";
+                d.colorFormatCount = 1;
+                d.colorFormats = &colorFormat_;
+                d.depthStencilFormat = depthFormat_;
+                d.sampleCount = effective_msaa();
+                return device_.CreateRenderBundleEncoder(&d);
+            }
+            wgpu::RenderBundleEncoder make_shadow_sun_bundle_encoder() {
+                wgpu::RenderBundleEncoderDescriptor d{};
+                d.label = "Shadow Sun Bundle";
+                d.colorFormatCount = 0;          // depth-only, as the pass is
+                d.colorFormats = nullptr;
+                d.depthStencilFormat = kShadowDepthFormat;
+                d.sampleCount = 1;
+                return device_.CreateRenderBundleEncoder(&d);
+            }
+            void set_main_bundle(wgpu::RenderBundle b) { mainBundle_ = b; }
+            void set_shadow_sun_bundle(wgpu::RenderBundle b) { shadowSunBundle_ = b; }
+
 
             Renderer() = default;
             Renderer(const Renderer&) = delete;

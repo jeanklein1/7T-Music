@@ -2740,6 +2740,16 @@ namespace t7 {
                 stage_draw_ledger(&machine_ctx_, orbs_state_);
                 gpuState_.flush_draw_ledger(queue_);
 
+                // THE BUNDLES (BUNDLE_1) — recorded here, before the passes
+                // that execute them, and only when something a bundle
+                // CAPTURED moved: a recreated bind group or buffer (R-B
+                // found none post-boot) or a subtraction-mask dial. Not per
+                // frame — that is the whole point. The ledger is flushed
+                // first because a bundle must capture a buffer that exists;
+                // its CONTENTS are read at execution, not at recording.
+                if (gpuState_.bundles_dirty())
+                    record_bundles(&machine_ctx_, orbs_state_, orbs_deps_);
+
                 // THE FRAME METER — GPU half, harvest side. Mirrors the
                 // floater readback grammar exactly (COPIED → MapAsync →
                 // MAPPING; callback accumulates, Unmaps, → IDLE;

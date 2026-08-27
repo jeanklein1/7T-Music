@@ -33,6 +33,7 @@ struct OrbsState; struct OrbsDeps;
 
 // Pre-render data preparation
 void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_);
+void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
 void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue);
 void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder);
 // GPU compute dispatch
@@ -41,7 +42,8 @@ void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
 // Render passes (the extras outside the machine face ride the call site)
 void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     const GPUSpotLightArray& cpuSpotLights_);
-void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool cast_terrain);
+template <class Enc>
+void draw_shadow_all(MachineCtx* c, Enc& pass, bool cast_terrain);
 void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     wgpu::TextureView backbuffer, wgpu::TextureView msaaColor,
     wgpu::TextureView depth,
@@ -443,12 +445,20 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         // Outdoor draws for the sun, which shadow_light_vp() reads from
         // frame_r.vp.light_vp; shadow_slot is unread on this path
         // (spots.count == 0) and binds record 0 for determinism.
-        pass.SetBindGroup(0, c->gpuState_.world_group());
-        pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
-        pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
-        pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
-
-        draw_shadow_all(c, pass, /*cast_terrain=*/true);
+        // BUNDLE_1: the sun's whole draw list is one recorded bundle, head
+        // binds included — ExecuteBundles resets pass state, so the bundle
+        // carries its own. The direct arm below is not a fallback that can
+        // drift: it calls the SAME draw_shadow_all the recorder called.
+        if (c->renderer_.shadow_sun_bundle_ready()) {
+            wgpu::RenderBundle b = c->renderer_.shadow_sun_bundle();
+            pass.ExecuteBundles(1, &b);
+        } else {
+            pass.SetBindGroup(0, c->gpuState_.world_group());
+            pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+            pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
+            pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
+            draw_shadow_all(c, pass, /*cast_terrain=*/true);
+        }
         pass.End();
     }
 }
@@ -464,7 +474,8 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 // bounding mechanism is built to decide this — no mechanism until a
 // measurement asks. The drawable table is untouched: the indoor scene's
 // actual occluders all still cast.
-inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool cast_terrain) {
+template <class Enc>
+inline void draw_shadow_all(MachineCtx* c, Enc& pass, bool cast_terrain) {
     // FORK — terrain, both bands at LOD1 density (ECONOMY_1 E2): the
     // shadow target resolves coarser than even the half mesh, and the
     // decode is patch-agnostic. Both bands take the ring IB at the LIVE
@@ -563,70 +574,26 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     }
 }
 
-// ═══ MAIN PASS ═══════════════════════════════════════════════════
-
-inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
-    wgpu::TextureView backbuffer, wgpu::TextureView msaaColor,
-    wgpu::TextureView depth,
-    const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
-
-    // DOMESDAY_2 B10 — the msaa arm: when the boot param created a
-    // multisampled color target, the pass renders into it and RESOLVES
-    // into the backbuffer; the multisampled contents themselves are
-    // discarded (resolve is independent of storeOp — tiler-ideal).
-    // msaaColor null (msaa=1) leaves every field byte-identical to the
-    // pre-B10 descriptor.
-    wgpu::RenderPassColorAttachment colorAttachment{};
-    colorAttachment.view = backbuffer;
-    colorAttachment.loadOp = wgpu::LoadOp::Clear;
-    colorAttachment.storeOp = wgpu::StoreOp::Store;
-    colorAttachment.clearValue = { (double)clearColor_[0], (double)clearColor_[1], (double)clearColor_[2], 1.0 };
-    if (msaaColor) {
-        colorAttachment.view = msaaColor;
-        colorAttachment.resolveTarget = backbuffer;
-        colorAttachment.storeOp = wgpu::StoreOp::Discard;
-    }
-
-    wgpu::RenderPassDepthStencilAttachment depthAttachment{};
-    depthAttachment.view = depth;
-    depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
-    // DISCARD_0 (PASS_0 F1) — Discard, not Store. The console's depth
-    // texture is created with usage RenderAttachment ALONE
-    // (console.hpp createDepthBuffer): no TextureBinding, so it cannot
-    // enter a bind group and no shader can sample it; no CopySrc, so
-    // nothing reads it back. Its contents are unreachable the instant
-    // this pass ends, and Store writes the whole attachment to main
-    // memory anyway — 4·W·H bytes per frame, every arm, for a resource
-    // with no reader. Discard is the op for that case.
-    //
-    // THE SAFETY PROOF IS THE USAGE MASK, not this comment. If
-    // createDepthBuffer ever gains TextureBinding or CopySrc, a reader
-    // becomes possible and this line must go back to Store in the same
-    // commit that grants it.
-    depthAttachment.depthStoreOp = wgpu::StoreOp::Discard;
-    depthAttachment.depthClearValue = 1.0f;
-
-    wgpu::RenderPassDescriptor desc{};
-    desc.label = "Rasterized Scene";
-    desc.colorAttachmentCount = 1;
-    desc.colorAttachments = &colorAttachment;
-    desc.depthStencilAttachment = &depthAttachment;
-    desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::MainPass);
-
-    wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
-
-    // OIL_1 U13 (ledger: R19, C7) — THE PASS-HEAD BIND, restated for
-    // the LOOM_2 numbering and the B5 collapse: groups 0 (WORLD),
-    // 1 (FRAME) and 3 (scene textures) are the same for every draw in
-    // this pass, so they bind once here. Group 2 is set by the plan
-    // slot helper — since B5 all three slots bind the ONE scene group,
-    // and the table draws inherit it after slot C.
-    // Group 1 carries the shadow_slot dynamic seat, so the bind passes
-    // one offset; nothing outside the shadow atlas reads it.
-    pass.SetBindGroup(0, c->gpuState_.world_group());
-    pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
-    pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
-
+// ═══ THE MAIN PASS'S OPAQUE LIST (BUNDLE_1) ══════════════════════
+//
+// ONE DRAW LIST, TWO ENCODERS. This is the whole of what the main pass
+// draws except the fade — and it is called BOTH by render_main_pass (with
+// a wgpu::RenderPassEncoder, exactly as it always ran) and by
+// record_bundles (with a wgpu::RenderBundleEncoder). There is no second
+// list to keep in step, which is R3 written as code.
+//
+// THE MASKS ARE READ HERE, so under a bundle they are read AT RECORDING.
+// PANORAMA_1's rule — a cleared bit is skipped at the encoder so the pass
+// row reads the absence — survives that: the skip is still real, it is
+// just taken once per dial-turn instead of once per frame. set_draw_mask
+// and set_shadow_mask raise bundlesDirty_ so the turn re-records.
+//
+// NOT the fade: it is alpha-blended, order-sensitive, and gated on a value
+// that moves every frame of a transition. A bundle cannot skip itself, so
+// the fade stays a direct draw after ExecuteBundles.
+template <class Enc>
+inline void encode_main_opaque(MachineCtx* c, Enc& pass,
+                               OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
     // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel
     // authored three lists; the pass executes them as three indirect
     // draws. Outdoor AND finite/indoor go through the same plan (the
@@ -711,6 +678,131 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     }
     if (dmask & DrawBit::ORBS)
         render_orbs(orbs_state_, &orbs_deps_, pass);
+
+}
+
+// ═══ THE BUNDLES, RECORDED (BUNDLE_1) ════════════════════════════
+//
+// Called at the frame boundary when bundlesDirty_, AFTER stage_draw_ledger
+// and its flush — not because the bundle needs the contents (it does not:
+// an indirect draw reads its count at execution) but because the ledger
+// BUFFER must exist before a bundle can capture it, and because recording
+// with the frame's masks already staged keeps the two in step.
+//
+// The head binds are the pass heads', moved inside: ExecuteBundles resets
+// the pass's bind state, so a bundle must carry its own. That is also why
+// the fade, which draws after ExecuteBundles, rebinds for itself.
+inline void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
+    {   // MAIN — the opaque canonical order, the same list render_main_pass
+        // encodes directly when it has no bundle.
+        wgpu::RenderBundleEncoder e = c->renderer_.make_main_bundle_encoder();
+        e.SetBindGroup(0, c->gpuState_.world_group());
+        e.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+        e.SetBindGroup(3, c->gpuState_.scene_textures_group());
+        encode_main_opaque(c, e, orbs_state_, orbs_deps_);
+        wgpu::RenderBundleDescriptor bd{};
+        bd.label = "Main Bundle";
+        c->renderer_.set_main_bundle(e.Finish(&bd));
+    }
+    {   // SHADOW SUN — cast_terrain = true, which is the outdoor arm's word.
+        // The indoor spot atlas is NOT bundled: it sets a viewport and a
+        // scissor per tile and rebinds group 1 at each light's record, and
+        // a bundle can carry none of those.
+        wgpu::RenderBundleEncoder e = c->renderer_.make_shadow_sun_bundle_encoder();
+        e.SetBindGroup(0, c->gpuState_.world_group());
+        e.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+        e.SetBindGroup(2, c->gpuState_.shadow_state_group());
+        e.SetBindGroup(3, c->gpuState_.shadow_textures_group());
+        draw_shadow_all(c, e, /*cast_terrain=*/true);
+        wgpu::RenderBundleDescriptor bd{};
+        bd.label = "Shadow Sun Bundle";
+        c->renderer_.set_shadow_sun_bundle(e.Finish(&bd));
+    }
+    c->gpuState_.clear_bundles_dirty();
+}
+
+// ═══ MAIN PASS ═══════════════════════════════════════════════════
+
+inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
+    wgpu::TextureView backbuffer, wgpu::TextureView msaaColor,
+    wgpu::TextureView depth,
+    const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
+
+    // DOMESDAY_2 B10 — the msaa arm: when the boot param created a
+    // multisampled color target, the pass renders into it and RESOLVES
+    // into the backbuffer; the multisampled contents themselves are
+    // discarded (resolve is independent of storeOp — tiler-ideal).
+    // msaaColor null (msaa=1) leaves every field byte-identical to the
+    // pre-B10 descriptor.
+    wgpu::RenderPassColorAttachment colorAttachment{};
+    colorAttachment.view = backbuffer;
+    colorAttachment.loadOp = wgpu::LoadOp::Clear;
+    colorAttachment.storeOp = wgpu::StoreOp::Store;
+    colorAttachment.clearValue = { (double)clearColor_[0], (double)clearColor_[1], (double)clearColor_[2], 1.0 };
+    if (msaaColor) {
+        colorAttachment.view = msaaColor;
+        colorAttachment.resolveTarget = backbuffer;
+        colorAttachment.storeOp = wgpu::StoreOp::Discard;
+    }
+
+    wgpu::RenderPassDepthStencilAttachment depthAttachment{};
+    depthAttachment.view = depth;
+    depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
+    // DISCARD_0 (PASS_0 F1) — Discard, not Store. The console's depth
+    // texture is created with usage RenderAttachment ALONE
+    // (console.hpp createDepthBuffer): no TextureBinding, so it cannot
+    // enter a bind group and no shader can sample it; no CopySrc, so
+    // nothing reads it back. Its contents are unreachable the instant
+    // this pass ends, and Store writes the whole attachment to main
+    // memory anyway — 4·W·H bytes per frame, every arm, for a resource
+    // with no reader. Discard is the op for that case.
+    //
+    // THE SAFETY PROOF IS THE USAGE MASK, not this comment. If
+    // createDepthBuffer ever gains TextureBinding or CopySrc, a reader
+    // becomes possible and this line must go back to Store in the same
+    // commit that grants it.
+    depthAttachment.depthStoreOp = wgpu::StoreOp::Discard;
+    depthAttachment.depthClearValue = 1.0f;
+
+    wgpu::RenderPassDescriptor desc{};
+    desc.label = "Rasterized Scene";
+    desc.colorAttachmentCount = 1;
+    desc.colorAttachments = &colorAttachment;
+    desc.depthStencilAttachment = &depthAttachment;
+    desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::MainPass);
+
+    wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
+
+    // OIL_1 U13 (ledger: R19, C7) — THE PASS-HEAD BIND, restated for
+    // the LOOM_2 numbering and the B5 collapse: groups 0 (WORLD),
+    // 1 (FRAME) and 3 (scene textures) are the same for every draw in
+    // this pass, so they bind once here. Group 2 is set by the plan
+    // slot helper — since B5 all three slots bind the ONE scene group,
+    // and the table draws inherit it after slot C.
+    // Group 1 carries the shadow_slot dynamic seat, so the bind passes
+    // one offset; nothing outside the shadow atlas reads it.
+    // BUNDLE_1: the opaque list is one recorded bundle, head binds included
+    // — ExecuteBundles resets pass state, so the bundle carries its own and
+    // the fade below rebinds for itself. The direct arm cannot drift from
+    // the bundle: both call encode_main_opaque.
+    if (c->renderer_.main_bundle_ready()) {
+        wgpu::RenderBundle mb = c->renderer_.main_bundle();
+        pass.ExecuteBundles(1, &mb);
+    } else {
+        pass.SetBindGroup(0, c->gpuState_.world_group());
+        pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+        pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
+        encode_main_opaque(c, pass, orbs_state_, orbs_deps_);
+    }
+
+    // THE FADE REBINDS FOR ITSELF. ExecuteBundles resets every bind, so
+    // group 0 — which used to come from the pass head — is restated here
+    // with the three EMPTY strata the fade's layout wants.
+    pass.SetBindGroup(0, c->gpuState_.world_group());
+
+    // The fade's own bit — the one mask read that stays in the pass,
+    // because the fade is the one draw that stays out of the bundle.
+    const uint32_t dmask = c->gpuState_.config().draw_mask;
 
     // Fade overlay (drawn last, alpha blended over everything)
     // LOOM_2: the fade overlay binds WORLD only; its other strata are
