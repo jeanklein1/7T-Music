@@ -116,6 +116,7 @@ struct App {
     // PANORAMA_1 U6 — THE METRONOME. rAF callbacks per presented frame.
     // 1 = every vblank; 2 = every second one, a steady 30 on a 60 Hz panel.
     uint32_t pace = 1;
+    bool pace_applied = false;   // U2: the timing call is a one-shot from inside the loop
 };
 
 static App* app = nullptr;
@@ -156,6 +157,23 @@ static bool init_world() {
     app->world_live = std::chrono::steady_clock::now();
     app->world_ready = true;
     return true;
+}
+
+// ── the metronome, applied from inside the loop (WRAP_0 U2) ────────
+//
+// emscripten_set_main_loop RESETS the timing mode, and with
+// simulate_infinite_loop it never returns — so the pace can only be armed
+// from a frame, once, after the registration that would have cleared it.
+// Idempotent by the flag: nothing else in this program re-arms the loop
+// (one set_main_loop call in the tree, no resize or veil-lift path touches
+// it), so one application holds for the session.
+static void apply_pace_once() {
+    if (app->pace_applied) return;
+    app->pace_applied = true;
+    if (app->pace == 1u) return;   // the default needs no call
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, (int)app->pace);
+    std::cout << "[PACE] forced " << (60u / app->pace)
+              << " fps target (rAF every " << app->pace << " vblank(s))\n";
 }
 
 // ── the offer, once the exhibition has a floor under it ────────────
@@ -205,6 +223,10 @@ static void frame() {
             return;
         }
     }
+
+    // THE METRONOME (WRAP_0 U2) — armed from inside the loop, once, because
+    // the registration that would have cleared it never returns.
+    apply_pace_once();
 
     // THE READY OFFER (OVERTURE_0) — the veil lifts on a world that has its
     // first paintings up, not on a world that has merely started.
@@ -362,12 +384,19 @@ int main(int argc, char* argv[]) {
     // same world, the same ride, at each pace, and Jean says which is the
     // piece. The governor that would choose this by measurement is NOT in
     // this round — see docs/OPEN.md.
+    // THE SWITCH IS APPLIED FROM INSIDE THE LOOP, NOT HERE (WRAP_0 U2). The
+    // call below takes simulate_infinite_loop = true, which unwinds the stack
+    // and NEVER RETURNS — the line above already said so, three lines up, and
+    // PANORAMA_1 U6a still put the timing call after it. It was dead code, so
+    // `?pace=2` was inert: the param parsed, the world announced it, and the
+    // loop ran at one callback per vblank exactly as before.
+    //
+    // Emscripten also RESETS the timing mode inside set_main_loop, so even a
+    // call placed before it would be overwritten. The only correct place is
+    // after the loop is registered, which — since the registration does not
+    // return — means from within a frame. See apply_pace_once(), called from
+    // frame().
     app->pace = t7::boot_params().has_pace ? t7::boot_params().pace : 1u;
     emscripten_set_main_loop(frame, 0, true);
-    if (app->pace != 1u) {
-        emscripten_set_main_loop_timing(EM_TIMING_RAF, (int)app->pace);
-        std::cout << "[PACE] forced " << (60u / app->pace)
-                  << " fps target (rAF every " << app->pace << " vblank(s))\n";
-    }
     return 0;
 }
