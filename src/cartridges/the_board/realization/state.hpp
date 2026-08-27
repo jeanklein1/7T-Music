@@ -4376,6 +4376,13 @@ namespace t7 {
                 auto pad_u16 = [](std::vector<uint16_t>& v) {
                     if (v.size() & 1u) v.push_back(0);
                 };
+                // The padded byte count for `count` uint16 indices — the SAME
+                // number pad_u16 produces, said in terms of the draw count so
+                // the RESOURCES ledger row names it. Buffer size and write
+                // size are one expression, not two that happen to agree.
+                auto ib_bytes_u16 = [](uint32_t count) -> uint64_t {
+                    return (static_cast<uint64_t>(count) * 2u + 3u) & ~uint64_t{3};
+                };
 
                 // Patch index buffer -- CPU-generated, shared by all patch instances
                 // SKIRTS (weld #2): each LOD appends a full-perimeter skirt — the
@@ -4492,11 +4499,11 @@ namespace t7 {
                     patchIndexCount_ = (uint32_t)idx.size();   // the DRAW count, before the pad
                     pad_u16(idx);
                     patchIndexBuffer_ = makeBuffer("Patch IB (u16)",
-                        idx.size() * 2,
+                        ib_bytes_u16(patchIndexCount_),
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBuffer_) return false;
                     auto q = device_.GetQueue();
-                    q.WriteBuffer(patchIndexBuffer_, 0, idx.data(), idx.size() * 2);
+                    q.WriteBuffer(patchIndexBuffer_, 0, idx.data(), ib_bytes_u16(patchIndexCount_));
                 }
                 {
                     // ECONOMY_1 E1: the cap-only twin — caps + skirt, no curtain
@@ -4506,11 +4513,11 @@ namespace t7 {
                     patchIndexCountCapOnly_ = (uint32_t)idx.size();   // the DRAW count, before the pad
                     pad_u16(idx);
                     patchIndexBufferCapOnly_ = makeBuffer("Patch IB Cap-Only (u16)",
-                        idx.size() * 2,
+                        ib_bytes_u16(patchIndexCountCapOnly_),
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBufferCapOnly_) return false;
                     auto q = device_.GetQueue();
-                    q.WriteBuffer(patchIndexBufferCapOnly_, 0, idx.data(), idx.size() * 2);
+                    q.WriteBuffer(patchIndexBufferCapOnly_, 0, idx.data(), ib_bytes_u16(patchIndexCountCapOnly_));
                 }
 
                 {
@@ -4578,11 +4585,11 @@ namespace t7 {
                     patchIndexCountRingZoned_ = (uint32_t)idx.size();   // the DRAW count, before the pad
                     pad_u16(idx);
                     patchIndexBufferLOD1_ = makeBuffer("Patch IB LOD1 (u16)",
-                        idx.size() * 2,
+                        ib_bytes_u16(patchIndexCountRingZoned_),
                         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                     if (!patchIndexBufferLOD1_) return false;
                     auto q = device_.GetQueue();
-                    q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), idx.size() * 2);
+                    q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
                 return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createBladeMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
