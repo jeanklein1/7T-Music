@@ -7,7 +7,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
-        "PAWN_RENDER_CARTRIDGE": "the_board",
+        "T7_RENDER_CARTRIDGE": "the_board",
         "THE_BOARD_DEMO": "full"
       }
     },

@@ -72,7 +72,7 @@ endif()
 # never fires and the paste names an enumerator that does not exist. An
 # unset value here is a compile error in every TU, never a fallback.
 
-set(PAWN_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'pawn' target")
+set(T7_RENDER_CARTRIDGE     "the_board"        CACHE STRING "Render cartridge for the 'the_board' target")
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
 set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring self-measurement (an InstrumentCol column of core/instruments.hpp): off | meter | full. Default off — the shipped frame pays for no reading nobody reads. 'meter' arms the frame meter + its [METER] table for a measurement session.")
 
@@ -96,7 +96,7 @@ endif()
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
-message(STATUS "  pawn -> render: ${PAWN_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
+message(STATUS "  pawn -> render: ${T7_RENDER_CARTRIDGE} demo: ${THE_BOARD_DEMO}")
 message(STATUS "  Instruments:    ${T7_INSTRUMENTS}")
 if(T7_WORLD_SEED STREQUAL "")
     message(STATUS "  World seed:     drawn at boot (wall clock)")
@@ -122,14 +122,14 @@ message(STATUS "")
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # The render cartridge (the_board) driven by the BeatClock.
-# Uses PAWN_RENDER_CARTRIDGE.
+# Uses T7_RENDER_CARTRIDGE.
 #
 # Build:  cmake --build --preset the-board-web  (full chain: CLAUDE.md)
 #
 
 # Only the active cartridge's headers → scoped IntelliSense
 file(GLOB_RECURSE DUAL_RENDER_HEADERS
-    "src/cartridges/${PAWN_RENDER_CARTRIDGE}/*.hpp"
+    "src/cartridges/${T7_RENDER_CARTRIDGE}/*.hpp"
 )
 
 add_executable(the_board
@@ -203,7 +203,7 @@ if(EMSCRIPTEN)
 
     # Program defines.
     target_compile_definitions(the_board PRIVATE
-        INCUBATE_RENDER=${PAWN_RENDER_CARTRIDGE}
+        INCUBATE_RENDER=${T7_RENDER_CARTRIDGE}
         INCUBATE_DEMO=${THE_BOARD_DEMO}
         T7_INSTRUMENTS=${T7_INSTRUMENTS}
         ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
@@ -282,7 +282,7 @@ if(EMSCRIPTEN)
     )
 endif()
 
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${PAWN_RENDER_CARTRIDGE}"
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${T7_RENDER_CARTRIDGE}"
     PREFIX "Render Cartridge"
     FILES ${DUAL_RENDER_HEADERS}
 )
