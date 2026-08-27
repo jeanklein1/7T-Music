@@ -1877,6 +1877,33 @@ namespace t7 {
                         // WIT_2b — alone, and unconditional. Never appended to
                         // a formatted line again.
                         t7::print_dropped_submits("window");
+                        // PANORAMA_0 §5.5 — THE MESH-GEN FIRING COUNT. One
+                        // line, only when something fired: on a still world it
+                        // is silent, and on a ride it is the number the
+                        // EntityMeshGen row cannot give — how many times a
+                        // family regenerated EVERY slot because one slot
+                        // changed. Names only the families that fired.
+                        {
+                            uint32_t fired = 0;
+                            for (uint32_t f = 0; f < PopFamily::COUNT; f++)
+                                fired += meter_.mesh_gen_firings[f];
+                            if (fired > 0) {
+                                std::string mg = "[METER] mesh-gen firings";
+                                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                                    if (meter_.mesh_gen_firings[f] == 0) continue;
+                                    mg += "  ";
+                                    mg += family_short_name(f);
+                                    mg += " ";
+                                    mg += std::to_string(meter_.mesh_gen_firings[f]);
+                                }
+                                mg += "  | total ";
+                                mg += std::to_string(fired);
+                                mg += " over ";
+                                mg += std::to_string(meter_.window_frames);
+                                mg += "f\n";
+                                std::cout << mg;
+                            }
+                        }
                         double u_sum = 0.0, r_sum = 0.0;
                         for (const URow& row : UPDATE_SPINE) {
                             if (!row.enabled) continue;
@@ -2037,7 +2064,11 @@ namespace t7 {
                     // set above), so this branches on dirty-ness, not on
                     // the enable bit.
                     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                        if (dirty[f]) FAMILY_DISPATCH[f].dispatch_mesh(&machine_ctx_, pass);
+                        if (!dirty[f]) continue;
+                        // PANORAMA_0 §5.5 — one firing, counted where it is
+                        // known. Folds to nothing with the dial off.
+                        if constexpr (INSTRUMENTS.frame_meter) meter_.mesh_gen_firings[f]++;
+                        FAMILY_DISPATCH[f].dispatch_mesh(&machine_ctx_, pass);
                     }
                     pass.End();
                 }
@@ -2485,6 +2516,15 @@ namespace t7 {
                 // reset() — a readback may be in flight across a window.
                 MeterPair snap_pairs[GPUState::meter_max_pairs()] = {};
                 uint32_t snap_pair_count = 0;
+                // PANORAMA_0 §5.5 — HOW OFTEN A FAMILY REGENERATES ITS MESH.
+                // The EntityMeshGen row already says what a firing COSTS; it
+                // cannot say how many there were, and the two questions have
+                // different answers on a ride, where spawns and evictions keep
+                // the dispatch firing. This is the instrument that gates the
+                // per-slot regeneration campaign (F3) and proves it after: the
+                // count should fall to the number of slots that actually
+                // changed, and the row's ms with it.
+                uint32_t mesh_gen_firings[PopFamily::COUNT] = {};
                 void reset() {   // zero rows + frames, restamp window_start
                     for (auto& s : u_rows) s = RowStat{};
                     for (auto& s : r_rows) s = RowStat{};
@@ -2494,6 +2534,7 @@ namespace t7 {
                     gpu_over_budget_frames = 0;
                     window_frames = 0;
                     gpu_sampled_frames = 0;
+                    for (auto& n : mesh_gen_firings) n = 0;
                     window_start = std::chrono::steady_clock::now();
                 }
             };
