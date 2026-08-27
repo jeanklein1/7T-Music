@@ -652,6 +652,12 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             // that populated doorless gets one forced door; every other
             // world sees a no-op (the count-gate is inside).
             force_spawn_door_fallback(&mood_deps, queue, *c);
+
+            // THE BIRTH CENSUS (OVERTURE_0). `boot` prints before population
+            // and reads zero by construction; this is the first count of a
+            // world that exists. Always-on, like boot: once per fullRegen,
+            // never per frame.
+            dump_entity_census(c, "born");
         }
     }
 
