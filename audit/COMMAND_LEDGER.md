@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `4c6d4682d4cf1c887ea34335e8fedcb25d9e1df8`
-(BUNDLE_1/A — the draw ledger: every CPU-authored count becomes a record)
+Last commit touching any scanned file: `ce366a2340ac9726d94355802dc4f15c95bce101`
+(BUNDLE_1/B — the verbs and the table become encoder-generic)
 
 | file scanned | sha256 |
 |---|---|

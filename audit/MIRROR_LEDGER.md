@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `4c6d4682d4cf1c887ea34335e8fedcb25d9e1df8` |
-| | BUNDLE_1/A — the draw ledger: every CPU-authored count becomes a record |
+| source commit | `ce366a2340ac9726d94355802dc4f15c95bce101` |
+| | BUNDLE_1/B — the verbs and the table become encoder-generic |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:455ae568086f942dfa1a74ab21f6761c9c721d88a9060c6356c4863423e19645` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:acfe011ce3c04b388ae1f768caf0db1d5924d50e9f1125ed9feb2ca15998db72` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:1da446dec47908bd6a0fda5d8ce341a4241df275feb5f54a32f8e000dcd97f13` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:95c056850af916ee8af18487fb10fc345921295c6b11944183a4c3c514a6b5df` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:226fcb9a18ed6e77064d406a65c988ad1a3b470960595ad5ab50f59772130665` |
+| `audit/BINDING_LEDGER.md` | `sha256:bf445b6ef3779513e737ccd0e5b50eae839abb201e324891bbf07d781ed69437` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

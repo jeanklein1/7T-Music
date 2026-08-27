@@ -2034,7 +2034,16 @@ def check(args):
             fn_defs.setdefault(nm_, []).append((params_, text_[bs_:be_]))
     dt_text = next((t_ for p2, t_ in all_files2
                     if p2.endswith("drawable_table.hpp")), "")
-    dt_rows = re.findall(r'\{\s*"\w+",\s*([^,]+),\s*(\w+)\s*\}', dt_text)
+    # BUNDLE_1: the table's rows name the thunk with its template argument
+    # (`dt_pawn<Enc>`) since the table became a template over the encoder
+    # type. The argument list is stripped here — the SIMULATION is the same
+    # walk either way, because both instantiations issue the same draws in
+    # the same order and differ only in which encoder carries them. A
+    # `(\w+)` here silently matched nothing after the templating, and the
+    # coverage clause below is what said so.
+    dt_rows = [(mask_, th_.split("<", 1)[0])
+               for mask_, th_ in re.findall(
+                   r'\{\s*"\w+",\s*([^,]+),\s*([\w:]+(?:<[^>]*>)?)\s*\}', dt_text)]
     fd_text = ""
     for p2, t_ in all_files2:
         fm_ = re.search(r"FAMILY_DISPATCH\s*\[[^\]]*\]\s*=\s*\{", t_)
