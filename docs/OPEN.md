@@ -197,8 +197,11 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   WriteTextures landing several to a frame — opens blocks the per-frame trickle
   then keeps from emptying. Chrome's Dawn and WebKit recycle differently: an
   iPad (Safari 26) ran 10+ min with transitions. ORGAN_8 P3 paced the paintings
-  to one lane (AUTHORED_FETCH_INFLIGHT_CAP = 1); its witness is a before/after
-  about:memory pair across one keyed transition, Jean's. If the step survives:
+  to one lane; OVERTURE_0 R-E RAISED IT TO FOUR (`AUTHORED_FETCH_INFLIGHT_CAP
+  = 4`), sized for the boot rather than for a browser that cannot run the
+  piece. The about:memory before/after pair is therefore MOOT while Firefox is
+  HELD at the fallback card, and it is re-owed — against four lanes, not one —
+  the day Firefox returns. If the step survives:
   the structural cure is that the program owns its staging — a fixed ring of
   MAP_WRITE buffers made at boot, mapped, filled, unmapped and copied from, so
   the browser allocates no staging at all — priced at one round over
@@ -233,12 +236,62 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   naga-cli` (minutes), and `tools/wgsl_gate.py` then runs in-container on the
   raw module. Origin: ATMOS_1 report FLAG 12, answered at COMPAT_1.
 
+## OVERTURE_0 — the first seconds; what the campaign priced and did not build
+
+Origin: OVERTURE_0 (eleven commits on master, base `c17569ae`). The boot world
+was born before its exhibition arrived and nothing let a born patch be dressed
+later; the deferred hang, the pool resolution and the flag split landed. What
+follows is what the campaign measured and left.
+
+- GALLERY BIOGRAPHY IS FROZEN AT `d21c680a`. U1 (the outdoor proportions) and
+  U2 (the roll resolves against the pool) change every open world's galleries,
+  so `?seed=N` no longer reproduces galleries pinned before that sha. The
+  PORTAL_3 E1/E2 precedent: the number is recorded here and not in a comment
+  (L34).
+- PER-EVICTION REFETCH, priced not built: a released, hung record is refetched
+  from the manifest cursor, so a two-hour walk sees all 57 paintings rather
+  than the staged 32. U6 released the record; nothing yet re-asks for a new
+  picture inside one world. Unblocked by the recording asking for it.
+- ROOM RE-HANG ON A LATE EXHIBITION, priced not built: `place_wall_paintings`
+  is idempotent (clear, then hang from the seed), so a room deferred bit is
+  the same shape as U3's patch bit. Reachable only from an indoor `?mood=`
+  boot, which is a dev door — every other room is entered through a portal,
+  thousands of conductor frames after the fill. Unblocked by a measurement.
+- DENSITY: `MIN_GALLERY_DISTANCE` 110 -> exclusion disc pi*110^2 ~= 38,000 wu^2
+  ~= 15 patches; ~= 2.5 galleries inside LOD0 (175), ~= 9.7 inside the veil ring
+  (342), ~= 29 of 40 exhibition layers at `PAINTINGS_MEAN` 3. The layer floor:
+  40/3 ~= 13.3 galleries in the ring -> exclusion >= sqrt(pi*342^2/(13.3*pi)) ~= 94
+  wu. So 95 buys 1.34x density and 80 overdraws the exhibition. Held as a taste
+  gate, not ruled. Unblocked by Jean's eye after this campaign's witness.
+- THE RESERVATION GAP: place reserves STAGING layers, not EXHIBITION layers.
+  Above ~13 dressed galleries `find_free_exhibition_layer` fails at commit and
+  a fan ends short. Inert at `MIN_GALLERY_DISTANCE` 110; binding below ~94, so
+  it is the density dial's companion and must move with it.
+- NO GATE COMPILES `src/the_board.cpp` — the program's ONLY translation unit.
+  The TU gate's subjects are `cartridge.hpp` and `console.hpp`, and glaw1
+  builds `cartridge.hpp`; the file that includes them both, holds `main()`,
+  the rAF driver and the READY offer, is read by nothing until Jean's emcc
+  runs. Adding it as a third TU costs one line in the gate's `TUS` table plus
+  one missing declaration in its own `emscripten.h` stub, which declares
+  `emscripten_set_main_loop_arg` but not `emscripten_set_main_loop`. Found at
+  OVERTURE_0 U9, which edited that file. Unblocked by a ruling on gate scope.
+- THE READY OFFER HOLDS A GALLERY-LESS BUILD FOR THE FULL TIMEOUT. U9's floor
+  is `authored_staged_count >= 6` OR 5 s; with `ROSTER.gallery` off the count
+  can never rise, so such a build always pays the 5 s. Ruled acceptable at
+  R-I ("no third arm"), recorded because a demo roster is the one shape where
+  the timeout is the only arm. Unblocked by a demo build wanting its seconds
+  back.
+
 ## PORTAL_3 — the even field (E1/E2 landed at `ee90a85`, E3 open)
 
-- E3 DEFERRED, AWAITING ONE NUMBER. `ArchConfig::SPAWN_CHANCE` stands at
-  `0.050f`. The gate is the arch row `live` count from a boot census in an
-  open world (`live / hi-wtr / cap / portal`; boot and mood-transition dumps
-  are not on the instrument dial). Ruled in advance: `<= 8` -> `0.100f`;
+- E3 DEFERRED, AWAITING ONE NUMBER — WHICH IS NOW PRINTABLE. The gate is the
+  arch row `live` count on `[CENSUS ... trigger=born]` in an open world. It has
+  to be the BORN dump, not the boot one: `boot` prints from `initialize()`,
+  before the first `stream_patches`, so its arch and gall rows read zero by
+  construction and the number this ruling wants has never been on screen.
+  OVERTURE_0 U8 added the born census at the end of the fullRegen arm, where
+  the priority window has been spawned, generated and doored. `ArchConfig::
+  SPAWN_CHANCE` stands at `0.050f`; the ruling is unchanged: `<= 8` -> `0.100f`;
   `9-12` -> `0.075f`; `>= 13` -> no edit, the array is the constraint and
   capacity is a separate campaign. Unblocked by the census reading.
 - MORE ARCHES IN GENERAL IS WANTED (Jean, Aug 2026). E3 raises every arch
@@ -370,9 +423,12 @@ collided with the hazard R4 was written to catch.
 
 SUPERSEDED IN ITS OPERATIVE HALF BY WALLS_2 (`4b147afe`), which hung the rooms
 without touching `consumed` at all — so the trade this section describes was
-never paid, and the flag split it asks for is now owed only to the OUTDOOR
-leak below, not to the walls. The findings are kept because they are the
-reasoning WALLS_2 was built on.
+never paid. THE FLAG SPLIT IS RULED AND LANDED (OVERTURE_0 U6, ruling R-G):
+`consumed` means "on a wall now" and is released when the painting leaves the
+world, `hung_this_world` is the rotation's own flag, and the outdoor leak this
+section named is closed. The freeze hazard R4 caught cannot arise from it —
+the rotation reads the flag it was given. The findings below are kept because
+they are the reasoning WALLS_2 and the split were built on.
 
 - THE STATED DEFECT CANNOT HAPPEN: A MOOD CHANGE IS ALWAYS A PORTAL CROSSING.
   `place_wall_paintings` ← `apply_mood_indoor_shell` ← `apply_mood`, and
@@ -408,16 +464,6 @@ reasoning WALLS_2 was built on.
   through the 32 staging slots and every world hangs the same 32 pictures.
   E2.3 applied to `teardown_gallery`'s loop as the handoff directs makes the
   freeze total — that loop runs immediately before the rotation.
-- THE FLAG IS OVERLOADED, AND THAT IS THE RULING TO MAKE. `consumed` carries
-  two meanings: (a) "currently exhibited", which selection reads, and (b)
-  "shown in this world, so rotate it out at world end", which the rotation
-  reads. E2.1–E2.3 collapse (b) into (a) and drop (b) silently. The remedy
-  that keeps both is small and mechanical — leave `consumed` meaning (a) as
-  the campaign intends, and give the rotation its own flag, set at the four
-  claim sites and cleared by the rotation itself. That is a change to
-  `GalleryState`'s shape and to what a world remembers, so it is Jean's.
-  Unblocked by his word on that split, or by a ruling that rotation may
-  freeze in exchange for full rooms.
 - R3, ANSWERED (b), WITH ITS CONSEQUENCE REVERSED. Entering an indoor mood
   does NOT evict resident outdoor patches: `evict_paintings_for_patch` is
   reached only from `evict_gallery`, which is the patch system's
@@ -427,19 +473,6 @@ reasoning WALLS_2 was built on.
   layers at `cartridge.hpp:1308` before `apply_mood` runs. The walls meet an
   empty array, not a full one. No ruling is owed on whether the world keeps
   its sand galleries across an indoor visit — it already does not.
-- THE ONE LEAK THAT IS REAL, AND IS OUTDOOR: `evict_paintings_for_patch`
-  frees an exhibition layer without releasing its record, and it runs
-  continuously as the pawn walks and patches churn. Within one world the
-  authored pool therefore walks down to nothing and outdoor authored
-  galleries stop placing until the next portal. SAND_1 made galleries far
-  more common, so this bites sooner than it did. It is the same law COMMIT 2
-  states and it is fixed by the same edit — and it carries the same rotation
-  trade, which is why no part of E2.3 was landed piecemeal.
-- `clear_wall_paintings` HAS THE SAME SHAPE AND IS INERT: it frees layers
-  without releasing records, but it only ever runs immediately after a
-  teardown that released everything, or at the head of
-  `place_wall_paintings` on a room whose records the same teardown already
-  cleared. Correctness wants the fix; nothing observable does.
 - R2 AND R4, CLEAN. Four claim sites (`commit_gallery` snapshot + authored,
   `place_wall_paintings` snapshot + authored) and three release sites
   (`evict_paintings_for_patch`, `clear_wall_paintings`, `teardown_gallery`)
@@ -459,12 +492,16 @@ reasoning WALLS_2 was built on.
 ### The readings WALLS_1 is not closed without
 
 COMMIT 1 alone is stampable now: (4) THREE OR FOUR — `across K walls` never
-reads 1 or 2. The rest wait on the ruling above, and reading (1) THE
+reads 1 or 2, and OVERTURE_0 U7 pins the two thresholds with a `static_assert`
+so no dial can reopen the shape. WHAT IS STILL OWED is reading (1) THE
 STARVATION, REPRODUCED — enter several indoor moods in one session and watch
-`Placed N + M` fall while `across K walls` holds at 3 or 4 — is now the
-witness for the ROTATION account rather than the accumulation one: the drop
-should track what the PREVIOUS room hung, and should recover as
-`[Authored] Rotated` fetches land.
+`Placed N + M` fall while `across K walls` holds at 3 or 4. It is the witness
+for the ROTATION account rather than the accumulation one: the drop should
+track what the PREVIOUS room hung, and should recover as `[Authored] Rotated`
+fetches land — four at a time since U4b, so recovery should now be visibly
+faster than the one-lane account this reading was written against. U7's
+`[WallPainting] BARE WALL <w>` line is the second half of the reading: it says
+which wall got nothing, which the room-total line cannot.
 
 ## SAND_2 — one sizing law, and the one thing it does not cover
 
