@@ -271,13 +271,12 @@ Canvas 689×607 → 1366×607 (+98% pixels) moved `main_pass` 11.86 → 13.6 ms 
 16 windows (+15%); `shadow_pass` 6.13 → 5.82 on a fixed-size target, the
 control. Fragment is ≈ 1.6 of 12 ms; ~10 ms is vertex and submission. Patches
 are already frustum-culled through the draw plan. Levers, in aesthetic-price
-order: `patch_terrain_vs`'s per-vertex cost and its dependent fetches; the
-heightfield resolution — SPENT, and further than this line proposed: LATTICE_1
-took it to one texel per lattice point (65², 7.6 MB from 118) and turned the
-VS's dependent bilinear fetch into an exact `textureLoad`; curtain granularity (a
-zone overlap promotes a whole patch from cap-only to the full IB, and the
-eight-zone world ran ~3.5 ms hotter than the one-zone world); the LOD0 radius
-and `PATCH_MESH_N`, which are Jean's.
+order: `patch_terrain_vs`'s per-vertex cost and its dependent fetches;
+curtain granularity (a zone overlap promotes a whole patch from cap-only to
+the full IB, and the eight-zone world ran ~3.5 ms hotter than the one-zone
+world); the LOD0 radius and `PATCH_MESH_N`, which are Jean's. (The
+heightfield-resolution lever that stood here is SPENT — LATTICE_1 R1 made it
+law: `PATCH_HEIGHTFIELD_N = PATCH_MESH_N + 1`.)
 
 ### FINDINGS, mechanical
 

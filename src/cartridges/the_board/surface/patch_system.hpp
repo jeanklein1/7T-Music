@@ -538,11 +538,15 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── Patch Generation Pipeline ─────────────────────────────────
 
     int32_t centerX, centerZ;
-    // THE PARAMS RING'S CURSOR, one frame's worth. A full regen generates
-    // two batches into this one encoder, and the queue orders every
-    // WriteBuffer before the whole command buffer — so the second batch
-    // takes fresh records rather than overwriting the first's.
-    bool bakedThisFrame = false;   // LATTICE_1 R-D: ONE bake batch a frame
+    // ONE BAKE BATCH A FRAME (LATTICE_1's R-D fold). A LOCAL, and that is
+    // the whole mechanism: it is false at the top of every frame by
+    // construction, so there is no reset to forget. It replaced a params-
+    // ring cursor, which existed because a full regen made two batches into
+    // one encoder and the queue orders every WriteBuffer ahead of the whole
+    // command buffer — the second batch's write would have landed on the
+    // first's records before either dispatch ran. With one batch there is
+    // nothing to cursor.
+    bool bakedThisFrame = false;
     bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
     if (c->world_state_.finite_mode) {
         centerX = 0;

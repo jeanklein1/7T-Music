@@ -673,9 +673,16 @@ namespace t7 {
                         // campaign prints only.
                         //
                         //   maxDynamicUniformBuffersPerPipelineLayout —
-                        //     one dynamic seat per layout: shadow_slot on
-                        //     frame R, patch_params on patchgen state. 1 of
-                        //     the 8 default.
+                        //     ONE dynamic seat in the program: shadow_slot on
+                        //     frame R. 1 of the 8 default. (LATTICE_1 retired
+                        //     the second — patch_params left the dynamic seat
+                        //     for a read-only storage array when the bake
+                        //     became one batched dispatch.)
+                        //   maxComputeWorkgroupStorageSize — the bake's node
+                        //     table, 3,744 B of the 16,384 default. The module
+                        //     states the number itself (BAKE_WORKGROUP_BYTES)
+                        //     and carries its own const_assert against the
+                        //     default; this print is the runtime half.
                         // The floors read the NEEDS table's emitted
                         // constants; no literal lives in the C++.
                         std::cout << "[Device] granted vs floor:"
@@ -697,6 +704,9 @@ namespace t7 {
                             << " maxDynamicUniformBuffersPerPipelineLayout="
                             << got.maxDynamicUniformBuffersPerPipelineLayout
                             << "/" << FLOOR_MAX_DYNAMIC_UNIFORM_BUFFERS_PER_PIPELINE_LAYOUT
+                            << " maxComputeWorkgroupStorageSize="
+                            << got.maxComputeWorkgroupStorageSize
+                            << "/" << FLOOR_MAX_COMPUTE_WORKGROUP_STORAGE_SIZE
                             << " (floor)\n";
                         bool below = false;
                         if (got.maxTextureDimension2D < FLOOR_MAX_TEXTURE_DIMENSION_2D) {

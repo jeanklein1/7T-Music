@@ -10322,8 +10322,7 @@ const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[3].spacing) + 3.0 <= f32(BAKE_
 const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[4].spacing) + 3.0 <= f32(BAKE_NODES_4);
 const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[5].spacing) + 3.0 <= f32(BAKE_NODES_5);
 
-// 77 * 48 B = 3,696 B, plus 48 B of origins — 3,744 of the 16,384 B
-// floor. THE ARITHMETIC ABOVE IS THE BOUNDS GUARD: `rel` in
+// THE ARITHMETIC ABOVE IS THE BOUNDS GUARD: `rel` in
 // bake_ground_at is non-negative and below the band's count BY THAT
 // INEQUALITY, never by a clamp. WGSL robustness would clamp a wrong index
 // silently and hand back a neighbour's wave, so a wrong table would read
@@ -10331,6 +10330,15 @@ const_assert floor(BAKE_TILE_SPAN / TERRAIN_BANDS[5].spacing) + 3.0 <= f32(BAKE_
 // the const_assert fires before the shader ever runs.
 var<workgroup> bake_nodes: array<WaveNode, BAKE_TABLE_N>;
 var<workgroup> bake_origin: array<vec2<i32>, TERRAIN_BAND_COUNT>;   // per-band min node index
+
+// THE WORKGROUP-STORAGE NEED (LATTICE_2 R5). Stated once, checked here
+// against the core default; the schema's NEEDS row quotes this constant.
+// 48 = the WGSL size of WaveNode (4 f32 + vec2 + vec2 + 4 u32, 8-aligned);
+// 8 = vec2<i32>. This is the program's LARGEST per-entry-point sum — the
+// only other var<workgroup> in the module is the card resolve's
+// `sh_card_h`, 1,600 B in its own entry point.
+const BAKE_WORKGROUP_BYTES: u32 = BAKE_TABLE_OFF[6] * 48u + TERRAIN_BAND_COUNT * 8u;   // 3,744
+const_assert BAKE_WORKGROUP_BYTES <= 16384u;   // maxComputeWorkgroupStorageSize, core default
 
 // Comparisons only — the blessed shape (no loops, no tables).
 fn bake_band_of(k: u32) -> u32 {

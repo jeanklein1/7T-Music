@@ -13,13 +13,13 @@ Last commit touching any scanned file: `5d2b5f84684cc9451c4045f3b3958ed7e178e9f0
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e4cba2c043d9b83ba8bf0dd1e43c652e17640b593786bbde88115aa8f7d66621` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:daf86d8c12df3d9dbc61895b9f8ef7432c3a47f139b99540f900aacd88b1c21d` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:444d27b0166e20e7167f6fd4959d836a3e8464b83ad6ff1c4582ce5ec520f674` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:58498b7bfda6335e3582d62c83ca749e997d46d262895ed313f12a87da0c3a34` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:1b1c3c116721dd10a5644190951aa680dc2bdd2fcd06b6677ed41bf3698bf500` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/gallery.hpp` | `sha256:924cabe08a921320c79177daf6209bb80cb7ee7786902741078e2840b108396b` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:95b2f265f400dcb840a35cefe83307b7c0928b5280be35037d6a02f983ce05e4` |
 | `src/the_board.cpp` | `sha256:b7d52b10d3a3037a8330754097a3d793ba6f684a3b35229330b95a8e669a4a24` |
-| `src/console/console.hpp` | `sha256:f97e78c6da784247d6f5e199cc2464724fc396f37b145f7374c5ec0b1dcb24ab` |
+| `src/console/console.hpp` | `sha256:ca90bec4b2dec9fae23ae51a0ffc90d4b77d5666234c549e40472ea19bdf5d0f` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -81,13 +81,13 @@ every landing.
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:954` |
-| 2 | `reassert_canvas_target` | `src/console/console.hpp:1111` |
-| 3 | `begin_frame` | `src/console/console.hpp:1250` |
+| 1 | `initSurface` | `src/console/console.hpp:964` |
+| 2 | `reassert_canvas_target` | `src/console/console.hpp:1121` |
+| 3 | `begin_frame` | `src/console/console.hpp:1260` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:1240`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:1250`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer
