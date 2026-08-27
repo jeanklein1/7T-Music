@@ -444,7 +444,12 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // 25 wu BEFORE the drawn world did, and that visible edge is what the
     // campaign was chasing. It is now structurally gone, not merely
     // pushed.
-    if (cast_terrain) {
+    // THE SUBTRACTION MASK (PANORAMA_1) — the shadow pass's two halves. Same
+    // rule as the main pass: skipped at the encoder, so the pass row reads
+    // the absence. `cast_terrain` is the MOOD's word and stays ahead of it.
+    const uint32_t smask = c->gpuState_.config().shadow_mask;
+
+    if (cast_terrain && (smask & ShadowBit::TERRAIN)) {
         c->renderer_.draw_shadow_patch_terrain(
             pass,
             c->gpuState_.patch_index_buffer_lod1(),
@@ -463,6 +468,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     DrawBind b{ /*shadow=*/true,
                 c->ribbon_state_.rendered_slot != UINT32_MAX,
                 ribbon_draw_verts(c->ribbon_state_) };
+    if (smask & ShadowBit::TABLE)
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 
     // FORKS — the artworks, on their OWN gallery bind groups, as in the
@@ -485,6 +491,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
     // no longer moves mid-tile.
     // LOOM_2: the artwork shadow draws are SHADOW family — their strata
     // are already bound, and the old texture-group fork is retired.
+    if (smask & ShadowBit::TABLE) {
     c->renderer_.draw_shadow_wall_paintings(
         pass,
         c->gallery_state_.wall_frame_count,
@@ -495,6 +502,7 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass, bool c
         c->gallery_state_.active_painting_count,
         c->gallery_state_.slot_high_water
     );
+    }
 }
 
 // ═══ MAIN PASS ═══════════════════════════════════════════════════
@@ -568,20 +576,29 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // is RETIRED here — the plan is per-patch; the flag survives only
     // for the snapshot pass (R6), which culls against the
     // photographer's frustum and cannot read this plan.
+    // THE SUBTRACTION MASK (PANORAMA_1). Each draw below is skipped AT THE
+    // ENCODER when its bit is clear — not culled in the shader, which would
+    // still pay the pass's vertex work and leave the meter reading no
+    // difference. The mask rests open; a cleared bit is a measurement.
+    const uint32_t dmask = c->gpuState_.config().draw_mask;
+
     c->renderer_.begin_patch_terrain_plan(pass);   // OIL_1 U13: one SetPipeline for the three slots
     // DOMESDAY_0 B3: the per-slot list window rides the vertex-buffer
     // offset now (FC_SEG_A/B/C — the same segments the retired g2:62
     // bind windows carved), delivered to the VS as @location(0).
+    if (dmask & DrawBit::TERRAIN_A)
     c->renderer_.draw_patch_terrain_plan_slot(pass,
         c->gpuState_.scene_state_group(),
         c->gpuState_.visible_patch_indices_buffer(), FC_SEG_A_OFF, FC_SEG_A_BYTES,   // plan A window
         c->gpuState_.patch_index_buffer(),           // full IB (zone-overlapped)
         c->gpuState_.frustum_indirect_lod0(), 0);
+    if (dmask & DrawBit::TERRAIN_B)
     c->renderer_.draw_patch_terrain_plan_slot(pass,
         c->gpuState_.scene_state_group(),            // B5 (R2): the one scene group
         c->gpuState_.visible_patch_indices_buffer(), FC_SEG_B_OFF, FC_SEG_B_BYTES,   // plan B window
         c->gpuState_.patch_index_buffer_cap_only(),  // cap-only IB (clean LOD0)
         c->gpuState_.frustum_indirect_lod0(), 20);
+    if (dmask & DrawBit::TERRAIN_C)
     c->renderer_.draw_patch_terrain_plan_slot(pass,
         c->gpuState_.scene_state_group(),            // B5 (R2): the one scene group
         c->gpuState_.visible_patch_indices_buffer(), FC_SEG_C_OFF, FC_SEG_C_BYTES,   // plan C window
@@ -594,10 +611,14 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // The drawable table — main members, canonical order. All opaque and
     // depth-tested, so order among them is immaterial; this is where the
     // ribbon's ordinal drift dies (it now draws with the entities, not late).
+    // The ribbon is a table MEMBER, so its bit is subtracted through the
+    // bind rather than by skipping the table it shares.
     DrawBind b{ /*shadow=*/false,
-                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                (dmask & DrawBit::RIBBON) != 0u
+                    && c->ribbon_state_.rendered_slot != UINT32_MAX,
                 ribbon_draw_verts(c->ribbon_state_) };
-    draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
+    if (dmask & DrawBit::TABLE)
+        draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
     // FORKS — the specials, kept explicit. Wall paintings + gallery frames use
     // their OWN gallery bind groups (opaque). Then the ORDER-SENSITIVE blended
@@ -610,6 +631,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     pass.SetBindGroup(2, c->gpuState_.gallery_state_group());
     pass.SetBindGroup(3, c->gpuState_.gallery_textures_group());
     }
+    if (dmask & DrawBit::PAINTINGS) {
     c->renderer_.draw_wall_paintings(
         pass,
         c->gallery_state_.wall_frame_count,
@@ -622,6 +644,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         c->gallery_state_.active_painting_count,
         c->gallery_state_.slot_high_water
     );
+    }
 
     // LOOM_2: the gallery fork left its pair at 2/3, and the orb draw
     // is SCENE family (its per-draw binds were hoisted to the strata),
@@ -631,7 +654,8 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     pass.SetBindGroup(2, c->gpuState_.scene_state_group());
     pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
     }
-    render_orbs(orbs_state_, &orbs_deps_, pass);
+    if (dmask & DrawBit::ORBS)
+        render_orbs(orbs_state_, &orbs_deps_, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)
     // LOOM_2: the fade overlay binds WORLD only; its other strata are
@@ -639,6 +663,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     pass.SetBindGroup(1, c->gpuState_.empty_group());
     pass.SetBindGroup(2, c->gpuState_.empty_group());
     pass.SetBindGroup(3, c->gpuState_.empty_group());
+    if (dmask & DrawBit::FADE)
     c->renderer_.draw_fade_overlay(
         pass,
         c->mood_state_.transition_fade_alpha

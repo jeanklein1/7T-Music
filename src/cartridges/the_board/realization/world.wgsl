@@ -1777,7 +1777,18 @@ struct DesignConfig {
     // commit, same order, same type. Read by field_sum's occupier_amg loop.
     // Was _pad704_0.
     field_arch_slack: f32,          // 696
-    _pad704_1: f32,                 // 700
+    // ─── The subtraction dials (PANORAMA_1) ──────────────────────────────
+    // Mirror of GPUDesignConfig (state.hpp) — GROWTH LAW, same commit, same
+    // order, same types. DECLARED HERE AND READ BY NOTHING IN THIS ROOM: the
+    // masks gate DRAW CALLS, which is a CPU-side decision at the encoder, and
+    // that is the point — a shader-side cull would still pay the pass's
+    // vertex work and the meter would read no difference. The mirror is the
+    // GROWTH LAW's, not a reader's. Was _pad704_1, consumed in place.
+    draw_mask: u32,                 // 700
+    shadow_mask: u32,               // 704
+    _pad720_0: f32,                 // 708
+    _pad720_1: f32,                 // 712
+    _pad720_2: f32,                 // 716
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)

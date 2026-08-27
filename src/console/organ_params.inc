@@ -641,4 +641,18 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_signal,      BOOL, 0.0f, 1.0f, 1.0f, "
 ORGAN_PARAM(CONFIG, GPUDesignConfig, freeze_sphere,    BOOL, 0.0f, 1.0f, 1.0f, "Debug", "freeze sphere")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, fpv_mode,         BOOL, 0.0f, 1.0f, 1.0f, "Debug", "FPV mode (key-shared)")
 
+// ─── Measure · the subtraction masks (PANORAMA_1) ────────────────────
+// THE INSTRUMENT THE METER LACKS. `[METER]` brackets a PASS and cannot say
+// which draw inside it spent the milliseconds. These two words subtract a
+// draw AT THE ENCODER — the pass row then reads its absence, and the
+// difference is that draw's cost. The bit vocabulary is DrawBit/ShadowBit
+// (state.hpp), beside the fields.
+//
+// They rest OPEN (0xFF / 0x3, pinned at the boot block). A cleared bit is a
+// measurement in progress and never a shipped state — which is why they are
+// enrolled as MEASURE and not as a taste group: nothing here is a dial the
+// piece is tuned with.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, draw_mask,   U32, 0.0f, 255.0f, 1.0f, "Measure", "main draw mask (bits: A/B/C terrain, table, ribbon, paintings, orbs, fade)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_mask, U32, 0.0f,   3.0f, 1.0f, "Measure", "shadow draw mask (bit0 terrain, bit1 entities+artworks)")
+
 // ─── Atrium — EDITS THE NEXT ENTRANCE ───────────────────────────

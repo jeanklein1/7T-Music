@@ -541,6 +541,29 @@ namespace t7 {
             float    _mp1;                // 76
         };
 
+        // ═══ THE SUBTRACTION MASKS' VOCABULARY (PANORAMA_1) ═════════════
+        // The bit names live beside the fields they name, because the bit IS
+        // the field's meaning. Read at the draw sites (render_passes.hpp) and
+        // pinned open at the boot block below; nothing else may author them.
+        namespace DrawBit {
+            inline constexpr uint32_t TERRAIN_A = 1u << 0;   // full IB, zone-overlapped
+            inline constexpr uint32_t TERRAIN_B = 1u << 1;   // cap-only IB, clean LOD0
+            inline constexpr uint32_t TERRAIN_C = 1u << 2;   // LOD1 IB
+            inline constexpr uint32_t TABLE     = 1u << 3;   // the drawable table
+            inline constexpr uint32_t RIBBON    = 1u << 4;   // a table MEMBER since ECONOMY_1 —
+                                                             // subtracted through DrawBind, not
+                                                             // by skipping the table
+            inline constexpr uint32_t PAINTINGS = 1u << 5;   // both draws (wall + gallery frames)
+            inline constexpr uint32_t ORBS      = 1u << 6;
+            inline constexpr uint32_t FADE      = 1u << 7;
+        }
+        namespace ShadowBit {
+            inline constexpr uint32_t TERRAIN = 1u << 0;
+            inline constexpr uint32_t TABLE   = 1u << 1;   // entities + the two artwork draws
+        }
+        inline constexpr uint32_t DRAW_MASK_ALL   = 0xFFu;
+        inline constexpr uint32_t SHADOW_MASK_ALL = 0x3u;
+
         // Field ORDER is the cross-room contract — world.wgsl's
         // DesignConfig mirrors this struct field-for-field. Adding a
         // knob: THE GROWTH LAW, L5 in docs/LAWS.md. Choosing where
@@ -823,7 +846,35 @@ namespace t7 {
             // 704 is unmoved and no witness below moves either. Was
             // _pad704_0.
             float field_arch_slack;        // 696
-            float _pad704_1;               // 700
+            // ─── The subtraction dials (PANORAMA_1) ──────────────────────
+            // THE INSTRUMENT THE METER LACKS. `[METER]` brackets a PASS; it
+            // cannot say which draw inside the pass spent the milliseconds,
+            // and the main pass is 11-12 ms on Kepler for a vertex and pixel
+            // count that does not explain it. These two words let a draw be
+            // SUBTRACTED at the encoder — not culled in the shader, so the
+            // pass row measures its absence — and the difference is the
+            // draw's cost, read off the same meter that could not split it.
+            //
+            // Default is every bit set (the boot pins it). A cleared bit is a
+            // measurement, never a shipped state.
+            //
+            // draw_mask, main pass:
+            //   bit0 terrain plan A (full IB, zone-overlapped)
+            //   bit1 terrain plan B (cap-only IB, clean LOD0)
+            //   bit2 terrain plan C (LOD1 IB)
+            //   bit3 the drawable table   bit4 (rides bit3 — the ribbon is a
+            //                                   table member since ECONOMY_1)
+            //   bit5 the two painting draws   bit6 the orbs   bit7 the fade
+            // Mirror of the WGSL twin — GROWTH LAW, same commit, same
+            // position, same type. Was _pad704_1, consumed IN PLACE.
+            uint32_t draw_mask;            // 700
+            // shadow_mask: bit0 terrain, bit1 the entity table + the artworks.
+            // Appended past the boundary, so three fresh pads carry the struct
+            // back to it: 704 -> 720.
+            uint32_t shadow_mask;          // 704
+            float _pad720_0;               // 708
+            float _pad720_1;               // 712
+            float _pad720_2;               // 716
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1891,8 +1942,8 @@ namespace t7 {
         // 624 -> 672. Both rooms, same commit.
         // RIBBON_2: the wander brain's four join them — one pad consumed,
         // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 704,
-            "GPUDesignConfig must be 704 bytes. PRUNING_1 P3 removed nine "
+        static_assert(sizeof(GPUDesignConfig) == 720,
+            "GPUDesignConfig must be 720 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
             "44 B moved all four vec3 members off their boundaries. "
@@ -1910,7 +1961,8 @@ namespace t7 {
             "feed-forward consumes that last pad IN PLACE — 688 is unmoved, "
             "and the trailing pad is spent. The witness's two presence dials "
             "met that: no pad to reuse, two appended, two fresh pads to the "
-            "boundary; 688 -> 704.)");
+            "boundary; 688 -> 704. PANORAMA_1: the two subtraction masks — one pad consumed IN PLACE, one appended, three fresh pads to the "
+            "boundary; 704 -> 720.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -3128,6 +3180,12 @@ namespace t7 {
             }
             void set_point_fly_speed(float s) {
                 if (config_.point_fly_speed != s) { config_.point_fly_speed = s; configDirty_ = true; }
+            }
+            void set_draw_mask(uint32_t m) {
+                if (config_.draw_mask != m) { config_.draw_mask = m; configDirty_ = true; }
+            }
+            void set_shadow_mask(uint32_t m) {
+                if (config_.shadow_mask != m) { config_.shadow_mask = m; configDirty_ = true; }
             }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
@@ -5101,6 +5159,12 @@ namespace t7 {
                 // directly, so the two rooms cannot drift.
                 config_.field_slack         = FIELD_SLACK;
                 config_.field_arch_slack    = FIELD_ARCH_SLACK;   // ATRIUM_7 — an arch leg's own shell
+                // THE SUBTRACTION DIALS REST OPEN (PANORAMA_1): every draw
+                // draws. A cleared bit is a measurement in progress, never a
+                // shipped state, so the rest is the only value the audience
+                // ever sees.
+                config_.draw_mask           = DRAW_MASK_ALL;
+                config_.shadow_mask         = SHADOW_MASK_ALL;
                 config_.field_k             = FIELD_K;
                 config_.field_fmax          = FIELD_FMAX;
                 config_.field_occupier_gain = FIELD_OCCUPIER_GAIN;
