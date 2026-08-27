@@ -253,7 +253,9 @@ struct GalleryConfig {
     // size. Fractional holds one character of variation at every scale.
     static constexpr float PAINTING_SIZE_SIGMA = 0.3f;   // per-painting jitter, FRACTIONAL
 
-    // Minimum snapshots before galleries start appearing
+    // Snapshots join the pool once three exist — a one-photo gallery is a
+    // diary page, not an exhibition. Read by gallery_available_staging and
+    // by nothing else: it gates the SNAPSHOT pool, never the family.
     static constexpr uint32_t MIN_POOL_SIZE = 3;
 
     // Minimum distance between gallery centers (world units). Clearance
@@ -1073,8 +1075,14 @@ inline void capture_snapshot(GalleryState& gs, GalleryDeps* c, float pawn_x, flo
 // ── select_gallery_for_patch ──
 
 inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx, int32_t gz, GallerySelection& sel) {
-    // Content gate: minimum snapshot pool
-    if (gs.snapshot_count < GalleryConfig::MIN_POOL_SIZE) return false;
+    // NO CONTENT GATE HERE (OVERTURE_0). Content is PLACE's question and has
+    // been since SPAWN_4 gave place the reservation; the snapshot floor that
+    // stood at the head of this function was the snapshot era's duplicate of
+    // it, and it was the reason the boot ring was born gallery-less — at the
+    // first stream_patches the photographer has shot nothing, so every patch
+    // in the priority window refused before it ever rolled. The floor now
+    // lives in the pool arithmetic (gallery_available_staging), where it
+    // governs the snapshot pool alone instead of the whole family.
 
     // THE COMPOSITION LAW: base authority is ARCHETYPE-INDEXED —
     // resolved first, passed as data. Mood = explicit veto; proximity
@@ -1207,32 +1215,58 @@ inline float gallery_fan_radius(uint32_t count) {
         + GalleryConfig::PAINTING_HALF + GalleryConfig::FAN_MARGIN;
 }
 
-// How many staging layers are free for a gallery being placed right now.
-// Mirrors commit's availability test, minus the two things place cannot see:
-// the mono-tier curation (a per-gallery filter) and the lazy authored texture
-// load (a GPU write, and the place phase writes no GPU state — preserved law).
-// Both can only REDUCE what commit finds, so this is an upper bound and the
-// radius errs large rather than small.
+// THIS IS THE POOL (OVERTURE_0), not a mirror of one. It used to describe
+// itself as commit's availability test minus two things place cannot see —
+// which was true, and which let a subtly different number live at each end.
+// Now the two ends ask ONE question, and the residual caps commit still
+// applies (the mono-tier curation, a per-gallery seed filter; the exhibition
+// layer allocator) can only ever REDUCE, so this stays an upper bound and the
+// fan radius errs large rather than small.
+//
+// Two things the arithmetic says that the old spelling did not:
+//   · SNAPSHOTS COUNT ONLY ONCE THE FLOOR IS MET. MIN_POOL_SIZE moved here
+//     from the head of select. Below three photographs the snapshot pool is
+//     zero — which is what makes a boot patch resolve to the authored pool
+//     rather than refuse the family outright.
+//   · THE AUTHORED POOL IS WHAT COMMIT CAN ACTUALLY HANG. authored_hangable
+//     is `valid && !consumed`; authored_staged_count is a tally of `valid`
+//     alone, so it counted records already on a wall and place reserved
+//     against paintings that were never coming.
 inline uint32_t gallery_available_staging(const GalleryState& gs, uint32_t site_type) {
     uint32_t snaps = 0;
-    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
-        if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed) snaps++;
+    if (gs.snapshot_count >= GalleryConfig::MIN_POOL_SIZE)
+        for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+            if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed) snaps++;
+    const uint32_t auth = authored_hangable(gs);   // valid && !consumed — what commit hangs
     uint32_t pool = (site_type == GallerySiteType::SNAPSHOT_ONLY) ? snaps
-                  : (site_type == GallerySiteType::AUTHORED_ONLY) ? gs.authored_staged_count
-                  : snaps + gs.authored_staged_count;
+                  : (site_type == GallerySiteType::AUTHORED_ONLY) ? auth
+                  : snaps + auth;
     return pool > gs.staging_reserved ? pool - gs.staging_reserved : 0u;
 }
 
 inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& sel, GalleryPlacement& plan) {
     auto& gs = c->gallery_state_;
 
+    // THE ROLL IS A PREFERENCE; THE POOL DECIDES (OVERTURE_0). A rolled pool
+    // that is empty resolves to the other pool if that one has content. MIXED
+    // reads their sum, so an empty MIXED means both are empty and there is no
+    // other to try. Both empty is not a refusal — it is a patch waiting for
+    // an exhibition that has not landed yet, and the conductor retries it.
+    uint32_t site  = sel.site_type;
+    uint32_t avail = gallery_available_staging(gs, site);
+    if (avail == 0 && site != GallerySiteType::MIXED) {
+        const uint32_t other = (site == GallerySiteType::AUTHORED_ONLY)
+            ? GallerySiteType::SNAPSHOT_ONLY : GallerySiteType::AUTHORED_ONLY;
+        const uint32_t a2 = gallery_available_staging(gs, other);
+        if (a2 > 0) { site = other; avail = a2; }
+    }
+
     // THE RESERVATION. The count is resolved HERE, against content, so the
     // radius below describes the gallery that will actually be built. Commit
     // draws from this instead of discovering scarcity after the ground is
     // already claimed.
-    const uint32_t avail = gallery_available_staging(gs, sel.site_type);
     const uint32_t reserved = sel.painting_count < avail ? sel.painting_count : avail;
-    if (reserved == 0) return false;   // no content: never claim ground for a gallery that cannot exist
+    if (reserved == 0) return false;   // no content of either kind — the patch waits
 
     // ONE extent, used for both questions, and they are the same question.
     // The old code passed the SAME VARIABLE for footprint and containment too
@@ -1271,7 +1305,7 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     plan.painting_count = sel.painting_count;
     plan.facing_angle = sel.facing_angle;
     plan.gallery_size_mean = sel.gallery_size_mean;
-    plan.site_type = sel.site_type;
+    plan.site_type = site;   // the RESOLVED one, not the rolled one
 
     return true;
 }
@@ -1376,10 +1410,17 @@ inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     // cover. The two remaining caps below it are the ones place cannot see:
     // mono-tier curation (per-gallery) and the authored texture load (a GPU
     // write, barred from place). Both only ever REDUCE.
+    //
+    // THE AUTHORED CEILING IS authored_hangable, NOT authored_staged_count
+    // (OVERTURE_0). The tally counts every VALID record, a wall's included, so
+    // it answered "how many pictures are staged" where this line asks "how
+    // many can this gallery hang". The difference widened row_start — the fan
+    // was laid out for paintings that were never coming, and the row read
+    // off-centre by half a ROW_SPACING for every consumed record it counted.
     uint32_t painting_count = plan.reserved_count;
-    uint32_t max_available = candidate_count + gs.authored_staged_count;
+    uint32_t max_available = candidate_count + authored_hangable(gs);
     if (site_type == GallerySiteType::SNAPSHOT_ONLY) max_available = candidate_count;
-    if (site_type == GallerySiteType::AUTHORED_ONLY) max_available = gs.authored_staged_count;
+    if (site_type == GallerySiteType::AUTHORED_ONLY) max_available = authored_hangable(gs);
     if (painting_count > max_available) painting_count = max_available;
 
     // Layout
