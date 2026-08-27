@@ -9,7 +9,11 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   `assets/entrance/`, put the controls diagram on the veil, and E3/E5 freed it
   from the 2:3 slot so it arrives whole. PHASE M reads it on the Pixel — AURA,
   ZOOM, SWAP, DIRECTION, ROTATION all legible at 263 CSS px, neither too small
-  nor soft, no cap moved. The visitor is therefore shown the gestures
+  nor soft. (That reading was the FLOOR only, and "no cap moved" beside it was
+  a claim about a range nobody had read: E6 read the ceiling, and it failed —
+  the caps are POSTER_WIDTH now, 640 on both axes, and landscape gets a row.
+  The floor reading itself stands to the decimal.) The visitor is therefore
+  shown the gestures
   immediately before entering, and the veil is dismissed by a dedicated
   "tap to enter" button rather than by performing one (E3/E4 addendum R4,
   settled). WHAT REMAINS OPEN is the world's own half: once inside there is
@@ -18,6 +22,19 @@ This file is the ONLY home of open/parked state. When an item closes, its line d
   The deploy hold was written against the loading page landing and that
   condition is now met on the door — whether it lifts is Jean's, and
   ATTIC_ATRIUM must be in the same `dist` when it does.
+- THE CARD SPILLS ITS COLUMN BETWEEN 400 AND 600 CSS PX OF HEIGHT, and
+  ENTRANCE_0 E6 deepened it. `.layer` is a fixed-height centred column with no
+  overflow rule, so an over-tall column has always spilled at both ends — the
+  poster loses its top, `details` falls off the bottom. E6's 60vh cap sizes the
+  poster without knowing the card's stack is 280px where the veil's is 138, so
+  the band got worse before the row rescues it below 400: 915x412 went 41 -> 115
+  px spilled, 1280x401 48 -> 120, 1280x500 0 -> 80, while 915x384 and 1280x399
+  went 57 -> 0 and 49 -> 0. THE VEIL NEVER SPILLS, at any of E6's 26 readings.
+  Two cures, both dimensions and so both Jean's: a card-only height cap, or the
+  row threshold moved to the card's own arithmetic (229.6 + 280.2 + 32 = 542),
+  which costs the veil a row between 400 and 542 where its column still works.
+  Origin: ENTRANCE_0 E6. Unblocked by Jean picking one, or by ruling that a
+  failure card in a short window may spill.
 - MOOD_ATRIUM STILL EXISTS, AND ONLY BECAUSE A PRESET REMEMBERS ITS ID.
   ATTIC_ATRIUM deleted the entrance's every mechanism — the hang, the
   partition, the arc, the arrival orbit, the colours — and stopped at the ROW.
