@@ -2248,10 +2248,29 @@ namespace t7 {
                     // consumption that dispatched the correction — NEVER
                     // unconditional: a perpetual rebake is the failure mode
                     // (idle rig = zero mesh-gen dispatches at steady state).
-                    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-                        if (entities_state_.columns[i].active) {
-                            entities_state_.column_mesh_gen_pending = true;
-                            break;
+                    //
+                    // AND ONLY WHERE A CEILING READS IT (PANORAMA_1). The fit
+                    // is what makes ground_y an INPUT to the mesh, and it is
+                    // the only thing that does: the kernel's height is
+                    //   select(p.height, max(ceiling - ground_y, MIN),
+                    //          ceiling_height > 0.0 && tier < ANTENNA)
+                    // so outdoors, where set_ceiling_height writes 0, the
+                    // false arm keeps p.height and every output byte of the
+                    // rebake equals the last bake's. The re-raise was firing
+                    // on every corrected frame in an open world and paying a
+                    // whole-family regeneration for a result it could not
+                    // change — 378 of 498 firings in one 1,300-frame window,
+                    // which is what the mesh-gen count was built to see.
+                    //
+                    // The condition is the SAME FIELD the kernel selects on,
+                    // read from the CPU side of the same uniform, so the gate
+                    // and the select cannot disagree.
+                    if (gpuState_.config().ceiling_height > 0.0f) {
+                        for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
+                            if (entities_state_.columns[i].active) {
+                                entities_state_.column_mesh_gen_pending = true;
+                                break;
+                            }
                         }
                     }
                 }
