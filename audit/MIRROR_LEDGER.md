@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d252228c6467215f08b6c4cd90b1459cad036e4d` |
-| | RECORD — LATTICE_1's corrections and what it filed (L32) |
+| source commit | `c9cf34b6877079b413b88cc2a30e351d1a4c287a` |
+| | LEDGER — the five re-stamp after LATTICE_1 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:3a499509e86b3904f77a30ee426b896b132d96ba786c393fad7e0df5204a6f88` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:133f32df078d3a3786e2e7f90e66b95845dbb4d474b79d27d692c34b6c46715c` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b4384738744641eec92de0dafa5cbcf75715431e0ec7cb18f485abc40c19cd41` |
