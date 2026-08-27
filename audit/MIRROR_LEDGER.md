@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `4f3d73f41914571c7ff6bfa896df8935aca0dd96` |
-| | U4 — the PCF tap dial: 16 or 4, measurable and comparable (PANORAMA_1) |
+| source commit | `4ef02ebfbf353c345050a45fbd1c9d462fcb68ec` |
+| | LEDGER — the five re-stamp after PANORAMA_1 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1c9c1497360b81409aa64ce3fa9a223c32c838322d3e95172114be6eaea9f3ea` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:2a45118250b3fb3f2a1079db4dbe26cf752e53426030619fb03cce10684bed94` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:51bc6c7999abcdc7ddff5761ac026a26fb853256682f9c82fc51718f9debc91e` |
