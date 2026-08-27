@@ -285,11 +285,28 @@ struct GalleryConfig {
 
     // ─── Content×Form Mixing ─────────────────────────────────
     //
-    static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.80f;  // [0.00, 0.80)
-    static constexpr float OUTDOOR_MIXED = 0.05f;  // [0.80, 0.85)
+    // THE PAINTINGS ARE THE SUBJECT; THE PHOTOGRAPHER'S SHOTS ARE THE DIARY.
+    // The three numbers below are one ruling, and they used to state the
+    // opposite one: four outdoor sites in five were snapshot-only, and the
+    // expected authored share of an outdoor painting came to 0.15 + 0.05 x
+    // 0.35 — seventeen percent. The program's own exhibition was a minority
+    // of itself, and a visitor could walk a long way past the diary before
+    // meeting a work.
+    //
+    // Read as a partition of the site roll: [0.00, 0.20) SNAPSHOT_ONLY,
+    // [0.20, 0.50) MIXED, and the residual [0.50, 1.00) is AUTHORED_ONLY at
+    // one site in two. Expected authored share of an outdoor painting is
+    // 0.50 + 0.30 x 0.60 = sixty-eight percent.
+    //
+    // Indoor is untouched: a room is already 80% authored-only (WALL_ART's
+    // snapshot_only_share 0.15 + mixed_share 0.05).
+    static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.20f;  // [0.00, 0.20)
+    static constexpr float OUTDOOR_MIXED = 0.30f;  // [0.20, 0.50); residual AUTHORED_ONLY 0.50
 
-    // In mixed mode: per-painting chance of being the minority content
-    static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.35f;  // chance each outdoor painting is authored
+    // In mixed mode: per-painting chance of being the AUTHORED content. It is
+    // no longer the minority share — a mixed site hangs three of Jean's to
+    // every two of the photographer's.
+    static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.60f;  // chance each outdoor painting is authored
 
     // Photographer pacing by archetype. FLAT, AND DELIBERATELY SO (SAND_1).
     // The old row slowed the photographer to 1.5x trigger distance on basin
