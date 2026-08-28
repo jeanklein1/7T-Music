@@ -60,6 +60,24 @@
   var BUILD_OK = BUILD_ID && BUILD_ID.indexOf('_') < 0;   // not the placeholder
   var BUILD_TAG = BUILD_OK ? ('build ' + BUILD_ID + '  \u00b7  ') : '';
 
+  // PURSE_0 R2 — THE TREE, BESIDE THE ARTIFACT. BUILD_ID above is the wasm
+  // digest: it names the BYTES the visitor is running. This names the TREE
+  // they were built from, read from the C++ itself rather than from the
+  // shell, so the two cannot drift the way a hand-kept version string does.
+  //
+  // ABSENT IS NOT AN ERROR, on BUILD_ID's own precedent: an older wasm
+  // carries no such export, and the tag then says nothing rather than
+  // printing a lie about provenance. `unknown` is treated as absent for
+  // the same reason — the stamp tool says `unknown` when it could not read
+  // the tree, and echoing that into the panel would be noise, not news.
+  function stampTag() {
+    if (!C || typeof C.buildStamp !== 'function') return '';
+    try {
+      var s = C.buildStamp();
+      return (s && s !== 'unknown') ? (s + '  \u00b7  ') : '';
+    } catch (e) { return ''; }
+  }
+
   // A group whose name ends in "<rule> rule" is scoped to that rule, and
   // the shell learns which one from the name itself. "Flocking rule" -> 3,
   // "Orbital rule" -> 1, "Motion — all rules" -> none (and no line, which
@@ -1274,7 +1292,7 @@
       refreshRule();
       refreshRegime();
       refreshHost();
-      status.textContent = BUILD_TAG + rows.length + ' dials  ·  mood ' + C.mood() +
+      status.textContent = BUILD_TAG + stampTag() + rows.length + ' dials  ·  mood ' + C.mood() +
                            (C.regime ? '  ·  regime ' + (C.regime() + 1) : '') +
                            '  ·  ' + (definitionMode ? 'definition' : 'preview') +
                            '  ·  reconciled ' + C.flushes() +
@@ -1298,7 +1316,11 @@
     pill.textContent = 'organ';
     // The build id rides the pill's hover as well as the footer: on a
     // phone the footer is a scroll away and the pill never is.
-    pill.title = 'restore the panel' + (BUILD_OK ? '  \u00b7  build ' + BUILD_ID : '');
+    // The pill's hover carries BOTH provenance facts for the same reason
+    // the footer does: on a phone the status line is a scroll away and the
+    // pill never is.
+    pill.title = 'restore the panel' + (BUILD_OK ? '  \u00b7  build ' + BUILD_ID : '')
+               + (stampTag() ? '  \u00b7  ' + C.buildStamp() : '');
     document.body.appendChild(pill);
 
     var minimized = false;
@@ -1355,7 +1377,8 @@
         moodNames:     M.cwrap('organ_mood_names', 'string', []),
         host:          M.cwrap('organ_host', 'number', []),
         goHost:        M.cwrap('organ_go_host', null, ['number']),
-        regime:        M.cwrap('organ_regime', 'number', [])
+        regime:        M.cwrap('organ_regime', 'number', []),
+        buildStamp:    M.cwrap('organ_build_stamp', 'string', [])
       };
       if (C.count() <= 0) return;          // registry not bound yet
       manifest = JSON.parse(C.manifest());

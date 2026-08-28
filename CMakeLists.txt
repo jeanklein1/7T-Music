@@ -142,6 +142,69 @@ target_include_directories(the_board PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 
+# ── PURSE_0 R2 — THE BUILD STAMP ─────────────────────────────────────
+#
+# The program states its own provenance at boot. The wasm sha names the
+# ARTIFACT (web_dist.py's __BUILD_ID__); this names the TREE.
+#
+# IT LIVES IN THE BUILD DIRECTORY, and that is the whole design decision.
+# Every other generated file here is tracked and hand-run; a stamp cannot
+# be, because it carries a timestamp — a tracked copy would dirty the tree
+# on every build and hold the binding gate's S-6 witness ("porcelain
+# clean; HEAD == pushed tip") red forever, and `git describe --dirty`
+# would report dirt caused by its own output. tools/build_stamp.py's
+# banner carries the full reasoning.
+#
+# TWO STEPS, AND EACH ANSWERS A DIFFERENT QUESTION. The configure-time run
+# guarantees the file EXISTS before the first compile; the custom target is
+# always out of date by construction, which is the only way to observe HEAD
+# moving WITHOUT a reconfigure (R-E). The script writes only when the
+# string differs, so an always-run step costs no relink.
+#
+# A PROVENANCE INSTRUMENT MUST NOT BE ABLE TO BREAK THE BUILD. With no
+# Python interpreter the configure writes an honest "unknown" stamp once
+# and no target is added: the program compiles and says it does not know,
+# which is the one thing a stamp may say other than the truth.
+set(T7_STAMP_DIR "${CMAKE_CURRENT_BINARY_DIR}/gen")
+set(T7_STAMP_FILE "${T7_STAMP_DIR}/build_stamp.gen.inc")
+set(T7_STAMP_TOOL "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_stamp.py")
+file(MAKE_DIRECTORY "${T7_STAMP_DIR}")
+
+# TWO WAYS TO FIND THE INTERPRETER, because one of them is enough to lose
+# the instrument silently. find_package is the correct road; find_program
+# on both spellings is the net under it (Windows ships `python`, not
+# `python3`, and this tree's own build chain is driven from a .bat).
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    set(T7_PYTHON "${Python3_EXECUTABLE}")
+else()
+    find_program(T7_PYTHON NAMES python3 python)
+endif()
+
+if(T7_PYTHON)
+    execute_process(COMMAND "${T7_PYTHON}" "${T7_STAMP_TOOL}" "${T7_STAMP_FILE}"
+                    RESULT_VARIABLE T7_STAMP_RC)
+else()
+    set(T7_STAMP_RC 1)
+endif()
+
+if(T7_STAMP_RC EQUAL 0)
+    add_custom_target(t7_build_stamp
+        BYPRODUCTS "${T7_STAMP_FILE}"
+        COMMAND "${T7_PYTHON}" "${T7_STAMP_TOOL}" "${T7_STAMP_FILE}"
+        COMMENT "build stamp (git describe + UTC; rewritten only on change)"
+        VERBATIM)
+    add_dependencies(the_board t7_build_stamp)
+    message(STATUS "  Build stamp:    ${T7_STAMP_FILE}")
+else()
+    file(WRITE "${T7_STAMP_FILE}"
+         "// GENERATED at configure time — the stamp tool did not run.\n"
+         "inline constexpr const char* BUILD_STAMP = \"unknown\";\n")
+    message(STATUS "  Build stamp:    unknown (the stamp tool did not run; it says so)")
+endif()
+
+target_include_directories(the_board PRIVATE "${T7_STAMP_DIR}")
+
 if(EMSCRIPTEN)
     # ── PORT_1c: the web twin ────────────────────────────────────────────
     # GLFW verbatim via contrib.glfw3 (emscripten ports registry, >= 3.1.55).

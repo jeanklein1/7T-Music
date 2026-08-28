@@ -123,6 +123,39 @@ namespace t7 {
     inline constexpr Instruments INSTRUMENTS =
         instruments_config( T7_INSTRUMENT_COL(T7_INSTRUMENTS) );
 
+    // ═══ PURSE_0 R2 — THE BUILD STAMP, AND WHY IT LIVES HERE ═════════════
+    //
+    // `git describe --always --dirty` + a UTC minute, generated into the
+    // BUILD directory by tools/build_stamp.py and put on the include path
+    // by CMake. It sits in this header because this is the one file the
+    // console, the cartridge and the harness all already include, and it
+    // has exactly the standing g_dropped_submits has below: a witness the
+    // instruments DIAL DOES NOT GOVERN. A build that will not say which
+    // build it is is the failure this ends.
+    //
+    // TWO SHAS, TWO QUESTIONS. This names the TREE; web_dist.py's
+    // __BUILD_ID__ names the ARTIFACT. A matching artifact digest proves
+    // the browser got the bytes the build produced and says nothing about
+    // WHICH TREE produced them; a git sha alone says nothing about whether
+    // the browser is running a cached predecessor. The pair closes both,
+    // which is the whole of R2.
+    //
+    // __has_include, AND IT IS NOT DEFENSIVENESS FOR ITS OWN SAKE. The TU
+    // gate type-checks cartridge.hpp and console.hpp as standalone
+    // translation units with NO CMake binary directory on the include
+    // path, so the generated file is genuinely absent there. UNKNOWN IS A
+    // VALUE: a build with no stamp says so rather than failing, and the
+    // one thing a provenance line may never do is print a lie.
+#if defined(__has_include)
+#  if __has_include("build_stamp.gen.inc")
+#    include "build_stamp.gen.inc"
+#  else
+    inline constexpr const char* BUILD_STAMP = "unknown";
+#  endif
+#else
+    inline constexpr const char* BUILD_STAMP = "unknown";
+#endif
+
     // ═══ WIT_2 — THE DROPPED-SUBMIT WITNESS ══════════════════════════
     //
     // Counts uncaptured VALIDATION errors whose message names an invalid

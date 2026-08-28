@@ -12,6 +12,7 @@
 // offset, type) triple that is not an entry, counts it, and names it.
 // ═══════════════════════════════════════════════════════════════════════
 
+#include "core/instruments.hpp"                          // PURSE_0 R2 — t7::BUILD_STAMP, the tree the panel names
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/contracts/spine_state.hpp"   // MoodProfile + mood_def: the definition side
 #include "cartridges/the_board/contracts/agent_tiers.hpp"    // TIER_LIVE, the world's definition bank
@@ -848,6 +849,21 @@ EMSCRIPTEN_KEEPALIVE inline int organ_flush_count(void) {
 }
 EMSCRIPTEN_KEEPALIVE inline int organ_param_count(void) {
     return (int)t7::organ::kOrganParamCount;
+}
+
+// PURSE_0 R2 — WHICH TREE IS THIS? The panel's status line already names
+// the ARTIFACT (window.T7_BUILD_ID, the digest web_dist bakes into the
+// shell). This hands it the TREE, from the C++ that was compiled, so the
+// two provenance facts sit in one line and neither can be read without
+// the other.
+//
+// IT IS NOT A DIAL AND CANNOT BE ONE. Adding a dial is one line in
+// organ_params.inc and no JS edit — but that road carries F32/U32/BOOL
+// LANES, and a stamp is a string. So it rides the ABI as its own export,
+// which is why this one costs a cwrap and a line of JS and the dials do
+// not. The shell gate is the witness that both halves moved together.
+EMSCRIPTEN_KEEPALIVE inline const char* organ_build_stamp(void) {
+    return t7::BUILD_STAMP;
 }
 
 

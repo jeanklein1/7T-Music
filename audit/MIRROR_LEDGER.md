@@ -21,7 +21,7 @@ carry those facts, or leave them in place and patch around them.
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:71935cd4bbabc9e08908627da5e7967621d0b6f80340753fc25e20d4ceb1a496` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:82dfe348ec6370038a227ebf7fc47ab105714be9ce6dbf64c6a241cd368aa472` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:96e257106083f7934340cf4d2563c2ac9263cac2024d57e16f8f1771e84ac54b` |
 | `tools/binding_ledger.py` | `sha256:8c5e3abcdfcc80826535e7f50b0b3f6ea3f0eb445447419ffc442b9cac1a211a` |
 | `audit/BINDING_LEDGER.md` | `sha256:9b979f0f5c0f5baa5fc74edb08ba248ec9e63a656cb46bccf8189c4a37d0245b` |
 
@@ -210,11 +210,11 @@ Boundary: every occurrence of a pipeline-layout token (`std::array<wgpu::BindGro
 |---|---|---|---|
 | `P-help` | strataLayoutFor — the shared four-strata wrapper (LOOM_2: WORLD implicit, then frame / state / textures; DOMESDAY_2 F2-b1 named it, so the label leads; its inner statements are censused as part of this idiom) | 1 | `wgpu::PipelineLayout strataLayoutFor(const char* label, wgpu::BindGroupLayout frame, wgpu::BindGroupLayout state, wgpu::BindGroupLayout tex) { ...` — renderer.hpp:196 |
 | `P-arr` | the ordered layout list | 0 | — |
-| `P-desc` | pipeline layout descriptor declaration | 3 | `wgpu::PipelineLayoutDescriptor pld{};` — renderer.hpp:2333 |
+| `P-desc` | pipeline layout descriptor declaration | 3 | `wgpu::PipelineLayoutDescriptor pld{};` — renderer.hpp:2346 |
 | `P-cnt` | bindGroupLayoutCount from the array, never a literal | 0 | — |
 | `P-dat` | bindGroupLayouts pointer | 0 | — |
 | `P-new` | pipeline layout creation, named local | 0 | — |
-| `P-for` | pipeline layout via the shared wrapper, named at creation | 26 | `wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);` — renderer.hpp:1711 |
+| `P-for` | pipeline layout via the shared wrapper, named at creation | 26 | `wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);` — renderer.hpp:1724 |
 | `P-prm` | PipelineLayout as a builder parameter (makeComputePipeline; makeShadow's nullptr-sentinel default) | 2 | `wgpu::PipelineLayout layout,` — renderer.hpp:208 |
 
 Instances: 32 over 4 idioms. Ordering observed: array, descriptor, count, layouts-pointer, create, check — except 0 block(s) declare the descriptor before the array, and 0 create(s) carry no boot check (none). Count always precedes the data pointer. Shared lists are built before any pipeline; dedicated lists sit inline beside their pipelines.

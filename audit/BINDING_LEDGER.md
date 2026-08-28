@@ -19,7 +19,7 @@ merge rows the API charges separately.
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:82dfe348ec6370038a227ebf7fc47ab105714be9ce6dbf64c6a241cd368aa472` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:96e257106083f7934340cf4d2563c2ac9263cac2024d57e16f8f1771e84ac54b` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:71935cd4bbabc9e08908627da5e7967621d0b6f80340753fc25e20d4ceb1a496` |
 
 
@@ -1073,8 +1073,8 @@ one column that can.
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
 | `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 80 | `law-ref` | A:proximity |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2751 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2754 | `measured` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2764 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2767 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
 | `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5420 | `law-ref` | A:proximity, B:named |
 | `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5510 | `law-ref` | A:proximity |

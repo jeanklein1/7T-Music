@@ -1551,6 +1551,19 @@ namespace t7 {
 #endif
                 shaderBytes_ = shaderSource_.size();
                 shaderSha_ = got;
+
+                // PURSE_0 R2 — THE TREE, BESIDE THE ARTIFACT. `[Dist]` below
+                // answers "are these the bytes this build shipped"; this
+                // answers "which tree was that build". Neither implies the
+                // other: a matching digest proves the browser got what the
+                // build produced and says nothing about WHICH tree produced
+                // it, and a git sha says nothing about a cached predecessor.
+                // Printed HERE so the two provenance lines are adjacent in a
+                // pasted log — scattered provenance is provenance nobody
+                // reads. `unknown` where the stamp did not generate: the one
+                // thing this line may never do is lie.
+                std::cout << "[Build] " << t7::BUILD_STAMP << "\n";
+
                 if (expected.empty()) {
                     // A SKIP THAT SAYS ITS NAME. Serving web/ directly —
                     // the dev path — means no web_dist run has baked a
