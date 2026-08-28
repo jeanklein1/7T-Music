@@ -9161,8 +9161,17 @@ fn update_player_agent() {
 // (occupier_contact survives solely as the possessed candidate's
 // row). Authored emitters (FIELD_4): floaters YES; agents no*
 // (the point-rows own them); possessed no. Loops are flat and
-// constant- or uniform-bounded (banner rule 2); no textures
-// (rule 3); outside every collision/ground chain.
+// constant- or uniform-bounded; no textures; outside every
+// collision/ground chain.
+//
+// THE SHAPE IS KEPT, THE CITATION IS NOT (PURSE_0 R5). Those three
+// properties were once FXC law — rules 2 and 3 of a banner struck at
+// PIVOT_0, preserved in docs/FXC_LAWS_RECORD.md, whose first line reads
+// "Do not honor these as live constraints." The code is not thereby
+// wrong; it is merely no longer REQUIRED to be so, and a citation to a
+// dead referent is the one thing it must not keep, because a reader who
+// chases it finds a rule that has been struck and cannot tell whether
+// the shape is load-bearing or merely inherited. It is inherited.
 
 // ATRIUM_7 — THE SHELL FACTOR IS A PARAMETER NOW, because one source class
 // does not wear the social shell: an arch's two legs half_span apart close
@@ -9276,7 +9285,9 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // ground is queried once), not a manifold query here. True radii,
     // no skin — config.field_slack is the standoff. Flat,
     // const-bounded loops; no textures; outside every
-    // collision/ground chain (banner rules 2, 3).
+    // collision/ground chain — inherited FXC shape, and the citation
+    // that used to name it is struck (PURSE_0 R5; see field_sum's
+    // banner and docs/FXC_LAWS_RECORD.md).
     var occ = vec3(0.0);
     for (var i = 0u; i < 32u; i++) {
         let cm = agent_room.occupier_cmg[i];

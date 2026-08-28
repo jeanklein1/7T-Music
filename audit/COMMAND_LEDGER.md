@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `22f3b0a5376d07a596433f629dcf6bcdfc41534d`
-(PURSE_0 B — the photographer waits for headroom)
+Last commit touching any scanned file: `104e4afe35062e3dbc3bd45f75761f42286690dd`
+(PURSE_0 C — the silence law, and what the census actually found)
 
 | file scanned | sha256 |
 |---|---|

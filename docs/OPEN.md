@@ -2,6 +2,71 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
+## THE OPTIMIZATION ARC — CLOSED 2026-08-28 (PURSE_0)
+
+LATTICE_0-5, SPINE_2, BUNDLE_1, PURSE_0. Both bookend captures are on file
+(pre-campaign and post-campaign, both devices, `docs/reference/`), which is
+what lets this be a close and not a claim.
+
+| device | purse, before | purse, after | fps |
+|---|---|---|---|
+| Pixel (floor device) | +1.8 | **+4.4** | ribbon flight presents a wall of 1x |
+| Laptop (2012 Kepler, 689x607) | -3.0 … -5.4 | **-0.45 … -0.84** | 38-43 -> 50-53 |
+
+The floor holds. THE LAPTOP'S RESIDUAL STUTTER IS THREE THINGS, AND THE ROUND
+TOOK TWO OF THEM: (1) a baseline purse just under zero — the `kepler` preset's
+to close, by settings and not by code; (2) the photographer's +10 ms capture
+every 1-2 s — TAKEN by PURSE_0 B, which defers a capture to a frame the
+presentation law says made its refresh, with a 4 s ceiling so a slow machine
+still fills its pool; (3) portal transitions at 60-75 ms CPU — the PRINT half
+taken by PURSE_0 C, the rest standing.
+
+WHAT THE ARC RETIRED, AND WHAT IT DID NOT:
+
+- **LATTICE_5, the meter bookend — TAKEN.** Both captures exist. LATTICE_1's
+  arithmetic ("~3x fewer ground evaluations, 15.5x less heightfield memory,
+  ~20x less derivation work") stopped being a prediction here.
+- **LOOM, the Kepler two-canvas split — PRICED, NOT TAKEN.** ~9 ms of the
+  laptop's main pass is PIXEL-INDEPENDENT: canvas 689x607 -> 1366x607 (+98%
+  pixels) moved `main_pass` 11.74 -> 10.3 at 0.83 vs 0.42 Mpx. It is the
+  vertex/state wall, not fill. The preset serves that machine for free, so the
+  split is not bought.
+- **PIXEL — FALSIFIED ON KEPLER by the same split.** The lever was resolution;
+  the numbers say resolution is not what costs.
+- **The eight-pass compute fusion — DEFERRED, and now priced.** SPINE_2 B
+  established the shape (card+compute fused; placement+cull and the six-pass
+  run between the witness copies and placement still available). Pass
+  boundaries are pennies against both devices' rows, and every one of them
+  costs a meter row. Not worth measurement resolution.
+- **CELL_LIVE — STILL FILED as the music precondition.**
+- **UMBRA — STILL HORIZON.**
+
+THE DANGLING FXC CITATIONS ARE CLEANED (`banner rule 2` / `banner rules 2, 3`
+at `field_sum` and the occupier loop). The shapes they described are kept and
+now say they are INHERITED; the rules were struck at PIVOT_0 and live in
+`docs/FXC_LAWS_RECORD.md`, whose first line is "Do not honor these as live
+constraints."
+
+## STILL OPEN OUT OF PURSE_0
+
+- THE `kepler` PRESET IS JEAN'S DIAL SESSION, NOT CODE. `veil_ring` 325 -> 300
+  -> 265; `lod0_radius` 175 -> 120; `shadow_pcf_taps` 16 -> 4. One dial at a
+  time, one meter window each, read the purse; keep what the eye forgives on
+  that machine; export, name it `kepler`, commit it to the shelf; the laptop
+  boots `?preset=kepler` and the floor device never loads it. All three dials
+  round-trip through the shelf (verified at PURSE_0 R-D). When the purse reads
+  >= 0 with the photographer rule in, the laptop is closed BY SETTINGS, which
+  is what a control panel is for. Unblocked by the session.
+- W4 IS A `full` WITNESS NOW, NOT A `meter` ONE. PURSE_0 C gated the
+  `[Photographer] … pool=N/32` line on `stream_witness`, which the meter
+  column drops by the dial's own doctrine (per-event blocking writes stay out
+  of the build that measures frames). Watch the pool climb on
+  `-DT7_INSTRUMENTS=full`; read the purse on `meter`. Unblocked by Jean ruling
+  otherwise, in which case the line moves to `frame_meter`.
+- THE THIRD STUTTER IS UNTAKEN: portal transitions at 60-75 ms CPU. PURSE_0 C
+  removed the print half; the teardown/respawn work itself is untouched and
+  unpriced. Origin: the post-campaign laptop capture.
+
 - THE FRAME'S COMPUTE IS TWO PASSES, NOT ONE, AND THE REST OF THE RUN IS
   UNRULED. SPINE_2 B asked for four passes in one — card, placement, compute,
   cull — and the tree refused the shape: R11 WitnessCapture encodes three
