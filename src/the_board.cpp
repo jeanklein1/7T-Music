@@ -61,7 +61,54 @@
 #include "core/boot_params.hpp"   // DOMESDAY_1 B9 — parse_boot_params at the top of main
 #include <iostream>
 #include <chrono>
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>   // emscripten_set_main_loop / cancel — the rAF driver
+#endif
+
+// =========================================================================
+// FILE WATCHER -- Detects shader file changes for hot reload
+// (R6: a native instrument — the browser has no mtime to watch)
+// =========================================================================
+
+#ifndef __EMSCRIPTEN__
+#include <filesystem>     // restored with the watcher (SUNRISE_0 N1)
+#include <system_error>   // std::error_code — the watcher's non-throwing stat
+class FileWatcher {
+public:
+    void watch(const std::string& path) {
+        path_ = path;
+        if (std::filesystem::exists(path_)) {
+            lastWriteTime_ = std::filesystem::last_write_time(path_);
+        }
+    }
+
+    // ONE stat per check, not two. exists() + last_write_time() was two
+    // filesystem round-trips on the render thread, both of the throwing
+    // overload, ~2×/s forever; the error_code overload answers "gone" and
+    // "unchanged" from the same call. Same behaviour, half the syscalls,
+    // and no exception path in the frame loop.
+    bool check() {
+        if (path_.empty()) {
+            return false;
+        }
+
+        std::error_code ec;
+        auto currentTime = std::filesystem::last_write_time(path_, ec);
+        if (ec) {
+            return false;   // absent or unreadable — nothing to reload
+        }
+        if (currentTime != lastWriteTime_) {
+            lastWriteTime_ = currentTime;
+            return true;
+        }
+        return false;
+    }
+
+private:
+    std::string path_;
+    std::filesystem::file_time_type lastWriteTime_;
+};
+#endif // __EMSCRIPTEN__
 
 // =========================================================================
 // ACTIVE CARTRIDGE TYPES -- Derived from defines
@@ -107,6 +154,10 @@ struct App {
     t7::Console console;
     t7::BeatClock clock;
     RenderCartridge render;
+#ifndef __EMSCRIPTEN__
+    FileWatcher watcher;
+    int reload_frame_counter = 0;
+#endif
     wgpu::Queue queue;
     bool world_ready = false;   // PORT_1c: init_world() ran (post-device init)
     // U9's two: when the frame loop went live, and whether the offer is spent.
@@ -153,6 +204,15 @@ static bool init_world() {
     // THE OFFER IS NOT MADE HERE ANY MORE (OVERTURE_0). This is the instant
     // the frame loop goes live, which is the instant the wait is measured
     // from — see offer_controls_when_ready(), called from frame().
+#ifndef __EMSCRIPTEN__
+    // --- Setup File Watcher (native instrument, R6) --------------------------
+    // SUNRISE_0 N1: the watcher returns; the `Controls:` print does NOT.
+    // OVERTURE_0 moved that line into offer_controls_when_ready(), and
+    // web/index.html lifts its veil on exactly that line — printing it here
+    // would lift the veil before the world is ready, on both twins.
+    app->watcher.watch(app->render.shader_path());
+    std::cout << "[The Board] Hot reload enabled: " << app->render.shader_path() << "\n\n";
+#endif
     app->queue = app->console.queue();
     app->world_live = std::chrono::steady_clock::now();
     app->world_ready = true;
@@ -172,9 +232,18 @@ static void apply_pace_once() {
     app->pace_applied = true;
     t7::g_present_pace = app->pace;   // U3: the meter's window header names it
     if (app->pace == 1u) return;   // the default needs no call
+#ifdef __EMSCRIPTEN__
     emscripten_set_main_loop_timing(EM_TIMING_RAF, (int)app->pace);
     std::cout << "[PACE] forced " << (60u / app->pace)
               << " fps target (rAF every " << app->pace << " vblank(s))\n";
+#else
+    // SUNRISE_0 N1 — DRIFT, NOT RESTORATION. apply_pace_once() was authored
+    // after the sunset (WRAP_0 U2), so it never had a native arm to restore.
+    // There is no rAF to pace natively: the driver is a plain while() loop and
+    // the swap interval is the console's business. `?pace` is still parsed and
+    // still recorded in g_present_pace above, so the meter's window header
+    // names it on both twins; only the rAF call is web-only.
+#endif
 }
 
 // ── the offer, once the exhibition has a floor under it ────────────
@@ -220,7 +289,9 @@ static void frame() {
     if (app->console.device_lost()) return;
     if (!app->world_ready) {
         if (!init_world()) {
+#ifdef __EMSCRIPTEN__
             emscripten_cancel_main_loop();
+#endif
             return;
         }
     }
@@ -259,6 +330,23 @@ static void frame() {
         s_begin = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - s_t0).count();
 
+#ifndef __EMSCRIPTEN__
+    // --- Hot Reload Check (every ~30 frames; native instrument, R6) ------
+    if (++app->reload_frame_counter >= 30) {
+        app->reload_frame_counter = 0;
+        // The progress dot is on the instruments dial: it is an explicit
+        // FLUSH — a blocking console write — twice a second, forever, and
+        // it reports only that the loop is still looping. The reload
+        // itself still announces itself, loudly, when it happens.
+        if constexpr (t7::INSTRUMENTS.watcher_ticks) {
+            std::cout << "." << std::flush;
+        }
+        if (app->watcher.check()) {
+            std::cout << "\n[FileWatcher] Change detected!\n";
+            app->render.reload_shaders();
+        }
+    }
+#endif
 
     // --- Input (all of it is the world's) --------------------------------
     for (const auto& event : app->console.input_events()) {
@@ -327,11 +415,16 @@ int main(int argc, char* argv[]) {
     t7::parse_boot_params(argc, argv);
     std::cout << "\n";
     std::cout << "========================================\n";
-    // PORT_2d — the banner states what this build actually has. The
-    // FileWatcher class, its member, the watch() call and the per-frame
-    // check went with the native arm (SUNSET_1), so there is no hot
-    // reload to announce and no longer any twin to contrast against.
+    // PORT_2d — one line per twin, and each states what its own build
+    // actually has. The FileWatcher class, the member, the watch() call
+    // and the per-frame check are all #ifndef __EMSCRIPTEN__ (PORT_1c),
+    // so the web twin has no hot reload to announce. The NAME is NAME_0's
+    // (SUNRISE_0 N1 restored the conditional, not the old program name).
+#ifdef __EMSCRIPTEN__
     std::cout << "  THE BOARD (web twin — no hot reload)\n";
+#else
+    std::cout << "  THE BOARD (Hot Reload Enabled)\n";
+#endif
     std::cout << "  Clock:    BeatClock\n";
     std::cout << "  Render:   " << RENDER_NAME << "\n";
     std::cout << "========================================\n";
@@ -341,6 +434,9 @@ int main(int argc, char* argv[]) {
     app = new App();
     if (!app->console.init("The Board", 1280, 720)) {
         std::cerr << "Failed to initialize console\n";
+#ifndef __EMSCRIPTEN__
+        delete app;
+#else
         // EXHIBIT_0 — A REFERENCE OUTLIVES ITS REFERENT (LAWS L15), and
         // here the reference is a fetch. The cartridge constructor ran
         // inside `new App()` above, BEFORE this init — and on this twin
@@ -350,6 +446,7 @@ int main(int argc, char* argv[]) {
         // first would make it land in freed memory. The App is
         // deliberately leaked: the page is over, the leak is the last
         // thing that dies, and it is what keeps the callback honest.
+#endif
         return 1;
     }
     app->console.set_cursor_grab(true);   // the exhibition holds the pointer
@@ -359,6 +456,7 @@ int main(int argc, char* argv[]) {
     // from dt alone. No command-line input either.
     (void)argc; (void)argv;
 
+#ifdef __EMSCRIPTEN__
     // --- The rAF loop (PORT_1c) ----------------------------------------------
     // Boot continues asynchronously from here; frame() pumps the boot state
     // and runs init_world() once the device lands. 0 = rAF-paced; true =
@@ -400,4 +498,20 @@ int main(int argc, char* argv[]) {
     app->pace = t7::boot_params().has_pace ? t7::boot_params().pace : 1u;
     emscripten_set_main_loop(frame, 0, true);
     return 0;
+#else
+    // --- World init (device exists — native boot is synchronous) -------------
+    if (!init_world()) {
+        delete app;
+        return 1;
+    }
+
+    // --- Main Loop ----------------------------------------------------------
+    while (app->console.running()) {
+        frame();
+    }
+
+    std::cout << "[Incubator] Shutdown\n";
+    delete app;
+    return 0;
+#endif
 }

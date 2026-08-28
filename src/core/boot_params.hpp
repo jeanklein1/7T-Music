@@ -29,7 +29,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#endif
 
 namespace t7 {
 
@@ -87,6 +89,7 @@ namespace t7 {
         }
     }
 
+#ifdef __EMSCRIPTEN__
 
     // One location.search read; three typed extractions into HEAPF64.
     // NaN = absent-or-malformed; integer/range checks land on the C++
@@ -131,5 +134,38 @@ namespace t7 {
         boot_params_announce_();
     }
 
+#else
+
+    inline void parse_boot_params(int argc, char** argv) {
+        BootParams& p = boot_params();
+        for (int i = 1; i < argc; i++) {
+            const char* a = argv[i];
+            char* end = nullptr;
+            if (std::strncmp(a, "--seed=", 7) == 0) {
+                unsigned long long v = std::strtoull(a + 7, &end, 10);
+                if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
+                    p.has_seed = true; p.seed = static_cast<uint32_t>(v);
+                }
+            } else if (std::strncmp(a, "--mood=", 7) == 0) {
+                unsigned long long v = std::strtoull(a + 7, &end, 10);
+                if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
+                    p.has_mood = true; p.mood = static_cast<uint32_t>(v);
+                }
+            } else if (std::strncmp(a, "--cap=", 6) == 0) {
+                float v = std::strtof(a + 6, &end);
+                if (end && *end == '\0' && end != a + 6 && std::isfinite(v)) {
+                    p.has_cap = true; p.cap = v;
+                }
+            } else if (std::strncmp(a, "--msaa=", 7) == 0) {
+                unsigned long long v = std::strtoull(a + 7, &end, 10);
+                if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
+                    p.has_msaa = true; p.msaa = static_cast<uint32_t>(v);
+                }
+            }
+        }
+        boot_params_announce_();
+    }
+
+#endif  // __EMSCRIPTEN__ — the byte source, and only the byte source
 
 } // namespace t7
