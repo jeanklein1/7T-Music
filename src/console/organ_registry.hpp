@@ -847,7 +847,32 @@ EMSCRIPTEN_KEEPALIVE inline int organ_flush_count(void) {
     return t7::organ::g_home
          ? (int)t7::organ::g_home->organ_last_flush_count() : 0;
 }
+// PURSE_0 R-D — THE COUNT IS THE READINESS GATE, AND IT WAS NOT ONE.
+//
+// organ_panel.js polls `if (C.count() <= 0) return;  // registry not bound
+// yet` and clears its interval the moment this answers. It returned
+// kOrganParamCount — a COMPILE-TIME CONSTANT — so it was never zero and
+// the comment asserted an invariant this side did not honour.
+//
+// WHAT THAT COSTS, and it is not theoretical on a slow machine.
+// organ_manifest() does not gate either, and read_lane returns 0.0f on a
+// null base rather than failing, so the manifest parses, the poll stops,
+// and the panel opens — against its own charter, showing zeros instead of
+// the program. Worse, `?preset=<name>` walks the same road at boot
+// (deliberately, so an exhibition needs no panel): every CONFIG write then
+// lands in organ_set's `if (!base) note_reject(e->id, "the block has no
+// home")` while the console still prints `N applied`. A scene that
+// silently does not apply, reported as applied.
+//
+// The window is real: bind_home runs after device creation, and this
+// tree's own console has observed device creation at 70,459 and 205,527
+// ms. The panel's first poll is at 500.
+//
+// So the count now MEANS what the panel already believed it meant. The
+// static table is still the count; what changed is that it is withheld
+// until the ABI it describes can actually be written through.
 EMSCRIPTEN_KEEPALIVE inline int organ_param_count(void) {
+    if (!t7::organ::g_home) return 0;
     return (int)t7::organ::kOrganParamCount;
 }
 

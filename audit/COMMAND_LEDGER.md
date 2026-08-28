@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `5e6f7c643c251d49aced09307d660ba8afc5a4c8`
-(PURSE_0 A — the build stamp)
+Last commit touching any scanned file: `22f3b0a5376d07a596433f629dcf6bcdfc41534d`
+(PURSE_0 B — the photographer waits for headroom)
 
 | file scanned | sha256 |
 |---|---|

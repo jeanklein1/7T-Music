@@ -1380,7 +1380,15 @@
         regime:        M.cwrap('organ_regime', 'number', []),
         buildStamp:    M.cwrap('organ_build_stamp', 'string', [])
       };
-      if (C.count() <= 0) return;          // registry not bound yet
+      // THE REGISTRY IS NOT BOUND UNTIL organ_param_count() SAYS SO.
+      // It answers 0 until the C++ has run bind_home (PURSE_0 R-D) — it
+      // used to return a compile-time constant, so this guard passed on
+      // the first poll and the panel could open on an ABI that rejects
+      // every write. `?preset=` walks this same road at boot, so the
+      // failure was a scene silently not applying while the log said it
+      // had. Keep polling: device creation has been observed to take
+      // minutes, and ~10 min of polling is already this loop's budget.
+      if (C.count() <= 0) return;
       manifest = JSON.parse(C.manifest());
     } catch (e) { return; }                 // not ready; ask again
     if (!manifest || !manifest.length) return;
