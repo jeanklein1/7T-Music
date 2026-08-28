@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `104e4afe35062e3dbc3bd45f75761f42286690dd` |
-| | PURSE_0 C — the silence law, and what the census actually found |
+| source commit | `920b7e5375c2f6f6ee1f6a301964a061ae088cc0` |
+| | PURSE_0 D — the record, and the arc's close |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:60565e38eec984b71e0556c41cf57b95aea92d9498ed4364e0f664c713986ecc` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:96e257106083f7934340cf4d2563c2ac9263cac2024d57e16f8f1771e84ac54b` |
 | `tools/binding_ledger.py` | `sha256:8c5e3abcdfcc80826535e7f50b0b3f6ea3f0eb445447419ffc442b9cac1a211a` |
-| `audit/BINDING_LEDGER.md` | `sha256:637789df5513c3d91a9f78f5e5b396bea39cc61f353945b71f82ccb3616d324a` |
+| `audit/BINDING_LEDGER.md` | `sha256:6d40b4fb52bcd0b6dce18ef22899de8f51056162a92ef5217697a69ddb1ff238` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
