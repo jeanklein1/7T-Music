@@ -29,8 +29,8 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gallery.hpp` | `a4462e52334ba8fa25277cab037c49676d53589a032d002e062a901093a7a353` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
+| `src/cartridges/the_board/bodies/gallery.hpp` | `048770976593dbd7e70a33cd8cd8f147586e4afde5f267d38addf0b2e038d92a` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `71102db67a59d2bf904f3fc0554d04e9bca834f958079d052c78d7c06cba1f39` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/cartridge.hpp` | `a59b27ee06920d9f7c0665f5c8742a4c8b54f86e0903caae36500efc85f218be` |

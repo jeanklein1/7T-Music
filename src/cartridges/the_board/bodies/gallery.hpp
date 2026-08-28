@@ -1165,11 +1165,20 @@ inline void capture_snapshot(GalleryState& gs, GalleryDeps* c, float pawn_x, flo
         "Panoramic", "Environmental", "Medium", "Close-up",
         "Portrait", "Bird's Eye", "Low Angle", "Cinematic"
     };
-    // Autonomous stdout — exhibition-guard candidate, still open.
-    std::cout << "[Photographer] Capture -> layer " << layer
-        << " (" << shot_names[static_cast<uint32_t>(shot)] << ")"
-        << " aspect=" << aspect_ratio
-        << " pool=" << gs.snapshot_count << "/" << Dim::STAGING_LAYERS << "\n";
+    // THE EXHIBITION GUARD, CLOSED (PURSE_0 R3). This was the file's own
+    // standing TODO — "Autonomous stdout — exhibition-guard candidate,
+    // still open" — and it closes on the same flag and for the same reason
+    // the `[Gallery] slot=` line below already uses: a capture happens on
+    // the travel path, so this is steady-state chatter under a rider. The
+    // laptop bookend measured captures every 1-2 s; that is 1-2 blocking
+    // console writes a second in the shipped frame, for an event NOBODY
+    // SEES. Nothing is deleted — the lab build still narrates the pool.
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        std::cout << "[Photographer] Capture -> layer " << layer
+            << " (" << shot_names[static_cast<uint32_t>(shot)] << ")"
+            << " aspect=" << aspect_ratio
+            << " pool=" << gs.snapshot_count << "/" << Dim::STAGING_LAYERS << "\n";
+    }
 }
 
 // ═══ GALLERY SITES (outdoor — three-phase) ═══════════════════════
@@ -1754,7 +1763,13 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
     if (!gs.pending_snapshot.active) return;
     gs.pending_snapshot.active = false;
     uint32_t layer = gs.pending_snapshot.target_layer;
-    std::cout << "[Photographer] Rendering snapshot -> layer " << layer << "\n";
+    // The capture's SECOND line, gated with its first (PURSE_0 R3): one
+    // event, two writes, and the pass this announces is the ~10 ms one
+    // Commit B just taught to wait for headroom. Printing about it from
+    // inside the frame it costs is the instrument measuring its own noise.
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        std::cout << "[Photographer] Rendering snapshot -> layer " << layer << "\n";
+    }
 
     // DOMESDAY_2 B10 — the msaa arm mirrors the main pass: render into
     // the multisampled target, resolve into the single-sample offscreen

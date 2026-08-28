@@ -8,6 +8,7 @@
 #include <algorithm>       // std::max, std::min   // (impl, merged)
 #include <cmath>           // std::sqrt   // (impl, merged)
 #include <iostream>        // toggle / radius logs   // (impl, merged)
+#include "core/instruments.hpp"   // PURSE_0 R3 — INSTRUMENTS.stream_witness gates the sensitivity readback
 #include <GLFW/glfw3.h>    // the key codes (unpapered — c6)   // (impl, merged)
 
 // ─── input.hpp (MERGED: state + deps + decls + impl) ──────────────
@@ -455,9 +456,23 @@ inline void nudge_look_sensitivity(InputDeps* c, bool up) {
     c->camera_.look_sensitivity =
         std::min(hi, std::max(lo, c->camera_.look_sensitivity * k));
 
-    std::cout << "[Camera] Look sensitivity: " << c->camera_.look_sensitivity
-              << "  (x" << (c->camera_.look_sensitivity / PANEL_LIVE.camera.look_sens_init)
-              << " of design)\n";
+    // A LAB TUNING READBACK, AND THE ONE PRINT IN THIS FILE WITH NO
+    // CHANGE DETECTOR (PURSE_0 R3). The value is clamped into [lo,hi] and
+    // then printed unconditionally, so holding KP_+ at the top of the
+    // range streams an identical line at the console's autorepeat rate —
+    // KeyState::ride_held records that KeyDown fires on GLFW_REPEAT too.
+    //
+    // P6 DOES NOT PROTECT IT: look_sensitivity is a continuous multiplier
+    // feeding on_mouse_move's deltas, not a runtime switch that SELECTS
+    // behaviour, so there is no switch whose silence would need
+    // explaining. This file's own header states the purpose — "tune with
+    // KP_+/KP_-, read the printed number, write it here" — which is the
+    // lab build's job exactly.
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        std::cout << "[Camera] Look sensitivity: " << c->camera_.look_sensitivity
+                  << "  (x" << (c->camera_.look_sensitivity / PANEL_LIVE.camera.look_sens_init)
+                  << " of design)\n";
+    }
 }
 
 inline void toggle_fpv_mode(InputDeps* c) {

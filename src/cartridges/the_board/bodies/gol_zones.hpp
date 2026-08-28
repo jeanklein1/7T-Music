@@ -29,6 +29,7 @@
 #include <cmath>      // std::floor, std::hypot (the footprint radius)   // (impl, merged)
 #include <algorithm>  // std::max, std::min   // (impl, merged)
 #include <iostream>   // the spawn log   // (impl, merged)
+#include "core/instruments.hpp"   // PURSE_0 R3 — INSTRUMENTS.stream_witness gates the spawn log
 #include <vector>     // life / height-factor staging   // (impl, merged)
 
 namespace t7 {
@@ -717,16 +718,30 @@ inline void commit_gol(GoLState& gs, MachineCtx* c,
         req.world_seed = c->world_state_.active_seed;
     }
 
-    std::cout << "[GoL] "
-        << (plan.algorithm == AlgorithmType::PULSE ? "Pulse" : "Conway")
-        << " tier=" << gol_tier_name(plan.tier_idx)
-        << " slot=" << plan.slot
-        << " node=(" << plan.zone_nx << "," << plan.zone_nz << ")"
-        << " corner=(" << plan.corner_x << "," << plan.corner_z << ")"
-        << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
-        << (plan.height_enabled ? " HEIGHT" : "")
-        << " period=" << plan.tick_period
-        << "\n";
+    // A BIRTH ANNOUNCEMENT ON THE SPAWN PATH (PURSE_0 R3). Unconditional
+    // tail of commit_gol: no change detector, no error guard — it narrates
+    // a SUCCESS, which means it prints when everything is right, which is
+    // the opposite standing from the correctness witnesses the dial keeps.
+    //
+    // It is reachable in steady state, and that is the whole finding: the
+    // caller chain is commit_gol <- dispatch_commit_gol <- commit_entity_queue
+    // <- spawn_selected_patches <- the per-frame distance-driven spawn block,
+    // which drains up to SPAWN_BUDGET_PER_FRAME allocated patches EVERY
+    // frame. On an ever-expanding board patches are continuously allocated,
+    // so this is a rider's chatter, not only a birth. Same flag and same
+    // reason as `[Gallery] slot=` and `[Ribbon] SPAWN/EVICT`.
+    if constexpr (t7::INSTRUMENTS.stream_witness) {
+        std::cout << "[GoL] "
+            << (plan.algorithm == AlgorithmType::PULSE ? "Pulse" : "Conway")
+            << " tier=" << gol_tier_name(plan.tier_idx)
+            << " slot=" << plan.slot
+            << " node=(" << plan.zone_nx << "," << plan.zone_nz << ")"
+            << " corner=(" << plan.corner_x << "," << plan.corner_z << ")"
+            << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
+            << (plan.height_enabled ? " HEIGHT" : "")
+            << " period=" << plan.tick_period
+            << "\n";
+    }
 }
 
 // ─── seed_gol_zone ───────────────────────────────────────────
