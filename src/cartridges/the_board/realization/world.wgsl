@@ -9553,6 +9553,24 @@ fn update_camera_vp() {
     // frame's floater kernels sat between them for no reason but history.
     // One entry point, one dispatch, one pipeline.
     //
+    // THE LEDGER BARRED THIS PAIR, AND THE BAR WAS A FALSE POSITIVE — read
+    // this before fusing anything else. Table E of the binding ledger
+    // carried `update_camera -> compute_vp` on `camera_state` as **BARRED**,
+    // and its stated reason is right: fusing two dispatches deletes the
+    // implicit barrier WebGPU puts between them, and there is no device-wide
+    // barrier to put back. But that barrier is a barrier BETWEEN THREADS.
+    // Both kernels were @workgroup_size(1) dispatched 1x1x1 — one invocation
+    // each — so the fused kernel is ONE INVOCATION running both bodies as
+    // straight-line code, and WGSL orders a read after a write to the same
+    // memory location within one invocation by program order alone. There
+    // was never a second thread, so there was no barrier to delete.
+    //
+    // The ruling is recorded in the instrument, not only here: Table E now
+    // states the single-invocation carve-out and marks such pairs EXEMPT,
+    // keyed to witness W3-2's two sets. Recorded because a bar that a
+    // violation ERASES — this pair left the table when the pair stopped
+    // existing — is the one kind of bar a reader can never check.
+    //
     // THE GUARD WRAPS THE CAMERA HALF, NOT THE PAIR, and this is the whole
     // care in the fusion. update_camera opened with
     //     if (!dynamics_0d_active()) { return; }
