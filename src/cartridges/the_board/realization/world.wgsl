@@ -6080,12 +6080,29 @@ fn wrap_pi(a: f32) -> f32 { return a - 6.2831853 * round(a / 6.2831853); }
 fn mix_heading(a: f32, b: f32, t: f32) -> f32 { return a + wrap_pi(b - a) * t; }
 fn mount_ease(t: f32) -> f32 { let x = saturate(t); return x * x * (3.0 - 2.0 * x); }
 
-// The ground both readers stand on: the baked heightfield's contributor
-// set, evaluated analytically (static base + tile modifiers + pyramids) —
-// no textures, so the ribbon room needs only tile_grid and
-// pyramid_instances beside the config it already binds.
+// THE RIBBON READS THE DRAWN GROUND (SPINE_2 R1). It used to evaluate the
+// baked heightfield's contributor set ANALYTICALLY — static base + tile
+// modifiers + pyramids, every term, every call — for one reason the old
+// banner stated plainly: the ribbon room had no textures. It has them now.
+//
+// The bake already holds that ground at the lattice, and every other ground
+// reader in the program samples it there. Three serial evaluations at the
+// head and one per ring in the body become fetches, and the ribbon's
+// clearance, lift and tips read THE SURFACE THAT IS DRAWN rather than an
+// analytic ghost of it — which is the correctness half of this change, not
+// only the cost half.
+//
+// THE FALLBACK IS THE WINDOW'S EDGE and it is not optional: outside the
+// active patch grid there is no baked layer, and a ribbon flying past the
+// edge must not step. The two forms differ by at most the fine band's
+// amplitude (0.12 wu) — the lattice carries every band the analytic form
+// does, and the ONE thing it does not carry is band 4's ripple below the
+// lattice's own spacing — against a body flying RIBBON_CLEAR_Y above the
+// ground. Sub-visible, and stated rather than assumed.
 fn ribbon_ground(xz: vec2<f32>) -> f32 {
-    return ground_formed_with_complexity(xz).x;
+    let r = sample_terrain_y_found(xz);
+    if (r.y == 0.0) { return ground_formed_with_complexity(xz).x; }
+    return r.x;
 }
 
 // One standing thing: a disc of radius r and a top at top_agl above local
@@ -11367,18 +11384,33 @@ struct PatchGrid {
 
 // --- Terrain Height Sampling
 // O(1) lookup: hash world_xz to patch grid cell, read layer, sample heightfield.
-// Returns 0.0 outside the active patch window or on empty slots (preserves
-// the old linear-scan behavior for out-of-range queries).
-fn sample_terrain_y_at(world_xz: vec2<f32>) -> f32 {
+//
+// THE WALK HAS ONE HOME (SPINE_2). Two callers want two different things on a
+// MISS — sample_terrain_y_at wants 0.0 (the old linear-scan behaviour for
+// out-of-range queries, which every agent and placement reader depends on),
+// and ribbon_ground wants to fall back to the analytic form. So the walk
+// returns (height, found) and each caller keeps its own miss behaviour
+// without a second copy of the grid walk or the uv remap.
+//
+// NOT PARAMETRISED over the texture and sampler, which is how the ribbon room
+// was expected to reach it: WGSL forbids a `ptr<uniform, T>` function
+// parameter outright (naga: "a pointer of space Uniform ... can't be passed
+// into functions"), and passing the grid BY VALUE would copy it per call. It
+// needs neither. The ribbon room BORROWS patch_grid, photo_heightfield and
+// photo_sampler at their existing numbers — the ratified idiom of the g2
+// PATCHGEN band, "a home is a numbering band, not necessarily a seat ...
+// readers borrow at its numbers" — so the globals resolve for its pipelines
+// too and this function is literally the same code for both rooms.
+fn sample_terrain_y_found(world_xz: vec2<f32>) -> vec2<f32> {
     let gx = i32(floor(world_xz.x / patch_grid.cell_extent));
     let gz = i32(floor(world_xz.y / patch_grid.cell_extent));
     let lx = gx - patch_grid.origin_x;
     let lz = gz - patch_grid.origin_z;
     let s = i32(patch_grid.side);
-    if (lx < 0 || lz < 0 || lx >= s || lz >= s) { return 0.0; }
+    if (lx < 0 || lz < 0 || lx >= s || lz >= s) { return vec2(0.0, 0.0); }
 
     let packed = patch_grid.entries[lz * s + lx];
-    if (packed == 0u) { return 0.0; }
+    if (packed == 0u) { return vec2(0.0, 0.0); }
     let layer = i32(packed - 1u);
 
     // Patch origin is the cell center; UV is local offset normalized to extent.
@@ -11389,8 +11421,14 @@ fn sample_terrain_y_at(world_xz: vec2<f32>) -> f32 {
     // between lattice points is the drawn surface)
     let res = f32(PATCH_HEIGHTFIELD_N);
     let sample_uv = (uv * (res - 1.0) + 0.5) / res;
-    return textureSampleLevel(photo_heightfield, photo_sampler,
-                              sample_uv, layer, 0.0).x;
+    return vec2(textureSampleLevel(photo_heightfield, photo_sampler,
+                                   sample_uv, layer, 0.0).x, 1.0);
+}
+
+// Returns 0.0 outside the active patch window or on empty slots (preserves
+// the old linear-scan behavior for out-of-range queries).
+fn sample_terrain_y_at(world_xz: vec2<f32>) -> f32 {
+    return sample_terrain_y_found(world_xz).x;
 }
 
 // CONTACT_2 C2a — gradient sibling of sample_terrain_y_at. Same patch_grid

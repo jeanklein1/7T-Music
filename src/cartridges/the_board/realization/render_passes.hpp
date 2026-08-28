@@ -254,7 +254,7 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
         c->renderer_.dispatch_ribbon(
             compute,
-            c->gpuState_.ribbon_state_group(), c->gpuState_.empty_group(),
+            c->gpuState_.ribbon_state_group(), c->gpuState_.ribbon_textures_group(),
             GPUState::ribbon_ring_workgroups()
         );
     }

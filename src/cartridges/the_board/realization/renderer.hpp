@@ -139,6 +139,7 @@ namespace t7 {
             wgpu::BindGroupLayout placeStateLayout_;
             wgpu::BindGroupLayout placeTexturesLayout_;
             wgpu::BindGroupLayout ribbonStateLayout_;
+            wgpu::BindGroupLayout ribbonTexturesLayout_;   // SPINE_2 — the room reads the baked ground
             wgpu::BindGroupLayout sceneStateLayout_;
             wgpu::BindGroupLayout sceneTexturesLayout_;
             wgpu::BindGroupLayout shadowStateLayout_;
@@ -399,6 +400,7 @@ namespace t7 {
                 placeStateLayout_ = gpuState.place_state_layout();
                 placeTexturesLayout_ = gpuState.place_textures_layout();
                 ribbonStateLayout_ = gpuState.ribbon_state_layout();
+                ribbonTexturesLayout_ = gpuState.ribbon_textures_layout();
                 sceneStateLayout_ = gpuState.scene_state_layout();
                 sceneTexturesLayout_ = gpuState.scene_textures_layout();
                 shadowStateLayout_ = gpuState.shadow_state_layout();
@@ -1793,7 +1795,7 @@ namespace t7 {
                 // Pipelines: the ribbon room's two kernels (RIBBON_1) — the head
                 // (one thread) then the body (one per ring), on ONE layout.
                 if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("ribbonComputeLayout", frameCLayout_, ribbonStateLayout_, emptyLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor("ribbonComputeLayout", frameCLayout_, ribbonStateLayout_, ribbonTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("ribbon_head", "Ribbon Head (0D, 1 thread, per frame)",
                         pl, Entry::RIBBON_HEAD, ribbonHeadPipeline_)) return false;

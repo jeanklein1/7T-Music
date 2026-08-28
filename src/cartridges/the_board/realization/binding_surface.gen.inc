@@ -690,9 +690,33 @@
                     if (!placeTexturesLayout_) return false;
                 }
 
+                // Ribbon Textures Layout — stratum 3 (Ribbon family) of the LOOM_2 recut.
+                // NEW at SPINE_2: the room’s group 3 was the shared EMPTY filler,
+                // which is what “the ribbon room has no textures” meant. It reads the
+                // baked ground now, so it has a real stratum 3.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+
+                    entries[0].binding = bind::g3::photo_heightfield;  // patch_heightfield read face (borrowed)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    entries[1].binding = bind::g3::photo_sampler;  // bilinear_sampler (borrowed)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Ribbon Textures Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    ribbonTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!ribbonTexturesLayout_) return false;
+                }
+
                 // Ribbon State Layout — stratum 2 (Ribbon family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
                     entries[0].binding = bind::g2::ribbon_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -740,6 +764,16 @@
                     entries[7].binding = bind::g2::render_floating;  // render_floating (storage, read — the spheres and the cubes)
                     entries[7].visibility = wgpu::ShaderStage::Compute;
                     entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    // THE RIBBON READS THE DRAWN GROUND (SPINE_2). The patch grid is
+                    // the heightfield estate's CPU index, and this room BORROWS it at the
+                    // estate’s own number — the g2 PATCHGEN band’s ratified idiom, "a home
+                    // is a numbering band, not necessarily a seat". Nothing is copied and
+                    // no second walk exists: ribbon_ground calls the same
+                    // sample_terrain_y_found every other ground reader calls.
+                    entries[8].binding = bind::g2::patch_grid;  // patch_grid (borrowed — the O(1) index into the bake)
+                    entries[8].visibility = wgpu::ShaderStage::Compute;
+                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Ribbon State Layout";
@@ -1723,9 +1757,30 @@
                     if (!placeTexturesGroup_) return false;
                 }
 
+                // NEW at SPINE_2 — the ribbon room reads the baked ground, so its
+                // stratum 3 is a real group instead of the shared EMPTY filler. Both
+                // faces are BORROWED at the heightfield estate’s own numbers.
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
+
+                    entries[0].binding = bind::g3::photo_heightfield;
+                    entries[0].textureView = patchHeightfieldArrayReadView_;
+
+                    entries[1].binding = bind::g3::photo_sampler;
+                    entries[1].sampler = bilinearSampler_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Ribbon Textures BindGroup";
+                    desc.layout = ribbonTexturesLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    ribbonTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!ribbonTexturesGroup_) return false;
+                }
+
                 // Projected from: ribbonComputeBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
 
                     entries[0].binding = bind::g2::ribbon_state;
                     entries[0].buffer = ribbonBuffer_;
@@ -1758,6 +1813,10 @@
                     entries[7].binding = bind::g2::render_floating;
                     entries[7].buffer = floatingEntityBuffer_;
                     entries[7].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+
+                    entries[8].binding = bind::g2::patch_grid;
+                    entries[8].buffer = patchGridBuffer_;
+                    entries[8].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Ribbon State BindGroup";

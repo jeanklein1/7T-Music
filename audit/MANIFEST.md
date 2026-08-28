@@ -24,8 +24,8 @@ the header.
 | Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Patch Bake (fused, batched) | `bakePatchPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Ribbon Head (0D, 1 thread, per frame) | `ribbonHeadPipeline_` | C | 6 / 6 | 5 / 3 | 0 / 16 | 2 / 14 | 0 / 4 |
-| Ribbon Body (1D, per ring, per frame) | `ribbonBodyPipeline_` | C | 6 / 6 | 5 / 3 | 0 / 16 | 2 / 14 | 0 / 4 |
+| Ribbon Head (0D, 1 thread, per frame) | `ribbonHeadPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
+| Ribbon Body (1D, per ring, per frame) | `ribbonBodyPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
 | Compute Photographer VP (0D) | `photographerVPPipeline_` | C | 4 / 8 | 5 / 3 | 1 / 15 | 3 / 13 | 0 / 4 |
 | Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 5 / 3 | 2 / 14 | 3 / 13 | 1 / 3 |
 | Frustum Cull Patches | `frustumCullPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
@@ -97,9 +97,9 @@ the header.
 | lane | worst used / limit | free | at |
 |---|---|---|---|
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
-| storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+5 more) |
+| storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+7 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
-| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+23 more) |
+| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+25 more) |
 | storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column

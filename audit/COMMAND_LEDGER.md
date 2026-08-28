@@ -10,8 +10,8 @@ Last commit touching any scanned file: `56961f46f8094f415fc6baf31a13034ce9a80059
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:8a95e6555e2acefa503aed664b2ec144b4256a7ecb67525443996c8bd564191b` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:d29cd56df0435ad7c198ad70cfbed4e4d54f6114d8e867f0f68725f02e4b86be` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:2c110f0607babde8adc417be0ab02c6597388b422dd8673d2461a2aa68a91dc2` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:9865a33a10280a51e0eb8a81e10568c63379c09d463159c18d5fbda8201ac126` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:96ab76622134425969a38bfe16dda7ad0fbee2c0a6844ab145c21041acd23279` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:1b1c3c116721dd10a5644190951aa680dc2bdd2fcd06b6677ed41bf3698bf500` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2b77de60fa24eec71ebdd496abd985b9c4a9386b099d3a15d4ef5787b955958b` |
@@ -77,8 +77,8 @@ console.hpp's depth buffer, neither of which this census reads.
 
 | # | label | colour | depth | samples | recorded in | site |
 |---|---|---|---|---|---|---|
-| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:354` |
-| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:363` |
+| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:355` |
+| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:364` |
 
 ### Encoder-creation sites (the label law, DOMESDAY_1 A9)
 

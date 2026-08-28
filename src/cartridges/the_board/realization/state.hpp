@@ -2499,6 +2499,7 @@ namespace t7 {
             wgpu::BindGroupLayout placeStateLayout_;
             wgpu::BindGroupLayout placeTexturesLayout_;
             wgpu::BindGroupLayout ribbonStateLayout_;
+            wgpu::BindGroupLayout ribbonTexturesLayout_;   // SPINE_2 — the room reads the baked ground
             wgpu::BindGroupLayout sceneStateLayout_;
             wgpu::BindGroupLayout sceneTexturesLayout_;
             wgpu::BindGroupLayout shadowStateLayout_;
@@ -2533,6 +2534,7 @@ namespace t7 {
             wgpu::BindGroup placeStateGroup_;
             wgpu::BindGroup placeTexturesGroup_;
             wgpu::BindGroup ribbonStateGroup_;
+            wgpu::BindGroup ribbonTexturesGroup_;   // SPINE_2 — was the shared EMPTY filler
             wgpu::BindGroup sceneStateGroup_;
             // DOMESDAY_1 B5 (R2): the PlanB / PlanC / Photographer scene
             // groups collapsed into sceneStateGroup_ — B3 retired the
@@ -3018,6 +3020,7 @@ namespace t7 {
             wgpu::BindGroupLayout place_state_layout() const { return placeStateLayout_; }
             wgpu::BindGroupLayout place_textures_layout() const { return placeTexturesLayout_; }
             wgpu::BindGroupLayout ribbon_state_layout() const { return ribbonStateLayout_; }
+            wgpu::BindGroupLayout ribbon_textures_layout() const { return ribbonTexturesLayout_; }
             wgpu::BindGroupLayout scene_state_layout() const { return sceneStateLayout_; }
             wgpu::BindGroupLayout scene_textures_layout() const { return sceneTexturesLayout_; }
             wgpu::BindGroupLayout shadow_state_layout() const { return shadowStateLayout_; }
@@ -3052,6 +3055,7 @@ namespace t7 {
             wgpu::BindGroup place_state_group() const { return placeStateGroup_; }
             wgpu::BindGroup place_textures_group() const { return placeTexturesGroup_; }
             wgpu::BindGroup ribbon_state_group() const { return ribbonStateGroup_; }
+            wgpu::BindGroup ribbon_textures_group() const { return ribbonTexturesGroup_; }
             wgpu::BindGroup scene_state_group() const { return sceneStateGroup_; }
             wgpu::BindGroup scene_textures_group() const { return sceneTexturesGroup_; }
             wgpu::BindGroup shadow_state_group() const { return shadowStateGroup_; }
