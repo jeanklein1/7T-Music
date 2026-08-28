@@ -42,8 +42,10 @@
 #include <iomanip>     // std::fixed, std::setprecision — the time-to-poster witness (ATRIUM_10)   // (impl, merged)
 #include <string>      // manifest paths, std::stoi   // (impl, merged)
 #include <vector>      // manifest + pixel staging   // (impl, merged)
+#ifdef __EMSCRIPTEN__
 #include <cstring>            // std::strncpy — emscripten_fetch_attr_t::requestMethod   (EXHIBIT_0)
 #include <emscripten/fetch.h> // the web twin's byte source: the network, not a filesystem (EXHIBIT_0)
+#endif
 #include "core/instruments.hpp"   // RIBBON_4 — INSTRUMENTS.stream_witness gates the steady path's witness lines
 
 namespace t7 {
@@ -1981,6 +1983,28 @@ inline void authored_stage_decoded_image(GalleryState& gs, GPUState& gpu, wgpu::
 }
 
 
+// authored_staged_count is a tally of valid records. On the web twin
+// records become valid at ARRIVAL time rather than at call time, so the
+// tally is RECOMPUTED where it changes rather than incremented at a call
+// site that cannot yet know the answer; the native twin's loads return
+// with the picture, so its recount is simply exact on the first pass.
+//
+// SUNRISE_0 N3 — TWIN-NEUTRAL BY NECESSITY. This helper drifted inside
+// `#ifdef __EMSCRIPTEN__` while the web twin was the only one, but
+// rotate_authored_staging and load_authored_textures call it from
+// unguarded code on both twins. It sits above the guard now. It is also
+// load-bearing beyond the gallery: authored_staged_count is what
+// offer_controls_when_ready() reads, and web/index.html lifts its veil on
+// the line that gate releases.
+inline void recount_authored_staged(GalleryState& gs) {
+    gs.authored_staged_count = 0;
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
+        if (gs.authored_staging[i].valid) gs.authored_staged_count++;
+}
+
+
+#ifdef __EMSCRIPTEN__
+
 // ═══ THE EXHIBITION ARRIVES OVER THE NETWORK ═════════════════════
 
 // The manifest the dist script writes beside the program. NOT
@@ -2031,16 +2055,6 @@ struct AuthoredFetchCtx {
 };
 
 inline void pump_authored_fetches(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);
-
-// authored_staged_count is a tally of valid records, and on this twin
-// records become valid at arrival time rather than at call time — so
-// the tally is RECOMPUTED where it changes, never incremented at a
-// call site that cannot yet know the answer.
-inline void recount_authored_staged(GalleryState& gs) {
-    gs.authored_staged_count = 0;
-    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
-        if (gs.authored_staging[i].valid) gs.authored_staged_count++;
-}
 
 
 // A SLOT THAT FAILED MUST STAY REACHABLE. Native's failure was final and
@@ -2237,8 +2251,36 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
     pump_authored_fetches(gs, gpu, queue);
 }
 
+#else
+
+// ── Authored Image Loading (staging model) ──
+
+inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
+    int width = 0, height = 0, channels = 0;
+    unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
+    if (!data) {
+        // Try fallback paths
+        std::string alt = std::string("7t/") + path;
+        data = stbi_load(alt.c_str(), &width, &height, &channels, 4);
+    }
+    if (!data) {
+        std::cerr << "[Authored] Failed to load: " << path << "\n";
+        return;
+    }
+
+    std::cout << "[Authored] Loaded: " << path
+        << " (" << width << "x" << height << ") → staging " << staging_layer << "\n";
+
+    authored_stage_decoded_image(gs, gpu, queue, staging_layer, disk_index, data, width, height);
+    stbi_image_free(data);
+}
+
+#endif   // __EMSCRIPTEN__ — the byte source, and only the byte source
+
 
 // ── Paintings folder scan ──
+
+#ifdef __EMSCRIPTEN__
 
 
 // THE MANIFEST PARSE, BY HAND. exhibition.json is a flat object of
@@ -2358,6 +2400,56 @@ inline void scan_paintings_folder(GalleryState& gs) {
     std::cout << "[Authored] The exhibition has not arrived yet\n";
 }
 
+#else
+
+inline void scan_paintings_folder(GalleryState& gs) {
+    namespace fs = std::filesystem;
+    gs.authored_disk_manifest.clear();
+
+    // Try multiple base paths (build dir vs working dir)
+    static constexpr const char* SEARCH_DIRS[] = {
+        "assets/paintings",
+        "7t/assets/paintings",
+    };
+
+    fs::path found_dir;
+    for (const char* dir : SEARCH_DIRS) {
+        if (fs::exists(dir) && fs::is_directory(dir)) {
+            found_dir = dir;
+            break;
+        }
+    }
+    if (found_dir.empty()) {
+        std::cout << "[Authored] No paintings folder found\n";
+        return;
+    }
+
+    for (const auto& entry : fs::directory_iterator(found_dir)) {
+        if (!entry.is_regular_file()) continue;
+        std::string name = entry.path().filename().string();
+        // Match PAINTING_*.jpg or PAINTING_*.jpeg (case-insensitive extension)
+        if (name.rfind("PAINTING_", 0) != 0) continue;
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        if (ext != ".jpg" && ext != ".jpeg") continue;
+        gs.authored_disk_manifest.push_back(entry.path().string());
+    }
+
+    // Sort by numeric value after PAINTING_ (not lexicographic)
+    // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100
+    // The rule itself now lives at authored_extract_number, above —
+    // the web twin sorts its manifest by the same one.
+    std::sort(gs.authored_disk_manifest.begin(), gs.authored_disk_manifest.end(),
+        [](const std::string& a, const std::string& b) {
+            return authored_extract_number(a) < authored_extract_number(b);
+        });
+
+    std::cout << "[Authored] Scanned " << found_dir.string()
+        << " — found " << gs.authored_disk_manifest.size() << " paintings\n";
+}
+
+#endif   // __EMSCRIPTEN__ — the manifest's source, and only its source
+
 
 inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
     // Scan folder on first load
@@ -2376,6 +2468,13 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         // false, the conductor re-enters next frame and finds the
         // manifest (OVERTURE_0) — which is the whole of what makes a
         // late exhibition arrive at all.
+#ifndef __EMSCRIPTEN__
+        // NATIVE (SUNRISE_0 N3): "empty" IS a verdict here — the folder was
+        // walked and there is nothing in it — so the flag latches and the
+        // walk is not repeated every frame. This is the one line of the
+        // comment above that describes the native twin again.
+        gs.authored_textures_loaded = true;
+#endif
         return;
     }
 
