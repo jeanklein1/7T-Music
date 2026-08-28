@@ -1,15 +1,23 @@
-# The Ever Expanding Board (7T)
+# The Board, Music (7T-Music)
 
-A web-first WebGPU generative artwork. Live at https://everexpandingboard.com.
-C++20 + WGSL on Dawn, compiled with Emscripten (emdawnwebgpu, vendored),
-deployed as static files via Cloudflare Pages.
+A WebGPU generative artwork being taken native so it can be played against a
+DAW. C++20 + WGSL on Dawn. Forked from 7T (`jeanklein1/7T-Pawns`) at
+`de4b8b6f` and independent from there.
+
+**This repo never deploys.** The live site everexpandingboard.com and the
+Cloudflare Pages project `7t` belong to the sibling repo. See CLAUDE.md.
 
 ## Build (Windows)
-Requires the persistent EMSDK environment variable (set once; docs/LAWS.md L40).
+Web — the control witness. Requires the persistent EMSDK environment
+variable (set once; docs/LAWS.md L40).
 cmake --preset the-board-web
 cmake --build --preset the-board-web
 python tools\web_dist.py
-npx wrangler pages deploy dist --project-name=7t
+npx wrangler pages dev dist        # local preview only; publishes nothing
+
+Native — this fork's target.
+cmake --preset the-board-full-release
+cmake --build --preset the-board-full-release
 
 ## Orientation
 - docs/LAWS.md — project law. docs/OPEN.md — open items.

@@ -1,8 +1,30 @@
-# 7T — The Ever Expanding Board · session constitution
+# 7T-Music — The Board, Music · session constitution
 
-7T is a web-first WebGPU generative artwork (C++20 + WGSL, Dawn via
-Emscripten/emdawnwebgpu, vendored). Audience: everexpandingboard.com.
-The program is essentially artwork; engineering serves that.
+> **THIS REPO IS 7T-MUSIC.** Forked from 7T (`jeanklein1/7T-Pawns`) at
+> `de4b8b6f`, and **independent** from that commit forward. There is no
+> `upstream` remote and no merge path back. The shared history below the
+> fork point is real history, not a subtree.
+>
+> **NEVER DEPLOY FROM THIS REPO.** No `wrangler pages deploy`, from any
+> tool, script, or session, for any reason. The Cloudflare Pages project
+> `7t` and the domain everexpandingboard.com belong to the **sibling
+> repo**, which is the live artwork; a deploy from here overwrites it with
+> the fork's build. That hazard is inherited, not hypothetical — this repo
+> carries the sibling's build scripts verbatim.
+>
+> **Local preview is fine and is the intended witness:**
+> `python tools/web_dist.py` then `npx wrangler pages dev dist`.
+> `pages dev` serves locally and publishes nothing.
+>
+> The native twin is this fork's point (SUNRISE_0 Phase N). The web twin
+> survives as the control witness: it must keep building green so a native
+> graft that leaks outside its `__EMSCRIPTEN__` guard is caught at once.
+
+7T-Music is a WebGPU generative artwork (C++20 + WGSL, Dawn) being taken
+native so it can be played against a DAW. The program is essentially
+artwork; engineering serves that. The sibling repo 7T holds the web-first
+line and its audience at everexpandingboard.com; this one holds the
+instrument.
 
 ## Boot preflight (every session, before any claim about history)
 - `git rev-parse --is-shallow-repository` → if true, `git fetch --unshallow origin`.
@@ -10,18 +32,24 @@ The program is essentially artwork; engineering serves that.
 - Work on master unless the handoff says otherwise. Handoff outranks harness defaults.
 
 ## The triangle
-Jean holds all gates: build (glaw1), visual sign-off, merge, deploy, naming.
+Jean holds all gates: build (glaw1), visual sign-off, merge, naming.
+There is no deploy gate here, because there is no deploy.
 Claude holds architecture, rulings, and handoff authoring.
 CC executes handoffs on the tree: recon before edit, STOP-on-mismatch scoped to
 the unit, flag-and-continue, one commit per logical unit, report findings without
 improvising on authority-bearing decisions. Cite symbols, not line numbers.
 
-## Build & deploy (Jean runs these; listed for orientation)
+## Build (Jean runs these; listed for orientation)
+WEB — the control witness, built and previewed, never shipped:
 cmake --preset the-board-web → cmake --build --preset the-board-web
-→ python tools\web_dist.py → npx wrangler pages deploy dist --project-name=7t
+→ python tools\web_dist.py → npx wrangler pages dev dist
 (the persistent EMSDK user variable carries the presets — L40)
-dist/ is the deploy target. web/ holds the shell sources and receives the
-build artifacts; only dist/ ships.
+NATIVE — this fork's target (SUNRISE_0 Phase N):
+cmake --preset the-board-full-release → cmake --build --preset the-board-full-release
+Dawn is built separately and pinned; see docs/OPEN.md and
+docs/reference/DAWN_REFERENCE.md.
+web/ holds the shell sources and receives the build artifacts. dist/ is a
+local preview root in this repo and is never uploaded anywhere.
 
 ## Where truth lives
 - docs/LAWS.md — the rule book. Read before proposing.

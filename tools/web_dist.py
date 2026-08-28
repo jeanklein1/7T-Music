@@ -873,45 +873,30 @@ def main():
     print("  _headers           index is no-cache; a plain reload now fetches the current build")
 
     print("")
-    print("DEPLOY — exact commands")
+    print("PREVIEW — exact commands")
     print("")
-    if host == "cloudflare":
-        # TIDY_0c-i: the project is named `7t`, not `the-board`. These
-        # commands were copy-pasteable and WRONG — `--project-name
-        # the-board` names a project that does not exist, so the first
-        # one would have created a second, empty one. One home for the
-        # deploy truth, and this is it.
-        print("  Cloudflare Pages, first time:")
-        print("    npm install -g wrangler")
-        print("    wrangler login")
-        print("    wrangler pages project create 7t --production-branch main")
-        print("    wrangler pages deploy dist --project-name 7t")
-        print("")
-        print("  Every time after:")
-        print("    wrangler pages deploy dist --project-name 7t")
-        print("")
-        print("  Or without the CLI: dash.cloudflare.com -> Workers & Pages -> Create ->")
-        print("  Pages -> Upload assets -> drag the dist/ FOLDER in.")
-        print("")
-        print("  THE DESTINATION: https://everexpandingboard.com is canonical and is")
-        print("  the QR destination. https://7t.pages.dev is the raw Pages host —")
-        print("  the fallback to check when the custom domain is the suspect.")
-    else:
-        print("  GitHub Pages, gh-pages branch convention: create an orphan branch that")
-        print("  holds ONLY the deployable files, push it, and point Pages at its root")
-        print("  (Settings -> Pages -> Source: Deploy from a branch -> gh-pages / (root)).")
-        print("  From a clean tree:")
-        print("    git switch --orphan gh-pages")
-        print("    git rm -rf . >NUL 2>&1")
-        print("    cp -r dist/. .         # or: xcopy dist\\* . /E /Y  on cmd")
-        print("                           # -r / /E: dist/ has paintings\\ and music\\ now")
-        print("    git add -A && git commit -m \"web build\"")
-        print("    git push -u origin gh-pages")
-        print("    git switch -")
-        print("  The URL is https://jeanklein1.github.io/7T-Pawns/ .")
+    # ─── SUNRISE_0 N0 — THE DEPLOY INTERDICTION ──────────────────────────
+    # This section used to print two copy-pasteable PUBLISH routes, and
+    # called itself the one home of the deploy truth. Inherited verbatim by
+    # 7T-Music, that made this the most dangerous file in the fork: both
+    # routes aim at the SIBLING repo's live artwork —
+    #   · Cloudflare Pages project `7t` / everexpandingboard.com
+    #   · a gh-pages orphan branch of jeanklein1/7T-Pawns
+    # Either would overwrite the sibling's published site with this fork's
+    # build. Both are gone. `host` is no longer read here; the deploy truth
+    # for project `7t` lives only in the sibling repo now.
+    print("  This repo NEVER deploys — see CLAUDE.md. Local preview only:")
     print("")
-    print("  HEADERS: none. The build is single-threaded, so no COOP/COEP is needed")
-    print("  and adding them would only risk breaking the load.")
+    print("    npm install -g wrangler")
+    print("    wrangler pages dev dist")
+    print("")
+    print("  `pages dev` serves dist/ on localhost over HTTPS and publishes")
+    print("  nothing. It is the web twin's whole purpose here: the control")
+    print("  witness that a native graft did not leak past its guard.")
+    print("")
+    print("  The Cloudflare project `7t`, everexpandingboard.com and the")
+    print("  gh-pages branch of 7T-Pawns all belong to the sibling repo.")
+    print("  Never publish from 7T-Music, by any route.")
     print("")
     print("  HTTPS is not optional — WebGPU needs a secure context. Both hosts give it;")
     print("  a LAN IP does not, which is why 'just serve it locally' is not a phone test.")
