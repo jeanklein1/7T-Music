@@ -12,6 +12,45 @@
       }
     },
     {
+      "name": "native",
+      "hidden": true,
+      "inherits": "the-board",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DAWN_DIR": "C:/dev/dawn",
+        "DAWN_BUILD": "C:/dev/dawn/out"
+      }
+    },
+    {
+      "name": "the-board-full",
+      "displayName": "the_board — full (native)",
+      "inherits": "native"
+    },
+    {
+      "name": "the-board-full-release",
+      "displayName": "the_board — full (native, Release)",
+      "inherits": "the-board-full",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "the-board-minimal",
+      "displayName": "the_board — minimal (native)",
+      "inherits": "native",
+      "cacheVariables": {
+        "THE_BOARD_DEMO": "minimal"
+      }
+    },
+    {
+      "name": "the-board-full-release-meter",
+      "displayName": "the_board — full (native, Release, frame meter armed)",
+      "inherits": "the-board-full-release",
+      "cacheVariables": {
+        "T7_INSTRUMENTS": "meter"
+      }
+    },
+    {
       "name": "the-board-web",
       "displayName": "the_board — web (Emscripten, first light)",
       "inherits": "the-board",
@@ -50,19 +89,53 @@
   ],
   "buildPresets": [
     {
+      "name": "the-board-full",
+      "configurePreset": "the-board-full",
+      "targets": [
+        "the_board"
+      ]
+    },
+    {
+      "name": "the-board-full-release",
+      "configurePreset": "the-board-full-release",
+      "targets": [
+        "the_board"
+      ]
+    },
+    {
+      "name": "the-board-minimal",
+      "configurePreset": "the-board-minimal",
+      "targets": [
+        "the_board"
+      ]
+    },
+    {
+      "name": "the-board-full-release-meter",
+      "configurePreset": "the-board-full-release-meter",
+      "targets": [
+        "the_board"
+      ]
+    },
+    {
       "name": "the-board-web",
       "configurePreset": "the-board-web",
-      "targets": [ "the_board" ]
+      "targets": [
+        "the_board"
+      ]
     },
     {
       "name": "the-board-web-meter",
       "configurePreset": "the-board-web-meter",
-      "targets": [ "the_board" ]
+      "targets": [
+        "the_board"
+      ]
     },
     {
       "name": "the-board-web-debug",
       "configurePreset": "the-board-web-debug",
-      "targets": [ "the_board" ]
+      "targets": [
+        "the_board"
+      ]
     }
   ]
 }
