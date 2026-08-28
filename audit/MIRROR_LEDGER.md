@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d69df6d14cbfc434ace237f92f3d8813de0e195f` |
-| | SPINE_2 C — record the bar that C walked past |
+| source commit | `6a7741b04a63742a7fd5cfa8d953ee00d68c2f8f` |
+| | INSTRUMENT — Table E learns the single-invocation carve-out |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:71935cd4bbabc9e08908627da5e7967621d0b6f80340753fc25e20d4ceb1a496` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
