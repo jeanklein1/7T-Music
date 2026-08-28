@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `c6a823eb741c0c82301b72f744358edfae671869` |
-| | SPINE_2 C — camera and vp, one kernel |
+| source commit | `459a94b732943c8a1893f3ade6c4297023b607e8` |
+| | SPINE_2 B — the card joins the compute pass |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:14013044dac8a89fd97843e2528efa05ab33f30dfa57a75d78c1dd5cc45fdad8` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:82dfe348ec6370038a227ebf7fc47ab105714be9ce6dbf64c6a241cd368aa472` |
 | `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:93a928365c2cedab26c2f5fc79718a3fe4bb7d50e81d7567d14820716afda99f` |
+| `audit/BINDING_LEDGER.md` | `sha256:6dd805cb41eead9d246f6b3d4b15a2c5dccd4c91e5eab25b4464ed815be6f857` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

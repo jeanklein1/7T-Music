@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `c6a823eb741c0c82301b72f744358edfae671869` |
-| | SPINE_2 C — camera and vp, one kernel |
+| source commit | `459a94b732943c8a1893f3ade6c4297023b607e8` |
+| | SPINE_2 B — the card joins the compute pass |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |

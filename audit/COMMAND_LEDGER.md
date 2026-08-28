@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `c6a823eb741c0c82301b72f744358edfae671869`
-(SPINE_2 C — camera and vp, one kernel)
+Last commit touching any scanned file: `459a94b732943c8a1893f3ade6c4297023b607e8`
+(SPINE_2 B — the card joins the compute pass)
 
 | file scanned | sha256 |
 |---|---|
