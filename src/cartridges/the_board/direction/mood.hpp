@@ -795,7 +795,7 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     c->sunDirection_[1] = ai.sun_direction[1];
     c->sunDirection_[2] = ai.sun_direction[2];
 
-    // Push to GPU config so compute_vp builds the shadow VP from the correct direction.
+    // Push to GPU config so update_camera_vp builds the shadow VP from the correct direction.
     c->gpuState_.set_sun_direction(ai.sun_direction[0] / len,
                                    ai.sun_direction[1] / len,
                                    ai.sun_direction[2] / len);

@@ -1047,7 +1047,7 @@ struct CameraState {
     pan_y: f32,
     // Damped aim point — the camera orbits this rather than the
     // possessed agent's raw position. Lerps toward the agent's pos
-    // each frame in update_camera with a soft time constant. This
+    // each frame in update_camera_vp with a soft time constant. This
     // makes possession transfers (Caps Lock) glide rather than
     // teleport, while normal walking lag stays imperceptible.
     aim_point: vec3<f32>,
@@ -1793,7 +1793,7 @@ struct DesignConfig {
     mosaic_facet: f32,
     // TUNE_1 A3 — possessed figure's eye height in world units, authored
     // CPU-side (FPV_EYE_RATIO x the figure's own height) and read by
-    // update_camera. This room cannot derive it: scene_constants.figure_profiles
+    // update_camera_vp. This room cannot derive it: scene_constants.figure_profiles
     // (binding 112) is a render-VS uniform and no compute layout binds it.
     // Reuses the first tail pad in place; sizeof 592 unmoved. Was _pad592_0.
     fpv_eye_height: f32,
@@ -1852,7 +1852,7 @@ struct DesignConfig {
     // THE PANEL (contracts/point.hpp CAMERA_CHASE_FF) authors the rest and
     // the boot pins it here. Reuses the tail pad in place: sizeof 688 is
     // UNMOVED, so no size pin nor offsetof witness changes. Read by
-    // update_camera, RIBBON host only.
+    // update_camera_vp, RIBBON host only.
     camera_chase_ff: f32,           // 684  [0,1] — 1 cancels the aim ease's trail; 0 restores it
     // KITE_1 — THE WITNESS'S PRESENCE. Mirror of GPUDesignConfig, GROWTH
     // LAW, same commit, same order. THE PANEL (contracts/point.hpp
@@ -3530,7 +3530,7 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
 //   (external form) - CONTRIB_GOL_SUPPRESSION (subtractive, centered on
 //   qi.consumer_pos — the EYE — and height-faded).
-// Typical consumers: update_camera's clearance clamp.
+// Typical consumers: update_camera_vp's clearance clamp.
 // Notes: contributor for contributor this is POLICY_WALKER. What differs is
 //   the REALIZATION, and both halves of the difference say the same thing —
 //   the consumer is the WITNESS, not the body.
@@ -4028,7 +4028,7 @@ fn compose_camera_position_from_orbit(aim_point: vec3<f32>, cam: CameraState) ->
 }
 
 // §5.1 0D COMPOSITION — split into 4 entry points (§7.1):
-//   update_player_agent, update_other_agents, update_camera, update_sphere
+//   update_player_agent, update_other_agents, update_camera_vp, update_sphere
 struct VPMatrix {
     m: mat4x4<f32>,
     light_vp: mat4x4<f32>,
@@ -7185,7 +7185,7 @@ struct FrameR {
 // render bind carries offset 0.
 //
 // WHY AN INDEX AND NOT THE MATRIX. A matrix would need the SUN's on
-// the outdoor path, and the sun VP's only writer is compute_vp — on
+// the outdoor path, and the sun VP's only writer is update_camera_vp — on
 // the GPU, every frame; a CPU-pushed matrix would give it two owners
 // at two cadences. An index has no owners and no cadence, and its
 // failure mode is a validation error rather than a wrong pixel.
@@ -7193,7 +7193,7 @@ struct FrameR {
 
 // D2' — the shadow VS's light matrix, from where it already lives.
 // Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by
-// compute_vp and read here exactly as the 13 shadow VSes read it
+// update_camera_vp and read here exactly as the 13 shadow VSes read it
 // before. Indoors it is the per-light matrix that already rides the
 // lighting buffer, the same array sample_spot_shadow_pcf indexes in the
 // fragment stage. Nothing is duplicated and nothing new is written.
@@ -9079,7 +9079,7 @@ fn update_player_agent() {
         // clear it. Reference = the sphere's OWN influence shell
         // (fe.influence_radius, per-instance ~6-8 wu; a celestial object's
         // influence IS its reach). Applied to the point's HOST body (the
-        // pawn here); the camera-host twin is in update_camera. K1b: the
+        // pawn here); the camera-host twin is in update_camera_vp. K1b: the
         // impulse lands on velocity and the inline pos-add below carries it
         // to position this frame. (Reverses CONTACT_4 S2c — Jean's ruling.)
         for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
@@ -9529,7 +9529,7 @@ fn world_box_clamp_xz(xz: vec2<f32>, margin: f32) -> vec2<f32> {
 }
 
 // ─── Indoor bounds resolve — walls (via the box) + ceiling ───────
-// Readers: update_camera, update_sphere, update_cube. The 2.0 is the
+// Readers: update_camera_vp, update_sphere, update_cube. The 2.0 is the
 // CAMERA'S OWN margin, now stated at the call site instead of inside
 // the law — which is what let the pawn pass its own.
 fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
@@ -9546,190 +9546,226 @@ fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
 }
 
 @compute @workgroup_size(1)
-fn update_camera() {
-    if (!dynamics_0d_active()) { return; }
+fn update_camera_vp() {
+    // TWO KERNELS, ONE LANE (SPINE_2). update_camera and compute_vp were two
+    // @workgroup_size(1) dispatches with a strict dependency between them —
+    // the second reads the camera_state the first writes — and two of the
+    // frame's floater kernels sat between them for no reason but history.
+    // One entry point, one dispatch, one pipeline.
+    //
+    // THE GUARD WRAPS THE CAMERA HALF, NOT THE PAIR, and this is the whole
+    // care in the fusion. update_camera opened with
+    //     if (!dynamics_0d_active()) { return; }
+    // and compute_vp had no such guard: with the mute dial set, the camera
+    // froze and the VP kept being rebuilt from the frozen camera. Letting
+    // that `return` short-circuit the fused body would freeze the VP MATRIX
+    // too — a live ORGAN dial (config.mute_dynamics_0d) that stops the world
+    // rendering from its own camera. So the camera half is guarded and the
+    // VP half runs unconditionally, which is exactly what the two dispatches
+    // did.
+    if (dynamics_0d_active()) {
 
-    var camera = camera_state;
+        var camera = camera_state;
 
-    // ─── THE CAMERA HOSTS THE POINT (free-fly) ───────────────────
-    // The point is hosted here: input moves it and the camera
-    // coincides with it (the point's permanent witness). One intent
-    // channel: W/A/S/D author signal.move in this mode (the pawn's
-    // input coupling is unrouted — the body idles). TERRAIN RULE =
-    // NONE: every clamp below is skipped (clips freely — the
-    // revision camera). The kite path below is byte-untouched when
-    // the pawn hosts.
-    if (point_camera_hosted()) {
-        camera.azimuth += signal.look_az_delta;
-        camera.elevation = clamp(camera.elevation + signal.look_el_delta,
-            FPV_MIN_ELEVATION, FPV_MAX_ELEVATION);
+        // ─── THE CAMERA HOSTS THE POINT (free-fly) ───────────────────
+        // The point is hosted here: input moves it and the camera
+        // coincides with it (the point's permanent witness). One intent
+        // channel: W/A/S/D author signal.move in this mode (the pawn's
+        // input coupling is unrouted — the body idles). TERRAIN RULE =
+        // NONE: every clamp below is skipped (clips freely — the
+        // revision camera). The kite path below is byte-untouched when
+        // the pawn hosts.
+        if (point_camera_hosted()) {
+            camera.azimuth += signal.look_az_delta;
+            camera.elevation = clamp(camera.elevation + signal.look_el_delta,
+                FPV_MIN_ELEVATION, FPV_MAX_ELEVATION);
 
-        let cos_el = cos(camera.elevation);
-        let sin_el = sin(camera.elevation);
-        let cos_az = cos(camera.azimuth);
-        let sin_az = sin(camera.azimuth);
-        // The look frame (build_view_projection_matrix's convention):
-        // W/S ride the look direction; A/D strafe the ground plane.
-        let fly_forward = vec3(-cos_el * sin_az, -sin_el, -cos_el * cos_az);
-        let fly_right = vec3(cos_az, 0.0, -sin_az);
-        let fly_up = cross(fly_right, fly_forward);
+            let cos_el = cos(camera.elevation);
+            let sin_el = sin(camera.elevation);
+            let cos_az = cos(camera.azimuth);
+            let sin_az = sin(camera.azimuth);
+            // The look frame (build_view_projection_matrix's convention):
+            // W/S ride the look direction; A/D strafe the ground plane.
+            let fly_forward = vec3(-cos_el * sin_az, -sin_el, -cos_el * cos_az);
+            let fly_right = vec3(cos_az, 0.0, -sin_az);
+            let fly_up = cross(fly_right, fly_forward);
 
-        let fly_speed = select(PAWN_SPEED, config.point_fly_speed, config.point_fly_speed > 0.0);
-        camera.pos += (fly_forward * (-signal.move_z) + fly_right * signal.move_x) * fly_speed * signal.dt;
-        // Pan translates the point in the view plane (rotate + pan —
-        // the fly's mouse; the orbit's pan scale kept for feel).
-        camera.pos += (fly_right * signal.pan_x_delta + fly_up * signal.pan_y_delta) * camera.distance * 0.5;
+            let fly_speed = select(PAWN_SPEED, config.point_fly_speed, config.point_fly_speed > 0.0);
+            camera.pos += (fly_forward * (-signal.move_z) + fly_right * signal.move_x) * fly_speed * signal.dt;
+            // Pan translates the point in the view plane (rotate + pan —
+            // the fly's mouse; the orbit's pan scale kept for feel).
+            camera.pos += (fly_right * signal.pan_x_delta + fly_up * signal.pan_y_delta) * camera.distance * 0.5;
 
-        // ── SPHERES PUSH THE POINT (CONTACT_5 P2a, camera-host twin) ──
-        // The SAME sphere-row profile, applied to the camera position (the
-        // point's other host). self_vel = 0 — the PRESENCE term needs no
-        // velocity, which is exactly why this works with no camera-velocity
-        // field (the deferred config.point_vel_x/z is NOT needed for it). In
-        // free-fly the terrain rule is NONE (the revision camera clips
-        // freely), so spheres are the ONLY solid things in the point's world
-        // here — a deliberate percept (Jean's ruling). influence_response
-        // returns the impulse; the camera integrates it * dt to position
-        // (no persistent velocity to accumulate). No later writer authors
-        // camera.pos in this branch (verified P0), so it has the last word.
-        for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
-            let fe = floating_entities.entities[sph];
-            if (fe.is_active == 0u) { continue; }
-            let sp_prof = row_sphere_push(fe);
-            let sp_r = influence_response(
-                camera.pos, vec2(0.0), fe.pos, vec2(0.0), sp_prof, signal.dt);
-            camera.pos.x += sp_r.x * signal.dt;
-            camera.pos.z += sp_r.y * signal.dt;
+            // ── SPHERES PUSH THE POINT (CONTACT_5 P2a, camera-host twin) ──
+            // The SAME sphere-row profile, applied to the camera position (the
+            // point's other host). self_vel = 0 — the PRESENCE term needs no
+            // velocity, which is exactly why this works with no camera-velocity
+            // field (the deferred config.point_vel_x/z is NOT needed for it). In
+            // free-fly the terrain rule is NONE (the revision camera clips
+            // freely), so spheres are the ONLY solid things in the point's world
+            // here — a deliberate percept (Jean's ruling). influence_response
+            // returns the impulse; the camera integrates it * dt to position
+            // (no persistent velocity to accumulate). No later writer authors
+            // camera.pos in this branch (verified P0), so it has the last word.
+            for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
+                let fe = floating_entities.entities[sph];
+                if (fe.is_active == 0u) { continue; }
+                let sp_prof = row_sphere_push(fe);
+                let sp_r = influence_response(
+                    camera.pos, vec2(0.0), fe.pos, vec2(0.0), sp_prof, signal.dt);
+                camera.pos.x += sp_r.x * signal.dt;
+                camera.pos.z += sp_r.y * signal.dt;
+            }
+
+            camera_state = camera;
+            return;
         }
+
+        if (coupling_active(COUPLING_INPUT_ORBITS_CAMERA)) {
+            camera.azimuth += signal.look_az_delta;
+
+            let min_el = select(CAMERA_MIN_ELEVATION, FPV_MIN_ELEVATION, fpv_mode_active());
+            let max_el = select(CAMERA_MAX_ELEVATION, FPV_MAX_ELEVATION, fpv_mode_active());
+            camera.elevation = clamp(camera.elevation + signal.look_el_delta, min_el, max_el);
+
+            if (!fpv_mode_active()) {
+                camera = coupling_input_to_camera_pan(vec2(signal.pan_x_delta, signal.pan_y_delta), camera);
+            }
+        }
+
+        if (coupling_active(COUPLING_INPUT_ZOOMS_CAMERA) && !fpv_mode_active()) {
+            camera = coupling_input_to_camera_distance(signal.zoom_delta, camera);
+        }
+
+        // ─── THE CHASE (RIBBON_2) ────────────────────────────────────
+        // Boarding turns the camera to the flight: azimuth behind the rider,
+        // looking along −dir(heading), at a standard elevation, eased over the
+        // boarding. While riding, an idle mouse lets the azimuth settle back
+        // behind the flight (RIBBON_CHASE_TAU; 0 = never). Derivation: the
+        // orbit's forward is (−sin az, ·, −cos az) and its offset sits opposite
+        // (compose_camera_position_from_orbit); flight is (−cos h, ·, −sin h);
+        // equal when az = π/2 − h. The screen gates the sign (AZ_OFFSET).
+        if (point_ribbon_hosted()) {
+            let chase_az = 1.5707963 - ribbon_body_read.head.heading + RIBBON_CHASE_AZ_OFFSET;
+            if (signal.mount_kind == 1u && signal.mount_phase < 1.0) {
+                let w = 1.0 - exp(-signal.dt / RIBBON_CHASE_BOARD_TAU);
+                camera.azimuth = mix_heading(camera.azimuth, chase_az, w);
+                camera.elevation = mix(camera.elevation, RIBBON_CHASE_ELEVATION, w);
+            } else if (RIBBON_CHASE_TAU > 0.0 && abs(signal.look_az_delta) < 1e-6) {
+                let w = 1.0 - exp(-signal.dt / RIBBON_CHASE_TAU);
+                camera.azimuth = mix_heading(camera.azimuth, chase_az, w);
+            }
+        }
+
+        // Damped aim point — third-person orbit tracks aim_point rather than
+        // the possessed body's raw position. A first-order ease trails a
+        // constant-velocity target by v·tau at steady state, so tau IS the trail:
+        // 4.5 wu at the pawn's 15 u/s walk (imperceptible in a third-person
+        // frame), while a Caps Lock transfer over ~10 units still takes about a
+        // second to settle. FPV bypasses this — first-person view requires the
+        // camera to be exactly on the pawn each frame.
+        //
+        // ─── THE KITE LOCK (KITE_1, RIBBON host only) ────────────────
+        //
+        // Riding, that same trail is 12 wu — 40 wu/s × 0.30 s — and the head
+        // flies out of the frame the boarding placed it in. Since the trail is
+        // v·tau EXACTLY, adding v·tau back to the target cancels it identically,
+        // at any dt, while transients and ring-0's wave sway still pass through
+        // the ease and keep their filtering. The camera locks to the FLIGHT, not
+        // to the oscillation.
+        //
+        // v_cmd is the head's commanded motion, recomposed here because the head
+        // stores no speed: flight is −dir(heading) at throttle_eased ×
+        // config.ribbon_max_speed — ribbon_head's own step, read back through the
+        // window the chase above already reads — and y_vel is the pen's vertical
+        // rate (realized, the spring's output toward alt_target; it is the only
+        // vertical the head stores, and it is what the seat actually climbs at).
+        //
+        // The ramp is the SEAT's own boarding ease, read exactly as
+        // behavior_player_controlled reads it. The seat is what the camera
+        // chases, so a feed-forward that outran the seat's arrival would let
+        // boarding lead. mount_kind is 1 or 0 in this branch — landing eases onto
+        // the walked pose, by which time the point no longer rides.
+        //
+        // config.camera_chase_ff at 0 restores the plain trail exactly, which
+        // makes the dial the proof that this is the mechanism. The PAWN path
+        // takes none of it: aim_target is pawn_pos, and the walk kite is
+        // byte-identical to the one it was.
+        let pawn_pos = compute_pawn_pos();
+        {
+            let tau = 0.30;
+            let alpha = 1.0 - exp(-signal.dt / tau);
+            var aim_target = pawn_pos;
+            if (point_ribbon_hosted()) {
+                let hd = ribbon_body_read.head;
+                let speed = hd.throttle_eased * config.ribbon_max_speed;
+                let v_cmd = vec3(-cos(hd.heading) * speed, hd.y_vel, -sin(hd.heading) * speed);
+                var mount_e = 1.0;
+                if (signal.mount_kind == 1u) { mount_e = mount_ease(signal.mount_phase); }
+                aim_target += v_cmd * (mount_e * config.camera_chase_ff * tau);
+            }
+            camera.aim_point = mix(camera.aim_point, aim_target, alpha);
+        }
+
+        if (fpv_mode_active()) {
+            camera.pos = pawn_pos + vec3(0.0, config.fpv_eye_height, 0.0);
+        } else if (coupling_active(COUPLING_PAWN_TO_CAMERA_TARGET)) {
+            camera.pos = coupling_pawn_to_camera_target(camera.aim_point, camera);
+        }
+
+        // ─── Camera terrain clamp: never go underground ──────────────
+        //
+        // THE AURA IS A FLOOR EXACTLY AS TERRAIN IS (Jean's ruling): the eye
+        // never passes under the visual skin, and the skin includes the pawn's
+        // aura dome. POLICY_WALKER_WITNESS is the surface that says so — the
+        // shared world stack (static base + pyramids + GoL zones + terrain
+        // waves + radial pulses) plus the EXTERNAL aura form, the same grid
+        // sample patch_terrain_vs extrudes the ground by, and the eye's own
+        // GoL suppression under the same height fade the render carve applies.
+        // Floor and picture are then the same surface, term for term.
+        //
+        // The query is at the COMPOSED EYE's xz (camera.pos, already the orbit
+        // eye at this point), and consumer_pos is the eye too — the policy
+        // reads it for the suppression center and for the fade's height.
+        //
+        // The eye still CLIMBS a zone's lift as the pawn does: the suppression
+        // is the witness's own, so it flattens what is under the lens and
+        // leaves the rest of the field standing to lift the camera over.
+        //
+        // Free-fly is unaffected — the camera host returns above this point,
+        // which IS its TERRAIN RULE = NONE (contracts/point.hpp).
+        {
+            let min_clearance = 1.5;  // minimum height above the visual skin
+            let qi = QueryInputs(camera.pos, signal.t_seconds);  // the eye is the consumer
+            let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_WITNESS, qi).y;
+            camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
+        }
+
+        // ─── Indoor boundary clamp: stay within walls and below ceiling ──
+        // (extracted to indoor_bounds_resolve — the one law, behavior-identical)
+        camera.pos = indoor_bounds_resolve(camera.pos);
 
         camera_state = camera;
-        return;
     }
 
-    if (coupling_active(COUPLING_INPUT_ORBITS_CAMERA)) {
-        camera.azimuth += signal.look_az_delta;
+    // Build VP matrix from camera state (already updated by update_world)
+    vp_data.m = build_view_projection_matrix(
+        camera_state.pos,
+        camera_state.azimuth,
+        camera_state.elevation,
+        signal.aspect_ratio
+    );
 
-        let min_el = select(CAMERA_MIN_ELEVATION, FPV_MIN_ELEVATION, fpv_mode_active());
-        let max_el = select(CAMERA_MAX_ELEVATION, FPV_MAX_ELEVATION, fpv_mode_active());
-        camera.elevation = clamp(camera.elevation + signal.look_el_delta, min_el, max_el);
-
-        if (!fpv_mode_active()) {
-            camera = coupling_input_to_camera_pan(vec2(signal.pan_x_delta, signal.pan_y_delta), camera);
-        }
+    // Sun VP: kite coupling — the sun orbits THE POINT at fixed
+    // offset (was the pawn; the shadow box must cover
+    // what the eye sees, so it follows the point's host — identical
+    // when the pawn hosts, tracks the camera in free-fly).
+    if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
+        vp_data.light_vp = coupling_pawn_to_sun_vp(
+            point_pos(),
+            config.sun_direction
+        );
     }
-
-    if (coupling_active(COUPLING_INPUT_ZOOMS_CAMERA) && !fpv_mode_active()) {
-        camera = coupling_input_to_camera_distance(signal.zoom_delta, camera);
-    }
-
-    // ─── THE CHASE (RIBBON_2) ────────────────────────────────────
-    // Boarding turns the camera to the flight: azimuth behind the rider,
-    // looking along −dir(heading), at a standard elevation, eased over the
-    // boarding. While riding, an idle mouse lets the azimuth settle back
-    // behind the flight (RIBBON_CHASE_TAU; 0 = never). Derivation: the
-    // orbit's forward is (−sin az, ·, −cos az) and its offset sits opposite
-    // (compose_camera_position_from_orbit); flight is (−cos h, ·, −sin h);
-    // equal when az = π/2 − h. The screen gates the sign (AZ_OFFSET).
-    if (point_ribbon_hosted()) {
-        let chase_az = 1.5707963 - ribbon_body_read.head.heading + RIBBON_CHASE_AZ_OFFSET;
-        if (signal.mount_kind == 1u && signal.mount_phase < 1.0) {
-            let w = 1.0 - exp(-signal.dt / RIBBON_CHASE_BOARD_TAU);
-            camera.azimuth = mix_heading(camera.azimuth, chase_az, w);
-            camera.elevation = mix(camera.elevation, RIBBON_CHASE_ELEVATION, w);
-        } else if (RIBBON_CHASE_TAU > 0.0 && abs(signal.look_az_delta) < 1e-6) {
-            let w = 1.0 - exp(-signal.dt / RIBBON_CHASE_TAU);
-            camera.azimuth = mix_heading(camera.azimuth, chase_az, w);
-        }
-    }
-
-    // Damped aim point — third-person orbit tracks aim_point rather than
-    // the possessed body's raw position. A first-order ease trails a
-    // constant-velocity target by v·tau at steady state, so tau IS the trail:
-    // 4.5 wu at the pawn's 15 u/s walk (imperceptible in a third-person
-    // frame), while a Caps Lock transfer over ~10 units still takes about a
-    // second to settle. FPV bypasses this — first-person view requires the
-    // camera to be exactly on the pawn each frame.
-    //
-    // ─── THE KITE LOCK (KITE_1, RIBBON host only) ────────────────
-    //
-    // Riding, that same trail is 12 wu — 40 wu/s × 0.30 s — and the head
-    // flies out of the frame the boarding placed it in. Since the trail is
-    // v·tau EXACTLY, adding v·tau back to the target cancels it identically,
-    // at any dt, while transients and ring-0's wave sway still pass through
-    // the ease and keep their filtering. The camera locks to the FLIGHT, not
-    // to the oscillation.
-    //
-    // v_cmd is the head's commanded motion, recomposed here because the head
-    // stores no speed: flight is −dir(heading) at throttle_eased ×
-    // config.ribbon_max_speed — ribbon_head's own step, read back through the
-    // window the chase above already reads — and y_vel is the pen's vertical
-    // rate (realized, the spring's output toward alt_target; it is the only
-    // vertical the head stores, and it is what the seat actually climbs at).
-    //
-    // The ramp is the SEAT's own boarding ease, read exactly as
-    // behavior_player_controlled reads it. The seat is what the camera
-    // chases, so a feed-forward that outran the seat's arrival would let
-    // boarding lead. mount_kind is 1 or 0 in this branch — landing eases onto
-    // the walked pose, by which time the point no longer rides.
-    //
-    // config.camera_chase_ff at 0 restores the plain trail exactly, which
-    // makes the dial the proof that this is the mechanism. The PAWN path
-    // takes none of it: aim_target is pawn_pos, and the walk kite is
-    // byte-identical to the one it was.
-    let pawn_pos = compute_pawn_pos();
-    {
-        let tau = 0.30;
-        let alpha = 1.0 - exp(-signal.dt / tau);
-        var aim_target = pawn_pos;
-        if (point_ribbon_hosted()) {
-            let hd = ribbon_body_read.head;
-            let speed = hd.throttle_eased * config.ribbon_max_speed;
-            let v_cmd = vec3(-cos(hd.heading) * speed, hd.y_vel, -sin(hd.heading) * speed);
-            var mount_e = 1.0;
-            if (signal.mount_kind == 1u) { mount_e = mount_ease(signal.mount_phase); }
-            aim_target += v_cmd * (mount_e * config.camera_chase_ff * tau);
-        }
-        camera.aim_point = mix(camera.aim_point, aim_target, alpha);
-    }
-
-    if (fpv_mode_active()) {
-        camera.pos = pawn_pos + vec3(0.0, config.fpv_eye_height, 0.0);
-    } else if (coupling_active(COUPLING_PAWN_TO_CAMERA_TARGET)) {
-        camera.pos = coupling_pawn_to_camera_target(camera.aim_point, camera);
-    }
-
-    // ─── Camera terrain clamp: never go underground ──────────────
-    //
-    // THE AURA IS A FLOOR EXACTLY AS TERRAIN IS (Jean's ruling): the eye
-    // never passes under the visual skin, and the skin includes the pawn's
-    // aura dome. POLICY_WALKER_WITNESS is the surface that says so — the
-    // shared world stack (static base + pyramids + GoL zones + terrain
-    // waves + radial pulses) plus the EXTERNAL aura form, the same grid
-    // sample patch_terrain_vs extrudes the ground by, and the eye's own
-    // GoL suppression under the same height fade the render carve applies.
-    // Floor and picture are then the same surface, term for term.
-    //
-    // The query is at the COMPOSED EYE's xz (camera.pos, already the orbit
-    // eye at this point), and consumer_pos is the eye too — the policy
-    // reads it for the suppression center and for the fade's height.
-    //
-    // The eye still CLIMBS a zone's lift as the pawn does: the suppression
-    // is the witness's own, so it flattens what is under the lens and
-    // leaves the rest of the field standing to lift the camera over.
-    //
-    // Free-fly is unaffected — the camera host returns above this point,
-    // which IS its TERRAIN RULE = NONE (contracts/point.hpp).
-    {
-        let min_clearance = 1.5;  // minimum height above the visual skin
-        let qi = QueryInputs(camera.pos, signal.t_seconds);  // the eye is the consumer
-        let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_WITNESS, qi).y;
-        camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
-    }
-
-    // ─── Indoor boundary clamp: stay within walls and below ceiling ──
-    // (extracted to indoor_bounds_resolve — the one law, behavior-identical)
-    camera.pos = indoor_bounds_resolve(camera.pos);
-
-    camera_state = camera;
 }
 
 @compute @workgroup_size(1)
@@ -9910,7 +9946,7 @@ fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordin
 // SPHERES TAKE NONE OF IT, by ruling. They subscribe to no behavior force
 // at all: update_sphere composes its orbit from motors and adds only the
 // field and its own spring. It is the sphere that EMITS the point's push
-// (row_sphere_push, read from update_camera's free-fly branch), never a
+// (row_sphere_push, read from update_camera_vp's free-fly branch), never a
 // subscriber to one. Perturbing a motor is the complicated dynamics the
 // ruling excludes.
 fn cube_force_witness(fe: FloatingEntityState) -> vec3<f32> {
@@ -10270,27 +10306,6 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 }
 
-@compute @workgroup_size(1)
-fn compute_vp() {
-    // Build VP matrix from camera state (already updated by update_world)
-    vp_data.m = build_view_projection_matrix(
-        camera_state.pos,
-        camera_state.azimuth,
-        camera_state.elevation,
-        signal.aspect_ratio
-    );
-
-    // Sun VP: kite coupling — the sun orbits THE POINT at fixed
-    // offset (was the pawn; the shadow box must cover
-    // what the eye sees, so it follows the point's host — identical
-    // when the pawn hosts, tracks the camera in free-fly).
-    if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
-        vp_data.light_vp = coupling_pawn_to_sun_vp(
-            point_pos(),
-            config.sun_direction
-        );
-    }
-}
 
 // --- The patch bake (one fused pass, one batched dispatch) ------------
 //
@@ -11521,7 +11536,7 @@ fn compute_photographer_vp() {
     // Same trade-off as the primary camera: the compute_photographer_vp
     // pipeline's bind group does not include live-contributor
     // resources, so this uses the cached heightfield (static_base +
-    // pyramids only). See update_camera for the rationale.
+    // pyramids only). See update_camera_vp for the rationale.
     let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
     let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
 

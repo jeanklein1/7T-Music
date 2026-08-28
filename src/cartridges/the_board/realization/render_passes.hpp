@@ -268,20 +268,18 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
 
     c->renderer_.dispatch_update_player_agent(compute);
     c->renderer_.dispatch_update_other_agents(compute);
-    c->renderer_.dispatch_update_camera(compute,
+    c->renderer_.dispatch_update_camera_vp(compute,
         c->gpuState_.frame_k_state_group(), c->gpuState_.frame_k_textures_group());
     compute.SetBindGroup(2, c->gpuState_.agents_state_group());
     compute.SetBindGroup(3, c->gpuState_.agents_textures_group());
     c->renderer_.dispatch_update_sphere(compute);
     c->renderer_.dispatch_update_cube(compute);
-    c->renderer_.dispatch_compute_vp(compute,
-        c->gpuState_.frame_k_state_group(), c->gpuState_.frame_k_textures_group());
 
     compute.End();
 
-    // CHORD_3 — the GPU truth reaches the render frame. update_camera and
-    // compute_vp above are the sovereign writers of camera_state and
-    // vp_data; frame_r.camera / frame_r.vp are the render stages' windows
+    // CHORD_3 — the GPU truth reaches the render frame. update_camera_vp
+    // above is the sovereign writer of camera_state AND vp_data — one
+    // kernel since SPINE_2, one lane, both writes; frame_r.camera / frame_r.vp are the render stages' windows
     // onto them. The copy is encoded HERE, after the pass closes, because
     // the pass boundary is the ordering guarantee — and by copy rather
     // than by CPU hand because the readback law forbids the other route.

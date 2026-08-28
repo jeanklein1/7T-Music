@@ -12,7 +12,7 @@
 //
 //   PAWN host (the default) — the pawn hosts the point; the camera
 //     couples to the pawn LIKE A KITE (the damped aim-point orbit,
-//     world.wgsl update_camera — preserved pixel-identical). The
+//     world.wgsl update_camera_vp — preserved pixel-identical). The
 //     body carries its own terrain-snap (the walker ground resolve);
 //     TERRAIN RULE = SNAP.
 //   CAMERA host (free-fly) — the camera hosts the point: they

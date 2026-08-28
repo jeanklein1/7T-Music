@@ -609,7 +609,7 @@ ORGAN_PARAM(PANEL, PanelSurface, possession.radius, F32, 0.5f, 80.0f, 0.5f, "Int
 // ─── Camera · Chase ─────────────────────────────────────────────────
 // THE WITNESS'S OWN BEHAVIOUR, not its pose and not its input grammar
 // (those are Interaction's, above). Boot-pinned from contracts/point.hpp
-// CAMERA_CHASE_FF; update_camera is the one reader, RIBBON host only.
+// CAMERA_CHASE_FF; update_camera_vp is the one reader, RIBBON host only.
 //
 // THE RANGE IS EVIDENCE. The aim ease trails a constant-velocity target by
 // v·tau exactly, so 1.0 — the rest, and the shipped behaviour — adds back

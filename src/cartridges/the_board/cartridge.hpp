@@ -1060,7 +1060,7 @@ namespace t7 {
                     // FPV eye height follows the possessed figure (TUNE_1 A3).
                     // Derived here and not in the shader because
                     // scene_constants.figure_profiles rides a render-VS-only
-                    // uniform block (g2:200) — update_camera's compute layout
+                    // uniform block (g2:200) — update_camera_vp's compute layout
                     // does not carry it, and giving it one would be a new
                     // binding. Same
                     // out-of-range fallback as the tilt above, so an unknown
@@ -2205,7 +2205,7 @@ namespace t7 {
                 }
 
                 // ATRIUM_11 — the camera witness's 48 bytes, on the same
-                // encoder and after the same dispatches. update_camera has
+                // encoder and after the same dispatches. update_camera_vp has
                 // written camera_state by now, exactly as it has written the
                 // agent buffer above.
                 if constexpr (INSTRUMENTS.camera_witness) {

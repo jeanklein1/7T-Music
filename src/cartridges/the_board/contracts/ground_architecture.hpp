@@ -198,7 +198,7 @@ inline constexpr PolicyDef POLICIES[] = {
     //                            does.
     // The DAG is untouched: no contributor is new, and the mask is WALKER's
     // exactly, so its closure proof is WALKER's proof.
-    // STATUS: REALIZED — update_camera's clearance clamp, via
+    // STATUS: REALIZED — update_camera_vp's clearance clamp, via
     // query_ground_walker_witness.
     { POLICY_WALKER_WITNESS, "walker_witness",
       GROUND_STATIC_BASE_MASK

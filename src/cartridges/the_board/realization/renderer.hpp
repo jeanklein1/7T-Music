@@ -27,10 +27,9 @@ namespace t7 {
             // Compute — split world update (ordered by dependency)
             constexpr const char* UPDATE_PLAYER_AGENT = "update_player_agent";        // 0D (1 thread, possessed slot)
             constexpr const char* UPDATE_OTHER_AGENTS = "update_other_agents";        // 1D (296 field lanes; slots 0-31 also walk)
-            constexpr const char* UPDATE_CAMERA = "update_camera";                  // 0D
+            constexpr const char* UPDATE_CAMERA_VP = "update_camera_vp";            // 0D -- camera + VP, one lane (SPINE_2)
             constexpr const char* UPDATE_SPHERE = "update_sphere";                  // 0D
             constexpr const char* UPDATE_CUBE = "update_cube";                      // 1D (256 threads, one per cube slot)
-            constexpr const char* COMPUTE_VP = "compute_vp";                    // 0D
 
             // On-demand compute
             constexpr const char* BAKE_PATCH_HEIGHTFIELD = "bake_patch_heightfield";         // 2D x batch -- the fused bake
@@ -80,7 +79,7 @@ namespace t7 {
             // Entity placement Y-correction (decoupled from photographer)
             constexpr const char* COMPUTE_ENTITY_PLACEMENT = "compute_entity_placement";
 
-            // GPU frustum culling (every frame, after compute_vp)
+            // GPU frustum culling (every frame, after update_camera_vp)
             constexpr const char* FRUSTUM_CULL_PATCHES = "frustum_cull_patches";
 
             // GoL zone compute (zone-local automaton)
@@ -222,10 +221,9 @@ namespace t7 {
             // Compute pipelines -- per-frame (split world update)
             wgpu::ComputePipeline updatePlayerAgentPipeline_;    // 0D (1 thread, possessed slot)
             wgpu::ComputePipeline updateOtherAgentsPipeline_;    // 1D (one thread per field lane)
-            wgpu::ComputePipeline updateCameraPipeline_;         // 0D
+            wgpu::ComputePipeline cameraVPPipeline_;             // 0D -- camera + VP, fused at SPINE_2
             wgpu::ComputePipeline updateSpherePipeline_;         // 0D
             wgpu::ComputePipeline updateCubePipeline_;           // 0D
-            wgpu::ComputePipeline computeVPPipeline_;         // 0D
 
             // Compute pipelines -- patch heightfield generation (batched, one pass)
             wgpu::ComputePipeline bakePatchPipeline_;                // 2D x batch -- heights + gradients, one pass
@@ -470,13 +468,17 @@ namespace t7 {
                 pass.DispatchWorkgroups(GPUState::field_lane_workgroups(), 1, 1);
             }
 
-            void dispatch_update_camera(wgpu::ComputePassEncoder& pass,
+            // ONE LANE FOR BOTH (SPINE_2). update_camera and compute_vp were two
+            // 0D dispatches with a strict dependency — the second reads the
+            // camera_state the first writes — and the two floater kernels sat
+            // between them by history alone. One dispatch, one pipeline.
+            void dispatch_update_camera_vp(wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
                 wgpu::BindGroup texGroup) {
                 // FRAME_K (A3): the rw faces ride this family's own strata.
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.SetPipeline(updateCameraPipeline_);
+                pass.SetPipeline(cameraVPPipeline_);
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
@@ -494,16 +496,6 @@ namespace t7 {
                 // a slot-count edit moves the dispatch with it; the kernel
                 // guards gid.x >= CUBE_SLOT_COUNT either way.
                 pass.DispatchWorkgroups(GPUState::cube_workgroups(), 1, 1);
-            }
-
-            void dispatch_compute_vp(wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup) {
-                // FRAME_K (A3): the rw faces ride this family's own strata.
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.SetPipeline(computeVPPipeline_);
-                pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
             }
 
             // THE ONE BAKE PASS: height and both gradients per lattice point,
@@ -1714,8 +1706,8 @@ namespace t7 {
 
             bool createComputePipelines() {
                 // The FRAME_K pipeline layout: WORLD + FRAME_C + the frame-k
-                // pair. Serves update_camera and compute_vp — the two kernels
-                // that write the frame's vp/camera state.
+                // pair. Serves update_camera_vp — the one kernel that writes
+                // the frame's vp/camera state (two, before SPINE_2 fused them).
                 wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);
                 if (!frameKComputeLayout) return false;
 
@@ -1747,11 +1739,12 @@ namespace t7 {
                     roomComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
 
-                // Pipeline: update_camera (0D)
+                // Pipeline: update_camera_vp (0D) — SPINE_2 fused the pair.
                 // Live-contributor layout — the camera clamp uses a walker-style
-                // policy that reads the aura texture (sample_pawn_aura).
-                if (!makeComputePipeline("update_camera", "Update Camera (0D)",
-                    frameKComputeLayout, Entry::UPDATE_CAMERA, updateCameraPipeline_)) return false;
+                // policy that reads the aura texture (sample_pawn_aura); the VP
+                // half needs the same strata, which is why they fuse cleanly.
+                if (!makeComputePipeline("update_camera_vp", "Update Camera + VP (0D, one lane)",
+                    frameKComputeLayout, Entry::UPDATE_CAMERA_VP, cameraVPPipeline_)) return false;
 
                 // Pipeline: update_sphere (0D)
                 // Room layout (FIELD_2 tenancy) — coupling_terrain_to_sphere_orbit_height
@@ -1770,10 +1763,6 @@ namespace t7 {
                 if (!makeComputePipeline("update_cube", "Update Cube (0D)",
                     roomComputeLayout, Entry::UPDATE_CUBE, updateCubePipeline_)) return false;
                 }
-
-                // Pipeline: compute_vp (0D)
-                if (!makeComputePipeline("compute_vp", "Compute VP Matrix (0D)",
-                    frameKComputeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
 
                 // Pipeline: bake_patch_heightfield (LATTICE_1 — one kernel where
                 // two stood; workgroup_id.z selects the patch in the batch)

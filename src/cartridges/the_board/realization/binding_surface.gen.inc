@@ -322,7 +322,7 @@
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // THE CHASE (RIBBON_2) reads the head it follows. update_camera turns
+                    // THE CHASE (RIBBON_2) reads the head it follows. update_camera_vp turns
                     // the azimuth to the flight while the point rides the ribbon, and
                     // KITE_1 gave it the head’s MOTION as well — the aim ease adds the
                     // commanded velocity back, so the camera holds the flight instead of

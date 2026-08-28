@@ -786,7 +786,7 @@ namespace t7 {
             // TUNE_1 A3 — the possessed figure's eye height, in world units.
             // CPU-derived (FPV_EYE_RATIO x that figure's own height) because
             // the compute stage cannot see scene_constants.figure_profiles:
-            // g2:200 is a render-VS-only uniform block and update_camera's
+            // g2:200 is a render-VS-only uniform block and update_camera_vp's
             // layout does not carry it. First of the three tail pads, reused in place — same
             // position, same type, sizeof 592 UNMOVED (the possessed_slot /
             // veil_dither / indoor_height_cap precedent). Was _pad592_0.
@@ -1129,7 +1129,7 @@ namespace t7 {
         // ═══ THE CAMERA WITNESS (ATRIUM_11) ══════════════════════════
         //
         // THE ORBIT HAS NO CPU HOME. compose_camera_position_from_orbit is
-        // WGSL, update_camera ACCUMULATES the look deltas into camera_state,
+        // WGSL, update_camera_vp ACCUMULATES the look deltas into camera_state,
         // and the CHORD_3 block copy carries the result GPU-to-GPU — the CPU
         // is not in that loop and must not be. So the pose Jean makes with
         // his own mouse is unreadable from here without a readback, and this
@@ -2110,8 +2110,8 @@ namespace t7 {
         // the camera. Mirrors world.wgsl::FrameR BYTE-FOR-BYTE (L3).
         //
         // TWO AUTHORS, ONE BLOCK. lighting is CPU-authored (upload_lights,
-        // mood.hpp). vp and camera are GPU-SOVEREIGN — compute_vp and
-        // update_camera write them, and they reach this block by
+        // mood.hpp). vp and camera are GPU-SOVEREIGN — update_camera_vp
+        // writes both, and they reach this block by
         // CopyBufferToBuffer on the frame's own encoder. The CPU never
         // reads them back; the readback law is why the copy exists at all.
         // sphere_pos (BEQ_A) rides the same law: sphere slot 0's
@@ -2781,7 +2781,7 @@ namespace t7 {
             }
 
             // ── CHORD_3: THE GPU TRUTH ARRIVES BY COPY ────────────────
-            // vp and camera are written by compute_vp / update_camera and
+            // vp and camera are written by update_camera_vp and
             // read by the render stages. The CPU is not in that loop and
             // must not be (the readback law), so the frame's own encoder
             // carries them from their sovereign homes into the block,
@@ -5502,9 +5502,9 @@ namespace t7 {
                     queue.WriteBuffer(agentStateBuffer_, 0, agents, sizeof(agents));
                 }
 
-                // pos is UNSEEDED: update_camera composes it from
-                // azimuth/elevation/distance two dispatches before compute_vp
-                // reads it, on frame 1 and every frame after. A boot value
+                // pos is UNSEEDED: update_camera_vp composes it from
+                // azimuth/elevation/distance in the same lane that then reads
+                // it, on frame 1 and every frame after. A boot value
                 // here would be a second author for a fact the orbit owns.
                 GPUCameraState camera{};
                 camera.azimuth = Idle::CAMERA_AZIMUTH;

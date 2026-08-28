@@ -18,10 +18,9 @@ the header.
 |---|---|---|---|---|---|---|---|
 | Update Player Agent (0D, 1 thread) | `updatePlayerAgentPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Other Agents (1D, one thread per field lane) | `updateOtherAgentsPipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
-| Update Camera (0D) | `updateCameraPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
+| Update Camera + VP (0D, one lane) | `cameraVPPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Sphere (0D) | `updateSpherePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Update Cube (0D) | `updateCubePipeline_` | C | 5 / 7 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
-| Compute VP Matrix (0D) | `computeVPPipeline_` | C | 3 / 9 | 6 / 2 | 3 / 13 | 3 / 13 | 0 / 4 |
 | Patch Bake (fused, batched) | `bakePatchPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Ribbon Head (0D, 1 thread, per frame) | `ribbonHeadPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
@@ -97,9 +96,9 @@ the header.
 | lane | worst used / limit | free | at |
 |---|---|---|---|
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
-| storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+7 more) |
+| storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+6 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
-| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+25 more) |
+| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+24 more) |
 | storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column
@@ -200,7 +199,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 75
+Lane sums equal per-seat counts on every one of the 74
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.
