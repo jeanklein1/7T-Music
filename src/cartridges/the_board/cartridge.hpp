@@ -385,6 +385,12 @@ namespace t7 {
             // OPT_1a: true while the live card holds a clean rest field
             // (skip the writer); boots false so the first frame writes.
             bool liveCardRestClean_ = false;
+            // SPINE_2 B: R8 decides, R10 encodes. The card's write is the
+            // first dispatch of the compute pass now, so the rest law's
+            // verdict travels the one row between them as a bool. R10
+            // consumes it (sets it false), which is what keeps a frame that
+            // never reached R10 from leaking a stale true into the next.
+            bool liveCardWritePending_ = false;
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             uint32_t floaterReadbackGen_ = 0;   // OIL_1c — same grammar as pawnReadbackGen_ above
@@ -2142,8 +2148,15 @@ namespace t7 {
             // final write runs so consumers never read stale non-zero
             // texels; the flag resets at world teardown so a fresh world's
             // rest field is written once too.
+            //
+            // SPINE_2 B — THE DECISION STAYS, THE PASS LEAVES. The write is
+            // now the FIRST DISPATCH of R10's pass, not a pass of its own
+            // (render_passes.hpp, dispatch_compute). This row still owns the
+            // rest law and the witness; what it hands on is a bool, and the
+            // consumers still read a written card because dispatch order
+            // inside a pass is a visibility rule.
             void phase_live_card_write(RenderCtx& c) {
-                auto& encoder = c.encoder;
+                (void)c;
 
                 const bool card_live = live_card_is_live();
 
@@ -2164,12 +2177,13 @@ namespace t7 {
                 if (card_live) {
                     liveCardRestClean_ = false;      // live: write every frame
                 } else if (liveCardRestClean_) {
-                    return;                          // at rest, card clean: skip
+                    liveCardWritePending_ = false;   // at rest, card clean: skip
+                    return;
                 } else {
                     liveCardRestClean_ = true;       // entering rest: one clearing write
                 }
 
-                dispatch_live_card_write(&machine_ctx_, encoder);
+                liveCardWritePending_ = true;
             }
 
             // R10 — DISPATCH COMPUTE (music+input+algo). The per-frame world-
@@ -2178,7 +2192,13 @@ namespace t7 {
             // order).
             void phase_dispatch_compute(RenderCtx& c) {
                 auto& encoder = c.encoder;
-                dispatch_compute(&machine_ctx_, encoder);
+                // R8's decision rides in as an argument — the card is this
+                // pass's first dispatch when the rest law asks for it
+                // (SPINE_2 B). Consumed here, so a frame that never reaches
+                // R10 cannot leak the flag into the next one.
+                const bool write_card = liveCardWritePending_;
+                liveCardWritePending_ = false;
+                dispatch_compute(&machine_ctx_, encoder, write_card);
             }
 
             // R11 — WITNESS CAPTURE (O-2: staging copies AFTER compute; feeds
@@ -2617,7 +2637,6 @@ namespace t7 {
             // fails glaw1.
             static_assert(meter_row::StreamPatches       == (uint32_t)RPhase::StreamPatches,       "meter_row drift: StreamPatches");
             static_assert(meter_row::EntityMeshGen       == (uint32_t)RPhase::EntityMeshGen,       "meter_row drift: EntityMeshGen");
-            static_assert(meter_row::LiveCardWrite       == (uint32_t)RPhase::LiveCardWrite,       "meter_row drift: LiveCardWrite");
             static_assert(meter_row::DispatchCompute     == (uint32_t)RPhase::DispatchCompute,     "meter_row drift: DispatchCompute");
             static_assert(meter_row::GolDeriveFlush      == (uint32_t)RPhase::GolDeriveFlush,      "meter_row drift: GolDeriveFlush");
             static_assert(meter_row::GolZoneCompute      == (uint32_t)RPhase::GolZoneCompute,      "meter_row drift: GolZoneCompute");

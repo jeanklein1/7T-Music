@@ -2258,9 +2258,12 @@ namespace t7 {
         // pinned to its RPhase by a static_assert beside the enum —
         // drift fails glaw1.
         namespace meter_row {
+            // Row 8 (LiveCardWrite) carries NO GPU row: SPINE_2 B made the
+            // card the first dispatch of the compute pass, so its cost is
+            // inside DispatchCompute's span. The spine row still exists and
+            // still owns the rest law — only the timestamp pair retired.
             inline constexpr uint32_t StreamPatches       = 2;
             inline constexpr uint32_t EntityMeshGen       = 6;
-            inline constexpr uint32_t LiveCardWrite       = 8;
             inline constexpr uint32_t DispatchCompute     = 9;
             inline constexpr uint32_t GolDeriveFlush      = 11;
             inline constexpr uint32_t GolZoneCompute      = 12;

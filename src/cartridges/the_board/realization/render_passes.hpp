@@ -157,22 +157,6 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
     compute.End();
 }
 
-// The live card write (GROUND_CARD_1) — its own pass, before the
-// consumers (dispatch_compute) and before placement reads .a (H5).
-inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encoder) {
-    wgpu::ComputePassDescriptor cpd{};
-    cpd.label = "Live Card Write";
-    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::LiveCardWrite);
-    wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    { compute.SetBindGroup(0, c->gpuState_.world_group());
-      compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-    c->renderer_.dispatch_live_card_write(
-        compute, c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group()
-    );
-    compute.End();
-}
-
 // ═══ THE DRAW LEDGER'S STAGE (BUNDLE_1) ══════════════════════════
 //
 // ONE SITE that reads every count the CPU authors and stages it. It runs at
@@ -236,8 +220,28 @@ inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
 
 // ═══ GPU COMPUTE DISPATCH ════════════════════════════════════════
 
-// Per-frame compute: ribbon transforms, agents, camera, VP.
-inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
+// Per-frame compute: the live card, ribbon transforms, agents, camera, VP.
+//
+// ONE PASS WHERE TWO STOOD (SPINE_2 B). The live card write (GROUND_CARD_1)
+// held its own pass for one reason: its writes must be visible to the
+// consumers below. A pass boundary is one way to get that; DISPATCH ORDER
+// INSIDE A PASS is the other, and it is the cheap one — a compute pass
+// orders its dispatches and makes an earlier dispatch's writes visible to
+// a later one. So the card is simply the FIRST dispatch here, ahead of the
+// ribbon (whose fallback ground reads the card through the GoL suppression
+// contributor) and ahead of everything else that reads it.
+//
+// THE REST-LAW SKIP BECAME A DISPATCH SKIP. `write_live_card` carries R8's
+// three-conjunct decision (cartridge.hpp, phase_live_card_write): the pass
+// opens either way — an empty dispatch slot is cheaper than a boundary —
+// and the card's 819,200 invocations are skipped exactly when they were.
+//
+// PLACEMENT AND THE CULL DID NOT JOIN. Between this pass and theirs stand
+// R11's three CopyBufferToBuffer (the witness capture), and a copy cannot
+// be encoded inside a pass; O-2 pins it after the compute. Four passes into
+// one was the ask; two into one is what the frame's shape allows.
+inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder,
+                             bool write_live_card) {
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Compute Phase";
     desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::DispatchCompute);
@@ -245,6 +249,14 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     { compute.SetBindGroup(0, c->gpuState_.world_group());
       compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
+
+    // THE CARD FIRST — before every consumer, on its own group 2/3 pair
+    // (ZONES), which the ribbon's binds below replace.
+    if (write_live_card) {
+        c->renderer_.dispatch_live_card_write(
+            compute, c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group()
+        );
+    }
 
     // The ribbon room runs FIRST and on its OWN group 2 (the ribbon state
     // group) — outside the pass-head contract below, which is why it stays
@@ -279,8 +291,9 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
 
     // CHORD_3 — the GPU truth reaches the render frame. update_camera_vp
     // above is the sovereign writer of camera_state AND vp_data — one
-    // kernel since SPINE_2, one lane, both writes; frame_r.camera / frame_r.vp are the render stages' windows
-    // onto them. The copy is encoded HERE, after the pass closes, because
+    // kernel since SPINE_2, one lane, both writes; frame_r.camera and
+    // frame_r.vp are the render stages' windows onto them. The copy is
+    // encoded HERE, after the pass closes, because
     // the pass boundary is the ordering guarantee — and by copy rather
     // than by CPU hand because the readback law forbids the other route.
     c->gpuState_.encode_frame_r_main_sync(encoder);
