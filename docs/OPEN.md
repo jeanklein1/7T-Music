@@ -2,6 +2,33 @@
 One line per item: what · origin (sha or doc) · what unblocks it.
 This file is the ONLY home of open/parked state. When an item closes, its line dies.
 
+- THE FRAME'S COMPUTE IS TWO PASSES, NOT ONE, AND THE REST OF THE RUN IS
+  UNRULED. SPINE_2 B asked for four passes in one — card, placement, compute,
+  cull — and the tree refused the shape: R11 WitnessCapture encodes three
+  CopyBufferToBuffer between R10 and R16, a copy cannot live inside a pass,
+  and O-2 pins the capture after the compute by static_assert. What landed is
+  the card as the FIRST DISPATCH of the compute pass (a pass orders its
+  dispatches and makes an earlier write visible to a later read — that is the
+  same guarantee the boundary was bought for). A NEW PER-FRAME KERNEL JOINS
+  THAT PASS IN DEPENDENCY ORDER; A NEW PASS IS A RULING, NOT A DEFAULT.
+  What is still open, both Jean's, both priced: (1) placement + cull, adjacent
+  and fusable — the cull reads the STORAGE face (`fc_vp`, g2:240, alias of
+  `vp_data`) so no frame-R sync copy stands between them — but the boundary it
+  removes exists only on placement-dirty frames and the fusion costs
+  `meter_row::PlacementCorrection` permanently. (2) The SIX passes between the
+  witness copies and placement — zone sync, zone evolve, pawn aura, and the
+  four orb passes — sit in one uninterrupted run separated only by queue
+  writes, which are not pass boundaries. That is the larger fusion, up to eight
+  passes into one, and every one of them retires a meter row. Both trade
+  measurement resolution for boundaries, one round before the meter round.
+  Origin: SPINE_2 B. Unblocked by the meter's own numbers, or by Jean ruling
+  the rows expendable.
+- `update_player_agent` IS THE LONGEST LANE. The single-thread step's loop
+  structure — the ground resolve taps, the zone / cube / agent contact loops —
+  is the next thing to read if a measurement asks for the serial prefix. A
+  workgroup-per-agent form is the priced answer, and it is not a trim: it is a
+  rewrite of the kernel's shape. Origin: SPINE_2. Unblocked by a meter reading
+  that names this lane.
 - THE DOOR TEACHES; THE WORLD STILL DOES NOT. ANSWERED, NOT CLOSED. HINT_0
   deleted the `#hint` overlay and ATTIC_ATRIUM D1 deleted the controls poster,
   leaving no statement anywhere of what the keys, the mouse or the doors do.
