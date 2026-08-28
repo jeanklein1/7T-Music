@@ -3881,6 +3881,22 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     A("barrier to put back. A non-empty `write(A) ∩ read(B)` is therefore a bar on")
     A("fusing that pair, regardless of any other argument.")
     A("")
+    A("**ONE CARVE-OUT, AND IT IS NOT AN EXCEPTION TO THE RULE — IT IS THE RULE")
+    A("READ PROPERLY (SPINE_2).** The barrier the bar protects is a barrier BETWEEN")
+    A("THREADS. Where both entry points are `@workgroup_size(1)` AND both dispatch")
+    A("exactly one workgroup, the fused kernel is a SINGLE INVOCATION: the two")
+    A("bodies run as straight-line code in one thread, and WGSL orders a read")
+    A("after a write to the same memory location within one invocation by program")
+    A("order alone. There is no barrier to delete because there was never a second")
+    A("thread. Such pairs are marked EXEMPT rather than BARRED.")
+    A("")
+    A("The evidence is already in this ledger and is not re-derived here: witness")
+    A("`W3-2` publishes both sets — the `@workgroup_size(1)` entry points and the")
+    A("dispatches issuing ONE workgroup — and the carve-out is exactly their")
+    A("intersection. The bar itself is unchanged for every other pair, and EXEMPT")
+    A("is NOT a recommendation: cadence and shape are separate gates this census")
+    A("cannot decide.")
+    A("")
     A("Restricted to FUSION-ELIGIBLE ordered pairs: a fused kernel has ONE")
     A("pipeline layout, so only compute entry points whose pipelines carry")
     A("identical group layouts could ever be fused. %d such ordered pairs, of %d"
@@ -3890,12 +3906,27 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     A("non-empty intersections; the restriction hides nothing, it removes pairs")
     A("that could not be fused for a different reason.")
     A("")
+    # THE CARVE-OUT'S SET: one invocation, total. W3-2 owns both halves.
+    solo = set(e3["wg1"]) & set(e3["single_dispatch"])
+    exempt_rows = [r for r in e1["raw"]
+                   if r["hazard"] and r["a"] in solo and r["b"] in solo]
     A("| write(A) | read(B) | bindings in write(A) ∩ read(B) | verdict |")
     A("|---|---|---|---|")
     for r in e1["raw"]:
+        if not r["hazard"]:
+            verdict = "no hazard on this ordering"
+        elif r["a"] in solo and r["b"] in solo:
+            verdict = "**EXEMPT** — one invocation, no barrier to delete"
+        else:
+            verdict = "**BARRED**"
         A("| `%s` | `%s` | %s | %s |"
           % (r["a"], r["b"], ", ".join("`%s`" % x for x in r["hazard"]) or "—",
-             "**BARRED**" if r["hazard"] else "no hazard on this ordering"))
+             verdict))
+    A("")
+    A("%d ordered row(s) carry a hazard the single-invocation carve-out exempts%s."
+      % (len(exempt_rows),
+         (": " + ", ".join("`%s` → `%s`" % (r["a"], r["b"])
+                           for r in exempt_rows)) if exempt_rows else ""))
     A("")
     A("### The unordered closure — and why the ordered table alone is the wrong question")
     A("")
@@ -3908,15 +3939,32 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     clean = [u for u in e1["unordered"] if u["clean"]]
     A("| unordered pair | fusable on RAW? | barred direction(s) |")
     A("|---|---|---|")
+    solo_pairs = [u for u in e1["unordered"]
+                  if not u["clean"] and u["pair"][0] in solo
+                  and u["pair"][1] in solo]
     for u in e1["unordered"]:
+        both_solo = u["pair"][0] in solo and u["pair"][1] in solo
+        if u["clean"]:
+            fus = "**yes**"
+        elif both_solo:
+            fus = "**yes** — one invocation"
+        else:
+            fus = "no"
         A("| {`%s`, `%s`} | %s | %s |"
-          % (u["pair"][0], u["pair"][1],
-             "**yes**" if u["clean"] else "no",
+          % (u["pair"][0], u["pair"][1], fus,
              md_escape("; ".join("`%s` on %s" % (d, ", ".join(h))
                                  for d, h in u["barred_dirs"])) or "—"))
     A("")
-    A("%d unordered pairs; **%d survive RAW in both directions**." % (len(e1["unordered"]),
-                                                                      len(clean)))
+    A("%d unordered pairs; **%d survive RAW in both directions**%s."
+      % (len(e1["unordered"]), len(clean),
+         (", and **%d more %s exempt as %s single-invocation pair%s** (%s) —"
+          " RAW-barred on paper, unbarrable in fact"
+          % (len(solo_pairs),
+             "is" if len(solo_pairs) == 1 else "are",
+             "a" if len(solo_pairs) == 1 else "",
+             "" if len(solo_pairs) == 1 else "s",
+             ", ".join("{`%s`, `%s`}" % u["pair"] for u in solo_pairs)))
+         if solo_pairs else ""))
     if clean:
         A("")
         A("### The second gate: cadence")

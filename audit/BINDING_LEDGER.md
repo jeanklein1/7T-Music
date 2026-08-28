@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `459a94b732943c8a1893f3ade6c4297023b607e8` |
-| | SPINE_2 B — the card joins the compute pass |
+| source commit | `d69df6d14cbfc434ace237f92f3d8813de0e195f` |
+| | SPINE_2 C — record the bar that C walked past |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
@@ -602,6 +602,22 @@ currently making the sequence correct** — and there is no device-wide
 barrier to put back. A non-empty `write(A) ∩ read(B)` is therefore a bar on
 fusing that pair, regardless of any other argument.
 
+**ONE CARVE-OUT, AND IT IS NOT AN EXCEPTION TO THE RULE — IT IS THE RULE
+READ PROPERLY (SPINE_2).** The barrier the bar protects is a barrier BETWEEN
+THREADS. Where both entry points are `@workgroup_size(1)` AND both dispatch
+exactly one workgroup, the fused kernel is a SINGLE INVOCATION: the two
+bodies run as straight-line code in one thread, and WGSL orders a read
+after a write to the same memory location within one invocation by program
+order alone. There is no barrier to delete because there was never a second
+thread. Such pairs are marked EXEMPT rather than BARRED.
+
+The evidence is already in this ledger and is not re-derived here: witness
+`W3-2` publishes both sets — the `@workgroup_size(1)` entry points and the
+dispatches issuing ONE workgroup — and the carve-out is exactly their
+intersection. The bar itself is unchanged for every other pair, and EXEMPT
+is NOT a recommendation: cadence and shape are separate gates this census
+cannot decide.
+
 Restricted to FUSION-ELIGIBLE ordered pairs: a fused kernel has ONE
 pipeline layout, so only compute entry points whose pipelines carry
 identical group layouts could ever be fused. 62 such ordered pairs, of 27
@@ -649,10 +665,10 @@ that could not be fused for a different reason.
 | `update_other_agents` | `update_sphere` | `agent_state`, `field_forces` | **BARRED** |
 | `update_player_agent` | `update_cube` | `agent_state` | **BARRED** |
 | `update_player_agent` | `update_other_agents` | `agent_state` | **BARRED** |
-| `update_player_agent` | `update_sphere` | `agent_state` | **BARRED** |
+| `update_player_agent` | `update_sphere` | `agent_state` | **EXEMPT** — one invocation, no barrier to delete |
 | `update_sphere` | `update_cube` | `floating_entities` | **BARRED** |
 | `update_sphere` | `update_other_agents` | `floating_entities` | **BARRED** |
-| `update_sphere` | `update_player_agent` | `floating_entities` | **BARRED** |
+| `update_sphere` | `update_player_agent` | `floating_entities` | **EXEMPT** — one invocation, no barrier to delete |
 | `write_live_card` | `zone_derive_params` | — | no hazard on this ordering |
 | `write_live_card` | `zone_gol_evolve` | — | no hazard on this ordering |
 | `write_live_card` | `zone_gol_sync` | — | no hazard on this ordering |
@@ -673,6 +689,8 @@ that could not be fused for a different reason.
 | `zone_seed_mask` | `zone_derive_params` | — | no hazard on this ordering |
 | `zone_seed_mask` | `zone_gol_evolve` | `zone_life` | **BARRED** |
 | `zone_seed_mask` | `zone_gol_sync` | `zone_life` | **BARRED** |
+
+2 ordered row(s) carry a hazard the single-invocation carve-out exempts: `update_player_agent` → `update_sphere`, `update_sphere` → `update_player_agent`.
 
 ### The unordered closure — and why the ordered table alone is the wrong question
 
@@ -704,7 +722,7 @@ hazard-free, so the ordered table has to be asked twice and closed.
 | {`update_cube`, `update_sphere`} | no | `update_cube -> update_sphere` on floating_entities; `update_sphere -> update_cube` on floating_entities |
 | {`update_other_agents`, `update_player_agent`} | no | `update_other_agents -> update_player_agent` on agent_state; `update_player_agent -> update_other_agents` on agent_state |
 | {`update_other_agents`, `update_sphere`} | no | `update_other_agents -> update_sphere` on agent_state, field_forces; `update_sphere -> update_other_agents` on floating_entities |
-| {`update_player_agent`, `update_sphere`} | no | `update_player_agent -> update_sphere` on agent_state; `update_sphere -> update_player_agent` on floating_entities |
+| {`update_player_agent`, `update_sphere`} | **yes** — one invocation | `update_player_agent -> update_sphere` on agent_state; `update_sphere -> update_player_agent` on floating_entities |
 | {`write_live_card`, `zone_derive_params`} | no | `zone_derive_params -> write_live_card` on zone_config |
 | {`write_live_card`, `zone_gol_evolve`} | no | `zone_gol_evolve -> write_live_card` on zone_life |
 | {`write_live_card`, `zone_gol_sync`} | no | `zone_gol_sync -> write_live_card` on zone_life |
@@ -716,7 +734,7 @@ hazard-free, so the ordered table has to be asked twice and closed.
 | {`zone_gol_evolve`, `zone_seed_mask`} | no | `zone_gol_evolve -> zone_seed_mask` on zone_life; `zone_seed_mask -> zone_gol_evolve` on zone_life |
 | {`zone_gol_sync`, `zone_seed_mask`} | no | `zone_gol_sync -> zone_seed_mask` on zone_life; `zone_seed_mask -> zone_gol_sync` on zone_life |
 
-31 unordered pairs; **11 survive RAW in both directions**.
+31 unordered pairs; **11 survive RAW in both directions**, and **1 more is exempt as a single-invocation pair** ({`update_player_agent`, `update_sphere`}) — RAW-barred on paper, unbarrable in fact.
 
 ### The second gate: cadence
 

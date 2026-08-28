@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `b950225463ddd0d270769e4a4460c30cd05bed03` |
-| | audit — ledger provenance re-stamped to SPINE_2 B |
+| source commit | `d69df6d14cbfc434ace237f92f3d8813de0e195f` |
+| | SPINE_2 C — record the bar that C walked past |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:71935cd4bbabc9e08908627da5e7967621d0b6f80340753fc25e20d4ceb1a496` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:463f1d4f323e50439bc83ce20b35830a32356c33350adfbe425b773712de4661` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:82dfe348ec6370038a227ebf7fc47ab105714be9ce6dbf64c6a241cd368aa472` |
-| `tools/binding_ledger.py` | `sha256:27dcd3db1eb928626d1409b8b43c6b59d9bf18397bb66125b0cff0a83e8795bf` |
-| `audit/BINDING_LEDGER.md` | `sha256:714add40d9c1b68ee511a2327b2f9e0be6d13734cdbb2c5446ca6515144509b3` |
+| `tools/binding_ledger.py` | `sha256:8c5e3abcdfcc80826535e7f50b0b3f6ea3f0eb445447419ffc442b9cac1a211a` |
+| `audit/BINDING_LEDGER.md` | `sha256:9b979f0f5c0f5baa5fc74edb08ba248ec9e63a656cb46bccf8189c4a37d0245b` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
