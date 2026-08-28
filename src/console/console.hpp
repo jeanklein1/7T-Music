@@ -1413,6 +1413,19 @@ namespace t7 {
             // made false. One line, and the ceiling means what it says.
             dt = std::min(dt, 0.1f);
 
+            // PURSE_0 R1 — THE VERDICT LEAVES THE LAW. k is decided here and
+            // nowhere else; publishing it is what lets the photographer's
+            // headroom rule read the LAW'S answer instead of growing a
+            // second opinion about presentation. Written before the meter
+            // block below because it is NOT the meter's: the audience build
+            // needs it too (core/instruments.hpp carries the standing).
+            //
+            // The clamped k, not k_raw: a 5x frame and a 4x frame are the
+            // same fact to a rule that only asks "was this frame served at
+            // unity", and the clamp is the law's own ceiling.
+            t7::g_served_k = (k >= 1.0f && k <= (float)PRESENT_MAX_MULTIPLE)
+                           ? (uint32_t)k : 1u;
+
             // THE PRESENT HISTOGRAM (meter builds, 1 Hz). k IS the reading
             // that settles the class: a 2x or 3x column is a DROPPED FRAME —
             // a stutter with a mechanism outside the simulation — and a

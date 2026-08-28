@@ -3,6 +3,7 @@
 #include <random>     // std::mt19937 + distributions (PhotographerState sampling)
 #include <string>
 #include <vector>     // authored disk manifest
+#include "core/instruments.hpp"                                        // PURSE_0 R1 — t7::g_served_k, the presentation law's own verdict
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPaintingSlot, GPUPhotographerConfig, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/primitives/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
@@ -153,6 +154,19 @@ struct PhotographerCaptureConfig {
     static constexpr float BURST_WEIGHT_3 = 0.90f;
     static constexpr uint32_t BURST_MAX = 4;
     static constexpr uint32_t BURST_COOLDOWN_FRAMES = 12;
+
+    // PURSE_0 R1 — THE PHOTOGRAPHER WAITS FOR HEADROOM. NAMED CONSTANTS,
+    // NOT DIALS: nobody sees when a snapshot is taken, so there is nothing
+    // here for an operator to have an opinion about.
+    //
+    // The gate: the last frame was served at k = 1 — the presentation law's
+    // own verdict that it made its refresh. The ceiling: a capture deferred
+    // longer than this fires anyway. BOUNDED STARVATION IS THE POINT — the
+    // pool must still fill on a slow machine, only slower; an unbounded
+    // wait would mean a machine that never has headroom never builds a
+    // gallery, which is worse than the hitch.
+    static constexpr uint32_t PHOTO_HEADROOM_K = 1u;
+    static constexpr float    PHOTO_DEFER_MAX_S = 4.0f;
 
     // Clamps: hard floors on sampled camera parameters
     static constexpr float DISTANCE_FLOOR = 0.5f;
@@ -622,6 +636,11 @@ struct PhotographerState {
     float prev_point_z = 0.0f;
     bool initialized = false;
     uint32_t frame_cooldown = 0;
+    // PURSE_0 R1 — when this capture FIRST wanted to fire, in TimeState
+    // seconds; negative means "not waiting". One member, and it is the
+    // whole state machine: a want that cannot be served yet remembers when
+    // it started wanting, so the ceiling can be measured from it.
+    float defer_since = -1.0f;
     std::mt19937 rng{ 7742u };
 
     float uniform(float lo, float hi) {
@@ -1025,6 +1044,38 @@ inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     if (gs.photographer.frame_cooldown > 0) gs.photographer.frame_cooldown--;
 
     if (gs.photographer.pending_shots > 0 && gs.photographer.frame_cooldown == 0) {
+        // ── THE PHOTOGRAPHER WAITS FOR HEADROOM (PURSE_0 R1) ──────────
+        //
+        // A capture is a ~10 ms render pass. Fired into a frame with no
+        // headroom it IS the hitch the audience feels once a second — the
+        // laptop capture measured +10 ms every 1-2 s, and that is the
+        // second of the three residual stutters this round takes.
+        //
+        // THE GATE IS THE PRESENTATION LAW'S OWN VERDICT, not an estimate
+        // of it: g_served_k is the k the law computed for the last frame
+        // (console.hpp), 1 meaning that frame made its refresh. A second
+        // estimator would be a second opinion about presentation, and the
+        // law is the program's only one.
+        //
+        // THE CEILING IS BOUNDED STARVATION, DELIBERATELY. A machine that
+        // never has headroom must still fill its pool, only slower; past
+        // PHOTO_DEFER_MAX_S the capture fires regardless. On a machine
+        // with real headroom the rule is invisible — k is 1 nearly always,
+        // so nearly every capture fires on the frame it wanted to. On one
+        // without, the capture hitch falls from ~1/s to ~1 per ceiling.
+        //
+        // HONEST LIMIT: THE RULE SCHEDULES THE COST, IT DOES NOT SHRINK
+        // IT. A +10 ms pass on a 0-headroom frame still drops that frame.
+        // What it buys is that the pass lands on frames that can afford
+        // it, and that the ones that cannot are not made worse.
+        const float now = c->time_state_.seconds;
+        if (gs.photographer.defer_since < 0.0f) gs.photographer.defer_since = now;
+        const bool headroom = (t7::g_served_k == PhotographerCaptureConfig::PHOTO_HEADROOM_K);
+        const bool ceiling  = (now - gs.photographer.defer_since)
+                              >= PhotographerCaptureConfig::PHOTO_DEFER_MAX_S;
+        if (!headroom && !ceiling) return;   // keep wanting; nothing else advances
+
+        gs.photographer.defer_since = -1.0f;
         capture_snapshot(gs, c, px, pz, queue);
         gs.photographer.pending_shots--;
         gs.photographer.frame_cooldown = PhotographerCaptureConfig::BURST_COOLDOWN_FRAMES;

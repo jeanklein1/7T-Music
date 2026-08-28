@@ -198,6 +198,30 @@ namespace t7 {
     // once when the loop is armed.
     inline uint32_t g_present_pace = 1;
 
+    // PURSE_0 R1 — THE PRESENTATION LAW'S OWN VERDICT, PUBLISHED.
+    //
+    // The law (console.hpp) computes k every frame — the multiple of the
+    // refresh the last frame actually took — and until now stored it ONLY
+    // inside `if constexpr (INSTRUMENTS.frame_meter)`, in the [PRESENT]
+    // histogram's buckets. So the audience build knew, every frame,
+    // whether it had made its refresh, and threw the answer away.
+    //
+    // THIS IS THE LAW'S OWN k, NOT AN ESTIMATE OF IT. That distinction is
+    // the whole reason the fact crosses here rather than being re-derived:
+    // a second estimator would be a second opinion about presentation, and
+    // the law is the program's only one. Written at the single site where
+    // k is decided, beside where g_canvas_w is written for the same reason
+    // (RIBBON_6) — the frame boundary, after every other writer has spoken.
+    //
+    // NOT GATED BY THE DIAL, on g_dropped_submits' standing: the
+    // photographer's headroom rule reads it in the SHIPPED frame, so a
+    // build with the meter off must still know. One store a frame, no
+    // branch. 1 = the last frame made its refresh; >= 2 = it did not.
+    // 0 = no frame has been served yet (boot), which reads as "no headroom"
+    // and is the conservative answer for exactly the frames where it is
+    // true.
+    inline uint32_t g_served_k = 0;
+
     // ── WIT_2b — AND IT GETS ITS OWN LINE ─────────────────────────────
     //
     // WIT_2 appended the count to the [METER] window header and it was
