@@ -29,9 +29,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
 
 namespace t7 {
 
@@ -89,52 +86,6 @@ namespace t7 {
         }
     }
 
-#ifdef __EMSCRIPTEN__
-
-    // One location.search read; three typed extractions into HEAPF64.
-    // NaN = absent-or-malformed; integer/range checks land on the C++
-    // side so the rule has one spelling per twin.
-    inline void parse_boot_params(int, char**) {
-        double vals[5];
-        EM_ASM({
-            var q = new URLSearchParams(location.search);
-            var o = $0 >> 3;
-            function num(k) {
-                var v = q.get(k);
-                if (v === null || v === "") return NaN;
-                var n = Number(v);
-                return isFinite(n) ? n : NaN;
-            }
-            HEAPF64[o]     = num('seed');
-            HEAPF64[o + 1] = num('mood');
-            HEAPF64[o + 2] = num('cap');
-            HEAPF64[o + 3] = num('msaa');
-            HEAPF64[o + 4] = num('pace');
-        }, vals);
-        BootParams& p = boot_params();
-        if (!std::isnan(vals[0]) && vals[0] >= 0.0 && vals[0] <= 4294967295.0
-                && vals[0] == std::floor(vals[0])) {
-            p.has_seed = true; p.seed = static_cast<uint32_t>(vals[0]);
-        }
-        if (!std::isnan(vals[1]) && vals[1] >= 0.0 && vals[1] <= 4294967295.0
-                && vals[1] == std::floor(vals[1])) {
-            p.has_mood = true; p.mood = static_cast<uint32_t>(vals[1]);
-        }
-        if (!std::isnan(vals[2])) {
-            p.has_cap = true; p.cap = static_cast<float>(vals[2]);
-        }
-        if (!std::isnan(vals[4]) && vals[4] == std::floor(vals[4])
-                && vals[4] >= 0.0 && vals[4] <= 4294967295.0) {
-            p.has_pace = true; p.pace = static_cast<uint32_t>(vals[4]);
-        }
-        if (!std::isnan(vals[3]) && vals[3] == std::floor(vals[3])
-                && vals[3] >= 0.0 && vals[3] <= 4294967295.0) {
-            p.has_msaa = true; p.msaa = static_cast<uint32_t>(vals[3]);
-        }
-        boot_params_announce_();
-    }
-
-#else
 
     inline void parse_boot_params(int argc, char** argv) {
         BootParams& p = boot_params();
@@ -166,6 +117,5 @@ namespace t7 {
         boot_params_announce_();
     }
 
-#endif  // __EMSCRIPTEN__ — the byte source, and only the byte source
 
 } // namespace t7
