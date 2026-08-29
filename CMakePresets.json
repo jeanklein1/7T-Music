@@ -2,105 +2,75 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "the-board",
+      "name": "native",
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
         "T7_RENDER_CARTRIDGE": "the_board",
-        "THE_BOARD_DEMO": "full"
-      }
-    },
-    {
-      "name": "native",
-      "hidden": true,
-      "inherits": "the-board",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
+        "THE_BOARD_DEMO": "full",
         "DAWN_DIR": "C:/dev/dawn",
         "DAWN_BUILD": "C:/dev/dawn/out"
       }
     },
     {
-      "name": "the-board-full",
-      "displayName": "the_board — full (native)",
-      "inherits": "native"
-    },
-    {
       "name": "the-board-full-release",
-      "displayName": "the_board — full (native, Release)",
-      "inherits": "the-board-full",
+      "displayName": "the_board — the program (Ninja, Release)",
+      "inherits": "native",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
-      "name": "the-board-minimal",
-      "displayName": "the_board — minimal (native)",
-      "inherits": "native",
-      "cacheVariables": {
-        "THE_BOARD_DEMO": "minimal"
-      }
-    },
-    {
       "name": "the-board-full-release-meter",
-      "displayName": "the_board — full (native, Release, frame meter armed)",
+      "displayName": "the_board — the program, frame meter armed (Ninja, Release)",
       "inherits": "the-board-full-release",
       "cacheVariables": {
         "T7_INSTRUMENTS": "meter"
       }
     },
     {
+      "name": "the-board-minimal",
+      "displayName": "the_board — minimal demo column (Ninja, Release)",
+      "inherits": "the-board-full-release",
+      "cacheVariables": {
+        "THE_BOARD_DEMO": "minimal"
+      }
+    },
+    {
       "name": "the-board-vs",
-      "displayName": "the_board — full (native, Visual Studio, multi-config)",
+      "displayName": "the_board — the program (Visual Studio, multi-config)",
       "inherits": "native",
       "generator": "Visual Studio 18 2026"
     }
   ],
   "buildPresets": [
     {
-      "name": "the-board-full",
-      "configurePreset": "the-board-full",
-      "targets": [
-        "the_board"
-      ]
-    },
-    {
       "name": "the-board-full-release",
       "configurePreset": "the-board-full-release",
-      "targets": [
-        "the_board"
-      ]
-    },
-    {
-      "name": "the-board-minimal",
-      "configurePreset": "the-board-minimal",
-      "targets": [
-        "the_board"
-      ]
+      "targets": ["the_board"]
     },
     {
       "name": "the-board-full-release-meter",
       "configurePreset": "the-board-full-release-meter",
-      "targets": [
-        "the_board"
-      ]
+      "targets": ["the_board"]
+    },
+    {
+      "name": "the-board-minimal",
+      "configurePreset": "the-board-minimal",
+      "targets": ["the_board"]
     },
     {
       "name": "the-board-vs-release",
       "configurePreset": "the-board-vs",
       "configuration": "Release",
-      "targets": [
-        "the_board"
-      ]
+      "targets": ["the_board"]
     },
     {
       "name": "the-board-vs-debug",
       "configurePreset": "the-board-vs",
       "configuration": "Debug",
-      "targets": [
-        "the_board"
-      ]
+      "targets": ["the_board"]
     }
   ]
 }
