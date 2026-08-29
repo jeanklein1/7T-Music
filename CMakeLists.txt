@@ -8,8 +8,13 @@ project(the_board VERSION 0.1.0 LANGUAGES CXX)
 # libraries at THE PIN below. History, as citations: SUNSET_2 closed the
 # native road with a FATAL_ERROR here; SUNRISE_0 N4 reopened it; the
 # Emscripten branch and the web presets went with the web twin at tag
-# web-sunset (docs/LAWS.md: WEB_SUNSET). `the-board-full-release` is the
-# program; `the-board-full` is the diagnostic build (CONFIG AXIS, below).
+# web-sunset (docs/LAWS.md: WEB_SUNSET).
+# `the-board-full-release` is the program, on either lane: Ninja for the
+# command line and for the vcpkg-injection examiner N10 names, Visual
+# Studio for the multi-config lane, where Debug — the diagnostic build,
+# CONFIG AXIS below — is one --config away. The preset surface is
+# orthogonal by ruling (HELM_0): the demo column is chosen by preset,
+# the configuration by lane.
 #
 # THE DAWN PIN: 56f332d7d8d03f36149f201ab8cce8aee187e8c6 (v20260814.182433)
 # — one generation, three artifacts, one checkout (L37): C:/dev/dawn as
@@ -32,6 +37,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #    (PORT_2c's web-era arming — SAFE_HEAP and kin — went with the twin
 #    at web-sunset; whether the native side should arm more than Dawn's
 #    asserts is docs/OPEN.md, THE DEBUG ARMING.)
+#    Reached on the VS lane (`--build --preset the-board-vs-debug`).
+#    Every Ninja preset pins Release, so a Ninja Debug is a bare
+#    -DCMAKE_BUILD_TYPE=Debug configure.
 # Multi-config generators choose per build via --config; single-config
 # generators choose per tree via CMAKE_BUILD_TYPE.
 get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
@@ -605,6 +613,12 @@ set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 # whose VALUE is empty, so a dial left unset arrives DEFINED AND EMPTY:
 # #ifndef never fires and the paste names an enumerator that does not exist.
 # The definitions themselves are attached below, beside the build stamp.
+#
+# THE COLUMN IS CHOSEN BY PRESET (HELM_0). `full` is the program's and
+# the default; `the-board-minimal` selects `minimal`. Any further column
+# is reached on the configure line — `-DTHE_BOARD_DEMO=<column>` — until
+# it earns a preset of its own. Configuration is NOT chosen here: that
+# is the lane's job (CONFIG AXIS above).
 
 set(T7_RENDER_CARTRIDGE     "the_board"        CACHE STRING "Render cartridge for the 'the_board' target")
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
