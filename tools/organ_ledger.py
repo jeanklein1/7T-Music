@@ -149,8 +149,13 @@ def blocks_used(rs):
 def tail_of(tool, keep):
     """The last `keep` lines of a check tool's stdout, verbatim."""
     try:
+        # N9 — both ends pinned: the child's stdout encoding (via
+        # PYTHONIOENCODING, else a Windows pipe is the ANSI code page and a
+        # box-drawing character kills the child) and this decode.
         p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", tool)],
-                           capture_output=True, text=True, timeout=600)
+                           capture_output=True, encoding="utf-8", errors="replace",
+                           timeout=600,
+                           env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     except (OSError, subprocess.SubprocessError) as e:
         return ["(%s did not run: %s)" % (tool, e)]
     lines = (p.stdout or "").rstrip("\n").split("\n")

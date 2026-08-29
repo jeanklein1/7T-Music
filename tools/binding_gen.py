@@ -2209,7 +2209,7 @@ def check(args):
             em_ = re.search(r"\b%s\.End\s*\(\s*\)" % re.escape(var_),
                             text_[bm_.end():enc_[3]])
             span_end = bm_.end() + em_.end() if em_ else enc_[3]
-            pass_spans2.append((os.path.relpath(pth_, BL.REPO), enc_[0],
+            pass_spans2.append((os.path.relpath(pth_, BL.REPO).replace(os.sep, "/"), enc_[0],
                                text_, bm_.start(), span_end))
     for rel_, fname_, text_, bs_, be_ in pass_spans2:
         lo_ = BL.line_of(text_, bs_)
@@ -3579,7 +3579,7 @@ def main():
         for s_ in P["stops"]:
             print("  STOP %s" % s_)
         print("")
-        print("  wrote %s" % os.path.relpath(PLAN_OUT, REPO))
+        print("  wrote %s" % os.path.relpath(PLAN_OUT, REPO).replace(os.sep, "/"))
         return 1 if P["stops"] else 0
 
     if args.bootstrap:
@@ -3591,18 +3591,18 @@ def main():
         schema = load_schema()
         if args.write in ("registry", "all"):
             write_file(REGISTRY_HPP, emit_registry(schema, with_notice=True))
-            print("wrote %s" % os.path.relpath(REGISTRY_HPP, REPO))
+            print("wrote %s" % os.path.relpath(REGISTRY_HPP, REPO).replace(os.sep, "/"))
         if args.write in ("inc", "all"):
             write_file(GEN_INC, emit_gen_inc(schema))
-            print("wrote %s" % os.path.relpath(GEN_INC, REPO))
+            print("wrote %s" % os.path.relpath(GEN_INC, REPO).replace(os.sep, "/"))
         if args.write in ("manifest", "all"):
             write_file(MANIFEST_MD, emit_manifest(schema))
-            print("wrote %s" % os.path.relpath(MANIFEST_MD, REPO))
+            print("wrote %s" % os.path.relpath(MANIFEST_MD, REPO).replace(os.sep, "/"))
         if args.write in ("floors", "all"):
             write_file(FLOORS_INC, emit_floors(schema))
-            print("wrote %s" % os.path.relpath(FLOORS_INC, REPO))
+            print("wrote %s" % os.path.relpath(FLOORS_INC, REPO).replace(os.sep, "/"))
             write_file(FEATURES_INC, emit_features(schema))
-            print("wrote %s" % os.path.relpath(FEATURES_INC, REPO))
+            print("wrote %s" % os.path.relpath(FEATURES_INC, REPO).replace(os.sep, "/"))
         return 0
     if args.write_wgsl:
         schema = load_schema()

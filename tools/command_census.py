@@ -94,11 +94,11 @@ def read_raw(path):
 
 
 def sha256(path):
-    h = hashlib.sha256()
+    # N9 — hash the committed LF blob, not the checkout's autocrlf
+    # translation (see binding_ledger.sha256 for the full argument).
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+        data = f.read()
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def verify_bytes(path):
@@ -119,12 +119,12 @@ def provenance():
     moves the moment the artifact is committed. The SHA recorded is
     the last commit that touched any INPUT; the content hashes are the
     authoritative provenance."""
-    rel = [os.path.relpath(p, REPO) for p in INPUTS]
+    rel = [os.path.relpath(p, REPO).replace(os.sep, "/") for p in INPUTS]
     try:
         sha = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%H", "--"] + rel,
-                             capture_output=True, text=True, check=True).stdout.strip()
+                             capture_output=True, encoding="utf-8", check=True).stdout.strip()
         subj = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%s", "--"] + rel,
-                              capture_output=True, text=True, check=True).stdout.strip()
+                              capture_output=True, encoding="utf-8", check=True).stdout.strip()
     except Exception:
         sha, subj = "(git unavailable)", ""
     return sha, subj, [(r, sha256(p)) for r, p in zip(rel, INPUTS)]
@@ -224,7 +224,7 @@ def census_passes(w):
     total_tokens = 0
     for path in INPUTS:
         text = read_raw(path)
-        relp = os.path.relpath(path, REPO)
+        relp = os.path.relpath(path, REPO).replace(os.sep, "/")
         sites = list(BEGIN_RE.finditer(text))
         regions = []
         prev_end = 0
@@ -289,7 +289,7 @@ def census_bundles(w, pass_rows):
     sites = []
     for path in INPUTS:
         text = read_raw(path)
-        relp = os.path.relpath(path, REPO)
+        relp = os.path.relpath(path, REPO).replace(os.sep, "/")
         for m in BUNDLE_RE.finditer(text):
             fn, _ = enclosing_function(text, m.start())
             fn_head = 0
@@ -354,7 +354,7 @@ def census_encoders(w, pass_rows):
     sites = []
     for path in INPUTS:
         text = read_raw(path)
-        relp = os.path.relpath(path, REPO)
+        relp = os.path.relpath(path, REPO).replace(os.sep, "/")
         for m in ENCODER_RE.finditer(text):
             fn, _ = enclosing_function(text, m.start())
             label = None
@@ -383,7 +383,7 @@ def census_submits():
     subs = []
     for path in INPUTS:
         text = read_raw(path)
-        relp = os.path.relpath(path, REPO)
+        relp = os.path.relpath(path, REPO).replace(os.sep, "/")
         for m in SUBMIT_RE.finditer(text):
             fn, _ = enclosing_function(text, m.start())
             subs.append({"file": relp, "line": line_of(text, m.start()),
@@ -398,7 +398,7 @@ def census_reconfigure(w):
     print. Quoted verbatim."""
     path = INPUTS[-1]
     text = read_raw(path)
-    relp = os.path.relpath(path, REPO)
+    relp = os.path.relpath(path, REPO).replace(os.sep, "/")
     sites = []
     trigger = None
     for m in re.finditer(r"surface_\.Configure\(&surfaceConfig_\);", text):
@@ -697,7 +697,7 @@ def main():
         if bx["crlf"] or bx["cr"] or bx["bom"] or not bx["trailing"]:
             print("STOP — encoding read-back failed: %r" % bx)
             return 1
-        print("wrote %s" % os.path.relpath(args.out, REPO))
+        print("wrote %s" % os.path.relpath(args.out, REPO).replace(os.sep, "/"))
     return 0
 
 

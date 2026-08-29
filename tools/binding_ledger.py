@@ -147,11 +147,17 @@ def read(path):
 
 
 def sha256(path):
-    h = hashlib.sha256()
+    # SUNRISE_0 N9 — the hash names the COMMITTED BLOB, not the checkout's
+    # translation. `* text=auto` gives a Windows working copy CRLF bytes for
+    # every text file, so hashing raw disk bytes made the provenance rows
+    # platform facts: six of seven inputs drifted on the laptop while
+    # world.wgsl alone held — its `eol=lf` pin is the one input autocrlf
+    # cannot touch, and that row was the diagnosis. Tracked paths are LF by
+    # law (L35); normalizing CRLF before hashing restores exactly the bytes
+    # git stores, on every platform.
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+        data = f.read()
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def strip_cpp_comments(src):
@@ -2378,7 +2384,7 @@ def phase_ext3(w, cen, wgsl):
     drawless = {n for n, i in info.items() if i["calls"] and not i["sets"]
                 and not any(c["param_pipeline"] for c in i["calls"])}
     for path in callers:
-        text, label = caller_src[path], os.path.relpath(path, REPO)
+        text, label = caller_src[path], os.path.relpath(path, REPO).replace(os.sep, "/")
         cur = None
         pat = re.compile(r"(?:renderer_?\.|r\.)(\w+)\s*\(|pass\.SetPipeline\(\s*([\w:]+)"
                          r"|pass\.(" + "|".join(DRAW_VARIANTS) + r")\(")
@@ -2935,7 +2941,7 @@ def attach_and_scan(sites, blocks, src, path):
         hits = trigger_hits("\n".join(text))
         if hits:
             out.append(Defended(symbol=s["symbol"], key=s.get("key", s["symbol"]),
-                                kind=s["kind"], file=os.path.relpath(path, REPO),
+                                kind=s["kind"], file=os.path.relpath(path, REPO).replace(os.sep, "/"),
                                 line=line_of(src, o), triggers=hits,
                                 rules=sorted(set(rules))))
     return out
@@ -2952,7 +2958,7 @@ def phase_ext4(w, wgsl, layouts, cen):
             hits = trigger_hits(blocks[0][2])
             if hits:
                 found.append(Defended(symbol="(file banner)", key="(file banner)",
-                                      kind="file", file=os.path.relpath(path, REPO),
+                                      kind="file", file=os.path.relpath(path, REPO).replace(os.sep, "/"),
                                       line=1, triggers=hits, rules=["banner"]))
 
     # ─── world.wgsl: binding declarations and every function.
@@ -3136,12 +3142,14 @@ def provenance():
     that lands this file. The content hashes are the authoritative
     provenance; the SHA is the human-readable handle for them.
     """
-    rel = [os.path.relpath(p, REPO) for p in INPUTS]
+    rel = [os.path.relpath(p, REPO).replace(os.sep, "/") for p in INPUTS]
     try:
+        # N9 — encoding pinned: text=True alone decodes with the locale
+        # (cp1252 on Windows), which mojibakes any non-ASCII subject.
         sha = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%H", "--"] + rel,
-                             capture_output=True, text=True, check=True).stdout.strip()
+                             capture_output=True, encoding="utf-8", check=True).stdout.strip()
         subj = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%s", "--"] + rel,
-                              capture_output=True, text=True, check=True).stdout.strip()
+                              capture_output=True, encoding="utf-8", check=True).stdout.strip()
     except Exception:
         sha, subj = "(git unavailable)", ""
     return sha, subj, [(r, sha256(p)) for r, p in zip(rel, INPUTS)]
@@ -3284,7 +3292,7 @@ def emit(path, w, column, layouts, wgsl, cen, join, e1, e2, e3, e4, room):
     A("| caller file scanned | sha256 |")
     A("|---|---|")
     for cp in e3["callers"]:
-        A("| `%s` | `%s` |" % (os.path.relpath(cp, REPO), sha256(cp)))
+        A("| `%s` | `%s` |" % (os.path.relpath(cp, REPO).replace(os.sep, "/"), sha256(cp)))
     A("")
     A("The source commit is the last commit touching any of the four primary")
     A("inputs — not `HEAD`, which moves when this file is committed. The content")
@@ -4507,7 +4515,7 @@ def main():
     print("")
     print("EXTENSION 3 — CALL-SHAPE CENSUS")
     print("  caller files scanned for invocation sites: %s"
-          % ", ".join(os.path.relpath(x, REPO) for x in e3["callers"]))
+          % ", ".join(os.path.relpath(x, REPO).replace(os.sep, "/") for x in e3["callers"]))
     for r in e3["rows"]:
         p_ = r["pipeline"]
         if not r["shapes"]:
@@ -4560,7 +4568,7 @@ def main():
     print("")
     print("PHASE 0e — THE ARTIFACT")
     print("  wrote %s (%d lines, %d bytes)"
-          % (os.path.relpath(args.out, REPO), text.count("\n"), len(text.encode("utf-8"))))
+          % (os.path.relpath(args.out, REPO).replace(os.sep, "/"), text.count("\n"), len(text.encode("utf-8"))))
     bx = verify_bytes(args.out)
     clean = bx["crlf"] == 0 and bx["cr"] == 0 and not bx["bom"] and bx["trailing"]
     print("  byte check: %d CRLF, %d bare CR, %d LF, BOM %s, single trailing LF %s -> %s"

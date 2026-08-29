@@ -785,7 +785,7 @@ def fifth_home(w, wgsl, out_path):
     for path in wgsl_files:
         raw = BL.read(path)
         stripped = BL.strip_wgsl_comments(raw)
-        rel = os.path.relpath(path, REPO)
+        rel = os.path.relpath(path, REPO).replace(os.sep, "/")
         spans = []
         if os.path.abspath(path) == os.path.abspath(BL.WORLD_WGSL):
             spans = [(m.start(), m.end()) for m in BL.DECL_RE.finditer(stripped)]
@@ -818,7 +818,7 @@ def fifth_home(w, wgsl, out_path):
     b_counts = {"bind": 0, "literal": 0, "other": 0, "ext": 0}
     for path in hpp_files + ext_files:
         stripped = BL.strip_cpp_comments(BL.read(path))
-        rel = os.path.relpath(path, REPO)
+        rel = os.path.relpath(path, REPO).replace(os.sep, "/")
         extension = path in set(ext_files)
         for m in re.finditer(r"\.binding\s*=\s*([^;]+);", stripped):
             rhs = norm(m.group(1))
@@ -864,7 +864,7 @@ def fifth_home(w, wgsl, out_path):
             hits = [m.start() for m in re.finditer(r"\bbind::", text)]
             if not hits:
                 continue
-            rel = os.path.relpath(path, REPO)
+            rel = os.path.relpath(path, REPO).replace(os.sep, "/")
             c_counts[rel] = len(hits)
             if os.path.abspath(path) not in homes:
                 for p in hits:
@@ -901,7 +901,7 @@ def fifth_home(w, wgsl, out_path):
              if ok else "STOP — " + "; ".join(shape_stops))
     return {"findings": findings, "a_counts": a_counts, "b_counts": b_counts,
             "c_counts": c_counts, "cite_counts": cite_counts,
-            "wgsl_files": [os.path.relpath(p, REPO) for p in wgsl_files],
+            "wgsl_files": [os.path.relpath(p, REPO).replace(os.sep, "/") for p in wgsl_files],
             "hpp_file_count": len(hpp_files), "ext_file_count": len(ext_files)}
 
 
@@ -946,7 +946,7 @@ def struct_pairs(w, wgsl):
                     i += 1
                 stmt = text[m.start():i + 1]
                 if word.search(stmt):
-                    out.append("%s:%d: %s" % (os.path.relpath(p, REPO),
+                    out.append("%s:%d: %s" % (os.path.relpath(p, REPO).replace(os.sep, "/"),
                                               BL.line_of(text, m.start()),
                                               norm(stmt)[:220]))
         return out
@@ -963,7 +963,7 @@ def struct_pairs(w, wgsl):
                 tm = re.search(r"\bstruct\s+(?:alignas\s*\([^)]*\)\s*)?%s\s*\{"
                                % re.escape(cand), text)
                 if tm:
-                    twin, site = cand, "%s:%d" % (os.path.relpath(p, REPO),
+                    twin, site = cand, "%s:%d" % (os.path.relpath(p, REPO).replace(os.sep, "/"),
                                                   BL.line_of(text, tm.start()))
                     break
             if twin:
@@ -978,7 +978,7 @@ def struct_pairs(w, wgsl):
             for p in cpp_files:
                 rawc = BL.read(p)
                 for mm in word.finditer(rawc):
-                    cited.append("%s:%d" % (os.path.relpath(p, REPO),
+                    cited.append("%s:%d" % (os.path.relpath(p, REPO).replace(os.sep, "/"),
                                             BL.line_of(rawc, mm.start())))
             cited = cited[:4]
         rows.append({
@@ -1180,7 +1180,7 @@ def usage_census(w, cen, groups, invokes, layouts):
     problems = []
     get_layout_uses = 0
     for path, text in files:
-        rel = os.path.relpath(path, REPO)
+        rel = os.path.relpath(path, REPO).replace(os.sep, "/")
         fns = fns_of[path]
         get_layout_uses += len(re.findall(r"\bGetBindGroupLayout\b", text))
         for m in re.finditer(r"(\w+)\.SetBindGroup\s*\(([^;]*)\)\s*;", text):
@@ -1218,7 +1218,7 @@ def usage_census(w, cen, groups, invokes, layouts):
              "records for its layout; %d GetBindGroupLayout use(s)"
              % (len(rows), len(files), get_layout_uses)
              if not problems else "STOP — " + "; ".join(problems[:12]))
-    return {"rows": rows, "files": [os.path.relpath(p, REPO) for p, _ in files],
+    return {"rows": rows, "files": [os.path.relpath(p, REPO).replace(os.sep, "/") for p, _ in files],
             "get_layout_uses": get_layout_uses}
 
 
@@ -1399,12 +1399,12 @@ def provenance():
     """Same law as the binding ledger's: the SHA is the last commit that
     touched any INPUT — not HEAD, which moves when this file lands. The
     content hashes are the authoritative provenance."""
-    rel = [os.path.relpath(p, REPO) for p in INPUTS]
+    rel = [os.path.relpath(p, REPO).replace(os.sep, "/") for p in INPUTS]
     try:
         sha = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%H", "--"] + rel,
-                             capture_output=True, text=True, check=True).stdout.strip()
+                             capture_output=True, encoding="utf-8", check=True).stdout.strip()
         subj = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%s", "--"] + rel,
-                              capture_output=True, text=True, check=True).stdout.strip()
+                              capture_output=True, encoding="utf-8", check=True).stdout.strip()
     except Exception:
         sha, subj = "(git unavailable)", ""
     return sha, subj, [(r, BL.sha256(p)) for r, p in zip(rel, INPUTS)]
@@ -1999,7 +1999,7 @@ def main():
     print("")
     print("PHASE 4 — THE ARTIFACT")
     print("  wrote %s (%d lines, %d bytes)"
-          % (os.path.relpath(args.out, REPO), text.count("\n"),
+          % (os.path.relpath(args.out, REPO).replace(os.sep, "/"), text.count("\n"),
              len(text.encode("utf-8"))))
     bx = BL.verify_bytes(args.out)
     clean = bx["crlf"] == 0 and bx["cr"] == 0 and not bx["bom"] and bx["trailing"]
