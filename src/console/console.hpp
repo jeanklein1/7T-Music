@@ -35,7 +35,6 @@
 // Native links dawn::native and exposes the OS window handle for the
 // surface. Web (emdawnwebgpu) has neither; contrib.glfw3 ships no
 // glfw3native.h, so the whole expose block is native-only too.
-#ifndef __EMSCRIPTEN__
 #include <dawn/native/DawnNative.h>
 #include <dawn/dawn_proc.h>
 #if __has_include("dawn/common/Version_autogen.h")
@@ -44,10 +43,8 @@
 #else
 #define T7_DAWN_VERSION 0
 #endif
-#endif
 #include <GLFW/glfw3.h>
 
-#ifndef __EMSCRIPTEN__
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #elif defined(__linux__)
@@ -56,11 +53,6 @@
 #define GLFW_EXPOSE_NATIVE_COCOA
 #endif
 #include <GLFW/glfw3native.h>
-#else
-#include <emscripten.h>
-#include <emscripten/html5.h>
-#include <GLFW/emscripten_glfw3.h>   // emscripten_glfw_make_canvas_resizable (FRAME_0)
-#endif
 
 #include <algorithm>
 #include <vector>
@@ -207,34 +199,6 @@ namespace t7 {
     // helper is also a live one-generation-law hazard. Caught by the
     // native type-check described in docs/OPEN.md, not by any gate.
 
-#ifdef __EMSCRIPTEN__
-    // ═══ THE INSTANCE ANCHOR (PORT_4a) ═══════════════════════════════
-    //
-    // A SECOND external reference to the WebGPU Instance, in static
-    // storage, DELIBERATELY NEVER RELEASED. It exists so that no
-    // lifetime accident anywhere in the program can take the external
-    // count to zero — Dawn destroys every device made from an instance
-    // whose last EXTERNAL reference drops, and a device torn out from
-    // under a running frame loop is heap corruption a few frames later.
-    //
-    // This is a BELT, and the reason it is a belt and not a fix is
-    // worth recording. PORT_4's census found NO drop in our code:
-    // Console::instance_ is assigned once, never released, never moved;
-    // Console is non-copyable AND non-movable (a user-declared deleted
-    // copy suppresses the implicit move), ~Console() is unreachable on
-    // the web path because App is heap-allocated and never deleted, and
-    // initWebGPU() has exactly one reachable call. So this anchor
-    // should be redundant — and if the "[Device] LOST" line survives
-    // it, that is PROOF the loss comes from outside this program and
-    // the search moves to the browser.
-    //
-    // Shape borrowed from Dawn's own cross-platform sample, which holds
-    // `static wgpu::Instance instance;` for exactly this reason.
-    // Nothing releases it: Emscripten does not run static destructors
-    // (EXIT_RUNTIME is off and main never returns — it unwinds).
-    inline wgpu::Instance g_instanceAnchor;
-
-#endif  // __EMSCRIPTEN__ — the instance anchor is web-only; WIT_2 below is not
 
     // ═══ WIT_2 — IS THIS ERROR A DROPPED FRAME? ══════════════════════
     //
@@ -262,68 +226,6 @@ namespace t7 {
     // stays web-only (PORT_4a), the dropped-submit counter is twin-neutral,
     // which is what g_dropped_submits was always for.
 
-#ifdef __EMSCRIPTEN__
-    // ═══ SHIP_1 — TOUCH ══════════════════════════════════════════════
-    //
-    // THE PANEL. CameraControls' form, one module over: one organized
-    // block, clear names, editable without hunting. It lives HERE and
-    // not beside CameraControls because the gesture machine lives here —
-    // the console owns the hand, the cartridge owns what the hand means.
-    //
-    // EVERY LENGTH IS CSS PIXELS. EmscriptenTouchPoint::targetX/targetY
-    // are CSS px (clientX minus the canvas rect), and glfwGetWindowSize
-    // reports CSS px too, so the midline and the stick are measured in
-    // the same units the finger moves in. Feel therefore survives
-    // devicePixelRatio — a 3x phone does not get a 3x-twitchy stick,
-    // which is exactly the trap PORT_3c's cap comment warns about from
-    // the other side.
-    struct TouchControls {
-        // The stick's throw: the drag at which the move vector reaches
-        // full magnitude. About a thumb's comfortable arc.
-        static constexpr float STICK_RADIUS    = 64.0f;
-        // Below this the vector is exactly ZERO, not small — a resting
-        // thumb must not walk the pawn.
-        static constexpr float STICK_DEAD_ZONE = 8.0f;
-        // Radians per CSS pixel. SEPARATE from the mouse's
-        // CameraControls::look_sensitivity by design: a thumb sweeps a
-        // fraction of the arc a mouse does, so one number cannot serve
-        // both hands.
-        static constexpr float LOOK_SENS_TOUCH = 0.006f;
-        // Zoom units per CSS pixel of separation change. Feeds the same
-        // zoom_delta channel the scroll wheel feeds.
-        static constexpr float PINCH_SENS      = 0.06f;
-        // A tap declares itself by a clean quick release; a pinch
-        // declares itself by separation change OR by outliving this.
-        static constexpr double TAP_MS         = 220.0;
-        // Movement past this and the touch was never a tap.
-        static constexpr float TAP_SLOP        = 12.0f;
-        // Separation change past this declares a pinch immediately,
-        // without waiting out TAP_MS.
-        static constexpr float PINCH_DECLARE   = 8.0f;
-    };
-
-    // ONE TRACKED FINGER. `left` is decided once, at birth, and never
-    // again — a thumb that slides across the midline keeps the identity
-    // it was born with, so a wide drag cannot silently become a
-    // different gesture halfway through.
-    struct TouchPoint {
-        int      id      = -1;
-        bool     active  = false;
-        bool     left    = false;
-        uint64_t seq     = 0;       // birth order: who is primary, who is second
-        float    x = 0.0f,  y = 0.0f;    // current, CSS px, canvas-relative
-        float    x0 = 0.0f, y0 = 0.0f;   // where it landed
-        double   t0 = 0.0;               // when it landed, ms
-        bool     slopped = false;        // has moved past TAP_SLOP since landing
-    };
-
-    // The port's default canvas selector (Config.h kDefaultCanvasSelector).
-    // lib_emscripten_glfw3.js registers it into specialHTMLTargets at
-    // glfwInit, so findEventTarget resolves this exact string to the exact
-    // element the port registered its own touch handlers on. That identity
-    // is what makes the deregistration below hit its target.
-    inline constexpr const char* TOUCH_TARGET = "Module['canvas']";
-#endif
 
     class Console {
 
@@ -389,7 +291,6 @@ namespace t7 {
 
             if (!initGLFW(title))   { bootState_ = BootState::Failed; return false; }
             if (!initWebGPU())      { bootState_ = BootState::Failed; return false; }
-#ifndef __EMSCRIPTEN__
             // Native: the device exists synchronously — finish boot here,
             // exactly the pre-PORT_1b sequence, ending Ready.
             if (!initSurface())     { bootState_ = BootState::Failed; return false; }
@@ -398,7 +299,6 @@ namespace t7 {
             // allocated before there is a frame to size it by.
             lastTime_ = std::chrono::high_resolution_clock::now();
             bootState_ = BootState::Ready;
-#endif
             // Web: initWebGPU only STARTED the request chain; the frame
             // gate pumps Configuring → Ready when the device lands.
             return true;
@@ -412,36 +312,6 @@ namespace t7 {
             }
 
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-#ifdef __EMSCRIPTEN__
-            // ═══ CAP_1 — THE PORT STOPS SIZING THE BACKING STORE ═════════
-            //
-            // contrib.glfw3 is Hi-DPI aware by default (Config.h:46,
-            // fScaleFramebuffer{GLFW_TRUE}), and "aware" means it OWNS the
-            // canvas backing store: Window::setCanvasSize computes
-            // floor(css × devicePixelRatio) and emglfw3w_set_size assigns it
-            // straight to canvas.width/height. That is the pre-cap size the
-            // Pixel reported. PORT_3c's cap never touched it — the cap only
-            // altered the number we passed to Configure, and under the old
-            // emdawnwebgpu generation Configure won, so the cap appeared to
-            // work. Under the new generation the surface tracks the CANVAS,
-            // the canvas is the port's uncapped number, and the cap was
-            // silently defeated on the one device it exists for.
-            //
-            // The port offers this switch and no other: hi-DPI on or off,
-            // with no way to supply a scale (Window.h getScale() returns
-            // fMonitorScale or 1.0f; there is no setter and no port option).
-            // So OFF it goes, and the cap moves wholly into app code where a
-            // min() can live. With this FALSE the port writes
-            // canvas.width = css and glfwGetFramebufferSize returns CSS px.
-            //
-            // Writing the backing store ourselves afterwards is SAFE, and the
-            // reason is specific: emglfw3w_set_size pins the canvas CSS size
-            // separately, via setCSSValue("width", …, "important"). Backing
-            // store and layout size are decoupled, so assigning canvas.width
-            // cannot change layout and cannot re-enter the port's
-            // ResizeObserver. There is no feedback loop to fear.
-            glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, GLFW_FALSE);
-#endif
 
             window_ = glfwCreateWindow(initialWidth_, initialHeight_, title, nullptr, nullptr);
             if (!window_) {
@@ -459,13 +329,11 @@ namespace t7 {
                 auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
                 if (!console) return;
 
-#ifndef __EMSCRIPTEN__
                 // Native-only: the browser owns ESC (pointer-lock exit).
                 if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
                     console->request_close();
                     return;
                 }
-#endif
 
                 // Numpad * — the pointer door. A window command of the same
                 // class as ESC: it never reaches the cartridge fan, and the
@@ -506,490 +374,11 @@ namespace t7 {
                 if (console) console->inject_scroll(static_cast<float>(yoffset));
                 });
 
-#ifdef __EMSCRIPTEN__
-            // ═══ FRAME_0 — THE LINK THAT WAS NEVER MADE ══════════════
-            //
-            // The fluid frame was a contract with a missing middle. The
-            // shell tracked visualViewport into --app-h correctly; this
-            // file reconfigured the surface on any framebuffer change
-            // correctly, PORT_3c-capped. Between them, nothing: the
-            // library pins the canvas at glfwCreateWindow's size and
-            // enforces it with INLINE width/height
-            // (lib_emscripten_glfw3.js, emglfw3w_set_size — its own
-            // comment says "this will (on purpose) override any css
-            // setting"; it asks for !important and does not get it,
-            // because ctx.setCSSValue is a two-parameter arrow that
-            // drops the priority — which changes nothing, since a plain
-            // inline declaration already outranks a non-important author
-            // rule). A stylesheet rule cannot win that, so the
-            // canvas never moved, glfwGetFramebufferSize never changed,
-            // and the per-frame compare below had nothing to compare.
-            // One defect, three symptoms: a phone that fills neither
-            // orientation, and an F11 that grows the browser but not
-            // the world.
-            //
-            // This is the whole fix. The library observes #frame and
-            // sizes the canvas from it, so the chain finally runs end
-            // to end:
-            //   #frame  <- CSS, from --app-h (the shell, unchanged)
-            //   canvas  <- the library, from #frame
-            //   backing <- the library, canvas x devicePixelRatio
-            //   surface <- begin_frame's compare, PORT_3c-capped
-            //
-            // NO DPR HINT IS NEEDED, and that was worth checking rather
-            // than assuming: GLFW_SCALE_FRAMEBUFFER already defaults to
-            // GLFW_TRUE in the pinned port (Config.h:46), so the
-            // framebuffer is floor(css x monitorScale) (Window.cpp:326)
-            // and glfwGetWindowSize stays CSS px — exactly the two units
-            // apply_pixel_cap's ratio math already assumes. Setting the
-            // hint would have been a no-op; NOT having checked would
-            // have risked a phone rendering at CSS resolution.
-            //
-            // Failure is non-fatal by choice: a missing #frame leaves
-            // the pre-FRAME_0 behaviour (a fixed canvas), which is a
-            // worse frame but still a world.
-            if (emscripten_glfw_make_canvas_resizable(window_, "#frame", nullptr)
-                != EMSCRIPTEN_RESULT_SUCCESS) {
-                std::cerr << "[Frame] #frame not found — the canvas cannot track the page\n";
-            }
-            else {
-                std::cout << "[Frame] Canvas tracks #frame\n";
-            }
-
-            // SHIP_1 U1 — after the window exists, because the port
-            // registered ITS touch handlers inside glfwCreateWindow.
-            // Order against the resizable call above is IMMATERIAL, and
-            // the reason is worth stating so nobody preserves a
-            // constraint that does not exist: that call only QUEUES a
-            // resize request (Window.h, fResizeRequest), applied at the
-            // first glfwPollEvents; and the port registers its canvas
-            // listeners exactly once, at window creation, so no resize
-            // path can land between our deregistration and our claim.
-            claim_touch_stream();
-#endif
             return true;
         }
 
-#ifdef __EMSCRIPTEN__
-        // ═══ PORT_5d — THE DEVICE REQUEST, TWICE IF NEEDED ═══════════
-        //
-        // The web twin asked for the adapter's MAXIMUM limits, the same
-        // full passthrough native used. On a desktop that is harmless;
-        // on a constrained device it is backwards — it tells the browser
-        // to provision every ceiling at once when the program needs one.
-        //
-        // THE CENSUS behind the modest set (against WebGPU core
-        // defaults; full table in this unit's commit body): the largest
-        // uniform binding is GPUTileGrid at 16,400 B of 65,536; the
-        // largest storage binding is Live Card Scratch at ~3.3 MiB of
-        // 128 MiB; the widest workgroup is 16x16 = 256 invocations,
-        // exactly the default and not over; texture array layers peak at
-        // 225 of 256 (OPT_1b) and 2D dimension at 2048 of 8192
-        // (PORT_5a). The last exceedance was
-        // maxStorageBuffersPerShaderStage at 9 against a default of 8;
-        // C6 (merged) demoted the field's head-pose window from
-        // read-only storage to uniform, and TETRIS WALLET_0 demoted the
-        // two occupier windows the same way — the room family now
-        // counts 6.
-        //
-        // SO THIS IS NOW A PURE DEFAULTS REQUEST: nothing is named, and
-        // a value-initialised wgpu::Limits means "every limit undefined,
-        // use the default". If a future piece ever needs a ceiling above
-        // a default, name it here — one line, beside this sentence, so
-        // the exception is never silent.
-        //
-        // SAFETY: a mis-censused limit must degrade to today's behavior,
-        // never to a black screen. Two nets. (1) If requestDevice fails,
-        // the reason prints verbatim and the request is made again with
-        // full passthrough. (2) If it SUCCEEDS but comes back below the
-        // floor we censused — the failure mode if a value-initialised
-        // wgpu::Limits ever meant "zero" rather than "undefined, use
-        // default" — the device is discarded and the passthrough request
-        // made anyway, because a device whose ceilings are zero fails at
-        // pipeline creation later, far from this line and with nothing
-        // pointing back here.
-        void request_device_web(bool passthrough) {
-            wgpu::DeviceDescriptor deviceDesc{};
-            deviceDesc.label = "7T Device";
-            // Deliberately unguarded — boot wants verbose errors.
-            deviceDesc.SetUncapturedErrorCallback(
-                [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) {
-                    const std::string_view text(msg.data, msg.length);
-                    std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
-                        << text << std::endl;
-                    note_if_dropped_submit(type, text);   // WIT_2
-                });
-            // PORT_3a — the loss door. AllowSpontaneous so it fires from
-            // the browser event loop without a pump. `this` is safe to
-            // capture: App is heap-allocated and never deleted on the web
-            // path, so Console outlives every callback.
-            deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
-                [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
-                       wgpu::StringView msg) {
-                    deviceLost_ = true;
-                    std::cerr << "[Device] LOST reason=" << static_cast<int>(reason)
-                        << " : " << std::string_view(msg.data, msg.length) << std::endl;
-                });
-
-            wgpu::Limits limits{};
-            if (passthrough) {
-                adapter_.GetLimits(&limits);          // the old behavior, kept as the net
-            }
-            // else: every field stays undefined == every limit at its
-            // core default. Post-C6 the program needs no exception.
-            //
-            // DO NOT "SIMPLIFY" THIS BACK TO PASSTHROUGH (PORT_6c). The
-            // ground is COMPATIBILITY: a program that asks only for what
-            // it uses runs on the widest set of devices, and the phone is
-            // the target that decides. Asking the adapter for its maximum
-            // narrows that set and buys nothing — the program never uses
-            // the ceilings. L14 carries this as law.
-            //
-            // SHIP_0 U1 — the 11x timing claim that used to sit here
-            // (62,517 vs 5,609 ms, "usable boot vs unusable") is
-            // WITHDRAWN. It was one bisect on a machine whose runs vary
-            // by an order of magnitude on identical code (native pipeline
-            // creation has been observed at 70,459 and 205,527 ms). One
-            // run from it is not evidence. Compatibility stands on its
-            // own; do not re-argue this line with a number from this
-            // laptop.
-            //
-            // THE REQUEST CARRIES NO EXCEPTION. Every limit this program
-            // stands on is a WebGPU core default (NEEDS, limits_floor.gen.inc),
-            // so the request asks for core defaults and nothing beside them —
-            // and requestDevice, which REJECTS any required limit better than
-            // the adapter's own, has nothing here to reject.
-            deviceDesc.requiredLimits = &limits;
-
-            // PORT_6a (1) — the request being issued, with its exceptions.
-            if (passthrough) {
-                std::cout << "[Device] requesting FULL ADAPTER PASSTHROUGH limits"
-                             " (fallback path)\n";
-            } else {
-                std::cout << "[Device] requesting CORE DEFAULTS; exceptions carried: none\n";
-            }
-
-            // PROBATE_F — THE REQUEST READS THE WALLET, NOT A LITERAL.
-            // The list is FEATURE_WALLET_GRANTED (features_wallet.gen.inc,
-            // emitted from the schema's FEATURES table); this site asks
-            // for what the adapter actually offers of it and nothing
-            // else. A feature the adapter lacks is dropped rather than
-            // demanded — requestDevice REJECTS an unofferable required
-            // feature, and a rejected modest request reissues as full
-            // passthrough (L14), the one shape the design forbids.
-            wgpu::FeatureName askedFeatures[FEATURE_WALLET_GRANTED_COUNT] = {};
-            size_t askedFeatureCount = 0;
-            for (uint32_t i = 0; i < FEATURE_WALLET_GRANTED_COUNT; i++) {
-                if (adapter_.HasFeature(FEATURE_WALLET_GRANTED[i])) {
-                    askedFeatures[askedFeatureCount++] = FEATURE_WALLET_GRANTED[i];
-                }
-            }
-            if (askedFeatureCount > 0) {
-                deviceDesc.requiredFeatures = askedFeatures;
-                deviceDesc.requiredFeatureCount = askedFeatureCount;
-            }
-
-            adapter_.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
-                [this, passthrough](wgpu::RequestDeviceStatus status, wgpu::Device device,
-                       wgpu::StringView message) {
-                    const char* which = passthrough
-                        ? "full adapter passthrough"
-                        : "core defaults + censused exceptions";
-                    if (status != wgpu::RequestDeviceStatus::Success) {
-                        std::cerr << "RequestDevice failed (" << which << "): "
-                            << std::string_view(message.data, message.length) << "\n";
-                        if (!passthrough) {
-                            // PORT_6a (4) — the reissue, failure branch.
-                            std::cerr << "[Device] REISSUING request with full adapter"
-                                         " passthrough (modest request was rejected)\n";
-                            request_device_web(true);
-                            return;
-                        }
-                        bootState_ = BootState::Failed;
-                        return;
-                    }
-                    // Net (2) — verify before adopting, while `device` is
-                    // still the local (it is moved from just below).
-                    if (!passthrough) {
-                        wgpu::Limits got{};
-                        device.GetLimits(&got);
-                        // PORT_6a (2) — granted vs the censused floor, always
-                        // printed, so the numbers are on the record whether or
-                        // not they disagree.
-                        //
-                        // LANTERN U1 — three rows added, each one a ceiling
-                        // this program's design actually stands on, and each
-                        // silent until now:
-                        //   maxTextureArrayLayers — the patch heightfield
-                        //     array is MAX_ACTIVE_PATCHES = 225 layers
-                        //     (state.hpp: "fits default maxTextureArrayLayers").
-                        //     225 of a 256 default is the tightest ceiling
-                        //     the program owns.
-                        //   maxUniformBuffersPerShaderStage — the LOOM wallet
-                        //     closed with the agents compute row at 11 of 12
-                        //     (BINDING_LEDGER Table B). One seat of margin.
-                        //   maxBindGroups — the LOOM recut spends all four
-                        //     strata at every pipeline. 4 of 4 is not margin,
-                        //     it is the design.
-                        // The DISCARD net below still reads the original
-                        // three: adding a floor to the discard decision is a
-                        // behavior change, not an instrument, and this
-                        // campaign prints only.
-                        //
-                        //   maxDynamicUniformBuffersPerPipelineLayout —
-                        //     ONE dynamic seat in the program: shadow_slot on
-                        //     frame R. 1 of the 8 default. (LATTICE_1 retired
-                        //     the second — patch_params left the dynamic seat
-                        //     for a read-only storage array when the bake
-                        //     became one batched dispatch.)
-                        //   maxComputeWorkgroupStorageSize — the CARD writer's
-                        //     node table + origins + its 20x20 tile, 4,912 B of
-                        //     the 16,384 default, and the program's largest
-                        //     per-entry-point sum since LATTICE_4 fused the
-                        //     card. The module states the number itself
-                        //     (CARD_WORKGROUP_BYTES) and carries two
-                        //     const_asserts: under the default, and at or above
-                        //     the bake's BAKE_WORKGROUP_BYTES (3,744) so this
-                        //     row always quotes the larger. This print is the
-                        //     runtime half.
-                        // The floors read the NEEDS table's emitted
-                        // constants; no literal lives in the C++.
-                        std::cout << "[Device] granted vs floor:"
-                            << " maxTextureDimension2D=" << got.maxTextureDimension2D
-                            << "/" << FLOOR_MAX_TEXTURE_DIMENSION_2D
-                            << " maxTextureArrayLayers=" << got.maxTextureArrayLayers
-                            << "/" << FLOOR_MAX_TEXTURE_ARRAY_LAYERS
-                            << " maxStorageBuffersPerShaderStage="
-                            << got.maxStorageBuffersPerShaderStage
-                            << "/" << FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE
-                            << " maxUniformBuffersPerShaderStage="
-                            << got.maxUniformBuffersPerShaderStage
-                            << "/" << FLOOR_MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE
-                            << " maxUniformBufferBindingSize="
-                            << got.maxUniformBufferBindingSize
-                            << "/" << FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE
-                            << " maxBindGroups=" << got.maxBindGroups
-                            << "/" << FLOOR_MAX_BIND_GROUPS
-                            << " maxDynamicUniformBuffersPerPipelineLayout="
-                            << got.maxDynamicUniformBuffersPerPipelineLayout
-                            << "/" << FLOOR_MAX_DYNAMIC_UNIFORM_BUFFERS_PER_PIPELINE_LAYOUT
-                            << " maxComputeWorkgroupStorageSize="
-                            << got.maxComputeWorkgroupStorageSize
-                            << "/" << FLOOR_MAX_COMPUTE_WORKGROUP_STORAGE_SIZE
-                            << " (floor)\n";
-                        bool below = false;
-                        if (got.maxTextureDimension2D < FLOOR_MAX_TEXTURE_DIMENSION_2D) {
-                            std::cerr << "[Device] BELOW FLOOR: maxTextureDimension2D granted "
-                                << got.maxTextureDimension2D << ", floor "
-                                << FLOOR_MAX_TEXTURE_DIMENSION_2D << "\n";
-                            below = true;
-                        }
-                        if (got.maxStorageBuffersPerShaderStage < FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE) {
-                            std::cerr << "[Device] BELOW FLOOR: maxStorageBuffersPerShaderStage"
-                                         " granted " << got.maxStorageBuffersPerShaderStage
-                                << ", floor " << FLOOR_MAX_STORAGE_BUFFERS_PER_SHADER_STAGE << "\n";
-                            below = true;
-                        }
-                        if (got.maxUniformBufferBindingSize < FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE) {
-                            std::cerr << "[Device] BELOW FLOOR: maxUniformBufferBindingSize"
-                                         " granted " << got.maxUniformBufferBindingSize
-                                << ", floor " << FLOOR_MAX_UNIFORM_BUFFER_BINDING_SIZE << "\n";
-                            below = true;
-                        }
-                        // PORT_6a (3) — the discard decision, BOTH ways. The
-                        // no-discard line is the informative one: it is what
-                        // says a [Device] LOST later did not come from here.
-                        if (below) {
-                            std::cerr << "[Device] DISCARDING the modest device — its `lost`"
-                                         " promise will resolve as a CONSEQUENCE of this"
-                                         " discard, not as a failure\n";
-                            // PORT_6a (4) — the reissue, discard branch.
-                            std::cerr << "[Device] REISSUING request with full adapter"
-                                         " passthrough\n";
-                            request_device_web(true);
-                            return;
-                        }
-                        std::cout << "[Device] modest device accepted — NO DISCARD\n";
-                    }
-                    device_ = std::move(device);
-                    queue_ = device_.GetQueue();
-                    // ═══ LANTERN U1 — THE GRANTS CENSUS, web half ════════
-                    //
-                    // The optional-feature treasury (L20), printed at last.
-                    // The web console named no feature at all, yet the meter
-                    // produced GPU timings — so timestamp-query was granted
-                    // and unreported, and its ONLY evidence was the ABSENCE
-                    // of the cartridge's "[METER] timestamp-query
-                    // unavailable" line. A grant witnessed by silence is P6's
-                    // exact complaint: a switch that cannot be seen to have
-                    // fired is indistinguishable from one that never fired.
-                    //
-                    // TWO FACTS, one line. What the adapter OFFERS bounds
-                    // which optional wings can ever open (L20 governs the
-                    // request, this governs the possibility). What the DEVICE
-                    // carries is what this boot actually got — and this
-                    // program requests exactly one optional feature, so the
-                    // named half is complete, not a sample.
-                    //
-                    // DOMESDAY_1 A8 (R6): ids AND spellings — the pair is
-                    // the census. The names come from the enumerator
-                    // switch (feature_name, top of this file), never from
-                    // numeric values; an id the switch does not know
-                    // prints as its number.
-                    //
-                    // Prints on BOTH request paths — the fallback passthrough
-                    // is the path where the numbers matter most.
-                    {
-                        wgpu::SupportedFeatures feats{};
-                        adapter_.GetFeatures(&feats);
-                        std::cout << "[Device] features: adapter offers "
-                            << feats.featureCount << " (";
-                        for (size_t i = 0; i < feats.featureCount; i++) {
-                            std::cout << (i ? " " : "")
-                                << static_cast<uint32_t>(feats.features[i]);
-                        }
-                        std::cout << "); granted timestamp-query="
-                            << (device_.HasFeature(wgpu::FeatureName::TimestampQuery)
-                                    ? "YES" : "no")
-                            << " (the only optional feature this program requests)\n";
-                        // PROBATE_F — THE WALLET LINE. The line above says
-                        // what this boot GOT; this one says what the
-                        // program's treasury ASKS FOR and what it has
-                        // deliberately left unspent. Both halves come from
-                        // the schema's FEATURES table, so the testimony
-                        // cannot drift from the request beside it.
-                        std::cout << "[Device] feature wallet: granted ";
-                        for (uint32_t i = 0; i < FEATURE_WALLET_GRANTED_COUNT; i++) {
-                            std::cout << (i ? " " : "")
-                                << FEATURE_WALLET_GRANTED_NAMES[i]
-                                << (device_.HasFeature(FEATURE_WALLET_GRANTED[i])
-                                        ? "" : "(WITHHELD by adapter)");
-                        }
-                        std::cout << "; vaulted " << FEATURE_WALLET_VAULTED_COUNT
-                            << " (schema FEATURES)\n";
-                        std::cout << "[Device] features named: ";
-                        for (size_t i = 0; i < feats.featureCount; i++) {
-                            const char* nm = feature_name(feats.features[i]);
-                            if (i) std::cout << " ";
-                            if (nm) std::cout << nm;
-                            else std::cout << static_cast<uint32_t>(feats.features[i]);
-                        }
-                        std::cout << "\n";
-                    }
-                    // ═══ LANTERN U3 C1 — THE PIXEL CAP, NAMED ════════════
-                    //
-                    // The largest lever over the frame's biggest GPU row,
-                    // and the device block did not mention it. Every purse
-                    // number this program has printed was measured UNDER
-                    // this cap, so a device-fact block that hides it
-                    // overstates the treasury.
-                    //
-                    // THREE FACTS, because none of them is useful alone:
-                    // the cap in force, the ratio the device reports, and
-                    // that the cap is a COMPILE-TIME CONSTANT. A reader
-                    // seeing a cap below the device's ratio must know
-                    // whether that is a setting to change or a rebuild to
-                    // schedule — it is a rebuild (console.hpp ·
-                    // MAX_DEVICE_PIXEL_RATIO, consumed by
-                    // Console::apply_pixel_cap()).
-                    //
-                    // emscripten_get_device_pixel_ratio() reads
-                    // window.devicePixelRatio straight from the browser, so
-                    // it answers here regardless of canvas layout state —
-                    // no work is moved to reach it, and the line does not
-                    // wait for the first frame. The GLFW framebuffer/window
-                    // ratio would ALSO answer, but only after the library
-                    // has sized the canvas from #frame (FRAME_0), which has
-                    // not happened at device adoption.
-                    //
-                    // PRINT ONLY. This line does not steer the cap, change
-                    // its value, or touch apply_pixel_cap().
-                    std::cout << "[Device] pixel cap: " << effective_pixel_cap()
-                        << (boot_params().has_cap
-                                ? " (boot param — this run only)"
-                                : " (compile-time constant, not a setting)")
-                        << "; device dpr "
-                        << emscripten_get_device_pixel_ratio() << "\n";
-                    // PORT_6a (5) — the device the program actually keeps.
-                    std::cout << "[Device] KEEPING the device from: " << which
-                        << " (this is the one the frame loop runs on)\n";
-                    bootState_ = BootState::Configuring;
-                });
-        }
-#endif // __EMSCRIPTEN__
 
         bool initWebGPU() {
-#ifdef __EMSCRIPTEN__
-            // ── PORT_1b Region 2 (web): the async boot grammar ────
-            // emdawnwebgpu (P0-verified): AllowSpontaneous callbacks fire
-            // from the browser event loop between rAF turns — no pump
-            // needed for the request chain itself. Adapter::GetLimits
-            // exists, so the limits request is the full-adapter
-            // passthrough exactly as native. Descriptor locals are
-            // serialized during the RequestDevice call, so stack
-            // lifetime suffices.
-            instance_ = wgpu::CreateInstance(nullptr);
-            if (!instance_) {
-                std::cerr << "Failed to create WebGPU instance\n";
-                return false;
-            }
-            // PORT_4a — arm the anchor (see its banner above). Copy, not
-            // move: the member keeps its own reference and the anchor
-            // adds a second one that outlives every object in the
-            // program. Both are external references by Dawn's counting.
-            g_instanceAnchor = instance_;
-            bootState_ = BootState::RequestingAdapter;
-            // SHIP_0 U2 — ASK FOR THE REAL GPU. Harmless on single-GPU
-            // phones (the only adapter is the only answer); correct for a
-            // real-time artwork; on dual-GPU Windows modern Chromium
-            // honors it. Stack lifetime suffices for the same reason the
-            // device descriptor's does, stated in the banner above: the
-            // options are serialized during the call, not held.
-            wgpu::RequestAdapterOptions adapterOpts{};
-            adapterOpts.powerPreference = wgpu::PowerPreference::HighPerformance;
-            instance_.RequestAdapter(&adapterOpts, wgpu::CallbackMode::AllowSpontaneous,
-                [this](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter,
-                       wgpu::StringView message) {
-                    if (status != wgpu::RequestAdapterStatus::Success) {
-                        std::cerr << "RequestAdapter failed: "
-                            << std::string_view(message.data, message.length) << "\n";
-                        bootState_ = BootState::Failed;
-                        return;
-                    }
-                    adapter_ = std::move(adapter);
-                    // SHIP_0 U2 — WITNESS IDENTITY, web half. Native
-                    // enumerated every adapter and logged its pick
-                    // (PROBE_1 C1); the web twin could not name its own
-                    // silicon, so "the browser runs the HD 5500" was a
-                    // presumption and every web METER number was
-                    // uninterpretable without it. Now it is a logged fact
-                    // or it is overturned.
-                    //
-                    // Empty fields print "?" rather than nothing: some
-                    // builds redact these strings, and a blank field is
-                    // indistinguishable from a line that never ran. A
-                    // capture reading all "?" is the RESOLVE case — report
-                    // it, do not plumb a fallback.
-                    {
-                        wgpu::AdapterInfo info{};
-                        adapter_.GetInfo(&info);
-                        auto sv = [](wgpu::StringView s) {
-                            return (s.data && s.length)
-                                ? std::string_view(s.data, s.length)
-                                : std::string_view("?");
-                        };
-                        std::cout << "[Device] adapter: " << sv(info.vendor)
-                                  << " | " << sv(info.architecture)
-                                  << " | " << sv(info.device)
-                                  << " | " << sv(info.description) << "\n";
-                    }
-                    bootState_ = BootState::RequestingDevice;
-                    // PORT_5d — ask modestly first; the helper owns the
-                    // descriptor, the limits census and the one retry.
-                    request_device_web(/*passthrough=*/false);
-                });
-            return true;
-#else
             dawnProcSetProcs(&dawn::native::GetProcs());
 
             // PIVOT_0d E1 — THE TOGGLE CHAIN, AT THE ROOT.
@@ -1420,22 +809,10 @@ namespace t7 {
             adapter_ = adapter;
 
             return true;
-#endif // __EMSCRIPTEN__
         }
 
         bool initSurface() {
             wgpu::SurfaceDescriptor surfaceDesc{};
-#ifdef __EMSCRIPTEN__
-            // ── PORT_1b Region 3 (web): the canvas surface ────────
-            // P0-verified spelling: wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector
-            // (dawn.json "emscripten surface source canvas HTML selector",
-            // chained into the surface descriptor; member `selector`).
-            wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvasSource{};
-            canvasSource.selector = "#canvas";
-            surfaceDesc.nextInChain = &canvasSource;
-
-            surface_ = instance_.CreateSurface(&surfaceDesc);
-#else
 #if defined(_WIN32)
             wgpu::SurfaceSourceWindowsHWND hwndSource{};
             hwndSource.hwnd = glfwGetWin32Window(window_);
@@ -1449,7 +826,6 @@ namespace t7 {
 #endif
 
             surface_ = wgpu::Instance(instance_->Get()).CreateSurface(&surfaceDesc);
-#endif // __EMSCRIPTEN__
 
             wgpu::SurfaceCapabilities caps;
             surface_.GetCapabilities(adapter_, &caps);
@@ -1467,17 +843,6 @@ namespace t7 {
             // canvas that actually exists by now — and the canvas backing
             // store is written from it in the same breath, so boot enters the
             // frame loop with the two already agreeing.
-#ifdef __EMSCRIPTEN__
-            {
-                uint32_t tw = 0, th = 0;
-                compute_target_size(tw, th);
-                if (tw > 0 && th > 0) {
-                    currentWidth_  = tw;
-                    currentHeight_ = th;
-                    write_canvas_backing_store(tw, th);
-                }
-            }
-#endif
             surfaceConfig_.width = currentWidth_;
             surfaceConfig_.height = currentHeight_;
             surfaceConfig_.presentMode = wgpu::PresentMode::Fifo;
@@ -1537,209 +902,14 @@ namespace t7 {
         //   → [encode & submit] → present() → [back to running()]
 
     private:
-#ifdef __EMSCRIPTEN__
-        // PORT_3c — clamp the EFFECTIVE device-pixel ratio, web only.
-        //
-        // Under contrib.glfw3 the GLFW contract holds: window size is CSS
-        // pixels, framebuffer size is CSS x devicePixelRatio. Their ratio
-        // IS the DPR, so the cap needs no browser API of its own — and if
-        // Hi-DPI is not in play the two are equal, the ratio is 1, and
-        // this is a no-op. That is the 1x-display acceptance, structurally.
-        //
-        // Applied BEFORE the change comparison in begin_frame, which is
-        // load-bearing: the capped size is what lands in currentWidth_,
-        // so the next frame compares capped against capped and the
-        // resize branch stays quiet. Capping after the comparison would
-        // reconfigure the surface every single frame.
-        //
-        // The canvas ELEMENT is sized by the library from #frame
-        // (FRAME_0, in initGLFW above) — NOT by a CSS rule on the canvas,
-        // which is what this comment used to claim and what the element's
-        // own inline style always overrode. That CSS size is independent
-        // of the backing-store size this caps. Fewer pixels, same layout.
-        // ═══ CAP_1 — THE ONE EXPRESSION ══════════════════════════════
-        //
-        //     target = css × min(devicePixelRatio, PIXEL_CAP)
-        //
-        // This is the only place that expression exists. It is BOTH the
-        // canvas backing-store size AND the size the surface is configured
-        // with, so those two can no longer disagree — which is the whole
-        // point, because under the new emdawnwebgpu generation the surface
-        // reads the canvas and a disagreement is a dropped frame.
-        //
-        // It replaces PORT_3c's apply_pixel_cap, which inferred the ratio as
-        // framebuffer/window because the port had already applied the DPR.
-        // The port does not any more (GLFW_SCALE_FRAMEBUFFER is FALSE, see
-        // initGLFW), so the ratio would now be a constant 1 and the cap would
-        // silently never engage. The DPR is asked for directly instead.
-        //
-        // No other site may call glfwGetFramebufferSize or read the device
-        // pixel ratio to derive a surface or canvas size. They consume target.
-        void compute_target_size(uint32_t& tw, uint32_t& th) const {
-            int cssW = 0, cssH = 0;
-            glfwGetWindowSize(window_, &cssW, &cssH);
-            if (cssW <= 0 || cssH <= 0) { tw = 0; th = 0; return; }
-            const double dpr = emscripten_get_device_pixel_ratio();
-            const double cap = static_cast<double>(effective_pixel_cap());
-            const double s   = (dpr > 0.0 && dpr < cap) ? dpr : cap;
-            const int w = static_cast<int>(std::floor(cssW * s));
-            const int h = static_cast<int>(std::floor(cssH * s));
-            tw = static_cast<uint32_t>(w < 1 ? 1 : w);
-            th = static_cast<uint32_t>(h < 1 ? 1 : h);
-        }
-
-        // The canvas's own answer. Read back rather than remembered, because
-        // what this frame needs to know is not what WE last wrote — it is
-        // what the backing store says right now, after everyone has written.
-        void read_canvas_backing_store(uint32_t& w, uint32_t& h) const {
-            w = static_cast<uint32_t>(EM_ASM_INT({
-                var c = (typeof Module !== 'undefined' && Module.canvas)
-                        ? Module.canvas : document.getElementById('canvas');
-                return c ? c.width : 0;
-            }));
-            h = static_cast<uint32_t>(EM_ASM_INT({
-                var c = (typeof Module !== 'undefined' && Module.canvas)
-                        ? Module.canvas : document.getElementById('canvas');
-                return c ? c.height : 0;
-            }));
-        }
-
-        // ═══ CAP_2 — THE APP IS THE LAST WRITER, PROVEN AT THE FRAME BOUNDARY ═══
-        //
-        // CAP_1 stopped the port SCALING (GLFW_SCALE_FRAMEBUFFER=FALSE) but did
-        // not stop it WRITING: Window::setCanvasSize still runs
-        // emglfw3w_set_size on every resize observation and assigns
-        // canvas.width = css. In this emdawnwebgpu generation the canvas wins
-        // over Configure at acquire, so on the Pixel the port's 448 beat the
-        // app's 672 and the reference device rendered at dpr 1.0 instead of the
-        // capped 1.5. Frames stayed valid — ACQ_0's promise held — but the
-        // intent was silently defeated downward, which is the quieter failure.
-        //
-        // The boot log named the mechanism: the port wrote first, acquire built
-        // a texture at the port's number, and the app's write landed after the
-        // frame that needed it. The fix is NOT to write earlier. Ordering
-        // against another writer's event is an assumption, and the campaign has
-        // now paid twice for assumptions about who runs when. A frame boundary
-        // is a fact: once per frame, before the acquire that reads the canvas,
-        // ask the canvas what it says and make it say target if it does not.
-        //
-        // Cost in steady state is one comparison and no write. A write fires
-        // only on drift, and drift only happens when the port wrote — so
-        // reassertions count resize EVENTS, not frames. A per-frame storm would
-        // mean the port found a writer path that fires every frame, which is a
-        // finding and not a tuning problem: the log line exists to surface it.
-        void reassert_canvas_target() {
-            uint32_t tw = 0, th = 0;
-            compute_target_size(tw, th);
-            if (tw == 0 || th == 0) return;
-            uint32_t cw = 0, ch = 0;
-            read_canvas_backing_store(cw, ch);
-            if (cw == tw && ch == th) return;   // the common case: nothing to do
-            write_canvas_backing_store(tw, th);
-            currentWidth_  = tw;
-            currentHeight_ = th;
-            surfaceConfig_.width  = tw;
-            surfaceConfig_.height = th;
-            surface_.Configure(&surfaceConfig_);
-            // Loud on purpose: SOAK counts these. Expected ≤1 per resize event
-            // and 0 in steady state.
-            std::cout << "[CAP] reasserted " << tw << "x" << th
-                      << " (canvas drifted to " << cw << "x" << ch << ")\n";
-        }
-
-        // THE ONE WRITER of the canvas backing store. Idempotence-guarded the
-        // same way the port guards its own write, so a settled size costs
-        // nothing. Assigning canvas.width also CLEARS the canvas, which is
-        // another reason this rides the settle window rather than every frame.
-        void write_canvas_backing_store(uint32_t w, uint32_t h) const {
-            EM_ASM({
-                var c = (typeof Module !== 'undefined' && Module.canvas)
-                        ? Module.canvas : document.getElementById('canvas');
-                if (!c) return;
-                if (c.width  !== $0) c.width  = $0;
-                if (c.height !== $1) c.height = $1;
-            }, w, h);
-        }
-
-        // ═══ FRAME_1 U0 — TEMPORARY INSTRUMENTATION ══════════════════
-        //
-        // REMOVABLE. This whole method, the two locals that feed it in
-        // begin_frame, and its one call site come out together once the
-        // phone numbers have named the defect. Nothing depends on it.
-        //
-        // It prints through out() — Emscripten's Module.print — and NOT
-        // console.log, deliberately: index.html's onLine() feeds
-        // Module.print into the "details" panel, so these numbers are
-        // readable ON THE PHONE by tapping DETAILS. A devtools-only line
-        // would be useless on the device that has the defect.
-        //
-        // Fires only inside the resize branch, so a steady frame loop
-        // prints nothing.
-        void frame1_report(int fbPreW, int fbPreH, int fbPostW, int fbPostH) const {
-            int winW = 0, winH = 0;
-            glfwGetWindowSize(window_, &winW, &winH);
-            // CAP_1: the fourth number. acquired is what the GPU actually
-            // handed us last frame; in steady state it must equal postCap
-            // (= target). If those two ever diverge and stay diverged, the
-            // single-writer law has been broken somewhere upstream.
-            const int acqW = static_cast<int>(acquiredWidth_);
-            const int acqH = static_cast<int>(acquiredHeight_);
-            EM_ASM({
-                var f  = document.getElementById('frame');
-                var c  = document.getElementById('canvas');
-                var vv = window.visualViewport;
-                var r2 = function (n) { return Math.round(n * 100) / 100; };
-                // out() is Emscripten's Module.print. Guarded because this
-                // block's only job is to produce numbers on a device that
-                // cannot be tested from here — if the symbol is ever
-                // absent the line must still reach devtools rather than
-                // throw and take the frame with it.
-                var say = (typeof out === 'function') ? out : console.log;
-                say('[FRAME_1]'
-                  + ' glfwWin='   + $0 + 'x' + $1
-                  + ' fbPreCap='  + $2 + 'x' + $3
-                  + ' fbPostCap=' + $4 + 'x' + $5
-                  + ' acquired='  + $6 + 'x' + $7
-                  + ' inner='     + window.innerWidth + 'x' + window.innerHeight
-                  + ' visualVP='  + (vv ? r2(vv.width) + 'x' + r2(vv.height) : 'absent')
-                  + ' dpr='       + window.devicePixelRatio
-                  + ' appH='      + getComputedStyle(document.documentElement)
-                                      .getPropertyValue('--app-h').trim()
-                  + ' frameClient=' + (f ? f.clientWidth + 'x' + f.clientHeight : 'ABSENT')
-                  + ' canvasCSS='   + (c ? (c.style.width || '(none)') + 'x'
-                                          + (c.style.height || '(none)') : 'ABSENT')
-                  + ' canvasBuf='   + (c ? c.width + 'x' + c.height : 'ABSENT'));
-            }, winW, winH, fbPreW, fbPreH, fbPostW, fbPostH, acqW, acqH);
-        }
-#endif
 
     public:
         float begin_frame() {
             glfwPollEvents();
-#ifdef __EMSCRIPTEN__
-            emit_touch_intents();   // SHIP_1 — the frame tick consumes the gestures
-#endif
 
             // Handle resize
             int fbWidth = 0, fbHeight = 0;
-#ifdef __EMSCRIPTEN__
-            // CAP_1: on this twin the wanted size comes from ONE expression
-            // and from nowhere else. The framebuffer query below is read for
-            // the FRAME_1 witness alone and never feeds a size — with
-            // GLFW_SCALE_FRAMEBUFFER FALSE it is CSS px and should now equal
-            // glfwWin, and that equality IS the proof that the port stopped
-            // scaling behind us.
-            int fbPreCapW = 0, fbPreCapH = 0;
-            glfwGetFramebufferSize(window_, &fbPreCapW, &fbPreCapH);
-            {
-                uint32_t tw = 0, th = 0;
-                compute_target_size(tw, th);
-                fbWidth  = static_cast<int>(tw);
-                fbHeight = static_cast<int>(th);
-            }
-#else
             glfwGetFramebufferSize(window_, &fbWidth, &fbHeight);
-#endif
             // DOMESDAY_1 B7 (R4) — THE SETTLE WINDOW. A new size must hold
             // still for RECONFIGURE_SETTLE_FRAMES consecutive frames before
             // the surface is reconfigured; the accepted cost is ≤100 ms of
@@ -1781,19 +951,9 @@ namespace t7 {
                         currentHeight_ = static_cast<uint32_t>(fbHeight);
                         surfaceConfig_.width = currentWidth_;
                         surfaceConfig_.height = currentHeight_;
-#ifdef __EMSCRIPTEN__
-                        // CAP_1: the canvas and the surface take the SAME
-                        // number, in the same breath. The canvas first, so the
-                        // surface is configured against a canvas that already
-                        // has the shape being asked for.
-                        write_canvas_backing_store(currentWidth_, currentHeight_);
-#endif
                         surface_.Configure(&surfaceConfig_);
                         // No attachment recreation here — see the banner above.
                         stableFrames_ = 0;
-#ifdef __EMSCRIPTEN__
-                        frame1_report(fbPreCapW, fbPreCapH, fbWidth, fbHeight);   // FRAME_1 — debounce witness; retire after the soak walk confirms single-fire per settle
-#endif
                     }
                 } else {
                     pendingWidth_ = static_cast<uint32_t>(fbWidth);
@@ -1986,14 +1146,6 @@ namespace t7 {
                 }
             }
 
-#ifdef __EMSCRIPTEN__
-            // CAP_2 — the last word, at the frame boundary. glfwPollEvents at
-            // the head of this function is where the port applies any queued
-            // resize, so by here every other writer for this frame has spoken.
-            // Nothing between this line and the acquire touches the canvas:
-            // the update phase is CPU state and the render phase has not begun.
-            reassert_canvas_target();
-#endif
 
             // RIBBON_6: the canvas, published for the meter's window line.
             // Written HERE rather than at the four sites that assign
@@ -2052,9 +1204,7 @@ namespace t7 {
         }
 
         void present() {
-#ifndef __EMSCRIPTEN__
             surface_.Present();
-#endif
             // ── PORT_1b Region 4 (web): no-op — presentation is implicit
             // at rAF return. P0-verified: emdawnwebgpu's wgpuSurfacePresent
             // exists but ABORTS ("wgpuSurfacePresent is unsupported (use
@@ -2109,22 +1259,6 @@ namespace t7 {
         // tree consumes only deltas, so the previous position is console
         // state — not a static hiding in a callback body.
         void feed_cursor(double x, double y) {
-#ifdef __EMSCRIPTEN__
-            // SHIP_1 U1 — THE BACKSTOP. claim_touch_stream() removed the
-            // port's touch handlers, so nothing should synthesize a
-            // cursor from a finger any more. Should is not a guarantee:
-            // the port re-registers its listeners whenever it rebuilds
-            // them, and ATMOS_0 made a fullscreen transition part of the
-            // normal entry. If that ever resurrects the emulation, this
-            // turns a silent double-drive — two consumers fighting over
-            // one look delta — into nothing at all. The origin is kept
-            // current so a real mouse afterwards does not jump.
-            if (any_touch_active()) {
-                lastCursorX_ = x;
-                lastCursorY_ = y;
-                return;
-            }
-#endif
             if (!cursorPrimed_) {
                 lastCursorX_ = x;
                 lastCursorY_ = y;
@@ -2149,9 +1283,6 @@ namespace t7 {
         }
 
         void inject_mouse_button(int button, bool pressed) {
-#ifdef __EMSCRIPTEN__
-            if (any_touch_active()) return;   // the backstop's other half
-#endif
             InputEvent event{};
             event.type = InputEvent::Type::MouseButton;
             event.button = button;
@@ -2166,437 +1297,6 @@ namespace t7 {
             inputEvents_.push_back(event);
         }
 
-#ifdef __EMSCRIPTEN__
-        // ═══ SHIP_1 U1 — THE TOUCH STREAM, CLAIMED ═══════════════
-        //
-        // THE PROBLEM, precisely. contrib.glfw3 registers its own
-        // touchstart/move/end/cancel handlers on the canvas inside
-        // glfwCreateWindow and converts each one to setCursorPos +
-        // mouse-button-left — which is why a drag already rotates the
-        // camera on a phone today, by accident. The port exposes NO
-        // lever to turn that off: not a port option (disableWarning,
-        // disableJoystick, disableMultiWindow, disableWebGL2,
-        // optimizationLevel — that is the whole list), not a window
-        // hint, not a function in emscripten_glfw3.h.
-        //
-        // WHAT THIS ACTUALLY REMOVES, corrected against the pinned port
-        // (FRAME_0 recon). Window.cpp registers exactly ONE touch
-        // listener on the canvas — touchstart — while Context.cpp
-        // registers touchstart/move/cancel/end on
-        // EMSCRIPTEN_EVENT_TARGET_DOCUMENT. Nulling the canvas target
-        // therefore removes one handler and leaves four live, so the
-        // port's emulation is NOT gone: what actually prevents the
-        // double-drive is the any_touch_active() backstop below, plus
-        // the ordering. The port's document listeners are BUBBLE phase
-        // (Events.h passes useCapture=false), and ours sit on the canvas
-        // — the target — so ours run FIRST and the table is populated
-        // before the port's synthesis reaches feed_cursor. Jean's
-        // ruling to keep the backstop was not a belt; it is the load-
-        // bearing half. Nulling the document target as well is a real
-        // option and a separate decision, not a silent one.
-        //
-        // THE LEVER IS HTML5.H'S OWN. In JSEvents.registerOrRemoveHandler
-        // a NON-null callback appends a listener and leaves any existing
-        // one in place — so simply registering ours would give two live
-        // consumers of one finger, which is the failure this whole unit
-        // exists to prevent. A NULL callback takes the other branch and
-        // removes every handler matching (target, eventType), unbinding
-        // with the useCapture each was stored with. So: null first, ours
-        // second.
-        //
-        // The target string is load-bearing. lib_emscripten_glfw3.js
-        // does specialHTMLTargets["Module['canvas']"] = Module.canvas at
-        // glfwInit, and findEventTarget checks specialHTMLTargets before
-        // querySelector — so this literal resolves to the same element
-        // the port used, which is the only reason the removal matches.
-        void claim_touch_stream() {
-            // 1 — the port's handlers, off.
-            emscripten_set_touchstart_callback(TOUCH_TARGET, nullptr, true, nullptr);
-            emscripten_set_touchmove_callback(TOUCH_TARGET, nullptr, true, nullptr);
-            emscripten_set_touchend_callback(TOUCH_TARGET, nullptr, true, nullptr);
-            emscripten_set_touchcancel_callback(TOUCH_TARGET, nullptr, true, nullptr);
-
-            // 2 — ours, on. Every handler returns true, which makes
-            // html5.h call preventDefault — and THAT is what suppresses
-            // the browser's compatibility mouse events. Without it the
-            // emulation would come back through the port's MOUSE door
-            // after we closed its touch one.
-            emscripten_set_touchstart_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
-            emscripten_set_touchmove_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
-            emscripten_set_touchend_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
-            emscripten_set_touchcancel_callback(TOUCH_TARGET, this, true, &Console::touch_cb);
-
-            std::cout << "[Touch] Claimed the canvas touch stream ("
-                << TOUCH_TARGET << ")\n";
-        }
-
-        bool any_touch_active() const {
-            for (const TouchPoint& t : touches_) if (t.active) return true;
-            return false;
-        }
-
-    private:
-        // ── The table ────────────────────────────────────────────
-        // Four slots: two per half is every named gesture, and the
-        // vocabulary says extras are ignored rather than queued.
-        static constexpr int MAX_TRACKED_TOUCHES = 4;
-
-        TouchPoint* find_touch(int id) {
-            for (TouchPoint& t : touches_) if (t.active && t.id == id) return &t;
-            return nullptr;
-        }
-
-        // Primary = earliest born in that half; secondary = next.
-        // Birth order, not slot order: a lifted finger frees its slot and
-        // the survivors must not be reshuffled by who happens to sit
-        // where.
-        TouchPoint* half_touch(bool left, int rank) {
-            TouchPoint* out = nullptr;
-            uint64_t best = UINT64_MAX;
-            uint64_t floor_seq = 0;
-            for (int r = 0; r <= rank; r++) {
-                out = nullptr; best = UINT64_MAX;
-                for (TouchPoint& t : touches_) {
-                    if (!t.active || t.left != left) continue;
-                    if (t.seq < floor_seq) continue;
-                    if (t.seq < best) { best = t.seq; out = &t; }
-                }
-                if (!out) return nullptr;
-                floor_seq = best + 1;
-            }
-            return out;
-        }
-
-        int half_count(bool left) const {
-            int n = 0;
-            for (const TouchPoint& t : touches_) if (t.active && t.left == left) n++;
-            return n;
-        }
-
-        // THE MIDLINE, in the same CSS pixels the touch reports. Read
-        // per event rather than cached: a rotation changes it, and a
-        // stale midline would classify a thumb into the wrong half for
-        // one gesture — the exact bug the born-in rule exists to avoid.
-        float midline_css() const {
-            int w = 0, h = 0;
-            glfwGetWindowSize(window_, &w, &h);
-            (void)h;
-            return w > 0 ? static_cast<float>(w) * 0.5f : 0.0f;
-        }
-
-        void clear_all_touches() {
-            for (TouchPoint& t : touches_) t = TouchPoint{};
-            // Every accumulator too: a cancelled gesture must not leave
-            // half a look delta behind to arrive on the next tick.
-            touchLookDx_ = 0.0f;
-            touchLookDy_ = 0.0f;
-            touchZoomAccum_ = 0.0f;
-            pinchDeclared_ = false;
-            rightTapPending_ = false;
-            tapAuraPending_ = false;
-            tapPossessPending_ = false;
-        }
-
-        // ── U4: the right-half pair ──────────────────────────────
-        static float separation(const TouchPoint& a, const TouchPoint& b) {
-            const float dx = a.x - b.x, dy = a.y - b.y;
-            return std::sqrt(dx * dx + dy * dy);
-        }
-
-        static bool touch_cb(int eventType, const EmscriptenTouchEvent* e, void* userData) {
-            auto* self = static_cast<Console*>(userData);
-            if (self && e) self->on_touch(eventType, *e);
-            return true;   // preventDefault — see claim_touch_stream
-        }
-
-        void on_touch(int eventType, const EmscriptenTouchEvent& e) {
-            if (eventType == EMSCRIPTEN_EVENT_TOUCHCANCEL) {
-                // U1's rule, flat: cancel clears EVERYTHING. A cancelled
-                // gesture has no ending to interpret, so the only honest
-                // reading is that no finger is down.
-                clear_all_touches();
-                return;
-            }
-
-            const float mid = midline_css();
-
-            for (int i = 0; i < e.numTouches; i++) {
-                const EmscriptenTouchPoint& p = e.touches[i];
-                if (!p.isChanged) continue;
-
-                const float px = static_cast<float>(p.targetX);
-                const float py = static_cast<float>(p.targetY);
-
-                if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART) {
-                    if (find_touch(p.identifier)) continue;      // already tracked
-                    TouchPoint* slot = nullptr;
-                    for (TouchPoint& t : touches_) if (!t.active) { slot = &t; break; }
-                    if (!slot) continue;                          // extras are ignored
-                    slot->id      = p.identifier;
-                    slot->active  = true;
-                    slot->left    = (px < mid);                   // decided ONCE
-                    slot->seq     = nextTouchSeq_++;
-                    slot->x = slot->x0 = px;
-                    slot->y = slot->y0 = py;
-                    slot->t0      = e.timestamp;
-                    slot->slopped = false;
-
-                    // U4 — THE PAIR FORMS. Undecided on purpose: two
-                    // fingers on the right half are a pinch, a possess
-                    // tap, or nothing yet, and which one is not knowable
-                    // at the moment they land. The pair is born PENDING
-                    // and declares itself later, by separating or by
-                    // outliving TAP_MS.
-                    if (!slot->left && half_count(false) == 2) {
-                        TouchPoint* a = half_touch(false, 0);
-                        TouchPoint* b = half_touch(false, 1);
-                        rightPairT0_   = e.timestamp;
-                        rightPairSep_  = (a && b) ? separation(*a, *b) : 0.0f;
-                        pinchDeclared_ = false;
-                    }
-                    continue;
-                }
-
-                TouchPoint* t = find_touch(p.identifier);
-                if (!t) continue;
-
-                if (eventType == EMSCRIPTEN_EVENT_TOUCHMOVE) {
-                    // The step since this finger's own last report. Taken
-                    // BEFORE the position is updated, and per-finger — so
-                    // a second touch arriving cannot inject a phantom
-                    // jump into the first one's delta.
-                    const float step_x = px - t->x;
-                    const float step_y = py - t->y;
-                    t->x = px;
-                    t->y = py;
-
-                    // ── U3: LOOK ────────────────────────────────
-                    // RIGHT half, ONE touch. The deltas are RAW here and
-                    // scaled at consumption (the ledger's sampling law:
-                    // accumulate in the callback, spend once on the frame
-                    // tick), so a browser that fires three touchmoves in
-                    // one frame turns them into one look, not three.
-                    //
-                    // The one-touch gate is also the pinch suspension:
-                    // while two fingers hold the right half this stops
-                    // accumulating, and because the delta is measured
-                    // from each finger's OWN previous position, the
-                    // survivor of a lift resumes with a small step
-                    // instead of a jump. No origin to reset by hand.
-                    if (!t->left && half_count(false) == 1 && !rightTapPending_) {
-                        touchLookDx_ += step_x;
-                        touchLookDy_ += step_y;
-                    }
-                    // The tap window closes on its own: once the pair
-                    // has outlived TAP_MS the survivor is just a look
-                    // again. Checked on movement because that is the
-                    // only moment the answer can matter.
-                    if (rightTapPending_
-                        && (e.timestamp - rightPairT0_) > TouchControls::TAP_MS) {
-                        rightTapPending_ = false;
-                    }
-
-                    // ── U4: PINCH ───────────────────────────────
-                    // Only the right half, only as a pair. Separation is
-                    // read from the pair as a whole rather than from
-                    // either finger's motion, so sliding both fingers
-                    // across the glass together zooms nothing.
-                    if (!t->left && half_count(false) == 2) {
-                        TouchPoint* a = half_touch(false, 0);
-                        TouchPoint* b = half_touch(false, 1);
-                        if (a && b) {
-                            const float sep = separation(*a, *b);
-                            if (!pinchDeclared_) {
-                                // THE DISAMBIGUATOR. A pinch declares
-                                // itself two ways — by moving enough to
-                                // mean it, or by lasting longer than a
-                                // tap could. Until one of them fires the
-                                // pair is still a possible tap, and
-                                // nothing zooms.
-                                if (std::fabs(sep - rightPairSep_) > TouchControls::PINCH_DECLARE
-                                    || (e.timestamp - rightPairT0_) > TouchControls::TAP_MS) {
-                                    pinchDeclared_ = true;
-                                    // NO RE-BASELINE. The travel that
-                                    // proved this was a pinch is real
-                                    // pinch travel, and it is spent
-                                    // below against the separation the
-                                    // pair was BORN with. Discarding it
-                                    // would be a dead zone rather than a
-                                    // classifier: a browser that
-                                    // coalesces a whole fast spread into
-                                    // one touchmove would declare the
-                                    // pinch and zoom nothing, and the
-                                    // faster the gesture the more of it
-                                    // would vanish.
-                                }
-                            }
-                            if (pinchDeclared_) {
-                                const float dsep = sep - rightPairSep_;
-                                rightPairSep_ = sep;
-                                // SPREAD = IN. zoom_delta adds to camera
-                                // distance and closer IS zoomed in, so
-                                // growing separation must go negative.
-                                touchZoomAccum_ += -dsep * TouchControls::PINCH_SENS;
-                            }
-                        }
-                    }
-
-                    const float ddx = t->x - t->x0, ddy = t->y - t->y0;
-                    if (ddx * ddx + ddy * ddy >
-                        TouchControls::TAP_SLOP * TouchControls::TAP_SLOP) {
-                        t->slopped = true;   // never a tap again
-                    }
-                    continue;
-                }
-
-                if (eventType == EMSCRIPTEN_EVENT_TOUCHEND) {
-                    t->x = px;
-                    t->y = py;
-                    on_touch_lift(*t, e.timestamp);
-                    *t = TouchPoint{};
-                    continue;
-                }
-            }
-        }
-
-        // ── U5: THE CLEAN TAPS ───────────────────────────────────
-        // Both fire on RELEASE, not on press. A press-fired toggle
-        // commits before the gesture has said what it is — and the
-        // right-half tap in particular shares its opening frames with a
-        // pinch, so there is nothing to commit to yet.
-        //
-        // Called while `t` is still active, so half_count includes it.
-        void on_touch_lift(TouchPoint& t, double now_ms) {
-            const bool clean = !t.slopped
-                && (now_ms - t.t0) <= TouchControls::TAP_MS;
-
-            if (t.left) {
-                // AURA — the SECOND left finger. Never the stick: the
-                // primary is the stick whether it is dragging or resting,
-                // so a tap is only ever a finger that is not it. That is
-                // what "the stick is never disturbed by the tap" means
-                // mechanically.
-                TouchPoint* primary = half_touch(true, 0);
-                if (clean && primary != &t) tapAuraPending_ = true;
-                return;
-            }
-
-            // POSSESS — both of a pair, clean, within one TAP_MS window
-            // measured from when the PAIR formed (not from each finger),
-            // and only if the pinch never declared itself.
-            if (pinchDeclared_) { rightTapPending_ = false; pinchDeclared_ = false; return; }
-
-            const bool in_window = (now_ms - rightPairT0_) <= TouchControls::TAP_MS;
-            if (half_count(false) == 2) {
-                // First of the pair. Arm, and hold the survivor's look
-                // for the rest of the window so a possess cannot nudge
-                // the camera on its way out.
-                TouchPoint* a = half_touch(false, 0);
-                TouchPoint* b = half_touch(false, 1);
-                rightTapPending_ = in_window && a && b && !a->slopped && !b->slopped;
-            }
-            else if (rightTapPending_) {
-                // Second of the pair.
-                if (in_window && !t.slopped) tapPossessPending_ = true;
-                rightTapPending_ = false;
-            }
-            pinchDeclared_ = false;
-        }
-
-        // ── U2: THE STICK ────────────────────────────────────────
-        // FLOATING ORIGIN: the stick is born where the thumb lands, so
-        // there is no fixed pad to find and no chrome to draw. The
-        // vector is the drag from that birthplace.
-        //
-        // The dead zone RESCALES rather than truncating: past its edge
-        // the magnitude starts at 0 and climbs to 1 at STICK_RADIUS. A
-        // plain truncation would make the first pixel past the dead zone
-        // jump straight to STICK_DEAD_ZONE/STICK_RADIUS of full speed —
-        // a lurch exactly where the thumb is trying to be gentle.
-        //
-        // Screen y grows downward and W is move_z -= 1, so a thumb
-        // pushed UP is forward with no sign flip: the drag IS the
-        // vector. Camera-relativity is the kernel's
-        // (coupling_input_to_pawn_velocity rotates by camera azimuth),
-        // and it does not renormalize — so this magnitude survives all
-        // the way to the step.
-        void stick_vector(float& out_x, float& out_z) {
-            out_x = 0.0f; out_z = 0.0f;
-            TouchPoint* s = half_touch(true, 0);
-            if (!s) return;
-            const float dx = s->x - s->x0;
-            const float dy = s->y - s->y0;
-            const float len = std::sqrt(dx * dx + dy * dy);
-            if (len <= TouchControls::STICK_DEAD_ZONE) return;   // exactly zero, not small
-            const float span = TouchControls::STICK_RADIUS - TouchControls::STICK_DEAD_ZONE;
-            float m = (len - TouchControls::STICK_DEAD_ZONE) / span;
-            if (m > 1.0f) m = 1.0f;                              // clamped at STICK_RADIUS
-            const float inv = m / len;
-            out_x = dx * inv;
-            out_z = dy * inv;
-        }
-
-        // Called once per frame from begin_frame, before the main loop
-        // drains the queue — the ledger's sampling law: a delta
-        // accumulated in a browser callback is consumed exactly once,
-        // on the frame tick.
-        void emit_touch_intents() {
-            // MOVE speaks every frame it is held, PLUS exactly one zero
-            // on release. A vector that only spoke when it changed would
-            // leave the pawn walking after the thumb left the glass.
-            const bool stick_live = (half_touch(true, 0) != nullptr);
-            if (stick_live || stickWasLive_) {
-                InputEvent e{};
-                e.type = InputEvent::Type::TouchMove;
-                stick_vector(e.x, e.y);
-                inputEvents_.push_back(e);
-            }
-            stickWasLive_ = stick_live;
-
-            // LOOK — spent once, then zeroed. Silence when there is
-            // nothing to say: an unchanged camera needs no event.
-            if (touchLookDx_ != 0.0f || touchLookDy_ != 0.0f) {
-                InputEvent e{};
-                e.type = InputEvent::Type::TouchLook;
-                // LOOK_SENS_TOUCH applies HERE, at consumption — one
-                // multiply per frame instead of one per browser event,
-                // and one place to look when the feel is wrong.
-                e.x = touchLookDx_ * TouchControls::LOOK_SENS_TOUCH;
-                e.y = touchLookDy_ * TouchControls::LOOK_SENS_TOUCH;
-                inputEvents_.push_back(e);
-                touchLookDx_ = 0.0f;
-                touchLookDy_ = 0.0f;
-            }
-
-            // ZOOM — the same channel the scroll wheel feeds, already
-            // signed and scaled.
-            if (touchZoomAccum_ != 0.0f) {
-                InputEvent e{};
-                e.type = InputEvent::Type::TouchZoom;
-                e.y = touchZoomAccum_;
-                inputEvents_.push_back(e);
-                touchZoomAccum_ = 0.0f;
-            }
-
-            // THE TAPS — one event per recognized tap, then the flag is
-            // spent. Edge-fired by construction: the flag is only ever
-            // set by a release.
-            if (tapAuraPending_) {
-                InputEvent e{};
-                e.type = InputEvent::Type::TouchTapLeft;
-                inputEvents_.push_back(e);
-                tapAuraPending_ = false;
-            }
-            if (tapPossessPending_) {
-                InputEvent e{};
-                e.type = InputEvent::Type::TouchTapRight;
-                inputEvents_.push_back(e);
-                tapPossessPending_ = false;
-            }
-        }
-
-    public:
-#endif   // __EMSCRIPTEN__
 
         // ── Consumer (main loop reads then clears) ───────────────
 
@@ -2706,21 +1406,6 @@ namespace t7 {
     private:
         // ── Window ───────────────────────────────────────────────
         GLFWwindow* window_ = nullptr;
-#ifdef __EMSCRIPTEN__
-        // ── SHIP_1 — the claimed touch stream ────────────────────
-        TouchPoint touches_[MAX_TRACKED_TOUCHES]{};
-        uint64_t   nextTouchSeq_ = 1;   // 0 stays "never born"
-        bool       stickWasLive_ = false;   // so the release emits its zero exactly once
-        float      touchLookDx_ = 0.0f;     // raw CSS px, accumulated between ticks
-        float      touchLookDy_ = 0.0f;
-        float      touchZoomAccum_ = 0.0f;  // already signed + scaled by PINCH_SENS
-        double     rightPairT0_ = 0.0;      // when the right-half pair formed
-        float      rightPairSep_ = 0.0f;    // its separation at the last reading
-        bool       pinchDeclared_ = false;  // pinch, or still a possible tap
-        bool       rightTapPending_ = false;// one of a clean pair has lifted; waiting on the other
-        bool       tapAuraPending_ = false; // edge-fired verbs, spent on the next tick
-        bool       tapPossessPending_ = false;
-#endif
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;
         // CONFIGURE INTENT — what the app asks the surface for (ACQ_0).
@@ -2780,11 +1465,7 @@ namespace t7 {
         float    presentDeltaMax_  = 0.0f;
 
         // ── Gpu Device ───────────────────────────────────────────
-#ifndef __EMSCRIPTEN__
         std::optional<dawn::native::Instance> instance_;
-#else
-        wgpu::Instance instance_;   // portable handle; owns the async request chain
-#endif
         wgpu::Adapter adapter_;
         wgpu::Device device_;
         wgpu::Queue queue_;
