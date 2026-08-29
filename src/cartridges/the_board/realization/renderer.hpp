@@ -4,7 +4,6 @@
 // ==================================================
 
 #include "cartridges/the_board/realization/state.hpp"
-#include "core/sha256.hpp"   // PROBATE_SEAL2 — the serve witness's digest
 #include <webgpu/webgpu_cpp.h>
 #include <string>
 #include <fstream>
@@ -157,11 +156,6 @@ namespace t7 {
             wgpu::ShaderModule shaderModule_;
             std::string shaderSource_;
             std::string shaderPath_;
-            // PROBATE_SEAL2/3 — what the serve witness saw, kept so the
-            // floor can state it once and the report can quote it.
-            std::string shaderSha_;
-            size_t shaderBytes_ = 0;
-            bool serveWitnessed_ = false;
 
             struct PipelineTiming { std::string label; long long ms; };
             std::vector<PipelineTiming> pipelineTimings_;
@@ -314,10 +308,10 @@ namespace t7 {
             //
             // The main pass's opaque list and the sun shadow pass's are each
             // recorded ONCE into a GPURenderBundle and executed with one call
-            // per frame. The browser's per-command validation moves from
-            // every frame to the recording; the GPU work is unchanged by
-            // construction, because the same pipelines, groups, buffers and
-            // counts are issued in the same order.
+            // per frame. Per-command validation moves from every frame to
+            // the recording; the GPU work is unchanged by construction,
+            // because the same pipelines, groups, buffers and counts are
+            // issued in the same order.
             //
             // A BUNDLE CAPTURES OBJECTS, NOT VALUES. It holds the bind groups
             // and buffers it was recorded with, so a re-record is needed only
@@ -916,8 +910,8 @@ namespace t7 {
             // species whose mesh is empty draws nothing either way — the
             // guard changes no pixel — but Dawn logs "Draw with an index
             // count of 0 is unusual" for the submitted zero-count draw,
-            // and on the web twin that warning reaches the audience's
-            // browser console. Every species submits its high-water prefix
+            // once per submitted zero-count draw. Every species submits its
+            // high-water prefix
             // rather than a live count, so a family with nothing live still
             // arrives here with 0. Replacing the prefix with a live count
             // is the ARENA-era fix; this only stops the warning.
@@ -1481,90 +1475,22 @@ namespace t7 {
                     std::cout << "Loaded shader from: " << loadedPath << "\n";
                 }
 
-                // ═══ PROBATE_SEAL2 — THE SERVE WITNESS ═══════════════
-                //
-                // BEFORE the module is created, compare the shader this
-                // program RECEIVED against the shader the build SHIPPED.
-                //
-                // The Pixel was served a world.wgsl cut mid-token 665
-                // bytes from its end and reported `:13639:28 expected
-                // ')'` inside orb_vs — a syntax error in a file that has
-                // none. The tree was clean, --check was green, the WGSL
-                // gate was green, and the packaging copies the bundle
-                // byte for byte. Every witness the program owned was
-                // looking at the right thing and none of them was
-                // standing in the corridor where the bytes actually go
-                // wrong: build -> dist -> upload -> CDN -> device.
-                //
-                // web_dist.py bakes sha256(world.wgsl)[:8] into the page
-                // at deploy; this hashes what MEMFS actually handed us.
-                // Truncation, a stale the_board.data, a half-written CDN
-                // object and a cache serving last week's bytes all land
-                // here as one legible line instead of as a parse error
-                // three hundred lines from the real problem.
-                //
-                // NATIVE/OFFLINE: no page, no digest, nothing to
-                // compare. `expected` is then empty and the line says
-                // UNWITNESSED — a fact, not a failure. The floor treats
-                // it as satisfied, because a shader read off local disk
-                // never crossed the corridor this witness watches.
-                const std::string got = t7::sha256_short(shaderSource_);
-                std::string expected;
-                shaderBytes_ = shaderSource_.size();
-                shaderSha_ = got;
+                // The PROBATE_SEAL2 serve witness stood here — sha256 of
+                // the loaded bytes against a digest the page carried,
+                // because a CDN once served a Pixel a shader cut
+                // mid-token. Its corridor (build→dist→CDN→device) went
+                // with the web twin at tag web-sunset; disk + hot reload
+                // need no digest, and the compiler's verdict below is
+                // the net.
 
-                // PURSE_0 R2 — THE TREE, BESIDE THE ARTIFACT. `[Dist]` below
-                // answers "are these the bytes this build shipped"; this
-                // answers "which tree was that build". Neither implies the
-                // other: a matching digest proves the browser got what the
-                // build produced and says nothing about WHICH tree produced
-                // it, and a git sha says nothing about a cached predecessor.
-                // Printed HERE so the two provenance lines are adjacent in a
-                // pasted log — scattered provenance is provenance nobody
-                // reads. `unknown` where the stamp did not generate: the one
-                // thing this line may never do is lie.
+                // PURSE_0 R2 — THE TREE, BESIDE THE ARTIFACT. `[Build]`
+                // answers "which tree was this build". Printed here, at the
+                // one place the shader's own provenance is established, so
+                // the provenance lines are adjacent in a pasted log —
+                // scattered provenance is provenance nobody reads.
+                // `unknown` where the stamp did not generate: the one thing
+                // this line may never do is lie.
                 std::cout << "[Build] " << t7::BUILD_STAMP << "\n";
-
-                if (expected.empty()) {
-                    // A SKIP THAT SAYS ITS NAME. Serving web/ directly —
-                    // the dev path — means no web_dist run has baked a
-                    // digest, so the placeholder is still sitting in the
-                    // page and there is nothing to compare against. That
-                    // is not a match and it is not a mismatch: it is a
-                    // question that was never asked, and the line says
-                    // so. Never a silent pass (which would let a real
-                    // corruption through on the day someone forgot to
-                    // run web_dist), and never a false MISMATCH (which
-                    // would stop every dev serve and get the witness
-                    // switched off within a week). The floor does NOT
-                    // stop here — the dev path never crossed the
-                    // corridor this witness watches.
-                    std::cout << "[Dist] world.wgsl sha=" << got
-                        << " expected=none (native — read off disk, no serve to"
-                           " witness) SKIPPED\n";
-                    serveWitnessed_ = true;
-                }
-                else if (expected == got) {
-                    std::cout << "[Dist] world.wgsl sha=" << got
-                        << " expected=" << expected << " MATCH ("
-                        << shaderSource_.size() << " bytes)\n";
-                    serveWitnessed_ = true;
-                }
-                else {
-                    // THE STOP, not a warning. A module built from bytes
-                    // the build did not ship is a module whose every
-                    // downstream error is misdirection.
-                    std::cout << "[Dist] world.wgsl sha=" << got
-                        << " expected=" << expected << " MISMATCH ("
-                        << shaderSource_.size() << " bytes received)\n";
-                    std::cout << "[Floor] STOP — the shader this device received is not the"
-                                 " shader this build shipped. No module is created; no"
-                                 " pipeline is compiled; no frame runs. Hard-refresh first"
-                                 " (a truncated fetch is the cheapest explanation), then"
-                                 " redeploy. PROBATE_SEAL2.\n";
-                    serveWitnessed_ = false;
-                    return false;
-                }
 
                 wgpu::ShaderSourceWGSL wgslSource{};
                 wgslSource.code = shaderSource_.c_str();
@@ -1602,32 +1528,10 @@ namespace t7 {
             // built on it. Nothing downstream gets to print a number
             // about a module that did not compile.
             //
-            // The wait is a spin on the device queue, which is what this
-            // boot path already is (synchronous, pre-frame-loop). On the
-            // web that is the browser's own event loop turning; there is
-            // no frame in flight to stall.
-            // IT CANNOT BE AWAITED ON THIS TWIN, and pretending otherwise
-            // would be the worse defect. GetCompilationInfo resolves on
-            // the browser's event loop; the boot path is synchronous and
-            // the build carries no -sASYNCIFY (CMakeLists), so a spin
-            // waiting for the verdict would turn a wrong shader into a
-            // hung tab. WaitAny with a timeout needs the same event loop
-            // and TimedWaitAny is not offered on this surface.
-            //
-            // So the request is FIRED here and the verdict lands when it
-            // lands — after pipeline creation, in the common case. What
-            // that buys is still the whole of the Pixel's confusion:
-            // the real errors, with their real line numbers, printed
-            // once, next to a `[Dist]` line that says whether the bytes
-            // were even the right bytes. And an error raises `[Floor]
-            // STOP`, so the visitor gets the card rather than a black
-            // canvas under a scrolling log.
-            //
-            // The corruption case — the one that actually happened — is
-            // already stopped SYNCHRONOUSLY and earlier, by the digest
-            // check in loadShader(): no module is created at all. This
-            // arm is the net under everything else a module can fail at,
-            // and it is honest about being a net rather than a gate.
+            // Fired here; the verdict lands when Dawn resolves it. What
+            // it buys is the real errors with their real line numbers,
+            // printed once, before anything downstream reports a number
+            // about a module that did not compile.
             void requestShaderVerdict() {
                 if (!shaderModule_) return;
                 shaderModule_.GetCompilationInfo(
@@ -1663,10 +1567,7 @@ namespace t7 {
                             std::cout << "[Floor] STOP — world.wgsl did not compile."
                                          " Every [Pipeline] number in this log is a"
                                          " create call on a module that never compiled,"
-                                         " not a compile time. If the errors above name"
-                                         " a line near the END of the file, read the"
-                                         " [Dist] line first: a truncated serve reads"
-                                         " exactly like a syntax error."
+                                         " not a compile time."
                                          " PROBATE_SEAL3.\n";
                         }
                     });
