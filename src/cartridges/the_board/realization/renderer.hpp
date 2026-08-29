@@ -6,9 +6,6 @@
 #include "cartridges/the_board/realization/state.hpp"
 #include "core/sha256.hpp"   // PROBATE_SEAL2 — the serve witness's digest
 #include <webgpu/webgpu_cpp.h>
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>      // EM_ASM — reads the baked shader digest
-#endif
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -1513,42 +1510,6 @@ namespace t7 {
                 // never crossed the corridor this witness watches.
                 const std::string got = t7::sha256_short(shaderSource_);
                 std::string expected;
-#ifdef __EMSCRIPTEN__
-                {
-                    // One EM_ASM, bytes into a stack buffer through
-                    // HEAPU8 — boot_params.hpp's pattern exactly (it
-                    // writes doubles through HEAPF64). Deliberately NOT
-                    // stringToNewUTF8/EM_ASM_PTR: those need a runtime
-                    // helper to be present in the shipped glue, and F5F
-                    // is this program's standing lesson about betting on
-                    // an API the payload may not carry. A digest is
-                    // 8 ASCII hex characters; a 16-byte buffer and a
-                    // hand-written copy need nothing but the heap view.
-                    // DOUBLE QUOTES, AND THEY ARE NOT A STYLE CHOICE.
-                    // The preprocessor lexes an EM_ASM body as pp-tokens
-                    // before any JS engine ever sees it, and `''` is an
-                    // EMPTY CHARACTER CONSTANT — invalid, warned by
-                    // -Winvalid-pp-token, and it warned twice here from
-                    // the day SEAL wrote it. JS reads "" identically.
-                    // ('string' and '__' stay: multi-character constants
-                    // are valid pp-tokens, and the minimal diff is law.)
-                    char buf[16] = {};
-                    EM_ASM({
-                        var s = (typeof SHADER_SHA === 'string') ? SHADER_SHA : "";
-                        // An unsubstituted placeholder is NOT a digest —
-                        // it means someone opened web/index.html directly
-                        // instead of the dist/ copy web_dist generates.
-                        // Report absent rather than mismatched.
-                        if (s.indexOf('__') === 0) s = "";
-                        var n = Math.min(s.length, $1 - 1);
-                        for (var i = 0; i < n; i++)
-                            HEAPU8[$0 + i] = s.charCodeAt(i) & 0x7f;
-                        HEAPU8[$0 + n] = 0;
-                    }, buf, static_cast<int>(sizeof(buf)));
-                    buf[sizeof(buf) - 1] = '\0';
-                    expected = buf;
-                }
-#endif
                 shaderBytes_ = shaderSource_.size();
                 shaderSha_ = got;
 
@@ -1578,15 +1539,9 @@ namespace t7 {
                     // switched off within a week). The floor does NOT
                     // stop here — the dev path never crossed the
                     // corridor this witness watches.
-#ifdef __EMSCRIPTEN__
-                    std::cout << "[Dist] world.wgsl sha=" << got
-                        << " expected=none (dev serve — placeholder unsubstituted)"
-                           " SKIPPED\n";
-#else
                     std::cout << "[Dist] world.wgsl sha=" << got
                         << " expected=none (native — read off disk, no serve to"
                            " witness) SKIPPED\n";
-#endif
                     serveWitnessed_ = true;
                 }
                 else if (expected == got) {
