@@ -26,15 +26,16 @@
 //   }
 
 #include "core/input_event.hpp"
-#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — ?cap= / --cap= (effective_pixel_cap below)
+#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — --seed= / --mood= / --msaa=, read once at boot
 #include "core/instruments.hpp"  // WIT_2 — t7::g_dropped_submits, the frame-validity witness
 
 #include <webgpu/webgpu_cpp.h>
 
 // ── PORT_1b Region 1: platform includes ──────────────────────────
-// Native links dawn::native and exposes the OS window handle for the
-// surface. Web (emdawnwebgpu) has neither; contrib.glfw3 ships no
-// glfw3native.h, so the whole expose block is native-only too.
+// The program links dawn::native and exposes the OS window handle for
+// the surface. The expose macro must be defined between <GLFW/glfw3.h>
+// and <GLFW/glfw3native.h> — upstream requires that order, and so does
+// the gate's stub of it (tools/gates/console_gate/PROVENANCE.md).
 #include <dawn/native/DawnNative.h>
 #include <dawn/dawn_proc.h>
 #if __has_include("dawn/common/Version_autogen.h")
@@ -67,26 +68,6 @@
 
 namespace t7 {
 
-    // ═══ WEB PRESENTATION CONSTANTS (PORT_3c) ════════════════════════
-    //
-    // THE PIXEL CAP — the largest mobile lever this program has, and it
-    // is a scalar. A phone at 390x844 CSS px with devicePixelRatio 3
-    // renders 1170x2532 = 2.96 M pixels, nearly TRIPLE a 1366x768
-    // laptop: a device three times faster can present itself as slower.
-    // The ratio multiplies fragment work, the surface backbuffer, and
-    // every full-screen attachment together, so it is also a memory
-    // dial, not only a speed one.
-    //
-    // 1.5 keeps edges visibly crisper than 1.0 at 2.25x the pixels
-    // rather than 9x. PANEL-ELIGIBLE and deliberately alone up here:
-    // this is the number to move when a device cannot keep up, and
-    // moving it changes nothing else. 1.0 = CSS-pixel rendering;
-    // a very large value = uncapped, the pre-PORT_3c behavior.
-    // COMPILE-TIME: this constant is the default, and the ONLY override is
-    // the boot parameter read once at startup (effective_pixel_cap, below) —
-    // there is no mid-run channel, so nothing can retune it while it runs.
-    inline constexpr float MAX_DEVICE_PIXEL_RATIO = 1.5f;
-
     // ═══ THE FLOORS' ONE HOME (DOMESDAY_2 A12) ═══════════════════════
     // The granted-vs-floor line used to hand-carry its six literals;
     // they live in the schema's NEEDS table now, emitted here. This
@@ -103,22 +84,10 @@ namespace t7 {
     // A grant is a schema edit plus Jean's gate — never an edit here.
 #include "console/features_wallet.gen.inc"
 
-    // DOMESDAY_1 B9 — the runtime override: a ?cap= / --cap= present at
-    // boot (clamped to [0.5, 3.0] at parse) replaces the constant for
-    // THIS RUN; absent, the constant stands unchanged. Boot-read once,
-    // no mid-run reread — the soak walk's key, so cap 2.25 can be
-    // priced against the purse on the audience device without a
-    // rebuild per arm.
-    inline float effective_pixel_cap() {
-        return boot_params().has_cap ? boot_params().cap
-                                     : MAX_DEVICE_PIXEL_RATIO;
-    }
-
     // ═══ THE COMPILER PLAN (PIVOT_0, 2026-08-12) ═════════════════════
     //
-    // PIVOT_0 — the native shader-compiler plan. The web twin's
-    // compiler is the browser's own; this constant governed
-    // native only. world.wgsl is single-source across all values.
+    // PIVOT_0 — the shader-compiler plan. world.wgsl is single-source
+    // across all values.
     //
     // Why it exists: WALLET_0's occupier cbuffer arrays stalled
     // update_player_agent at 20,227 ms under FXC and then
@@ -179,7 +148,7 @@ namespace t7 {
         // DOMESDAY_2 A13 — spec-cited additions, glaw1-pruned (F1-a):
         // SubgroupSizeControl was rejected by the native Dawn header
         // and removed per A8's standing protocol — its id keeps
-        // printing as a number on both twins; re-add the case when the
+        // printing as a number; re-add the case when the
         // Dawn checkout's wgpu::FeatureName learns the identifier. The
         // Pixel's unknown ids 21/22 are expected to resolve to the two
         // below by enum order.
@@ -218,13 +187,9 @@ namespace t7 {
             msg.find("Invalid") == std::string_view::npos) return;
         ++t7::g_dropped_submits;
     }
-    // SUNRISE_0 N2 — THE GUARD MOVED, THE HELPER DID NOT CHANGE.
-    // WIT_2 landed between the tag and SUNSET_1 and installed this call on
-    // BOTH arms, but with the web twin the only one left the helper drifted
-    // inside `#ifdef __EMSCRIPTEN__`. The restored native error callback
-    // calls it too, so the `#endif` now closes ABOVE it: the anchor above
-    // stays web-only (PORT_4a), the dropped-submit counter is twin-neutral,
-    // which is what g_dropped_submits was always for.
+    // WIT_2 — the dropped-submit counter, called from the device error
+    // callback. It counts the submits the device refused, which is the
+    // frame-validity witness g_dropped_submits was always for.
 
 
     class Console {
@@ -329,7 +294,6 @@ namespace t7 {
                 auto* console = static_cast<Console*>(glfwGetWindowUserPointer(w));
                 if (!console) return;
 
-                // Native-only: the browser owns ESC (pointer-lock exit).
                 if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
                     console->request_close();
                     return;
@@ -462,11 +426,14 @@ namespace t7 {
             //
             // var<immediate> (world.wgsl) is gated by the WGSL language
             // feature immediate_address_space, which is instance-scoped.
-            // F3-a and F5-b reached for DawnWireWGSLControl (webgpu_cpp.h
-            // :2588; enableExperimental / enableUnsafe / enableTesting)
-            // because its chain root IS the instance descriptor and its
-            // three members name exactly the three tiers. The header made
-            // it look like the control.
+            // F3-a and F5-b reached for DawnWireWGSLControl
+            // (wgpu::DawnWireWGSLControl; enableExperimental /
+            // enableUnsafe / enableTesting) because its chain root IS the
+            // instance descriptor and its three members name exactly the
+            // three tiers. The header made it look like the control.
+            // (The line number that stood here cited Dawn's NATIVE
+            // generation, which this tree could not open until
+            // third_party/dawn_native_headers — symbols, not line numbers.)
             //
             // IT WAS NEVER THE CONTROL ON THIS PATH. Read out of Dawn's own
             // sources at the archived native revision f0bf8ab:
@@ -686,10 +653,9 @@ namespace t7 {
                         << text << std::endl;
                     note_if_dropped_submit(type, text);   // WIT_2
                 });
-            // PORT_3a — the loss door, installed on BOTH twins. Native
-            // loss is rarer but real (TDR, GPU reset, driver update), the
-            // honest-death policy is the same, and one shape in two
-            // branches is cheaper to keep true than two policies.
+            // PORT_3a — the loss door. Loss is rare but real (TDR, GPU
+            // reset, driver update), and the honest-death policy does not
+            // depend on which of them caused it.
             deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
                 [this](const wgpu::Device&, wgpu::DeviceLostReason reason,
                        wgpu::StringView message) {
@@ -717,15 +683,13 @@ namespace t7 {
             // costs nothing until a pass writes a timestamp, and keeping the
             // request here means turning the instrument back on is one define
             // in the cartridge, with no host edit and no second door to find.
-            // DOMESDAY_2 F3-b — the wrong enum leaves this twin too. The
-            // immediate lane needs no device feature (there is none);
-            // it needs the instance's WGSL dialect (F3-a) and the
-            // limit, which rides full passthrough here — the adapter's
-            // own maxImmediateSize, never a floor we have to ask for.
-            // Same shape as the web twin's line, so the two logs tell
-            // one story: what this request carries, then what the
-            // instance either has or lacks. ([Console] here, [Device]
-            // there — each twin's own local convention, unchanged.)
+            // DOMESDAY_2 F3-b — the wrong enum is gone. The immediate
+            // lane needs no device feature (there is none); it needs the
+            // instance's WGSL dialect (F3-a) and the limit, which rides
+            // full passthrough here — the adapter's own maxImmediateSize,
+            // never a floor we have to ask for. The log reads in one
+            // order: what this request carries, then what the instance
+            // either has or lacks.
             // SUNRISE_0 N2 — THE IMMEDIATE-LANE READOUT DOES NOT RETURN.
             // The arm printed maxImmediateSize's floor and the instance's
             // immediate_address_space verdict here. COMPAT_1 (ee970995)
@@ -839,10 +803,9 @@ namespace t7 {
             // arguments, which are glfwCreateWindow's arguments and nothing
             // else. Configuring the surface with them put a number nobody
             // measured into the one place the frame is defined. The same
-            // expression the resize path uses answers it here, once, from the
-            // canvas that actually exists by now — and the canvas backing
-            // store is written from it in the same breath, so boot enters the
-            // frame loop with the two already agreeing.
+            // expression the resize path uses answers it here, once, from
+            // the framebuffer that actually exists by now, so boot enters
+            // the frame loop with the surface already agreeing with it.
             surfaceConfig_.width = currentWidth_;
             surfaceConfig_.height = currentHeight_;
             surfaceConfig_.presentMode = wgpu::PresentMode::Fifo;
@@ -927,20 +890,12 @@ namespace t7 {
             // frame. Debouncing intent is still worth doing; debouncing truth
             // never was.
             //
-            // CAP_2 — AND IN PRACTICE THIS BRANCH NOW RARELY FIRES. The
-            // frame-boundary reassertion reconciles canvas and surface to
-            // target as soon as either drifts, and it writes currentWidth_/
-            // currentHeight_ when it does, so by the time control reaches
-            // here the compare below is usually already equal. The settle
-            // window survives as the slower path for a size that changes
-            // without the canvas drifting; its ≤100 ms of scale softness is
-            // no longer what governs a resize. That is a real change to B7's
-            // effect and it is stated rather than discovered: reasserting
-            // immediately is the price of the app being the last writer, and
-            // the port is already reallocating the backing store on every one
-            // of those events anyway.
-            //
-            // The FRAME_1 print stays — it is this unit's acceptance witness.
+            // CAP_2 — THE SETTLE WINDOW IS THE WHOLE PATH AGAIN. The
+            // frame-boundary canvas reassertion that used to reconcile
+            // target and surface before control reached here was the web
+            // twin's, and went with it at web-sunset; this debounce is once
+            // more the one thing that decides a reconfigure. Its ≤100 ms of
+            // scale softness while a resize animates is the stated price.
             if (fbWidth > 0 && fbHeight > 0 &&
                 (static_cast<uint32_t>(fbWidth) != currentWidth_ ||
                     static_cast<uint32_t>(fbHeight) != currentHeight_)) {
@@ -971,9 +926,11 @@ namespace t7 {
 
             // PORT_1b: the dt clamp, lifted verbatim from the dormant
             // core/clock.hpp (retired this commit) — "Clamp dt to avoid
-            // spiral of death", cap 0.1f (100 ms). Inert at native frame
-            // rates; essential across a browser tab-suspend, where rAF
-            // hands back a multi-second gap.
+            // spiral of death", cap 0.1f (100 ms). Inert at ordinary frame
+            // rates; the browser tab-suspend it was essential for went with
+            // the twin at web-sunset, and a multi-second gap is still a
+            // multi-second gap when a debugger or a stalled driver hands
+            // one back.
             const float raw = std::clamp(measured, 0.0f, 0.1f);
 
             // THE PRESENTATION LAW (RIBBON_6). A frame is DISPLAYED for a
@@ -1025,14 +982,14 @@ namespace t7 {
             // THE FLOOR IS NOT DECORATION, and it is the one line that is
             // mine. The period is a DIVISOR now, which the mean never was, so
             // a relock onto a zero measurement is not a degradation but a
-            // permanent NaN — and raw == 0 is not hypothetical. Under
-            // Emscripten this clock is performance.now(), which browsers
-            // coarsen on purpose; Firefox with privacy.resistFingerprinting
-            // coarsens it to 100 ms, so at 60 Hz most consecutive calls return
-            // the SAME value and the difference is exactly zero. Eight of those
-            // in a row is the common case there, not a corner: they would
-            // relock the period to 0 and every later frame would divide by it.
-            // A refresh period cannot be shorter than PRESENT_MIN_PERIOD.
+            // permanent NaN. The reader that made raw == 0 ordinary rather
+            // than hypothetical was the browser's coarsened performance.now()
+            // — Firefox at privacy.resistFingerprinting quantises it to
+            // 100 ms, so most consecutive calls returned the SAME value —
+            // and it went with the twin at web-sunset. The floor stays: a
+            // divisor that can reach zero is worth one comparison whoever
+            // is holding the clock. A refresh period cannot be shorter than
+            // PRESENT_MIN_PERIOD.
             // The fit's sample set: deltas only, artefacts dropped. A reading
             // under PRESENT_FIT_FLOOR is a coarsened or duplicated timer value,
             // never a display that refreshes faster than 250 Hz.
@@ -1069,8 +1026,7 @@ namespace t7 {
                 // feedback path at all: it does not move the period, and the
                 // in-band arm clears dtStrangers_, so it never relocks either.
                 // A display whose frame time lands anywhere in 29.2-37.5 ms —
-                // 26.7 to 34.3 Hz, which is exactly where a battery-saver phone
-                // capping rAF sits — then reads as a permanent 2x against a
+                // 26.7 to 34.3 Hz — then reads as a permanent 2x against a
                 // 16.67 ms period and is served 33.3 ms for every frame. At
                 // 34 Hz that is the world running 13.4% FAST, forever, with a
                 // clean meter. raw / k fixes it without costing anything: a
@@ -1150,8 +1106,8 @@ namespace t7 {
             // RIBBON_6: the canvas, published for the meter's window line.
             // Written HERE rather than at the four sites that assign
             // currentWidth_/currentHeight_, because by this point in the frame
-            // every one of them has spoken and the reassert above is the last
-            // word (CAP_2). One store a frame, no branch.
+            // every one of them has spoken and the settle path above is the
+            // last word (CAP_2). One store a frame, no branch.
             t7::g_canvas_w = currentWidth_;
             t7::g_canvas_h = currentHeight_;
 
@@ -1160,10 +1116,11 @@ namespace t7 {
 
         // ═══ ACQ_0 — THE ACQUIRED TEXTURE IS THE ONLY WITNESS OF FRAME SIZE ═══
         //
-        // The old emdawnwebgpu generation handed back surface textures at the
-        // last CONFIGURED size, so a stale depth buffer and a stale swapchain
-        // stayed consistent with each other and the debounce was safe. The new
-        // generation's surface tracks the CANVAS's actual size at acquire. Two
+        // An older generation handed back surface textures at the last
+        // CONFIGURED size, so a stale depth buffer and a stale swapchain
+        // stayed consistent with each other and the debounce was safe. The
+        // generation this tree pins tracks the surface's actual size at
+        // acquire (found on the web twin, true of both). Two
         // writers, one of them now moving on its own clock: at boot and around
         // every resize there was a window where the depth attachment and the
         // backbuffer disagreed, Dawn invalidated the whole "frame" encoder, and
@@ -1203,13 +1160,13 @@ namespace t7 {
             return true;
         }
 
+        // ── PORT_1b Region 4 — presentation is a call again. On the web
+        // twin this body was a deliberate no-op: emdawnwebgpu's
+        // wgpuSurfacePresent existed but ABORTED, because presentation
+        // there happened implicitly at rAF return. That twin is attic'd
+        // (tag web-sunset) and Present() is simply the swap.
         void present() {
             surface_.Present();
-            // ── PORT_1b Region 4 (web): no-op — presentation is implicit
-            // at rAF return. P0-verified: emdawnwebgpu's wgpuSurfacePresent
-            // exists but ABORTS ("wgpuSurfacePresent is unsupported (use
-            // requestAnimationFrame via html5.h instead)"), so it must not
-            // be called.
         }
 
         bool running() const {

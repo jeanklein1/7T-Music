@@ -32,7 +32,6 @@ namespace t7 {
     struct BootParams {
         bool has_seed = false; uint32_t seed = 0;
         bool has_mood = false; uint32_t mood = 0;
-        bool has_cap  = false; float    cap  = 1.0f;
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
     };
 
