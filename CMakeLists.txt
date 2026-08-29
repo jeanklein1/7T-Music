@@ -561,10 +561,10 @@ set(DAWN_LIBS
 # /Zc:preprocessor selects the conforming preprocessor and the 366 rows
 # expand as written. Jean's falsifier proved the one-flag cure.
 #
-# WHY IT SURFACES ONLY HERE. The web twin compiles under emcc, whose
-# clang is conforming by default, so the ORGAN forwarders have always
-# worked there and this was never a two-twin fact. It is native-only,
-# which is why it belongs in the MSVC set and nowhere else.
+# WHY IT WAS NEVER SEEN BEFORE NATIVE. emcc's clang is conforming by
+# default, so the ORGAN forwarders always worked on the web twin and the
+# defect was MSVC's traditional preprocessor's alone. It belongs in the
+# MSVC set and nowhere else.
 #
 # IT WAS AN ENVIRONMENT VARIABLE UNTIL NOW. The first native build carried
 # it through the shell, which means the build was reproducible only for
@@ -612,7 +612,7 @@ set(T7_INSTRUMENTS                    "off"              CACHE STRING "Recurring
 
 # THE PIN (DRAW_0). The one dial here whose EMPTY IS LEGAL — and empty
 # is the default. Empty means the world's master seed is DRAWN at boot
-# from the wall clock (cartridge.hpp, boot_seed), so the web twin draws
+# from the wall clock (cartridge.hpp, boot_seed), so an ordinary build draws
 # with no CMake change at all. A number PINS the world to that seed,
 # exactly reproducible: -DT7_WORLD_SEED=42 restores the authored world
 # (DEMO_SEED, demos/matrix.hpp).
@@ -680,9 +680,8 @@ target_include_directories(the_board PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 
-# SUNRISE_0 N4 — the native twin's includes and link list. Both come from
-# the Dawn section above; neither exists under Emscripten, where the port
-# supplies WebGPU and GLFW itself.
+# The native includes and link list, both from the Dawn section above
+# (SUNRISE_0 N4).
 target_include_directories(the_board PRIVATE ${DAWN_INCLUDES})
 target_link_libraries(the_board PRIVATE ${DAWN_LIBS})
 
