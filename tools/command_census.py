@@ -394,8 +394,17 @@ def census_submits():
 def census_reconfigure(w):
     """The swapchain reconfigure sites, and THE trigger: the resize-path
     condition in Console::begin_frame whose branch reconfigures the
-    surface and fires frame1_report — the code that feeds the [FRAME_1]
-    print. Quoted verbatim."""
+    surface. Quoted verbatim.
+
+    WEB_SUNSET: C-3 also required that branch to contain a
+    `frame1_report(` call. FRAME_1 was the debounce acceptance witness for
+    the canvas/framebuffer split — console.hpp's own banner called it
+    TEMPORARY INSTRUMENTATION and said to retire it after the soak walk —
+    and both its definition and its one call site lived inside
+    `#ifdef __EMSCRIPTEN__` arms, so they went with the twin at tag
+    web-sunset. The anchor is retired with its subject; the verbatim
+    capture, which is what §3 of the ledger actually publishes, is
+    unchanged."""
     path = INPUTS[-1]
     text = read_raw(path)
     relp = os.path.relpath(path, REPO).replace(os.sep, "/")
@@ -415,12 +424,10 @@ def census_reconfigure(w):
         close = text.find("\n" + indent + "}", m.start())
         end = text.find("\n", close + 1) if close != -1 else m.end()
         quote = text[if_line_start:end]
-        branch_has_frame1 = "frame1_report(" in quote
         trigger = {"file": relp, "line": line_of(text, if_pos),
-                   "quote": quote, "anchored": branch_has_frame1}
-    w.record("C-3", trigger is not None and trigger["anchored"],
-             "the begin_frame reconfigure branch is captured verbatim and "
-             "contains the frame1_report call that feeds [FRAME_1]"
+                   "quote": quote}
+    w.record("C-3", trigger is not None,
+             "the begin_frame reconfigure branch is captured verbatim"
              if trigger else
              "NO begin_frame reconfigure site found")
     return sites, trigger
