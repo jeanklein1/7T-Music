@@ -685,12 +685,11 @@ struct AuthoredStagingRecord {
     uint32_t disk_index = UINT32_MAX;
     // WHICH PAINTING THIS SLOT'S TEXTURE ACTUALLY HOLDS (WALLS_3).
     //
-    // `disk_index` is a CLAIM, written when the fetch is requested. The
-    // texture still holds the outgoing image until the round trip lands, so
-    // the two disagree for the whole flight. That was harmless while a
-    // pending record was `valid = false` and unpickable; WALLS_2 made pending
-    // records pickable ON PURPOSE — that is the fix — and the disagreement
-    // became load-bearing.
+    // `disk_index` is a CLAIM. It and the texture could disagree for a
+    // whole round trip while the exhibition arrived over the network;
+    // that flight went with the web twin at web-sunset, and the
+    // distinction stayed, because WALLS_2 made the claim load-bearing on
+    // its own.
     //
     // Everything that asks "which painting is on this wall" reads THIS.
     // Everything that asks "which painting has been spoken for" reads
@@ -702,15 +701,6 @@ struct AuthoredStagingRecord {
     float uv_scale_y = 1.0f;
     bool valid = false;
     bool consumed = false;
-    // EXHIBIT_0 — A REQUEST IS NOT A PICTURE. On the retired native twin
-    // a load either fills this record or fails, inside one call; over the
-    // network the two are separated by a round trip. `pending` names that
-    // gap: the slot is spoken for (disk_index is already set, so the
-    // rotation cursor will not hand the same painting to a second slot)
-    // and it is NOT valid, so no gallery can pick it. Cleared on arrival
-    // AND on failure — a slot that never clears is a slot the rotation
-    // can never reuse.
-    bool pending = false;
     // WHAT THE ROTATION READS (OVERTURE_0 — the WALLS_1 split, ruled).
     // `consumed` says "on a wall NOW" and is released when the painting
     // leaves the world; this says "hung at least once THIS world, so rotate
@@ -806,26 +796,6 @@ struct GalleryState {
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
-
-    // ── EXHIBIT_0: the web twin's loading gap, named ────────────────
-    // The native twin had no state here because its loads were calls
-    // that returned with the picture. The web twin's do not, so the
-    // two facts that only exist BETWEEN a request and its answer live
-    // here: how many are out, and which ones are still waiting for a
-    // free lane.
-    struct AuthoredFetchRequest {
-        uint32_t staging_layer;
-        uint32_t disk_index;
-        std::string url;
-    };
-    std::vector<AuthoredFetchRequest> authored_fetch_queue;
-    uint32_t authored_fetch_inflight = 0;
-    // The manifest is requested once per session, at the earliest
-    // instant a GalleryState exists (the cartridge constructor).
-    bool authored_manifest_requested = false;
-    // The manifest's absence is a true fact every time it is asked before the
-    // fetch lands; it is only worth SAYING once (scan_paintings_folder).
-    bool authored_absence_logged = false;
 
     // The occupancy array is the whole record. A companion count used to
     // ride beside it, incremented at every claim and decremented at every
@@ -1895,18 +1865,14 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
 
 // ═══ THE PLATFORM SEAM (EXHIBIT_0) ═══════════════════════════════
 //
-// LAW: the bundle carries the program; the network carries the
-// exhibition. The two twins differ in exactly one thing — WHERE THE
-// BYTES COME FROM. Native walked a directory and read files; the web
-// twin fetches a manifest and then each painting by URL. Everything
-// downstream of the decode is one body, shared, because everything
-// downstream is the same act.
-//
-// The two facts the seam must not fork are the ORDER the paintings
-// hang in and the RECORD a hung painting is described by. They get one
-// home each below, and both twins call them.
+// The seam is gone with the twin that made it one (web-sunset): the
+// bytes come from a directory walk and from nowhere else. What the seam
+// built survives on its own merits — the ORDER the paintings hang in and
+// the RECORD a hung painting is described by each have exactly one home
+// below, and everything downstream of the decode is one body, because
+// everything downstream is one act.
 
-// ── THE NUMERIC SORT KEY — one rule, both twins ──
+// ── THE NUMERIC SORT KEY — one rule ──
 // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100, which is not
 // what a lexicographic sort says. Semantics are the native lambda's,
 // unchanged: the stem, the text after the FIRST '_', std::stoi (leading
@@ -1920,9 +1886,8 @@ inline int authored_extract_number(const std::string& path) {
     catch (...) { return 0; }
 }
 
-// ── THE SCALE / PAD / UPLOAD — one body, both twins ──
-// The decode differs (a path vs a buffer); everything after it does
-// not. This body is also where aspect_ratio and the two uv_scale
+// ── THE SCALE / PAD / UPLOAD — one body ──
+// This body is where aspect_ratio and the two uv_scale
 // fields are DERIVED from dst_w/dst_h — a second copy would be a
 // second place for the frame's shape to disagree with its texture.
 // The caller owns `data` and frees it; the caller also prints the
@@ -1979,19 +1944,13 @@ inline void authored_stage_decoded_image(GalleryState& gs, GPUState& gpu, wgpu::
 }
 
 
-// authored_staged_count is a tally of valid records. On the web twin
-// records become valid at ARRIVAL time rather than at call time, so the
-// tally is RECOMPUTED where it changes rather than incremented at a call
-// site that cannot yet know the answer; the native twin's loads return
-// with the picture, so its recount is simply exact on the first pass.
+// authored_staged_count is a tally of valid records, RECOMPUTED where it
+// changes. The loads return with the picture, so the recount is exact on
+// the first pass.
 //
-// SUNRISE_0 N3 — TWIN-NEUTRAL BY NECESSITY. This helper drifted inside
-// `#ifdef __EMSCRIPTEN__` while the web twin was the only one, but
-// rotate_authored_staging and load_authored_textures call it from
-// unguarded code on both twins. It sits above the guard now. It is also
-// load-bearing beyond the gallery: authored_staged_count is what
-// offer_controls_when_ready() reads, and web/index.html lifts its veil on
-// the line that gate releases.
+// SUNRISE_0 N3 — TWIN-NEUTRAL BY NECESSITY. It is load-bearing beyond
+// the gallery: authored_staged_count is what offer_controls_when_ready()
+// reads.
 inline void recount_authored_staged(GalleryState& gs) {
     gs.authored_staged_count = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++)
@@ -2062,8 +2021,7 @@ inline void scan_paintings_folder(GalleryState& gs) {
 
     // Sort by numeric value after PAINTING_ (not lexicographic)
     // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100
-    // The rule itself now lives at authored_extract_number, above —
-    // the web twin sorts its manifest by the same one.
+    // The rule itself lives at authored_extract_number, above.
     std::sort(gs.authored_disk_manifest.begin(), gs.authored_disk_manifest.end(),
         [](const std::string& a, const std::string& b) {
             return authored_extract_number(a) < authored_extract_number(b);
@@ -2081,21 +2039,10 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         scan_paintings_folder(gs);
     }
     if (gs.authored_disk_manifest.empty()) {
-        // WEB: THE FLAG DOES NOT LATCH ON AN EMPTY MANIFEST. Native's
-        // "empty" was a verdict — the folder was walked and there was
-        // nothing there — so latching was right: a second walk would
-        // have found the same nothing. This twin's "empty" is "the
-        // fetch has not landed yet", and boot ALWAYS reads it before
-        // it can (init_world runs the whole boot inside one rAF turn,
-        // so no fetch callback can fire in the middle of it). Latching
-        // here would lock the exhibition out for the session. Left
-        // false, the conductor re-enters next frame and finds the
-        // manifest (OVERTURE_0) — which is the whole of what makes a
-        // late exhibition arrive at all.
-        // NATIVE (SUNRISE_0 N3): "empty" IS a verdict here — the folder was
-        // walked and there is nothing in it — so the flag latches and the
-        // walk is not repeated every frame. This is the one line of the
-        // comment above that describes the native twin again.
+        // "Empty" IS a verdict: the folder was walked and there is
+        // nothing in it — latch, so the walk is not repeated every
+        // frame. (The web twin's not-yet-landed manifest, which forbade
+        // latching, went with it at web-sunset.)
         gs.authored_textures_loaded = true;
         return;
     }
@@ -2117,7 +2064,6 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     bool disk_in_use[256]{};
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         const auto& r = gs.authored_staging[i];
-        if (r.pending && r.disk_index < 256) disk_in_use[r.disk_index] = true;
         if (r.valid && !r.consumed && r.disk_index < 256) disk_in_use[r.disk_index] = true;
         if (r.shown_disk_index != UINT32_MAX && r.shown_disk_index < 256)
             disk_in_use[r.shown_disk_index] = true;
@@ -2129,9 +2075,6 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     uint32_t filled = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS && filled < want; i++) {
         auto& rec = gs.authored_staging[i];
-        // A SLOT IN FLIGHT IS SPOKEN FOR. Its fetch is already on its way
-        // and its claim is already in the book above.
-        if (rec.pending) continue;
         // A PICTURE ALREADY HERE IS NOT RE-ASKED FOR.
         if (rec.valid && !rec.consumed) continue;
         while (disk < manifest_size && disk < 256 && disk_in_use[disk]) disk++;
@@ -2176,12 +2119,6 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
             if (gs.authored_staging[i].disk_index < 256)
                 disk_in_use[gs.authored_staging[i].disk_index] = true;
         }
-        // A SLOT IN FLIGHT ALREADY OWNS ITS PAINTING. It is not valid
-        // yet, so the test above cannot see it — and without this the
-        // cursor would hand the same disk index to a second slot and
-        // the wall would hang the same picture twice.
-        if (gs.authored_staging[i].pending && gs.authored_staging[i].disk_index < 256)
-            disk_in_use[gs.authored_staging[i].disk_index] = true;
         // AND THE PICTURE IT IS STILL SHOWING (WALLS_3). Unconditional, and
         // that is the whole point: the two marks above are keyed on the
         // CLAIM, and a slot rotated away is CONSUMED and not yet pending, so
@@ -2206,16 +2143,6 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
         // which outlives the eviction that released it, and is exactly the
         // fact the split gave its own word.
         if (!gs.authored_staging[i].hung_this_world) continue;
-        // A SLOT ALREADY IN FLIGHT IS NOT ROTATED. The loop below reads
-        // the disk cursor, ADVANCES it, and then assumes the load took —
-        // it marks the painting in use and counts a rotation. On this
-        // twin the load can decline (the pending guard), and the cursor
-        // would have moved anyway: that manifest entry would be skipped
-        // for a full lap and the log would report a rotation that never
-        // happened. Skipping here costs the slot nothing; its fetch is
-        // already on its way.
-        if (gs.authored_staging[i].pending) continue;
-
         // Find next disk image not already in a surviving slot
         uint32_t attempts = 0;
         while (attempts < manifest_size) {
@@ -2719,9 +2646,9 @@ inline void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& 
 // evicts an image the entrance owns.
 //
 // The room, once the folder has settled: the walls take everything the sand
-// did not, and the memory is taken over BOTH stages. Reached only from the
-// in_flight == 0 arm, which is what makes "nothing hangable left" mean "all
-// of it is up" rather than "one never arrived".
+// did not, and the memory is taken over BOTH stages. The walk returns with
+// every picture it is going to get, so "nothing hangable left" means "all of
+// it is up" and cannot mean "one never arrived".
 
 inline void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
