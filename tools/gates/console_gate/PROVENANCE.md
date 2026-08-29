@@ -1,5 +1,13 @@
 # console_gate — PROVENANCE
 
+> DELETED AT WEB_SUNSET (W5), with the arms that named them:
+> `stubs/emscripten.h`, `stubs/emscripten/em_types.h`,
+> `stubs/emscripten/fetch.h`, `stubs/emscripten/html5.h` (ours), and the
+> vendored `stubs/GLFW/emscripten_glfw3.h`. Their entries are gone with
+> them — a receipt for a file that is not here is the false-authority
+> class L30 exists for. Resurrection is archaeology from tag
+> `web-sunset`.
+
 ## `stubs/GLFW/glfw3.h`
 
 | field | value |
@@ -11,12 +19,15 @@
 | fetched | 2026-08-16 (GATE_1) |
 | license | zlib/libpng — © 2002-2006 Marcus Geelnard, © 2006-2019 Camilla Löwy. Full text in the header. |
 
-**Why this copy and not another.** This is the header the `contrib.glfw3`
-port actually wraps — the port vendors it at `external/GLFW/`, and the API
-the web build compiles against is this one, not whatever a system package
-or an emsdk checkout happens to hold. The gate exists to catch a symbol
-console.hpp names that the real surface lacks; pointed at a different copy
-it would answer a different question.
+**Why this copy and not another.** It is REAL GLFW 3.5.1, receipted, and
+`input.hpp` needs its key codes on the one program — which is why the
+stubs directory stays on both gates' include lines after WEB_SUNSET
+(glaw1's banner says so). It came here as the header the `contrib.glfw3`
+port vendors at `external/GLFW/`; that port went with the web twin, the
+bytes did not, and a pinned copy still beats whatever a system package
+happens to hold. The gate exists to catch a symbol the tree names that
+the real surface lacks; pointed at a different copy it would answer a
+different question.
 
 **FLAGGED — the version.** GATE_1's handoff said GLFW 3.4. The port carries
 3.5.1. The artifact won: 3.5.1 is what the port wraps today, and vendoring
@@ -34,65 +45,29 @@ payload (`third_party/emdawnwebgpu/PINNED.md`), and the same reason
 sha256sum tools/gates/console_gate/stubs/GLFW/glfw3.h
 ```
 
-## `stubs/GLFW/emscripten_glfw3.h`
+## `stubs/GL/gl.h`
 
-| field | value |
-|---|---|
-| upstream | `pongasoft/emscripten-glfw`, path `include/GLFW/emscripten_glfw3.h` |
-| commit | `81c2f8d4fbe1b5e3c99e09a081569025b8a3dd14` |
-| sha256 | `b6f01b0844523fc23b13348f2fa18d9fec0ee010c4de79ac3b5d401286827059` |
-| fetched | 2026-08-16 (GATE_1) |
-| license | Apache-2.0 — © 2024 pongasoft. Full text linked in the header. |
-
-The port's own public header, vendored rather than stubbed for the same
-reason as `glfw3.h`: `emscripten_glfw_make_canvas_resizable`'s real
-signature is what FRAME_0 calls, and a stub would only prove that our call
-matches our own guess. Byte-identical to upstream.
-
-The gate found this one itself — its first run failed on the missing
-include rather than passing over it, which is the behaviour the unit was
-built for.
-
-## `stubs/GLFW/glfw3native.h`
-
-**Ours, not vendored** — the one hand-written file in this GLFW directory,
-and the only stub WEB_SUNSET added. It carries the standing banner
-`STUB — declarations only, the native boot remains the runtime witness`.
-
-Upstream's `glfw3native.h` cannot be vendored here for the reason the
-stub's own banner gives: under `GLFW_EXPOSE_NATIVE_X11` it includes
-`<X11/Xlib.h>` and Xrandr, under `_WIN32` it includes `<windows.h>`, and a
-gate that needed a platform SDK would run on one machine instead of on
-any. Declaring the three getters `console.hpp` names, behind the same
-expose macros upstream gates them with, asks the only question this gate
-can honestly ask: does OUR call match the shape the surface sources hold?
-
-The return types are opaque and chosen against the real structs rather
-than guessed — `SurfaceSourceXlibWindow::display` is `void *` and
-`::window` is `uint64_t`; `SurfaceSourceWindowsHWND::hwnd` and
-`::hinstance` are both `void *` (`third_party/dawn_native_headers`,
-`dawn/webgpu_cpp.h`). `glfwGetCocoaWindow` is declared and never called:
-`initSurface`'s platform chain is `_WIN32` / `__linux__` only, so on
-macOS the surface descriptor is left unchained. Declared anyway, so the
-stub matches upstream's shape rather than this host's.
-
-## `stubs/emscripten*.h`, `stubs/GL/gl.h`
-
-Ours, not vendored. Each declares only what `console.hpp` names, and each
-carries the banner `STUB — declarations only, the web boot remains the
-runtime witness`. They are the gate's boundary, stated the way glaw1 states
-its own: this harness certifies OUR names, scope and types; the SDK surface
-behind these declarations is the boot's jurisdiction.
-
-Field names and types inside `EmscriptenTouchEvent` / `EmscriptenTouchPoint`
-match upstream on purpose — if Emscripten renames one, this gate should fail
-before the phone does.
+Ours, not vendored, and NOT web residue — which is why it survived W5's
+sweep of the emscripten stubs beside it. It is insurance for the vendored
+`glfw3.h`'s own OpenGL cascade: upstream GLFW includes `<GL/gl.h>` unless
+`GLFW_INCLUDE_NONE` is defined, and both gates define it on every run.
+Measured at W5 with the flag dropped: the cartridge TU reaches this file,
+and with the file also removed the compile is a FATAL ERROR at
+`glfw3.h:241`. So nothing reaches it today, one command-line flag is the
+whole reason, and it costs one small file to keep that true by
+construction rather than by vigilance.
 
 ## `stubs/webgpu` — absent, on purpose
 
-There is no WebGPU stub. The gate compiles against the **vendored
-emdawnwebgpu payload** at
-`third_party/emdawnwebgpu/emdawnwebgpu_pkg/` — the real generated
-`webgpu_cpp.h`, pinned by `PINNED.md`. That is the whole point: a stub
-would have happily accepted `SetImmediates` against a generation that did
-not have it, which is precisely the hole F5F closed.
+There is no WebGPU stub, and after WEB_SUNSET there are TWO real
+surfaces rather than one. Tier CARTRIDGE compiles against the vendored
+emdawnwebgpu payload at `third_party/emdawnwebgpu/emdawnwebgpu_pkg/`;
+tier CONSOLE compiles against `third_party/dawn_native_headers/`, Dawn's
+NATIVE generation at the same revision, because the web-target generation
+does not carry the extensions `console.hpp`'s arms use. Each has its own
+PINNED.md receipt.
+
+That is the whole point, and it has now been paid for twice: a stub would
+have happily accepted `SetImmediates` against a generation that did not
+have it (the hole F5F closed), and a stub could not have supplied
+`Adapter::CreateDevice` at all, because it is a member.

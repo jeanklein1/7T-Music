@@ -1,4 +1,16 @@
 # PINNED — emdawnwebgpu
+
+## ROLE (amended at WEB_SUNSET)
+
+The web build this payload served is gone (tag web-sunset). The payload
+STAYS as a pinned header surface: glaw1 and console_gate's CARTRIDGE
+tier compile against `webgpu_cpp/include` here. It is the WEB-TARGET
+generation of revision 56f332d7 — same generation as the native pin,
+NOT the same surface: it lacks the Dawn-native extensions, which is why
+the CONSOLE tier compiles against `third_party/dawn_native_headers`
+instead (its own PINNED.md, same revision, L37). The sha receipts below
+are unchanged and still bind.
+
 generation: v20260814.182433
 zip sha256: c2983584f5841de83fc7c460abe9385392df1de05151d4e487394f8319c15e0e
 fetched: 2026-08-16 (F5F-a)
@@ -6,9 +18,10 @@ law: the pin is the vendored payload itself; this file is its
 receipt. The build consumes ONLY the in-tree port (F5F-b); a
 missing payload is a configure-time FATAL, never a fallback.
 witness: the payload must declare SetImmediates,
-ImmediateAddressSpace and the immediate-size limit — the three
-symbols the tree calls (console.hpp §F5-d, render_passes.hpp
-shadow_slot, world.wgsl `requires immediate_address_space`).
+ImmediateAddressSpace and the immediate-size limit — the symbols the
+tree calls (render_passes.hpp shadow_slot). world.wgsl is PLAIN WGSL —
+no `requires` directive, no immediate address space — and
+tools/wgsl_gate.py polices that absence with its lane regex, per commit.
 
 ## The artifact
 
@@ -40,11 +53,9 @@ the compiler will actually open:
 
 | the tree calls | the payload declares |
 |---|---|
-| `inst.HasWGSLLanguageFeature(wgpu::WGSLLanguageFeatureName::ImmediateAddressSpace)` (console.hpp) | `webgpu_cpp.h:1408` `HasWGSLLanguageFeature`, `:748` the enumerator |
 | `pass.SetImmediates(0, &li, sizeof(uint32_t))` (render_passes.hpp) | `webgpu_cpp.h:1607/1633/1666` `SetImmediates(uint32_t, void const*, size_t)` — render pass, compute pass, render bundle |
 | `d.immediateSize = …` (renderer.hpp) | `webgpu_cpp.h:1892` `PipelineLayoutDescriptor::immediateSize` |
 | `maxImmediateSize` (NEEDS r7) | `webgpu_cpp.h:2397` `Limits::maxImmediateSize` |
-| `requires immediate_address_space;` (world.wgsl) | `library_webgpu_enum_tables.js`, `webgpu.h` |
 
 A WITNESS ATTESTS THE ARTIFACT, NOT THE INTENTION.
 
