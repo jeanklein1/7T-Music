@@ -16,6 +16,13 @@
 # reformat anything under this path; it is not ours to shape.
 third_party/emdawnwebgpu/emdawnwebgpu_pkg/** -text
 
+# WEB_SUNSET W1b — the native header surface, same law again. Six of the
+# ten files are byte-identical to Dawn at 56f332d7 and the other four are
+# receipted by recipe plus hash; both receipts are recorded in
+# third_party/dawn_native_headers/PINNED.md and both stop re-checking the
+# moment a checkout translates a line ending.
+third_party/dawn_native_headers/** -text
+
 # GATE_1 — the console gate's vendored headers, same law as the payload
 # above: PROVENANCE.md records a sha256 for each, and a checkout that
 # translated them would make that hash uncheckable on the platform that
