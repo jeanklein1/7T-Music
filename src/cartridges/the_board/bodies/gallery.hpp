@@ -42,10 +42,6 @@
 #include <iomanip>     // std::fixed, std::setprecision — the time-to-poster witness (ATRIUM_10)   // (impl, merged)
 #include <string>      // manifest paths, std::stoi   // (impl, merged)
 #include <vector>      // manifest + pixel staging   // (impl, merged)
-#ifdef __EMSCRIPTEN__
-#include <cstring>            // std::strncpy — emscripten_fetch_attr_t::requestMethod   (EXHIBIT_0)
-#include <emscripten/fetch.h> // the web twin's byte source: the network, not a filesystem (EXHIBIT_0)
-#endif
 #include "core/instruments.hpp"   // RIBBON_4 — INSTRUMENTS.stream_witness gates the steady path's witness lines
 
 namespace t7 {
@@ -2003,255 +1999,6 @@ inline void recount_authored_staged(GalleryState& gs) {
 }
 
 
-#ifdef __EMSCRIPTEN__
-
-// ═══ THE EXHIBITION ARRIVES OVER THE NETWORK ═════════════════════
-
-// The manifest the dist script writes beside the program. NOT
-// manifest.json — that name stays reserved for the PWA web manifest.
-inline constexpr const char* EXHIBITION_MANIFEST_URL = "exhibition.json";
-// The folder the manifest's bare filenames hang under. One place
-// decides the layout; tools/web_dist.py writes to the same one.
-inline constexpr const char* EXHIBITION_PAINTINGS_DIR = "paintings/";
-// ATRIUM_3 — the entrance's own folder, written by tools/web_dist.py from
-// assets/atrium. The manifest names files; the program joins the folder.
-
-// FOUR PAINTINGS IN THE AIR, SIZED FOR THE BOOT (OVERTURE_0). The ring is
-// born before its exhibition arrives and dresses from the first arrivals, so
-// what this number really sets is how long the first field stands bare. Four
-// lanes reach the exhibition floor in two round trips instead of six.
-//
-// The cost is bounded and small: each arrival is one 512-px JPEG decode
-// (PAINTING_CAP) and one 1 MiB WriteTexture, a few ms, and four of them in
-// one event turn is still a few ms. They do not even land together — four
-// round trips do not answer in lockstep.
-//
-// ONE LANE WAS A FIREFOX MEASURE, NOT A GENERAL ONE. ORGAN_8 P3 paced the
-// uploads to a trickle because Firefox's WebGPU serves them from blocks it
-// sub-allocates and a burst opens blocks the trickle never lets empty
-// (OPEN.md, FIREFOX STAGING RATCHET). Firefox is HELD at the fallback card:
-// the lane count is sized for the browsers that can run the piece, and the
-// pacing question is re-owed the day Firefox returns.
-inline constexpr uint32_t AUTHORED_FETCH_INFLIGHT_CAP = 4;
-
-// A request that never answers holds its lane forever, so every request
-// is given an end. Generous, because a phone on a slow connection
-// fetching a half-megabyte JPEG is the normal case this must not kill.
-inline constexpr unsigned long AUTHORED_FETCH_TIMEOUT_MS = 30000;
-
-// The fetch's own copy of everything the answer will need. The two
-// pointers outlive every fetch by construction: GalleryState and
-// GPUState are members of the Cartridge, which is a member of App,
-// heap-allocated in main() and never destroyed on this twin. The queue
-// is a REFERENCE, not a pointer — wgpu handles are refcounted, so this
-// copy keeps the queue alive on its own account.
-struct AuthoredFetchCtx {
-    GalleryState* gs;
-    GPUState*     gpu;
-    wgpu::Queue   queue;
-    uint32_t      staging_layer;
-    uint32_t      disk_index;
-    std::string   url;
-};
-
-inline void pump_authored_fetches(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);
-
-
-// A SLOT THAT FAILED MUST STAY REACHABLE. Native's failure was final and
-// harmless — the file was on disk or it was not, and a second read would
-// have failed the same way. A network failure is a different animal: a
-// 502, a dropped connection on a phone, a name that lost its file
-// between two dist runs. Left as {valid=false, pending=false,
-// hung_this_world=false} the slot would be unreachable forever:
-// load_authored_textures has latched, and rotate only revisits slots that
-// hung something this world. So a failure marks the slot hung — still
-// invalid, so nothing can pick it, but now exactly the shape the rotation
-// is looking for, and the next world change re-asks. The disk claim is dropped with
-// it so the cursor is free to hand that painting to whichever slot comes
-// up.
-inline void authored_fetch_release_slot(GalleryState& gs, uint32_t staging_layer) {
-    auto& rec = gs.authored_staging[staging_layer];
-    // A DIFFERENT PAINTING FAILED TO ARRIVE. This used to blank the slot,
-    // which threw away the picture it was still holding — on venue wifi, a
-    // bare wall for the rest of the world. It could not be fixed by deletion
-    // while one field carried both facts: the claim to restore already named
-    // the painting that did not come.
-    //
-    // Now it can. The claim falls back to what is actually shown, so the
-    // record is self-consistent again and the rotation will not hand that
-    // picture to a second slot.
-    //
-    // AND THE MARK GOES ON THE ROTATION'S FLAG, NOT ON `consumed`
-    // (OVERTURE_0). The slot must still be the shape the rotation looks for
-    // so the next world re-asks — that is what this line has always been for
-    // — and since the split that shape is `hung_this_world`. `consumed` is
-    // deliberately untouched: a failed refetch of a record still hanging on a
-    // wall must leave it on the wall.
-    rec.disk_index = rec.shown_disk_index;
-    rec.valid = (rec.shown_disk_index != UINT32_MAX);
-    rec.hung_this_world = true;
-}
-
-// One exit for both outcomes: the lane is freed, the context is
-// destroyed, and the queue is pumped so the next painting starts the
-// instant this one is done with its lane.
-inline void authored_fetch_finish(AuthoredFetchCtx* ctx) {
-    GalleryState& gs = *ctx->gs;
-    GPUState& gpu = *ctx->gpu;
-    wgpu::Queue queue = ctx->queue;
-    gs.authored_staging[ctx->staging_layer].pending = false;
-    if (gs.authored_fetch_inflight > 0) gs.authored_fetch_inflight--;
-    recount_authored_staged(gs);
-    delete ctx;
-    pump_authored_fetches(gs, gpu, queue);
-}
-
-inline void authored_image_onsuccess(emscripten_fetch_t* fetch) {
-    AuthoredFetchCtx* ctx = (AuthoredFetchCtx*)fetch->userData;
-    int width = 0, height = 0, channels = 0;
-    // stb allocates its own pixels, so the fetch buffer is dead the
-    // moment the decode returns — closed here rather than later, so no
-    // path below can leak it.
-    unsigned char* data = stbi_load_from_memory(
-        (const stbi_uc*)fetch->data, (int)fetch->numBytes, &width, &height, &channels, 4);
-    emscripten_fetch_close(fetch);
-
-    if (!data) {
-        std::cerr << "[Authored] Failed to load: " << ctx->url << "\n";
-        authored_fetch_release_slot(*ctx->gs, ctx->staging_layer);
-        authored_fetch_finish(ctx);
-        return;
-    }
-
-    std::cout << "[Authored] Loaded: " << ctx->url
-        << " (" << width << "x" << height << ") → staging " << ctx->staging_layer << "\n";
-
-    // ── THE DEVICE-LOST EXEMPTION, NAMED ─────────────────────────
-    // The call below ends in a queue WriteTexture, and this is the one
-    // GPU write in the program that does NOT sit under the frame gate
-    // (pawn.cpp: `if (app->console.device_lost()) return;`).
-    // A fetch completion is a browser event, not a frame, so a painting
-    // that lands after the device is lost writes through a dead queue.
-    //
-    // That is allowed here, deliberately, and the reasoning is the
-    // whole comment:
-    //   · The gate's own warning is about NATIVE Dawn, where the loss
-    //     destroys the objects and driving them afterwards is heap
-    //     corruption. This program does not run on native Dawn at all
-    //     (SUNSET_1) and cannot reach that case.
-    //   · On this twin the queue is a JS WebGPU handle. Per the spec,
-    //     work submitted to a lost device is dropped — a no-op, not a
-    //     fault.
-    //   · By the time it could happen the visitor is already looking at
-    //     the LOST card: console.hpp's loss callback prints
-    //     "[Device] LOST", and web/index.html treats that line as
-    //     terminal and replaces the world with the card.
-    //   · The exposure is bounded by AUTHORED_FETCH_INFLIGHT_CAP — at
-    //     most that many uploads, once, into a page that is already over.
-    //
-    // So: NO SIGNAL, NO PLUMBING. Carrying a device-lost flag down to
-    // this callback would add a second source of truth about the
-    // device's health to buy nothing a dead page can spend.
-    authored_stage_decoded_image(*ctx->gs, *ctx->gpu, ctx->queue,
-        ctx->staging_layer, ctx->disk_index, data, width, height);
-    stbi_image_free(data);
-    authored_fetch_finish(ctx);
-}
-
-inline void authored_image_onerror(emscripten_fetch_t* fetch) {
-    AuthoredFetchCtx* ctx = (AuthoredFetchCtx*)fetch->userData;
-    std::cerr << "[Authored] Failed to load: " << ctx->url
-        << " (HTTP " << fetch->status << ")\n";
-    emscripten_fetch_close(fetch);
-    // The record stays invalid, and it is handed back to the rotation
-    // rather than abandoned — see authored_fetch_release_slot.
-    authored_fetch_release_slot(*ctx->gs, ctx->staging_layer);
-    authored_fetch_finish(ctx);
-}
-
-inline void start_authored_fetch(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue,
-    const GalleryState::AuthoredFetchRequest& req) {
-    AuthoredFetchCtx* ctx = new AuthoredFetchCtx{
-        &gs, &gpu, queue, req.staging_layer, req.disk_index, req.url
-    };
-
-    emscripten_fetch_attr_t attr;
-    emscripten_fetch_attr_init(&attr);
-    std::strncpy(attr.requestMethod, "GET", sizeof(attr.requestMethod) - 1);
-    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
-    // A LANE MUST ALWAYS COME BACK. With no timeout a request that is
-    // accepted and then stalls — a captive portal, a proxy holding the
-    // connection open — never calls either callback, so its lane and its
-    // slot are gone for the session. One of those and the lane is gone
-    // with the rest of the exhibition sitting in the queue, silently,
-    // forever. The timeout routes to onerror, which is a path that
-    // already frees everything.
-    attr.timeoutMSecs = AUTHORED_FETCH_TIMEOUT_MS;
-    attr.onsuccess = authored_image_onsuccess;
-    attr.onerror = authored_image_onerror;
-    attr.userData = ctx;
-
-    gs.authored_fetch_inflight++;
-    // THE START CAN FAIL, AND THEN NO CALLBACK EVER RUNS. Unwound here
-    // by hand rather than through authored_fetch_finish, which would
-    // re-enter the pump loop that is calling us.
-    if (!emscripten_fetch(&attr, ctx->url.c_str())) {
-        std::cerr << "[Authored] Failed to load: " << ctx->url << " (fetch not started)\n";
-        if (gs.authored_fetch_inflight > 0) gs.authored_fetch_inflight--;
-        gs.authored_staging[req.staging_layer].pending = false;
-        authored_fetch_release_slot(gs, req.staging_layer);
-        delete ctx;
-    }
-}
-
-inline void pump_authored_fetches(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
-    // Front-erase on a vector, deliberately: the queue is bounded by
-    // STAGING_LAYERS (32), so the copy is a rounding error next to a
-    // container choice that would need its own include.
-    while (gs.authored_fetch_inflight < AUTHORED_FETCH_INFLIGHT_CAP
-        && !gs.authored_fetch_queue.empty()) {
-        GalleryState::AuthoredFetchRequest req = gs.authored_fetch_queue.front();
-        gs.authored_fetch_queue.erase(gs.authored_fetch_queue.begin());
-        start_authored_fetch(gs, gpu, queue, req);
-    }
-}
-
-// ── Authored Image Loading (staging model) — the web twin ──
-// SAME NAME, SAME CONTRACT, one word weaker: "this slot will hold this
-// painting" instead of "this slot holds this painting". Every consumer
-// already reads the slot through `valid`, so the weakening is invisible
-// to all of them — a not-yet-arrived painting is the no-content case
-// they have always handled.
-inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
-    if (staging_layer >= Dim::STAGING_LAYERS) return;
-    auto& rec = gs.authored_staging[staging_layer];
-    if (rec.pending) return;   // already spoken for; a second request would race its own slot
-
-    // THE RECORD KEEPS ITS PICTURE (WALLS_2). This used to clear `valid`
-    // at REQUEST time, which threw the image away the instant a
-    // replacement was asked for — and the room is hung in the SAME FRAME,
-    // 47 lines after teardown_gallery, from whatever survived. At
-    // any AUTHORED_FETCH_INFLIGHT_CAP the replacements arrive over round
-    // trips long after the walls are up, so a four-wall room that used 28
-    // of 32 records left the next one four pictures to hang.
-    //
-    // `pending` already carries "a fetch is outstanding" — it was written
-    // for exactly this distinction one level down, where A REQUEST IS NOT
-    // A PICTURE. `valid` means only "this slot holds an image", and it
-    // does, until onsuccess overwrites it.
-    //
-    // Nothing on a wall moves when the fetch lands: queue_promotion has
-    // already copied this layer into the painting's OWN exhibition layer
-    // (R0), so the staging texture can be replaced underneath a hung
-    // frame with no visible effect.
-    rec.pending = true;
-    rec.disk_index = disk_index;   // the slot advertises its claim to the rotation cursor
-
-    gs.authored_fetch_queue.push_back({ staging_layer, disk_index, std::string(path) });
-    pump_authored_fetches(gs, gpu, queue);
-}
-
-#else
 
 // ── Authored Image Loading (staging model) ──
 
@@ -2275,132 +2022,10 @@ inline void load_authored_image_to_staging(GalleryState& gs, GPUState& gpu, wgpu
     stbi_image_free(data);
 }
 
-#endif   // __EMSCRIPTEN__ — the byte source, and only the byte source
 
 
 // ── Paintings folder scan ──
 
-#ifdef __EMSCRIPTEN__
-
-
-// THE MANIFEST PARSE, BY HAND. exhibition.json is a flat object of
-// string arrays that tools/web_dist.py in THIS repo writes — a JSON
-// library would be a dependency taken on for one shape. Find the key,
-// take its bracket, read the quoted strings. No escape handling
-// because the strings are filenames the same script emitted; anything
-// else in the file is ignored rather than rejected, so a manifest that
-// grows a field later cannot stop the paintings arriving.
-inline void parse_exhibition_array(const char* data, size_t len,
-    const char* key_name, std::vector<std::string>& out) {
-    std::string s(data, len);
-    size_t key = s.find(std::string("\"") + key_name + "\"");
-    if (key == std::string::npos) return;
-    size_t open = s.find('[', key);
-    if (open == std::string::npos) return;
-    size_t close = s.find(']', open);
-    if (close == std::string::npos) return;
-
-    size_t i = open + 1;
-    while (i < close) {
-        size_t q0 = s.find('"', i);
-        if (q0 == std::string::npos || q0 >= close) break;
-        size_t q1 = s.find('"', q0 + 1);
-        if (q1 == std::string::npos || q1 > close) break;
-        if (q1 > q0 + 1) out.push_back(s.substr(q0 + 1, q1 - q0 - 1));
-        i = q1 + 1;
-    }
-}
-
-// THE ONE LINE THE SHELL COUNTS. web/index.html reads "found N
-// paintings" off this sentence to size its progress (SHIP_0 U3), so
-// the wording is the native wording, verbatim — only the place it
-// names changes, because on this twin the place IS the manifest.
-// ATRIUM_3 appends " + M atrium" to it and touches nothing before: the
-// shell parses the FIRST clause and stops, so the coupling holds.
-inline void exhibition_manifest_onsuccess(emscripten_fetch_t* fetch) {
-    GalleryState* gs = (GalleryState*)fetch->userData;
-    std::vector<std::string> paintings;
-    parse_exhibition_array(fetch->data, (size_t)fetch->numBytes, "paintings", paintings);
-    emscripten_fetch_close(fetch);
-
-    // Sorted here and not trusted from the file: the ORDER paintings
-    // hang in is the program's rule, and a hand-edited manifest must
-    // not be able to change it. EACH COLLECTION IS SORTED ON ITS OWN and
-    // the two are then CONCATENATED, never re-sorted together: sorting the
-    // joined vector would interleave "paintings/PAINTING_3" with
-    // "atrium/ATRIUM_3" by number and the partition would stop being a
-    // partition.
-    auto by_number = [](const std::string& a, const std::string& b) {
-        return authored_extract_number(a) < authored_extract_number(b);
-    };
-    std::sort(paintings.begin(), paintings.end(), by_number);
-
-    gs->authored_disk_manifest.clear();
-    gs->authored_disk_manifest.reserve(paintings.size());
-    for (const std::string& n : paintings)
-        gs->authored_disk_manifest.push_back(std::string(EXHIBITION_PAINTINGS_DIR) + n);
-
-    std::cout << "[Authored] Scanned " << EXHIBITION_MANIFEST_URL
-        << " — found " << paintings.size() << " paintings\n";
-}
-
-inline void exhibition_manifest_onerror(emscripten_fetch_t* fetch) {
-    long status = fetch->status;
-    emscripten_fetch_close(fetch);
-    // An exhibition that did not arrive is an exhibition that is not
-    // there — the same sentence, and the same already-legal state, as
-    // a missing folder on the native twin.
-    std::cout << "[Authored] No paintings folder found"
-        << " (" << EXHIBITION_MANIFEST_URL << ", HTTP " << status << ")\n";
-}
-
-// ONE FETCH, AT THE EARLIEST INSTANT THERE IS A GalleryState TO FILL.
-// Called from the cartridge's constructor — which on this twin runs in
-// main() BEFORE the console asks the browser for an adapter, so the
-// manifest travels while the device request is still outstanding and
-// is normally parsed before anything can want it.
-inline void kick_exhibition_manifest_fetch(GalleryState& gs) {
-    if (gs.authored_manifest_requested) return;
-    gs.authored_manifest_requested = true;
-
-    emscripten_fetch_attr_t attr;
-    emscripten_fetch_attr_init(&attr);
-    std::strncpy(attr.requestMethod, "GET", sizeof(attr.requestMethod) - 1);
-    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
-    attr.onsuccess = exhibition_manifest_onsuccess;
-    attr.onerror = exhibition_manifest_onerror;
-    attr.userData = &gs;
-    emscripten_fetch(&attr, EXHIBITION_MANIFEST_URL);
-}
-
-// SAME NAME, SAME CONTRACT: "make authored_disk_manifest current".
-// There is no directory to walk on this twin, so the honest answer is
-// whatever the fetch has delivered so far — and before it lands, that
-// is nothing. Not an error: the empty manifest is the already-legal
-// no-paintings state.
-//
-// THE SENTENCE IS THE MANIFEST'S, NOT THE FOLDER'S (PANORAMA_0 F14). It read
-// "No paintings folder found" — the native twin's verdict, where the folder
-// had been walked and was empty. Here the same emptiness means "the fetch has
-// not landed", and since the conductor owns the fill this is now printed on
-// the FIRST FRAME, before any manifest could have arrived. It was a false
-// sentence in the one place it was guaranteed to be said.
-//
-// It was also read. web/index.html's classify() fires on a line carrying both
-// "found" and "paintings", so the veil announced "Hanging the paintings" at
-// frame one with nothing staged and nothing on its way yet. The wording below
-// carries neither word, so the veil now says that when the manifest actually
-// lands and names a count — which is the line that sets the total.
-//
-// Said once, because it stays true until it stops being asked.
-inline void scan_paintings_folder(GalleryState& gs) {
-    if (!gs.authored_disk_manifest.empty()) return;
-    if (gs.authored_absence_logged) return;
-    gs.authored_absence_logged = true;
-    std::cout << "[Authored] The exhibition has not arrived yet\n";
-}
-
-#else
 
 inline void scan_paintings_folder(GalleryState& gs) {
     namespace fs = std::filesystem;
@@ -2448,7 +2073,6 @@ inline void scan_paintings_folder(GalleryState& gs) {
         << " — found " << gs.authored_disk_manifest.size() << " paintings\n";
 }
 
-#endif   // __EMSCRIPTEN__ — the manifest's source, and only its source
 
 
 inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue) {
@@ -2468,13 +2092,11 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
         // false, the conductor re-enters next frame and finds the
         // manifest (OVERTURE_0) — which is the whole of what makes a
         // late exhibition arrive at all.
-#ifndef __EMSCRIPTEN__
         // NATIVE (SUNRISE_0 N3): "empty" IS a verdict here — the folder was
         // walked and there is nothing in it — so the flag latches and the
         // walk is not repeated every frame. This is the one line of the
         // comment above that describes the native twin again.
         gs.authored_textures_loaded = true;
-#endif
         return;
     }
 
