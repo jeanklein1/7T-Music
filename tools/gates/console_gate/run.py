@@ -116,7 +116,8 @@ TIER_CONSOLE = [
 DORMANT_LINES = [
     "tu-gate: tier CONSOLE DORMANT — third_party/dawn_native_headers absent.",
     "  console.hpp and the_board.cpp are NOT type-witnessed by this run.",
-    "  Supply recipe: docs/OPEN.md, THE NATIVE HEADER SURFACE.",
+    "  Supply recipe: third_party/dawn_native_headers/PINNED.md (regenerate",
+    "  at the pin, or copy the closure from a built Dawn checkout).",
 ]
 
 

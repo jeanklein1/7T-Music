@@ -179,6 +179,15 @@ were the audience. Native Dawn can request adapter limits above it.
 Untouched at WEB_SUNSET on purpose: raising the floor is a shader-shape
 decision with its own witnesses, not a strip's side effect.
 
+## THE DEBUG ARMING (open, born at KEEL_0)
+
+Native Debug currently arms Dawn's own Debug assertions and backend
+validation, and nothing program-side: PORT_2c's web arming (SAFE_HEAP
+and kin) went with the twin, and no MSVC equivalent was chosen to
+replace it. Candidates when a session wants one: /RTC1,
+/fsanitize=address, Dawn's extra-validation toggles. Unpriced; arm
+deliberately, not by default.
+
 ## THE ABLETON SEAM (held, after N)
 
 Link session (tempo/beat/phase ground truth) and/or DAW loopback as native
