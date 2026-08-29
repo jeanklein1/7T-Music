@@ -157,10 +157,6 @@ struct App {
     // One-shot by construction — once printed, the test is never evaluated again.
     std::chrono::steady_clock::time_point world_live{};
     bool controls_offered = false;
-    // PANORAMA_1 U6 — THE METRONOME. rAF callbacks per presented frame.
-    // 1 = every vblank; 2 = every second one, a steady 30 on a 60 Hz panel.
-    uint32_t pace = 1;
-    bool pace_applied = false;   // U2: the timing call is a one-shot from inside the loop
 };
 
 static App* app = nullptr;
@@ -177,7 +173,7 @@ static App* app = nullptr;
 // needs console.device(), which does not exist at web main().)
 
 static bool init_world() {
-    std::cout << "[Incubator] BeatClock ready (bpm " << app->clock.bpm << ")\n";
+    std::cout << "[The Board] BeatClock ready (bpm " << app->clock.bpm << ")\n";
 
     // --- Initialize Render Cartridge ----------------------------------------
     app->render.initialize(app->console.device());
@@ -187,7 +183,7 @@ static bool init_world() {
         return false;
     }
 
-    std::cout << "[Incubator] " << RENDER_NAME << " renderer ready\n";
+    std::cout << "[The Board] " << RENDER_NAME << " renderer ready\n";
 
     // Publish the slot map once. The BeatClock's layout is EMPTY by design
     // (CUT_1c): every render-side resolve misses, warns once on stderr, and
@@ -210,32 +206,12 @@ static bool init_world() {
     return true;
 }
 
-// ── the metronome, applied from inside the loop (WRAP_0 U2) ────────
-//
-// emscripten_set_main_loop RESETS the timing mode, and with
-// simulate_infinite_loop it never returns — so the pace can only be armed
-// from a frame, once, after the registration that would have cleared it.
-// Idempotent by the flag: nothing else in this program re-arms the loop
-// (one set_main_loop call in the tree, no resize or veil-lift path touches
-// it), so one application holds for the session.
-static void apply_pace_once() {
-    if (app->pace_applied) return;
-    app->pace_applied = true;
-    t7::g_present_pace = app->pace;   // U3: the meter's window header names it
-    if (app->pace == 1u) return;   // the default needs no call
-    // SUNRISE_0 N1 — DRIFT, NOT RESTORATION. apply_pace_once() was authored
-    // after the sunset (WRAP_0 U2), so it never had a native arm to restore.
-    // There is no rAF to pace natively: the driver is a plain while() loop and
-    // the swap interval is the console's business. `?pace` is still parsed and
-    // still recorded in g_present_pace above, so the meter's window header
-    // names it on both twins; only the rAF call is web-only.
-}
-
 // ── the offer, once the exhibition has a floor under it ────────────
 //
-// Called every frame until it fires. The line's TEXT is load-bearing at both
-// ends: web/index.html dismisses the veil on a line beginning "Controls:",
-// so the string and its position stay exactly as they were.
+// Called every frame until it fires. The line's TEXT and its position are
+// unchanged at web-sunset: the page that dismissed its veil on a line
+// beginning "Controls:" is attic'd, but the offer is the program's own and
+// reads the same to the one reader left.
 static void offer_controls_when_ready() {
     if (app->controls_offered) return;
     const float waited = std::chrono::duration<float>(
@@ -277,10 +253,6 @@ static void frame() {
             return;
         }
     }
-
-    // THE METRONOME (WRAP_0 U2) — armed from inside the loop, once, because
-    // the registration that would have cleared it never returns.
-    apply_pace_once();
 
     // THE READY OFFER (OVERTURE_0) — the veil lifts on a world that has its
     // first paintings up, not on a world that has merely started.
@@ -395,11 +367,9 @@ int main(int argc, char* argv[]) {
     t7::parse_boot_params(argc, argv);
     std::cout << "\n";
     std::cout << "========================================\n";
-    // PORT_2d — one line per twin, and each states what its own build
-    // actually has. The FileWatcher class, the member, the watch() call
-    // and the per-frame check are all #ifndef __EMSCRIPTEN__ (PORT_1c),
-    // so the web twin has no hot reload to announce. The NAME is NAME_0's
-    // (SUNRISE_0 N1 restored the conditional, not the old program name).
+    // PORT_2d — the line states what this build actually has. The
+    // FileWatcher class, the member, the watch() call and the per-frame
+    // check are unconditional on the one program. The NAME is NAME_0's.
     std::cout << "  THE BOARD (Hot Reload Enabled)\n";
     std::cout << "  Clock:    BeatClock\n";
     std::cout << "  Render:   " << RENDER_NAME << "\n";
@@ -431,7 +401,7 @@ int main(int argc, char* argv[]) {
         frame();
     }
 
-    std::cout << "[Incubator] Shutdown\n";
+    std::cout << "[The Board] Shutdown\n";
     delete app;
     return 0;
 }

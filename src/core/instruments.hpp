@@ -190,14 +190,6 @@ namespace t7 {
     inline uint32_t g_canvas_w = 0;
     inline uint32_t g_canvas_h = 0;
 
-    // WRAP_0 U3 — THE PACE, crossing the same boundary for the same reason.
-    // rAF callbacks per presented frame; the harness owns it (it is the
-    // driver's own setting) and the meter's window header names it, because a
-    // window read at pace 2 means something different from the same numbers
-    // read at pace 1 and nothing in the line said which. One word, written
-    // once when the loop is armed.
-    inline uint32_t g_present_pace = 1;
-
     // PURSE_0 R1 — THE PRESENTATION LAW'S OWN VERDICT, PUBLISHED.
     //
     // The law (console.hpp) computes k every frame — the multiple of the

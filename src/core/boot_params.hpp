@@ -4,7 +4,7 @@
 // Measurement first. LANTERN_CENSUS §L2 recorded the gap this fills:
 // the four moods were diegetically reachable but not addressable — a
 // soak walk could not drive the twin deterministically to a named arm,
-// so no capture could be known repeatable. Three values, read ONCE at
+// so no capture could be known repeatable. The values, read ONCE at
 // boot before the device request, never reread, never mutated mid-run,
 // invisible to ordinary visitors:
 //
@@ -13,18 +13,15 @@
 //   mood — index into MOOD_TABLE, forces the boot mood at the one
 //          site that authors it (the Cartridge ctor; range-checked
 //          there against MOOD_COUNT, which this header must not know)
-//   cap  — float clamped to [0.5, 3.0] at parse, overriding
-//          MAX_DEVICE_PIXEL_RATIO for this run (console.hpp
-//          effective_pixel_cap) — the soak walk's key and the frame's
-//          largest lever
+//   msaa — {1, 4}, the multisample count the pipelines are created with
 //
-// Channel: `?seed=&mood=&cap=` — ONE URLSearchParams read of
-// location.search, in one EM_ASM block. Absent or malformed values
-// are silently ignored; anything accepted prints one [Params] line
-// at parse time (P6 — a switch that fired is visible). No UI, no
-// mid-run reread.
+// Channel: `--seed= --mood= --msaa=` on argv, read ONCE at boot before
+// the device request, never reread, never mutated mid-run. Absent or
+// malformed values are silently ignored; anything accepted prints one
+// [Params] line (P6 — a switch that fired is visible). The URL channel
+// (`?seed=` …), the pixel cap and the pace lever went with the web twin
+// at tag web-sunset — their only consumers were its presentation layer.
 
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -37,13 +34,6 @@ namespace t7 {
         bool has_mood = false; uint32_t mood = 0;
         bool has_cap  = false; float    cap  = 1.0f;
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
-        // PANORAMA_1 U6 — THE METRONOME, forced. rAF callbacks per presented
-        // frame: 1 = every vblank, 2 = every second one (a steady 30 on a
-        // 60 Hz panel). Present ONLY to make the taste gate takeable — Jean
-        // rides the same world at each and says which is the piece. When the
-        // param is present the governor never engages: a forced pace is an
-        // instruction, not a starting point.
-        bool has_pace = false; uint32_t pace = 1;   // {1, 2}; anything else -> 1
     };
 
     // Set once by parse_boot_params (main, before any consumer);
@@ -65,27 +55,17 @@ namespace t7 {
 
     inline void boot_params_announce_() {
         BootParams& p = boot_params();
-        if (p.has_cap) {
-            if (p.cap < 0.5f) p.cap = 0.5f;
-            if (p.cap > 3.0f) p.cap = 3.0f;
-        }
         if (p.has_msaa && p.msaa != 4u) {
             p.msaa = 1u;   // B10: {1, 4} only; anything else -> 1
         }
-        if (p.has_pace && p.pace != 2u) {
-            p.pace = 1u;   // U6: {1, 2} only; anything else -> 1
-        }
-        if (p.has_seed || p.has_mood || p.has_cap || p.has_msaa || p.has_pace) {
+        if (p.has_seed || p.has_mood || p.has_msaa) {
             std::cout << "[Params]";
             if (p.has_seed) std::cout << " seed=" << p.seed;
             if (p.has_mood) std::cout << " mood=" << p.mood;
-            if (p.has_cap)  std::cout << " cap=" << p.cap;
             if (p.has_msaa) std::cout << " msaa=" << p.msaa;
-            if (p.has_pace) std::cout << " pace=" << p.pace;
             std::cout << "\n";
         }
     }
-
 
     inline void parse_boot_params(int argc, char** argv) {
         BootParams& p = boot_params();
@@ -102,11 +82,6 @@ namespace t7 {
                 if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
                     p.has_mood = true; p.mood = static_cast<uint32_t>(v);
                 }
-            } else if (std::strncmp(a, "--cap=", 6) == 0) {
-                float v = std::strtof(a + 6, &end);
-                if (end && *end == '\0' && end != a + 6 && std::isfinite(v)) {
-                    p.has_cap = true; p.cap = v;
-                }
             } else if (std::strncmp(a, "--msaa=", 7) == 0) {
                 unsigned long long v = std::strtoull(a + 7, &end, 10);
                 if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
@@ -116,6 +91,5 @@ namespace t7 {
         }
         boot_params_announce_();
     }
-
 
 } // namespace t7

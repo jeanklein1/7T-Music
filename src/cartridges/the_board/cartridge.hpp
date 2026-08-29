@@ -1871,10 +1871,10 @@ namespace t7 {
                                 // capture used to say what it measured and not
                                 // what it measured it UNDER, so a mask table
                                 // had to be transcribed by hand beside the log
-                                // and trusted. These four are the dials that
+                                // and trusted. These are the dials that
                                 // change what a window means.
                                 "[METER] window %uf  fps %.1f  canvas %ux%u  gpu sampled %uf"
-                                " | draw=0x%02X shadow=0x%X pcf=%u pace=%u"
+                                " | draw=0x%02X shadow=0x%X pcf=%u"
                                 " | budget %.1f ms | over %uf"
                                 " | envelope mean %.2f max %.2f ms -> purse %.2f ms"
                                 " | gpu mean/max (per-frame sum)\n",
@@ -1888,7 +1888,6 @@ namespace t7 {
                                 gpuState_.config().draw_mask,
                                 gpuState_.config().shadow_mask,
                                 gpuState_.config().shadow_pcf_taps,
-                                t7::g_present_pace,
                                 FrameMeter::FRAME_BUDGET_MS,
                                 meter_.gpu_over_budget_frames,
                                 // HEADROOM_0 U1 — the purse. The envelope is a
