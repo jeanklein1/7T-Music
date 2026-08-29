@@ -123,6 +123,10 @@ The agent-kernel split is the one to think hardest about before undoing:
 it was measured at 48 s of FXC compile, and whether DXC prices it the same
 way is **unmeasured**. Re-witness before merging those kernels back.
 
+> DRIFT NOTE (WEB_SUNSET): the TU gate compiles WITHOUT `__EMSCRIPTEN__`
+> since Phase W, and the NATIVE build + boot is the witness of record.
+> The section below is the pre-sunset record.
+
 ## The witness protocol, superseded
 
 The retired protocol named the FXC gate first. The live protocol is in the

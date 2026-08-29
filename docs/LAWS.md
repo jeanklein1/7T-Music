@@ -65,6 +65,10 @@ module gate (the in-tree transform as its pinned half, behind the
 immediate shim); the web build + boot is the witness of record; each
 browser gates at its own.
 
+> DRIFT NOTE (WEB_SUNSET): the TU gate compiles WITHOUT `__EMSCRIPTEN__`
+> since Phase W, and the NATIVE build + boot is the witness of record.
+> The table below is the pre-sunset record.
+
 **THE PER-COMMIT GATES, NAMED (GATE_1, 2026-08-16; refreshed RECENSION_4).**
 They answer different questions, and their scripts are the authority on
 their own invocations and subjects:
@@ -755,6 +759,37 @@ only one. Resurrection remains archaeology from tag `native-sunset`.
 
 SUNSET_2: the presets carry the web flow only; the guard fires first and
 names the preset.
+
+(Reversed at WEB_SUNSET, below: the native twin is the program.)
+
+## WEB_SUNSET (2026-08-29) — the native twin is the program
+
+The web twin — kept at SUNRISE_0 as the control witness — is attic'd at
+tag `web-sunset`. Resurrection is archaeology from the tag, not
+maintenance. The native boot (N10) had already run before the strike.
+What burned: `web/` (shell and panel), `tools/web_dist.py`, the shell
+gate, the sha256 gate and `src/core/sha256.hpp` (reader-less once the
+serve witness went), the Emscripten arms in `boot_params.hpp`,
+`the_board.cpp`, `console.hpp`, `gallery.hpp` and `renderer.hpp`, the
+pixel-cap and pace surfaces (their only consumers were web
+presentation), the three `the-board-web*` presets and CMakeLists'
+`if(EMSCRIPTEN)` branch, the PROBATE_SEAL2 serve witness (its corridor
+no longer exists), `assets/music` and `assets/entrance` (their only
+readers were the shell). The strip also repaired a native defect it
+exposed: the program dials (`INCUBATE_RENDER`, `T7_INSTRUMENTS`, the
+seed defs) lived only in the web branch, so the native `-meter` preset
+had been reaching nothing.
+
+The witness chain after the sunset: `tools/wgsl_gate.py` gates the
+module per commit (naga, raw); `console_gate` is TIERED — cartridge
+against the emdawnwebgpu surface, console/the_board against
+`third_party/dawn_native_headers`, Dawn's native header generation at
+the same revision, because the web-target generation cannot carry the
+native extensions those arms use; every W3 strike additionally carried
+a projection witness proving the guard collapse left the native token
+stream byte-identical; glaw1 unchanged; the native build + boot is the
+witness of record. The one-generation law (L37) now governs two pinned
+artifacts and the C:/dev/dawn checkout, all at 56f332d7.
 
 ## L30 — THE TREE HOLDS LIVING MATTER ONLY
 

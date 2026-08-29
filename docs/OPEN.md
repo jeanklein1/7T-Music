@@ -19,16 +19,6 @@ and in the shared history below the fork point.
 `attic/full-board` is the base the pruning campaign works from. It is the
 one tag that must never be deleted.
 
-## NEVER DEPLOY
-
-Installed at N0 in CLAUDE.md, README.md and `tools/web_dist.py`. The
-Cloudflare Pages project `7t` and everexpandingboard.com belong to the
-sibling. `wrangler pages dev` is the local preview and publishes nothing.
-
-The interdiction is prose, not a mechanism. **Open:** whether to make it
-mechanical — a pre-push hook, or a refusal inside `web_dist.py` itself.
-Prose ended the copy-paste hazard; it does not stop a determined session.
-
 ## N-a — DAWN ACQUISITION (open)
 
 Target state, self-verifying: `CMakeLists.txt`'s `dawn_lib` guard passes —
@@ -77,29 +67,15 @@ commit that deleted that file's arm.
 | N3 | `gallery.hpp` | `315d4bc1^` |
 | N4 | `CMakeLists.txt`, `CMakePresets.json` | the tag |
 
-### THE WITNESS GAP — the campaign's real risk
-
-**No gate in this repo type-checks a restored native arm.** The asymmetry
-is structural and predates the fork:
-
-- `glaw1` compiles **without** `__EMSCRIPTEN__`, so it does see native
-  arms — but its TU is `cartridge.hpp` alone, which never includes
-  `console.hpp` or `the_board.cpp`.
-- `console_gate` compiles `cartridge.hpp`, `console.hpp` and
-  `the_board.cpp` — but **defines** `__EMSCRIPTEN__`, so it only ever sees
-  the web arms.
-
-So N1's and N2's restored code is covered by nothing until the final
-Windows link. Passing gates prove the graft did not *leak* into the web
-twin; they say nothing about whether the native arm is *correct*.
-
-**Open, and worth paying before the link:** a fourth gate — console_gate's
-TU list compiled a second time with `__EMSCRIPTEN__` undefined, against
-stubs for `<dawn/native/DawnNative.h>` and `<GLFW/glfw3native.h>`. It would
-turn the first proof of the native arms from a link error on Windows into a
-type error anywhere.
-
 ### Drift adaptations made during N-b
+
+> DRIFT NOTE (WEB_SUNSET): the first and third bullets describe a twin
+> that is attic'd. `apply_pace_once()`, its guard and `g_present_pace`
+> were deleted whole at W3a·2 (the pace surface had one reader, the
+> `[METER]` window header); `web/index.html` burned at W4b, so the
+> `Controls:` print's placement is now the program's own and nothing
+> reads it across a seam. Stamped minutes, not rewritten (L28) — the
+> record of what N-b did stands; only its live claims are retired.
 
 Recorded because they are **not** restorations and have no source to be
 checked against:
@@ -168,6 +144,9 @@ it properly should paste it here.
 
 ## THE PRUNING CAMPAIGN AHEAD (not started)
 
+Phase W — the web strip — landed first (docs/LAWS.md: WEB_SUNSET). The
+S-units below are unchanged and still FLAGGED.
+
 SUNRISE_0 delivers a functional native second repo with **nothing cut**.
 The strip is the next campaign, worked from `attic/full-board`. Its
 advance census is already done and is the reason it is a campaign and not
@@ -183,6 +162,23 @@ a chore: **three of its four units are FLAGGED.**
 `WorldDrawSurface` empties under S2+S3 together, under a `sizeof`
 static_assert — that, not binding group 2, is the "room that empties".
 
+## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
+
+`presets/` holds the authored scenes the web panel used to fetch
+(index.json + one file per scene). They currently have NO READER — kept
+against L30's letter on the Phase W ruling [F2], because scene recall is
+the performance instrument's obvious next organ. The consumer to build:
+a boot flag (`--preset=<name>`) walking the same organ_set road
+`?preset=` walked, and later the control surface's own load. If that
+consumer is refused, this folder goes to the attic with a tombstone.
+
+## THE BUDGET AFTER THE AUDIENCE (open, born at WEB_SUNSET)
+
+L14's storage-8/uniform-12 floor bound because browsers at core defaults
+were the audience. Native Dawn can request adapter limits above it.
+Untouched at WEB_SUNSET on purpose: raising the floor is a shader-shape
+decision with its own witnesses, not a strip's side effect.
+
 ## THE ABLETON SEAM (held, after N)
 
 Link session (tempo/beat/phase ground truth) and/or DAW loopback as native
@@ -194,14 +190,3 @@ The socket is already open: `parse_boot_params(int, char**)` kept its full
 signature through the sunset with both parameters unnamed, `main()` still
 calls it with real `argc`/`argv`, and N1 restores the
 `--seed/--mood/--cap/--msaa` loop behind it.
-
-## INHERITED RESIDUE (this fork's to sweep, not the sibling's)
-
-- Four zero-byte files tracked at the repo root — `0`, `` 0` ``, `16)`,
-  `17)` — admitted by `6c38eff8` ("atrium pics"), shell-redirect accidents.
-  They violate L30, and one carries a backtick that is hostile to any
-  script globbing the root. Free deletion whenever a commit passes nearby.
-- `[Incubator]` survives in two `the_board.cpp` boot prints that NAME_0 did
-  not reach (`BeatClock ready`, `<renderer> ready`), and N1 restores a
-  third at shutdown for consistency with them. One sweep, one commit,
-  whenever the file is next open.

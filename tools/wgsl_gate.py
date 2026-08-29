@@ -6,8 +6,8 @@
 # naga accepts it; an absent naga is a FAILED gate, never a pass (P1).
 #
 # WHAT IT DOES NOT PROVE. Pipeline-layout conformance, minBindingSize and
-# every runtime fact past the type surface: the web boot is the witness of
-# record (ATLAS_1revB). A Tint arm lights when T7_TINT names a tint
+# every runtime fact past the type surface: the native boot is the witness
+# of record (ATLAS_1revB). A Tint arm lights when T7_TINT names a tint
 # executable; there is none in the container and none in the pinned payload.
 #
 # USAGE

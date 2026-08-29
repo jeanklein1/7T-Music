@@ -12,26 +12,21 @@
 // THE LAWS THAT GOVERN THIS FILE — docs/LAWS.md:
 //   L1  encoding — BOM-free LF.
 // ═══ COMPILER FLOOR ═══════════════════════════════════════
-// The web twin is the program (native archived at tag
-// native-sunset). This module is PLAIN WGSL: no `requires`
+// The native twin is the program (web attic'd at tag
+// web-sunset). This module is PLAIN WGSL: no `requires`
 // directive, no immediate address space, so naga reads it raw
 // and tools/wgsl_gate.py is that read, per commit.
-// The floor of record is the Tint trio — Tint→DXC (SM6.0+),
-// Tint→MSL, Tint→SPIR-V; FXC is unsupported and its retired
-// laws live in docs/FXC_LAWS_RECORD.md. Firefox and Safari:
-// WITNESSED 2026-08-21. Firefox on Windows compiles the module
-// with no diagnostics and runs; Safari 26 on an iPad runs 10+
-// min with transitions. Firefox's later device loss is staging
-// memory (OPEN.md, FIREFOX STAGING RATCHET), not the compiler:
-// the supported set is the Tint trio and naga.
+// The compiler of record is Dawn/Tint on the lane kCompilerPlan
+// selects (console.hpp) — Tint→SPIR-V today; Tint→DXC (SM6.0+)
+// stays reachable via the adapter scorer. FXC is unsupported;
+// its retired laws live in docs/FXC_LAWS_RECORD.md.
 // NAGA WITNESSES THE MODULE ONLY. Pipeline-layout conformance,
 // minBindingSize and every dynamic-offset alignment are Dawn's
-// checks at pipeline creation and at bind, so the web boot
+// checks at pipeline creation and at bind, so the NATIVE BOOT
 // witnesses them and naga cannot; the [Pipeline] timer prices
 // compile time per kernel.
-// Witness protocol: a shader-shape change is proven by
-// witnesses, not argument, and no witness substitutes for
-// another — each browser gates at its own.
+// Witness protocol: a shader-shape change is proven by the boot
+// and the gate, never by argument.
 //   Budget = WebGPU core defaults: storage 8 / uniforms 12 per stage;
 //   per-row occupancy is MANIFEST.md's lane table — the banner names
 //   the witness, not its value (TETRIS WALLET_0; demotions: Table C).

@@ -149,52 +149,22 @@ so its index is the row's index. The ABI is inert until `bind_home` and `bind_mo
 the end of cartridge init; every entry point returns harmlessly before that,
 and the shell polls until `organ_param_count` is nonzero.
 
+The ABI's consumer is the native control surface to come (docs/OPEN.md,
+THE ABLETON SEAM); the browser panel that drove it is attic'd at tag
+`web-sunset`.
+
 ## The shell
 
-`web/organ_panel.js` is name-blind: it knows no parameter, range, offset, block
-or kind. Its one ruled exception is `RULE_NAMES`, whose authority is
-`bodies/orbs.hpp`; the only other thing it may know about a dial is its group
-string and its label.
-- Sections collapse; the panel opens as a table of contents. One filter over
-  id + label + group. A section's tally reads `shown/total` whenever they differ.
-- A group named `<rule> rule` or `Regime N` grows a scope line saying whether
-  its rows act now. The regime lens — *this world's* / *regime N* / *all* —
-  picks which regime's rows show; under *all* a write fans to every regime's
-  kin (found by group name + label) and `≠` marks kin that disagree. The weight
-  rows (`Atmosphere · Regimes`) are the one dormant-regime edit that moves the
-  live world: a write re-rolls under the same seed at the boundary; `RESPEAK`
-  keeps the seed.
-- The row grid: label · swatch · chip on line one, slider · value on line two;
-  every fixed width is a CSS custom property on `#organ` and the resize minimum
-  is computed from them. A witness keeps its meter in the value column.
-- Export — the whole desk or one section — keys `<id>` for instances and
-  `<mood>/<id>` or `world/<id>` for definitions; witnesses export nothing. A
-  mood definition has one value per mood, so the walk covers EVERY mood and
-  the file carries all of them; the world's bank belongs to no mood and keys
-  once. Import applies exactly what a file carries, counts unknown ids, and
-  presses RESPEAK when any definition landed — one press per file, so the
-  world the operator is looking at moves to what arrived.
-- The status line: refusals with the last one named, blocks reconciled at the
-  last boundary, the build id.
-- No storage of any kind. Width, open sections, lens and mode are session
-  state; the URL carries a choice between sessions.
-- The panel follows the program: every tick, each row not under the hand
-  re-reads its home — a definition row the live mood's definition, an instance
-  row the instance — and moves its widgets when the program moved the value. A
-  row under the hand (one of its own inputs holding focus) is left alone until
-  the hand leaves, then shows what landed.
+The browser panel (`web/organ_panel.js`) is attic'd at tag `web-sunset`
+with the twin it drove. The ABI above is what survives it, on purpose:
+extern "C", name-stable, waiting for the native control surface — the
+OSC/MIDI/Link seam OPEN.md holds as THE ABLETON SEAM.
 
 ## Presets
 
-`web/presets/index.json` is the shelf; `?preset=<name>` picks one at boot; a
-select in the header picks one by hand. All three walk the import path. The
-loader lives at module scope so an exhibition boots the scene without the panel.
-
-For Jean: design on the panel, export, drop the JSON in `web/presets/`, add its
-line to `index.json`. A preset is for DESIGN TIME. At SHIP TIME the values are
-transcribed into the C++ design tables and the JSON is spent — one fact, one
-home. A boot preset lands after the first world is drawn, so `GEN` rows reach
-the first world only through the tables.
+The shelf moved to `/presets` at WEB_SUNSET — authored scenes,
+currently reader-less, held for the native ingestion (docs/OPEN.md,
+NATIVE PRESET INGESTION). The `?preset=` boot road went with the panel.
 
 ## The tuning loop
 
