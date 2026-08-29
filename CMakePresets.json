@@ -49,6 +49,12 @@
       "cacheVariables": {
         "T7_INSTRUMENTS": "meter"
       }
+    },
+    {
+      "name": "the-board-vs",
+      "displayName": "the_board — full (native, Visual Studio, multi-config)",
+      "inherits": "native",
+      "generator": "Visual Studio 18 2026"
     }
   ],
   "buildPresets": [
@@ -76,6 +82,22 @@
     {
       "name": "the-board-full-release-meter",
       "configurePreset": "the-board-full-release-meter",
+      "targets": [
+        "the_board"
+      ]
+    },
+    {
+      "name": "the-board-vs-release",
+      "configurePreset": "the-board-vs",
+      "configuration": "Release",
+      "targets": [
+        "the_board"
+      ]
+    },
+    {
+      "name": "the-board-vs-debug",
+      "configurePreset": "the-board-vs",
+      "configuration": "Debug",
       "targets": [
         "the_board"
       ]
