@@ -66,13 +66,58 @@ message(STATUS "  Build: ${DAWN_BUILD}")
 message(STATUS "")
 
 # Dawn include directories
+# N10 — the glfw include row is single-sourced so the sentry below can
+# probe the marquee header under the same address the compiler is given.
+set(DAWN_GLFW_INCLUDE "${DAWN_DIR}/third_party/glfw3/src/include")
+
 set(DAWN_INCLUDES
     ${DAWN_DIR}/include
     ${DAWN_DIR}/src
     ${DAWN_BUILD}/gen/include
     ${DAWN_BUILD}/gen/src
-    ${DAWN_DIR}/third_party/glfw/include
+    ${DAWN_GLFW_INCLUDE}
 )
+
+# ─── N10 — THE INCLUDE SENTRY ───────────────────────────────────────────
+# The lib guard below names a missing LIBRARY by full concrete path before
+# any compilation. Nothing did the same for INCLUDE directories, and the
+# failure mode of a dangling include dir is WORSE than a missing lib: it
+# does not fail at all when any ambient provider can satisfy the name.
+# That is not hypothetical — it is how this tree built for the whole
+# campaign. The tag-era row `third_party/glfw/include` does not exist at
+# Dawn pin 56f332d7 (FetchContent roots glfw at third_party/glfw3/src),
+# and the compile succeeded anyway because vcpkg's USER-WIDE MSBUILD
+# INTEGRATION injected its own include path. /showIncludes confessed:
+#
+#   Note: including file:  C:\vcpkg\installed\x64-windows\include\GLFW/glfw3.h
+#
+# vcpkg headers against Dawn's pinned glfw3.lib — benign in practice (the
+# world ran, dropped_submits=0) but an UNDECLARED MACHINE DEPENDENCY and a
+# header/lib generation skew, which is the one-generation law's exact
+# hazard (L37) wearing a build-system costume.
+#
+# The sentry walks every include dir and probes the marquee header, so a
+# dangling row is named at configure and the vacuum an ambient provider
+# would fill never opens. WHAT IT CANNOT SEE, stated plainly: injection
+# ON TOP of valid dirs happens on MSBuild's side of the fence, invisible
+# to CMake. That class has exactly one examiner — the Ninja lane, whose
+# honesty is that it is not MSBuild and gets no vcpkg integration at all.
+foreach(T7_INC_DIR ${DAWN_INCLUDES})
+    if(NOT EXISTS "${T7_INC_DIR}")
+        message(FATAL_ERROR
+            "Missing Dawn include directory: ${T7_INC_DIR} — a dangling "
+            "include dir does not fail the compile while an ambient provider "
+            "(vcpkg MSBuild integration, a system include) can satisfy the "
+            "names; it silently substitutes an unpinned generation. Fix the "
+            "row, never the environment.")
+    endif()
+endforeach()
+if(NOT EXISTS "${DAWN_GLFW_INCLUDE}/GLFW/glfw3.h")
+    message(FATAL_ERROR
+        "GLFW marquee header absent: ${DAWN_GLFW_INCLUDE}/GLFW/glfw3.h — "
+        "the directory exists but does not hold glfw3.h, so the compiler "
+        "would take GLFW from whatever the environment offers.")
+endif()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LIBRARY DISCOVERY FUNCTIONS
