@@ -22,22 +22,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ── CONFIG AXIS ──────────────────────────────────────────────────────────────
-# Debug and Release, and nothing else. The axis outlived the reason it was
-# born with (SUNSET_0: Dawn's prebuilt static libraries came in exactly those
-# two configurations, and nothing links them any more) because PORT_2c gave it
-# a second one: Debug is THE DIAGNOSTIC TWIN, -O0 with SAFE_HEAP and the stack
-# canary armed; Release is -O2. Multi-config generators choose per build via
-# --config; single-config generators choose per tree via CMAKE_BUILD_TYPE.
-#
-# SUNRISE_0 N4 — THE AXIS GETS ITS FIRST REASON BACK. SUNSET_0 deleted the two
-# `set(DAWN_CHECK_CONFIGS ...)` lines with the Dawn section, leaving the axis
-# standing on PORT_2c alone. Restoring the Dawn section without them is worse
-# than not restoring it: dawn_lib()'s `foreach(CFG ${DAWN_CHECK_CONFIGS})`
-# iterates an EMPTY list, so every guard passes, every library path is accepted
-# unverified, and a missing Dawn is discovered at link as unresolved symbols
-# instead of at configure as a named absolute path. Verified: with the list
-# empty this tree configured CLEANLY against a C:/dev/dawn that does not exist
-# on this machine at all.
+# Debug and Release, and nothing else — for two native reasons.
+# 1. Dawn's prebuilt static libraries exist in exactly those two
+#    configurations, and dawn_lib() proves every row for every config in
+#    DAWN_CHECK_CONFIGS at configure time. A third name would link neither.
+# 2. Debug is the diagnostic build: the program unoptimized against
+#    Dawn's OWN Debug libraries, whose assertions and backend validation
+#    are the deepest instrument this tree can arm without writing one.
+#    (PORT_2c's web-era arming — SAFE_HEAP and kin — went with the twin
+#    at web-sunset; whether the native side should arm more than Dawn's
+#    asserts is docs/OPEN.md, THE DEBUG ARMING.)
+# Multi-config generators choose per build via --config; single-config
+# generators choose per tree via CMAKE_BUILD_TYPE.
 get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTI_CONFIG)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING
@@ -50,7 +46,7 @@ else()
     endif()
     if(NOT CMAKE_BUILD_TYPE MATCHES "^(Debug|Release)$")
         message(FATAL_ERROR
-            "CMAKE_BUILD_TYPE '${CMAKE_BUILD_TYPE}' — the axis is Debug or Release. PORT_2c reads it: Debug arms -O0 -g plus ASSERTIONS=2, STACK_OVERFLOW_CHECK=2 and SAFE_HEAP=1; Release pins -O2 and strips them. A third name would select neither. Native also links Dawn's prebuilt static libraries, which exist in exactly those two configurations.")
+            "CMAKE_BUILD_TYPE '${CMAKE_BUILD_TYPE}' — the axis is Debug or Release: Dawn's prebuilt libraries exist in exactly those two configurations, and a third name would link neither (see CONFIG AXIS).")
     endif()
     set(DAWN_CHECK_CONFIGS ${CMAKE_BUILD_TYPE})
 endif()
@@ -650,7 +646,11 @@ message(STATUS "")
 message(STATUS "")
 message(STATUS "Configuration complete:")
 message(STATUS "  Generator: ${CMAKE_GENERATOR}")
-message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
+if(IS_MULTI_CONFIG)
+    message(STATUS "  Build type: multi-config (${CMAKE_CONFIGURATION_TYPES}) — chosen per build via --config")
+else()
+    message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
+endif()
 message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "")
 
