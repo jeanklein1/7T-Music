@@ -7,8 +7,10 @@ project(the_board VERSION 0.1.0 LANGUAGES CXX)
 # SUNSET_2 put a FATAL_ERROR here refusing every non-Emscripten configure,
 # because in 7T there was no native twin left to configure. 7T-Music exists
 # to bring that twin back, so the refusal is gone and the native Dawn section
-# below is live again. The web presets still work and are still the control
-# witness; `the-board-full-release` is the native one.
+# below is live again. The Emscripten branch and the web presets went with
+# the twin at tag web-sunset (docs/LAWS.md: WEB_SUNSET).
+# `the-board-full-release` is the program; `the-board-full` is its
+# diagnostic twin (PORT_2c).
 #
 # THE DAWN PIN: 56f332d7d8d03f36149f201ab8cce8aee187e8c6 (v20260814.182433) —
 # the SAME generation third_party/emdawnwebgpu/PINNED.md pins for the web
@@ -54,7 +56,6 @@ else()
     set(DAWN_CHECK_CONFIGS ${CMAKE_BUILD_TYPE})
 endif()
 
-if(NOT EMSCRIPTEN)
 
 set(DAWN_DIR "C:/dev/dawn" CACHE PATH "Dawn source directory")
 set(DAWN_BUILD "C:/dev/dawn/out" CACHE PATH "Dawn build directory")
@@ -586,7 +587,6 @@ set(MSVC_LINK_OPTS
     "$<$<CONFIG:Release>:/INCREMENTAL:NO>")
 set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 
-endif() # NOT EMSCRIPTEN — end of the native Dawn section
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ACTIVE CARTRIDGE SELECTION
@@ -604,12 +604,12 @@ endif() # NOT EMSCRIPTEN — end of the native Dawn section
 # The analysis side is the BeatClock (src/analysis/beat_clock.hpp,
 # CUT_1c) — no analysis cartridge selection exists anymore.
 #
-# ABOVE THE EMSCRIPTEN GUARD, deliberately. Both twins paste these values
-# into enumerators (INCUBATE_DEMO into demos/matrix.hpp, T7_INSTRUMENTS into
-# core/instruments.hpp). CMake drops an empty ENTRY but keeps an entry whose
-# VALUE is empty, so a dial left unset arrives DEFINED AND EMPTY: #ifndef
-# never fires and the paste names an enumerator that does not exist. An
-# unset value here is a compile error in every TU, never a fallback.
+# AN UNSET VALUE HERE IS A COMPILE ERROR, NEVER A FALLBACK. These values are
+# pasted into enumerators (INCUBATE_DEMO into demos/matrix.hpp, T7_INSTRUMENTS
+# into core/instruments.hpp). CMake drops an empty ENTRY but keeps an entry
+# whose VALUE is empty, so a dial left unset arrives DEFINED AND EMPTY:
+# #ifndef never fires and the paste names an enumerator that does not exist.
+# The definitions themselves are attached below, beside the build stamp.
 
 set(T7_RENDER_CARTRIDGE     "the_board"        CACHE STRING "Render cartridge for the 'the_board' target")
 set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
@@ -663,7 +663,7 @@ message(STATUS "")
 # The render cartridge (the_board) driven by the BeatClock.
 # Uses T7_RENDER_CARTRIDGE.
 #
-# Build:  cmake --build --preset the-board-web  (full chain: CLAUDE.md)
+# Build:  cmake --build --preset the-board-full-release  (full chain: CLAUDE.md)
 #
 
 # Only the active cartridge's headers → scoped IntelliSense
@@ -681,18 +681,16 @@ target_include_directories(the_board PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 
-if(NOT EMSCRIPTEN)
-    # SUNRISE_0 N4 — the native twin's includes and link list. Both come from
-    # the Dawn section above; neither exists under Emscripten, where the port
-    # supplies WebGPU and GLFW itself.
-    target_include_directories(the_board PRIVATE ${DAWN_INCLUDES})
-    target_link_libraries(the_board PRIVATE ${DAWN_LIBS})
+# SUNRISE_0 N4 — the native twin's includes and link list. Both come from
+# the Dawn section above; neither exists under Emscripten, where the port
+# supplies WebGPU and GLFW itself.
+target_include_directories(the_board PRIVATE ${DAWN_INCLUDES})
+target_link_libraries(the_board PRIVATE ${DAWN_LIBS})
 
-    if(MSVC)
-        target_compile_options(the_board PRIVATE ${MSVC_COMPILE_OPTS})
-        target_link_options(the_board PRIVATE ${MSVC_LINK_OPTS})
-        target_compile_definitions(the_board PRIVATE ${MSVC_COMPILE_DEFS})
-    endif()
+if(MSVC)
+    target_compile_options(the_board PRIVATE ${MSVC_COMPILE_OPTS})
+    target_link_options(the_board PRIVATE ${MSVC_LINK_OPTS})
+    target_compile_definitions(the_board PRIVATE ${MSVC_COMPILE_DEFS})
 endif()
 
 # ── PURSE_0 R2 — THE BUILD STAMP ─────────────────────────────────────
@@ -758,225 +756,97 @@ endif()
 
 target_include_directories(the_board PRIVATE "${T7_STAMP_DIR}")
 
-if(EMSCRIPTEN)
-    # ── PORT_1c: the web twin ────────────────────────────────────────────
-    # GLFW verbatim via contrib.glfw3 (emscripten ports registry, >= 3.1.55).
-    # WebGPU via the emdawnwebgpu generation VENDORED IN THIS TREE — and only
-    # that one.
-    #
-    # F5F — A WITNESS ATTESTS THE ARTIFACT, NOT THE INTENTION.
-    # F5-a pinned a generation on paper and wired a PREFERENCE for it: use
-    # the vendored port if its bytes are present, else fall back to the port
-    # built into Emscripten (the bare registry name, deliberately not spelled
-    # here so the invariant grep for it stays clean). The bytes were never
-    # fetched, so every build took the fallback — and that port downloads the
-    # EMSDK's own pinned version, a generation that predates the immediates
-    # API. The result was three compile errors
-    # (console.hpp HasWGSLLanguageFeature/ImmediateAddressSpace,
-    # render_passes.hpp SetImmediates ×2) that read as code defects and were
-    # a missing payload. A preference is what let that happen quietly: it had
-    # a second thing it was willing to be.
-    #
-    # So there is no preference here any more, and no override. One path,
-    # checked once; absence is a configure-time FATAL. The payload is
-    # third_party/emdawnwebgpu/emdawnwebgpu_pkg/ and PINNED.md is its receipt.
-    set(T7_EMDAWNWEBGPU_PORT
-        "${CMAKE_SOURCE_DIR}/third_party/emdawnwebgpu/emdawnwebgpu_pkg/emdawnwebgpu.port.py")
-    if(NOT EXISTS "${T7_EMDAWNWEBGPU_PORT}")
-      message(FATAL_ERROR
-        "emdawnwebgpu payload missing at ${T7_EMDAWNWEBGPU_PORT}. "
-        "The build consumes ONLY the in-tree generation (F5F). "
-        "Fetch per third_party/emdawnwebgpu/PINNED.md. "
-        "A witness attests the artifact, not the intention.")
-    endif()
-    message(STATUS "  emdawnwebgpu port: ${T7_EMDAWNWEBGPU_PORT}")
-    message(STATUS "    generation:      in-tree pin (third_party/emdawnwebgpu/PINNED.md)")
-    # Both --use-port flags must reach BOTH the compile and the link command
-    # (emdawnwebgpu's README requires it), which is why this is one list used
-    # at both sites rather than two spellings that can drift apart.
-    set(T7_WEB_PORTS
-        "--use-port=contrib.glfw3"
-        "--use-port=${T7_EMDAWNWEBGPU_PORT}"
-    )
+# THE PROGRAM'S DIALS, RE-HOMED AT WEB_SUNSET. They were the program's on
+# both twins and yet lived only in the web branch, so on native they reached
+# nothing at all — `the-board-full-release-meter` set T7_INSTRUMENTS=meter and
+# the compiler never heard it. Pre-existing defect, found by the W-recon,
+# repaired here on the way out rather than deleted along with its only home.
+target_compile_definitions(the_board PRIVATE
+    INCUBATE_RENDER=${T7_RENDER_CARTRIDGE}
+    INCUBATE_DEMO=${THE_BOARD_DEMO}
+    T7_INSTRUMENTS=${T7_INSTRUMENTS}
+    ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
+)
 
-    # PORT_2c — THE DIAGNOSTIC TWIN. -O2 strips the checks that would
-    # have NAMED the PORT_2a stack overflow in one line instead of
-    # costing a hypothesis; Debug arms them. The split rides the CONFIG
-    # AXIS that already exists (Debug|Release, enforced at the head of
-    # this file) rather than a new dial — one fact, one home. Debug is
-    # slow by construction: SAFE_HEAP instruments every load and store.
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(T7_WEB_OPT -O0 -g)
-        set(T7_WEB_DIAG
-            "-sASSERTIONS=2"           # verbose runtime checks + stack trace on abort
-            "-sSTACK_OVERFLOW_CHECK=2" # full canary + guard page; names the overflow
-            "-sSAFE_HEAP=1"            # traps out-of-bounds / misaligned heap access
+add_custom_command(TARGET the_board POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:the_board>/assets
+    COMMENT "Copying assets for the_board..."
+)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PIVOT_0 E3 — DXC RUNTIME LOGISTICS (Windows native only)
+#
+# Tint->DXC needs dxcompiler.dll and dxil.dll BESIDE THE EXE at runtime.
+# Without dxil.dll the compiler produces unsigned DXIL and the driver
+# refuses it; without dxcompiler.dll the `use_dxc` toggle has nothing to
+# call. Both must land in the exe directory after a clean build.
+#
+# P1 — ASSERT-AND-GUARD. Dawn lives OUT OF TREE (DAWN_DIR, default
+# C:/dev/dawn) and this repo cannot open it, so whether that build carries
+# DXC is a HYPOTHESIS, not a checked fact. The Windows SDK path below is a
+# hypothesis too. Therefore: search, and if nothing is found, SAY SO and
+# keep configuring. A missing pair must not fail the build — it must
+# produce a boot that fails loudly with a log line pointing back here.
+#
+# Set T7_DXC_DIR at configure time to override the search entirely.
+if(WIN32)
+    set(T7_DXC_DIR "" CACHE PATH
+        "Directory holding dxcompiler.dll and dxil.dll (empty = search)")
+
+    set(T7_DXC_CANDIDATES "")
+    if(T7_DXC_DIR)
+        list(APPEND T7_DXC_CANDIDATES "${T7_DXC_DIR}")
+    endif()
+    # Dawn's own output first: if that build set DAWN_USE_BUILT_DXC, the
+    # pair sits beside the libs already and matches the Dawn being linked.
+    list(APPEND T7_DXC_CANDIDATES
+        "${DAWN_BUILD}/Debug"
+        "${DAWN_BUILD}/Release"
+        "${DAWN_BUILD}"
+    )
+    # Then the Windows SDK, which ships both. Newest first; the version
+    # segment is glob-expanded rather than pinned so a host with a
+    # different SDK still resolves.
+    file(GLOB T7_SDK_DXC_DIRS
+        "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
+    if(T7_SDK_DXC_DIRS)
+        list(SORT T7_SDK_DXC_DIRS)
+        list(REVERSE T7_SDK_DXC_DIRS)
+        list(APPEND T7_DXC_CANDIDATES ${T7_SDK_DXC_DIRS})
+    endif()
+
+    set(T7_DXC_FOUND_DIR "")
+    foreach(CAND IN LISTS T7_DXC_CANDIDATES)
+        if(EXISTS "${CAND}/dxcompiler.dll" AND EXISTS "${CAND}/dxil.dll")
+            set(T7_DXC_FOUND_DIR "${CAND}")
+            break()
+        endif()
+    endforeach()
+
+    if(T7_DXC_FOUND_DIR)
+        message(STATUS "  DXC runtime: ${T7_DXC_FOUND_DIR} (dxcompiler.dll + dxil.dll)")
+        add_custom_command(TARGET the_board POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${T7_DXC_FOUND_DIR}/dxcompiler.dll"
+                "${T7_DXC_FOUND_DIR}/dxil.dll"
+                $<TARGET_FILE_DIR:the_board>
+            COMMENT "PIVOT_0: copying DXC runtime (dxcompiler.dll, dxil.dll)..."
         )
     else()
-        set(T7_WEB_OPT -O2)
-        set(T7_WEB_DIAG)
-    endif()
-
-    # Program defines.
-    target_compile_definitions(the_board PRIVATE
-        INCUBATE_RENDER=${T7_RENDER_CARTRIDGE}
-        INCUBATE_DEMO=${THE_BOARD_DEMO}
-        T7_INSTRUMENTS=${T7_INSTRUMENTS}
-        ${T7_WORLD_SEED_DEFS}   # empty ⇒ nothing pasted ⇒ the seed is drawn
-    )
-    target_compile_options(the_board PRIVATE ${T7_WEB_PORTS} ${T7_WEB_OPT})
-    # ONE PRELOAD, AND IT IS PROGRAM (EXHIBIT_0 U3). The MEMFS mapping
-    # left is the shader: the loader's 2nd search entry is
-    # "src/cartridges/the_board/realization/world.wgsl" and it hits this
-    # explicit file mapping verbatim from CWD "/". The search list lives
-    # in renderer.hpp; the quoted path above is its own anchor — grep it
-    # and you land on the entry, which a line number stops doing the next
-    # time anyone edits that file. The shader ships inside the program's
-    # bundle because the two are one artifact — but that was a claim
-    # about INTENT, and the graph only ever enforced it one way: a
-    # program change relinked and repackaged the shader; a shader change
-    # did nothing at all. LINK_DEPENDS below is what makes the other
-    # direction real.
-    #
-    # The assets@/assets mapping is GONE. It put the entire exhibition
-    # inside the_board.data, which meant every repainted wall and every
-    # new canvas cost a link — the compiler woken by a curator. The
-    # paintings and the soundtrack are now plain files beside the
-    # program, assembled by tools/web_dist.py and fetched by URL at
-    # runtime (gallery.hpp, the __EMSCRIPTEN__ forms). Nothing else read
-    # /assets: the gallery scan was its only consumer on this twin.
-    # PORT_2a — THE STACK. Emscripten's default STACK_SIZE dropped from
-    # 5MB to 64KB in 3.1.27; Windows gave the native twin 1MB. At -O2
-    # stack-overflow checking is OFF, so an overflow does not abort — it
-    # writes past the stack into the heap and dlmalloc's metadata is the
-    # first casualty, which is why the fault surfaces inside $malloc from
-    # unrelated call sites. 4MB restores native parity with headroom.
-    # Costs address space, not runtime: with ALLOW_MEMORY_GROWTH the
-    # stack is a reservation carved out of the initial memory.
-    # EXHIBIT_0 U2 — THE NETWORK IS A BYTE SOURCE. -sFETCH arms
-    # emscripten_fetch, which is how the web twin reads exhibition.json
-    # and each painting: the bundle carries the program, the network
-    # carries the exhibition. Native was unaffected — this whole block
-    # is behind if(EMSCRIPTEN).
-    # The shader's path, once. It is a link INPUT (--preload-file) and a
-    # link DEPENDENCY (LINK_DEPENDS) — two different facts about one file,
-    # and the second was missing. The MEMFS target on the right of the @
-    # stays literal: it must match the loader's search string verbatim, so
-    # it is a different fact and does not share this home.
-    set(T7_WEB_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/the_board/realization/world.wgsl")
-    target_link_options(the_board PRIVATE
-        ${T7_WEB_PORTS}
-        # ORGAN_0b — the panel's ABI. EMSCRIPTEN_KEEPALIVE keeps the
-        # functions from being garbage-collected, but ccall/cwrap are
-        # runtime methods and are NOT exported by default; without this the
-        # panel would find Module.cwrap undefined and wait forever. The
-        # cost is a few hundred bytes of glue, on every build, so that an
-        # instrument does not need its own build configuration.
-        "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
-        "-sALLOW_MEMORY_GROWTH=1"
-        "-sSTACK_SIZE=4MB"
-        "-sFETCH"
-        ${T7_WEB_OPT}
-        ${T7_WEB_DIAG}
-        "SHELL:--preload-file ${T7_WEB_SHADER}@/src/cartridges/the_board/realization/world.wgsl"
-    )
-    # A --preload-file option is a COMMAND-LINE STRING: ninja hashes the
-    # command, not the file the command names. So editing world.wgsl left
-    # the link CLEAN and the_board.data stale — silently, no error, no
-    # rebuild, and the web twin shipped a shader fifteen hours older than
-    # its own source while native was correct. LINK_DEPENDS is what makes
-    # a shader edit dirty the link. Ninja and Makefile generators only.
-    # The native twin needed nothing: it read world.wgsl off disk at
-    # runtime and had no bundle that could go stale — which is exactly
-    # why the twins disagreed about collisions and only one of them was
-    # wrong.
-    set_target_properties(the_board PROPERTIES
-        OUTPUT_NAME "the_board"
-        SUFFIX ".js"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web"
-        LINK_DEPENDS "${T7_WEB_SHADER}"
-    )
-else()
-    add_custom_command(TARGET the_board POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/assets
-        $<TARGET_FILE_DIR:the_board>/assets
-        COMMENT "Copying assets for the_board..."
-    )
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PIVOT_0 E3 — DXC RUNTIME LOGISTICS (Windows native only)
-    #
-    # Tint->DXC needs dxcompiler.dll and dxil.dll BESIDE THE EXE at runtime.
-    # Without dxil.dll the compiler produces unsigned DXIL and the driver
-    # refuses it; without dxcompiler.dll the `use_dxc` toggle has nothing to
-    # call. Both must land in the exe directory after a clean build.
-    #
-    # P1 — ASSERT-AND-GUARD. Dawn lives OUT OF TREE (DAWN_DIR, default
-    # C:/dev/dawn) and this repo cannot open it, so whether that build carries
-    # DXC is a HYPOTHESIS, not a checked fact. The Windows SDK path below is a
-    # hypothesis too. Therefore: search, and if nothing is found, SAY SO and
-    # keep configuring. A missing pair must not fail the build — it must
-    # produce a boot that fails loudly with a log line pointing back here.
-    #
-    # Set T7_DXC_DIR at configure time to override the search entirely.
-    if(WIN32)
-        set(T7_DXC_DIR "" CACHE PATH
-            "Directory holding dxcompiler.dll and dxil.dll (empty = search)")
-
-        set(T7_DXC_CANDIDATES "")
-        if(T7_DXC_DIR)
-            list(APPEND T7_DXC_CANDIDATES "${T7_DXC_DIR}")
-        endif()
-        # Dawn's own output first: if that build set DAWN_USE_BUILT_DXC, the
-        # pair sits beside the libs already and matches the Dawn being linked.
-        list(APPEND T7_DXC_CANDIDATES
-            "${DAWN_BUILD}/Debug"
-            "${DAWN_BUILD}/Release"
-            "${DAWN_BUILD}"
-        )
-        # Then the Windows SDK, which ships both. Newest first; the version
-        # segment is glob-expanded rather than pinned so a host with a
-        # different SDK still resolves.
-        file(GLOB T7_SDK_DXC_DIRS
-            "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
-        if(T7_SDK_DXC_DIRS)
-            list(SORT T7_SDK_DXC_DIRS)
-            list(REVERSE T7_SDK_DXC_DIRS)
-            list(APPEND T7_DXC_CANDIDATES ${T7_SDK_DXC_DIRS})
-        endif()
-
-        set(T7_DXC_FOUND_DIR "")
-        foreach(CAND IN LISTS T7_DXC_CANDIDATES)
-            if(EXISTS "${CAND}/dxcompiler.dll" AND EXISTS "${CAND}/dxil.dll")
-                set(T7_DXC_FOUND_DIR "${CAND}")
-                break()
-            endif()
-        endforeach()
-
-        if(T7_DXC_FOUND_DIR)
-            message(STATUS "  DXC runtime: ${T7_DXC_FOUND_DIR} (dxcompiler.dll + dxil.dll)")
-            add_custom_command(TARGET the_board POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${T7_DXC_FOUND_DIR}/dxcompiler.dll"
-                    "${T7_DXC_FOUND_DIR}/dxil.dll"
-                    $<TARGET_FILE_DIR:the_board>
-                COMMENT "PIVOT_0: copying DXC runtime (dxcompiler.dll, dxil.dll)..."
-            )
-        else()
-            # The honest else-branch P1 requires. Not FATAL_ERROR: a tree that
-            # will not configure teaches nothing, and the Vulkan plan needs
-            # neither dll.
-            message(WARNING
-                "PIVOT_0: dxcompiler.dll + dxil.dll NOT FOUND. Searched: "
-                "${T7_DXC_CANDIDATES}. "
-                "The CompilerPlan::D3D12_Dxc boot will fail at device or "
-                "pipeline creation until both sit beside the exe. Fixes, in "
-                "order of preference: rebuild Dawn with DAWN_USE_BUILT_DXC=ON; "
-                "or pass -DT7_DXC_DIR=<dir> naming a directory holding both; "
-                "or set kCompilerPlan to Vulkan in src/console/console.hpp, "
-                "which needs neither.")
-        endif()
+        # The honest else-branch P1 requires. Not FATAL_ERROR: a tree that
+        # will not configure teaches nothing, and the Vulkan plan needs
+        # neither dll.
+        message(WARNING
+            "PIVOT_0: dxcompiler.dll + dxil.dll NOT FOUND. Searched: "
+            "${T7_DXC_CANDIDATES}. "
+            "The CompilerPlan::D3D12_Dxc boot will fail at device or "
+            "pipeline creation until both sit beside the exe. Fixes, in "
+            "order of preference: rebuild Dawn with DAWN_USE_BUILT_DXC=ON; "
+            "or pass -DT7_DXC_DIR=<dir> naming a directory holding both; "
+            "or set kCompilerPlan to Vulkan in src/console/console.hpp, "
+            "which needs neither.")
     endif()
 endif()
 

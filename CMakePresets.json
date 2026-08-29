@@ -49,42 +49,6 @@
       "cacheVariables": {
         "T7_INSTRUMENTS": "meter"
       }
-    },
-    {
-      "name": "the-board-web",
-      "displayName": "the_board — web (Emscripten, first light)",
-      "inherits": "the-board",
-      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
-      "condition": {
-        "type": "notEquals",
-        "lhs": "$env{EMSDK}",
-        "rhs": ""
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "the-board-web-meter",
-      "displayName": "the_board — web (Emscripten, frame meter armed)",
-      "inherits": "the-board-web",
-      "cacheVariables": {
-        "T7_INSTRUMENTS": "meter"
-      }
-    },
-    {
-      "name": "the-board-web-debug",
-      "displayName": "the_board — web (Emscripten, diagnostics armed)",
-      "inherits": "the-board",
-      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
-      "condition": {
-        "type": "notEquals",
-        "lhs": "$env{EMSDK}",
-        "rhs": ""
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
     }
   ],
   "buildPresets": [
@@ -112,27 +76,6 @@
     {
       "name": "the-board-full-release-meter",
       "configurePreset": "the-board-full-release-meter",
-      "targets": [
-        "the_board"
-      ]
-    },
-    {
-      "name": "the-board-web",
-      "configurePreset": "the-board-web",
-      "targets": [
-        "the_board"
-      ]
-    },
-    {
-      "name": "the-board-web-meter",
-      "configurePreset": "the-board-web-meter",
-      "targets": [
-        "the_board"
-      ]
-    },
-    {
-      "name": "the-board-web-debug",
-      "configurePreset": "the-board-web-debug",
       "targets": [
         "the_board"
       ]
