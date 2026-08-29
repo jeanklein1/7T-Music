@@ -43,9 +43,10 @@ not yet paid:
    following it would add a PATH hazard for nothing.
 2. **Both configurations, or neither.** `dawn_lib_optional` treats a
    library present in one config and absent in the other as fatal. The
-   Ninja presets set `DAWN_CHECK_CONFIGS` to the single build type, so
-   Release alone satisfies `the-board-full-release` — but leaves
-   `the-board-full` (Debug) broken. Build both, as DAWN_REFERENCE says.
+   Ninja presets pin Release, so Release alone satisfies them — but the
+   VS lane is multi-config and proves BOTH configs at configure time,
+   and its Debug is the diagnostic build (`the-board-vs-debug`). Build
+   both, as DAWN_REFERENCE says.
 3. **DAWN_REFERENCE's shader-compiler section is the retired world.** Its
    own CANON banner says so: it describes FXC via `d3dcompiler_47.dll` and
    "only D3D12 is used", both struck by PIVOT_0/L2 before the tag chose

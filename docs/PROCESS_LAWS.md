@@ -361,9 +361,10 @@ about a whole tree and must declare the shapes it cannot reach.
 > the sunset, not merely the pre-2026-07-29 ones. Its live consequence still
 > holds, by a mechanism no line in this tree carries: `NDEBUG` appears in
 > neither `CMakePresets.json` nor `CMakeLists.txt`; it arrives with CMake's
-> own default Release flags, because the `the-board-web` preset pins
-> `CMAKE_BUILD_TYPE: Release`. `the-board-web-debug` pins `Debug` and drops
-> it (PORT_2c, the diagnostic twin); `signal_layout.hpp` is its one reader.
+> own default Release flags, because every Ninja preset pins
+> `CMAKE_BUILD_TYPE: Release` (HELM_0; the web presets that first carried
+> the pin went at WEB_SUNSET). The VS lane's `--config Debug` — the
+> diagnostic build — drops it; `signal_layout.hpp` is its one reader.
 
 **DAWN RELEASE BUILD — DONE (2026-07-29).** Dawn/Tint built `--config Release`
 in the existing multi-config tree at the pinned revision `f0bf8ab5…`; the

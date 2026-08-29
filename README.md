@@ -14,8 +14,11 @@ the sibling repo, and always did. See CLAUDE.md.
 cmake --preset the-board-full-release
 cmake --build --preset the-board-full-release
 
-`the-board-full` is the diagnostic twin (Debug); `-meter` arms the frame
-meter. Dawn is built separately and pinned — docs/OPEN.md (N-a).
+`the-board-vs` is the same program on the Visual Studio multi-config
+lane, where `--config Debug` is the diagnostic build; `-meter` arms the
+frame meter and `the-board-minimal` selects the minimal demo column,
+both on the Ninja lane at Release. Dawn is built separately and
+pinned — docs/OPEN.md (N-a).
 
 ## Orientation
 - docs/LAWS.md — project law. docs/OPEN.md — open items.

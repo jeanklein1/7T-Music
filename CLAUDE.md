@@ -34,8 +34,10 @@ improvising on authority-bearing decisions. Cite symbols, not line numbers.
 cmake --preset the-board-full-release
 cmake --build --preset the-board-full-release
 Dawn is built separately and pinned; see docs/OPEN.md (N-a) and
-docs/reference/DAWN_REFERENCE.md. `the-board-full` is the diagnostic
-twin (Debug, PORT_2c); `-meter` arms the frame meter.
+docs/reference/DAWN_REFERENCE.md. `the-board-vs` is the same program on
+the Visual Studio multi-config lane, where `--config Debug` is the
+diagnostic build; `-meter` arms the frame meter and `the-board-minimal`
+selects the minimal demo column, both on the Ninja lane at Release.
 
 ## Where truth lives
 - docs/LAWS.md — the rule book. Read before proposing.
