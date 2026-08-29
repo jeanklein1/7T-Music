@@ -391,25 +391,4 @@ CASE/
 # Visual Studio encoding-save artifacts
 enc_temp_folder/
 
-# Emscripten build output (PORT_1d). The web target writes into the tracked
-# web/ directory (RUNTIME_OUTPUT_DIRECTORY), so its artifacts land beside
-# source. web/index.html is SOURCE and stays tracked; these three are build
-# output — the .data alone carries the whole preloaded asset payload.
-web/the_board.js
-web/the_board.wasm
-web/the_board.data
-
-# SHIP_0 U4 — the deployable folder. tools/web_dist.py assembles it from
-# web/ on demand; it is a COPY of build output plus the tracked
-# index.html, so nothing here is a source of truth. Rebuildable in one
-# command.
-#
-# EXHIBIT_0 — dist/ is now TWO things side by side, and neither is a
-# source of truth: the program (index.html + the three build outputs,
-# .data collapsed to world.wgsl alone) and the exhibition
-# (dist/paintings/, dist/music/, dist/exhibition.json — re-encoded
-# copies of assets/, which IS tracked). The whole folder stays ignored;
-# one rule already covers both halves.
-dist/
-.wrangler/
 out/
