@@ -5,20 +5,11 @@
 > `upstream` remote and no merge path back. The shared history below the
 > fork point is real history, not a subtree.
 >
-> **NEVER DEPLOY FROM THIS REPO.** No `wrangler pages deploy`, from any
-> tool, script, or session, for any reason. The Cloudflare Pages project
-> `7t` and the domain everexpandingboard.com belong to the **sibling
-> repo**, which is the live artwork; a deploy from here overwrites it with
-> the fork's build. That hazard is inherited, not hypothetical — this repo
-> carries the sibling's build scripts verbatim.
->
-> **Local preview is fine and is the intended witness:**
-> `python tools/web_dist.py` then `npx wrangler pages dev dist`.
-> `pages dev` serves locally and publishes nothing.
->
-> The native twin is this fork's point (SUNRISE_0 Phase N). The web twin
-> survives as the control witness: it must keep building green so a native
-> graft that leaks outside its `__EMSCRIPTEN__` guard is caught at once.
+> **ONE PROGRAM, NATIVE.** The web twin was attic'd at tag `web-sunset`
+> (docs/LAWS.md: WEB_SUNSET); resurrection is archaeology from the tag.
+> This repo has never deployed and now carries no route to a deploy: the
+> dist tooling went with the twin. The Cloudflare Pages project `7t` and
+> everexpandingboard.com belong to the sibling repo, and always did.
 
 7T-Music is a WebGPU generative artwork (C++20 + WGSL, Dawn) being taken
 native so it can be played against a DAW. The program is essentially
@@ -40,16 +31,11 @@ the unit, flag-and-continue, one commit per logical unit, report findings withou
 improvising on authority-bearing decisions. Cite symbols, not line numbers.
 
 ## Build (Jean runs these; listed for orientation)
-WEB — the control witness, built and previewed, never shipped:
-cmake --preset the-board-web → cmake --build --preset the-board-web
-→ python tools\web_dist.py → npx wrangler pages dev dist
-(the persistent EMSDK user variable carries the presets — L40)
-NATIVE — this fork's target (SUNRISE_0 Phase N):
-cmake --preset the-board-full-release → cmake --build --preset the-board-full-release
-Dawn is built separately and pinned; see docs/OPEN.md and
-docs/reference/DAWN_REFERENCE.md.
-web/ holds the shell sources and receives the build artifacts. dist/ is a
-local preview root in this repo and is never uploaded anywhere.
+cmake --preset the-board-full-release
+cmake --build --preset the-board-full-release
+Dawn is built separately and pinned; see docs/OPEN.md (N-a) and
+docs/reference/DAWN_REFERENCE.md. `the-board-full` is the diagnostic
+twin (Debug, PORT_2c); `-meter` arms the frame meter.
 
 ## Where truth lives
 - docs/LAWS.md — the rule book. Read before proposing.
@@ -79,11 +65,9 @@ python3 and clang++ do.
 
 | gate | the invocation | what it asserts | verdict |
 | --- | --- | --- | --- |
-| G-LAW 1 | `sh tools/gates/glaw1/run.sh` | the real cartridge TU compiles against the pinned SDK surface | GREEN |
+| G-LAW 1 | `sh tools/gates/glaw1/run.sh` | the real cartridge TU compiles against the pinned emdawnwebgpu surface | GREEN |
 | G-LAW 2 | `python3 tools/gates/glaw2/run.py` | no dangling name, no structural break in `world.wgsl` | GREEN |
-| TU gate | `python3 tools/gates/console_gate/run.py` | `cartridge.hpp` and `console.hpp` type-check with zero diagnostics | PASS |
-| shell gate | `python3 tools/gates/shell_gate/run.py` | the seam between `organ_registry.hpp` and `web/organ_panel.js` agrees | GREEN |
-| sha256 gate | `python3 tools/gates/sha256_gate/run.py` | `src/core/sha256.hpp` agrees with hashlib, `world.wgsl` included | PASS |
+| TU gate | `python3 tools/gates/console_gate/run.py` | two tiers, each named in its own verdict line: CARTRIDGE — `cartridge.hpp` against the pinned emdawnwebgpu surface; CONSOLE — `console.hpp` and `the_board.cpp` against `third_party/dawn_native_headers`. Native TUs, zero diagnostics | PASS |
 | score census | `python3 tools/gates/score/run.py` | roster ↔ frame-spine bijection | GREEN |
 | WGSL gate | `python3 tools/wgsl_gate.py` | naga parses, scopes and validates the raw module | PASS |
 | binding surface | `python3 tools/binding_gen.py --check` | schema ↔ tree ↔ emitters agree; S-6 also wants a clean tree at the pushed tip | PASS |
