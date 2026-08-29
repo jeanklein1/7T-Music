@@ -12,7 +12,6 @@
 #
 # WHAT THIS IS NOT. It touches no translation unit, no shader, and no
 # build graph. It reads four files and writes one markdown artifact.
-# Precedent: tools/web_dist.py.
 #
 # THE UNIT OF THE LEDGER is one row per (bind group layout, entry index)
 # — NOT per buffer. The registry is one constant per SITE: the same

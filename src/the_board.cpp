@@ -195,9 +195,9 @@ static bool init_world() {
     // from — see offer_controls_when_ready(), called from frame().
     // --- Setup File Watcher (native instrument, R6) --------------------------
     // SUNRISE_0 N1: the watcher returns; the `Controls:` print does NOT.
-    // OVERTURE_0 moved that line into offer_controls_when_ready(), and
-    // web/index.html lifts its veil on exactly that line — printing it here
-    // would lift the veil before the world is ready, on both twins.
+    // OVERTURE_0 moved that line into offer_controls_when_ready(), and it
+    // stays there: printing it here would offer the controls before the
+    // world is ready.
     app->watcher.watch(app->render.shader_path());
     std::cout << "[The Board] Hot reload enabled: " << app->render.shader_path() << "\n\n";
     app->queue = app->console.queue();

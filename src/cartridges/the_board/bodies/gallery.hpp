@@ -2060,7 +2060,7 @@ inline void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue&
     // shown (a texture still holding it). The rotation's book, kept by the
     // fill too, so the one-index-one-record invariant holds across both.
     // The cap fails OPEN exactly as it does there: an index past the array
-    // reads as "not in use" (tools/web_dist.py warns above it).
+    // reads as "not in use".
     bool disk_in_use[256]{};
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         const auto& r = gs.authored_staging[i];
@@ -2108,11 +2108,11 @@ inline void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queu
     // an index past the array does not overflow — it short-circuits to
     // "not in use", and the no-duplicates rule quietly stops applying to
     // the overflow. A manifest of 300 can hang one canvas twice.
-    // "Generous" was true while this was a directory the repo owned;
-    // EXHIBIT_0 made the manifest a deploy-time input, so
-    // tools/web_dist.py mirrors this number as MANIFEST_DEDUPE_CAP and
-    // warns loudly when a dist exceeds it. THIS array is the source —
-    // raise it and that constant together.
+    // "Generous" was true while this was a directory the repo owned, and
+    // it is a directory the repo owns again: EXHIBIT_0 made the manifest a
+    // deploy-time input and the deploy went with the web twin at tag
+    // web-sunset, taking the mirrored MANIFEST_DEDUPE_CAP with it. THIS
+    // array is the source, and now the only one.
     bool disk_in_use[256]{};  // generous upper bound
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
         if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed) {

@@ -556,11 +556,8 @@ namespace t7 {
                     seed_origin = "param";
                 }
                 // THE WITNESS (P6). One line, at boot, immediately after the
-                // choice and before any consumer — zero frame cost. It prints
-                // on both twins; on the web it reaches the DETAILS panel
-                // through Module.print (web/index.html routes every stdout
-                // line into the log), which is how Jean reads it. This line is
-                // what keeps a randomized world reportable.
+                // choice and before any consumer — zero frame cost. This line
+                // is what keeps a randomized world reportable.
                 std::cout << "[World] Boot seed=" << world_state_.active_seed
                           << " (" << seed_origin << ")\n";
                 mood_state_.active = DEMO.boot_mood;
@@ -595,21 +592,6 @@ namespace t7 {
                 // its forwards no longer hang off the return.
                 mood_state_.forward_portals_pending = world_state_.finite_mode;
 
-#ifdef __EMSCRIPTEN__
-                // EXHIBIT_0 — THE EXHIBITION IS A FETCH, AND IT STARTS HERE.
-                // This is the earliest instant a GalleryState exists to fill,
-                // and on the web twin it runs inside main() BEFORE
-                // console.init asks the browser for an adapter — so the
-                // manifest travels while the device request is still
-                // outstanding, over rAF turns that pump nothing else. It is
-                // therefore normally parsed before the conductor's first
-                // fill (the deferred hang's head, OVERTURE_0), and always
-                // before the first gallery. A manifest that is still in flight is an empty
-                // manifest, which is the already-legal no-paintings state.
-                // No device, no queue, no GPU touched: this fetch fills a
-                // vector of names and nothing more.
-                kick_exhibition_manifest_fetch(gallery_state_);
-#endif
             }
 
             Cartridge(const Cartridge&) = delete;

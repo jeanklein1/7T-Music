@@ -133,12 +133,11 @@ namespace t7 {
     // instruments DIAL DOES NOT GOVERN. A build that will not say which
     // build it is is the failure this ends.
     //
-    // TWO SHAS, TWO QUESTIONS. This names the TREE; web_dist.py's
-    // __BUILD_ID__ names the ARTIFACT. A matching artifact digest proves
-    // the browser got the bytes the build produced and says nothing about
-    // WHICH TREE produced them; a git sha alone says nothing about whether
-    // the browser is running a cached predecessor. The pair closes both,
-    // which is the whole of R2.
+    // IT NAMES THE TREE, and after WEB_SUNSET that is the only sha there
+    // is: the artifact digest it used to sit beside was the deploy's
+    // (`web_dist.py`'s __BUILD_ID__), and both went with the web twin at
+    // tag web-sunset. A build read off disk has no cached predecessor to
+    // be confused with, so the tree fact is the whole question now.
     //
     // __has_include, AND IT IS NOT DEFENSIVENESS FOR ITS OWN SAKE. The TU
     // gate type-checks cartridge.hpp and console.hpp as standalone

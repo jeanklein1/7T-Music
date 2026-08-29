@@ -13,8 +13,8 @@ project(the_board VERSION 0.1.0 LANGUAGES CXX)
 # diagnostic twin (PORT_2c).
 #
 # THE DAWN PIN: 56f332d7d8d03f36149f201ab8cce8aee187e8c6 (v20260814.182433) —
-# the SAME generation third_party/emdawnwebgpu/PINNED.md pins for the web
-# twin. That is the point: L37's one-generation law asked the native checkout
+# the SAME generation third_party/emdawnwebgpu/PINNED.md pins, and the
+# same one third_party/dawn_native_headers/PINNED.md generates from. That is the point: L37's one-generation law asked the native checkout
 # to TRACK the web pin, and the unpinned C:/dev/dawn era is what made that a
 # promise instead of a fact. Build recipe: docs/reference/DAWN_REFERENCE.md.
 
@@ -696,7 +696,7 @@ endif()
 # ── PURSE_0 R2 — THE BUILD STAMP ─────────────────────────────────────
 #
 # The program states its own provenance at boot. The wasm sha names the
-# ARTIFACT (web_dist.py's __BUILD_ID__); this names the TREE.
+# ARTIFACT, and went with the web twin; this names the TREE.
 #
 # IT LIVES IN THE BUILD DIRECTORY, and that is the whole design decision.
 # Every other generated file here is tracked and hand-run; a stamp cannot

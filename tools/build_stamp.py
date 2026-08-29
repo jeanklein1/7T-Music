@@ -2,17 +2,19 @@
 # ═══════════════════════════════════════════════════════════════════════
 # PURSE_0 R2 — THE BUILD STAMP
 #
-# The program states its own provenance at boot. Two shas end the
-# which-program-am-I-looking-at class of question permanently, and they
-# answer different halves of it:
+# The program states its own provenance at boot:
 #
-#   the wasm sha (web_dist.py's __BUILD_ID__)  names the ARTIFACT
 #   the git sha  (this file's BUILD_STAMP)      names the TREE
 #
-# One without the other leaves a gap. A matching artifact digest says the
-# browser got the bytes the build produced; it says nothing about WHICH
-# tree produced them. A git sha alone says nothing about whether the
-# browser is running a cached predecessor.
+# R2 installed TWO shas, because a deploy could serve a cached
+# predecessor: the artifact digest answered "are these the bytes the build
+# produced" and this one answered "which tree produced them", and neither
+# implied the other. The artifact half was the deploy's, and both the
+# deploy and its digest went with the web twin at tag web-sunset. A build
+# read off local disk has no cached predecessor to be confused with, so
+# the tree question is the whole question now — and it is still a question
+# worth ending: a build that will not say which build it is was the
+# failure R2 closed.
 #
 # ── WHY THIS WRITES TO THE BUILD DIRECTORY, NOT THE SOURCE TREE ────────
 #
@@ -99,9 +101,9 @@ BANNER = """\
 // every build and turn the binding gate's S-6 witness permanently red.
 // The tool's own banner carries the full reasoning.
 //
-// The git sha names the TREE; web_dist.py's __BUILD_ID__ names the
-// ARTIFACT. The boot prints both, and the organ panel's status line
-// echoes them together.
+// The git sha names the TREE — and after web-sunset it is the only sha
+// there is, the artifact digest that stood beside it having gone with the
+// deploy that produced it. The boot prints this one.
 """
 
 

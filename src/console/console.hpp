@@ -163,10 +163,11 @@ namespace t7 {
     // over 17 WGSLLanguageFeatureName enumerators, whose ONLY caller was
     // the dialect reporter removed above. COMPAT_1 (ee970995) retired
     // both together when the immediate lane left the program. Restoring
-    // it would re-add dead code, and it would not compile: nine of those
-    // enumerators do not exist in the pinned emdawnwebgpu header, so the
-    // helper is also a live one-generation-law hazard. Caught by the
-    // native type-check described in docs/OPEN.md, not by any gate.
+    // it would re-add dead code, and nine of those enumerators do not
+    // exist in the emdawnwebgpu generation, so the helper was also a live
+    // one-generation-law hazard. WEB_SUNSET's tiered gate would catch it
+    // now: console.hpp type-checks against third_party/dawn_native_headers
+    // per commit, which is the witness docs/OPEN.md said did not exist.
 
 
     // ═══ WIT_2 — IS THIS ERROR A DROPPED FRAME? ══════════════════════
