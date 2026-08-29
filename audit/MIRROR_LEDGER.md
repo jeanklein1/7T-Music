@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `03c9ca1052623914c31b44fc41aca3bdbb81895b` |
-| | WEB_SUNSET W7a: the sweep finds a guard the file list missed, and eleven stale claims |
+| source commit | `d7c15656de3ef532b1cf8886e73be4e9d007f6c3` |
+| | WEB_SUNSET W7: ledgers regenerated over the one program |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:1b6c778da104527645a2d5813ef47909859a49fe708d63bc89da7d5a367abc9d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:b71ea654db212e8cfe1ca5e7193df558e80efdfd3ec09169f6870537d6683912` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:eb4c7387978b12ef83acf4d008aa5286177f01b0b8f54c4ca8c7e944e791d5f5` |
