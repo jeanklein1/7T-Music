@@ -116,6 +116,56 @@ checked against:
   its veil on exactly that line — restoring it verbatim would lift the veil
   before the world is ready, on both twins.
 
+## THE pwsh POST-BUILD FAILURE — NOT THIS TREE'S (closed as a finding)
+
+A `pwsh.exe` invocation fails during the native build. The essentials land
+anyway — the DXC pair and the assets folder both arrive beside the exe, the
+link completes, the binary runs. It was investigated as a porting job (find
+the failing call, swap it for `powershell.exe` or `cmake -E`) and there is
+**nothing here to port**. Recorded so the next session does not hunt for it
+in `CMakeLists.txt`.
+
+THE EVIDENCE, three independent probes, all negative:
+
+1. **Tracked content names no shell.** `git grep -in "pwsh\|powershell"`
+   returns only four prose lines in `docs/LAWS.md` L39, about the emsdk
+   `.bat` and PowerShell's `where` alias. No build file, no tool.
+
+2. **The native build emits exactly four commands, and all four are
+   shell-free** —
+
+   | site | command |
+   |---|---|
+   | `execute_process`, configure-time | `${T7_PYTHON} tools/build_stamp.py` |
+   | `t7_build_stamp` target | the same, and `VERBATIM`, which bypasses shell interpretation by construction |
+   | POST_BUILD | `${CMAKE_COMMAND} -E copy_directory` — the assets |
+   | POST_BUILD | `${CMAKE_COMMAND} -E copy_if_different` — the DXC pair |
+
+   `tools/build_stamp.py` itself shells out only to `git describe`. The two
+   `cmake -E` copies are precisely the steps whose outputs are observed to
+   land, which is the same fact seen from the other side: they never touch a
+   shell, so no shell can fail them.
+
+3. **The generated projects are clean.**
+   `findstr /S /I /M "pwsh" out\build\the-board-full-release\*.vcxproj*`
+   returns nothing across all six generated projects — ALL_BUILD,
+   t7_build_stamp, the_board, ZERO_CHECK, VCTargetsPath, CompilerIdCXX.
+   The probe is live, not vacuous: `dir /s /b ...\*.vcxproj` lists those
+   six. CMake wrote no pwsh call from this tree.
+
+CONCLUSION: the invocation belongs to MSBuild's own VS 2026 toolset, not to
+7T-Music. It is an environment behaviour this repo neither causes nor can
+fix from inside `CMakeLists.txt`, and the build is complete and correct
+despite it.
+
+WHAT WOULD REOPEN IT. If a post-build step ever stops landing — the DXC pair
+or `assets/` missing beside the exe — this becomes load-bearing and the
+place to look is MSBuild's log at `-verbosity:detailed`, NOT this tree's
+four commands. The verbatim error text was never carried into the container
+session, so this entry rests on the negative probes above rather than on a
+diagnosis of the message itself; anyone who has the text and wants to close
+it properly should paste it here.
+
 ## THE PRUNING CAMPAIGN AHEAD (not started)
 
 SUNRISE_0 delivers a functional native second repo with **nothing cut**.
