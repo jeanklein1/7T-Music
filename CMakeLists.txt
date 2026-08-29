@@ -1,22 +1,21 @@
-# The Board : C++ / WebGPU engine + React design tools
+# 7T-Music — The Board : C++20 / WGSL native instrument (WebGPU via Dawn)
 cmake_minimum_required(VERSION 3.16)
 project(the_board VERSION 0.1.0 LANGUAGES CXX)
 
-# ═══ SUNRISE_0 N4 — THE GUARD IS LIFTED, AND THE ROAD IS OPEN AGAIN ══════════
+# ═══ THE NATIVE BUILD CONSTITUTION ═══════════════════════════════════════════
 #
-# SUNSET_2 put a FATAL_ERROR here refusing every non-Emscripten configure,
-# because in 7T there was no native twin left to configure. 7T-Music exists
-# to bring that twin back, so the refusal is gone and the native Dawn section
-# below is live again. The Emscripten branch and the web presets went with
-# the twin at tag web-sunset (docs/LAWS.md: WEB_SUNSET).
-# `the-board-full-release` is the program; `the-board-full` is its
-# diagnostic twin (PORT_2c).
+# One target, the_board.exe, against Dawn linked as prebuilt static
+# libraries at THE PIN below. History, as citations: SUNSET_2 closed the
+# native road with a FATAL_ERROR here; SUNRISE_0 N4 reopened it; the
+# Emscripten branch and the web presets went with the web twin at tag
+# web-sunset (docs/LAWS.md: WEB_SUNSET). `the-board-full-release` is the
+# program; `the-board-full` is the diagnostic build (CONFIG AXIS, below).
 #
-# THE DAWN PIN: 56f332d7d8d03f36149f201ab8cce8aee187e8c6 (v20260814.182433) —
-# the SAME generation third_party/emdawnwebgpu/PINNED.md pins, and the
-# same one third_party/dawn_native_headers/PINNED.md generates from. That is the point: L37's one-generation law asked the native checkout
-# to TRACK the web pin, and the unpinned C:/dev/dawn era is what made that a
-# promise instead of a fact. Build recipe: docs/reference/DAWN_REFERENCE.md.
+# THE DAWN PIN: 56f332d7d8d03f36149f201ab8cce8aee187e8c6 (v20260814.182433)
+# — one generation, three artifacts, one checkout (L37): C:/dev/dawn as
+# linked here; third_party/dawn_native_headers (the gates' native
+# surface); third_party/emdawnwebgpu (the gates' cartridge surface).
+# Build recipe: docs/reference/DAWN_REFERENCE.md.
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -61,7 +60,7 @@ set(DAWN_DIR "C:/dev/dawn" CACHE PATH "Dawn source directory")
 set(DAWN_BUILD "C:/dev/dawn/out" CACHE PATH "Dawn build directory")
 
 message(STATUS "")
-message(STATUS "7T Visualizer (WebGPU/Dawn)")
+message(STATUS "7T-Music — The Board (native, WebGPU/Dawn)")
 message(STATUS "  Dawn: ${DAWN_DIR}")
 message(STATUS "  Build: ${DAWN_BUILD}")
 message(STATUS "")
@@ -164,7 +163,7 @@ message(STATUS "Discovering Dawn libraries...")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CORE DAWN LIBRARIES (Required)
-# Per docs/past docs/DAWN_REFERENCE.md - these are the required core libraries
+# Per docs/reference/DAWN_REFERENCE.md - these are the required core libraries
 # ═══════════════════════════════════════════════════════════════════════════════
 
 dawn_lib(LIB_DAWN_NATIVE      "src/dawn/native/$<CONFIG>/dawn_native.lib")
@@ -667,14 +666,14 @@ message(STATUS "")
 #
 
 # Only the active cartridge's headers → scoped IntelliSense
-file(GLOB_RECURSE DUAL_RENDER_HEADERS
+file(GLOB_RECURSE T7_RENDER_HEADERS
     "src/cartridges/${T7_RENDER_CARTRIDGE}/*.hpp"
 )
 
 add_executable(the_board
     src/the_board.cpp
     src/external/stb_image.cpp
-    ${DUAL_RENDER_HEADERS}
+    ${T7_RENDER_HEADERS}
 )
 
 target_include_directories(the_board PRIVATE
@@ -852,5 +851,5 @@ endif()
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${T7_RENDER_CARTRIDGE}"
     PREFIX "Render Cartridge"
-    FILES ${DUAL_RENDER_HEADERS}
+    FILES ${T7_RENDER_HEADERS}
 )
