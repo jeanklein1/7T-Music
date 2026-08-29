@@ -510,7 +510,26 @@ set(DAWN_LIBS
 )
 
 # Shared MSVC options (applied per-target below)
-set(MSVC_COMPILE_OPTS /W3 /wd4251 /wd4275 /wd4244 /wd4267 /EHsc
+# ── SUNRISE_0 N7 — /Zc:preprocessor IS LOAD-BEARING, NOT HYGIENE ─────
+# src/console/organ_registry.hpp forwards five variadic macros:
+#     #define ORGAN_PARAM(...)  ORGAN_PARAM_NS(the_board, __VA_ARGS__)
+# and 366 rows of organ_params.inc ride them. MSVC's TRADITIONAL
+# preprocessor does not re-split __VA_ARGS__ on commas when it is
+# forwarded into another macro — the whole pack arrives as ONE argument,
+# so every enrolled dial reaches ORGAN_PARAM_NS with the wrong arity.
+# /Zc:preprocessor selects the conforming preprocessor and the 366 rows
+# expand as written. Jean's falsifier proved the one-flag cure.
+#
+# WHY IT SURFACES ONLY HERE. The web twin compiles under emcc, whose
+# clang is conforming by default, so the ORGAN forwarders have always
+# worked there and this was never a two-twin fact. It is native-only,
+# which is why it belongs in the MSVC set and nowhere else.
+#
+# IT WAS AN ENVIRONMENT VARIABLE UNTIL NOW. The first native build carried
+# it through the shell, which means the build was reproducible only for
+# someone who knew to export it — L39's own failure shape, one layer up.
+# The tree states its own requirement from here.
+set(MSVC_COMPILE_OPTS /W3 /wd4251 /wd4275 /wd4244 /wd4267 /EHsc /Zc:preprocessor
     "$<$<CONFIG:Release>:/Z7>")
 # Release links produce a full PDB with codegen unchanged: /OPT:REF and
 # /OPT:ICF are the plain-Release defaults that /DEBUG would otherwise
