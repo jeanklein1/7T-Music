@@ -3,7 +3,8 @@
 //
 // organ_registry.hpp compiles these lines into kOrganParams[] and the
 // compiler takes every offset, so a rename fails the build at the
-// enrollment line. This file's order IS the panel's table of contents,
+// enrollment line. This file's order IS the control surface's table of
+// contents,
 // and audit/ORGAN.md is the generated book over the rows.
 //
 // EVERY RANGE HERE IS EVIDENCE, NOT TASTE: a wrong range on a dial is
@@ -41,14 +42,15 @@
 // DEFKIND is MOOD, TIER, BEHAVIOR or ORB_MOOD; a definition-only row's
 // block is a SENTINEL DERIVED FROM ITS KIND.
 
-// GROUP IS A PATH, "Section · Group": the shell splits on the FIRST
+// GROUP IS A PATH, "Section · Group": a consumer splits on the FIRST
 // separator and renders two levels, never three. A dial sits under its
 // SUBJECT, never under its implementation home. Pose is GPU truth and
 // carries no dial — but the WITNESS has behaviour of its own now (how it
 // holds a flight, what it pushes aside), and behaviour is a subject like
 // any body's, so CAMERA is a section. Its input GRAMMAR stays under
 // Interaction, beside the hand that moves it. KEEP THIS FILE ORDERED BY
-// SECTION PATH: a section must be CONTIGUOUS, because the shell opens a
+// SECTION PATH: a section must be CONTIGUOUS, because the control surface
+// opens a
 // new block whenever the first token changes.
 
 // ─── THE SUN ─────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — 
 ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × flocking rule", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
 
 // ─── Sky & Light · Orbital rule ─────────────────────────────────────
-// One row, and the group's name is what tells the shell to print the
+// One row, and the group's name is what tells the control surface to print the
 // live-rule line: it acts under ORBITAL and under no other rule.
 ORGAN_PARAM_DEFONLY(F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orbital rule", "orbital speed (rad/s)", ORB_MOOD, OrbMoodConfig, orbital_base_speed)
 
@@ -213,7 +215,7 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "A
 ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_dither, F32, 0.0f,   1.0f,   1.0f,  "Atmosphere · Veil", "rim dither (>0.5)")
 // veil_strength has ONE author and it is not a dial: the cartridge writes
-// `finite_mode ? 0 : 1`, a world-shape fact. The panel meters it — 1
+// `finite_mode ? 0 : 1`, a world-shape fact. The control surface meters it — 1
 // outdoors, 0 wherever walls define the edge.
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, veil_strength, F32, "Atmosphere · Veil", "authority (driven)")
 
@@ -629,7 +631,8 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_chase_ff, F32, 0.0f, 1.0f, 0.01f, "C
 // registry's own authoring note puts the stable ceiling at ~10 x
 // spring_stiffness — 4.0/s², so 40. RADIUS: the point's bubble is the
 // bound on awareness (80 wu), and a presence has no business reaching past
-// what the point can notice, so the bubble's own range is the shell's.
+// what the point can notice, so the bubble's own range is the control
+// surface's.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_push_gain,   F32, 0.0f, 40.0f, 0.25f, "Camera · Presence", "push gain")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_push_radius, F32, 0.0f, 80.0f, 0.5f,  "Camera · Presence", "push radius")
 
