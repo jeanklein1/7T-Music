@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `eb80c7fac9ccc83577702add2f96bd2671438320` |
-| | audit â€” ledger provenance converged (PURSE_0) |
+| source commit | `afa64c0830c1f432ba26e88f97eff8729306f29e` |
+| | audit â€” ledger provenance converged (SUNRISE_0 N9) |
 | `src\cartridges\the_board\realization\binding_registry.hpp` | `sha256:285d2895d0d70f9631f15288dedc90ec58a168b83142f6d13e6078e8998b9605` |
 | `src\cartridges\the_board\realization\world.wgsl` | `sha256:60565e38eec984b71e0556c41cf57b95aea92d9498ed4364e0f664c713986ecc` |
 | `src\cartridges\the_board\realization\state.hpp` | `sha256:91bf37c3013306edebec29794cbeb6c5619f2603df0e23a4d0eb6e0364824c22` |
 | `src\cartridges\the_board\realization\binding_surface.gen.inc` | `sha256:d24e7e6e46f61c5dd093bcd25bc23a4801ee7ed817d3d7cce5f330cbf20058f4` |
 | `src\cartridges\the_board\realization\renderer.hpp` | `sha256:2db4c252c94bcb31a9bfba5bf1ac20e29978c445d429361e57be25552778b395` |
 | `tools\binding_ledger.py` | `sha256:623bf3150c5758196f9845e6de1f967b9d037436b1897cb3bb0d94c6dfe7be48` |
-| `audit\BINDING_LEDGER.md` | `sha256:a8e77c629d8e831bd311f46f87d60f361ff8ff5bed4708520355c02663ca5695` |
+| `audit\BINDING_LEDGER.md` | `sha256:d8078ce69d437e84a468a2303a9014fafe9905e646f0508da55dc5d8d4535373` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
