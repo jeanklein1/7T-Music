@@ -18,14 +18,14 @@
 # is shared with the console gate rather than duplicated: one stub set, one
 # home (tools/gates/console_gate/stubs, each file bannered).
 #
-# SUNSET_1 is why the Emscripten stubs are needed here at all. With the
-# native arms deleted, gallery.hpp's <emscripten.h> and <emscripten/fetch.h>
-# are unconditional, so the cartridge TU reaches them on every platform —
-# there is one program now, and it is the web one.
-#
-# The BOUNDARY is unchanged and still stated in tu.cpp: this harness
-# certifies OUR names, scope and syntax. Nothing is linked, nothing runs,
-# and the web boot remains the witness of record (ATLAS_1revB).
+# WEB_SUNSET: one program, native — the TU compiles with no
+# __EMSCRIPTEN__ anywhere. The stubs path STAYS on the include line
+# because it is also the home of real, receipted GLFW 3.5.1
+# (PROVENANCE.md), which input.hpp needs; the emscripten stubs that
+# once shared the directory went with the arms that named them. The -H
+# trace shows glfw3.h as the only stub this TU reaches. The BOUNDARY is
+# unchanged and still stated in tu.cpp: names, scope and syntax;
+# nothing linked, nothing run — the native boot is the witness of record.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"

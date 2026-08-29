@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════
-# THE TU GATE (GATE_1; widened by GATEHOUSE_0) — the tree's translation
-# units, compiled per commit, with their WARNINGS READ
+# THE TU GATE (GATE_1; widened by GATEHOUSE_0; tiered by WEB_SUNSET) —
+# the tree's translation units, compiled per commit, with their WARNINGS
+# READ
 #
 # The directory is still named console_gate: its stubs and PROVENANCE.md
 # live here and are cited elsewhere, and a rename would cost every one of
@@ -38,38 +39,26 @@
 # printed both warnings on the first try.
 #
 # WARNING PARITY, and the flag set is chosen rather than assumed: the
-# emcc line in CMakeLists passes NO -W flags at all (T7_WEB_OPT is -O0/-g
-# or -O2; T7_WEB_DIAG is emscripten -s settings only), so the build runs
-# on clang's DEFAULTS — which is exactly where -Winvalid-pp-token lives.
-# Parity therefore means passing no -W flags here either, and above all
-# not passing -w. Any line matching `warning:` is red, same posture as
-# an error.
+# build passes NO -W flags of its own, so it runs on the compiler's
+# DEFAULTS — which is exactly where -Winvalid-pp-token lived. Parity
+# therefore means passing no -W flags here either, and above all not
+# passing -w. Any line matching `warning:` is red, same posture as an
+# error.
 #
-# WHAT IT PROVES. Each TU parses, scopes, resolves every name and
-# type-checks against the REAL API surface the web build will use: the
-# vendored emdawnwebgpu payload (F5F's pin, never a system or emsdk copy)
-# and the GLFW header the contrib port actually wraps — and does so
-# without a single diagnostic.
+# WHAT IT PROVES, POST-WEB_SUNSET — IN TWO TIERS, EACH NAMED IN ITS OWN
+# VERDICT LINE. Tier CARTRIDGE: cartridge.hpp parses, scopes and
+# type-checks as the native program against the emdawnwebgpu surface —
+# proven sufficient for that cohort, and the first native type witness
+# the realization family ever had. Tier CONSOLE: console.hpp and
+# the_board.cpp against third_party/dawn_native_headers — Dawn's NATIVE
+# header generation at the same revision (L37), because the web-target
+# generation does not carry the native extensions those arms use
+# (Adapter::CreateDevice closed that door; a stub cannot add a member).
+# A dormant tier says so out loud and points at its OPEN item; it never
+# passes silently.
 #
-# WHAT IT DOES NOT PROVE. Nothing is linked, nothing is run, no semantics
-# are checked, and the Emscripten C surface behind the stubs is vacuous by
-# construction. Pipeline-layout conformance and minBindingSize remain
-# invisible here exactly as they are to naga — ATLAS_1revB's law stands:
-# THE WEB BOOT IS THE WITNESS OF RECORD for everything past the type
-# surface. This gate closes the gap between "nobody read it" and "it
-# type-checks clean", and claims no more ground than that.
-#
-# THE NATIVE ARM IS NOT COMPILED, and after SUNSET_1 there is none to
-# compile.
-#
-# ── THE EM_ASM DOCTRINE (GATEHOUSE_G3) ──────────────────────────────
-# EM_ASM bodies are preprocessor territory: JS string literals inside
-# them are double-quoted, always. The empty single quote is not a style
-# choice — it is an invalid pp-token wearing one.
-#
-# The lint arm below enforces that mechanically, BEFORE clang runs, so
-# the class is unwritable rather than merely uncompilable. It costs
-# milliseconds and does not need a compiler at all.
+# WHAT IT DOES NOT PROVE. Nothing is linked, nothing is run. THE NATIVE
+# BOOT IS THE WITNESS OF RECORD past the type surface.
 #
 # USAGE
 #   python3 tools/gates/console_gate/run.py           # gate; exit 1 on failure
@@ -77,7 +66,7 @@
 #
 # Provenance of every vendored/stubbed header: PROVENANCE.md beside this file.
 # ═══════════════════════════════════════════════════════════════════════
-"""GATE_1: compile the tree's TUs against the vendored API surface, warnings read."""
+"""GATE_1: compile the tree's TUs, in two tiers, against their pinned surfaces."""
 
 import os
 import re
@@ -95,78 +84,40 @@ PKG = os.path.join(ROOT, "third_party", "emdawnwebgpu", "emdawnwebgpu_pkg")
 WEBGPU_CPP_INC = os.path.join(PKG, "webgpu_cpp", "include")
 WEBGPU_C_INC = os.path.join(PKG, "webgpu", "include")
 
-# The subjects. One include each, on purpose: the gate's question is
-# whether each header stands up ON ITS OWN, not whether some caller
-# happens to include something first.
-#
-# cartridge.hpp is glaw1's own TU and reaches renderer.hpp, state.hpp and
-# the whole realization family. console.hpp is the one glaw1 never sees.
-# Between them every hand-edited header in the program is compiled.
-TU_LABEL = {"cartridge": "cartridge.hpp", "console": "console.hpp",
-            "the_board": "the_board.cpp"}
+# WEB_SUNSET R-A — the native surface. Dawn's NATIVE header generation at
+# the same revision as the emdawnwebgpu payload; its own PINNED.md is the
+# receipt. Absent is legal and LOUD: see tier CONSOLE below.
+DAWN_NATIVE = os.path.join(ROOT, "third_party", "dawn_native_headers")
+DAWN_NATIVE_INC = os.path.join(DAWN_NATIVE, "include")
 
-TUS = [
-    ("cartridge", '#include "cartridges/the_board/cartridge.hpp"\n'),
-    ("console", '#include "console/console.hpp"\n'),
-    # PANORAMA_1: the harness itself. It is the program's ONLY real
-    # translation unit — it holds main(), the rAF driver and the READY
-    # offer — and until now nothing here opened it: glaw1 builds
-    # cartridge.hpp, this gate built cartridge.hpp and console.hpp, and the
-    # file that includes them both was read by no compiler but Jean's emcc.
-    # Two rounds edited it blind (OVERTURE_0 U9, PANORAMA_1 U6). It needs no
-    # -D: the file defaults INCUBATE_RENDER itself.
-    ("the_board", '#include "the_board.cpp"\n'),
+# ── THE TIERS (WEB_SUNSET R-C) ──────────────────────────────────────
+# One include line per tier, because the two cohorts do not share a
+# surface. cartridge.hpp reaches renderer.hpp, state.hpp and the whole
+# realization family and needs only webgpu_cpp; console.hpp and
+# the_board.cpp reach Dawn's native extensions and need the native
+# generation. Compiling both against one surface is what the web-mode
+# gate did, and it is why the console arms went unread for the whole
+# life of the tree.
+TIER_CARTRIDGE = [
+    ("cartridge", "cartridge.hpp",
+     '#include "cartridges/the_board/cartridge.hpp"\n'),
 ]
 
-# ── THE EM_ASM LINT ─────────────────────────────────────────────────
-# Scanned over the tree's own sources. Not the vendored headers: they are
-# a pin, they carry no EM_ASM of ours, and a gate that reports a finding
-# nobody may fix is a gate that gets ignored.
-LINT_EXTS = (".hpp", ".cpp", ".h")
-EM_ASM_OPEN = re.compile(r"\bEM_ASM(?:_INT|_DOUBLE|_PTR|_ARGS)?\s*\(|\bEM_JS\s*\(")
-EMPTY_CHAR = re.compile(r"''")
+# PANORAMA_1: the harness itself. the_board.cpp is the program's ONLY real
+# translation unit — it holds main(), the frame driver and the READY offer
+# — and until GATEHOUSE_0 nothing here opened it. It needs no -D: the file
+# defaults INCUBATE_RENDER itself.
+TIER_CONSOLE = [
+    ("console", "console.hpp", '#include "console/console.hpp"\n'),
+    ("the_board", "the_board.cpp", '#include "the_board.cpp"\n'),
+]
 
-
-def em_asm_bodies(text):
-    """Yield (start_index, end_index) for each EM_ASM/EM_JS argument list.
-
-    Brace/paren depth counting from the opening paren. Crude on purpose:
-    the question is only which lines sit inside such a call, and a body
-    that confuses this scanner is a body worth a human's eye anyway.
-    """
-    for m in EM_ASM_OPEN.finditer(text):
-        i = text.index("(", m.start())
-        depth = 0
-        for j in range(i, len(text)):
-            c = text[j]
-            if c == "(":
-                depth += 1
-            elif c == ")":
-                depth -= 1
-                if depth == 0:
-                    yield i, j
-                    break
-
-
-def lint_em_asm():
-    hits = []
-    for base, _dirs, files in os.walk(SRC):
-        for fn in sorted(files):
-            if not fn.endswith(LINT_EXTS):
-                continue
-            path = os.path.join(base, fn)
-            try:
-                text = open(path, encoding="utf-8").read()
-            except (OSError, UnicodeDecodeError):
-                continue
-            if "EM_ASM" not in text and "EM_JS" not in text:
-                continue
-            for a, b in em_asm_bodies(text):
-                for m in EMPTY_CHAR.finditer(text, a, b):
-                    line = text.count("\n", 0, m.start()) + 1
-                    src_line = text.split("\n")[line - 1].strip()
-                    hits.append((os.path.relpath(path, ROOT), line, src_line))
-    return hits
+# P-16 — the dormant-tier line. A named absence, never a silent one.
+DORMANT_LINES = [
+    "tu-gate: tier CONSOLE DORMANT — third_party/dawn_native_headers absent.",
+    "  console.hpp and the_board.cpp are NOT type-witnessed by this run.",
+    "  Supply recipe: docs/OPEN.md, THE NATIVE HEADER SURFACE.",
+]
 
 
 def shallow_note():
@@ -184,6 +135,47 @@ def shallow_note():
               "unsafe until git fetch --unshallow")
 
 
+def compile_tu(cxx, tmp, name, source, includes):
+    """One TU, one verdict. Returns (ok, blob)."""
+    tu_path = os.path.join(tmp, "tu_%s.cpp" % name)
+    with open(tu_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(source)
+
+    cmd = [cxx, "-fsyntax-only", "-std=gnu++20"]
+    # NO -w, and no -W either — see WARNING PARITY above. GLFW_INCLUDE_NONE
+    # keeps glfw3.h from reaching for an OpenGL header this tree never uses.
+    cmd += ["-DGLFW_INCLUDE_NONE"]
+    for inc in includes:
+        cmd += ["-I", inc]
+    cmd += [tu_path]
+
+    if "--print" in sys.argv:
+        print("tu-gate: " + " ".join(cmd))
+
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    blob = (proc.stdout or "") + (proc.stderr or "")
+    # READ THE TESTIMONY, not just the verdict. `warning:` is red. A
+    # warning exits 0, which is precisely how this gate reported green
+    # while clang was naming two defects in the file the round had just
+    # rewritten.
+    warns = [l for l in blob.split("\n") if re.search(r"\bwarning:", l)]
+    return (proc.returncode == 0 and not warns), blob, len(warns), proc.returncode
+
+
+def run_tier(cxx, tmp, label, tus, includes):
+    """Compile a tier's TUs. Returns the list of failed TU names."""
+    failed = []
+    for name, shown, source in tus:
+        ok, blob, nwarn, rc = compile_tu(cxx, tmp, name, source, includes)
+        if not ok:
+            sys.stdout.write(blob)
+            why = "errors" if rc != 0 else "%d warning(s)" % nwarn
+            print("tu-gate: FAIL — tier %s, %s: %s (%s)"
+                  % (label, shown, why, os.path.basename(cxx)))
+            failed.append(shown)
+    return failed
+
+
 def main() -> int:
     shallow_note()   # L29
     for path, what in ((SRC, "src/"),
@@ -193,22 +185,11 @@ def main() -> int:
         if not os.path.isdir(path):
             print("tu-gate: MISSING %s at %s" % (what, path))
             if PKG in path:
-                print("  The emdawnwebgpu payload is not in the tree. The gate "
-                      "compiles against the PIN and never against a system or "
-                      "emsdk copy — fetch per third_party/emdawnwebgpu/PINNED.md.")
+                print("  The emdawnwebgpu payload is not in the tree. Tier "
+                      "CARTRIDGE compiles against the PIN and never against a "
+                      "system copy — fetch per "
+                      "third_party/emdawnwebgpu/PINNED.md.")
             return 1
-
-    # ── ARM 1: the lint, before any compiler ────────────────────────
-    hits = lint_em_asm()
-    if hits:
-        print("tu-gate: FAIL — empty single-quoted literal inside an EM_ASM/EM_JS body")
-        for rel, line, src_line in hits:
-            print("  %s:%d: %s" % (rel, line, src_line))
-        print("  EM_ASM bodies are preprocessor territory: JS string literals")
-        print("  inside them are double-quoted, always. `''` is an EMPTY")
-        print("  CHARACTER CONSTANT — an invalid pp-token, not a style choice.")
-        print("  Write \"\" instead; JS reads it identically. (GATEHOUSE_G3)")
-        return 1
 
     cxx = shutil.which("clang++") or shutil.which("g++")
     if cxx is None:
@@ -216,67 +197,37 @@ def main() -> int:
         return 1
 
     tmp = tempfile.mkdtemp(prefix="tu_gate_")
-    failed = []
+    rc = 0
     try:
-        for name, tu in TUS:
-            tu_path = os.path.join(tmp, "tu_%s_web.cpp" % name)
-            with open(tu_path, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(tu)
+        # ── TIER CARTRIDGE — required green ─────────────────────────
+        cart_inc = [SRC, STUBS, WEBGPU_CPP_INC, WEBGPU_C_INC]
+        cart_failed = run_tier(cxx, tmp, "CARTRIDGE", TIER_CARTRIDGE, cart_inc)
+        if cart_failed:
+            print("tu-gate: FAIL — tier CARTRIDGE: %s" % ", ".join(cart_failed))
+            rc = 1
+        else:
+            print("tu-gate: PASS — tier CARTRIDGE: %s type-check(s) as the "
+                  "native program against the pinned emdawnwebgpu surface, "
+                  "ZERO diagnostics [%s]"
+                  % (", ".join(s for _, s, _ in TIER_CARTRIDGE),
+                     os.path.basename(cxx)))
 
-            cmd = [
-                cxx, "-fsyntax-only", "-std=gnu++20",
-                # NO -w, and no -W either. WARNING PARITY: the emcc line
-                # in CMakeLists passes no -W flags, so the build runs on
-                # clang's defaults and so does this. -w is what hid two
-                # -Winvalid-pp-token diagnostics through a whole round.
-                #
-                # Four __EMSCRIPTEN__ guards survive SUNSET_1 in
-                # renderer.hpp (docs/OPEN.md: GUARD DEBT), so this define
-                # SELECTS their shipping arms — and it stays, above all,
-                # for FIDELITY: emcc always defines it, the
-                # Emscripten headers may branch on it themselves, and a
-                # gate that compiles under different macros than the build
-                # is answering a different question. GLFW_INCLUDE_NONE
-                # keeps glfw3.h from reaching for an OpenGL header this
-                # tree never uses.
-                "-D__EMSCRIPTEN__", "-DGLFW_INCLUDE_NONE",
-                "-I", SRC,
-                "-I", STUBS,
-                "-I", WEBGPU_CPP_INC,
-                "-I", WEBGPU_C_INC,
-                tu_path,
-            ]
-            if "--print" in sys.argv:
-                print("tu-gate: " + " ".join(cmd))
-
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            blob = (proc.stdout or "") + (proc.stderr or "")
-            # ── ARM 2: READ THE TESTIMONY, not just the verdict ──────
-            # `warning:` is red. A warning exits 0, which is precisely
-            # how this gate reported green while clang was naming two
-            # defects in the file the round had just rewritten.
-            warns = [l for l in blob.split("\n") if re.search(r"\bwarning:", l)]
-            if proc.returncode != 0 or warns:
-                sys.stdout.write(blob)
-                why = "errors" if proc.returncode != 0 else "%d warning(s)" % len(warns)
-                print("tu-gate: FAIL — %s.hpp TU: %s (%s)"
-                      % (name, why, os.path.basename(cxx)))
-                failed.append(name)
-
-        if failed:
-            print("tu-gate: FAIL — %d of %d TU(s) not clean: %s"
-                  % (len(failed), len(TUS), ", ".join(failed)))
-            return 1
-
-        print("tu-gate: PASS — %d TU(s) parse, scope and type-check against the "
-              "pinned emdawnwebgpu surface with ZERO diagnostics [%s]"
-              % (len(TUS), os.path.basename(cxx)))
-        # The extension rides the TU, not the printer: the third subject is a
-        # .cpp and calling it a header would be the gate lying in its own
-        # verdict line.
-        print("  TUs: %s" % ", ".join(TU_LABEL[n] for n, _ in TUS))
-        print("  EM_ASM lint: clean (no empty single-quoted literal in any body)")
-        return 0
+        # ── TIER CONSOLE — required green when its surface is present ─
+        if not os.path.isdir(DAWN_NATIVE):
+            for line in DORMANT_LINES:
+                print(line)
+        else:
+            cons_inc = [SRC, STUBS, DAWN_NATIVE_INC]
+            cons_failed = run_tier(cxx, tmp, "CONSOLE", TIER_CONSOLE, cons_inc)
+            if cons_failed:
+                print("tu-gate: FAIL — tier CONSOLE: %s" % ", ".join(cons_failed))
+                rc = 1
+            else:
+                print("tu-gate: PASS — tier CONSOLE: %s type-check(s) against "
+                      "third_party/dawn_native_headers, ZERO diagnostics [%s]"
+                      % (", ".join(s for _, s, _ in TIER_CONSOLE),
+                         os.path.basename(cxx)))
+        return rc
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -53,6 +53,29 @@ The gate found this one itself — its first run failed on the missing
 include rather than passing over it, which is the behaviour the unit was
 built for.
 
+## `stubs/GLFW/glfw3native.h`
+
+**Ours, not vendored** — the one hand-written file in this GLFW directory,
+and the only stub WEB_SUNSET added. It carries the standing banner
+`STUB — declarations only, the native boot remains the runtime witness`.
+
+Upstream's `glfw3native.h` cannot be vendored here for the reason the
+stub's own banner gives: under `GLFW_EXPOSE_NATIVE_X11` it includes
+`<X11/Xlib.h>` and Xrandr, under `_WIN32` it includes `<windows.h>`, and a
+gate that needed a platform SDK would run on one machine instead of on
+any. Declaring the three getters `console.hpp` names, behind the same
+expose macros upstream gates them with, asks the only question this gate
+can honestly ask: does OUR call match the shape the surface sources hold?
+
+The return types are opaque and chosen against the real structs rather
+than guessed — `SurfaceSourceXlibWindow::display` is `void *` and
+`::window` is `uint64_t`; `SurfaceSourceWindowsHWND::hwnd` and
+`::hinstance` are both `void *` (`third_party/dawn_native_headers`,
+`dawn/webgpu_cpp.h`). `glfwGetCocoaWindow` is declared and never called:
+`initSurface`'s platform chain is `_WIN32` / `__linux__` only, so on
+macOS the surface descriptor is left unchained. Declared anyway, so the
+stub matches upstream's shape rather than this host's.
+
 ## `stubs/emscripten*.h`, `stubs/GL/gl.h`
 
 Ours, not vendored. Each declares only what `console.hpp` names, and each
