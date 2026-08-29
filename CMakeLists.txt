@@ -129,9 +129,11 @@ dawn_lib(LIB_DAWN_PLATFORM    "src/dawn/platform/$<CONFIG>/dawn_platform.lib")
 
 # Dawn utils (contains SystemHandle)
 dawn_lib(LIB_DAWN_SYSTEM_UTILS "src/dawn/utils/$<CONFIG>/dawn_system_utils.lib")
+# N6 ADD — pin-new at 56f332d7; in the five targets' closure, so dawn_native references it.
+dawn_lib(LIB_DAWN_SHARED_UTILS "src/utils/$<CONFIG>/dawn_shared_utils.lib")
 
 # GLFW from Dawn's third_party
-dawn_lib(LIB_GLFW             "third_party/glfw/src/$<CONFIG>/glfw3.lib")
+dawn_lib(LIB_GLFW             "third_party/glfw3/src/src/$<CONFIG>/glfw3.lib")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TINT LIBRARIES (Shader Compiler)
@@ -156,6 +158,7 @@ dawn_lib(LIB_TINT_UTILS_TEXT_GENERATOR  "src/tint/$<CONFIG>/tint_utils_text_gene
 dawn_lib(LIB_TINT_UTILS_RTTI            "src/tint/$<CONFIG>/tint_utils_rtti.lib")
 dawn_lib(LIB_TINT_UTILS_BYTES           "src/tint/$<CONFIG>/tint_utils_bytes.lib")
 dawn_lib(LIB_TINT_UTILS_SYSTEM          "src/tint/$<CONFIG>/tint_utils_system.lib")
+dawn_lib(LIB_TINT_UTILS_REFLECTION      "src/tint/$<CONFIG>/tint_utils_reflection.lib")   # N6 ADD
 
 # Tint core language
 dawn_lib(LIB_TINT_LANG_CORE             "src/tint/$<CONFIG>/tint_lang_core.lib")
@@ -207,6 +210,7 @@ dawn_lib(LIB_TINT_LANG_SPIRV_WRITER     "src/tint/$<CONFIG>/tint_lang_spirv_writ
 dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_COMMON "src/tint/$<CONFIG>/tint_lang_spirv_writer_common.lib")
 dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_PRINTER "src/tint/$<CONFIG>/tint_lang_spirv_writer_printer.lib")
 dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_RAISE "src/tint/$<CONFIG>/tint_lang_spirv_writer_raise.lib")
+dawn_lib(LIB_TINT_LANG_SPIRV_WRITER_ANALYSIS "src/tint/$<CONFIG>/tint_lang_spirv_writer_analysis.lib")   # N6 ADD
 dawn_lib(LIB_TINT_LANG_SPIRV_READER     "src/tint/$<CONFIG>/tint_lang_spirv_reader.lib")
 dawn_lib(LIB_TINT_LANG_SPIRV_READER_COMMON "src/tint/$<CONFIG>/tint_lang_spirv_reader_common.lib")
 dawn_lib(LIB_TINT_LANG_SPIRV_READER_LOWER "src/tint/$<CONFIG>/tint_lang_spirv_reader_lower.lib")
@@ -230,6 +234,10 @@ dawn_lib(LIB_ABSEIL_THROW           "third_party/abseil/absl/base/$<CONFIG>/absl
 dawn_lib(LIB_ABSEIL_SPINLOCK        "third_party/abseil/absl/base/$<CONFIG>/absl_spinlock_wait.lib")
 dawn_lib(LIB_ABSEIL_RAW_LOG         "third_party/abseil/absl/base/$<CONFIG>/absl_raw_logging_internal.lib")
 dawn_lib(LIB_ABSEIL_LOG_SEVERITY    "third_party/abseil/absl/base/$<CONFIG>/absl_log_severity.lib")
+# N6 ADD — pin-new base-tier targets the tag list predates.
+dawn_lib(LIB_ABSEIL_BASE_CPU_DETECT "third_party/abseil/absl/base/$<CONFIG>/absl_base_cpu_detect.lib")
+dawn_lib(LIB_ABSEIL_HARDENING       "third_party/abseil/absl/base/$<CONFIG>/absl_hardening.lib")
+dawn_lib(LIB_ABSEIL_TRACING         "third_party/abseil/absl/base/$<CONFIG>/absl_tracing_internal.lib")
 
 # Optional but often needed
 dawn_lib_optional(LIB_ABSEIL_MALLOC "third_party/abseil/absl/base/$<CONFIG>/absl_malloc_internal.lib")
@@ -237,12 +245,24 @@ dawn_lib_optional(LIB_ABSEIL_MALLOC "third_party/abseil/absl/base/$<CONFIG>/absl
 # Strings
 dawn_lib(LIB_ABSEIL_STRINGS         "third_party/abseil/absl/strings/$<CONFIG>/absl_strings.lib")
 dawn_lib(LIB_ABSEIL_STR_INTERNAL    "third_party/abseil/absl/strings/$<CONFIG>/absl_strings_internal.lib")
-dawn_lib(LIB_ABSEIL_STRING_VIEW     "third_party/abseil/absl/strings/$<CONFIG>/absl_string_view.lib")
+# N6 DROP — absl_string_view.lib is absent from the pin's output in BOTH
+# configs: string_view is header-only at 56f332d7 and no longer compiles to
+# an artifact. No address exists to retarget to.
+# N6 ADD — the cordz trio, cord's sampling machinery, pin-new here.
+dawn_lib(LIB_ABSEIL_CORDZ_INFO      "third_party/abseil/absl/strings/$<CONFIG>/absl_cordz_info.lib")
+dawn_lib(LIB_ABSEIL_CORDZ_HANDLE    "third_party/abseil/absl/strings/$<CONFIG>/absl_cordz_handle.lib")
+dawn_lib(LIB_ABSEIL_CORDZ_FUNCTIONS "third_party/abseil/absl/strings/$<CONFIG>/absl_cordz_functions.lib")
 
 # Optional string libs
 dawn_lib_optional(LIB_ABSEIL_CORD           "third_party/abseil/absl/strings/$<CONFIG>/absl_cord.lib")
 dawn_lib_optional(LIB_ABSEIL_CORD_INTERNAL  "third_party/abseil/absl/strings/$<CONFIG>/absl_cord_internal.lib")
 dawn_lib_optional(LIB_ABSEIL_STR_FORMAT     "third_party/abseil/absl/strings/$<CONFIG>/absl_str_format_internal.lib")
+
+# CRC — N6 ADD. absl_cord depends on absl_crc_cord_state, which is why this
+# family appears in a closure the tag list never carried.
+dawn_lib(LIB_ABSEIL_CRC32C          "third_party/abseil/absl/crc/$<CONFIG>/absl_crc32c.lib")
+dawn_lib(LIB_ABSEIL_CRC_CORD_STATE  "third_party/abseil/absl/crc/$<CONFIG>/absl_crc_cord_state.lib")
+dawn_lib(LIB_ABSEIL_CRC_INTERNAL    "third_party/abseil/absl/crc/$<CONFIG>/absl_crc_internal.lib")
 
 # Numeric
 dawn_lib(LIB_ABSEIL_INT128          "third_party/abseil/absl/numeric/$<CONFIG>/absl_int128.lib")
@@ -262,9 +282,19 @@ dawn_lib(LIB_ABSEIL_STACKTRACE      "third_party/abseil/absl/debugging/$<CONFIG>
 dawn_lib(LIB_ABSEIL_SYMBOLIZE       "third_party/abseil/absl/debugging/$<CONFIG>/absl_symbolize.lib")
 dawn_lib(LIB_ABSEIL_DEMANGLE        "third_party/abseil/absl/debugging/$<CONFIG>/absl_demangle_internal.lib")
 dawn_lib(LIB_ABSEIL_DEBUGGING       "third_party/abseil/absl/debugging/$<CONFIG>/absl_debugging_internal.lib")
+# N6 ADD — absl_demangle_internal's Rust chain, pin-new. Ordered below
+# DEMANGLE because each is the next one's dependency.
+dawn_lib(LIB_ABSEIL_DEMANGLE_RUST   "third_party/abseil/absl/debugging/$<CONFIG>/absl_demangle_rust.lib")
+dawn_lib(LIB_ABSEIL_DECODE_RUST     "third_party/abseil/absl/debugging/$<CONFIG>/absl_decode_rust_punycode.lib")
+dawn_lib(LIB_ABSEIL_UTF8_CODE_POINT "third_party/abseil/absl/debugging/$<CONFIG>/absl_utf8_for_code_point.lib")
 
-# Additional debugging support (for BorrowedFixupBuffer)
-dawn_lib(LIB_ABSEIL_BORROWED_FIXUP "third_party/abseil/absl/debugging/$<CONFIG>/absl_borrowed_fixup_buffer.lib")
+# N6 DROP — absl_borrowed_fixup_buffer.lib is absent from the pin's output in
+# BOTH configs. The guard never reached this entry (it FATALs at the first
+# miss, and absl_string_view above stopped it), so only the reconciliation
+# could find it.
+
+# Types — N6 ADD.
+dawn_lib(LIB_ABSEIL_SOURCE_LOCATION "third_party/abseil/absl/types/$<CONFIG>/absl_source_location.lib")
 
 # Hash
 dawn_lib(LIB_ABSEIL_HASH            "third_party/abseil/absl/hash/$<CONFIG>/absl_hash.lib")
@@ -324,6 +354,7 @@ set(DAWN_LIBS
     ${LIB_DAWN_COMMON}
     ${LIB_DAWN_PLATFORM}
     ${LIB_DAWN_SYSTEM_UTILS}
+    ${LIB_DAWN_SHARED_UTILS}
 
     # ─────────────────────────────────────────────────────────────────────────
     # LEVEL 2: Tint API (shader compilation entry point)
@@ -372,6 +403,7 @@ set(DAWN_LIBS
     ${LIB_TINT_LANG_SPIRV_WRITER_COMMON}
     ${LIB_TINT_LANG_SPIRV_WRITER_PRINTER}
     ${LIB_TINT_LANG_SPIRV_WRITER_RAISE}
+    ${LIB_TINT_LANG_SPIRV_WRITER_ANALYSIS}
     ${LIB_TINT_LANG_SPIRV_READER}
     ${LIB_TINT_LANG_SPIRV_READER_COMMON}
     ${LIB_TINT_LANG_SPIRV_READER_LOWER}
@@ -409,6 +441,7 @@ set(DAWN_LIBS
     ${LIB_TINT_UTILS_RTTI}
     ${LIB_TINT_UTILS_BYTES}
     ${LIB_TINT_UTILS_SYSTEM}
+    ${LIB_TINT_UTILS_REFLECTION}
 
     # ─────────────────────────────────────────────────────────────────────────
     # LEVEL 6: SPIRV-Tools
@@ -430,14 +463,25 @@ set(DAWN_LIBS
     ${LIB_ABSEIL_CIVIL_TIME}
     ${LIB_ABSEIL_STRINGS}
     ${LIB_ABSEIL_STR_INTERNAL}
-    ${LIB_ABSEIL_STRING_VIEW}
+    ${LIB_ABSEIL_CORDZ_INFO}
+    ${LIB_ABSEIL_CORDZ_HANDLE}
+    ${LIB_ABSEIL_CORDZ_FUNCTIONS}
+    ${LIB_ABSEIL_CRC32C}
+    ${LIB_ABSEIL_CRC_CORD_STATE}
+    ${LIB_ABSEIL_CRC_INTERNAL}
     ${LIB_ABSEIL_INT128}
     ${LIB_ABSEIL_STACKTRACE}
-    ${LIB_ABSEIL_BORROWED_FIXUP}
     ${LIB_ABSEIL_SYMBOLIZE}
     ${LIB_ABSEIL_DEBUGGING}
     ${LIB_ABSEIL_DEMANGLE}
+    ${LIB_ABSEIL_DEMANGLE_RUST}
+    ${LIB_ABSEIL_DECODE_RUST}
+    ${LIB_ABSEIL_UTF8_CODE_POINT}
+    ${LIB_ABSEIL_SOURCE_LOCATION}
     ${LIB_ABSEIL_BASE}
+    ${LIB_ABSEIL_BASE_CPU_DETECT}
+    ${LIB_ABSEIL_HARDENING}
+    ${LIB_ABSEIL_TRACING}
     ${LIB_ABSEIL_SPINLOCK}
     ${LIB_ABSEIL_RAW_LOG}
     ${LIB_ABSEIL_LOG_SEVERITY}
