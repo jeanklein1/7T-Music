@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `d84a825401da2743d9f15e51b35154ca91802857` |
-| | PRUNE_1 U2 — the pipelines + the draw verbs |
+| source commit | `a2368480a01953747d46b64424bcbd37d443e467` |
+| | PRUNE_1 U3+U4 — the resources, the binding surface, the shader |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:8f4584258bdb7b9f8d84373b58edbbe1915d5d969a3f35dd00d79130d5630f3e` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:8aff04ee102f2a258a3f8e037671a21f92516ccf41d04cb0efaeb293edfb62e6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:8ad74f64a72f3539c050b60c6ba4bebf846520b1632a2794a69fff843662210b` |

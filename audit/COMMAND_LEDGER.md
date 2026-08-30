@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `89a4f929634946360e2489273f549b1723511a00`
-(PRUNE_1 U5+U6 — the module, the assets, the family, the DTOs, the prose)
+Last commit touching any scanned file: `a2368480a01953747d46b64424bcbd37d443e467`
+(PRUNE_1 U3+U4 — the resources, the binding surface, the shader)
 
 | file scanned | sha256 |
 |---|---|

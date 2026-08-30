@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d84a825401da2743d9f15e51b35154ca91802857` |
-| | PRUNE_1 U2 — the pipelines + the draw verbs |
+| source commit | `a2368480a01953747d46b64424bcbd37d443e467` |
+| | PRUNE_1 U3+U4 — the resources, the binding surface, the shader |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:8ad74f64a72f3539c050b60c6ba4bebf846520b1632a2794a69fff843662210b` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:71de5d969b982615e79c2bf6ef3c1c9b93bcfdcbf95d72c2bda4d750804fba02` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:8f4584258bdb7b9f8d84373b58edbbe1915d5d969a3f35dd00d79130d5630f3e` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:8aff04ee102f2a258a3f8e037671a21f92516ccf41d04cb0efaeb293edfb62e6` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:d9bf2e06b61bb0da119d8d3a64bfca995e7b209ad77a486b5cc9348a23be8699` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:fc23a4d744b45810d864cb913105aa8584448be368a03bf586df1476dae54445` |
+| `audit/BINDING_LEDGER.md` | `sha256:f521de8457d4c4656fed863901ba8a00900a711e39134013402fe1ab6af10802` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

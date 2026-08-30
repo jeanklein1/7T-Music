@@ -28,10 +28,6 @@
 //   CONSTNESS is the dial — v0 constexpr -> boot-time table ->
 //   requirements-face resolver (the program theory).
 //
-// LATENT[roster-split:photographer]: the photographer (capture cadence +
-//   snapshot pass) rides gallery's bit for v0. Split into its own bit the
-//   day authored-only exhibits with a dead camera are wanted.
-//
 // ─── GATE-(a) STATUS (the cost column) ──────────────────────────
 //   The creation-side classification (full cost table with buffers/
 //   groups/pipelines and retirement per piece).
@@ -143,7 +139,7 @@ static_assert(placement_order_is_permutation(),
 
 struct Roster {
     bool pyramid, arch, column, antenna, palm, cactus, blade,
-         sphere, ribbon, cube, gol, gallery;
+         sphere, ribbon, cube, gol;
     // FEATURES (7)
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
@@ -172,7 +168,7 @@ struct Roster {
 
     constexpr bool all_enabled() const {
         return pyramid && arch && column && antenna && palm && cactus &&
-               blade && sphere && ribbon && cube && gol && gallery &&
+               blade && sphere && ribbon && cube && gol &&
                pawn_aura && orbs && spot_lights && indoor_shell && portal &&
                transitions && wanderers;
     }
@@ -183,7 +179,7 @@ struct Roster {
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
         return !pyramid && !arch && !column && !antenna && !palm && !cactus &&
-               !blade && !sphere && !ribbon && !cube && !gol && !gallery &&
+               !blade && !sphere && !ribbon && !cube && !gol &&
                !pawn_aura && !orbs && !spot_lights && !indoor_shell && !portal &&
                !transitions && !wanderers;
     }

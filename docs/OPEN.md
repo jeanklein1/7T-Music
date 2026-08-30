@@ -65,7 +65,6 @@ commit that deleted that file's arm.
 |---|---|---|
 | N1 | `the_board.cpp`, `boot_params.hpp` | `315d4bc1^` |
 | N2 | `console.hpp` | `315d4bc1^` |
-| N3 | `gallery.hpp` | `315d4bc1^` |
 | N4 | `CMakeLists.txt`, `CMakePresets.json` | the tag |
 
 ### Drift adaptations made during N-b
@@ -143,25 +142,70 @@ session, so this entry rests on the negative probes above rather than on a
 diagnosis of the message itself; anyone who has the text and wants to close
 it properly should paste it here.
 
-## THE PRUNING CAMPAIGN AHEAD (not started)
+## THE PRUNING CAMPAIGN AHEAD (S1 + S2 CLOSED at PRUNE_1)
 
-Phase W — the web strip — landed first (docs/LAWS.md: WEB_SUNSET). The
-S-units below are unchanged and still FLAGGED.
-
-SUNRISE_0 delivers a functional native second repo with **nothing cut**.
-The strip is the next campaign, worked from `attic/full-board`. Its
-advance census is already done and is the reason it is a campaign and not
-a chore: **three of its four units are FLAGGED.**
+Phase W — the web strip — landed first (docs/LAWS.md: WEB_SUNSET).
+**S1 and S2 are CLOSED**: PRUNE_1 took the gallery organ whole — the
+photographer, the outdoor galleries and the indoor wall art — and the
+findings that flagged them are answered below. S3 and S4 stand,
+unchanged and still FLAGGED.
 
 | unit | subject | finding |
 |---|---|---|
-| S1 | snapshot / photograph | no KEEP-row reader — but not separable: it lives inside `gallery.hpp`, which declares `SEAM[gallery:dual-role]` |
-| S2 | galleries, paintings, hang | FLAGGED — the veil lift gates on `gallery_state_.authored_staged_count`; `compute_entity_placement` writes `photo_painting_slots` before Y-correcting KEEP flora; `painting_slots` is entry[3] of the shared `shadowStateLayout_` |
+| S1 | snapshot / photograph | **CLOSED (PRUNE_1).** Not separable, and it was not separated: the whole organ left in one campaign, `SEAM[gallery:dual-role]` with it. |
+| S2 | galleries, paintings, hang | **CLOSED (PRUNE_1).** Each flag answered: the veil lift now fires on the elapsed-since-`world_live` condition alone; `compute_entity_placement` lost only its painting loop and Y-corrects the KEEP flora exactly as before; `painting_slots` left `shadowStateLayout_` and the seats behind it re-indexed through `binding_schema.py`, the tool's job, verified by `binding_gen.py --check`. |
 | S3 | portals | FLAGGED — `static_assert(!ROSTER.transitions \|\| ROSTER.portal)` in `demos/demo.hpp` forbids the combination outright; `TransitionPhase`'s only ignition is `point_.portal_trigger` |
 | S4 | agent pipelines | FLAGGED — `agent_state[possessed_slot]` **is** the point; camera, veil, terrain aura, LOD streaming, the ribbon's sky rule and the shadow box all read it |
 
-`WorldDrawSurface` empties under S2+S3 together, under a `sizeof`
-static_assert — that, not binding group 2, is the "room that empties".
+`WorldDrawSurface` was to empty under S2+S3 together, under a `sizeof`
+static_assert. S2 has landed and it did not empty: the fields the
+gallery held were never `WorldDrawSurface`'s — the surviving mentions
+there are the "Gallery" indoor LIGHT SCHEME (`scheme_weights[2]`) and
+the portal dials, which are S3's. Whether the room empties is S3's
+question alone now.
+
+### PRUNE_1 — WHAT LEFT, AND THE ARGUMENT THAT MADE IT SAFE
+
+The organ: `bodies/gallery.hpp` whole, six pipelines and their entry
+points, the painting/photographer buffers, the three 512-square texture
+arrays (snapshot staging, authored staging, exhibition) and the
+offscreen snapshot targets, four bind groups and their layouts, the
+WGSL §8.1–§8.3 sections and the photographer's own half of §8.0,
+`PopFamily::GALLERY`, the `GallerySelection` / `GalleryPlacement` DTOs,
+the roster bit, and 57 painting files.
+
+THE TAIL-TRUNCATION ARGUMENT. `PopFamily::GALLERY` was 11, the LAST
+family, so `COUNT` 12 → 11 is pure truncation: no surviving family
+renumbers, no surviving table column moves relative to another, and
+placement priority among the survivors is unchanged. F-1's fear is a
+RENUMBERING fear and a tail cut does not trigger it. Nine positional
+tables each lost exactly their final element with every other number
+byte-identical — including `INDOOR_TREATMENT`, a ninth table the
+advance census had not named, found by grepping `PopFamily::COUNT`.
+
+PARKED, not done:
+- **The offer's timing.** `OVERTURE_READY_TIMEOUT_S` and its 5.0 s
+  stand; the floor term left with the tally it counted. Whether the
+  offer should now be immediate is a taste call and Jean's.
+- **The `photo_` prefix.** `photo_heightfield` / `photo_sampler` STAY —
+  the one patch-grid walk samples them for every room, not just the
+  photographer's. The prefix is a legacy of who introduced them; the
+  rename is a separate, behaviour-free edit.
+- **`assets/atrium/`** (4 files, 1,114,018 B) has NO reader anywhere and
+  had none before this campaign — the loader only ever walked
+  `assets/paintings` for `PAINTING_*.jpg|.jpeg`, and the `ATRIUM_n`
+  names in the code are record indices into that manifest, not these
+  files. Left untouched under PRUNE_1 R7; it wants its own tombstone
+  ruling (L30), like `presets/` above.
+- **The ECONOMY_1 E1 curtain pair.** `patch_index_buffer_lod0_live` /
+  `patch_index_count_lod0_live` had ZERO readers BEFORE this campaign;
+  `curtainsActive_` is written every frame and read only by them. The
+  snapshot pass was the last carrier the prose named, so the notes are
+  corrected and the code is left standing — retiring it is its own
+  reading, not a prune's side effect.
+- **`SpawnClamp::NONE`'s absent clamp.** The value left with its one
+  consumer; the sub-ruling that the absent clamp was carried as data,
+  and that ruling a clamp IN is a separate taste gate, is now moot.
 
 ## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
 

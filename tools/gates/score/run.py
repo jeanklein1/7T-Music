@@ -62,7 +62,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 # The roster bits (gate families must resolve to one of these).
 KNOWN_FAMILIES = {
     'pyramid', 'arch', 'column', 'antenna', 'palm', 'cactus', 'blade',
-    'sphere', 'ribbon', 'cube', 'gol', 'gallery', 'pawn_aura', 'orbs',
+    'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
     'spot_lights', 'indoor_shell', 'portal', 'transitions', 'wanderers',
 }
 
@@ -76,15 +76,16 @@ def gate_families(gate):
 # family -> [(phase fn, {required gate families})]
 FRAME_ROWS = {
     'pawn_aura':   [('phase_motion_bodies', {'pawn_aura'}), ('phase_pawn_aura', {'pawn_aura'})],
-    'gallery':     [('phase_witness_photographer', {'gallery'})],
     'transitions': [('phase_portal_trigger', {'transitions'})],
     'wanderers':   [('phase_respawn_agents', {'wanderers'})],
     'ribbon':      [('phase_ribbon_tick', {'ribbon'})],
     'gol':         [('phase_gol_derive_flush', {'gol'}), ('phase_gol_zone_compute', {'gol'})],
     'orbs':        [('phase_orb_sky', {'orbs'})],
 }
-# rows whose gate is a SHARED (multi-family) organ.
-SHARED_ROWS = [('phase_promotion_drain', {'gallery', 'indoor_shell'})]
+# rows whose gate is a SHARED (multi-family) organ. PRUNE_1 emptied this
+# list: promotion_drain was its one row, and it left with the gallery.
+# The mechanism stands — a future shared organ registers here.
+SHARED_ROWS = []
 
 # ── DIRECTION B: foundational phases — gate MUST be `true`, justified ──
 FOUNDATIONAL_PHASES = {
@@ -108,7 +109,6 @@ FOUNDATIONAL_PHASES = {
     'phase_frustum_cull':          'REALIZATION pass (piece-gating lives at gate a-prime)',
     'phase_shadow_pass':           'REALIZATION pass (piece-gating lives at gate a-prime)',
     'phase_main_pass':             'REALIZATION pass (piece-gating lives at gate a-prime)',
-    'phase_snapshot_pass':         'REALIZATION pass; inert without a pending snapshot',
 }
 
 # ── DIRECTION A (non-frame): teardown / boot / mesh-prep / delegated ──
@@ -142,14 +142,6 @@ GREP_MANIFEST = {
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.cube',    r'[^;]*?\.prepare_mesh'))],
     'gol':      [('cartridge.hpp', 'teardown',  imm(r'ROSTER\.gol',     r'teardown_gol')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gol',     r'[^;]*?\.prepare_mesh'))],
-    # OVERTURE_0 U4a moved the authored fill's ONE home from initialize()'s
-    # eager boot call to the conductor's deferred-hang head, so the gate that
-    # kills it structurally moved with it. Same property, new site: with
-    # gallery off the conductor never wakes the verb, the verb is the fill's
-    # only caller, and the authored-staging textures stay pristine.
-    'gallery':  [('surface/patch_system.hpp', 'deferred hang (P2 dead)', imm(r'ROSTER\.gallery', r'tick_gallery_deferred_hang')),
-                 ('cartridge.hpp', 'teardown (shared organ)', imm(r'ROSTER\.gallery \|\| ROSTER\.indoor_shell', r'teardown_gallery')),
-                 ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gallery', r'[^;]*?\.prepare_mesh'))],
     'pawn_aura':[('cartridge.hpp', 'teardown',  imm(r'ROSTER\.pawn_aura', r'teardown_pawn_aura'))],
     'orbs':     [('direction/mood.hpp', 'boot config', blk(r'ROSTER\.orbs', 'configure_orbs')),
                  ('organ_boundary.inc', 'organ re-speak', imm(r'ROSTER\.orbs', r'configure_orbs')),

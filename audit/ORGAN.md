@@ -401,7 +401,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Debug ·  | mute signal | `CONFIG.mute_signal` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | freeze sphere | `CONFIG.freeze_sphere` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | FPV mode (key-shared) | `CONFIG.fpv_mode` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
-| Measure ·  | main draw mask (bits: A/B/C terrain, table, ribbon, paintings, orbs, fade) | `CONFIG.draw_mask` | CONFIG | U32 | 0 … 255 | 1 | live | none |  |
+| Measure ·  | main draw mask (bits: A/B/C terrain, table, ribbon, [5 unused], orbs, fade) | `CONFIG.draw_mask` | CONFIG | U32 | 0 … 255 | 1 | live | none |  |
 | Measure ·  | shadow draw mask (bit0 terrain, bit1 entities+artworks) | `CONFIG.shadow_mask` | CONFIG | U32 | 0 … 3 | 1 | live | none |  |
 | Measure ·  | sun PCF taps (4 or 16) | `CONFIG.shadow_pcf_taps` | CONFIG | U32 | 4 … 16 | 12 | live | none |  |
 
@@ -437,6 +437,10 @@ NOT name, and the reader witness over every graduated pair. The tail
 of its run, verbatim:
 
 ```
+Blind spot 1: homeless constants — an authored constexpr with no
+live home — cannot appear above. This tool measures the gap between
+the HOMES and the panel; the ledger measures the gap between the
+PROGRAM and the panel, which is larger.
 
 THE READER WITNESS — every mention of a DESIGN symbol, classified.
 A graduation is complete when the design table's only readers are
@@ -448,11 +452,7 @@ reader — the class of defect this witness exists to catch.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=32 constexpr=4 comment=29 
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:484  MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:485  > MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:486  ? MOOD_TABLE[MOOD_INDOOR_FLAT].shape.finite_radius_max
-        constexpr derivation  src/cartridges/the_board/bodies/gallery.hpp:487  : MOOD_TABLE[MOOD_INDOOR_VAULT].shape.finite_radius_max;
+  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=27 
   ORB_CONSOLE          definition=1 seed=1 comment=2              
   ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 

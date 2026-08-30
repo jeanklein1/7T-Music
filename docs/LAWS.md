@@ -500,17 +500,22 @@ never happened — and the merge commit is where a bisect looks first.
 
 ## L19 — COMPAT MODE, DECLINED AS A DECISION
 
-WebGPU compatibility mode may zero vertex-stage storage bindings, and
-the render room stands at **V storage 7 of 8** (`Shadow Gallery Frame` /
-`Shadow Wall Painting`, post-ATLAS_1revB G2).
+WebGPU compatibility mode may zero vertex-stage storage bindings. The
+render room stood at **V storage 7 of 8** (`Shadow Gallery Frame` /
+`Shadow Wall Painting`, post-ATLAS_1revB G2); PRUNE_1 took both, and the
+lane now reads **V storage 4 of 8** — the tightest vertex rows are
+`Sphere Entity`, `Sky Ribbon Entity` and their shadow twins.
 
-**Declined.** Revisit only if a *measured* audience device requires it.
+**Still declined**, and the decision is unchanged: it was never made for
+want of headroom. Revisit only if a *measured* audience device requires
+it.
 
 Recorded as a decision rather than an omission: the constraint is known,
 the cost of honouring it is known, and the choice is to spend the
 headroom on the work instead. An unrecorded decline is indistinguishable
-from an oversight, and the next reader of that 7-of-8 deserves to know
-it was seen.
+from an oversight, and the next reader of that 4-of-8 deserves to know
+both that it was seen and that the margin is a prune's dividend, not a
+design for compat.
 
 ## L20 — OPTIONAL FEATURES
 
@@ -522,9 +527,11 @@ fallback, and its own witness at every gate.
 
 - `timestamp-query` stays meter-preset-only. It is an instrument, not a
   capability the artwork depends on.
-- Texture compression, *if* the paintings are ever unfenced, is
-  per-platform transcode — never baseline. The grants census already
-  shows the split: ASTC and ETC2 on the Pixel's valhall row, BC absent.
+- Texture compression is per-platform transcode — never baseline. The
+  grants census already shows the split: ASTC and ETC2 on the Pixel's
+  valhall row, BC absent. Its one named candidate consumer — the
+  authored painting uploads — left at PRUNE_1, so the rows stay
+  `vaulted` with no consumer standing behind them at all.
 
 Two shader sources is the failure this forbids. A feature adopted
 without a fallback makes the second source inevitable, and the moment
@@ -589,7 +596,8 @@ So: **mixed-writability faces of one buffer never share a layout and
 are never co-bound in one scope.** A stratum serving a scope carries
 only the faces that scope may legally see — FRAME split by consumer
 mode (FRAME_R render / FRAME_C compute, A8a); ORBS carries its face
-partition in two layouts (A8b); GALLERY/PHOTO_K stand from A7.
+partition in two layouts (A8b). GALLERY/PHOTO_K stood from A7 and left
+at PRUNE_1 — the law they taught outlives the strata that taught it.
 
 Witness: `P-scope`, both arms — the render arm per pass span, the
 compute arm per dispatch site over the full bound groups, plus the
@@ -600,7 +608,8 @@ behavior test.**
 
 Paid for twice: A7's gallery working set in the render passes, then
 A8's FRAME ro windows and collapsed orb faces at the compute
-dispatches — the same law, learned one scope at a time.
+dispatches — the same law, learned one scope at a time. The gallery is
+gone; what it cost to learn is not refundable and this is the receipt.
 
 ## L24 — THE ROOM GROWS BY TEXTURE OR UNIFORM
 
@@ -790,6 +799,61 @@ a projection witness proving the guard collapse left the native token
 stream byte-identical; glaw1 unchanged; the native build + boot is the
 witness of record. The one-generation law (L37) now governs two pinned
 artifacts and the C:/dev/dawn checkout, all at 56f332d7.
+
+## PRUNE_1 (2026-08-30) — the gallery organ leaves the instrument
+
+The self-portrait gallery is cut, vocabulary and all: the photographer
+(capture cadence, VP kernel, snapshot pass), the outdoor galleries
+(terrain-quad paintings and their frames) and the indoor wall art. The
+rooms survive with bare walls — `indoor_shell` and `spot_lights` are
+untouched, and nothing shell-owned was cleared inside `teardown_gallery`,
+which was checked before the call died rather than after.
+
+What burned: `bodies/gallery.hpp`; six pipelines with their entry names,
+creation blocks and local layouts; `paintingSlotsBuffer_` and the three
+photographer buffers; the photographer's Frame R instance; the three
+512-square texture arrays (snapshot staging, authored staging,
+exhibition) and the offscreen snapshot targets; four bind groups and
+their layouts; WGSL §8.1–§8.3 whole plus the photographer's half of
+§8.0; `PopFamily::GALLERY`; `GallerySelection` / `GalleryPlacement` and
+their union arms; the roster bit; `t7::g_served_k` (its one reader was
+the photographer's headroom rule); the vendored `stb_image` (its one
+consumer was the authored loader); and 57 painting files.
+
+**THE TAIL-TRUNCATION ARGUMENT, which is why the family could go.**
+`GALLERY` was 11, the LAST family, so `COUNT` 12 → 11 is pure
+truncation. No surviving family renumbers, no surviving table column
+moves relative to another, and placement priority among the survivors is
+unchanged. F-1 pins a family ORDER against a RENUMBERING; a tail cut is
+not one. Nine positional tables each lost their final element with every
+other number byte-identical — `MIN_SEPARATION`, the four `PROXIMITY_*`
+vectors, `PROXIMITY_AFFINITY`, `THEMES[].spawn_weight`,
+`MOOD_SPAWN_MULT`, `TilePopulation::spatial_density` and
+`INDOOR_TREATMENT`. That last one was NOT in the advance census; it was
+found by grepping `PopFamily::COUNT` rather than by trusting the list,
+and F-1's own sentence now says nine.
+
+**WHAT THE ORDER HAD TO BE, and it was not the one planned.** The
+handoff ordered the units callers-first and put the module's deletion
+fifth, after the pipelines, the resources and the shader. The tree does
+not allow it: `bodies/gallery.hpp` is not a callee, it sits in the
+MIDDLE — its consumers are `FAMILY_DISPATCH`'s tail row and the
+cartridge's members, its providers are the renderer verbs, the state
+resources and the WGSL entry points. So the module and the vocabulary
+landed together and ahead of the rest, because removing the dispatch row
+without the enum leaves a value-initialised twelfth row whose name is
+null and aborts `validate_spine` at boot. Boot-green decided the order;
+the units kept their subjects.
+
+The witnesses at every commit: `console_gate` both tiers at zero
+diagnostics, `glaw1` GREEN, and at the end `glaw2` GREEN over a
+re-recorded baseline whose diff is pure deletion (30 declared symbols, 8
+entry points, `textureSample`), `wgsl_gate` PASS under naga,
+`binding_gen --check` clean across all six relations, and the score
+census GREEN again at 18 pieces. The measured dividend: the vertex-stage
+storage lane went 7 of 8 to 4 of 8 (see L19), and the three painting
+arrays — the largest allocation family in the program — are gone from
+the boot budget.
 
 ## L30 — THE TREE HOLDS LIVING MATTER ONLY
 
