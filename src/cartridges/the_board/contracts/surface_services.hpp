@@ -21,8 +21,7 @@
 //   plus the entity_refs registry on each
 //   ActivePatch. Cross-module readers: machine/spawn_engine.hpp (commit
 //   functions call host->record_entity), bodies/ribbon.hpp (two-tip late
-//   registration), bodies/gallery.hpp (evict_paintings_for_patch via the
-//   owner-side evict_gallery), and the family dispatch eviction rows.
+//   registration), and the family dispatch eviction rows.
 //
 // Depends on cohort include order: state.hpp (Dim:: + the GPU patch
 // DTOs) precedes this header — the one SANCTIONED cohort cable (array
@@ -99,8 +98,8 @@ struct WorldState {
     // frames, advanced once in phase_advance_clock beside the seconds and the
     // beats — the frame's other two clocks. It exists because the mesh-gen
     // settle needs to say "not again for N frames" and the only counter in
-    // the tree was the gallery's own, which is ROSTER-gated and owned by the
-    // photographer. Never reset: a world change is a `world_young` fact, not
+    // the tree was the gallery's own, which was ROSTER-gated and has since
+    // left with it. Never reset: a world change is a `world_young` fact, not
     // a clock fact, and a settle that read a restarting clock would fire on
     // the wrap instead of on the wait.
     uint32_t frame_index = 0;
@@ -115,12 +114,10 @@ struct WorldState {
 enum class PatchPhase : uint8_t {
     ALLOCATED,      // layer assigned, tile cached, no entities yet
     SPAWNED,        // entities selected + placed + committed
-    GENERATED,      // heightfield computed. EVERY family — gallery and GoL
-                    //   included — was already placed at ALLOCATED->SPAWNED,
-                    //   before this heightfield existed; Y-correction is
-                    //   additive and lands later (compute_entity_placement);
-                    //   a gallery the pool could not dress then is placed
-                    //   later by the deferred hang (OVERTURE_0).
+    GENERATED,      // heightfield computed. EVERY family — GoL included —
+                    //   was already placed at ALLOCATED->SPAWNED, before
+                    //   this heightfield existed; Y-correction is additive
+                    //   and lands later (compute_entity_placement).
     NEEDS_REGEN,    // heightfield stale (new pyramid in range)
 };
 
@@ -130,13 +127,6 @@ struct ActivePatch {
     uint32_t layer = 0;
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
-
-    // THE DEFERRED HANG (OVERTURE_0). This patch rolled a gallery the pool
-    // could not dress; the conductor retries it while the patch lives. Raised
-    // at place (dispatch_place_gallery, on DEFERRED), lowered by the retry
-    // whatever its outcome, and re-raised only by a second DEFERRED. Dies
-    // with the patch: the retry reads .valid first.
-    bool gallery_deferred = false;
 
     // Entity ownership (recorded at commit, read at eviction)
     struct EntityRef {

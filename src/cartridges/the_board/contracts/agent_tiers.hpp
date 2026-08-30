@@ -16,9 +16,8 @@
 //
 // THE ELIGIBILITY RULE, world analog: a tier field may carry a TIER
 // definition only if upload_agent_registries_to_gpu is the bank's
-// only runtime reader. Compile-time budget readers (the gallery
-// pattern) stay on AGENT_TIER_GAINS on purpose: a wall's allowance
-// is not a live dial.
+// only runtime reader. Compile-time budget readers stay on
+// AGENT_TIER_GAINS on purpose: a wall's allowance is not a live dial.
 //
 // AGENT_TIER_COUNT rode along: it is declared inside AgentTierId,
 // which the table's rows name, so the ids are the table's vocabulary

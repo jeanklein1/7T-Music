@@ -49,7 +49,6 @@ inline ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz) {
 // carry them itself.
 inline void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
     free_layer(c, c->patch_system_state_.patches_[pi].layer);
-    // Painting eviction now handled by evict_gallery (bodies/gallery.hpp) via entity_refs
     evict_patch_entities(c, c->patch_system_state_.patches_[pi], queue);
     c->patch_system_state_.patches_[pi].valid = false;
 }
@@ -318,7 +317,7 @@ inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx
 // footprints register at PLACE — so patch N+1's place sees exactly the ground
 // it saw before, whether patch N's place happened one iteration earlier or one
 // pass earlier. The one difference is real and is an improvement: a commit
-// that RELEASES ground (a gallery that placed no paintings unregisters its
+// that RELEASES ground (a family that placed nothing unregisters its
 // footprint) now does so before the next patch places, so ground that is
 // genuinely free can be used by it.
 inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
@@ -886,11 +885,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         spawn_selected_patches(c, candidates,
             std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue, themes_state);
     }
-
-    // THE DEFERRED HANG (OVERTURE_0) — the surface machine waking the
-    // gallery's owner verb; the verb owns the fill, the pool test and the
-    // retry. ROSTER-gated like every gallery consumer.
-    if constexpr (ROSTER.gallery) tick_gallery_deferred_hang(c, queue);
 
     // ─── HEIGHTFIELD GENERATION — ONE ARM (RIBBON_6) ─────────────
     //

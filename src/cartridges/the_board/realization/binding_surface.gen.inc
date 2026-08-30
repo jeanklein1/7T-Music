@@ -54,8 +54,8 @@
                     // third passenger, copied from Floating Entity Array offset 0.
                     // The CPU never reads them, so
                     // the readback law is untouched and three uniform seats became
-                    // one. Two bind groups ride this layout — main and photographer
-                    // — over two instances of the block.
+                    // one. One bind group rides this layout, over one instance of the
+                    // block — the photographer instance left at PRUNE_1.
                     // WALLET_1revA: the light trio became one uniform block.
                     // Three F-stage storage seats freed across the whole
                     // entity family. TWIN: Lighting / GPULighting, 848 B.
@@ -63,9 +63,9 @@
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
-                    // now rides the card for its ground term (H4 [4c]); this pipeline
-                    // family binds gallery groups, so the pair lives here too.
+                    // The live card (GROUND_CARD_1) + its sampler. The pair was
+                    // seated here for a consumer that has since left (PRUNE_1); it
+                    // stays as the render frame family’s shared card reader.
                     entries[1].binding = bind::g1::bilinear_sampler;  // bilinear_sampler (used by sample_pawn_aura)
                     entries[1].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
@@ -378,115 +378,6 @@
                     if (!frameKTexturesLayout_) return false;
                 }
 
-                // Gallery State Layout — stratum 2 (Gallery family) of the LOOM_2 recut.
-                // A7: render-only since the PHOTO_K split — L23, the render stratum is
-                // read-only (no writable buffer seats ride a render-bound stratum).
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 1> entries{};
-
-                    entries[0].binding = bind::g2::painting_slots;
-                    entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Gallery State Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryStateLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!galleryStateLayout_) return false;
-                }
-
-                // Gallery Textures Layout — stratum 3 (Gallery family) of the LOOM_2 recut.
-                // A7: the photographer pair (photo_heightfield / photo_sampler) moved to
-                // PHOTO_K_TEXTURES; this stratum keeps only what the render stages read.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g3::live_card_read;
-                    entries[0].visibility = wgpu::ShaderStage::Vertex;
-                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[1].binding = bind::g3::painting_array;
-                    entries[1].visibility = wgpu::ShaderStage::Fragment;
-                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[2].binding = bind::g3::painting_sampler_filt;
-                    entries[2].visibility = wgpu::ShaderStage::Fragment;
-                    entries[2].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Gallery Textures Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!galleryTexturesLayout_) return false;
-                }
-
-                // Photo K State Layout — stratum 2 (Photo_K family) of the LOOM_2 recut.
-                // A7: the photographer COMPUTE working set, split from GALLERY. A render
-                // pass merges every entry of every bound group into ONE usage scope,
-                // visibility regardless — so the writers ride a compute-only stratum and
-                // the render stratum stays read-only (L23; witness P-scope).
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
-
-                    entries[0].binding = bind::g2::agent_state;  // agent_state (read pos via possessed_slot)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[1].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[2].binding = bind::g2::camera_state;  // camera_state (point_pos — the point's camera-host source)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g2::photographer_config;  // photographer_config (camera params)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[4].binding = bind::g2::photographer_vp;  // photographer_vp (output VP matrix)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[5].binding = bind::g2::photographer_camera_out;  // photographer_camera_out (output camera pos)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Photo K State Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    photoKStateLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!photoKStateLayout_) return false;
-                }
-
-                // Photo K Textures Layout — stratum 3 (Photo_K family) of the LOOM_2 recut.
-                // A7: the photographer kernel terrain pair; live_card_read stays in
-                // GALLERY_TEXTURES — the kernel does not reach it (derived, not assumed).
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
-
-                    entries[0].binding = bind::g3::photo_heightfield;  // patch_heightfield (terrain texture)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[0].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[1].binding = bind::g3::photo_sampler;  // bilinear_sampler
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Photo K Textures Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    photoKTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!photoKTexturesLayout_) return false;
-                }
-
                 // Meshgen State Layout — stratum 2 (Meshgen family) of the LOOM_2 recut.
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
@@ -624,31 +515,27 @@
 
                 // Place State Layout — stratum 2 (Place family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
                     entries[0].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[1].binding = bind::g2::photo_painting_slots;
+                    entries[1].binding = bind::g2::arch_ground;
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g2::arch_ground;
+                    entries[2].binding = bind::g2::column_ground;
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g2::column_ground;
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
                     // (GROUND_CARD_1 [5c]: zone_config 160 + zone_life 161 evicted —
                     //  placement's GoL term rides the card's cell-exact fetch via
                     //  group 1. The zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[4].binding = bind::g2::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[3].binding = bind::g2::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Place State Layout";
@@ -904,7 +791,7 @@
 
                 // Shadow State Layout — stratum 2 (Shadow family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].visibility = wgpu::ShaderStage::Vertex;
@@ -924,13 +811,9 @@
                     entries[2].visibility = wgpu::ShaderStage::Vertex;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[3].binding = bind::g2::painting_slots;
+                    entries[3].binding = bind::g2::render_ring_xforms;
                     entries[3].visibility = wgpu::ShaderStage::Vertex;
                     entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[4].binding = bind::g2::render_ring_xforms;
-                    entries[4].visibility = wgpu::ShaderStage::Vertex;
-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
                     // block: the tier-gains window, the figure profiles, the ribbon
@@ -940,9 +823,9 @@
                     // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
                     // mood-cadence. The scene and shadow layouts seat the SAME block
                     // — one window each, one home.
-                    entries[5].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
-                    entries[5].visibility = wgpu::ShaderStage::Vertex;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[4].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
+                    entries[4].visibility = wgpu::ShaderStage::Vertex;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Shadow State Layout";
@@ -1118,36 +1001,6 @@
                     desc.entries = entries.data();
                     frameCGroup_ = device_.CreateBindGroup(&desc);
                     if (!frameCGroup_) return false;
-                }
-
-                // Projected from: galleryPhotographerEntityBindGroup_, photographerRenderEntityBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
-
-                    entries[0].binding = bind::g1::frame_r;
-                    entries[0].buffer = frameRPhotoBuffer_;
-                    entries[0].size = sizeof(GPUFrameR);
-
-                    // Shared backing, completed from the primary variant.
-                    entries[1].binding = bind::g1::bilinear_sampler;
-                    entries[1].sampler = bilinearSampler_;
-
-                    // Shared backing, completed from the primary variant.
-                    entries[2].binding = bind::g1::nearest_sampler;
-                    entries[2].sampler = nearestSampler_;
-
-                    // Shared backing, completed from the primary variant.
-                    entries[3].binding = bind::g1::shadow_slot;
-                    entries[3].buffer = shadowSlotBuffer_;
-                    entries[3].size = sizeof(uint32_t);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Frame BindGroup (Photographer)";
-                    desc.layout = frameRLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    framePhotographerGroup_ = device_.CreateBindGroup(&desc);
-                    if (!framePhotographerGroup_) return false;
                 }
 
                 // Projected from: computeEntityBindGroup_, roomBindGroup_.
@@ -1354,82 +1207,6 @@
                     desc.entries = entries.data();
                     frameKTexturesGroup_ = device_.CreateBindGroup(&desc);
                     if (!frameKTexturesGroup_) return false;
-                }
-
-                // Projected from: galleryTextureBindGroup_, photographerComputeBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 1> entries{};
-
-                    entries[0].binding = bind::g2::painting_slots;
-                    entries[0].buffer = paintingSlotsBuffer_;
-                    entries[0].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Gallery State BindGroup";
-                    desc.layout = galleryStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryStateGroup_ = device_.CreateBindGroup(&desc);
-                    if (!galleryStateGroup_) return false;
-                }
-
-                // A7: the photographer compute pair — bound only in the photographer
-                // compute pass; its writable working set never enters a render pass
-                // usage scope (L23; witness P-scope).
-                {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
-
-                    entries[0].binding = bind::g2::agent_state;
-                    entries[0].buffer = agentStateBuffer_;
-                    entries[0].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-
-                    entries[1].binding = bind::g2::patch_grid;
-                    entries[1].buffer = patchGridBuffer_;
-                    entries[1].size = sizeof(GPUPatchGrid);
-
-                    entries[2].binding = bind::g2::camera_state;
-                    entries[2].buffer = cameraBuffer_;
-                    entries[2].size = sizeof(GPUCameraState);
-
-                    entries[3].binding = bind::g2::photographer_config;
-                    entries[3].buffer = photographerConfigBuffer_;
-                    entries[3].size = sizeof(GPUPhotographerConfig);
-
-                    entries[4].binding = bind::g2::photographer_vp;
-                    entries[4].buffer = photographerVPBuffer_;
-                    entries[4].size = sizeof(GPUVPMatrix);
-
-                    entries[5].binding = bind::g2::photographer_camera_out;
-                    entries[5].buffer = photographerCameraBuffer_;
-                    entries[5].size = sizeof(GPUCameraState);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Photo K State BindGroup";
-                    desc.layout = photoKStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    photoKStateGroup_ = device_.CreateBindGroup(&desc);
-                    if (!photoKStateGroup_) return false;
-                }
-
-                // A7: the photographer terrain pair (boot-stable views — not part of
-                // the exhibition rebuild, unlike galleryTexturesGroup_).
-                {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
-
-                    entries[0].binding = bind::g3::photo_heightfield;
-                    entries[0].textureView = patchHeightfieldArrayReadView_;
-
-                    entries[1].binding = bind::g3::photo_sampler;
-                    entries[1].sampler = bilinearSampler_;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Photo K Textures BindGroup";
-                    desc.layout = photoKTexturesLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    photoKTexturesGroup_ = device_.CreateBindGroup(&desc);
-                    if (!photoKTexturesGroup_) return false;
                 }
 
                 // Projected from: archMeshGenBindGroup_.
@@ -1699,7 +1476,7 @@
 
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
                     // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
 
@@ -1707,21 +1484,17 @@
                     entries[0].buffer = patchGridBuffer_;
                     entries[0].size = sizeof(GPUPatchGrid);
 
-                    entries[1].binding = bind::g2::photo_painting_slots;
-                    entries[1].buffer = paintingSlotsBuffer_;
-                    entries[1].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+                    entries[1].binding = bind::g2::arch_ground;
+                    entries[1].buffer = archGroundBuffer_;
+                    entries[1].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
 
-                    entries[2].binding = bind::g2::arch_ground;
-                    entries[2].buffer = archGroundBuffer_;
-                    entries[2].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
+                    entries[2].binding = bind::g2::column_ground;
+                    entries[2].buffer = columnGroundBuffer_;
+                    entries[2].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
 
-                    entries[3].binding = bind::g2::column_ground;
-                    entries[3].buffer = columnGroundBuffer_;
-                    entries[3].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[4].binding = bind::g2::plant_ground;
-                    entries[4].buffer = plantComputeGroundBuffer_;
-                    entries[4].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
+                    entries[3].binding = bind::g2::plant_ground;
+                    entries[3].buffer = plantComputeGroundBuffer_;
+                    entries[3].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Place State BindGroup";
@@ -1906,7 +1679,7 @@
 
                 // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 6> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].buffer = agentStateBuffer_;
@@ -1920,17 +1693,13 @@
                     entries[2].buffer = patchInstancesBuffer_;
                     entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[3].binding = bind::g2::painting_slots;
-                    entries[3].buffer = paintingSlotsBuffer_;
-                    entries[3].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+                    entries[3].binding = bind::g2::render_ring_xforms;
+                    entries[3].buffer = ringTransformsBuffer_;
+                    entries[3].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[4].binding = bind::g2::render_ring_xforms;
-                    entries[4].buffer = ringTransformsBuffer_;
-                    entries[4].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[5].binding = bind::g2::scene_constants;
-                    entries[5].buffer = sceneConstantsBuffer_;
-                    entries[5].size = sizeof(GPUSceneConstants);
+                    entries[4].binding = bind::g2::scene_constants;
+                    entries[4].buffer = sceneConstantsBuffer_;
+                    entries[4].size = sizeof(GPUSceneConstants);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Shadow State BindGroup";
@@ -2018,34 +1787,6 @@
                     desc.entries = entries.data();
                     emptyGroup_ = device_.CreateBindGroup(&desc);
                     if (!emptyGroup_) return false;
-                }
-                return true;
-            }
-
-            // Callable at boot and at the exhibition rebuild — the one bind
-            // group re-made after boot, against the exhibition read view.
-            bool create_gallery_texture_group() {
-
-                // Projected from: galleryTextureBindGroup_, photographerComputeBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
-
-                    entries[0].binding = bind::g3::live_card_read;
-                    entries[0].textureView = liveCardView_;
-
-                    entries[1].binding = bind::g3::painting_array;
-                    entries[1].textureView = exhibitionReadView_;
-
-                    entries[2].binding = bind::g3::painting_sampler_filt;
-                    entries[2].sampler = paintingSampler_;
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Gallery Textures BindGroup";
-                    desc.layout = galleryTexturesLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    galleryTexturesGroup_ = device_.CreateBindGroup(&desc);
-                    if (!galleryTexturesGroup_) return false;
                 }
                 return true;
             }

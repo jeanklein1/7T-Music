@@ -55,7 +55,6 @@ INPUTS = [
     os.path.join(BOARD, "surface", "patch_system.hpp"),
     os.path.join(BOARD, "bodies", "gol_zones.hpp"),
     os.path.join(BOARD, "bodies", "pawn.hpp"),
-    os.path.join(BOARD, "bodies", "gallery.hpp"),
     os.path.join(BOARD, "bodies", "orbs.hpp"),
     os.path.join(REPO, "src", "the_board.cpp"),
     os.path.join(REPO, "src", "console", "console.hpp"),
@@ -650,9 +649,9 @@ def emit(w, rows, subs, reconf_sites, trigger, dd, encoders, bundles):
     A.append("STATUS: **already satisfied in-tree.** The main pass depth")
     A.append("storeOp reads `wgpu::StoreOp::%s` today (DISCARD_0 / PASS_0 F1,"
              % d["depthStoreOp"])
-    A.append("`render_passes.hpp` `render_main_pass`), and the snapshot twin")
-    A.append("carries the same op (PASS_0 F2, `gallery.hpp`")
-    A.append("`render_snapshot_pass`). Unit B4 has no token left to edit.")
+    A.append("`render_passes.hpp` `render_main_pass`). The snapshot twin that")
+    A.append("carried the same op (PASS_0 F2) left with the gallery organ at")
+    A.append("PRUNE_1. Unit B4 has no token left to edit.")
     A.append("")
     A.append("## §5 — witnesses")
     A.append("")

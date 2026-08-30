@@ -25,8 +25,7 @@ the header.
 | Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Ribbon Head (0D, 1 thread, per frame) | `ribbonHeadPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
 | Ribbon Body (1D, per ring, per frame) | `ribbonBodyPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
-| Compute Photographer VP (0D) | `photographerVPPipeline_` | C | 4 / 8 | 5 / 3 | 1 / 15 | 3 / 13 | 0 / 4 |
-| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 5 / 3 | 2 / 14 | 3 / 13 | 1 / 3 |
+| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 4 / 4 | 2 / 14 | 3 / 13 | 1 / 3 |
 | Frustum Cull Patches | `frustumCullPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 1 / 3 |
 | Live Card Write (2D, fused) | `liveCardPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
@@ -69,25 +68,17 @@ the header.
 | Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
 | Orb Sky Layer | `orbRenderPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
 | Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Gallery Frame | `galleryFramePipeline_` | V | 3 / 9 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 |
-| Gallery Frame | `galleryFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | V | 3 / 9 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 |
-| Wall Painting Canvas | `wallPaintingCanvasPipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | V | 3 / 9 | 1 / 7 | 1 / 15 | 2 / 14 | 0 / 4 |
-| Wall Painting Frame | `wallPaintingFramePipeline_` | F | 3 / 9 | 1 / 7 | 1 / 15 | 3 / 13 | 0 / 4 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Gallery Frame | `shadowGalleryFramePipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Wall Painting | `shadowWallPaintingPipeline_` | V | 4 / 8 | 5 / 3 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
 | Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
 
@@ -98,7 +89,7 @@ the header.
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
 | storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+6 more) |
 | sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
-| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+24 more) |
+| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+20 more) |
 | storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column
@@ -154,10 +145,6 @@ declaration alone — no hand-authored field.
 | `pawn_aura_tex_write` | 3:20 | handle | `texture_storage_2d<rgba16float, write>` | storagetex |
 | `live_card_write` | 3:100 | handle | `texture_storage_2d<rgba16float, write>` | storagetex |
 | `zone_derive_requests` | 2:103 | uniform | `ZoneDeriveRequestArray` | uniform |
-| `photographer_config` | 2:160 | uniform | `PhotographerConfig` | uniform |
-| `photographer_vp` | 2:161 | storage, read_write | `VPMatrix` | storage |
-| `photographer_camera_out` | 2:162 | storage, read_write | `CameraState` | storage |
-| `photo_painting_slots` | 2:80 | storage, read_write | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | storage |
 | `photo_heightfield` | 3:42 | handle | `texture_2d_array<f32>` | sampled |
 | `photo_sampler` | 3:43 | handle | `sampler` | samplers |
 | `arch_ground` | 2:81 | storage, read_write | `array<ArchGroundEntry, 16>` | storage |
@@ -171,9 +158,6 @@ declaration alone — no hand-authored field.
 | `fc_visible` | 2:63 | storage, read_write | `array<u32>` | storage |
 | `fc_indirect` | 2:64 | storage, read_write | `array<atomic<u32>, 15>` | storage |
 | `fc_draw_plan` | 2:60 | uniform | `DrawPlanParams` | uniform |
-| `painting_slots` | 2:85 | storage, read | `array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>` | storage |
-| `painting_array` | 3:160 | handle | `texture_2d_array<f32>` | sampled |
-| `painting_sampler_filt` | 3:161 | handle | `sampler` | samplers |
 | `amg_params` | 2:180 | storage, read | `array<ArchMeshParams, 16>` | storage |
 | `amg_vertices` | 2:181 | storage, read_write | `array<f32>` | storage |
 | `amg_indices` | 2:182 | storage, read_write | `array<u32>` | storage |
@@ -199,7 +183,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 74
+Lane sums equal per-seat counts on every one of the 65
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

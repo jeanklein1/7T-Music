@@ -160,7 +160,7 @@ inline constexpr PolicyDef POLICIES[] = {
     // realizations are hand-fused for per-vertex cost: patch_terrain_vs
     // (the full set; gradients realized there via texture .yz — the
     // heightfield's baked pair + the card's live pair) and shadow_patch_terrain_vs (baked + waves
-    // subset, documented at its site). The ~15 entity/painting VS sites
+    // subset, documented at its site). The entity VS sites
     // that add contrib_terrain_waves_at alone atop the entity ground
     // atlas are sanctioned single-contributor consumptions of this same
     // render set.

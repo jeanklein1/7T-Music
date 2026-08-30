@@ -6,8 +6,8 @@
 //
 // A DEMO is a sentence in the roster's grammar: one piece-enable
 // manifest + one world seed + one boot mood. v0 carries NOTHING else
-// — design-table overrides are D3's future, pulled when the gallery
-// or musician demos demand them, not pre-built.
+// — design-table overrides are D3's future, pulled when the musician
+// demos demand them, not pre-built.
 //
 // MATURITY DIAL (v0 -> the panel era): compile-time include (a demo
 // is a header; selection is a define + rebuild) -> boot-time table

@@ -130,8 +130,8 @@ namespace t7 {
             //   +x/+z : EXTENT/2 − PATCH_CELL_SIZE = 496.875 wu
             //   −x/−z : EXTENT/2                   = 500.0   wu
             // What it must cover is NOT the EXIST ring. Agents and floaters
-            // are EXIST-gated at 350, but flora, columns, arches and outdoor
-            // paintings are PATCH-lifetime: they live as long as their host
+            // are EXIST-gated at 350, but flora, columns and arches are
+            // PATCH-lifetime: they live as long as their host
             // patch, out to the allocation window, which reaches
             // (PATCH_PREGEN_RADIUS + 1) · PATCH_EXTENT = 400 wu per axis
             // (patches span [pawnGX−7, pawnGX+7] and the pawn sits anywhere
@@ -324,39 +324,6 @@ namespace t7 {
             // Indoor shell (ceiling + walls for finite indoor scenes)
             constexpr uint32_t SHELL_MAX_VERTICES = 2048;
             constexpr uint32_t SHELL_MAX_INDICES = 8192;
-
-            // Painting system: staging + exhibition
-            // The budget this must cover is proved by a static_assert beside
-            // WALL_ART in bodies/gallery.hpp — the first site that can see all
-            // three dials. Do not restate the sum here.
-            constexpr uint32_t PAINTING_MAX_SLOTS = 288;      // max exhibited paintings
-            // ONE RESOLUTION, for everything that can land in an exhibition
-            // layer. A second, smaller one was tried and reverted: it made
-            // promotion a PARTIAL write, and partial writes do not erase the
-            // layer's previous occupant. See promote_to_exhibition.
-            //
-            // PORT_5b — 1024 -> 512 (Jean's stamp). This one number sizes
-            // FIVE textures, which is the point of the ruling above and the
-            // reason the diet is a single edit: Exhibition (160 -> 40 MiB),
-            // Authored Staging (128 -> 32), Snapshot Staging (128 -> 32),
-            // and the two offscreen snapshot targets (4 -> 1 each). It also
-            // sizes the CPU scale-to-fit box in the authored loader
-            // (bodies/gallery.hpp, `RES`), which reads THIS constant — so
-            // the fit box and the destination cannot drift apart. Layer
-            // counts are untouched; only the per-layer resolution moves.
-            constexpr uint32_t PAINTING_RESOLUTION = 512;
-            // Both raised by SUPPLY. The old 16 capped `to_load` at a sixteenth
-            // of the paintings on disk and made content, not geometry, the
-            // thing that ended a row — one wall would take the whole pool and
-            // the other three stayed bare. The layer budget these must satisfy
-            // is proved beside WALL_ART in bodies/gallery.hpp, with the slot
-            // budget; do not restate it here.
-            constexpr uint32_t STAGING_LAYERS = 32;            // per staging array (snapshot + authored)
-            constexpr uint32_t EXHIBITION_LAYERS = 40;         // exhibition array
-            constexpr uint32_t PAINTING_QUAD_N = 8;
-            constexpr uint32_t PAINTING_QUAD_VERTS = PAINTING_QUAD_N * PAINTING_QUAD_N * 6;
-            constexpr uint32_t PAINTING_FRAME_VERTS_PER = 78;
-            constexpr uint32_t PAINTING_FRAME_VERTEX_COUNT = PAINTING_MAX_SLOTS * PAINTING_FRAME_VERTS_PER;
 
             // Generative catenary arches — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_ARCH_INSTANCES = 16;
@@ -582,7 +549,6 @@ namespace t7 {
             inline constexpr uint32_t RIBBON    = 1u << 4;   // a table MEMBER since ECONOMY_1 —
                                                              // subtracted through DrawBind, not
                                                              // by skipping the table
-            inline constexpr uint32_t PAINTINGS = 1u << 5;   // both draws (wall + gallery frames)
             inline constexpr uint32_t ORBS      = 1u << 6;
             inline constexpr uint32_t FADE      = 1u << 7;
         }
@@ -635,7 +601,7 @@ namespace t7 {
                                               //   UNMOVED — the 560/352 pins below are the proof.
             float world_bound_min[2];         // XZ min clamp (0,0 = infinite)
             float world_bound_max[2];         // XZ max clamp (0,0 = infinite)
-            uint32_t placement_patch_count;   // active patches for entity Y-correction (decoupled from photographer)
+            uint32_t placement_patch_count;   // active patches for entity Y-correction
             float terrain_amp_ceiling;        // max per-wave amplitude (0 = unlimited, >0 = clamp for indoor)
             float ceiling_height;             // indoor ceiling Y (0 = no ceiling, >0 = camera Y clamp)
             float terrain_time;               // t_beats for terrain evaluation (0 = frozen, >0 = animated)
@@ -893,11 +859,14 @@ namespace t7 {
             //   bit2 terrain plan C (LOD1 IB)
             //   bit3 the drawable table   bit4 (rides bit3 — the ribbon is a
             //                                   table member since ECONOMY_1)
-            //   bit5 the two painting draws   bit6 the orbs   bit7 the fade
+            //   bit5 unassigned (PRUNE_1 retired the two painting draws;
+            //        the surviving bits keep their positions, so the dial
+            //        reads the same as it did)
+            //   bit6 the orbs   bit7 the fade
             // Mirror of the WGSL twin — GROWTH LAW, same commit, same
             // position, same type. Was _pad704_1, consumed IN PLACE.
             uint32_t draw_mask;            // 700
-            // shadow_mask: bit0 terrain, bit1 the entity table + the artworks.
+            // shadow_mask: bit0 terrain, bit1 the entity table.
             // Appended past the boundary, so three fresh pads carry the struct
             // back to it: 704 -> 720.
             uint32_t shadow_mask;          // 704
@@ -2119,10 +2088,9 @@ namespace t7 {
         // Floating Entity Array offset 0 — the terrain fragment
         // stage's former per-pixel storage read, now one uniform.
         //
-        // TWO INSTANCES back the two bind groups over frameRLayout_: main
-        // (vp_data / camera_state) and photographer (photographer_vp /
-        // photographer_camera_out). Same layout, same block, two frames
-        // of reference.
+        // ONE INSTANCE backs the one bind group over frameRLayout_: main
+        // (vp_data / camera_state). The photographer's second instance left
+        // at PRUNE_1.
         struct alignas(16) GPUFrameR {
             GPULighting    lighting;         //    0
             GPUVPMatrix    vp;               //  848
@@ -2175,62 +2143,6 @@ namespace t7 {
         static_assert(sizeof(GPUPatchGrid) == 16 + Dim::MAX_ACTIVE_PATCHES * 4,
             "GPUPatchGrid must be 16 bytes header + 4 bytes/entry");
 
-        // Unified painting slot — CPU mirror of WGSL UnifiedPaintingSlot (must match).
-        // Both terrain-quad (photographer) and wall-frame (indoor) forms use this.
-        // Each pipeline reads the fields it needs; form_type selects which pipeline draws it.
-        namespace FormType { constexpr uint32_t TERRAIN_QUAD = 0; constexpr uint32_t WALL_FRAME = 1; }
-        namespace ContentSource { constexpr uint32_t AUTHORED = 0; constexpr uint32_t SNAPSHOT = 1; }
-
-        struct alignas(16) GPUPaintingSlot {
-            // --- Common ---
-            float position[3];          // world-space center
-            uint32_t texture_layer;     // index into unified texture array
-            float forward[3];           // facing direction (quad) / wall normal (frame)
-            uint32_t form_type;         // 0 = TERRAIN_QUAD, 1 = WALL_FRAME
-            float up[3];               // local up direction
-            uint32_t is_active;         // 0 = empty slot
-
-            // --- Sizing (both forms) ---
-            float scale_x;             // width in world units
-            float scale_y;             // height in world units
-            float uv_scale_x;         // texture sub-region X [0,1]
-            float uv_scale_y;         // texture sub-region Y [0,1]
-
-            // --- Terrain quad fields ---
-            float geometry_seed;       // deformation seed [0,1]
-            uint32_t content_source;   // 0 = AUTHORED, 1 = SNAPSHOT
-            int32_t patch_gx;         // lifecycle: owning patch grid X
-            int32_t patch_gz;         // lifecycle: owning patch grid Z
-
-            // --- Wall frame fields ---
-            float frame_depth;         // frame extrusion depth
-            float frame_width;         // frame border width
-            float canvas_recess;       // canvas behind frame front
-            float _pad0;
-
-            float frame_color[3];      // frame wood color
-            float _pad1;
-
-            float _pad2[4];            // pad to 128 bytes
-        };
-        static_assert(sizeof(GPUPaintingSlot) == 128, "GPUPaintingSlot must be 128 bytes");
-
-        // Photographer camera configuration (CPU → GPU uniform).
-        // GPU compute shader reads this + actual pawn position → builds VP.
-        struct alignas(16) GPUPhotographerConfig {
-            float sun_direction[3];  // for shadow VP computation
-            float azimuth;           // horizontal angle around pawn
-            float elevation;         // vertical angle (radians)
-            float distance;          // distance from pawn
-            float fov_rad;           // vertical FOV in radians
-            float aspect_ratio;      // width / height
-            uint32_t patch_count;    // active patches for terrain sampling
-            float frame_offset_x;   // pawn horizontal shift in frame [-1, 1] (0 = centered)
-            float frame_offset_y;   // pawn vertical shift in frame [-1, 1] (0 = centered)
-            float _pad0;
-        };
-        static_assert(sizeof(GPUPhotographerConfig) == 48, "GPUPhotographerConfig must be 48 bytes");
-
         // ═══ THE FRAME METER — GPU HALF (timestamp queries) ═══════════════
         // The spine's FrameMeter (cartridge.hpp) owns the census; the GPU
         // half lives here because every pass-encode site already reaches
@@ -2273,13 +2185,12 @@ namespace t7 {
             inline constexpr uint32_t FrustumCull         = 17;
             inline constexpr uint32_t ShadowPass          = 18;
             inline constexpr uint32_t MainPass            = 19;
-            inline constexpr uint32_t SnapshotPass        = 20;
         }
 
         // GROUP 1 CARRIES A DYNAMIC SEAT (shadow_slot), so every bind of it
         // passes one offset. Everything outside the shadow atlas loop reads
-        // record 0, which holds light 0. It lives here because both binders
-        // — render_passes.hpp and bodies/gallery.hpp — include this file.
+        // record 0, which holds light 0. It lives here because its binder,
+        // render_passes.hpp, includes this file.
         inline constexpr uint32_t kFrameSlotZero = 0;
 
         class GPUState {
@@ -2291,7 +2202,7 @@ namespace t7 {
             // methods, beside reset_frustum_indirect.
             enum DrawRecord : uint32_t {
                 DR_ARCH, DR_COLUMN, DR_PALM, DR_CACTUS, DR_BLADE, DR_SHELL,
-                DR_RIBBON, DR_WALL, DR_GALLERY_FRAME, DR_ORBS,
+                DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
             };
@@ -2319,7 +2230,6 @@ namespace t7 {
             uint32_t organLastFlush_ = 0;
             bool configDirty_ = true;      // true at boot → first frame always uploads
             bool configDynamic_ = false;   // mood override: true = upload every frame
-            wgpu::TextureFormat colorFormat_ = wgpu::TextureFormat::BGRA8Unorm;  // set in initOffscreenResources
 
             wgpu::Buffer signalBuffer_, configBuffer_;
             // Agent system — unified entity buffer. Slot 0 is the player's
@@ -2363,7 +2273,6 @@ namespace t7 {
             // seat: MAX_SPOT_LIGHTS records holding 0..3, written once at
             // boot. Every group-1 render bind carries one offset.
             wgpu::Buffer shadowSlotBuffer_;
-            wgpu::Buffer frameRPhotoBuffer_;
             // ORGAN — THE LIGHTING HOME. upload_lighting stores through it,
             // so it always carries what the GPU last received and the panel
             // edits it in place. A mood change re-authors it, which is
@@ -2490,10 +2399,6 @@ namespace t7 {
             wgpu::BindGroupLayout cullStateLayout_;
             wgpu::BindGroupLayout frameKStateLayout_;
             wgpu::BindGroupLayout frameKTexturesLayout_;
-            wgpu::BindGroupLayout galleryStateLayout_;
-            wgpu::BindGroupLayout galleryTexturesLayout_;
-            wgpu::BindGroupLayout photoKStateLayout_;
-            wgpu::BindGroupLayout photoKTexturesLayout_;
             wgpu::BindGroupLayout meshgenStateLayout_;
             wgpu::BindGroupLayout orbsAStateLayout_;
             wgpu::BindGroupLayout orbsBStateLayout_;
@@ -2513,7 +2418,6 @@ namespace t7 {
             wgpu::BindGroup worldGroup_;
             wgpu::BindGroup frameRGroup_;
             wgpu::BindGroup frameCGroup_;
-            wgpu::BindGroup framePhotographerGroup_;
             wgpu::BindGroup agentsStateGroup_;
             wgpu::BindGroup agentsTexturesGroup_;
             wgpu::BindGroup auraStateGroup_;
@@ -2521,10 +2425,6 @@ namespace t7 {
             wgpu::BindGroup cullStateGroup_;
             wgpu::BindGroup frameKStateGroup_;
             wgpu::BindGroup frameKTexturesGroup_;
-            wgpu::BindGroup galleryStateGroup_;
-            wgpu::BindGroup galleryTexturesGroup_;
-            wgpu::BindGroup photoKStateGroup_;
-            wgpu::BindGroup photoKTexturesGroup_;
             wgpu::BindGroup meshgenStateGroup_;
             wgpu::BindGroup meshgenStateColumnGroup_;
             wgpu::BindGroup meshgenStatePalmGroup_;
@@ -2589,27 +2489,6 @@ namespace t7 {
             wgpu::Sampler bilinearSampler_, nearestSampler_;
             wgpu::Sampler shadowSampler_;
 
-            // --- Self-Portrait Gallery (photographer system) -------------------------
-            wgpu::Buffer paintingSlotsBuffer_;
-            wgpu::Buffer photographerVPBuffer_;
-            wgpu::Buffer photographerCameraBuffer_;
-            wgpu::Buffer photographerConfigBuffer_;
-
-            // Three-array painting system: staging (2) + exhibition (1)
-            wgpu::Texture snapshotStagingTexture_;    // 16 layers — photographer writes here
-            wgpu::TextureView snapshotStagingReadView_;
-            wgpu::Texture authoredStagingTexture_;     // 16 layers — disk images loaded here
-            wgpu::TextureView authoredStagingReadView_;
-            wgpu::Texture exhibitionTexture_;          // 32 layers — promoted images, GPU reads
-            wgpu::TextureView exhibitionReadView_;
-
-            wgpu::Texture offscreenColorTexture_;
-            wgpu::TextureView offscreenColorView_;
-            wgpu::Texture offscreenDepthTexture_;
-            wgpu::TextureView offscreenDepthView_;
-            wgpu::Texture offscreenMsaaColorTexture_;     // B10: msaa=4 only
-            wgpu::TextureView offscreenMsaaColorView_;
-
 
             // GPU frustum culling — LOD0 only.
             // LOD1 always uses direct DrawIndexed; CPU computes its count.
@@ -2634,7 +2513,6 @@ namespace t7 {
 
             // GoL zone compute (dedicated layout: bindings 160-162, 167-169)
 
-            wgpu::Sampler paintingSampler_;
 
         public:
 
@@ -2650,12 +2528,11 @@ namespace t7 {
                 if (!createSamplers()) return false;
                 if (!createBindGroups()) return false;
                 if (!initializeState()) return false;
-                // PORT_4b — the budget report USED to fire here, and it was
-                // wrong by 62 per cent: initOffscreenResources (the three
-                // painting arrays, 416 MiB) runs LATER, from the cartridge's
-                // init_renderer, so the largest family in the program was
-                // absent from its own leaderboard. The report now fires at
-                // the end of init_renderer, after the last allocation.
+                // PORT_4b — the budget report fires at the END of the
+                // cartridge's init_renderer, after the last allocation, not
+                // here. It was moved when a later creator (since retired)
+                // ran after this point; the site stands because "after the
+                // last allocation" is the rule, not the creator that forced it.
                 return true;
             }
 
@@ -2750,7 +2627,7 @@ namespace t7 {
 
             // Targeted 4-byte upload of placement_patch_count — called from stream_patches
             // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
-            // current frame's patch set (decoupled from the photographer config).
+            // current frame's patch set.
             // THE OFFSET IS DERIVED (offsetof — it cannot drift).
             void upload_placement_patch_count(wgpu::Queue& queue) {
                 queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, placement_patch_count),
@@ -2774,12 +2651,7 @@ namespace t7 {
             // offset-write alternative at 0/48/320 was not needed.
             void upload_lighting(wgpu::Queue& queue, const GPULighting& lighting) {
                 lightingStage_ = lighting;   // the home records what shipped
-                // CHORD_3: two windows, one home. The block sits at offset 0
-                // of both instances, and the photographer lights the same
-                // world the main camera does.
                 queue.WriteBuffer(frameRMainBuffer_, offsetof(GPUFrameR, lighting),
-                    &lighting, sizeof(GPULighting));
-                queue.WriteBuffer(frameRPhotoBuffer_, offsetof(GPUFrameR, lighting),
                     &lighting, sizeof(GPULighting));
             }
 
@@ -2798,16 +2670,6 @@ namespace t7 {
                 // BEQ_A third passenger — same encoder, same frame,
                 // same sovereignty as vp and camera above.
                 encoder.CopyBufferToBuffer(floatingEntityBuffer_, 0, frameRMainBuffer_,
-                    offsetof(GPUFrameR, sphere_pos), 3 * sizeof(float));
-            }
-
-            // The photographer's instance, same law, its own sources.
-            void encode_frame_r_photo_sync(wgpu::CommandEncoder& encoder) {
-                encoder.CopyBufferToBuffer(photographerVPBuffer_, 0, frameRPhotoBuffer_,
-                    offsetof(GPUFrameR, vp), sizeof(GPUVPMatrix));
-                encoder.CopyBufferToBuffer(photographerCameraBuffer_, 0, frameRPhotoBuffer_,
-                    offsetof(GPUFrameR, camera), sizeof(GPUCameraState));
-                encoder.CopyBufferToBuffer(floatingEntityBuffer_, 0, frameRPhotoBuffer_,
                     offsetof(GPUFrameR, sphere_pos), 3 * sizeof(float));
             }
 
@@ -3011,10 +2873,6 @@ namespace t7 {
             wgpu::BindGroupLayout cull_state_layout() const { return cullStateLayout_; }
             wgpu::BindGroupLayout frame_k_state_layout() const { return frameKStateLayout_; }
             wgpu::BindGroupLayout frame_k_textures_layout() const { return frameKTexturesLayout_; }
-            wgpu::BindGroupLayout gallery_state_layout() const { return galleryStateLayout_; }
-            wgpu::BindGroupLayout gallery_textures_layout() const { return galleryTexturesLayout_; }
-            wgpu::BindGroupLayout photo_k_state_layout() const { return photoKStateLayout_; }
-            wgpu::BindGroupLayout photo_k_textures_layout() const { return photoKTexturesLayout_; }
             wgpu::BindGroupLayout meshgen_state_layout() const { return meshgenStateLayout_; }
             wgpu::BindGroupLayout orbs_a_state_layout() const { return orbsAStateLayout_; }
             wgpu::BindGroupLayout orbs_b_state_layout() const { return orbsBStateLayout_; }
@@ -3034,7 +2892,6 @@ namespace t7 {
             wgpu::BindGroup world_group() const { return worldGroup_; }
             wgpu::BindGroup frame_r_group() const { return frameRGroup_; }
             wgpu::BindGroup frame_c_group() const { return frameCGroup_; }
-            wgpu::BindGroup frame_photographer_group() const { return framePhotographerGroup_; }
             wgpu::BindGroup agents_state_group() const { return agentsStateGroup_; }
             wgpu::BindGroup agents_textures_group() const { return agentsTexturesGroup_; }
             wgpu::BindGroup aura_state_group() const { return auraStateGroup_; }
@@ -3042,10 +2899,6 @@ namespace t7 {
             wgpu::BindGroup cull_state_group() const { return cullStateGroup_; }
             wgpu::BindGroup frame_k_state_group() const { return frameKStateGroup_; }
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
-            wgpu::BindGroup gallery_state_group() const { return galleryStateGroup_; }
-            wgpu::BindGroup gallery_textures_group() const { return galleryTexturesGroup_; }
-            wgpu::BindGroup photo_k_state_group() const { return photoKStateGroup_; }
-            wgpu::BindGroup photo_k_textures_group() const { return photoKTexturesGroup_; }
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
             wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
             wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }
@@ -3066,184 +2919,6 @@ namespace t7 {
             wgpu::BindGroup zones_state_group() const { return zonesStateGroup_; }
             wgpu::BindGroup zones_textures_group() const { return zonesTexturesGroup_; }
             wgpu::BindGroup empty_group() const { return emptyGroup_; }
-
-            void upload_painting_slots(wgpu::Queue& queue, const GPUPaintingSlot* slots, uint32_t count) {
-                writeArray(queue, paintingSlotsBuffer_, slots, count);
-            }
-
-            void upload_painting_slot(wgpu::Queue& queue, uint32_t index, const GPUPaintingSlot& slot) {
-                writeSlot(queue, paintingSlotsBuffer_, index, slot);
-            }
-
-            void deactivate_painting_slot(wgpu::Queue& queue, uint32_t index) {
-                uint32_t zero = 0;
-                queue.WriteBuffer(paintingSlotsBuffer_,
-                    index * sizeof(GPUPaintingSlot) + offsetof(GPUPaintingSlot, is_active),
-                    &zero, sizeof(uint32_t));
-            }
-
-            void upload_photographer_vp(wgpu::Queue& queue, const GPUVPMatrix& vp) {
-                writeStruct(queue, photographerVPBuffer_, vp);
-            }
-
-            void upload_photographer_camera(wgpu::Queue& queue, float x, float y, float z) {
-                GPUCameraState cam{};
-                cam.pos[0] = x; cam.pos[1] = y; cam.pos[2] = z;
-                writeStruct(queue, photographerCameraBuffer_, cam);
-            }
-
-            void upload_photographer_config(wgpu::Queue& queue, const GPUPhotographerConfig& cfg) {
-                writeStruct(queue, photographerConfigBuffer_, cfg);
-            }
-
-            // Upload an authored image into the unified painting texture array.
-            // Handles R↔B swap if the array is in BGRA format (Windows/Dawn).
-            void upload_authored_painting(wgpu::Queue& queue, uint32_t layer,
-                const uint8_t* rgba_data, uint32_t width, uint32_t height)
-            {
-                bool need_swap = (colorFormat_ == wgpu::TextureFormat::BGRA8Unorm);
-                std::vector<uint8_t> swapped;
-                const uint8_t* src = rgba_data;
-
-                if (need_swap) {
-                    uint32_t n = width * height * 4;
-                    swapped.resize(n);
-                    for (uint32_t i = 0; i < width * height; ++i) {
-                        swapped[i * 4 + 0] = rgba_data[i * 4 + 2]; // B
-                        swapped[i * 4 + 1] = rgba_data[i * 4 + 1]; // G
-                        swapped[i * 4 + 2] = rgba_data[i * 4 + 0]; // R
-                        swapped[i * 4 + 3] = rgba_data[i * 4 + 3]; // A
-                    }
-                    src = swapped.data();
-                }
-
-                wgpu::TexelCopyTextureInfo dest{};
-                dest.texture = authoredStagingTexture_;
-                dest.mipLevel = 0;
-                dest.origin = { 0, 0, layer };
-                dest.aspect = wgpu::TextureAspect::All;
-
-                wgpu::TexelCopyBufferLayout layout{};
-                layout.offset = 0;
-                layout.bytesPerRow = width * 4;
-                layout.rowsPerImage = height;
-
-                wgpu::Extent3D extent = { width, height, 1 };
-                queue.WriteTexture(&dest, src, width * height * 4, &layout, &extent);
-            }
-
-            void fill_painting_layer_solid(wgpu::Queue& queue, uint32_t layer,
-                uint8_t r, uint8_t g, uint8_t b)
-            {
-                bool need_swap = (colorFormat_ == wgpu::TextureFormat::BGRA8Unorm);
-                uint32_t N = Dim::PAINTING_RESOLUTION;
-                std::vector<uint8_t> pixels(N * N * 4);
-                for (uint32_t i = 0; i < N * N; ++i) {
-                    pixels[i * 4 + 0] = need_swap ? b : r;
-                    pixels[i * 4 + 1] = g;
-                    pixels[i * 4 + 2] = need_swap ? r : b;
-                    pixels[i * 4 + 3] = 255;
-                }
-                upload_authored_painting(queue, layer, pixels.data(), N, N);
-            }
-
-            // Late init: offscreen resources need the swapchain color format,
-            // which isn't known until init_renderer time.
-            bool initOffscreenResources(wgpu::TextureFormat colorFormat) {
-                colorFormat_ = colorFormat;
-
-                auto makeTextureArray = [&](const char* label, uint32_t layers,
-                    wgpu::TextureUsage usage) -> wgpu::Texture
-                    {
-                        wgpu::TextureDescriptor desc{};
-                        desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, layers };
-                        desc.dimension = wgpu::TextureDimension::e2D;
-                        desc.format = colorFormat;
-                        desc.usage = usage;
-                        return makeTexture(label, desc);
-                    };
-
-                auto makeArrayView = [&](wgpu::Texture tex, const char* label, uint32_t layers) -> wgpu::TextureView {
-                    wgpu::TextureViewDescriptor vd{};
-                    vd.dimension = wgpu::TextureViewDimension::e2DArray;
-                    vd.arrayLayerCount = layers;
-                    vd.label = label;
-                    return tex.CreateView(&vd);
-                    };
-
-                // Snapshot staging — photographer writes here, promotion copies from here
-                // DEEDED: the photographer's portfolio. 32 speculative shots
-                // persist here between capture and hang-time curation; retiring
-                // this pool changes which shots hang. Do not retire without a
-                // photographer-model ruling (DOMESDAY R5 withdrawal, _1 report B8).
-                snapshotStagingTexture_ = makeTextureArray("Snapshot Staging",
-                    Dim::STAGING_LAYERS,
-                    wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc);
-                if (!snapshotStagingTexture_) return false;
-                snapshotStagingReadView_ = makeArrayView(snapshotStagingTexture_,
-                    "Snapshot Staging View", Dim::STAGING_LAYERS);
-
-                // Authored staging — disk images loaded here, promotion copies from here
-                // DEEDED: the painting inventory. Prefetch-decoded canvases wait
-                // here across world rebuilds; on unified memory a CPU-side
-                // inventory costs the same bytes, and decode-at-hang regresses
-                // the transition. Re-open only via a browser-owned (ImageBitmap)
-                // path on a vendored port (DOMESDAY R5 withdrawal).
-                authoredStagingTexture_ = makeTextureArray("Authored Staging",
-                    Dim::STAGING_LAYERS,
-                    wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc);
-                if (!authoredStagingTexture_) return false;
-                authoredStagingReadView_ = makeArrayView(authoredStagingTexture_,
-                    "Authored Staging View", Dim::STAGING_LAYERS);
-
-                // Exhibition — promoted images live here, GPU reads for rendering
-                exhibitionTexture_ = makeTextureArray("Exhibition",
-                    Dim::EXHIBITION_LAYERS,
-                    wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding);
-                if (!exhibitionTexture_) return false;
-                exhibitionReadView_ = makeArrayView(exhibitionTexture_,
-                    "Exhibition View", Dim::EXHIBITION_LAYERS);
-
-                // Offscreen snapshot render target
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
-                    desc.format = colorFormat;
-                    desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
-                    offscreenColorTexture_ = makeTexture("Offscreen Snapshot Color", desc);
-                    if (!offscreenColorTexture_) return false;
-                    offscreenColorView_ = offscreenColorTexture_.CreateView();
-                }
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
-                    desc.format = wgpu::TextureFormat::Depth24Plus;
-                    desc.sampleCount = effective_msaa();   // B10: 1 = pre-B10 shape
-                    desc.usage = wgpu::TextureUsage::RenderAttachment;
-                    offscreenDepthTexture_ = makeTexture("Offscreen Snapshot Depth", desc);
-                    if (!offscreenDepthTexture_) return false;
-                    offscreenDepthView_ = offscreenDepthTexture_.CreateView();
-                }
-                // DOMESDAY_2 B10 — the snapshot's msaa color target, created
-                // only when the boot param asked for it: the pass renders here
-                // at count 4 and resolves into offscreenColorTexture_; the
-                // portfolio copy chain downstream reads the resolved
-                // single-sample color exactly as today.
-                if (effective_msaa() == 4u) {
-                    wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
-                    desc.format = colorFormat;
-                    desc.sampleCount = 4;
-                    desc.usage = wgpu::TextureUsage::RenderAttachment;
-                    offscreenMsaaColorTexture_ = makeTexture("Offscreen Snapshot MSAA Color", desc);
-                    if (!offscreenMsaaColorTexture_) return false;
-                    offscreenMsaaColorView_ = offscreenMsaaColorTexture_.CreateView();
-                }
-
-                if (!create_gallery_texture_group()) return false;
-
-                return true;
-            }
 
             // Muting
             void set_mute_coupling(uint32_t b, bool m) {
@@ -3523,15 +3198,16 @@ namespace t7 {
             // ECONOMY_1 E1 — flag + the flag-selected LOD0 pair: buffer and
             // count move together so they can never split.
             //
-            // ONE CARRIER remains, the snapshot pass (bodies/gallery.hpp).
-            // The other three the list used to name are gone: the draw plan
-            // retired the global-flag selection for the main pass and the
-            // indirect reset (reset_frustum_indirect writes patchIndexCount_
-            // and patchIndexCountCapOnly_ as separate plan slots, not through
-            // this pair), and the shadow pass draws BOTH bands through
+            // NO CARRIER REMAINS. The draw plan retired the global-flag
+            // selection for the main pass and the indirect reset
+            // (reset_frustum_indirect writes patchIndexCount_ and
+            // patchIndexCountCapOnly_ as separate plan slots, not through
+            // this pair); the shadow pass draws BOTH bands through
             // patch_index_buffer_lod1(), so "shadow band 0" never read these
-            // at all. render_main_pass already says as much; this room had
-            // not caught up.
+            // at all; and PRUNE_1 took the snapshot pass, which was the last
+            // one named here. The pair is kept as it stands: it was already
+            // readerless before that campaign, so retiring it is its own
+            // reading, not a prune's side effect (PRUNE_1 R7).
             void set_curtains_active(bool a) { curtainsActive_ = a; }
             bool curtains_active() const { return curtainsActive_; }
             wgpu::Buffer patch_index_buffer_lod0_live() const {
@@ -3818,56 +3494,6 @@ namespace t7 {
             wgpu::Buffer meter_readback_staging() const { return meterReadbackStaging_; }
             static constexpr uint32_t meter_max_pairs() { return METER_MAX_PAIRS; }
             static constexpr size_t meter_readback_size() { return METER_QUERY_COUNT * sizeof(uint64_t); }
-
-            // --- Gallery system ---
-            wgpu::TextureView offscreen_color_view() const { return offscreenColorView_; }
-            wgpu::TextureView offscreen_depth_view() const { return offscreenDepthView_; }
-            // B10: null when msaa=1 — the snapshot pass reads the null as
-            // "render straight into the offscreen color, exactly as before".
-            wgpu::TextureView offscreen_msaa_color_view() const { return offscreenMsaaColorView_; }
-            wgpu::Texture offscreen_color_texture() const { return offscreenColorTexture_; }
-
-            // Three-array painting system accessors
-            wgpu::Texture snapshot_staging_texture() const { return snapshotStagingTexture_; }
-            wgpu::Texture authored_staging_texture() const { return authoredStagingTexture_; }
-            wgpu::Texture exhibition_texture() const { return exhibitionTexture_; }
-
-            // Promote a staging layer to an exhibition layer (GPU copy, call within encoder scope)
-            // FULL-LAYER OVERWRITE IS AN INVARIANT OF LAYER REUSE, and this
-            // copy is the site that guarantees it.
-            //
-            // Exhibition layers are recycled — find_free_exhibition_layer hands
-            // back a layer whose previous occupant was never cleared, because
-            // this copy has always covered every texel of it. That was true by
-            // accident of one resolution rather than by design, and nothing said
-            // so: SUPPLY made snapshots 512, the copy became a PARTIAL write,
-            // and outdoor quads showed the new picture in one corner with the
-            // last tenant's image around it.
-            //
-            // So: any scheme that writes less than a full layer must CLEAR the
-            // layer first. Do not reintroduce a partial extent here without it.
-            void promote_to_exhibition(wgpu::CommandEncoder& encoder,
-                wgpu::Texture srcTexture, uint32_t srcLayer,
-                uint32_t dstLayer)
-            {
-                wgpu::TexelCopyTextureInfo src{};
-                src.texture = srcTexture;
-                src.mipLevel = 0;
-                src.origin = { 0, 0, srcLayer };
-                src.aspect = wgpu::TextureAspect::All;
-
-                wgpu::TexelCopyTextureInfo dst{};
-                dst.texture = exhibitionTexture_;
-                dst.mipLevel = 0;
-                dst.origin = { 0, 0, dstLayer };
-                dst.aspect = wgpu::TextureAspect::All;
-
-                wgpu::Extent3D extent = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
-                encoder.CopyTextureToTexture(&src, &dst, &extent);
-            }
-            static constexpr uint32_t painting_quad_verts() { return Dim::PAINTING_QUAD_VERTS; }
-            static constexpr uint32_t painting_max_slots() { return Dim::PAINTING_MAX_SLOTS; }
-            static constexpr uint32_t painting_frame_vertex_count() { return Dim::PAINTING_FRAME_VERTEX_COUNT; }
 
             // --- GoL zone system ---
 
@@ -4238,9 +3864,9 @@ namespace t7 {
             }
 
             // PORT_4b — public: the correct call site is the END of the
-            // cartridge's init_renderer, after initOffscreenResources and
-            // after the authored paintings are staged. The budget's job is
-            // to be complete, so it is called from wherever "complete" is.
+            // cartridge's init_renderer, after the last allocation. The
+            // budget's job is to be complete, so it is called from wherever
+            // "complete" is.
             void report_gpu_budget() const {
                 std::cout << "\n[GPU Budget] ---- allocation request, boot ----\n";
                 print_mib("buffers ", gpuBufferBytes_);
@@ -4305,9 +3931,9 @@ namespace t7 {
                     // no repack (behaviour preservation, L3).
                 // LATENT[gate-a-shared] ribbon (SH·mb): the two ribbon kernels are
                 // droppable with the family, but ribbonBuffer_/ringTransformsBuffer_
-                // are exclusive-in-Render-Entity + Photographer. Retire = re-section
-                // those groups. (RIBBON_1: no ring readback staging was ever built,
-                // so there is none to drop with them.)
+                // are exclusive-in-Render-Entity. Retire = re-section that group.
+                // (RIBBON_1: no ring readback staging was ever built, so there is
+                // none to drop with them.)
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 // RIBBON_2: CopySrc dropped. It was allocated for a ring
                 // readback that was never built, and the LATENT note above
@@ -4351,7 +3977,6 @@ namespace t7 {
                 for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
                     device_.GetQueue().WriteBuffer(shadowSlotBuffer_,
                         i * Dim::UNIFORM_DYNAMIC_STRIDE, &i, sizeof(uint32_t));
-                frameRPhotoBuffer_ = makeBuffer("Frame R (Photographer)", sizeof(GPUFrameR), UU);
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
                 // usage; the descriptor was hand-rolled only because
@@ -4410,31 +4035,6 @@ namespace t7 {
                 drawLedgerBuffer_ = makeBuffer("Draw Ledger",
                     DR_COUNT * DRAW_RECORD_STRIDE,
                     wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst);
-                // Self-Portrait Gallery
-                photographerVPBuffer_ = makeBuffer("Photographer VP",
-                    sizeof(GPUVPMatrix),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
-                    | wgpu::BufferUsage::CopySrc);
-                    // CHORD_3: Uniform out, CopySrc in — DOMESDAY_0 B1's
-                    // shared frameRLayout_ slot is gone; the matrix reaches
-                    // the photographer's block by copy. The kernel face
-                    // (g2:161 photographer_vp) still binds as storage.
-                photographerCameraBuffer_ = makeBuffer("Photographer Camera",
-                    sizeof(GPUCameraState),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst
-                    | wgpu::BufferUsage::CopySrc);
-                    // CHORD_3: Uniform out, CopySrc in — DOMESDAY_0 B2's
-                    // shared frameRLayout_ slot is gone; the camera reaches
-                    // the photographer's block by copy. The kernel face
-                    // (g2:162 photographer_camera_out) still binds as storage.
-                photographerConfigBuffer_ = makeBuffer("Photographer Config",
-                    sizeof(GPUPhotographerConfig),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/photographer pipelines + offscreen textures + gallery groups droppable (photographer rides gallery's bit — LATENT[roster-split:photographer]), but paintingSlotsBuffer_ is exclusive-in-Compute-Entity + Entity-Placement. Retire = re-section those groups.
-                paintingSlotsBuffer_ = makeBuffer("Painting Slots",
-                    sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
                 // GPU frustum culling — LOD0 only.
                 // Compute writes args+atomic to frustumComputeBuffer_, then CopyBufferToBuffer to indirect.
                 // THE DRAW PLAN segments (ECONOMY_1 closing arm) — one list
@@ -4480,12 +4080,10 @@ namespace t7 {
                 return signalBuffer_ && configBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && ribbonSpineBuffer_ && ribbonBodyBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
-                    vpBuffer_ && frameRMainBuffer_ && frameRPhotoBuffer_ &&
+                    vpBuffer_ && frameRMainBuffer_ &&
                     shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ && patchParamsBuffer_ && drawLedgerBuffer_ &&
-                    photographerVPBuffer_ && photographerCameraBuffer_ &&
-                    photographerConfigBuffer_ && paintingSlotsBuffer_ &&
                     agentRoomBuffer_ && sceneConstantsBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
@@ -5317,17 +4915,6 @@ namespace t7 {
                     if (!shadowSampler_) return false;
                 }
 
-                {
-                    wgpu::SamplerDescriptor desc{};
-                    desc.label = "Painting Sampler (bilinear, clamp)";
-                    desc.magFilter = wgpu::FilterMode::Linear;
-                    desc.minFilter = wgpu::FilterMode::Linear;
-                    desc.addressModeU = wgpu::AddressMode::ClampToEdge;
-                    desc.addressModeV = wgpu::AddressMode::ClampToEdge;
-                    paintingSampler_ = device_.CreateSampler(&desc);
-                    if (!paintingSampler_) return false;
-                }
-
                 return true;
             }
 
@@ -5549,20 +5136,6 @@ namespace t7 {
                 ribbon.propagation_speed = 40.0f;  // placeholder (hidden ribbon, never drawn)
                 ribbon.is_visible = 0u;  // hidden until spawning system activates one
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(ribbon));
-
-                // Painting slots — all inactive initially
-                {
-                    GPUPaintingSlot emptySlots[Dim::PAINTING_MAX_SLOTS]{};
-                    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-                        emptySlots[i].is_active = 0;
-                    }
-                    queue.WriteBuffer(paintingSlotsBuffer_, 0, emptySlots,
-                        sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS);
-                }
-                {
-                    GPUVPMatrix zeroVP{};
-                    queue.WriteBuffer(photographerVPBuffer_, 0, &zeroVP, sizeof(GPUVPMatrix));
-                }
 
                 return true;
             }

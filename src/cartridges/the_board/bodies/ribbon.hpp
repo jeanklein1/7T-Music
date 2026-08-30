@@ -42,7 +42,7 @@
 //
 // SEAM[ribbon:complete-subsystem] complete bespoke pipeline in one
 //   module — vocabulary + state + machinery + lifecycle. Same family
-//   as gol_zones (Ch. 12.B) and gallery (Ch. 12.E), and the reference
+//   as gol_zones (Ch. 12.B), and the reference
 //   instance of the entity-module pattern: tuning console → registry →
 //   tiers → runtime state → author seats → lifecycle. (surface = the
 //   bank rows; the in-module section retired with its last legacy

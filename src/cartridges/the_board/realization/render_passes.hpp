@@ -16,7 +16,7 @@
 // read), render_main_pass takes the clear color (const read) + the
 // orbs pair (render_orbs — the one sibling door). The module owns no
 // state; the two light-matrix helpers are pure math. COHORT: merged
-// at the tail after orbs/ribbon/gallery/input (render_orbs def +
+// at the tail after orbs/ribbon/input (render_orbs def +
 // complete organs), BEFORE merged mood (mood's spot-light applier
 // calls compute_spot_light_vp).
 // ─────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 // bodies reach the machine face (c->gpuState_ / c->renderer_ /
 // c->entities_state_ /
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ /
-// c->gallery_state_ / c->mood_state_) and the call-site extras
+// c->mood_state_) and the call-site extras
 // (cpuSpotLights_ / clearColor_ / the orbs pair).
 
 
@@ -166,7 +166,7 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
 // relies on).
 //
 // WHY ONE SITE AND NOT TWELVE. Each of these numbers already has a home —
-// the family setters, gallery_state_, os.count. What did NOT have a home is
+// the family setters, os.count. What did NOT have a home is
 // the set of GUARDS: `if (indexCount == 0) return;`, `if (!os.active)
 // return;`, `rendered_slot != UINT32_MAX`. Those lived in the draw verbs as
 // encoder-time skips, and an encoder-time skip cannot be recorded into a
@@ -194,16 +194,6 @@ inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     const bool ribbon_live = c->ribbon_state_.rendered_slot != UINT32_MAX;
     g.stage_draw_verts(GPUState::DR_RIBBON,
         ribbon_live ? ribbon_draw_verts(c->ribbon_state_) : 0u, 1u);
-
-    // The artworks. slot_high_water is one past the highest ACTIVE slot; the
-    // two counts that gated the draws (wall_frame_count,
-    // active_painting_count) are folded in as zero-or-not.
-    const uint32_t hw = c->gallery_state_.slot_high_water;
-    g.stage_draw_verts(GPUState::DR_WALL,
-        c->gallery_state_.wall_frame_count == 0u ? 0u : hw * Dim::PAINTING_FRAME_VERTS_PER, 1u);
-    g.stage_draw_verts(GPUState::DR_GALLERY_FRAME,
-        Dim::PAINTING_QUAD_VERTS,
-        c->gallery_state_.active_painting_count == 0u ? 0u : hw);
 
     // The orbs: six indices of a quad, one instance per orb. `os.active`
     // and a zero count are the same fact to the ledger.
@@ -551,38 +541,6 @@ inline void draw_shadow_all(MachineCtx* c, Enc& pass, bool cast_terrain) {
     if (smask & ShadowBit::TABLE)
     draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 
-    // FORKS — the artworks, on their OWN gallery bind groups, as in the
-    // main pass. UNCONDITIONAL: no cast_terrain-style argument and no mood
-    // test. The mood selects which LIGHT this pass runs for; it does not
-    // select what exists. Each form self-culls in its VS, so outdoors the
-    // wall draw is near-degenerate and indoors the quad draw is.
-    // OIL_1 U12: the gallery pair, bound ONCE for both draws (they
-    // share galleryShadowLayout, and nothing draws after them in this
-    // pass, so the pass-head pair above is not needed again).
-    // ROSTER-GATE gallery (a') — the gate MATCHES its consumers: both
-    // draws below open with the same if constexpr, so a gallery-less
-    // build must not pay two binds for zero draws, and the pass must
-    // not name groups a future creation-side gate could leave null.
-    // ATLAS_1revB G2 — group 0 is NOT rebound here any more. The two shadow
-    // artwork pipelines take the RENDER-ENTITY layout at group 0 now (they
-    // need frame_r.lighting, which the gallery entity layout does not
-    // carry), and the pass head already bound it. Only
-    // the texture group changes. One fewer bind per light, and group 0
-    // no longer moves mid-tile.
-    // LOOM_2: the artwork shadow draws are SHADOW family — their strata
-    // are already bound, and the old texture-group fork is retired.
-    if (smask & ShadowBit::TABLE) {
-    c->renderer_.draw_shadow_wall_paintings(
-        pass,
-        c->gpuState_.draw_ledger_buffer(),
-        GPUState::draw_record_offset(GPUState::DR_WALL)
-    );
-    c->renderer_.draw_shadow_gallery_frames(
-        pass,
-        c->gpuState_.draw_ledger_buffer(),
-        GPUState::draw_record_offset(GPUState::DR_GALLERY_FRAME)
-    );
-    }
 }
 
 // ═══ THE MAIN PASS'S OPAQUE LIST (BUNDLE_1) ══════════════════════
@@ -610,8 +568,7 @@ inline void encode_main_opaque(MachineCtx* c, Enc& pass,
     // draws. Outdoor AND finite/indoor go through the same plan (the
     // kernel sees all bands everywhere). The E1 global-flag selection
     // is RETIRED here — the plan is per-patch; the flag survives only
-    // for the snapshot pass (R6), which culls against the
-    // photographer's frustum and cannot read this plan.
+    // with the snapshot pass that was its last carrier (PRUNE_1).
     // THE SUBTRACTION MASK (PANORAMA_1). Each draw below is skipped AT THE
     // ENCODER when its bit is clear — not culled in the shader, which would
     // still pay the pass's vertex work and leave the meter reading no
@@ -653,40 +610,13 @@ inline void encode_main_opaque(MachineCtx* c, Enc& pass,
     if (dmask & DrawBit::TABLE)
         draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
-    // FORKS — the specials, kept explicit. Wall paintings + gallery frames use
-    // their OWN gallery bind groups (opaque). Then the ORDER-SENSITIVE blended
-    // pair, LAST and in order: orbs (additive), fade (alpha, no depth write).
-
-    // Wall-mounted framed paintings (indoor)
-    // OIL_1 U13: the gallery pair, bound ONCE for both draws.
-    // ROSTER-GATE gallery (a') — matches the consumers' own gate.
-    if constexpr (ROSTER.gallery) {
-    pass.SetBindGroup(2, c->gpuState_.gallery_state_group());
-    pass.SetBindGroup(3, c->gpuState_.gallery_textures_group());
-    }
-    if (dmask & DrawBit::PAINTINGS) {
-    c->renderer_.draw_wall_paintings(
-        pass,
-        c->gpuState_.draw_ledger_buffer(),
-        GPUState::draw_record_offset(GPUState::DR_WALL)
-    );
-
-    // Gallery frames (self-portrait paintings on terrain)
-    c->renderer_.draw_gallery_frames(
-        pass,
-        c->gpuState_.draw_ledger_buffer(),
-        GPUState::draw_record_offset(GPUState::DR_GALLERY_FRAME)
-    );
-    }
-
-    // LOOM_2: the gallery fork left its pair at 2/3, and the orb draw
-    // is SCENE family (its per-draw binds were hoisted to the strata),
-    // so restore the scene pair first — the same restore-after-fork
-    // the compute pass does for the agents pair.
-    if constexpr (ROSTER.gallery) {
-    pass.SetBindGroup(2, c->gpuState_.scene_state_group());
-    pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
-    }
+    // FORKS — the specials, kept explicit: the ORDER-SENSITIVE blended pair,
+    // LAST and in order: orbs (additive), fade (alpha, no depth write).
+    //
+    // The orb draw is SCENE family (its per-draw binds were hoisted to the
+    // strata), and it inherits the pair it needs: group 2 from slot C of the
+    // terrain plan, group 3 from the pass head. Nothing forks the pair between
+    // there and here, so nothing has to restore it.
     if (dmask & DrawBit::ORBS)
         render_orbs(orbs_state_, &orbs_deps_, pass);
 

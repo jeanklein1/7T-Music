@@ -40,7 +40,7 @@
 // input intent channel. PRESENCE FOLLOWS THE POINT (the ratified
 // rule): streaming, LOD/cull, the shadow box, the orb dome, the
 // living population's existence (agent + floater spawn/evict/
-// possess-reach/kite/corral), the photographer's record. EMANATION
+// possess-reach/kite/corral). EMANATION
 // STAYS THE BODY'S: the walk, the aura dome, the forcefield, the
 // AI-pursuit-target role — all idle in free-fly by construction.
 // THE BUBBLE is real (below): its first field and first sensor

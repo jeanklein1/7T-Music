@@ -10,7 +10,7 @@
 // VAULTED rows are offered by the floor device and deliberately
 // unrequested — priced for a future campaign, never asked for here:
 //   shader-f16 — consumer: none yet — candidate: terrain fragment ALU; fallback: the f32 shader exactly as it stands
-//   texture-compression-astc — consumer: none yet — candidate: authored painting uploads (TEX_C0, parked); fallback: rgba8unorm decode-and-upload as today
+//   texture-compression-astc — consumer: none yet; fallback: rgba8unorm decode-and-upload as today
 //   texture-compression-etc2 — consumer: partner row of astc; fallback: as astc
 //   texture-compression-bc — consumer: desktop half of the astc row; fallback: as astc
 //   subgroups — consumer: none — prospective (reduction-shaped passes); fallback: n/a until a consumer is named
