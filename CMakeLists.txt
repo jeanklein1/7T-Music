@@ -588,7 +588,12 @@ set(MSVC_LINK_OPTS
     "$<$<CONFIG:Release>:/OPT:REF>"
     "$<$<CONFIG:Release>:/OPT:ICF>"
     "$<$<CONFIG:Release>:/INCREMENTAL:NO>")
-set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+# __WINDOWS_MM__ selects RtMidi's Windows Multimedia backend. RtMidi
+# compiles to an empty TU without a backend define, and the link then
+# fails on RtMidiIn's constructor rather than on anything that names it.
+# winmm.lib is already carried at LEVEL 9 of the link list above.
+set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS
+    __WINDOWS_MM__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -686,12 +691,25 @@ file(GLOB_RECURSE T7_RENDER_HEADERS
 
 add_executable(the_board
     src/the_board.cpp
+    # The one other translation unit: RtMidi's Windows MM backend, the
+    # canvas's route to the DAW's virtual port. Vendored, not header-only,
+    # so it compiles separately; __WINDOWS_MM__ below selects its backend.
+    src/external/RtMidi.cpp
     ${T7_RENDER_HEADERS}
 )
 
 target_include_directories(the_board PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
+
+# The program resolves world.wgsl and assets/ by paths relative to the
+# working directory, and its two candidates are written for an exe sitting
+# directly in the build directory - the Ninja layout. The VS generator adds
+# a per-config folder (Debug/, Release/), so the debugger starts one level
+# deeper and both candidates miss. Pin the debugger to the repo root, where
+# the src-relative candidate resolves on either generator. Ignored by Ninja.
+set_target_properties(the_board PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 # The native includes and link list, both from the Dawn section above
 # (SUNRISE_0 N4).
