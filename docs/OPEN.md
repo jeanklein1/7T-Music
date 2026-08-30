@@ -233,12 +233,108 @@ replace it. Candidates when a session wants one: /RTC1,
 /fsanitize=address, Dawn's extra-validation toggles. Unpriced; arm
 deliberately, not by default.
 
+## THE LIGATURE (closed at LIGATURE_1)
+
+The couplings were a two-sided named-resolution system with one hop
+missing. `the_board.cpp` fed the render side `BeatClock::stat_layout()`,
+which returns `StatLayoutView{ nullptr, 0 }` by construction, so all twelve
+source names `VisualCanvas::bind` resolves missed and every pipe idled on
+its rest — while the whole target half (resolve, tick, flush, setter, GPU
+field, shader read) ran correctly every frame on those rests.
+
+LIGATURE_1 U1 spliced `canvas_1` into that socket and deleted
+`src/analysis/beat_clock.hpp`. The twelve names bind against the 55
+`canvas_1` publishes, checked name by name before the edit: `all.field`,
+`all.present_count`, `all.window_length`, `ch1.present_count`,
+`ch1.window_length`, and `ch0.onset` through `ch6.onset`.
+`SignalLayout::misses()` is therefore 0, so the release twin's
+`[SignalLayout] N sources unbound` line no longer prints and the
+`[Zoetrope] ears bound:` line reads 7 of 7.
+
+Nothing was resurrected. LIGATURE_0 §1 established that the analysis arm
+returned byte-identical at "bringing back the music"; this was a wiring
+change and a stub deletion, nothing more.
+
+**Not closed by it:** Jean's acceptance run. Observables are listed in
+`docs/LIGATURE_1_REPORT.md` (U2.5).
+
+## THE RADIAL PULSE RING (open — gen-1 retired, decision unmade)
+
+`pulse_count` and `pulse_data[8]` exist in `world.wgsl`'s config struct and
+behind `GPUState::set_pulse_data` in `state.hpp`, and the only caller in the
+tree writes the REST — `terrain_looks::REST_PULSE_COUNT` and a zero-filled
+array, at the cartridge's boot. There is no CPU middle: LIGATURE_0 §6 walked
+the slice and found Hop 2, the ring-buffer write, GONE, with both ends
+saying so in their own comments. This is a gen-1 coupling that was retired,
+not a hop the splice broke, and LIGATURE_1 R1 scoped it out deliberately.
+
+The GPU end is DRIVERLESS and its comments name a driver that does not
+exist.
+
+**The decision, open:** a gen-2 coupling — the onset ears already fold into
+`zoetrope_rows_`, but a pawn-origin pulse needs a readback path the coupling
+layer does not have — or delete the WGSL contributor and its config seats.
+Jean's, with a design pass.
+
+## CUT_1c LEFTOVERS NOT RESTORED (open, low)
+
+"Bringing back the music" restored the musical/analysis/sources arm and
+`RtMidi` byte-identically. It did not restore everything `CUT_1c` deleted:
+
+| path | at `1a52f2db^` |
+|---|---|
+| `src/the_lab.cpp` | 668 lines, blob `3cd1a13fe66e` |
+| `src/external/imgui/` + `src/external/implot/` | 18 vendored files |
+
+Restore only if the lab returns. Recovery is `git show 1a52f2db^:<path>`.
+
+## THE TIME SOURCE AFTER THE SPLICE (open — Jean-observed)
+
+`AnalysisSignal::t_beats` now advances from the DAW transport
+(`Canvas::update` reads `MidiPort::beats()`), not from wall time, and every
+reader inherits that. The census is in `docs/LIGATURE_1_REPORT.md` §U2.3
+verbatim; the load-bearing consumers are `visual_canvas.hpp`'s envelope
+clock, `cartridge.hpp`'s `time_state_.beats` and the `dt_beats` that gates
+`step_trigger`, the zoetrope strike, `state.hpp`'s GPU signal header, and
+four `world.wgsl` read sites.
+
+With the transport stopped `t_beats` holds, so `dt_beats` is 0 and every
+beat-derived motion freezes. **No fallback was added** — LIGATURE_1's ruling
+is that no mechanism is built until a measurement asks for one. What
+actually freezes is Jean's second acceptance pass to observe.
+
+## DOC NITS FOUND AT LIGATURE_1 (open, small)
+
+* `CLAUDE.md` names `the-board-vs` as though it were a build preset. It is a
+  **configure** preset; the build presets on that lane are
+  `the-board-vs-release` and `the-board-vs-debug`.
+* `docs/reference/RELEASE_CONSOLE.md` records a boot transcript containing
+  `Clock:    BeatClock` and `[Incubator] BeatClock ready (bpm 100)`. Both
+  are now doubly stale — the driver has printed `[The Board]` since before
+  this campaign, and the analysis line is now `Analysis: canvas_1
+  (loopMIDI)`. Left as a record and not edited: whether a recorded
+  transcript is a live claim or an artifact is a ruling, not a nit.
+* `audit/MIRROR_LEDGER.md` does not match its own tool at master.
+  Regenerating it on a pristine `79adfa4d` worktree changes two lines — its
+  sweep boundary states 60 `*.hpp` and 1 `.cpp/.h/.cc` under `src/`, where
+  master has 83 and 8. The staleness predates LIGATURE_1 and CLAUDE.md's L33
+  standing witness (delete the five `audit/` files, run the five tools, get
+  a byte-identical tree) therefore does not hold at master. LIGATURE_1 did
+  not regenerate it: that is the tool's job, run deliberately, not a
+  campaign's side effect.
+
 ## THE ABLETON SEAM (held, after N)
 
 Link session (tempo/beat/phase ground truth) and/or DAW loopback as native
 audio-in, so the pre-modulation hint gains a real carrier — an explicit
 signal over MIDI/OSC/Link rather than inference, which is what Wagon and
 Playhead's forward-cue requirement was always waiting for.
+
+> LIGATURE_1: half of this arrived. `canvas_1` opens loopMIDI and reads the
+> DAW's transport for beat and tempo, so a MIDI-carried beat/phase signal is
+> live and `t_beats` is transport-driven rather than inferred. What stays
+> open is Link as the session-level ground truth, and audio-in. The
+> `parse_boot_params` socket below is untouched and still unclaimed.
 
 The socket is already open: `parse_boot_params(int, char**)` kept its full
 signature through the sunset with both parameters unnamed, `main()` still
