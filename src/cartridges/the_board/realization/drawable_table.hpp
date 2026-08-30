@@ -1,39 +1,34 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════
 // THE DRAWABLE TABLE — one row per drawable; the
-// two bundles and the direct passes iterate it through ONE template
-// (BUNDLE_1), FILTERED by membership (shadow / main / snapshot).
-// Kills the triplication (a drawable was enumerated once per
-// list, ~3 hand-synced sites) and the ribbon's ordinal DRIFT (the lists had
+// bundle and the direct passes iterate it through ONE template
+// (BUNDLE_1), FILTERED by membership (shadow / main).
+// Kills the duplication (a drawable was enumerated once per
+// list, hand-synced) and the ribbon's ordinal DRIFT (the lists had
 // ribbon at different positions) — there is now ONE canonical order.
-// A new drawable is ONE row instead of a 3-site edit.
+// A new drawable is ONE row instead of a multi-site edit.
 //
 // PIXEL-SAFETY. Every drawable IN THIS TABLE is OPAQUE (depth-tested,
 // depth-write, no blend — or an alpha=1.0 output that makes SrcAlpha a
 // no-op): terrain(fork), pawn, sphere, monolith, ribbon, arch,
-// column, palm, cactus, blade, shell, and the gallery/wall FORKS. Draw
+// column, palm, cactus, blade, shell. Draw
 // order among OPAQUE geometry is immaterial — the depth test resolves
 // visibility identically regardless of order — so the ONE canonical order
 // (the shadow order) reproduces every pass pixel-for-pixel, and the ribbon
 // drift dies for free. Verified opaque: ribbon uses ENTITY_FS + the shared
-// depthStencil/colorTarget (no blend); gallery_frame_fs / wall_painting_*_fs
-// return alpha=1.0 with depth-write. The ORDER-SENSITIVE draws are FORKS,
+// depthStencil/colorTarget (no blend). The ORDER-SENSITIVE draws are FORKS,
 // kept last and in order (orbs additive, fade alpha/no-depth).
 //
 // FORKS (Discipline 2 — flagged, NOT forced into a uniform row):
-//   - terrain: three different per-pass codes (shadow: LOD0 + manual LOD1;
-//     main: LOD0 indirect/direct + LOD1 direct; snapshot: one direct draw).
-//   - wall_paintings / gallery_frames: their OWN gallery bind groups, in
-//     ALL THREE passes (UMBRA_9). This is the triplication the table
-//     exists to kill, and the pair cannot enter it: a row would need three
-//     different entity groups across the three passes, and DrawBind carries
-//     one `shadow` bool. Growing that struct for one fork's benefit makes
-//     every pass pay for the gallery's shape. Flagged, hand-synced, and
-//     the debt is three sites — grep the two draw verbs before editing
-//     either.
+//   - terrain: two different per-pass codes (shadow: LOD0 + manual LOD1;
+//     main: LOD0 indirect/direct + LOD1 direct).
 //   - orbs / fade: blended, ORDER-SENSITIVE, kept LAST in the main pass.
 // These stay as explicit code in their pass function; only the uniform
 // opaque entity draws live in the table.
+//
+// PRUNE_1 U2: the snapshot pass and its wall_paintings / gallery_frames
+// fork left with the gallery organ. The membership axis is two passes now,
+// and the fork the table could not absorb is no longer anyone's debt.
 // ═══════════════════════════════════════════════════════════════════════
 
 #include "cartridges/the_board/realization/state.hpp"      // GPUState + wgpu
@@ -42,12 +37,12 @@
 namespace t7 {
 namespace the_board {
 
-enum DrawPass : uint32_t { DRAW_SHADOW = 1u, DRAW_MAIN = 2u, DRAW_SNAPSHOT = 4u };
+enum DrawPass : uint32_t { DRAW_SHADOW = 1u, DRAW_MAIN = 2u };
 
 // Per-pass context for the thunks: which draw family to call, plus the
 // runtime data-guards (precomputed by the pass) so the thunks stay
-// ctx-agnostic — MachineCtx (shadow/main) and GalleryDeps (snapshot) both
-// expose Renderer&/GPUState&, nothing more is needed.
+// ctx-agnostic — MachineCtx exposes Renderer&/GPUState&, nothing more is
+// needed.
 //
 // OIL_1 U11-U13: the entity/texture group pair LEFT this struct. Each
 // pass now binds its own groups ONCE at its head (group0 = that pass's
@@ -161,19 +156,19 @@ inline void dt_shell(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
 }
 
 // THE CANONICAL ORDER (== the shadow order). Membership is which passes a
-// drawable belongs to; snapshot is the photographer's subset.
+// drawable belongs to.
 template <class Enc>
 inline const Drawable<Enc> DRAWABLES[] = {
-    { "pawn",     DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_pawn<Enc>    },
-    { "sphere",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_sphere<Enc>  },
-    { "monolith", DRAW_SHADOW | DRAW_MAIN,                dt_monolith },
-    { "ribbon",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_ribbon<Enc>  },
-    { "arch",     DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_arch<Enc>    },
-    { "column",   DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_column<Enc>  },
-    { "palm",     DRAW_SHADOW | DRAW_MAIN,                dt_palm     },
-    { "cactus",   DRAW_SHADOW | DRAW_MAIN,                dt_cactus   },
-    { "blade",    DRAW_SHADOW | DRAW_MAIN,                dt_blade    },
-    { "shell",    DRAW_SHADOW | DRAW_MAIN | DRAW_SNAPSHOT, dt_shell<Enc>   },
+    { "pawn",     DRAW_SHADOW | DRAW_MAIN, dt_pawn<Enc>     },
+    { "sphere",   DRAW_SHADOW | DRAW_MAIN, dt_sphere<Enc>   },
+    { "monolith", DRAW_SHADOW | DRAW_MAIN, dt_monolith      },
+    { "ribbon",   DRAW_SHADOW | DRAW_MAIN, dt_ribbon<Enc>   },
+    { "arch",     DRAW_SHADOW | DRAW_MAIN, dt_arch<Enc>     },
+    { "column",   DRAW_SHADOW | DRAW_MAIN, dt_column<Enc>   },
+    { "palm",     DRAW_SHADOW | DRAW_MAIN, dt_palm          },
+    { "cactus",   DRAW_SHADOW | DRAW_MAIN, dt_cactus        },
+    { "blade",    DRAW_SHADOW | DRAW_MAIN, dt_blade         },
+    { "shell",    DRAW_SHADOW | DRAW_MAIN, dt_shell<Enc>    },
 };
 
 // Iterate the table for one pass, in canonical order, filtered by membership.

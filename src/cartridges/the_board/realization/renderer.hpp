@@ -58,21 +58,7 @@ namespace t7 {
             constexpr const char* SHELL_VS = "shell_vs";
             constexpr const char* SHADOW_SHELL_VS = "shadow_shell_vs";
 
-            // Gallery (self-portrait painting frames)
-            constexpr const char* GALLERY_FRAME_VS = "gallery_frame_vs";
-            constexpr const char* GALLERY_FRAME_FS = "gallery_frame_fs";
-            constexpr const char* SHADOW_GALLERY_FRAME_VS = "shadow_gallery_frame_vs";
-
-            // Wall-mounted framed paintings (indoor)
-            constexpr const char* WALL_PAINTING_VS        = "wall_painting_vs";
-            constexpr const char* WALL_PAINTING_CANVAS_FS = "wall_painting_canvas_fs";
-            constexpr const char* WALL_PAINTING_FRAME_FS  = "wall_painting_frame_fs";
-            constexpr const char* SHADOW_WALL_PAINTING_VS = "shadow_wall_painting_vs";
-
-            // Photographer compute (GPU-coupled snapshot camera)
-            constexpr const char* COMPUTE_PHOTOGRAPHER_VP = "compute_photographer_vp";
-
-            // Entity placement Y-correction (decoupled from photographer)
+            // Entity placement Y-correction
             constexpr const char* COMPUTE_ENTITY_PLACEMENT = "compute_entity_placement";
 
             // GPU frustum culling (every frame, after update_camera_vp)
@@ -254,18 +240,7 @@ namespace t7 {
             bool useIndirectTerrainPipeline_ = false;
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
-            // Gallery frame pipeline (painting quads in the world)
-            wgpu::RenderPipeline galleryFramePipeline_;
-            wgpu::RenderPipeline shadowGalleryFramePipeline_;
-
-            // Wall-mounted framed paintings (indoor) — uses galleryEntity + galleryTexture layouts
-            wgpu::RenderPipeline wallPaintingCanvasPipeline_;
-            wgpu::RenderPipeline wallPaintingFramePipeline_;
-            wgpu::RenderPipeline shadowWallPaintingPipeline_;
-
-            // Photographer VP compute pipeline (0D, GPU-coupled camera)
-            wgpu::ComputePipeline photographerVPPipeline_;
-            // Entity placement Y-correction pipeline (0D, decoupled from photographer)
+            // Entity placement Y-correction pipeline (0D)
             wgpu::ComputePipeline entityPlacementPipeline_;
             wgpu::ComputePipeline frustumCullPipeline_;
             wgpu::ComputePipeline pawnAuraPipeline_;
@@ -316,8 +291,7 @@ namespace t7 {
             // A BUNDLE CAPTURES OBJECTS, NOT VALUES. It holds the bind groups
             // and buffers it was recorded with, so a re-record is needed only
             // when one of those OBJECTS is recreated — R-B found exactly zero
-            // post-boot recreation sites today (galleryTexturesGroup_ is the
-            // one rebuildable group and nothing calls its rebuild after boot).
+            // post-boot recreation sites today.
             // What it does NOT capture is the ledger's CONTENTS: an indirect
             // draw reads its count at execution, which is the whole reason
             // Commit A exists.
@@ -537,18 +511,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);
                 pass.SetPipeline(ribbonBodyPipeline_);
                 pass.DispatchWorkgroups(body_workgroups, 1, 1);
-            }
-
-            void dispatch_compute_photographer_vp(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(photographerVPPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(1, 1, 1);
             }
 
             void dispatch_entity_placement(
@@ -848,32 +810,6 @@ namespace t7 {
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
-            // Direct terrain draw — uses non-indirect pipeline (outdoor or indoor variant).
-            // For LOD1 outdoor, LOD0+LOD1 indoor, snapshot pass, etc.
-            // DOMESDAY_0 B3: the pipeline's vertex state requires slot 0
-            // bound even though this variant never reads the attribute
-            // (USE_PATCH_INDIRECTION=false). The full list (512 entries)
-            // covers every direct instance range the program draws
-            // (MAX_ACTIVE_PATCHES = 225).
-            template <class Enc>
-            void draw_patch_terrain_direct(
-                Enc& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup,
-                wgpu::Buffer visibleList,
-                wgpu::Buffer indexBuffer,
-                uint32_t indexCount,
-                uint32_t instanceCount,
-                uint32_t firstInstance = 0
-            ) {
-                pass.SetPipeline(patchTerrainPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.SetVertexBuffer(0, visibleList);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16);   // LATTICE_3
-                pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
-            }
-
             // STATUS: LATENT[mood_cull_opt_out] — the flag is WRITTEN every
             // mood change (mood.hpp apply_mood, from MoodProfile::
             // allow_frustum_cull) and READ BY NOBODY. Its one reader was
@@ -892,14 +828,12 @@ namespace t7 {
 
             // ═══ OIL_1 U13 (ledger: R19, C7) — THE COLOR PASS-HEAD CONTRACT
             // The entity draw helpers below ride group0 (the pass's entity
-            // window — the FRAME group in the main pass, the
-            // photographer's in the snapshot pass) and group1 (the render
-            // texture group) bound ONCE by the caller before draw_table.
-            // They were identical at every call within a pass and every
-            // helper re-set them. All these pipelines share ONE layout
-            // (renderLayout), so every draw sees the groups it saw before.
-            // The gallery draws keep their own layout and bind their own
-            // pair, once, at their call site.
+            // window — the FRAME group in the main pass) and group1 (the
+            // render texture group) bound ONCE by the caller before
+            // draw_table. They were identical at every call within a pass
+            // and every helper re-set them. All these pipelines share ONE
+            // layout (renderLayout), so every draw sees the groups it saw
+            // before.
 
             // Shared helper for all "indexed mesh" COLOR draws — the twin
             // of draw_shadow_indexed_mesh below, same signature and same
@@ -1092,49 +1026,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
-            // OIL_1 U13: the gallery pair is bound ONCE by the caller
-            // before the wall/frame draws (they share the gallery layout).
-            // The instance count is the live mark, not Dim::PAINTING_MAX_SLOTS.
-            // The shader culls per slot either way, so the constant meant
-            // paying for the ceiling every frame; gallery_frame_vs's bounds
-            // guard (B1) makes drawing fewer safe by construction. Both the
-            // mark and the `activePaintingCount == 0` guard are in the record
-            // now (BUNDLE_1) — zero instances draw nothing.
-            template <class Enc>
-            void draw_gallery_frames(
-                Enc& pass,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(galleryFramePipeline_);
-                pass.DrawIndirect(ledger, ledgerOffset);
-            }
-
-            // Both passes walk vid/PAINTING_FRAME_VERTS_PER as a slot index,
-            // so the vertex count is the live mark x the per-frame stride
-            // rather than Dim::PAINTING_FRAME_VERTEX_COUNT's ceiling.
-            // wall_painting_vs already guards the decoded index (world.wgsl).
-            //
-            // TWO DRAWS, ONE RECORD: the canvas and the frame walk the same
-            // vertices with different pipelines, so their count is one number
-            // and gets one home. The `wallFrameCount == 0` guard is in it.
-            template <class Enc>
-            void draw_wall_paintings(
-                Enc& pass,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates
-                // Canvas pass (textured surface)
-                pass.SetPipeline(wallPaintingCanvasPipeline_);
-                pass.DrawIndirect(ledger, ledgerOffset);
-
-                // Frame pass (solid color) — same pair, already bound.
-                pass.SetPipeline(wallPaintingFramePipeline_);
-                pass.DrawIndirect(ledger, ledgerOffset);
-            }
-
             // HALF AN LSB IS THE BOUND (LATTICE_4 R4). The overlay is a
             // fullscreen alpha blend over an 8-bit target: at
             // fadeAlpha < 0.5/255 every channel's blend quantizes back to
@@ -1169,10 +1060,7 @@ namespace t7 {
             // state — ~18-22 per pass, and per atlas tile indoors.
             // Bind-group state is sticky within a pass and all these
             // pipelines share ONE layout (shadowRenderLayout), so every
-            // draw sees exactly the groups it saw before. The two
-            // gallery draws are NOT under this contract: they carry
-            // their own layout and bind their own pair, once, at the
-            // tail of draw_shadow_all.
+            // draw sees exactly the groups it saw before.
             // The shadow twin of draw_indexed_mesh_indirect. Same record —
             // a family's index count is one number, not one per pass.
             template <class Enc>
@@ -1357,34 +1245,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
-            // OIL_1 U12: the gallery pair is bound ONCE by the caller
-            // before these two draws (they share galleryShadowLayout and
-            // sit at the tail of draw_shadow_all).
-            template <class Enc>
-            void draw_shadow_gallery_frames(
-                Enc& pass,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;
-                pass.SetPipeline(shadowGalleryFramePipeline_);
-                pass.DrawIndirect(ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_shadow_wall_paintings(
-                Enc& pass,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;
-                // ONE draw where the color pass needs two: with no fragment
-                // stage the canvas/frame split has nothing to distinguish.
-                // Same record as the colour pass — one vertex count.
-                pass.SetPipeline(shadowWallPaintingPipeline_);
-                pass.DrawIndirect(ledger, ledgerOffset);
-            }
-
             // Gate (a'): compile-time count of pipelines the
             // selected demo skips — the boot summary's number.
             static constexpr uint32_t pipelines_skipped() {
@@ -1399,7 +1259,6 @@ namespace t7 {
                 if (!(ROSTER.blade)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
-                if (!(ROSTER.gallery)) n += 6;
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.indoor_shell)) n += 2;
@@ -1661,17 +1520,7 @@ namespace t7 {
                         pl, Entry::RIBBON_BODY, ribbonBodyPipeline_)) return false;
                 }
 
-                // Photographer VP compute pipeline (0D, reads pawn → writes VP)
-                // A7: the PHOTO_K strata — the photographer's compute working set,
-                // split from GALLERY so the render stratum stays read-only (L23).
-                if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("photoKComputeLayout", frameCLayout_, photoKStateLayout_, photoKTexturesLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("compute_photographer_vp", "Compute Photographer VP (0D)",
-                        pl, Entry::COMPUTE_PHOTOGRAPHER_VP, photographerVPPipeline_)) return false;
-                }
-
-                // Entity placement Y-correction pipeline (0D, decoupled from photographer)
+                // Entity placement Y-correction pipeline (0D)
                 {
                     // Placement gains Group 1 (compute textures): the card's
                     // cell-exact GoL fetch (GROUND_CARD_1 H5). Shared @group(1)
@@ -2195,136 +2044,6 @@ namespace t7 {
                     }
                 }
 
-                // ─── Gallery Frame Pipeline ──────────────────────────────────────
-                // Instanced subdivided quads textured with painting snapshots.
-                // Dedicated pipeline layout (galleryEntity + galleryTexture).
-                {
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    wgpu::PipelineLayout galleryLayout = strataLayoutFor("galleryLayout", frameRLayout_, galleryStateLayout_, galleryTexturesLayout_);
-
-                    wgpu::ColorTargetState colorTarget{};
-                    colorTarget.format = colorFormat_;
-                    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-                    wgpu::BlendState blend{};
-                    blend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
-                    blend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    blend.alpha.srcFactor = wgpu::BlendFactor::One;
-                    blend.alpha.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    colorTarget.blend = &blend;
-
-                    wgpu::FragmentState frag{};
-                    frag.module = shaderModule_;
-                    frag.entryPoint = Entry::GALLERY_FRAME_FS;
-                    frag.targetCount = 1;
-                    frag.targets = &colorTarget;
-
-                    wgpu::DepthStencilState galleryDepth{};
-                    galleryDepth.format = depthFormat_;
-                    galleryDepth.depthWriteEnabled = true;
-                    galleryDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Gallery Frame";
-                    desc.layout = galleryLayout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::GALLERY_FRAME_VS;
-                    desc.vertex.bufferCount = 0;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                    desc.depthStencil = &galleryDepth;
-                    desc.fragment = &frag;
-                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
-
-                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                    if (!tPipe("gallery_frame", [&]() {
-                        galleryFramePipeline_ = device_.CreateRenderPipeline(&desc);
-                        return galleryFramePipeline_ != nullptr;
-                    })) return false;
-                    }
-
-                    // Shadow Gallery Frame lives in the shadow block below, on a
-                    // third build of this same layout pair (UMBRA_9).
-                }
-
-                // ─── Wall Painting Pipelines (framed paintings on indoor walls) ──
-                // Uses same bind group layouts as gallery frames (galleryEntity + galleryTexture)
-                {
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    wgpu::PipelineLayout wpLayout = strataLayoutFor("wpLayout", frameRLayout_, galleryStateLayout_, galleryTexturesLayout_);
-
-                    wgpu::ColorTargetState colorTarget{};
-                    colorTarget.format = colorFormat_;
-                    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-                    wgpu::DepthStencilState wpDepth{};
-                    wpDepth.format = depthFormat_;
-                    wpDepth.depthWriteEnabled = true;
-                    wpDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                    // Canvas pipeline (textured)
-                    {
-                        wgpu::FragmentState frag{};
-                        frag.module = shaderModule_;
-                        frag.entryPoint = Entry::WALL_PAINTING_CANVAS_FS;
-                        frag.targetCount = 1;
-                        frag.targets = &colorTarget;
-
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Wall Painting Canvas";
-                        desc.layout = wpLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::WALL_PAINTING_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;  // visible from both sides (outdoor monuments)
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &wpDepth;
-                        desc.fragment = &frag;
-                        desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
-
-                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                        if (!tPipe("wall_painting_canvas", [&]() {
-                            wallPaintingCanvasPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return wallPaintingCanvasPipeline_ != nullptr;
-                        })) return false;
-                        }
-                    }
-
-                    // Frame pipeline (solid color)
-                    {
-                        wgpu::FragmentState frag{};
-                        frag.module = shaderModule_;
-                        frag.entryPoint = Entry::WALL_PAINTING_FRAME_FS;
-                        frag.targetCount = 1;
-                        frag.targets = &colorTarget;
-
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Wall Painting Frame";
-                        desc.layout = wpLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::WALL_PAINTING_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;  // visible from both sides (outdoor monuments)
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &wpDepth;
-                        desc.fragment = &frag;
-                        desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
-
-                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                        if (!tPipe("wall_painting_frame", [&]() {
-                            wallPaintingFramePipeline_ = device_.CreateRenderPipeline(&desc);
-                            return wallPaintingFramePipeline_ != nullptr;
-                        })) return false;
-                        }
-                    }
-
-                    // Shadow Wall Painting lives in the shadow block below — ONE
-                    // pipeline where the color side needs two (UMBRA_9).
-                }
-
                 // ─── Shadow Pipelines (depth-only, kShadowDepthFormat) ───────────
                 // Same bind group layouts as main render, but no fragment shader,
                 // no color target, and shadow map depth format.
@@ -2541,9 +2260,9 @@ namespace t7 {
                     // never reaches it; everything else takes the tight one.
                     enum class BiasProfile { SOLID, GRAZING };
 
-                    // THE LAYOUT FORK (UMBRA_9). Trailing and defaulted, so the ten
-                    // call sites that take shadowRenderLayout stay byte-identical;
-                    // the gallery's two pass their own. It rides BEHIND `profile`
+                    // THE LAYOUT FORK (UMBRA_9). Trailing and defaulted, so every
+                    // call site that takes shadowRenderLayout stays byte-identical;
+                    // a caller with its own layout passes it. It rides BEHIND `profile`
                     // for the same reason `profile` rides behind `out`: default
                     // arguments are trailing.
                     //
@@ -2713,51 +2432,6 @@ namespace t7 {
                     if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — shader compile skipped when disabled
                     if (!makeShadow("shadow_ribbon", "Shadow Sky Ribbon", Entry::SHADOW_RIBBON_VS,
                         nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
-                    }
-
-                    // Shadow gallery frame + wall painting (both bufferless, None —
-                    // the color side's mode, so the caster silhouette is the drawn
-                    // body's). A body that is DRAWN is a body that CASTS; there was
-                    // never an artwork exception, only an artwork omission.
-                    //
-                    // THE GALLERY PIPELINE LAYOUT, THIRD INSTANCE. galleryLayout and
-                    // wpLayout are locals of their own pipeline blocks above and do
-                    // not reach here, so this rebuilds the SAME pair of bind group
-                    // layouts — layout-compatible with the two color families, and
-                    // the whole reason this campaign is small: the gallery entity
-                    // group already binds the frame-R block at sizeof(GPUFrameR),
-                    // so frame_r.vp.light_vp is already reachable, and the gallery
-                    // texture group binds no shadow map, so it is already legal
-                    // inside a depth-only pass. ZERO new bindings, ZERO new
-                    // bind-group layouts. Do not grow either one.
-                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — shader compile skipped when disabled
-                    // ATLAS_1revB G2 — group 0 is the RENDER-ENTITY layout here,
-                    // not the gallery entity layout. Under D2' these two
-                    // shadow VSes call shadow_light_vp(), which reads
-                    // frame_r.lighting (and, since B6, the shadow_slot
-                    // IMMEDIATE — a pipeline-layout fact, not a group
-                    // member); the gallery entity layout carries no
-                    // frame_r block, so Dawn would reject both pipelines
-                    // at creation. It is a strict subset for everything they DO
-                    // use — config (Uniform) and frame_r.vp / frame_r.camera,
-                    // which CHORD_3 folded into that one block — so nothing is
-                    // lost by the swap, and
-                    // draw_shadow_all sheds a bind per light because group 0 no
-                    // longer changes mid-tile. Group 1 is untouched: the
-                    // painting slots and array still come from the gallery
-                    // texture layout. The COLOUR gallery pipelines keep the
-                    // gallery entity layout; only the shadow pair moves.
-                    wgpu::PipelineLayout galleryShadowLayout = strataLayoutFor("galleryShadowLayout", frameRLayout_, shadowStateLayout_, shadowTexturesLayout_);
-                    if (!galleryShadowLayout) return false;
-
-                    if (!makeShadow("shadow_gallery_frame", "Shadow Gallery Frame",
-                        Entry::SHADOW_GALLERY_FRAME_VS, nullptr,
-                        wgpu::CullMode::None, shadowGalleryFramePipeline_,
-                        BiasProfile::GRAZING, galleryShadowLayout)) return false;
-                    if (!makeShadow("shadow_wall_painting", "Shadow Wall Painting",
-                        Entry::SHADOW_WALL_PAINTING_VS, nullptr,
-                        wgpu::CullMode::None, shadowWallPaintingPipeline_,
-                        BiasProfile::GRAZING, galleryShadowLayout)) return false;
                     }
 
                 }
