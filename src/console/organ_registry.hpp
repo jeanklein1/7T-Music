@@ -1,24 +1,18 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════
-// ORGAN — THE COMPILED REGISTRY AND ITS C ABI
-//
-// The ABI's consumer is the native control surface to come (docs/OPEN.md,
-// THE ABLETON SEAM); the browser panel that drove it is attic'd at tag
-// web-sunset. Everything below is unchanged by that: the exports, their
-// names, their arities and the manifest they publish are what the seam
-// will bind to, and "the control surface" names that consumer throughout.
+// ORGAN — THE COMPILED REGISTRY AND THE PANEL'S C ABI
 //
 // THE COMPILED-REGISTRY LAW (docs/ORGAN.md, L22): every entry's offset is
 // `offsetof` against the declaration the program reads, so a rename fails
 // the BUILD at the enrollment line. There is no second copy to drift from.
 // THE SOVEREIGNTY BOUNDARY is state.hpp's — three accessors and no others,
-// so GPU truth has no block id and a consumer that cannot name a thing cannot
+// so GPU truth has no block id and a panel that cannot name a thing cannot
 // write it. Blocks 3 and above are contracts-tier CPU banks, each its own
 // base. THE MANIFEST IS THE WHITELIST: organ_set refuses any (block,
 // offset, type) triple that is not an entry, counts it, and names it.
 // ═══════════════════════════════════════════════════════════════════════
 
-#include "core/instruments.hpp"                          // PURSE_0 R2 — t7::BUILD_STAMP, the tree organ_build_stamp names
+#include "core/instruments.hpp"                          // PURSE_0 R2 — t7::BUILD_STAMP, the tree the panel names
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/contracts/spine_state.hpp"   // MoodProfile + mood_def: the definition side
 #include "cartridges/the_board/contracts/agent_tiers.hpp"    // TIER_LIVE, the world's definition bank
@@ -42,8 +36,8 @@ namespace organ {
 
 // ─── Type tags ────────────────────────────────────────────────────────
 // The lane count is the whole difference between them at the ABI: a VEC3
-// is three contiguous floats, and a colour is a VEC3 over 0..1 that a
-// consumer happens to render with a colour input.
+// is three contiguous floats, and a colour is a VEC3 over 0..1 that the
+// panel happens to render with a colour input.
 enum : uint8_t {
     ORGAN_F32 = 0,
     ORGAN_U32 = 1,
@@ -61,7 +55,7 @@ inline int lanes_of(uint8_t type) {
 }
 
 // ─── Block ids ────────────────────────────────────────────────────────
-// One per CPU home GPUState hands the control surface; the number is the bit
+// One per CPU home GPUState hands the panel; the number is the bit
 // position organ_mark_dirty uses. A BLOCK ID IS NOT A PROMISE ABOUT HOW
 // THE HOME REACHES THE GPU: config_ is staged and the spine uploads it off
 // configDirty_, lightingStage_ and agentRoomStage_ are flushed by
@@ -79,8 +73,7 @@ enum : uint8_t {
     ORGAN_BLOCK_DRIVERS    = 3,   // DriverSurface — DRIVER_LIVE; CPU-read,
                                   // and the seams are its flush
     // THE GRADUATED MODULE BANKS. Each is a contracts-tier CPU surface: a
-    // module's authored console, given a live shadow so the control surface
-    // can name
+    // module's authored console, given a live shadow so the panel can name
     // it. Block 3's shape — no accessor, no upload, and the readers that
     // consume the bank each tick ARE its flush. The bit space is
     // organTouched_, 32 bits.
@@ -120,7 +113,7 @@ enum : uint8_t {
 // ─── Definition targets ───────────────────────────────────────────────
 // Where a dial's DEFINITION lives, if it has one. An entry's home is its
 // INSTANCE, on loan wherever a second author speaks; the definition is the
-// fact that author reads when it next does, so writing it is how a consumer
+// fact that author reads when it next does, so writing it is how a panel
 // edit outlives the author (docs/ORGAN.md, "Definition and preview").
 
 // NEVER REINTERPRET; CONVERSION IS PERMITTED. A float target is a run of
@@ -212,8 +205,7 @@ struct OrganParam {
                 (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
                 ORGAN_CAD_LIVE },
 
-// A DEFINITION WITH NO INSTANCE. Some facts have a definition the control
-// surface
+// A DEFINITION WITH NO INSTANCE. Some facts have a definition the panel
 // may write and no home it may address: MoodProfile's clear_color is read
 // by apply_mood_lighting into clearColor_, a cartridge member and not one
 // of the three exposed homes. The write is always a definition, preview is
@@ -235,7 +227,7 @@ struct OrganParam {
                 ORGAN_CAD_LIVE },
 
 // A WITNESS, NOT A DIAL. The same offsetof plumbing pointed at a DRIVEN
-// value: the control surface meters it and organ_set refuses to write it. No
+// value: the panel meters it and organ_set refuses to write it. No
 // min/max/step, because a meter has no range to clamp against — the
 // driver's own dials carry the ranges and enroll with ORGAN_PARAM above.
 #define ORGAN_PARAM_RO_NS(NS, BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)              \
@@ -278,10 +270,10 @@ inline constexpr size_t kOrganParamCount =
 
 // ─── The live home ────────────────────────────────────────────────────
 // Bound once at boot. Null until then, and every ABI entry point returns
-// harmlessly on null — a consumer may be attached before the program has
-// finished booting.
+// harmlessly on null — the panel's JS may be present on a page whose
+// program has not finished booting.
 inline the_board::GPUState* g_home = nullptr;
-inline uint32_t g_rejected = 0;   // refused organ_set calls, reported by name
+inline uint32_t g_rejected = 0;   // refused organ_set calls, shown in the panel
 
 // A COUNT IS NOT A DIAGNOSIS. A bare count says a refusal happened and
 // never which row or why, so every refusal also names its subject and its
@@ -296,15 +288,13 @@ inline void note_reject(const char* id, const char* why) {
 }
 
 // The live mood, BORROWED and never owned: the spine's own mood organ
-// (contracts/spine_state.hpp), so the control surface can never be looking at
-// a mood
+// (contracts/spine_state.hpp), so the panel can never be looking at a mood
 // the program has left. One pointer answers WHICH MOOD and WHICH REGIME
 // the world was drawn into — two windows, one home, no copy.
 inline const the_board::MoodState* g_mood = nullptr;
 
 // The live HOST, borrowed the same way and for the same reason (RIBBON_1):
-// the control surface's host row must never name a host the program has left.
-// The
+// the panel's host row must never name a host the program has left. The
 // point's house is the spine's (contracts/point.hpp).
 inline const the_board::PointState* g_point = nullptr;
 
@@ -366,23 +356,21 @@ inline uint8_t derived_cadence(const OrganParam& e) {
     return e.cad;                       // LIVE or the stored GEN
 }
 
-// ─── THE CONTROL SURFACE'S TWO QUESTIONS, DERIVED HERE ───────────────────────
+// ─── THE SHELL'S TWO QUESTIONS, DERIVED HERE ──────────────────────────
 // A RULE RESTATED IN A SECOND LANGUAGE IS A RULE WITH TWO HOMES, and the
 // copy is the one that drifts (L46).
-// THE CONTROL SURFACE MUST NOT KNOW A BLOCK NUMBER OR A KIND NUMBER: it asks
-// two
+// THE SHELL MUST NOT KNOW A BLOCK NUMBER OR A KIND NUMBER: it asks two
 // questions, the manifest answers them, and a further definition family
-// answers here while the control surface learns nothing.
+// answers here while the shell learns nothing.
 
-// May the control surface address this row's INSTANCE? A preview write needs
-// one;
+// May the panel address this row's INSTANCE? A preview write needs one;
 // a definition-only row has none, so it targets the live mood whatever
 // the mode toggle says.
 inline uint8_t derived_has_instance(const OrganParam& e) {
     return is_defonly(e.block) ? 0u : 1u;
 }
 
-// How a DEFINITION is addressed — the export's keying and the control surface's
+// How a DEFINITION is addressed — the export's keying and the panel's
 // follow-the-mood refresh both turn on this and on nothing else.
 enum : uint8_t {
     ORGAN_SCOPE_NONE  = 0,   // no definition behind this row
@@ -435,11 +423,9 @@ inline float read_lane(const OrganParam& e, int lane) {
 }
 
 // ─── THE DEFINITION WRITE PATH ────────────────────────────────────────
-// Writing a definition does NOT write the instance: the control surface says
-// what
+// Writing a definition does NOT write the instance: the panel says what
 // the mood MEANS and the mood's own apply turns that into an instance, so
-// the control surface stays a VIEW. The re-apply is deferred to the frame
-// boundary
+// the panel stays a VIEW. The re-apply is deferred to the frame boundary
 // for the flush's own reason — a drag is many events, the mood is applied
 // once — and the cartridge takes the flag, owning the deps and the queue.
 inline bool     g_def_dirty = false;
@@ -625,8 +611,8 @@ inline constexpr OrganDoor kOrganDoors[] = {
     { ORGAN_DOOR_ORB_GESTURE, "Cycle orb gesture" },
 };
 static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
-    "one row per door id — the manifest emits this table and a consumer "
-    "renders one control per row, so a missing row is a missing door");
+    "one row per door id — the manifest emits this table and the shell "
+    "renders one button per row, so a missing row is a missing button");
 
 // A BITMASK, so presses coalesce by construction: three clicks between two
 // frame boundaries are one raise, as a slider drag is one WriteBuffer.
@@ -639,8 +625,7 @@ inline uint32_t take_doors_pending() {
 }
 
 // ─── THE MOOD DOOR ───────────────────────────────────────────────
-// A door with a parameter: WHICH mood. The control surface's select asks the
-// program
+// A door with a parameter: WHICH mood. The shell's select asks the program
 // to go somewhere; the frame boundary presses request_mood_transition —
 // the same door keys 5-9 and every portal press walk, with its own guards
 // (a transition in flight ignores the press). One pending id, last press
@@ -654,8 +639,7 @@ inline bool take_go_mood(uint32_t& mood) {
 }
 
 // ─── THE HOST DOOR (RIBBON_1) ────────────────────────────────────
-// The same shape as the mood door: a door with a parameter. The control
-// surface asks
+// The same shape as the mood door: a door with a parameter. The shell asks
 // the program to hand the point to a host; the frame boundary presses
 // possess() — the ONE transaction key R also presses, with its own guards
 // (no ribbon to ride is a refusal, not a crash). One pending id, last press
@@ -690,8 +674,7 @@ inline bool take_orb_definition_dirty(uint32_t& mood) {
 
 // ─── THE RULE WINDOW ──────────────────────────────────────────────
 // A DIAL WHOSE EFFECT DEPENDS ON A MODE STANDS NEXT TO A TRUTHFUL READOUT
-// OF THAT MODE. Fifteen orb rows are rule-scoped, so the control surface says
-// which
+// OF THAT MODE. Fifteen orb rows are rule-scoped, so the panel says which
 // rule is in force and a dormant row reads as dormant, not dead.
 
 // A WINDOW, NOT A HOME: `OrbsState.current_motion_rule` and
@@ -717,10 +700,8 @@ inline void set_orb_rule_view(uint32_t rule, uint32_t gesture,
 } // namespace t7
 
 // ═══ THE C ABI ═══════════════════════════════════════════════════════
-// extern "C" so a consumer can reach it BY NAME; KEEPALIVE so the linker
-// does not garbage-collect a function no C++ caller has. The macro
-// self-defines away below, which is why this ABI cost the sunset nothing
-// and is exactly what survives it.
+// extern "C" so ccall/cwrap can reach it by name; KEEPALIVE so the linker
+// does not garbage-collect a function no C++ caller has.
 #ifndef EMSCRIPTEN_KEEPALIVE
 #define EMSCRIPTEN_KEEPALIVE
 #endif
@@ -728,8 +709,7 @@ inline void set_orb_rule_view(uint32_t rule, uint32_t gesture,
 extern "C" {
 
 // Built lazily, once, into a static string whose c_str outlives the call.
-// Carries the CURRENT value of every entry, so the control surface opens
-// showing the
+// Carries the CURRENT value of every entry, so the panel opens showing the
 // program rather than showing its own defaults — a VIEW, per the charter.
 EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
     using namespace t7::organ;
@@ -765,8 +745,8 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_manifest(void) {
     return json.c_str();
 }
 
-// The door roster, emitted separately from the dial manifest so a
-// consumer that carries no door bar keeps working.
+// The door roster, emitted separately from the dial manifest so a shell
+// that carries no door bar keeps working.
 EMSCRIPTEN_KEEPALIVE inline const char* organ_doors(void) {
     using namespace t7::organ;
     static std::string json;
@@ -836,14 +816,14 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     // bank's applier — one author, one flag, the rule BEHAVIOR follows
     // against TIER. The raise is per FIELD so the boundary can decide what
     // each costs. The hook lives at this one site, after the clamp and the
-    // write succeed, keyed on the block, and never in the control surface.
+    // write succeed, keyed on the block, and never in the shell.
     if (block == ORGAN_BLOCK_ORBS)
         g_orb_console_dirty |= (1u << (e->offset / 4u));
 }
 
 // BY INDEX, LIKE ITS SIBLINGS. The manifest index IS the index in
 // kOrganParams, because the manifest is emitted in table order — so the
-// consumer reads a value with the index it is already holding rather than
+// shell reads a value with the index it is already holding rather than
 // spelling a home's coordinates. A row is identified by its (block,
 // offset, TYPE) triple, and two rows may share a pair.
 EMSCRIPTEN_KEEPALIVE inline float organ_get(int index, int lane) {
@@ -852,7 +832,7 @@ EMSCRIPTEN_KEEPALIVE inline float organ_get(int index, int lane) {
     return read_lane(kOrganParams[index], lane);
 }
 
-// The control surface's own witnesses, read once per frame by its status line.
+// The panel's own witnesses, read once per frame by its status line.
 EMSCRIPTEN_KEEPALIVE inline int organ_rejected_count(void) {
     return (int)t7::organ::g_rejected;
 }
@@ -860,34 +840,35 @@ EMSCRIPTEN_KEEPALIVE inline int organ_rejected_count(void) {
 EMSCRIPTEN_KEEPALIVE inline const char* organ_last_reject(void) {
     return t7::organ::g_last_reject.c_str();
 }
-// Blocks the control surface's edits RECONCILED on the last frame
-// boundary — not blocks written at that boundary. config_ counts here
-// and uploads in the spine, which is why this is labelled "reconciled".
+// Blocks the panel's edits RECONCILED on the last frame boundary — not
+// blocks written at that boundary. config_ counts here and uploads in the
+// spine, which is why the panel labels this "reconciled".
 EMSCRIPTEN_KEEPALIVE inline int organ_flush_count(void) {
     return t7::organ::g_home
          ? (int)t7::organ::g_home->organ_last_flush_count() : 0;
 }
 // PURSE_0 R-D — THE COUNT IS THE READINESS GATE, AND IT WAS NOT ONE.
 //
-// A consumer polls this to learn whether the registry is bound, and stops
-// polling the moment it answers. It returned kOrganParamCount — a
-// COMPILE-TIME CONSTANT — so it was never zero, and the invariant the
-// caller believed in was one this side did not honour.
+// organ_panel.js polls `if (C.count() <= 0) return;  // registry not bound
+// yet` and clears its interval the moment this answers. It returned
+// kOrganParamCount — a COMPILE-TIME CONSTANT — so it was never zero and
+// the comment asserted an invariant this side did not honour.
 //
 // WHAT THAT COSTS, and it is not theoretical on a slow machine.
 // organ_manifest() does not gate either, and read_lane returns 0.0f on a
 // null base rather than failing, so the manifest parses, the poll stops,
-// and the consumer opens — against the charter, showing zeros instead of
-// the program. Worse, a preset walking the same road at boot would have
-// every CONFIG write land in organ_set's `if (!base) note_reject(e->id,
-// "the block has no home")` while the console still printed `N applied`.
-// A scene that silently does not apply, reported as applied.
+// and the panel opens — against its own charter, showing zeros instead of
+// the program. Worse, `?preset=<name>` walks the same road at boot
+// (deliberately, so an exhibition needs no panel): every CONFIG write then
+// lands in organ_set's `if (!base) note_reject(e->id, "the block has no
+// home")` while the console still prints `N applied`. A scene that
+// silently does not apply, reported as applied.
 //
 // The window is real: bind_home runs after device creation, and this
 // tree's own console has observed device creation at 70,459 and 205,527
-// ms. The control surface that paid for this finding polled first at 500.
+// ms. The panel's first poll is at 500.
 //
-// So the count now MEANS what its caller believed it meant. The
+// So the count now MEANS what the panel already believed it meant. The
 // static table is still the count; what changed is that it is withheld
 // until the ABI it describes can actually be written through.
 EMSCRIPTEN_KEEPALIVE inline int organ_param_count(void) {
@@ -895,34 +876,31 @@ EMSCRIPTEN_KEEPALIVE inline int organ_param_count(void) {
     return (int)t7::organ::kOrganParamCount;
 }
 
-// PURSE_0 R2 — WHICH TREE IS THIS? This hands a consumer the TREE, from
-// the C++ that was compiled. The artifact digest it used to sit beside
-// went with the web twin at tag web-sunset; the tree fact did not, and is
-// the half that was always the program's own.
+// PURSE_0 R2 — WHICH TREE IS THIS? The panel's status line already names
+// the ARTIFACT (window.T7_BUILD_ID, the digest web_dist bakes into the
+// shell). This hands it the TREE, from the C++ that was compiled, so the
+// two provenance facts sit in one line and neither can be read without
+// the other.
 //
 // IT IS NOT A DIAL AND CANNOT BE ONE. Adding a dial is one line in
-// organ_params.inc — but that road carries F32/U32/BOOL LANES, and a
-// stamp is a string. So it rides the ABI as its own export. The ABI's
-// consumer is the native control surface to come (docs/OPEN.md, THE
-// ABLETON SEAM); the browser panel that drove it is attic'd at tag
-// web-sunset.
+// organ_params.inc and no JS edit — but that road carries F32/U32/BOOL
+// LANES, and a stamp is a string. So it rides the ABI as its own export,
+// which is why this one costs a cwrap and a line of JS and the dials do
+// not. The shell gate is the witness that both halves moved together.
 EMSCRIPTEN_KEEPALIVE inline const char* organ_build_stamp(void) {
     return t7::BUILD_STAMP;
 }
 
 
-// The mood the program is in. The control surface needs it to address a
-// definition
+// The mood the program is in. The panel needs it to address a definition
 // and to key an export, and it keeps no copy of its own.
 EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
     return (int)t7::organ::current_mood();
 }
 
 // The regime the live world was drawn into: the Atmosphere.regime[] INDEX
-// (0-based; the control surface shows it as the label's number). Read through
-// the
-// same borrowed pointer as organ_mood(), so the control surface's regime
-// lines can
+// (0-based; the shell shows it as the label's number). Read through the
+// same borrowed pointer as organ_mood(), so the panel's regime lines can
 // never name a regime the draw has left. The seed drew it and RESPEAK
 // keeps the seed; only a weight dial moves it without a transition.
 EMSCRIPTEN_KEEPALIVE inline int organ_regime(void) {
@@ -932,8 +910,7 @@ EMSCRIPTEN_KEEPALIVE inline int organ_regime(void) {
 // The sky's live motion rule, packed with the ACTIVE rule's gesture index,
 // whether the dome is lit and how many motes it carries. set_orb_rule_view
 // states the bit layout; this is its one reader and does not restate it.
-// The control surface reads it to say WHICH MODE the fifteen rule-scoped orb
-// rows
+// The panel reads it to say WHICH MODE the fifteen rule-scoped orb rows
 // are acting in, and whether there is a sky to act on. Zero before the
 // first configure reads as brownian/0 — what the program seeds to.
 EMSCRIPTEN_KEEPALIVE inline int organ_orb_rule(void) {
@@ -941,9 +918,8 @@ EMSCRIPTEN_KEEPALIVE inline int organ_orb_rule(void) {
 }
 
 // Press a door. Out-of-range ids are ignored rather than counted as
-// rejections: a rejection means the control surface asked for something
-// the manifest forbids, and a door id the build does not carry is a
-// stale consumer.
+// rejections: a rejection means the panel asked for something the manifest
+// forbids, and a door id the build does not carry is a stale shell.
 EMSCRIPTEN_KEEPALIVE inline void organ_door(uint32_t id) {
     using namespace t7::organ;
     if (id < ORGAN_DOOR_COUNT) g_doors_pending |= (1u << id);
@@ -957,8 +933,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_go_mood(int mood) {
         g_go_mood_pending = (uint32_t)mood;
 }
 
-// Which host the point is on: 0 pawn, 1 camera, 2 ribbon. The control
-// surface's host
+// Which host the point is on: 0 pawn, 1 camera, 2 ribbon. The panel's host
 // row reads it so the row can never show a host the program has left —
 // through the same borrowed pointer organ_mood() reads the mood through.
 EMSCRIPTEN_KEEPALIVE inline int organ_host(void) {
@@ -972,7 +947,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_go_host(int host) {
     if (host >= 0 && host <= 2) g_go_host_pending = (uint32_t)host;
 }
 
-// The names, positional by id: a JSON array the control surface builds its mood
+// The names, positional by id: a JSON array the shell builds its mood
 // select from, so a new mood appears there with no JS edit.
 EMSCRIPTEN_KEEPALIVE inline const char* organ_mood_names(void) {
     static std::string json;
@@ -989,7 +964,7 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_mood_names(void) {
 }
 
 // One lane of one dial's DEFINITION for one mood. Zero for a dial with no
-// definition target; a consumer asks the manifest's "def" before this.
+// definition target; the panel asks the manifest's "def" before this.
 EMSCRIPTEN_KEEPALIVE inline float organ_def_get(int index, int mood, int lane) {
     using namespace t7::organ;
     if (index < 0 || (size_t)index >= kOrganParamCount || mood < 0) return 0.0f;
