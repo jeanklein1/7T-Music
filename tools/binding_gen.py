@@ -802,19 +802,25 @@ def emit_gen_inc(schema, class_indent="            "):
     L.append(ind1 + "return true;")
     L.append(ind0 + "}")
 
-    L.append("")
-    L.append(ind0 + "// Callable at boot and at the exhibition rebuild \u2014 the one bind")
-    L.append(ind0 + "// group re-made after boot, against the exhibition read view.")
-    L.append(ind0 + "bool create_gallery_texture_group() {")
-    for key, row in schema.GROUPS.items():
-        if row["cadence"] != "rebuild":
-            continue
-        L.extend(group_block(key, row, ind1, ind2, [
-            ind2 + "%s = device_.CreateBindGroup(&desc);" % key,
-            ind2 + "if (!%s) return false;" % key,
-            ind1 + "}"]))
-    L.append(ind1 + "return true;")
-    L.append(ind0 + "}")
+    # THE REBUILD DOOR, emitted only when a group asks for it. Its one
+    # caller was the exhibition rebuild, which left with the gallery at
+    # PRUNE_1; with no group at cadence "rebuild" the door would emit as
+    # an empty function, which is generated dead code. The capability
+    # stands — set a group's cadence to "rebuild" and the door returns.
+    rebuild = [(k, r) for k, r in schema.GROUPS.items()
+               if r["cadence"] == "rebuild"]
+    if rebuild:
+        L.append("")
+        L.append(ind0 + "// Callable at boot and at the rebuild \u2014 the bind group(s)")
+        L.append(ind0 + "// re-made after boot.")
+        L.append(ind0 + "bool create_gallery_texture_group() {")
+        for key, row in rebuild:
+            L.extend(group_block(key, row, ind1, ind2, [
+                ind2 + "%s = device_.CreateBindGroup(&desc);" % key,
+                ind2 + "if (!%s) return false;" % key,
+                ind1 + "}"]))
+        L.append(ind1 + "return true;")
+        L.append(ind0 + "}")
     return "\n".join(L) + "\n"
 
 
@@ -1099,7 +1105,11 @@ def capture_resources():
             "src/cartridges/the_board/realization/state.hpp")
         prev_end = m.end()
 
-    # ── the three painting arrays ride the makeTextureArray lambda:
+    # ── texture arrays ride a makeTextureArray lambda. The three painting
+    #    arrays were the only ones the tree ever had and they left at
+    #    PRUNE_1, so this branch matches nothing today; it is kept because
+    #    --bootstrap is the door back from a tree to a schema, and the
+    #    resolution below is the lambda's own, not a family's.
     #    size and format are the lambda's own shape.
     for m in re.finditer(
             r"(\w+)\s*=\s*makeTextureArray\(\s*\"([^\"]+)\"\s*,([^;]*)\);",

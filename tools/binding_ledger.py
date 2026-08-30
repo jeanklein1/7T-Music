@@ -613,7 +613,7 @@ def strip_wgsl_comments(src):
 
 
 # ─── The const environment. Array counts are spelled with named
-#     constants (PAINTING_MAX_SLOTS, FIELD_SUBSCRIBERS), so a size
+#     constants (FIELD_SUBSCRIBERS, MAX_ACTIVE_PATCHES), so a size
 #     calculator that cannot fold them cannot size the bindings that
 #     matter. Only integer-valued constants are folded; anything else
 #     is simply absent, and a type that needs it reports unresolved
@@ -2198,9 +2198,8 @@ def caller_files():
     """Every file that invokes a renderer verb, discovered not hand-listed.
 
     The pass files are not the whole story: `draw_orbs` is called from
-    bodies/orbs.hpp and `draw_patch_terrain_direct` from bodies/gallery.hpp.
-    A hand-listed input set would have left both instance counts reading as
-    a parameter name. Sorted, so the scan is deterministic.
+    bodies/orbs.hpp. A hand-listed input set would have left that instance
+    count reading as a parameter name. Sorted, so the scan is deterministic.
     """
     out = []
     for root, _dirs, files in os.walk(os.path.join(REPO, "src")):

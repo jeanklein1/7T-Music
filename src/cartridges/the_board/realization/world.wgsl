@@ -113,7 +113,7 @@
 // §5    COMPOSITION         0D update split across compute entry points
 // §6    RENDERING           Lighting, terrain VS/FS, entity VS/FS, ribbon, shadows
 // §7    COMPUTE             Bindings, entry points, GoL zones, pawn aura
-// §8    GALLERY             Photographer, terrain paintings, wall paintings
+// §8    PLACEMENT           Terrain sampling, entity Y-correction, frustum cull
 // §9    ENTITY MESH GEN     GPU-sovereign geometry: arches, columns
 //
 // PANELS (the federation's strips — one sitting each; grep the names,
@@ -1671,7 +1671,7 @@ struct DesignConfig {
     //  offsets unmoved; the C++ twin carries the explicit pad.)
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
     world_bound_max: vec2<f32>,   // XZ max clamp (0,0 = infinite)
-    placement_patch_count: u32,   // active patches for entity Y-correction (decoupled from photographer)
+    placement_patch_count: u32,   // active patches for entity Y-correction
     terrain_amp_ceiling: f32,     // max per-wave amplitude (0 = unlimited, >0 = clamp for indoor)
     ceiling_height: f32,          // indoor ceiling Y for camera clamp (0 = no ceiling)
     terrain_time: f32,            // t_beats for terrain evaluation (0 = frozen)
@@ -7153,8 +7153,8 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // FRAME R (CHORD_3) — the render frame's block: lighting (CPU-
 // authored) + vp + camera (GPU-sovereign, arriving by encoder copy
 // from vp_data / camera_state each frame — the CPU never reads
-// them). Two instances back two bind groups over this layout: main
-// and photographer. Mirrors GPUFrameR in state.hpp BYTE-FOR-BYTE
+// them). One instance backs one bind group over this layout.
+// Mirrors GPUFrameR in state.hpp BYTE-FOR-BYTE
 // (1040 B). Offsets: lighting 0, vp 848, camera 976, sphere_pos 1024.
 //
 // THIRD PASSENGER (BEQ_A). sphere slot 0's position — the terrain
@@ -11347,26 +11347,11 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 
-// §8 SELF-PORTRAIT GALLERY — Paintings of the point's journey over terrain
-// (the body's self-portraits in pawn-host; the travelogue in free-fly)
-// §8.0 PHOTOGRAPHER COMPUTE — GPU-coupled snapshot camera
-struct PhotographerConfig {
-    sun_direction: vec3<f32>,
-    azimuth: f32,
-    elevation: f32,
-    distance: f32,
-    fov_rad: f32,
-    aspect_ratio: f32,
-    patch_count: u32,
-    frame_offset_x: f32,   // horizontal: -1 = pawn at left edge, +1 = right edge
-    frame_offset_y: f32,   // vertical:   -1 = pawn at bottom, +1 = top
-    _pad0: f32,
-};
-
-@group(2) @binding(160) var<uniform> photographer_config: PhotographerConfig;
-@group(2) @binding(161) var<storage, read_write> photographer_vp: VPMatrix;
-@group(2) @binding(162) var<storage, read_write> photographer_camera_out: CameraState;
-@group(2) @binding(80) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
+// §8 PLACEMENT — where the world's standing bodies meet the ground
+// (PRUNE_1: the self-portrait gallery this section was named for left
+//  whole; what stood beside it — the terrain sampler every room borrows,
+//  the entity Y-correction kernel and the frustum cull — is what §8 is)
+// §8.0 TERRAIN SAMPLING + GROUND ENTRIES
 @group(3) @binding(42) var photo_heightfield: texture_2d_array<f32>;
 @group(3) @binding(43) var photo_sampler: sampler;
 
@@ -11497,98 +11482,6 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
                               sample_uv, layer, 0.0).yz;
 }
 
-// --- Look-At VP Matrix
-
-fn build_lookat_vp(eye: vec3<f32>, aim_pt: vec3<f32>, fov_rad: f32, aspect: f32) -> mat4x4<f32> {
-    let fwd = normalize(aim_pt - eye);
-
-    var world_up = vec3(0.0, 1.0, 0.0);
-    if (abs(fwd.y) > 0.99) { world_up = vec3(0.0, 0.0, 1.0); }
-
-    let right = normalize(cross(fwd, world_up));
-    let up = cross(right, fwd);
-
-    let view = mat4x4<f32>(
-        vec4(right.x,  up.x,  -fwd.x,  0.0),
-        vec4(right.y,  up.y,  -fwd.y,  0.0),
-        vec4(right.z,  up.z,  -fwd.z,  0.0),
-        vec4(-dot(right, eye), -dot(up, eye), dot(fwd, eye), 1.0)
-    );
-
-    let near = 0.5;
-    let far  = 500.0;
-    let f = 1.0 / tan(fov_rad * 0.5);
-
-    let proj = mat4x4<f32>(
-        vec4(f / aspect,  0.0,  0.0,                        0.0),
-        vec4(0.0,         f,    0.0,                        0.0),
-        vec4(0.0,         0.0,  -far / (far - near),       -1.0),
-        vec4(0.0,         0.0,  -near * far / (far - near),  0.0)
-    );
-
-    return proj * view;
-}
-
-// --- Photographer VP Compute (camera only — entity placement is separate)
-// Dispatched only on snapshot frames. Builds the photographer camera VP
-// and light VP for the snapshot render pass.
-@compute @workgroup_size(1)
-fn compute_photographer_vp() {
-    let cfg = photographer_config;
-    // THE POINT: the photographer frames the point — the body
-    // when the pawn hosts (the self-portrait, identical to before),
-    // the camera's vantage in free-fly (the travelogue — Jean's
-    // ruling; the trigger already accumulates flight distance through
-    // the point readback).
-    let point_p = point_pos();
-
-    // --- Camera position: spherical offset from the point
-    let cos_el = cos(cfg.elevation);
-    let sin_el = sin(cfg.elevation);
-    let cos_az = cos(cfg.azimuth);
-    let sin_az = sin(cfg.azimuth);
-
-    let eye_raw = point_p + vec3(
-        cfg.distance * cos_el * sin_az,
-        cfg.distance * sin_el + 1.5,
-        cfg.distance * cos_el * cos_az
-    );
-
-    // --- Clamp camera above actual terrain (O(1) patch_grid lookup).
-    //
-    // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
-    // Same trade-off as the primary camera: the compute_photographer_vp
-    // pipeline's bind group does not include live-contributor
-    // resources, so this uses the cached heightfield (static_base +
-    // pyramids only). See update_camera_vp for the rationale.
-    let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
-    let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
-
-    // --- Build VP looking at the point, with frame offset
-    let aim_base = point_p + vec3(0.0, 1.0, 0.0);
-
-    // Derive camera frame from initial eye→point direction
-    let fwd_init = normalize(aim_base - eye);
-    var world_up_init = vec3(0.0, 1.0, 0.0);
-    if (abs(fwd_init.y) > 0.99) { world_up_init = vec3(0.0, 0.0, 1.0); }
-    let right_init = normalize(cross(fwd_init, world_up_init));
-    let up_init = cross(right_init, fwd_init);
-
-    // Scale offset by FOV angular extent at the point's distance
-    let half_fov = cfg.fov_rad * 0.5;
-    let cam_to_point = length(aim_base - eye);
-    let h_extent = tan(half_fov) * cam_to_point * cfg.aspect_ratio;
-    let v_extent = tan(half_fov) * cam_to_point;
-
-    // Shift aim point — camera looks away from the subject, placing it off-center
-    let aim_pt = aim_base
-        - right_init * cfg.frame_offset_x * h_extent
-        - up_init * cfg.frame_offset_y * v_extent;
-
-    photographer_vp.m = build_lookat_vp(eye, aim_pt, cfg.fov_rad, cfg.aspect_ratio);
-    photographer_vp.light_vp = coupling_pawn_to_sun_vp(point_p, cfg.sun_direction);
-    photographer_camera_out.pos = eye;
-}
 
 // --- Entity Placement Y-Correction
 //
@@ -11607,7 +11500,6 @@ fn compute_photographer_vp() {
 // tile-cache proxy in machine/spawn_engine.hpp), and this GPU pass is
 // the live Y path via the baked heightfield.
 //
-// Paintings: terrain + the GoL cell lift (the card's .a).
 // Arch: 2-point min at the leg positions + pier_height offset (the legs' visual height).
 // Pyramid: 5-point min at center + 4 rotated corners.
 // Column/antenna, palm, cactus, blade: single-point center.
@@ -11615,7 +11507,7 @@ fn compute_photographer_vp() {
 //   and the blade VS reads it; the old "excluded/CPU-mirror" note was stale.)
 //
 // b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
-// families (paintings, column/antenna, palm/cactus/blade, arch feet) add
+// families (column/antenna, palm/cactus/blade, arch feet) add
 // contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
@@ -11634,60 +11526,13 @@ fn compute_photographer_vp() {
 fn compute_entity_placement() {
     // Patch lookup is O(1) via patch_grid — no patch_count needed.
 
-    // Y-correct all outdoor paintings (terrain quads + wall frame monuments).
-    // Indoor WALL FRAMES use sentinel patch coords (0x7FFFFFFF) and are
-    // skipped: their Y is the wall's, measured from the ceiling down, and the
-    // ground under them is not their business.
-    //
-    // A SENTINEL TERRAIN QUAD IS NOT A WALL FRAME (ATRIUM_5). The sentinel
-    // says NO PATCH OWNS ME — it is the eviction discriminator
-    // (evict_paintings_for_patch, clear_wall_paintings) — and it was reused
-    // here as an "is this indoor" test because until ATRIUM_3 no terrain quad
-    // had ever carried it. The atrium's sand image does: it stands on the
-    // floor of a room, owned by no patch, and its foot wants the ground like
-    // every other terrain quad's. So the skip is narrowed to the form it was
-    // always about.
-    for (var i = 0u; i < PAINTING_MAX_SLOTS; i++) {
-        let owned = photo_painting_slots[i].patch_gx != 0x7FFFFFFF;
-        let seats = owned || photo_painting_slots[i].form_type == FORM_TERRAIN_QUAD;
-        if (photo_painting_slots[i].is_active != 0u && seats) {
-            let slot_xz = vec2(
-                photo_painting_slots[i].position.x,
-                photo_painting_slots[i].position.z
-            );
-            // Painting Y-correction — hybrid POLICY_PLACEMENT_PAINTING
-            // evaluation. The cached heightfield (sample_terrain_y_at)
-            // covers static_base + pyramids; GoL rides the card's
-            // cell-exact raw lift (sample_live_card_gol — GROUND_CARD_1;
-            // was an analytic zone loop). Equivalent in value to
-            // the placement-painting query would have been, but cheaper per
-            // call (baked texture lookup for the static portion).
-            //
-            // NO suppression term: POLICY_PLACEMENT_PAINTING does not
-            // include CONTRIB_GOL_SUPPRESSION. Painting Y must be stable
-            // against pawn position — placement does not depend on where
-            // the pawn happens to stand. (Pre-refactor the subtraction
-            // was present, but the policy declaration is the contract;
-            // the code was wrong. See contracts/ground_architecture.hpp.)
-            let ground = sample_terrain_y_at(slot_xz)
-                       + sample_live_card_gol(slot_xz);
-            // Terrain quads: center at ground + half-height (bottom at ground)
-            // Wall frames: also lift by frame_width so the frame border clears the ground
-            var lift = photo_painting_slots[i].scale_y * 0.5;
-            if (photo_painting_slots[i].form_type == FORM_WALL_FRAME) {
-                lift += photo_painting_slots[i].frame_width;
-            }
-            photo_painting_slots[i].position.y = ground + lift;
-        }
-    }
-
     // --- Column + antenna: single-point center sampling
     for (var i = 0u; i < 32u; i++) {
         if (column_ground[i].is_active != 0u) {
             let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
             // b2b: ride the world-anchored GoL extrusion (raw — structures are
-            // not movers, so no pawn suppression). Matches the painting hybrid;
-            // seats the structure on the live zone surface instead of floating
+            // not movers, so no pawn suppression). Seats the structure on the
+            // live zone surface instead of floating
             // on the baked static height. (Waves/pulses: see the b2b note at
             // compute_entity_placement's banner.)
             column_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
@@ -11745,8 +11590,7 @@ fn compute_entity_placement() {
 // §8.0.5 GPU FRUSTUM CULLING — Camera-visible patch selection
 //
 // Topical sibling of §7's compute passes (writes draw-indirect args
-// for the main render), but located in §8 territory (between §8.0
-// photographer compute and §8.1 gallery frame rendering) for
+// for the main render), but located in §8 territory for
 // bind-group locality with neighboring compute passes. Section
 // number reflects file position; the topic is "GPU frustum culling
 // of patch instances", which would belong in §7 by topic alone.
@@ -11906,529 +11750,6 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 
-// §8.1 GALLERY FRAME RENDERING — Painting quads on the terrain
-
-// --- Unified Painting Slot (must match GPUPaintingSlot in state.hpp, 128 bytes)
-// Both terrain-quad and wall-frame forms read from this.
-
-const FORM_TERRAIN_QUAD: u32 = 0u;
-const FORM_WALL_FRAME:   u32 = 1u;
-
-struct UnifiedPaintingSlot {
-    // Common
-    position:       vec3<f32>,
-    texture_layer:  u32,
-    forward:        vec3<f32>,
-    form_type:      u32,
-    up:             vec3<f32>,
-    is_active:      u32,
-    // Sizing (both forms)
-    scale_x:        f32,
-    scale_y:        f32,
-    uv_scale_x:     f32,
-    uv_scale_y:     f32,
-    // Terrain quad fields
-    geometry_seed:  f32,
-    content_source: u32,
-    patch_gx:       i32,
-    patch_gz:       i32,
-    // Wall frame fields
-    frame_depth:    f32,
-    frame_width:    f32,
-    canvas_recess:  f32,
-    _pad0:          f32,
-    frame_color:    vec3<f32>,
-    _pad1:          f32,
-    _pad2:          vec4<f32>,
-};
-
-// L3 MIRROR — twin of Dim::PAINTING_MAX_SLOTS in state.hpp. Both rooms,
-// same commit; nothing the compiler can see holds this pair.
-const PAINTING_MAX_SLOTS: u32 = 288u;
-
-// --- Gallery Group 1 bindings (shared by terrain quads + wall frames)
-
-@group(2) @binding(85) var<storage, read> painting_slots: array<UnifiedPaintingSlot, PAINTING_MAX_SLOTS>;
-@group(3) @binding(160) var painting_array: texture_2d_array<f32>;
-@group(3) @binding(161) var painting_sampler_filt: sampler;
-
-// --- Constants
-
-const GALLERY_QUAD_N: u32 = 8u;
-
-// --- Vertex Output
-
-struct GalleryVarying {
-    @builtin(position) clip_pos: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-    @location(1) world_pos: vec3<f32>,
-    @location(2) world_normal: vec3<f32>,
-    @location(3) @interpolate(flat) texture_layer: u32,
-};
-
-// --- Frame Deformation
-fn deform_gallery_frame(local: vec3<f32>, uv: vec2<f32>, seed: f32) -> vec3<f32> {
-    var p = local;
-    if (seed < 0.33) {
-        let tilt = (seed / 0.33) * 0.02;
-        p.z += tilt * sin(uv.x * 3.14159);
-    } else if (seed < 0.66) {
-        let t = (seed - 0.33) / 0.33;
-        let bow_strength = 0.08 + t * 0.15;
-        p.z += bow_strength * sin(uv.x * 3.14159) * p.x;
-    } else {
-        let t = (seed - 0.66) / 0.34;
-        let freq = 3.0 + t * 2.0;
-        let amp = 0.03 + t * 0.06;
-        let n1 = sin(uv.x * freq * 6.283) * cos(uv.y * freq * 4.712);
-        let n2 = sin((uv.x + 0.37) * freq * 5.1) * cos((uv.y + 0.71) * freq * 3.7);
-        p.z += (n1 * 0.6 + n2 * 0.4) * amp;
-    }
-    return p;
-}
-
-// The quad's geometry, shared by the color VS and its shadow twin. Both
-// gates live here — the bounds guard and THE RING — so a caster set and a
-// draw set cannot drift apart. `valid` false means the slot is not drawn
-// by this entry point; each caller emits its own degenerate position.
-struct GalleryQuadPoint {
-    world:         vec3<f32>,
-    uv:            vec2<f32>,
-    fwd:           vec3<f32>,
-    uv_scale:      vec2<f32>,
-    texture_layer: u32,
-    valid:         bool,
-};
-
-fn compute_gallery_quad_geometry(vid: u32, iid: u32) -> GalleryQuadPoint {
-    var out: GalleryQuadPoint;
-    out.world = vec3(0.0);
-    out.uv = vec2(0.0);
-    out.fwd = vec3(0.0, 1.0, 0.0);
-    out.uv_scale = vec2(1.0);
-    out.texture_layer = 0u;
-    out.valid = false;
-
-    // Instance count comes from the CPU (Dim::PAINTING_MAX_SLOTS, at
-    // renderer.hpp's draw_gallery_frames) and the array size from this
-    // room. They agree today, which is the only reason the read below has
-    // stood unguarded. wall_painting_vs already guards its decoded index;
-    // this is the same guard, on the other painting entry point.
-    if (iid >= PAINTING_MAX_SLOTS) { return out; }
-
-    let slot = painting_slots[iid];
-
-    // THE RING (draw authority): outdoor frames draw only inside the ring
-    // (center - extent <= ring; 5 wu covers the frame's half-reach).
-    let frame_in_ring = distance(slot.position.xz,
-                                 vec2(config.lod_point_x, config.lod_point_z))
-                        - 5.0 <= config.veil_ring;
-    if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD || !frame_in_ring) {
-        return out;
-    }
-
-    // Decode vid into grid vertex on the subdivided quad
-    let N = GALLERY_QUAD_N;
-    let tri_in_quad = vid / 3u;
-    let vert_in_tri = vid % 3u;
-    let quad_idx = tri_in_quad / 2u;
-    let second_tri = tri_in_quad % 2u;
-    let qx = quad_idx % N;
-    let qy = quad_idx / N;
-
-    // Grid vertex offsets within the quad cell
-    //   Triangle 0: (0,0) (1,0) (0,1)
-    //   Triangle 1: (1,0) (1,1) (0,1)
-    var dx: u32; var dy: u32;
-    if (second_tri == 0u) {
-        switch (vert_in_tri) {
-            case 0u: { dx = 0u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 0u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    } else {
-        switch (vert_in_tri) {
-            case 0u: { dx = 1u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 1u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    }
-
-    let gx = qx + dx;
-    let gy = qy + dy;
-    let uv = vec2(f32(gx) / f32(N), f32(gy) / f32(N));
-
-    // Local-space position: centered, scaled
-    var local = vec3(
-        (uv.x - 0.5) * slot.scale_x,
-        (uv.y - 0.5) * slot.scale_y,
-        0.0
-    );
-
-    // Apply seed-driven deformation
-    local = deform_gallery_frame(local, uv, slot.geometry_seed);
-
-    // Build local-to-world rotation from slot orientation vectors
-    let fwd = normalize(slot.forward);
-    let up_raw = normalize(slot.up);
-    let right = normalize(cross(up_raw, fwd));
-    let up = cross(fwd, right);
-
-    // Transform to world space
-    let world = slot.position + right * local.x + up * local.y + fwd * local.z;
-
-    out.world = world;
-    out.uv = uv;
-    out.fwd = fwd;
-    out.uv_scale = vec2(slot.uv_scale_x, slot.uv_scale_y);
-    out.texture_layer = slot.texture_layer;
-    out.valid = true;
-    return out;
-}
-
-// --- Vertex Shader
-@vertex
-fn gallery_frame_vs(
-    @builtin(vertex_index) vid: u32,
-    @builtin(instance_index) iid: u32,
-) -> GalleryVarying {
-    var out: GalleryVarying;
-
-    // Both gates — the bounds guard and THE RING — now live in
-    // compute_gallery_quad_geometry, shared with the shadow twin. The two
-    // early-return blocks this VS used to carry are one block, because
-    // they always emitted the same degenerate vertex.
-    let g = compute_gallery_quad_geometry(vid, iid);
-    if (!g.valid) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        out.uv = vec2(0.0);
-        out.world_pos = vec3(0.0);
-        out.world_normal = vec3(0.0, 1.0, 0.0);
-        out.texture_layer = 0u;
-        return out;
-    }
-
-    out.clip_pos = frame_r.vp.m * vec4(g.world, 1.0);
-    // THE SLOT'S uv_scale, which this path used to drop on the floor. The wall
-    // path has always applied it (compute_wall_painting_geometry); this one
-    // emitted raw uv, so a slot occupying part of its layer drew the whole
-    // layer — the composite quads, when snapshots were briefly 512.
-    //
-    // It affects OUTDOOR SNAPSHOTS ONLY, and today they fill their layer, so
-    // this line changes nothing that draws. The two entry points partition by
-    // form type, and outdoor AUTHORED paintings go through fill_slot_wall_frame
-    // into FORM_WALL_FRAME — the path that already scaled — so they never
-    // showed load_authored_image_to_staging's letterbox padding. The only
-    // writer of FORM_TERRAIN_QUAD is commit_gallery's snapshot branch.
-    //
-    // It lands anyway: an entry point that silently ignores a field the slot
-    // carries is a trap, and it cost this campaign a stage.
-    //
-    // SCALE AFTER THE FLIP, and the two paths then agree exactly. `uv` runs 0 at
-    // the quad's bottom (local.y = (uv.y - 0.5) * scale_y), so the flip sends
-    // bottom to v = 1 and top to v = 0; scaling here selects v in [0, s], the
-    // ORIGIN-side band, which is the end a partial write lands on. The wall
-    // path's corner/uv tables give the same mapping — bottom to s, top to 0.
-    // Scaling BEFORE the flip would select v in [1-s, 1], the far end, where
-    // nothing is ever written.
-    //
-    // `uv` itself stays raw above: it drives local position and
-    // deform_gallery_frame, which are geometry and must not move with content.
-    out.uv = vec2(g.uv.x, 1.0 - g.uv.y) * g.uv_scale;
-    out.world_pos = g.world;
-    out.world_normal = g.fwd;
-    out.texture_layer = g.texture_layer;
-    return out;
-}
-
-// §8.1.1 GALLERY FRAME SHADOW
-@vertex
-fn shadow_gallery_frame_vs(
-    @builtin(vertex_index) vid: u32,
-    @builtin(instance_index) iid: u32,
-) -> ShadowVarying {
-    var out: ShadowVarying;
-    let g = compute_gallery_quad_geometry(vid, iid);
-    if (!g.valid) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        return out;
-    }
-    out.clip_pos = shadow_light_vp() * vec4(g.world, 1.0);
-    return out;
-}
-
-// --- Fragment Shader
-@fragment
-fn gallery_frame_fs(in: GalleryVarying) -> @location(0) vec4<f32> {
-    let painting_color = textureSample(painting_array, painting_sampler_filt, in.uv, in.texture_layer);
-    if (painting_color.a < 0.01) { discard; }
-
-    var color = painting_color.rgb;
-
-    // Distance fog only (scene consistency — paintings far away dissolve into fog)
-    let dist = distance(in.world_pos, frame_r.camera.pos);
-    let fog = 1.0 - exp(-dist * config.fog_density);
-    color = mix(color, config.fog_color, fog);
-
-    // THE ICING — outdoor terrain paintings share the band (own-FS
-    // family; same term as shade_lit's). Their DRAW membership is the
-    // ring gate in gallery_frame_vs; this fade is where their join
-    // materializes. The gallery/indoor EXEMPTION is the MODE
-    // (veil_strength = 0 in finite/indoor), not this family.
-    // ANCHOR NOTE: this FS reads the STAGED point (config.lod_point_*,
-    // the band's yardstick) rather than render_point_pos() — the gallery
-    // pipeline's entity layout does not bind render_agents, and the
-    // staged copy IS the point (1 frame stale, law E-4).
-    let point_d = distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z));
-    let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
-             * config.veil_strength;
-    // THE RIM taste knob (same as shade_lit): dither-dissolve or tint.
-    if (config.veil_dither > 0.5) {
-        if (veil_dither_noise(in.world_pos.xz) < veil) { discard; }
-    } else {
-        color = mix(color, config.fog_color, veil);
-    }
-
-    return vec4(color, 1.0);
-}
-
-
-// §8.2 WALL-MOUNTED FRAMED PAINTINGS — reads from unified painting_slots
-// ==============================================================
-//
-// 3D framed painting meshes. 78 vertices per painting.
-// Reads from the same painting_slots array as terrain quads (binding 50).
-// Only processes slots where form_type == WALL_FRAME.
-
-const PAINTING_FRAME_VERTS_PER: u32 = 78u;
-
-fn wp_right_from_slot(s: UnifiedPaintingSlot) -> vec3<f32> {
-    return normalize(cross(s.up, s.forward));
-}
-
-struct WallPaintingVarying {
-    @builtin(position) clip_pos: vec4<f32>,
-    @location(0) world_pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) uv: vec2<f32>,
-    @location(3) @interpolate(flat) painting_index: u32,
-    @location(4) @interpolate(flat) is_canvas: u32,
-    @location(5) frame_color: vec3<f32>,
-}
-
-fn compute_wall_painting_geometry(
-    s: UnifiedPaintingSlot,
-    pidx: u32,
-    local_vid: u32
-) -> WallPaintingVarying {
-    var out: WallPaintingVarying;
-    out.painting_index = pidx;
-    out.frame_color = s.frame_color;
-    out.clip_pos = vec4(0.0);
-
-    let right = wp_right_from_slot(s);
-    let hw = s.scale_x * 0.5;
-    let hh = s.scale_y * 0.5;
-
-    if (local_vid < 6u) {
-        out.is_canvas = 1u;
-        out.normal = s.forward;
-        let canvas_pos = s.position + s.forward * (s.frame_depth - s.canvas_recess);
-
-        var ci: u32;
-        if (local_vid < 3u) { ci = local_vid; }
-        else { let remap = array<u32, 3>(2u, 1u, 3u); ci = remap[local_vid - 3u]; }
-
-        let corners = array<vec2<f32>, 4>(
-            vec2(-hw, -hh), vec2(hw, -hh), vec2(-hw, hh), vec2(hw, hh)
-        );
-        let uvs = array<vec2<f32>, 4>(
-            vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(0.0, 0.0), vec2(1.0, 0.0)
-        );
-        let c = corners[ci];
-        out.world_pos = canvas_pos + right * c.x + s.up * c.y;
-        out.uv = uvs[ci] * vec2(s.uv_scale_x, s.uv_scale_y);
-
-    } else if (local_vid < 54u) {
-        out.is_canvas = 0u;
-        let ev = local_vid - 6u;
-        let side = ev / 12u;
-        let tv = ev % 12u;
-        let fw = s.frame_width;
-        let fd = s.frame_depth;
-
-        var is_: vec2<f32>; var ie: vec2<f32>;
-        var os_: vec2<f32>; var oe: vec2<f32>;
-        var sn: vec3<f32>;
-
-        switch side {
-            case 0u: {
-                is_ = vec2(-hw, -hh); ie = vec2(hw, -hh);
-                os_ = vec2(-hw - fw, -hh - fw); oe = vec2(hw + fw, -hh - fw);
-                sn = -s.up;
-            }
-            case 1u: {
-                is_ = vec2(hw, hh); ie = vec2(-hw, hh);
-                os_ = vec2(hw + fw, hh + fw); oe = vec2(-hw - fw, hh + fw);
-                sn = s.up;
-            }
-            case 2u: {
-                is_ = vec2(-hw, hh); ie = vec2(-hw, -hh);
-                os_ = vec2(-hw - fw, hh + fw); oe = vec2(-hw - fw, -hh - fw);
-                sn = -right;
-            }
-            default: {
-                is_ = vec2(hw, -hh); ie = vec2(hw, hh);
-                os_ = vec2(hw + fw, -hh - fw); oe = vec2(hw + fw, hh + fw);
-                sn = right;
-            }
-        }
-
-        let qi = tv / 6u;
-        let qv = tv % 6u;
-        var ci: u32;
-        if (qv < 3u) { ci = qv; }
-        else { let remap = array<u32, 3>(2u, 1u, 3u); ci = remap[qv - 3u]; }
-
-        if (qi == 0u) {
-            out.normal = sn;
-            let c2 = array<vec2<f32>, 4>(os_, oe, is_, ie);
-            let depths = array<f32, 4>(fd, fd, 0.0, 0.0);
-            let c = c2[ci];
-            out.world_pos = s.position + right * c.x + s.up * c.y + s.forward * depths[ci];
-        } else {
-            out.normal = s.forward;
-            let c2 = array<vec2<f32>, 4>(is_, ie, os_, oe);
-            let c = c2[ci];
-            out.world_pos = s.position + right * c.x + s.up * c.y + s.forward * fd;
-        }
-        out.uv = vec2(0.0);
-
-    } else {
-        out.is_canvas = 0u;
-        out.normal = s.forward;
-        let fv = local_vid - 54u;
-        let ri = fv / 6u;
-        let qv = fv % 6u;
-        let fw = s.frame_width;
-        let fd = s.frame_depth;
-
-        var ci: u32;
-        if (qv < 3u) { ci = qv; }
-        else { let remap = array<u32, 3>(2u, 1u, 3u); ci = remap[qv - 3u]; }
-
-        var rc: array<vec2<f32>, 4>;
-        switch ri {
-            case 0u: { rc = array<vec2<f32>, 4>(
-                vec2(-hw - fw, -hh - fw), vec2(hw + fw, -hh - fw),
-                vec2(-hw - fw, -hh),      vec2(hw + fw, -hh)); }
-            case 1u: { rc = array<vec2<f32>, 4>(
-                vec2(-hw - fw, hh),       vec2(hw + fw, hh),
-                vec2(-hw - fw, hh + fw),  vec2(hw + fw, hh + fw)); }
-            case 2u: { rc = array<vec2<f32>, 4>(
-                vec2(-hw - fw, -hh),      vec2(-hw, -hh),
-                vec2(-hw - fw, hh),       vec2(-hw, hh)); }
-            default: { rc = array<vec2<f32>, 4>(
-                vec2(hw, -hh),            vec2(hw + fw, -hh),
-                vec2(hw, hh),             vec2(hw + fw, hh)); }
-        }
-        let c = rc[ci];
-        out.world_pos = s.position + right * c.x + s.up * c.y + s.forward * fd;
-        out.uv = vec2(0.0);
-    }
-
-    return out;
-}
-
-@vertex
-fn wall_painting_vs(@builtin(vertex_index) vid: u32) -> WallPaintingVarying {
-    let pidx = vid / PAINTING_FRAME_VERTS_PER;
-    let local_vid = vid % PAINTING_FRAME_VERTS_PER;
-
-    if (pidx >= PAINTING_MAX_SLOTS) {
-        var out: WallPaintingVarying;
-        out.clip_pos = vec4(0.0); out.world_pos = vec3(0.0);
-        out.normal = vec3(0.0, 0.0, 1.0); out.uv = vec2(0.0);
-        out.painting_index = 0u; out.is_canvas = 0u; out.frame_color = vec3(0.0);
-        return out;
-    }
-
-    let slot = painting_slots[pidx];
-
-    // Skip inactive or terrain-quad slots
-    if (slot.is_active == 0u || slot.form_type != FORM_WALL_FRAME) {
-        var out: WallPaintingVarying;
-        out.clip_pos = vec4(0.0); out.world_pos = vec3(0.0);
-        out.normal = vec3(0.0, 0.0, 1.0); out.uv = vec2(0.0);
-        out.painting_index = 0u; out.is_canvas = 0u; out.frame_color = vec3(0.0);
-        return out;
-    }
-
-    var out = compute_wall_painting_geometry(slot, pidx, local_vid);
-    out.world_pos.y += sample_live_card(out.world_pos.xz).x;
-    out.clip_pos = frame_r.vp.m * vec4(out.world_pos, 1.0);
-    return out;
-}
-
-@fragment
-fn wall_painting_canvas_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
-    if (in.is_canvas == 0u) { discard; }
-
-    let slot = painting_slots[in.painting_index];
-    let tex_color = textureSample(painting_array, painting_sampler_filt, in.uv, slot.texture_layer);
-    if (tex_color.a < 0.01) { discard; }
-
-    let lit = tex_color.rgb * 0.9;
-    let dist = distance(in.world_pos, frame_r.camera.pos);
-    let fog = 1.0 - exp(-dist * config.fog_density);
-    return vec4(mix(lit, config.fog_color, fog), 1.0);
-}
-
-@fragment
-fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
-    if (in.is_canvas == 1u) { discard; }
-
-    let lit = in.frame_color * 0.8;
-    let dist = distance(in.world_pos, frame_r.camera.pos);
-    let fog = 1.0 - exp(-dist * config.fog_density);
-    return vec4(mix(lit, config.fog_color, fog), 1.0);
-}
-
-// §8.3 WALL PAINTING SHADOW
-// The twin of wall_painting_vs: the same decode, the same two guards, the
-// same geometry call and the same live-card lift, differing only in the
-// matrix. BOTH VERT RANGES PASS THROUGH — canvas [0, 6) and frame [6, 78).
-// The frame is an open border with a canvas-shaped hole (§8.2's [54, 78)
-// branch), so a frame-only caster would print an outline with a lit hole
-// where the picture is. That is why ONE shadow draw replaces the color
-// pass's two: with no fragment stage the canvas/frame split has nothing
-// left to distinguish.
-@vertex
-fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
-    let pidx = vid / PAINTING_FRAME_VERTS_PER;
-    let local_vid = vid % PAINTING_FRAME_VERTS_PER;
-
-    if (pidx >= PAINTING_MAX_SLOTS) {
-        var out: ShadowVarying;
-        out.clip_pos = vec4(0.0);
-        return out;
-    }
-
-    let slot = painting_slots[pidx];
-
-    // Skip inactive or terrain-quad slots
-    if (slot.is_active == 0u || slot.form_type != FORM_WALL_FRAME) {
-        var out: ShadowVarying;
-        out.clip_pos = vec4(0.0);
-        return out;
-    }
-
-    var g = compute_wall_painting_geometry(slot, pidx, local_vid);
-    g.world_pos.y += sample_live_card(g.world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(g.world_pos, 1.0);
-    return out;
-}
 
 
 // ═══════════════════════════════════════════════════════════════════════

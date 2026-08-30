@@ -108,10 +108,6 @@ namespace t7 {
             wgpu::BindGroupLayout frameKTexturesLayout_;
             wgpu::BindGroupLayout frameRLayout_;
             wgpu::BindGroupLayout frameCLayout_;
-            wgpu::BindGroupLayout galleryStateLayout_;
-            wgpu::BindGroupLayout galleryTexturesLayout_;
-            wgpu::BindGroupLayout photoKStateLayout_;
-            wgpu::BindGroupLayout photoKTexturesLayout_;
             wgpu::BindGroupLayout meshgenStateLayout_;
             wgpu::BindGroupLayout orbsAStateLayout_;
             wgpu::BindGroupLayout orbsBStateLayout_;
@@ -351,10 +347,6 @@ namespace t7 {
                 frameKTexturesLayout_ = gpuState.frame_k_textures_layout();
                 frameRLayout_ = gpuState.frame_r_layout();
                 frameCLayout_ = gpuState.frame_c_layout();
-                galleryStateLayout_ = gpuState.gallery_state_layout();
-                galleryTexturesLayout_ = gpuState.gallery_textures_layout();
-                photoKStateLayout_ = gpuState.photo_k_state_layout();
-                photoKTexturesLayout_ = gpuState.photo_k_textures_layout();
                 meshgenStateLayout_ = gpuState.meshgen_state_layout();
                 orbsAStateLayout_ = gpuState.orbs_a_state_layout();
                 orbsBStateLayout_ = gpuState.orbs_b_state_layout();

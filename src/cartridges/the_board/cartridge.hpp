@@ -680,12 +680,6 @@ namespace t7 {
                     depthFormat
                 )) return false;
 
-                // Create offscreen textures with the actual swapchain format
-                if (!gpuState_.initOffscreenResources(colorFormat)) {
-                    std::cerr << "[Cartridge] Failed to init offscreen resources\n";
-                    return false;
-                }
-
                 auto t1 = std::chrono::high_resolution_clock::now();
 
                 // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
@@ -754,11 +748,9 @@ namespace t7 {
 
                 // PORT_4b — THE BUDGET, once, after the LAST allocation.
                 // Every GPU maker has now run: GPUState::init's five
-                // creators and initOffscreenResources (the three painting
-                // arrays — the 416 MiB family the old call site missed
-                // entirely). The authored fill makes nothing: it queues
-                // fetches, and an arrival writes into a texture
-                // initOffscreenResources already created.
+                // creators, which since PRUNE_1 are the whole of them —
+                // the late offscreen creator that forced this site went
+                // with the gallery, and the rule it established stands.
                 // Placed after the timings so it reads beneath "Total
                 // init", and BEFORE the ROSTER + [Ground] block so that
                 // block's claim to be the cartridge's last init line

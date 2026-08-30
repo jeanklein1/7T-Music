@@ -12,7 +12,7 @@
 // convergence, where five kernels' scratch trios share three
 // numbers so four families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (88 declarations over 73 slots;
+// The WGSL @binding literals in world.wgsl (81 declarations over 66 slots;
 // aliases: fc_config, fc_patches, fc_vp,
 // and the 12 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
@@ -40,7 +40,7 @@ namespace t7 {
             namespace g1 {
                 // FRAME — R2 v2: the per-frame ro faces, the light system, the shadow window, the two shared samplers.
                 inline constexpr uint32_t signal                      = 0;
-                inline constexpr uint32_t frame_r                     = 1;  // FrameR — CHORD_3: lighting + vp + camera, one uniform block per frame. Two instances (main, photographer) back two groups over one layout; vp and camera arrive by encoder copy from the GPU-sovereign homes (g2:240 vp_data, g2:241 camera_state), never by readback
+                inline constexpr uint32_t frame_r                     = 1;  // FrameR — CHORD_3: lighting + vp + camera, one uniform block per frame; vp and camera arrive by encoder copy from the GPU-sovereign homes (g2:240 vp_data, g2:241 camera_state), never by readback
                 inline constexpr uint32_t shadow_slot                 = 2;  // u32 — the light a shadow pass serves, on a dynamic-offset uniform seat: four 256-byte records holding 0..3, written once at boot. Every group-1 render bind carries one offset, 0 outside the shadow atlas loop
                 inline constexpr uint32_t bilinear_sampler            = 5;
                 inline constexpr uint32_t nearest_sampler             = 6;
@@ -82,12 +82,10 @@ namespace t7 {
                 inline constexpr uint32_t fc_indirect                 = 64;
 
                 // PLACE (80–99)
-                inline constexpr uint32_t photo_painting_slots        = 80;
                 inline constexpr uint32_t arch_ground                 = 81;
                 inline constexpr uint32_t column_ground               = 82;
                 inline constexpr uint32_t plant_ground                = 83;
                 inline constexpr uint32_t cmg_column_ground           = 84;  // read-only column_ground view (the terrain delta)
-                inline constexpr uint32_t painting_slots              = 85;
 
                 // ZONES (100–119)
                 inline constexpr uint32_t zone_config                 = 101;
@@ -109,11 +107,6 @@ namespace t7 {
                 inline constexpr uint32_t render_ring_xforms          = 143;
                 inline constexpr uint32_t ribbon_body_rw              = 144;  // RibbonBody — head + saddle + emit + deform; the ribbon room writes
                 inline constexpr uint32_t ribbon_body_read            = 145;  // the agents' room's read of the same home: the mount reads .saddle, the field reads .emit
-
-                // GALLERY (160–179)
-                inline constexpr uint32_t photographer_config         = 160;
-                inline constexpr uint32_t photographer_vp             = 161;
-                inline constexpr uint32_t photographer_camera_out     = 162;
 
                 // MESHGEN (180–199)
                 inline constexpr uint32_t amg_params                  = 180;  // aka bladeg_params / cactusg_params / cmg_params / palmg_params
@@ -155,10 +148,6 @@ namespace t7 {
                 inline constexpr uint32_t zone_life_tex_write         = 101;
                 inline constexpr uint32_t zone_life_read              = 102;
                 inline constexpr uint32_t live_card_read              = 103;  // GROUND_CARD_1: the live card (sampled read; render + compute)
-
-                // GALLERY (160–179)
-                inline constexpr uint32_t painting_array              = 160;
-                inline constexpr uint32_t painting_sampler_filt       = 161;
 
                 // SCENE (200–219)
                 inline constexpr uint32_t shadow_map                  = 200;
