@@ -887,11 +887,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue, themes_state);
     }
 
-    // THE DEFERRED HANG (OVERTURE_0) — the surface machine waking the
-    // gallery's owner verb; the verb owns the fill, the pool test and the
-    // retry. ROSTER-gated like every gallery consumer.
-    if constexpr (ROSTER.gallery) tick_gallery_deferred_hang(c, queue);
-
     // ─── HEIGHTFIELD GENERATION — ONE ARM (RIBBON_6) ─────────────
     //
     // A FRAME BAKES ONE PATCH, UNLESS THE WORLD IS BEING BORN. One list over

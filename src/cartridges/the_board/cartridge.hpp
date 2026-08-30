@@ -714,7 +714,7 @@ namespace t7 {
                     wgpu::Queue q = device_.GetQueue();
                     apply_mood(&mood_deps_, mood_state_.active, q,
                         machine_ctx_,
-                        orbs_state_, orbs_deps_, gallery_state_, gallery_deps_,
+                        orbs_state_, orbs_deps_,
                         pawn_state_);
                 }
 
@@ -785,7 +785,7 @@ namespace t7 {
                     mark(ROSTER.palm, "palm");           mark(ROSTER.cactus, "cactus");
                     mark(ROSTER.blade, "blade");         mark(ROSTER.sphere, "sphere");
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
-                    mark(ROSTER.gol, "gol");             mark(ROSTER.gallery, "gallery");
+                    mark(ROSTER.gol, "gol");
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
                     mark(ROSTER.spot_lights, "spot_lights");
                     mark(ROSTER.indoor_shell, "indoor_shell");
@@ -932,7 +932,7 @@ namespace t7 {
             //  laws are static_asserts over these indices.)
             enum class UPhase : uint32_t {
                 FillSignal, AdvanceClock, MotionDrivers, MotionBodies,
-                StageWorld, TransitionMachine, StageFadeUpload, WitnessPhotographer,
+                StageWorld, TransitionMachine, StageFadeUpload,
                 ClearInputDeltas, COUNT
             };
             enum class RPhase : uint32_t {
@@ -940,7 +940,7 @@ namespace t7 {
                 CensusDumps, RibbonTick, EntityMeshGen, UploadPortalLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
                 GroundEntries, PlacementCorrection, FrustumCull, ShadowPass, MainPass,
-                SnapshotPass, PromotionDrain, COUNT
+                COUNT
             };
 
             // Row shapes (the FAMILY_DISPATCH shape, one clock per conductor).
@@ -1341,10 +1341,6 @@ namespace t7 {
                             clear_spheres(sphere_state_, gpuState_, queue);
                         if constexpr (ROSTER.cube)     // ROSTER-GATE cube (c)
                             clear_cubes(cube_behaviors_state_, gpuState_, queue);
-                        // The gallery organ is SHARED with indoor_shell (wall
-                        // frames live in the same painting slots — form_type).
-                        if constexpr (ROSTER.gallery || ROSTER.indoor_shell)  // ROSTER-GATE gallery+indoor_shell (c)
-                            teardown_gallery(gallery_state_, &gallery_deps_, queue);
                         if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
                             teardown_pawn_aura(pawn_state_);
                         // Sky orbs: apply_mood re-enables + re-seeds as needed
@@ -1393,7 +1389,7 @@ namespace t7 {
                         gpuState_.set_world_seed(world_state_.active_seed);
                         apply_mood(&mood_deps_, pendingDestination_.mood, queue,
                             machine_ctx_,
-                            orbs_state_, orbs_deps_, gallery_state_, gallery_deps_,
+                            orbs_state_, orbs_deps_,
                             pawn_state_);
                         // ROSTER-GATE wanderers (c) — transition population (slots 1+); slot 0 preserved above.
                         if constexpr (ROSTER.wanderers)
@@ -1452,23 +1448,7 @@ namespace t7 {
                 gpuState_.upload_config(queue);
             }
 
-            // U9 — WITNESS: PHOTOGRAPHER (algo). The orb dome anchor movement
-            // retired (skybox — eye-centered in the orb VS; no CPU
-            // upload). ROSTER-GATE gallery (b) — P1 dies structurally in a
-            // gallery-less demo; guarded at the call site.
-            void phase_witness_photographer(UpdateCtx& c) {
-                auto& queue = c.queue;
-                update_photographer(gallery_state_, &gallery_deps_, queue);
-                // ATRIUM_5 — THE DEFERRED HANG'S ONE PLACEMENT PASS. The
-                // atrium's sand image is placed out of band, behind a network
-                // fetch, so it can arrive after the patch set has settled and
-                // there is nothing left to raise placement_dirty. The gallery
-                // holds WorldState const and raises a request instead; this is
-                // where the world is writable. U9 is before R16, so the pass
-                // it asks for runs THIS frame.
-            }
-
-            // U10 — DRIVER BOOKKEEPING (O-5e, dead-last): U1's signal fill
+            // U9 — DRIVER BOOKKEEPING (O-5e, dead-last): U1's signal fill
             // consumed the deltas.
             void phase_clear_input_deltas(UpdateCtx&) {
                 clear_input_deltas(&input_deps_);
@@ -2079,10 +2059,6 @@ namespace t7 {
                     dirty[PopFamily::GOL] = FAMILY_DISPATCH[PopFamily::GOL].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::GOL];
                 }
-                if constexpr (ROSTER.gallery) {   // ROSTER-GATE gallery (b)
-                    dirty[PopFamily::GALLERY] = FAMILY_DISPATCH[PopFamily::GALLERY].prepare_mesh(&machine_ctx_, queue);
-                    anyDirty = anyDirty || dirty[PopFamily::GALLERY];
-                }
                 if (anyDirty) {
                     wgpu::ComputePassDescriptor cpd{};
                     cpd.label = "Entity Mesh Gen";
@@ -2458,20 +2434,6 @@ namespace t7 {
                 render_main_pass(&machine_ctx_, encoder, backbuffer, c.msaaColor, depth, clearColor_, orbs_state_, orbs_deps_);
             }
 
-            // R20 — SNAPSHOT PASS (algo; gallery cadence). The photographer's
-            // third draw list.
-            void phase_snapshot_pass(RenderCtx& c) {
-                auto& encoder = c.encoder;
-                render_snapshot_pass(gallery_state_, &gallery_deps_, encoder);
-            }
-
-            // R21 — PROMOTION DRAIN (algo). ROSTER-GATE gallery+indoor_shell —
-            // guarded at the call site.
-            void phase_promotion_drain(RenderCtx& c) {
-                auto& encoder = c.encoder;
-                drain_gallery_promotions(gallery_state_, &gallery_deps_, encoder);
-            }
-
             // ═══════════════════════════════════════════════════════════════
             // THE SPINE TABLES — the AUTHORED order (row order == frame order).
             // Row = {phase id, name, member fn, driver(§9), roster gate, face}.
@@ -2487,7 +2449,6 @@ namespace t7 {
                 { UPhase::StageWorld,          "stage_world",           &Cartridge::phase_stage_world,           Driver::Algo,      true,             F_CONFIG },
                 { UPhase::TransitionMachine,   "transition_machine",    &Cartridge::phase_transition_machine,    Driver::Mixed,     true,             F_CONFIG | F_TRANSITION },
                 { UPhase::StageFadeUpload,     "stage_fade_and_upload", &Cartridge::phase_stage_fade_and_upload, Driver::None,      true,             F_SIGNAL | F_CONFIG },
-                { UPhase::WitnessPhotographer, "witness_photographer",  &Cartridge::phase_witness_photographer,  Driver::Algo,      ROSTER.gallery,   F_WITNESS },
                 { UPhase::ClearInputDeltas,    "clear_input_deltas",    &Cartridge::phase_clear_input_deltas,    Driver::None,      true,             F_NONE },
             };
             static constexpr RRow RENDER_SPINE[] = {
@@ -2511,8 +2472,6 @@ namespace t7 {
                 { RPhase::FrustumCull,         "frustum_cull",          &Cartridge::phase_frustum_cull,          Driver::Algo,      true,                                   F_COMPUTE },
                 { RPhase::ShadowPass,          "shadow_pass",           &Cartridge::phase_shadow_pass,           Driver::None,      true,                                   F_DRAW },
                 { RPhase::MainPass,            "main_pass",             &Cartridge::phase_main_pass,             Driver::None,      true,                                   F_DRAW },
-                { RPhase::SnapshotPass,        "snapshot_pass",         &Cartridge::phase_snapshot_pass,         Driver::Algo,      true,                                   F_DRAW },
-                { RPhase::PromotionDrain,      "promotion_drain",       &Cartridge::phase_promotion_drain,       Driver::Algo,      (ROSTER.gallery || ROSTER.indoor_shell), F_NONE },
             };
 
             // ═══ THE FRAME METER ════════════════════════════════════════════
@@ -2629,7 +2588,6 @@ namespace t7 {
             static_assert(meter_row::FrustumCull         == (uint32_t)RPhase::FrustumCull,         "meter_row drift: FrustumCull");
             static_assert(meter_row::ShadowPass          == (uint32_t)RPhase::ShadowPass,          "meter_row drift: ShadowPass");
             static_assert(meter_row::MainPass            == (uint32_t)RPhase::MainPass,            "meter_row drift: MainPass");
-            static_assert(meter_row::SnapshotPass        == (uint32_t)RPhase::SnapshotPass,        "meter_row drift: SnapshotPass");
 
             // ═══ SPINE VALIDATION ═══════════════════════
             // Every CROSS-PHASE O-# / RC law the recon named is a static_assert
@@ -2688,7 +2646,6 @@ namespace t7 {
                 "GROUND_CARD_1: the card writes before placement reads .a");
             static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute, "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
             static_assert((uint32_t)RPhase::ShadowPass < (uint32_t)RPhase::MainPass, "draw: shadow before main");
-            static_assert((uint32_t)RPhase::MainPass < (uint32_t)RPhase::SnapshotPass, "draw: main before snapshot");
 
             // BOOT VALIDATION (always-on): table-order integrity + the O-5b/c
             // face law — the checks a constexpr member fn cannot static_assert

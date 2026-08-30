@@ -40,7 +40,7 @@
 // DEMO-reading MoodState rides the spine tier; tile_world/ribbon/the
 // config tables read them early);
 // this file keeps the portal + palette vocabulary, MoodDeps, the
-// decls, and every definition. COHORT: after ribbon/gallery/input
+// decls, and every definition. COHORT: after ribbon/input
 // (the fan's door owners + ORB_MOOD_TABLE), before the
 // machine natives (they call pick_portal_mood / derive_finite_radius;
 // the portal palette graduated to contracts/mood_constants.hpp at
@@ -50,8 +50,7 @@
 // (mood_state / transitionPhase / pendingDestination /
 // backPortalPosition_ / cpuSpotLights_ / cpuPortalArray_ / sun + clear
 // colors / world_state_ and the feature-gate flags), the converted
-// modules' surfaces (entities' force_spawn_portal_arch, gallery's
-// wall paintings, orbs' configure,
+// modules' surfaces (entities' force_spawn_portal_arch, orbs' configure,
 // render_passes' compute_spot_light_vp), TransitionPhase
 // (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
 // (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
@@ -88,15 +87,7 @@ struct WorldState;   // patch_system.hpp — the doors read seeds/bounds (refere
 class Renderer;
 struct GoLState;   struct EntitiesState; struct MachineCtx;
 struct OrbsState;   struct OrbsDeps;
-struct GalleryState; struct GalleryDeps;
 struct PawnState;
-// The gallery dependency is NOT satisfied by these forward declarations
-// alone: this file calls place_wall_paintings / clear_wall_paintings,
-// which need bodies/gallery.hpp complete. The cohort order supplies it —
-// cartridge.hpp includes gallery.hpp (:78) before mood.hpp (:81), which
-// its own include note already names. Moving either breaks this file.
-// (THE CROWN LAW below also read WALL_ART.paint_y_frac for a time; that
-// read is gone — the room no longer derives its shape from the hang.)
 
 // ═══ MOOD STATE + PROFILE VOCABULARY — GRADUATED ═════════════════
 // MoodState / CeilingType / MoodProfile / MOOD_TABLE live in
@@ -165,7 +156,7 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // THE FLAG CHANNEL [mood -> gol]), and a const view of entities (the
 // portal-array upload reads arch positions). The fan's TARGET organs
 // are deliberately NOT members (the B ruling, input's precedent):
-// orbs/gallery/pawn pairs + the machine face ride apply_mood's
+// orbs/pawn pairs + the machine face ride apply_mood's
 // parameters — the spine addresses the fan's bodies at the call site,
 // through the owner command doors.
 struct MoodDeps {
@@ -190,7 +181,6 @@ struct MoodDeps {
 void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps,
     PawnState& pawn_state);
 // request_mood_transition decl GRADUATED to spine_state.hpp (input
 // calls it before this file in the cohort); the definition is below.
@@ -200,12 +190,7 @@ void apply_mood_arrival(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue); 
 void apply_mood_regime(MoodDeps* c, const MoodProfile& m);     // REGIME_1 — the roll, first
 void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
-// ATRIUM_13 — rehang=false regenerates the MESH only. The shell's own wall
-// hang runs the general ROLL policy, which is the atrium's to overrule
-// (ATRIUM_10), so a colour dial mid-world must not fire it: the walls already
-// carry the entrance's authored hang and only the vertex colours moved.
-void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang = true);
+void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
 // Indoor support
 // ATRIUM_5 — forced_scheme takes the shape's light_scheme column: SCHEME_ROLL
 // lets the seed draw, anything else is the pinned scheme id. The shape's
@@ -214,10 +199,8 @@ void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     float wall_height, CeilingType ceiling_type = CeilingType::FLAT,
     uint32_t forced_scheme = SCHEME_ROLL);
 void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
-    const IndoorPalette& pal,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang = true);   // ATRIUM_13
-void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps);
+    const IndoorPalette& pal);
+void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue);
 // Portals (door; the internals route through entities' force_spawn_portal_arch
 // — the arch's owner writes, so the machine face rides the tail param)
 void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
@@ -239,7 +222,7 @@ uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 // (c->mood_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
 // c->gol_state_ / c->entities_state_ / the sun + clear channel / the
 // CPU light + portal arrays / the back-portal anchor), the fan's
-// TARGET organs (parameters — orbs/gallery/pawn + the machine
+// TARGET organs (parameters — orbs/pawn + the machine
 // face), TransitionPhase (contracts/spine_state.hpp), ARCH_TIERS /
 // ArchIdx (contracts/spawn_services.hpp), solve_catenary_a
 // (seed_utils.hpp), and Dim::PATCH_EXTENT (patch_system.hpp).
@@ -919,8 +902,7 @@ inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
     return vault_crown(m, bmin, bmax).crown_h;
 }
 
-inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang) {
+inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue) {
     if (m.shape.indoor && m.shape.ceiling_type != CeilingType::NONE) {
         // ATRIUM_5 — THE SHAPE MAY SAY WHICH. PALETTE_ROLL is "let the seed
         // draw", which is every room; a pinned index is clamped rather than
@@ -931,9 +913,9 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
         const IndoorPalette& pal = INDOOR_PALETTES[pal_idx];
         std::cout << "[Mood] Indoor palette: " << pal.name
                   << " (idx=" << pal_idx << ")\n";
-        generate_indoor_shell(c, queue, m, pal, gallery_state, gallery_deps, rehang);
+        generate_indoor_shell(c, queue, m, pal);
     } else {
-        clear_indoor_shell(c, queue, gallery_state, gallery_deps);
+        clear_indoor_shell(c, queue);
     }
 
     // Camera ceiling clamp — consumes THE CROWN LAW (vault_crown_height).
@@ -954,7 +936,6 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
 inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps,
     PawnState& pawn_state) {
     mood = std::min(mood, MOOD_COUNT - 1);
     c->mood_state_.active = mood;
@@ -973,7 +954,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured
         apply_mood_spot_lights(c, m, queue);   // indoor only
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
-        apply_mood_indoor_shell(c, m, queue, gallery_state, gallery_deps);  // shell + camera ceiling clamp
+        apply_mood_indoor_shell(c, m, queue);  // shell + camera ceiling clamp
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
         // ORGAN_3b P3 — the world's definition, not the design table.
         // ORGAN_5 P1b — reseed TRUE: a mood change is a new world's sky,
@@ -990,10 +971,8 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
 
 // ═══ INDOOR SHELL GENERATION ═════════════════════════════════════
 
-inline void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps) {
+inline void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue) {
     c->gpuState_.set_shell_index_count(0);
-    clear_wall_paintings(gallery_state, &gallery_deps, queue);
 }
 
 // Helper: push a quad (2 triangles) into vertex/index vectors
@@ -1017,8 +996,7 @@ inline void push_quad(
 }
 
 inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
-    const IndoorPalette& pal,
-    GalleryState& gallery_state, GalleryDeps& gallery_deps, bool rehang) {
+    const IndoorPalette& pal) {
     float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
     float ch = m.shape.wall_height;
@@ -1148,14 +1126,6 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     uint32_t ic = std::min(static_cast<uint32_t>(indices.size()), Dim::SHELL_MAX_INDICES);
 
     c->gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
-
-    // ATRIUM_13 — THE MESH IS THE SHELL'S; THE HANG IS THE ROOM'S. A world
-    // being built wants both, and every caller but one passes true. The one is
-    // the entrance's colour dial: the walls already carry its authored hang and
-    // only the vertex colours moved, so firing the general ROLL policy here
-    // would tear that hang down to re-hang it wrong.
-    if (rehang)
-        place_wall_paintings(gallery_state, &gallery_deps, queue, bmin, bmax, wall_h);
 
     std::cout << "[Shell] Generated "
         << (m.shape.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
