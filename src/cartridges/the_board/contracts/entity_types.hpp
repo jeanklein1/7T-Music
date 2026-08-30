@@ -45,7 +45,7 @@ struct ThemesState;           struct MoodState;
 struct PatchSystemState;      struct SpawnEngineState;
 struct EntitiesState;         struct SphereState;
 struct CubeBehaviorsState;    struct RibbonState;
-struct GoLState;              struct GalleryState;
+struct GoLState;
 struct TimeState;             struct PlayerState;
 struct PointState;
 class GPUState;               class Renderer;
@@ -64,7 +64,6 @@ struct MachineCtx {
     CubeBehaviorsState&      cube_behaviors_state_;
     RibbonState&             ribbon_state_;
     GoLState&                gol_state_;
-    GalleryState&            gallery_state_;
     // clock + witness (read-only by census)
     const TimeState&         time_state_;
     const PlayerState&       player_;
@@ -233,38 +232,6 @@ struct GoLPlacement {
     bool     height_enabled;
 };
 
-// ── Gallery (outdoor art exhibitions — composite: 1 center → N paintings) ──
-struct GallerySelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;              // gallery center slot
-    float    cx, cz;            // gallery center (jittered)
-    uint32_t archetype;         // 0–3 (terrain type, used as tier_idx)
-    uint32_t painting_count;    // seed-derived WISH; place reserves against content
-    float    facing_angle;
-    float    gallery_size_mean;
-    uint32_t site_type;         // 0=snapshot, 1=mixed, 2=authored
-};
-
-struct GalleryPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;          // = archetype
-    float    cx, cz;
-    float    footprint_r;
-    uint32_t archetype;
-    uint32_t painting_count;
-    // The RESERVATION: how many staging layers place claimed for this gallery.
-    // Commit draws from this instead of re-discovering scarcity, and the
-    // footprint radius above was computed from it. Plain built-in by design —
-    // the contract home carries no owner vocabulary.
-    uint32_t reserved_count;
-    float    facing_angle;
-    float    gallery_size_mean;
-    uint32_t site_type;
-};
-
 // ── Ribbon ─────────────────────────────────────────────────────────
 struct RibbonSelection {
     uint32_t seed;
@@ -315,7 +282,6 @@ struct EntityQueueEntry {
     union {
         RibbonSelection ribbon;
         GoLSelection    gol;
-        GallerySelection gallery;
         EntityInstance   generic;    // used by all 9 generic-pipeline families
     };
     EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
@@ -329,7 +295,6 @@ struct PlacementEntry {
     union {
         RibbonPlacement ribbon;
         GoLPlacement    gol;
-        GalleryPlacement gallery;
         EntityInstance   generic;    // used by all 9 generic-pipeline families
     };
     PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
@@ -395,11 +360,11 @@ struct FamilyDispatch {
     SlotCensus (*slot_census)(const MachineCtx* self);
     // Does this family claim ground? (ruling 21 — the campaign law is "a
     // family registers iff its own extent touches the ground plane".) The
-    // census needs it for all TWELVE families, and ribbon/gol/gallery have no
+    // census needs it for all ELEVEN families, and ribbon/gol have no
     // EntityFamilyTraits at all — so the answer cannot live in the traits
     // alone. The nine generic rows initialise this FROM their own
     // <FAMILY>_TRAITS.grounded, making the row a view of the authored field
-    // rather than a second copy of the policy; the three bespoke rows state
+    // rather than a second copy of the policy; the two bespoke rows state
     // it here because here is the only place they can.
     bool grounded;
     const char* name;

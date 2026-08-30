@@ -604,7 +604,7 @@ static_assert(mood_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET])
 //
 // ONE HOME, NOT TWO. MOOD_TABLE keeps exactly two jobs — seeding this
 // array and standing under the asserts above — and no runtime reader
-// is left pointing at it. The constexpr readers in bodies/gallery.hpp
+// is left pointing at it. The constexpr readers
 // are the deliberate exception: they are compile-time budgets derived
 // from the DESIGN, and a wall's geometry allowance is not a live dial.
 //

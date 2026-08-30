@@ -18,7 +18,7 @@
 //   module — vocabulary + state + lifecycle + dispatch all together.
 //   Distinguishable from the cockpit pattern (multiple decoupled
 //   commands); this is single-lifecycle bespoke. Same family as
-//   gallery and ribbon.
+//   ribbon.
 // SEAM[gol_zones:dual-algorithm] this module houses two algorithms —
 //   Conway (GoLTierProfile, GOL_TIERS[]) and Pulse (GolPulseTierProfile,
 //   GOL_PULSE_TIERS[]) — gated by GOL_PULSE_ALGORITHM_CHANCE. The shared
@@ -729,7 +729,7 @@ inline void commit_gol(GoLState& gs, MachineCtx* c,
     // which drains up to SPAWN_BUDGET_PER_FRAME allocated patches EVERY
     // frame. On an ever-expanding board patches are continuously allocated,
     // so this is a rider's chatter, not only a birth. Same flag and same
-    // reason as `[Gallery] slot=` and `[Ribbon] SPAWN/EVICT`.
+    // reason as `[Ribbon] SPAWN/EVICT`.
     if constexpr (t7::INSTRUMENTS.stream_witness) {
         std::cout << "[GoL] "
             << (plan.algorithm == AlgorithmType::PULSE ? "Pulse" : "Conway")

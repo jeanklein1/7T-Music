@@ -822,9 +822,7 @@ namespace t7 {
         // texture — and reconcile_frame_attachments is its only caller.
         //
         // The census that fixed this membership: the depth buffer and, at
-        // msaa=4, the MSAA color target. The gallery's offscreen depth/color
-        // pair does NOT join — those are sized by painting aspect, not by
-        // the surface, and they live in state.hpp with their own lifetime.
+        // msaa=4, the MSAA color target. Nothing else is frame-sized.
         //
         // DOMESDAY_2 B10: the depth buffer carries the boot-read sample
         // count, and the msaa color target rides this same recreate path.
@@ -1057,19 +1055,6 @@ namespace t7 {
             // the cartridge's own comment about "the same 100 ms ceiling"
             // made false. One line, and the ceiling means what it says.
             dt = std::min(dt, 0.1f);
-
-            // PURSE_0 R1 — THE VERDICT LEAVES THE LAW. k is decided here and
-            // nowhere else; publishing it is what lets the photographer's
-            // headroom rule read the LAW'S answer instead of growing a
-            // second opinion about presentation. Written before the meter
-            // block below because it is NOT the meter's: the audience build
-            // needs it too (core/instruments.hpp carries the standing).
-            //
-            // The clamped k, not k_raw: a 5x frame and a 4x frame are the
-            // same fact to a rule that only asks "was this frame served at
-            // unity", and the clamp is the law's own ceiling.
-            t7::g_served_k = (k >= 1.0f && k <= (float)PRESENT_MAX_MULTIPLE)
-                           ? (uint32_t)k : 1u;
 
             // THE PRESENT HISTOGRAM (meter builds, 1 Hz). k IS the reading
             // that settles the class: a 2x or 3x column is a DROPPED FRAME —

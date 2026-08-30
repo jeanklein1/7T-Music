@@ -84,7 +84,7 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 //   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
 //   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
 //   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
-// ORDER: every axis follows PopFamily order (PYRAMID=0 … GALLERY=11),
+// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=10),
 //   PINNED by the F-1 static_assert at roster.hpp.
 // CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
 //   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
@@ -98,28 +98,27 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 // shape both the rate and the geometry of every cluster ever born.
 // Only COLUMN and the flora trio (PALM/CACTUS/BLADE) cluster today.
 
-//                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0,     0 };   // min neighbors; 0 = none
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
+//                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL
+inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
+inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
+inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0 };   // min neighbors; 0 = none
+inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
 
 // AFFINITY[placing][existing]: rows follow PopFamily; only Col + the
 // flora trio have non-zero rows (all others never cluster).
 inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-    //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Sph   Ribn  Cube  GoL   Gall
-    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.65f, 0.3f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Blad  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Gall  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Sph   Ribn  Cube  GoL
+    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.65f, 0.3f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Blad  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // Precomputed: does this family have any non-zero affinity?
@@ -133,10 +132,10 @@ inline constexpr bool proximity_row_active(uint32_t family) {
 
 // ═══ BESPOKE-FAMILY SELECTION/PLACEMENT PAYLOADS ═════════════════
 //
-// Three bespoke families (GoL, Gallery, Ribbon) don't fit the
+// Two bespoke families (GoL, Ribbon) don't fit the
 // generic pipeline's EntityInstance shape — their selection
-// records carry family-specific fields (lattice node, painting
-// count, wave parameters). The payload DTOs AND the tagged unions
+// records carry family-specific fields (lattice node, wave
+// parameters). The payload DTOs AND the tagged unions
 // that carry them (EntityQueueEntry / PlacementEntry) live together
 // in entity_types.hpp — the contract home; a DTO that exists to
 // cross a boundary belongs to the boundary's contract. See
@@ -193,8 +192,8 @@ struct SpawnEngineState {
 // DECLARATIONS live in contracts/spawn_services.hpp (the
 // machine's decl tier) with the boundary DTOs
 // (SpawnGatePreambleResult / PositionResult / SpawnPreamble), the
-// ActiveColumn fwd, MIN_SEPARATION, and GLOBAL_ENTITY_DENSITY (gol +
-// gallery read it pre-tail). Definitions are all below.
+// ActiveColumn fwd, MIN_SEPARATION, and GLOBAL_ENTITY_DENSITY (gol
+// reads it pre-tail). Definitions are all below.
 
 // ── Helper 1: SpawnGatePreamble ──────────────────────────────
 
@@ -299,8 +298,8 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 
 // ── Helper 1b: the indoor bounds law ────────────────────────
 //
-// One law for every placement site (negotiate_position + the
-// gallery's own site). In finite indoor worlds, push the
+// One law for every placement site (negotiate_position). In
+// finite indoor worlds, push the
 // candidate inward so the clamped radius stays at least
 // INDOOR_ENTITY_WALL_MARGIN from every wall. We clamp instead of
 // rejecting because rejection would silently drop entities
@@ -313,8 +312,8 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // back to the room center — max footprint at radius=1 is 65,
 // capped entities are well under that). FULL clamps
 // containment_r — the family's WHOLE extent stays inside
-// (ribbon: scaled lateral_amp + the scaled cube span; gallery:
-// the fan formula) — and a collapsed box SKIPS the spawn with
+// (ribbon: scaled lateral_amp + the scaled cube span) — and a
+// collapsed box SKIPS the spawn with
 // one loud line: cramming is worse than absence. FREE never
 // clamps (gol may straddle).
 inline bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
@@ -605,7 +604,7 @@ inline uint32_t register_footprint(MachineCtx* c, float x, float z, float radius
         }
     }
     // SATURATION WAS SILENT, and which family lost was decided by PopFamily
-    // order — the tail (cube, gol, gallery) simply stopped appearing, with no
+    // order — the tail (cube, gol) simply stopped appearing, with no
     // symptom anywhere. Capacity stays 128 (ruling 8: post-SPAWN_2 occupancy
     // peaked at 65% and settles near 45%), so if this ever prints, the leak it
     // names is the thing to fix, not the number.
@@ -637,7 +636,7 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
-    static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad", "sph", "ribn", "cube", "gol", "gall" };
+    static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad", "sph", "ribn", "cube", "gol" };
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 
@@ -686,7 +685,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // that disagreement is exactly what the delta column exists to catch.
     uint32_t claimed[PopFamily::COUNT] = {};
     uint32_t arrived[PopFamily::COUNT] = {};
-    uint32_t claimed_total = 0;   // sum over the twelve families
+    uint32_t claimed_total = 0;   // sum over the eleven families
     uint32_t arrived_total = 0;
     uint32_t occupancy = 0;       // every live slot, family or not
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -706,7 +705,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
         << c->time_state_.seconds << " trigger=" << trigger << "]\n"
         << "  fam    active  claimed   delta     new\n";
 
-    uint32_t active_total = 0;            // all twelve — reports what EXISTS
+    uint32_t active_total = 0;            // all eleven — reports what EXISTS
     uint32_t active_grounded_total = 0;   // registrants only — feeds the delta
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         const uint32_t a = FAMILY_DISPATCH[f].active_count(c);
@@ -729,7 +728,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     }
 
     // TOTAL's columns answer different questions, deliberately. `active` sums
-    // all twelve, because it reports what exists. `claimed` sums only
+    // all eleven, because it reports what exists. `claimed` sums only
     // registrants, because only registrants can have footprints. The delta
     // must therefore be the sum of the PRINTED deltas — measured against
     // active_grounded_total — or TOTAL would report a permanent leak equal to
@@ -768,7 +767,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // sixteen slots. Same table, opposite conclusion, and the only thing
     // that tells them apart is printed here.
     //
-    // ALL TWELVE ROWS, not the grounded ten. The dash convention above is
+    // ALL ELEVEN ROWS, not the grounded ten. The dash convention above is
     // for FOOTPRINT-derived columns, and a family that claims no ground
     // genuinely has nothing to report there. These columns are
     // ARRAY-derived: every family has an instance array with a bound, so
@@ -899,7 +898,6 @@ inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t
     switch (clamp) {
         case SpawnClamp::MIN1:    chance = std::min(chance, 1.0f); break;
         case SpawnClamp::RANGE01: chance = std::max(0.0f, std::min(1.0f, chance)); break;
-        case SpawnClamp::NONE:    break;
     }
     return { chance, false };
 }
@@ -910,8 +908,8 @@ inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     float chance) {
     SpawnPreamble result{};
     // (per-gate archetype lookup CUT: computed for
-    //  every generic gate, read by nobody; the sole archetype consumer
-    //  (gallery) calls tile_archetype itself in its bespoke funnel.)
+    //  every generic gate, read by nobody; its sole consumer called
+    //  tile_archetype itself, and left with PRUNE_1.)
     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);
     result.passed = cpu_hash_f(result.seed, spawn_roll_prop) < chance;
     return result;

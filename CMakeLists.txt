@@ -686,7 +686,6 @@ file(GLOB_RECURSE T7_RENDER_HEADERS
 
 add_executable(the_board
     src/the_board.cpp
-    src/external/stb_image.cpp
     ${T7_RENDER_HEADERS}
 )
 

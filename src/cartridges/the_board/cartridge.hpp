@@ -73,16 +73,15 @@
 #include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED; after agents for AgentState
 #include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file; after entity_pipeline for the generic funnels
 #include "cartridges/the_board/realization/renderer.hpp"
-#include "cartridges/the_board/realization/drawable_table.hpp"  // The drawable table (one row per drawable; the 3 passes iterate it filtered) — after renderer/state, BEFORE gallery + render_passes so both the snapshot pass and shadow/main see it
+#include "cartridges/the_board/realization/drawable_table.hpp"  // The drawable table (one row per drawable; the two passes iterate it filtered) — after renderer/state, before render_passes
 #include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file; after renderer for Renderer/GPUState complete
 #include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED; after renderer for Renderer
 #include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED; after renderer/machine/tile
 #include "coupling/visual_canvas.hpp"
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face; after agents/cubes/spheres for the FIELD_2 mirror deps
-#include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED; after ribbon for RibbonState
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED; after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
 #include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before mood (compute_spot_light_vp)
-#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED; after ribbon/gallery/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
+#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED; after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the three-phase verbs + the welded four — MERGED; after spawn_engine (services) + entities (vocab)
 #include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED; decl tier in contracts/surface_services.hpp
@@ -105,7 +104,7 @@ namespace t7 {
         //
         // THE WORLD'S MASTER SEED IS CHOSEN AT BOOT, NOT AUTHORED AS A
         // CONSTANT. Each visit is a draw from the same latent space, the
-        // way each painting is. One number changes and the generator
+        // way each of them is. One number changes and the generator
         // does the rest: terrain, the activity lattice, the waves, GoL
         // zone seeding, agent spawn and every entity placement all hang
         // off world_state_.active_seed and follow it without a further
@@ -211,7 +210,6 @@ namespace t7 {
             //     respawn counters + diagnostic overrides.
             AgentState agent_state_;
 
-            GalleryState gallery_state_;
 
             RibbonState ribbon_state_;
 
@@ -317,7 +315,6 @@ namespace t7 {
             CubeDeps      cube_deps_;
             GolDeps       gol_deps_;
             RibbonDeps    ribbon_deps_;
-            GalleryDeps   gallery_deps_;
             InputDeps     input_deps_;
             MoodDeps      mood_deps_;
 
@@ -446,7 +443,7 @@ namespace t7 {
             //   between FAMILY_DISPATCH and the per-family modules (their
             //   signatures adapt module preparers and renderer dispatches to
             //   the row slots). The bespoke select/place/commit funnels AND
-            //   the twelve evictors live with their owners (§5 EVICTION
+            //   the eleven evictors live with their owners (§5 EVICTION
             //   THUNKS: retirement fulfilled); the no-op mesh adapters are
             //   shared (inlined beside the table, post-class).
             // SEAM[spine:family-dispatch] anchor for cross-file references —
@@ -527,7 +524,7 @@ namespace t7 {
                 : machine_ctx_{ world_state_, tile_world_state_, themes_state_,
                                 mood_state_, patch_system_state_, spawn_engine_state_,
                                 entities_state_, sphere_state_, cube_behaviors_state_,
-                                ribbon_state_, gol_state_, gallery_state_,
+                                ribbon_state_, gol_state_,
                                 time_state_, player_, point_, gpuState_, renderer_ }
                 , tile_world_deps_{ world_state_, mood_state_, gpuState_ }
                 , sphere_deps_{ time_state_ }
@@ -537,7 +534,6 @@ namespace t7 {
                 , cube_deps_{ gpuState_, time_state_, player_, point_, mood_state_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
-                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, point_, mood_state_, time_state_, sunDirection_, clearColor_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
                 , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
@@ -1399,7 +1395,7 @@ namespace t7 {
                         // Fires AFTER reset_surface (:901) and every teardown
                         // verb above, and before stream_patches (a RENDER_SPINE
                         // row) can re-stream. Both columns must therefore read
-                        // 0 for all twelve — a teardown-completeness assertion,
+                        // 0 for all eleven — a teardown-completeness assertion,
                         // not an observation.
                         dump_entity_census(&machine_ctx_, "mood-transition");
                         // ROSTER-GATE ribbon (c) — finite-mode release, owner
@@ -1485,7 +1481,7 @@ namespace t7 {
 
             // SEAM[spine:owns] render() is genuinely spine work: readback state
             //   machines, stale-callback guards, portal trigger handling,
-            //   patch streaming, photographer cadence. The K1 observation
+            //   patch streaming. The K1 observation
             //   doesn't apply to render() the same way it applies to update();
             //   render() mixes orchestration (correct) with smaller per-module
             //   GPU upload calls (each lives in its module already).
@@ -2000,7 +1996,7 @@ namespace t7 {
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
             }
 
-            // R8 — ENTITY MESH GEN (algo; dirty-driven). Twelve constexpr-gated
+            // R8 — ENTITY MESH GEN (algo; dirty-driven). Eleven constexpr-gated
             // prepare lines set dirty[]; one compute pass dispatches the dirty
             // families (branches on dirty-ness, not the enable bit). The
             // per-family gates are intra-movement.
@@ -2009,7 +2005,7 @@ namespace t7 {
                 auto& queue = c.queue;
                 bool dirty[PopFamily::COUNT] = {};
                 bool anyDirty = false;
-                // Twelve explicit prepare lines, one per family, each
+                // Eleven explicit prepare lines, one per family, each
                 // presence constexpr-gated — THE SCORE RULING: the typelist
                 // fold dissolved into prose. A disabled
                 // family's prepare is eliminated at COMPILE TIME (no call,
@@ -2399,9 +2395,15 @@ namespace t7 {
                         std::cout << "[Ground] zone rects in core: " << in_core << "\n";
                         zoneRectsInCorePrev_ = in_core;
                     }
-                    // The flag survives for the SNAPSHOT pass only (R6):
-                    // the photographer culls against its own frustum and
-                    // cannot read the plan; it keeps the flag-locked pair.
+                    // THE FLAG HAS NO READER LEFT. The draw plan retired the
+                    // global-flag selection for the main pass and the
+                    // indirect reset; the shadow pass draws both bands
+                    // through patch_index_buffer_lod1(); and PRUNE_1 took
+                    // the snapshot pass, which was the last carrier named in
+                    // state.hpp beside the flag-selected pair. The switch is
+                    // kept as it stood — retiring it is its own reading, not
+                    // this campaign's (PRUNE_1 R7), and the witness above
+                    // still reports a real fact about the world.
                     gpuState_.set_curtains_active(in_core > 0);
                 }
                 // OPT_1e — the LOD1 count switch, staged beside the curtain
@@ -3011,8 +3013,8 @@ namespace t7 {
         //
         // The bound is DEDUCED from the array, never written. That is not
         // brevity — it makes three standing traps structurally unreachable:
-        //   · MAX_RIBBON_INSTANCES / MAX_GALLERIES are t7::the_board namespace
-        //     constants, NOT Dim:: members. Nothing here has to know that.
+        //   · MAX_RIBBON_INSTANCES is a t7::the_board namespace constant,
+        //     NOT a Dim:: member. Nothing here has to know that.
         //   · Dim::ANTENNA_SLOT_OFFSET (16) / Dim::CUBE_SLOT_OFFSET (8) are
         //     GPU-side only; both CPU arrays are 0-based. No offset can leak
         //     in, because no index arithmetic is written.
@@ -3024,17 +3026,13 @@ namespace t7 {
         //     is no longer "close enough" but "the same word". It is still
         //     the wrong number — those two fields are maintained for their
         //     own consumers, on their own cadence, for two families out of
-        //     twelve. The census scans; it does not borrow.
-        //
-        // GALLERY counts gallery_centers, not painting_slots[32] — the latter
-        // is shared with the indoor_shell feature via form_type == WALL_FRAME
-        // and would mix outdoor paintings with indoor wall frames.
+        //     eleven. The census scans; it does not borrow.
         //
         // ROSTER-disabled families are NOT special-cased: a disabled family is
         // never selected, so its array stays empty and it reads zero on both
         // sides. That agreement is itself a check.
 
-        // One implementation, twelve callers (the P11 shape).
+        // One implementation, eleven callers (the P11 shape).
         template<typename T, size_t N>
         inline uint32_t census_scan_active(const T (&arr)[N]) {
             uint32_t n = 0;
@@ -3045,14 +3043,14 @@ namespace t7 {
         // The occupancy triple (ARCH_2), same shape and same deduced bound.
         // N is the capacity: that is the ONLY way the ceiling reaches the
         // census without a constant being named here, which is what keeps the
-        // three traps above unreachable — the ribbon/gallery bounds are not
-        // Dim:: members, and the antenna/cube slot offsets are GPU-side.
+        // three traps above unreachable — the ribbon bound is not a
+        // Dim:: member, and the antenna/cube slot offsets are GPU-side.
         //
         // Deliberately a SECOND pass over the array, not a merge with
         // census_scan_active. The two numbers must be able to disagree: `live`
         // feeds the delta column that catches ground/body leaks, and a
         // diagnostic that silently re-derived it would put the leak check
-        // downstream of itself. Twelve arrays at ≤288 entries, once per
+        // downstream of itself. Eleven arrays at ≤288 entries, once per
         // census dump — the cost is not measurable beside the print.
         template<typename T, size_t N>
         inline SlotCensus census_scan_slots(const T (&arr)[N]) {
@@ -3076,9 +3074,8 @@ namespace t7 {
         inline uint32_t active_count_ribbon (const MachineCtx* c) { return census_scan_active(c->ribbon_state_.active); }
         inline uint32_t active_count_cube   (const MachineCtx* c) { return census_scan_active(c->cube_behaviors_state_.activeCubes_); }
         inline uint32_t active_count_gol    (const MachineCtx* c) { return census_scan_active(c->gol_state_.zones); }
-        inline uint32_t active_count_gallery(const MachineCtx* c) { return census_scan_active(c->gallery_state_.gallery_centers); }
 
-        // The slot_census row — the SAME twelve arrays, named once more so the
+        // The slot_census row — the SAME eleven arrays, named once more so the
         // capacity travels with the population. Any divergence between these
         // two lists is a family reporting its live count off one array and its
         // ceiling off another, so they are kept adjacent on purpose.
@@ -3093,12 +3090,11 @@ namespace t7 {
         inline SlotCensus slot_census_ribbon (const MachineCtx* c) { return census_scan_slots(c->ribbon_state_.active); }
         inline SlotCensus slot_census_cube   (const MachineCtx* c) { return census_scan_slots(c->cube_behaviors_state_.activeCubes_); }
         inline SlotCensus slot_census_gol    (const MachineCtx* c) { return census_scan_slots(c->gol_state_.zones); }
-        inline SlotCensus slot_census_gallery(const MachineCtx* c) { return census_scan_slots(c->gallery_state_.gallery_centers); }
 
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
         //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
-        //   GOL, GALLERY=11) — the enum values are pinned at roster.hpp (F-1)
+        //   GOL=10) — the enum values are pinned at roster.hpp (F-1)
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
@@ -3176,12 +3172,6 @@ namespace t7 {
               true,   // registers directly, gol_zones.hpp (no TRAITS object)
               "gol" },   // mesh hook → none-fork: GoL has no mesh — the zone IS
                          // the ground (UNIFIED_GROUND_1); the lift rides the card's .a
-            { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
-              evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-              active_count_gallery,
-              slot_census_gallery,
-              true,   // registers directly, gallery.hpp (no TRAITS object)
-              "gall" },
         };
     } // namespace the_board
 } // namespace t7

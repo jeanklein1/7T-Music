@@ -16,7 +16,7 @@
 // read), render_main_pass takes the clear color (const read) + the
 // orbs pair (render_orbs — the one sibling door). The module owns no
 // state; the two light-matrix helpers are pure math. COHORT: merged
-// at the tail after orbs/ribbon/gallery/input (render_orbs def +
+// at the tail after orbs/ribbon/input (render_orbs def +
 // complete organs), BEFORE merged mood (mood's spot-light applier
 // calls compute_spot_light_vp).
 // ─────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 // bodies reach the machine face (c->gpuState_ / c->renderer_ /
 // c->entities_state_ /
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ /
-// c->gallery_state_ / c->mood_state_) and the call-site extras
+// c->mood_state_) and the call-site extras
 // (cpuSpotLights_ / clearColor_ / the orbs pair).
 
 
@@ -166,7 +166,7 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
 // relies on).
 //
 // WHY ONE SITE AND NOT TWELVE. Each of these numbers already has a home —
-// the family setters, gallery_state_, os.count. What did NOT have a home is
+// the family setters, os.count. What did NOT have a home is
 // the set of GUARDS: `if (indexCount == 0) return;`, `if (!os.active)
 // return;`, `rendered_slot != UINT32_MAX`. Those lived in the draw verbs as
 // encoder-time skips, and an encoder-time skip cannot be recorded into a
@@ -568,8 +568,7 @@ inline void encode_main_opaque(MachineCtx* c, Enc& pass,
     // draws. Outdoor AND finite/indoor go through the same plan (the
     // kernel sees all bands everywhere). The E1 global-flag selection
     // is RETIRED here — the plan is per-patch; the flag survives only
-    // for the snapshot pass (R6), which culls against the
-    // photographer's frustum and cannot read this plan.
+    // with the snapshot pass that was its last carrier (PRUNE_1).
     // THE SUBTRACTION MASK (PANORAMA_1). Each draw below is skipped AT THE
     // ENCODER when its bit is clear — not culled in the shader, which would
     // still pay the pass's vertex work and leave the meter reading no

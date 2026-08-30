@@ -42,10 +42,12 @@ inline constexpr float RIBBON_INDOOR_SCALE        = 0.15f; // Jean's dial — tu
 // wall margin and never recovers. Clamping shifts the candidate
 // to the legal-box edge and lets the existing footprint-overlap
 // check handle any pile-ups that result.
-// Margin doubled (was 10) so that paintings and snapshots
-// mounted on indoor walls are visibly separated from spawning
-// entities — the entity's footprint now reads as distinct from
-// the wall surface and any artwork on it.
+// Margin doubled (was 10) so that what was mounted on indoor
+// walls read as visibly separated from spawning entities. The
+// wall art left at PRUNE_1; the margin is KEPT at its measured
+// value — the separation it buys between a body and a bare wall
+// is a composition Jean has seen, and re-tuning it is a taste
+// gate, not a prune's side effect.
 inline constexpr float INDOOR_ENTITY_WALL_MARGIN  = 20.0f; // existing, re-homed here
 
 // The ceiling-fit floor (COLUMN CEILING FIT): indoors the cmg kernel
@@ -72,7 +74,6 @@ inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* ribbon  */ { IndoorSize::CAP,     IndoorBounds::FULL   },  // pre-scaled by RIBBON_INDOOR_SCALE; stays inside
     /* cube    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* gol     */ { IndoorSize::NATURAL, IndoorBounds::FREE   },  // may straddle; lift capped at derive
-    /* gallery */ { IndoorSize::NATURAL, IndoorBounds::FULL   },  // sand-standing exhibits wholly inside
 };
 
 static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
@@ -80,11 +81,11 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
            && PopFamily::PALM    == 4 && PopFamily::CACTUS  == 5
            && PopFamily::BLADE   == 6 && PopFamily::SPHERE  == 7
            && PopFamily::RIBBON  == 8 && PopFamily::CUBE    == 9
-           && PopFamily::GOL     == 10 && PopFamily::GALLERY == 11
-           && PopFamily::COUNT   == 12,
+           && PopFamily::GOL     == 10
+           && PopFamily::COUNT   == 11,
     "INDOOR_TREATMENT rows ride F-1's PopFamily order — pyramid, arch, "
-    "column, antenna, palm, cactus, blade, sphere, ribbon, cube, gol, "
-    "gallery: re-row this table in lockstep before renumbering any family");
+    "column, antenna, palm, cactus, blade, sphere, ribbon, cube, "
+    "gol: re-row this table in lockstep before renumbering any family");
 
 // ─── THE CAP LAW (shared) ────────────────────────────────────────
 // If the family's current vertical extent already fits under
