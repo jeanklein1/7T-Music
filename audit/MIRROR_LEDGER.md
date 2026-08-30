@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `a2368480a01953747d46b64424bcbd37d443e467` |
-| | PRUNE_1 U3+U4 — the resources, the binding surface, the shader |
+| source commit | `d7d65a3e4b39aa380f3a54026cd5aab3cc877540` |
+| | PRUNE_1 U7 — the bit, the gates, the ledgers, the record |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:8ad74f64a72f3539c050b60c6ba4bebf846520b1632a2794a69fff843662210b` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:71de5d969b982615e79c2bf6ef3c1c9b93bcfdcbf95d72c2bda4d750804fba02` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:8f4584258bdb7b9f8d84373b58edbbe1915d5d969a3f35dd00d79130d5630f3e` |
