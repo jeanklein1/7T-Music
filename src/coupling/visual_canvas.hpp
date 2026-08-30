@@ -348,8 +348,10 @@ namespace t7 {
             }
 
             // PORT_4c — THE SOCKET, in one line. Every signal-side
-            // resolve above happens here, and with the BeatClock's empty
-            // layout (CUT_1c) every one of them misses. The release twin
+            // resolve above happens here. Against canvas_1's published
+            // layout all twelve bind and this line stays silent; it
+            // speaks only for a name absent from whatever layout the
+            // console bound. The release twin
             // prints this summary; the debug twin has already printed
             // each source by name. Placed last, after the resolves it
             // counts, beside the Zoetrope witness it deliberately does
