@@ -116,7 +116,6 @@ READERS = {
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
         ("src/cartridges/the_board/bodies/cube_behaviors.hpp", "cube_apply_indoor_rescale"),
         ("src/cartridges/the_board/bodies/spheres.hpp", "sphere_apply_indoor_rescale"),
-        ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_apply_indoor_rescale"),
         ("src/cartridges/the_board/machine/entity_pipeline.hpp", "pyramid_apply_indoor_rescale"),
     ]),
     "CANVAS": ("CANVAS_LIVE", "CanvasSurface", [
@@ -124,8 +123,6 @@ READERS = {
     ]),
     "WORLD": ("WORLD_DRAW_LIVE", "WorldDrawSurface", [
         ("src/cartridges/the_board/direction/mood.hpp", "derive_indoor_lights"),
-        ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_write_active"),
-        ("src/cartridges/the_board/bodies/grounded.hpp", "force_spawn_portal_arch"),
     ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),

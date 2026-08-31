@@ -61,7 +61,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 
 # The roster bits (gate families must resolve to one of these).
 KNOWN_FAMILIES = {
-    'pyramid', 'arch',
+    'pyramid',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
     'spot_lights', 'indoor_shell', 'wanderers',
 }
@@ -102,8 +102,6 @@ FOUNDATIONAL_PHASES = {
     'phase_dispatch_compute':      'REALIZATION — the frame compute dispatch',
     'phase_witness_capture':       'the witness capture (O-2) — spine-owned readback',
     'phase_live_card_write':       'the live-card field write — spine-owned, rest-skipped by its own clean flag',
-    'phase_ground_entries':        'flag-driven realization (ground_entries_dirty cascade, O-4)',
-    'phase_placement_correction':  'flag-driven realization (placement_dirty, O-4)',
     'phase_frustum_cull':          'REALIZATION pass (piece-gating lives at gate a-prime)',
     'phase_shadow_pass':           'REALIZATION pass (piece-gating lives at gate a-prime)',
     'phase_main_pass':             'REALIZATION pass (piece-gating lives at gate a-prime)',
@@ -123,7 +121,6 @@ def blk(bit, *calls):
 
 GREP_MANIFEST = {
     'pyramid':  [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.pyramid', r'[^;]*?\.prepare_mesh'))],
-    'arch':     [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.arch',    r'[^;]*?\.prepare_mesh'))],
     'sphere':   [('cartridge.hpp', 'mirror',    imm(r'ROSTER\.sphere',  r'reconcile_sphere_mirror')),
                  ('cartridge.hpp', 'teardown',  imm(r'ROSTER\.sphere',  r'clear_spheres')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.sphere',  r'[^;]*?\.prepare_mesh'))],

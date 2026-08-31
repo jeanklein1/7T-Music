@@ -319,7 +319,7 @@ struct PlacementEntry {
 // whether a family is SATURATED, because the census has no denominator
 // — 16 arches reads the same as 3 until you know the array holds 16.
 // That distinction is the whole question the tier weights turn on: at a
-// fixed SPAWN_CHANCE the three ArchTiers are zero-sum in ABSOLUTE
+// fixed SPAWN_CHANCE a family's tiers are zero-sum in ABSOLUTE
 // counts, so if the array is already pinned at its ceiling, reweighting
 // tiers only decides WHICH bodies win a first-come race for slots — it
 // cannot add bodies. Reading a weight change as a population change is

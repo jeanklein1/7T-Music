@@ -34,8 +34,6 @@ struct OrbsState; struct OrbsDeps;
 // Pre-render data preparation
 void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_);
 void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
-void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue);
-void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder);
 // GPU compute dispatch
 void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder);
 void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
@@ -64,42 +62,6 @@ void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 
 // ═══ PRE-RENDER DATA PREP ════════════════════════════════════════
 
-inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
-    // ── Arch ground entries ──
-    // Leg positions from the arch's OWN geometry (world_x/z ± half_span
-    // rotated) — the identical values the retired pier writer computed;
-    // the pier mirror died in BATCH G and the arch was always the source.
-    GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        const auto& ar = c->entities_state_.arches[i];
-        if (!ar.active) continue;
-        float cr = std::cos(ar.rotation), sr = std::sin(ar.rotation);
-        archOrigins[i].pier_left_x = ar.world_x - ar.half_span * cr;
-        archOrigins[i].pier_left_z = ar.world_z - ar.half_span * sr;
-        archOrigins[i].pier_right_x = ar.world_x + ar.half_span * cr;
-        archOrigins[i].pier_right_z = ar.world_z + ar.half_span * sr;
-        archOrigins[i].is_active = 1;
-        archOrigins[i].ground_y = ar.cached_ground_y;
-        archOrigins[i].pier_correction_left = 0.0f;
-        archOrigins[i].pier_correction_right = 0.0f;
-    }
-    c->gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
-}
-
-inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder) {
-    wgpu::ComputePassDescriptor cpd{};
-    cpd.label = "Entity Placement Y Correction";
-    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::PlacementCorrection);
-    wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    { compute.SetBindGroup(0, c->gpuState_.world_group());
-      compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-    c->renderer_.dispatch_entity_placement(
-        compute, c->gpuState_.place_state_group(), c->gpuState_.place_textures_group()
-    );
-    compute.End();
-}
-
 // ═══ THE DRAW LEDGER'S STAGE (BUNDLE_1) ══════════════════════════
 //
 // ONE SITE that reads every count the CPU authors and stages it. It runs at
@@ -123,9 +85,8 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
 inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     GPUState& g = c->gpuState_;
 
-    // The generated geometry (arch) + the shell: their index counts are
+    // The generated geometry (the shell): its index count is
     // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
-    g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
     g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
 
     // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon

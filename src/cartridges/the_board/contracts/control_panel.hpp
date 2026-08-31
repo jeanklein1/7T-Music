@@ -59,7 +59,11 @@ inline constexpr float FIELD_OCCUPIER_GAIN = 1.0f;  // standing geometry (shafts
 inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the beacon, the lure)
 
 // ── THE DOORWAY (ATRIUM_7) ───────────────────────────────────────
-// AN ARCH LEG WEARS ITS OWN SHELL FACTOR. The social slack is 3.0 — tuned
+// AN ARCH LEG WORE ITS OWN SHELL FACTOR — and the legs left with the
+// family at ONE_WORLD-I U3, so nothing reads this dial today. The reading
+// is kept whole because the dial is kept whole: retiring it is a
+// GPUDesignConfig relayout, which is the sweep's call, not U3's.
+// The social slack is 3.0 — tuned
 // for bodies parting around shafts and around each other — and an arch is
 // TWO leg sources, half_span either side of the door's centre (world.wgsl
 // field_sum, the occupier_amg loop). Two shells of (r_leg + r_agent) * 3.0

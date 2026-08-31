@@ -7,7 +7,7 @@
 //
 // Generic entity lifecycle for the cookie-cutter families: the
 // three-phase verbs (select → place → commit) driven per family by
-// traits + adapter rows; the welded pair's blocks (pyramid, arch)
+// traits + adapter rows; the welded block (pyramid)
 // live in the impl. The module owns no state — the
 // queues it fills are spawn_engine's.
 //
@@ -21,7 +21,7 @@
 // (GPU mesh params), mood.hpp (MOOD_TABLE + the mood
 // doors), machine/spawn_engine.hpp (the services, defined just above
 // in the cohort). MERGED at the cohort tail (the
-// B ruling): the decl tier (the generic_* decls, the arch
+// B ruling): the decl tier (the generic_* decls
 // vocabulary) lives in contracts/spawn_services.hpp.
 
 namespace t7 {
@@ -55,15 +55,14 @@ namespace the_board {
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 //
 // DECLARATIONS live in contracts/spawn_services.hpp (the
-// machine's decl tier) with the arch vocabulary
-// (ArchIdx / ArchTierRow / ARCH_TIERS) and the rescale decl. The
+// machine's decl tier) and the rescale decl. The
 // definitions — the rescale template above, the three-phase verbs and
 // the welded four below — all live HERE.
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
-// The three-phase verbs and the welded family blocks (pyramid, arch —
+// The three-phase verbs and the welded family block (pyramid —
 // the families that weld to the ground/regen services). Each block
 // keeps the same 10-element template. Reaches
 // the machine face for c->mood_state_ / c->world_state_ /
@@ -77,7 +76,7 @@ namespace the_board {
 // THE SPREAD LAW's one arithmetic (MOSAIC_2d) — median + jitter·spread,
 // clamped. One home for both paths (palette and sandstone), so "varied"
 // has a single definition. It sat above its first consumer, the column's
-// color derivation; PRUNE_2 excised that family and the arch is now the
+// color derivation; PRUNE_2 excised that family and the pyramid is now the
 // only consumer, so the law comes up here to the generic helpers where a
 // shared arithmetic belongs and where C++ still sees it first.
 inline float entity_spread(uint32_t seed, uint32_t prop) {
@@ -435,200 +434,6 @@ inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe
 
 // ═══ FAMILIES: SPHERE / CUBE — RELOCATED ═════════════════════════
 
-// ═══ FAMILY: ARCH ═════════════════════════════════════════════════
-
-
-// Floor for SPAN is 1.0 (raw span); compute_solid_half halves it → half_span ≥ 0.5
-inline constexpr TierParamDef ARCH_PARAM_DEFS[] = {
-    { ArchProp::SPAN,         1.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ArchProp::RISE,         1.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ArchProp::DEPTH,        0.5f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ArchProp::THICKNESS,    0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ArchProp::PIER_HEIGHT,  0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ArchProp::PIER_PADDING, 0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ArchProp::EDGE_BLEND,   0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-};
-inline constexpr uint32_t ARCH_PARAM_COUNT = sizeof(ARCH_PARAM_DEFS) / sizeof(TierParamDef);
-static_assert(ARCH_PARAM_COUNT == ArchIdx::COUNT,
-    "F-4: ARCH_PARAM_DEFS must cover ArchIdx exactly (row order IS the index)");
-static_assert(sizeof(ARCH_TIERS) / sizeof(ArchTierRow) == static_cast<uint32_t>(ArchTier::COUNT),
-    "F-5: ARCH_TIERS must have exactly one row per ArchTier");
-
-inline const TierProfile& arch_get_tier_profile(uint32_t tier_idx) {
-    return ARCH_TIERS[tier_idx].profile;
-}
-
-inline constexpr EntityFamilyTraits ARCH_TRAITS = {
-    PopFamily::ARCH, Dim::MAX_ARCH_INSTANCES,
-    true,                 // grounded
-    ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::ARCH), ArchConfig::POSITION_JITTER,
-    static_cast<uint32_t>(ArchTier::COUNT), ArchProp::TIER,
-    ARCH_PARAM_DEFS, ARCH_PARAM_COUNT,
-    ArchProp::POSITION_X, ArchProp::POSITION_Z, ArchProp::ROTATION,
-    0, nullptr,
-};
-
-inline SpawnGateOutput arch_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, ARCH_TRAITS, c->entities_state_.arches);
-}
-
-inline constexpr uint32_t ARCH_INDOOR_RESCALE_PARAMS[] = {
-    ArchIdx::SPAN, ArchIdx::RISE, ArchIdx::DEPTH, ArchIdx::THICKNESS,
-    ArchIdx::PIER_HEIGHT, ArchIdx::PIER_PADDING, ArchIdx::EDGE_BLEND,
-};
-
-// Arch total height = pier_height + rise (catenary apex). CAP at
-// the module's fraction, scale every length param.
-inline void arch_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[ArchIdx::PIER_HEIGHT] + inst.params[ArchIdx::RISE],
-        ARCH_INDOOR_RESCALE_PARAMS);
-}
-
-inline void arch_compute_solid_half(EntityInstance& inst, const TierProfile&) {
-    float half_span    = inst.params[ArchIdx::SPAN] * 0.5f;
-    inst.params[ArchIdx::SPAN] = half_span;  // overwrite: SPAN now holds half_span
-    float thickness    = inst.params[ArchIdx::THICKNESS];
-    float depth        = inst.params[ArchIdx::DEPTH];
-    float pier_padding = inst.params[ArchIdx::PIER_PADDING];
-    float edge_blend   = inst.params[ArchIdx::EDGE_BLEND];
-    float pier_height  = inst.params[ArchIdx::PIER_HEIGHT];
-
-    float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
-    float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
-    inst.solid_half = half_span + std::max(pier_half_x, pier_half_z);
-    inst.ground_y_offset = pier_height;
-    inst.burial = std::max(0.2f, pier_height * ARCH_TIERS[inst.tier_idx].burial);
-}
-
-inline void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
-    const auto& tp = ARCH_TIERS[inst.tier_idx];
-    // THE MOSAIC ROLL (MOSAIC_2) — a TIER fact, not a sub-roll of the
-    // palette. Orthogonal to color_over by ruling: what a body's
-    // fallback color is, and whether it is ceramic, are two facts, and
-    // nesting them capped the mosaic at 85% for no reason. A painted
-    // body never reads its fallback at any range (the far field is the
-    // passage median at variance zero), so the fallback below is now
-    // written for the PLAIN population alone.
-    if (cpu_hash_f(inst.seed, ArchProp::MOSAIC_ROLL) < tp.mosaic_chance) {
-        inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ArchProp::MOSAIC_SEED) * 65534.0f);
-    }
-    // THE SPREAD (MOSAIC_2d): rolled once per body, before the branch —
-    // how far THIS arch sits from whichever median it lands on. Both
-    // paths read it, so "varied" is one definition.
-    const float spread = entity_spread(inst.seed, ArchProp::COLOR_SPREAD);
-    // Base color: sandstone/palette — THE PLAIN POPULATION's scheme. A
-    // mosaic arch never reads this at any range (MOSAIC_2c).
-    if (cpu_hash_f(inst.seed, ArchProp::COLOR_OVER) < tp.color_override) {
-        uint32_t pal_idx = cpu_hash(inst.seed, ArchProp::COLOR_OVER + 1u) % ARCH_PALETTE_COUNT;
-        inst.colors[0] = entity_tint(ARCH_PALETTE[pal_idx][0], inst.seed, ArchProp::COLOR_VAR_R, spread);
-        inst.colors[1] = entity_tint(ARCH_PALETTE[pal_idx][1], inst.seed, ArchProp::COLOR_VAR_G, spread);
-        inst.colors[2] = entity_tint(ARCH_PALETTE[pal_idx][2], inst.seed, ArchProp::COLOR_VAR_B, spread);
-    } else {
-        inst.colors[0] = entity_tint(ARCH_SANDSTONE_BASE[0], inst.seed, ArchProp::COLOR_VAR_R, spread);
-        inst.colors[1] = entity_tint(ARCH_SANDSTONE_BASE[1], inst.seed, ArchProp::COLOR_VAR_G, spread);
-        inst.colors[2] = entity_tint(ARCH_SANDSTONE_BASE[2], inst.seed, ArchProp::COLOR_VAR_B, spread);
-    }
-}
-
-inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
-    float half_span = inst.params[ArchIdx::SPAN];  // already halved
-    float rise      = inst.params[ArchIdx::RISE];
-    float pier_h    = inst.params[ArchIdx::PIER_HEIGHT];
-
-    auto& aa = c->entities_state_.arches[inst.slot];
-    aa.patch_gx = inst.trigger_gx; aa.patch_gz = inst.trigger_gz;
-    aa.host_gx = inst.host_gx; aa.host_gz = inst.host_gz;
-    aa.active = true; aa.draw_visible = true;
-    aa.world_x = inst.cx; aa.world_z = inst.cz;
-    aa.rotation = inst.rotation;
-    aa.half_span = half_span;
-    aa.total_height = pier_h + rise;
-    aa.tier = static_cast<ArchTier>(inst.tier_idx);
-    aa.depth = inst.params[ArchIdx::DEPTH];
-    aa.thickness = inst.params[ArchIdx::THICKNESS];
-    aa.rise = rise;
-    aa.pier_height = pier_h;
-    aa.burial = inst.burial;
-    aa.segs_u = ARCH_TIERS[inst.tier_idx].segs_u;
-    aa.segs_v = ARCH_TIERS[inst.tier_idx].segs_v;
-    aa.col_r = inst.colors[0]; aa.col_g = inst.colors[1]; aa.col_b = inst.colors[2];
-
-    // Ground Y: GPU compute shader samples the heightfield at both leg
-    // positions and takes the min (slope straddle). CPU uploads 0.
-    aa.cached_ground_y = 0.0f;
-    aa.mosaic_seed = inst.mosaic_seed;
-
-    aa.position_hash = cpu_hash(inst.seed, ArchProp::ROTATION + 100u);
-    // THE PORTAL ROLL STOOD HERE. A DOORWAY-tier arch in an open world
-    // rolled against WORLD_DRAW_LIVE.portal_density, drew a destination
-    // and wore its colour. Doors led somewhere until ONE_WORLD-I; the
-    // arch keeps the colour its tier rolled, like every other family.
-}
-
-inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    float half_span = inst.params[ArchIdx::SPAN];
-    float rise      = inst.params[ArchIdx::RISE];
-
-    GPUArchMeshParams mp{};
-    mp.center_x   = inst.cx;
-    mp.center_z   = inst.cz;
-    mp.rotation   = inst.rotation;
-    mp.half_span  = half_span;
-    mp.rise       = rise;
-    mp.depth      = inst.params[ArchIdx::DEPTH];
-    mp.thickness  = inst.params[ArchIdx::THICKNESS];
-    mp.pier_height = inst.params[ArchIdx::PIER_HEIGHT];
-    mp.burial     = inst.burial;
-    mp.catenary_a = solve_catenary_a(half_span, rise);
-    mp.segs_u     = ARCH_TIERS[inst.tier_idx].segs_u;
-    mp.segs_v     = ARCH_TIERS[inst.tier_idx].segs_v;
-    // PORTAL_1's LAW OUTLIVES ITS SUBJECT: col_* is the one home — written
-    // by arch_write_active, which generic_commit calls first. The
-    // instance's own colours would miss that decision, and did.
-    {
-        const auto& aa = c->entities_state_.arches[inst.slot];
-        mp.color_r = aa.col_r; mp.color_g = aa.col_g; mp.color_b = aa.col_b;
-    }
-    // MOSAIC_2b: the ONE home. arch_write_active (generic_commit calls it
-    // first) has already written this slot's seed, so both producers read
-    // one correct value — the instance's own field would miss that.
-    mp.mosaic_seed = c->entities_state_.arches[inst.slot].mosaic_seed;
-    mp.is_active  = 1;
-    c->gpuState_.upload_arch_mesh_params_slot(queue, inst.slot, mp);
-    c->entities_state_.arch_mesh_gen_pending = true;
-}
-
-
-inline constexpr EntityFamilyAdapter ARCH_ADAPTER = {
-    arch_run_gate,
-    arch_apply_indoor_rescale,
-    arch_compute_solid_half, arch_compute_colors,
-    arch_write_active, arch_write_gpu, nullptr,       // no post_commit (the pier pair + its regen died with the bake)
-    arch_get_tier_profile,
-};
-
-inline bool dispatch_select_arch_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    EntityInstance inst{};
-    if (!generic_select(self, ARCH_TRAITS, ARCH_ADAPTER, gx, gz, inst)) return false;
-    e.family = PopFamily::ARCH; e.gx = gx; e.gz = gz; e.generic = inst; return true;
-}
-inline bool dispatch_place_arch_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (generic_place(self, ARCH_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->entities_state_.arches[e.generic.slot].active = false; return false;
-}
-inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, ARCH_TRAITS, ARCH_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ARCH, pe.generic.slot); }
-    // HOST PATCH GONE. The footprint was registered at place; its host
-    // vanished before commit. Release by OWNER — the one release path.
-    else { unregister_footprint_for(self, PopFamily::ARCH, pe.generic.slot); self->entities_state_.arches[pe.generic.slot].active = false; }
-}
-
-// ─── FAMILY_DISPATCH Integration ─────────────────────────────────
-
 // ═══ F-5: THE COLLAPSE'S BIT-IDENTITY PIN ═════════════════════════
 //
 // Before the collapse, each *_run_gate passed five constants by hand. Now
@@ -667,7 +472,6 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
     static_assert(TR.mood_multiplier == mood_mult_for(FAM), #TR " mood_multiplier must match")
 
 T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, true,  PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,     0u);
-T7_GATE_PIN(ARCH_TRAITS,    PopFamily::ARCH,    Dim::MAX_ARCH_INSTANCES,    true,  ArchProp::SPAWN_ROLL,    ArchConfig::SPAWN_CHANCE,        0u);
 T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  false, SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE,      0u);
 T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    false, CubeProp::SPAWN_ROLL,    CubeConfig::SPAWN_CHANCE,        0u);
 
@@ -676,7 +480,6 @@ T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    fals
 // The tail pair, checked once per family by pointer identity: color_parts is
 // the LAST field, so if anything above it slid, this is where it shows.
 static_assert(PYRAMID_TRAITS.color_parts == nullptr,            "PYRAMID_TRAITS color_parts");
-static_assert(ARCH_TRAITS.color_parts    == nullptr,            "ARCH_TRAITS color_parts");
 static_assert(SPHERE_TRAITS.color_parts  == nullptr,            "SPHERE_TRAITS color_parts");
 static_assert(CUBE_TRAITS.color_parts    == nullptr,            "CUBE_TRAITS color_parts");
 

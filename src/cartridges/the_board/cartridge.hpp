@@ -48,7 +48,7 @@
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
 #include "cartridges/the_board/contracts/indoor_module.hpp"        // THE INDOOR MODULE: mood's insert on the spawn chain — one policy table + three dials; consumers ride the cohort (grounded/floaters/ribbon/the machine)
-#include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
+#include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + MoodState/MoodProfile/MOOD_TABLE (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
@@ -409,17 +409,17 @@ namespace t7 {
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
-            //   ties the six families together. Each row's body lives in
+            //   ties the five families together. Each row's body lives in
             //   the family's owning module.
-            // SEAM[spine:K2-related] the one real dispatch_prepare_mesh_* /
-            //   dispatch_mesh_gen_* adapter pair below (arch; PRUNE_2 took the
-            //   other four) is integration glue
-            //   between FAMILY_DISPATCH and the per-family modules (their
-            //   signatures adapt module preparers and renderer dispatches to
-            //   the row slots). The bespoke select/place/commit funnels AND
-            //   the six evictors live with their owners (§5 EVICTION
-            //   THUNKS: retirement fulfilled); the no-op mesh adapters are
-            //   shared (inlined beside the table, post-class).
+            // SEAM[spine:K2-related] CLOSED. The last real
+            //   dispatch_prepare_mesh_* / dispatch_mesh_gen_* adapter pair
+            //   was the arch's, and it left with the family (ONE_WORLD-I
+            //   U3): PRUNE_2 had already taken the other four. Every row's
+            //   mesh hook is the none-fork now. The bespoke
+            //   select/place/commit funnels AND the evictors live with their
+            //   owners (§5 EVICTION THUNKS: retirement fulfilled); the no-op
+            //   mesh adapters are shared (inlined beside the table,
+            //   post-class).
             // SEAM[spine:family-dispatch] anchor for cross-file references —
             //   eviction routes through FAMILY_DISPATCH[f].evict_slot to the
             //   owner-side evict_<family> functions.
@@ -430,18 +430,14 @@ namespace t7 {
 
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
 
-            // ── Mesh gen wrappers ──
-            // The pyramid has none: it is the first entity whose realization IS
-            // the terrain — it keeps its select/place/commit/evict verbs
-            // (placement feeds the heightfield) but has no mesh realization of
-            // its own; its FAMILY_DISPATCH mesh hook routes to the none-fork.
-
-            static bool dispatch_prepare_mesh_arch(MachineCtx* self, wgpu::Queue& queue) {
-                return prepare_arch_mesh_gen(self->entities_state_, self, queue);
-            }
-            static void dispatch_mesh_gen_arch(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.meshgen_state_group(), self->gpuState_.empty_group());
-            }
+            // ── Mesh gen wrappers: NONE REMAIN ──
+            // The pyramid never had one: it is the first entity whose
+            // realization IS the terrain — it keeps its
+            // select/place/commit/evict verbs (placement feeds the
+            // heightfield) but has no mesh realization of its own. The arch
+            // held the last real pair and left at ONE_WORLD-I U3, so every
+            // surviving family's FAMILY_DISPATCH mesh hook routes to the
+            // none-fork.
 
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
             //    scope after the class, beside the shared no-op adapters
@@ -702,7 +698,7 @@ namespace t7 {
                     auto mark = [&](bool enabled, const char* name) {
                         if (!enabled) { if (!off.empty()) off += ", "; off += name; }
                         };
-                    mark(ROSTER.pyramid, "pyramid");     mark(ROSTER.arch, "arch");
+                    mark(ROSTER.pyramid, "pyramid");
                     mark(ROSTER.sphere, "sphere");
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
                     mark(ROSTER.gol, "gol");
@@ -838,7 +834,6 @@ namespace t7 {
                 F_CONFIG = 1u << 1,   // the GPU config buffer (fog/world/bands/...)
                 F_CLOCK = 1u << 2,   // time_state_ (beats/seconds/dt/prev_beats)
                 F_WITNESS = 1u << 3,   // the readback record (agent/floater/camera)
-                F_GROUND = 1u << 4,   // ground-entries / placement dirty cascade
                 F_COMPUTE = 1u << 5,   // encodes a GPU compute pass
                 F_DRAW = 1u << 6,   // encodes a GPU render pass
                 F_SUBMIT = 1u << 7,   // issues its OWN queue submit (hidden)
@@ -857,7 +852,7 @@ namespace t7 {
                 WitnessHarvest, StreamPatches, RespawnAgents,
                 CensusDumps, RibbonTick, EntityMeshGen, UploadLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
-                GroundEntries, PlacementCorrection, FrustumCull, ShadowPass, MainPass,
+                FrustumCull, ShadowPass, MainPass,
                 COUNT
             };
 
@@ -1894,10 +1889,6 @@ namespace t7 {
                     dirty[PopFamily::PYRAMID] = FAMILY_DISPATCH[PopFamily::PYRAMID].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::PYRAMID];
                 }
-                if constexpr (ROSTER.arch) {      // ROSTER-GATE arch (b)
-                    dirty[PopFamily::ARCH] = FAMILY_DISPATCH[PopFamily::ARCH].prepare_mesh(&machine_ctx_, queue);
-                    anyDirty = anyDirty || dirty[PopFamily::ARCH];
-                }
                 if constexpr (ROSTER.sphere) {    // ROSTER-GATE sphere (b)
                     dirty[PopFamily::SPHERE] = FAMILY_DISPATCH[PopFamily::SPHERE].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::SPHERE];
@@ -1947,8 +1938,7 @@ namespace t7 {
             // LIVE CARD WRITE (GROUND_CARD_1; between R9 and R10). The per-frame
             // deformation field: the writer calls the existing evaluators at
             // texel centers; every consumer then samples one card. Before
-            // DispatchCompute (the consumers) and before PlacementCorrection
-            // (reads .a at H5).
+            // DispatchCompute (the consumers).
             //
             // OPT_1a — THE REST SKIP: both dispatches (819,200 invocations)
             // are skipped while the card's field is at rest. The full
@@ -2096,33 +2086,16 @@ namespace t7 {
                 dispatch_orb_dynamics(orbs_state_, &orbs_deps_, encoder, queue);
             }
 
-            // R15 — GROUND ENTRIES (algo; dirty-driven). On ground_entries_dirty:
-            // stage per-family ground origins and raise placement_dirty (the E-6
-            // same-frame cascade into R16). Runtime guard inside.
-            void phase_ground_entries(RenderCtx& c) {
-                auto& queue = c.queue;
-                if (world_state_.ground_entries_dirty) {
-                    world_state_.ground_entries_dirty = false;
-                    world_state_.placement_dirty = true;
-                    upload_ground_entries(&machine_ctx_, queue);
-                }
-            }
-
-            // R16 — PLACEMENT CORRECTION (algo; dirty-driven). On placement_dirty:
-            // the entity Y-correction compute. Runtime guard inside.
-            void phase_placement_correction(RenderCtx& c) {
-                auto& encoder = c.encoder;
-                if (world_state_.placement_dirty) {
-                    world_state_.placement_dirty = false;
-                    dispatch_placement_correction(&machine_ctx_, encoder);
-                    // THE RE-RAISE went with the column (PRUNE_2 U4). It
-                    // existed for one law — the COLUMN CEILING FIT, which
-                    // made ground_y an INPUT to the mesh and so demanded one
-                    // rebake after each correction. No surviving family reads
-                    // corrected ground back into its geometry, so the
-                    // correction now ends where it lands.
-                }
-            }
+            // R15/R16 — GROUND ENTRIES + PLACEMENT CORRECTION stood here.
+            // The pair was the ARCH's ground channel end to end: the CPU
+            // staged per-arch leg origins, compute_entity_placement wrote the
+            // corrected Y into the entity ground atlas, and arch_vs /
+            // shadow_arch_vs were the atlas's only readers. The family left
+            // at ONE_WORLD-I U3 and the channel had nothing to correct and
+            // no one to read it, so both rows, the O-4 cascade between them
+            // and the atlas itself went with it. (PRUNE_2 U4 had already
+            // retired the re-raise, when the column stopped feeding
+            // corrected ground back into its mesh.)
 
             uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
             uint32_t zonesActiveAnywherePrev_ = 0;   // OPT_1e witness memory
@@ -2297,8 +2270,6 @@ namespace t7 {
                 { RPhase::GolZoneCompute,      "gol_zone_compute",      &Cartridge::phase_gol_zone_compute,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE },
                 { RPhase::PawnAura,            "pawn_aura",             &Cartridge::phase_pawn_aura,             Driver::WallClock, ROSTER.pawn_aura,                       F_COMPUTE },
                 { RPhase::OrbSky,              "orb_sky",               &Cartridge::phase_orb_sky,               Driver::Mixed,     ROSTER.orbs,                            F_COMPUTE },
-                { RPhase::GroundEntries,       "ground_entries",        &Cartridge::phase_ground_entries,        Driver::Algo,      true,                                   F_GROUND },
-                { RPhase::PlacementCorrection, "placement_correction",  &Cartridge::phase_placement_correction,  Driver::Algo,      true,                                   F_GROUND | F_COMPUTE },
                 { RPhase::FrustumCull,         "frustum_cull",          &Cartridge::phase_frustum_cull,          Driver::Algo,      true,                                   F_COMPUTE },
                 { RPhase::ShadowPass,          "shadow_pass",           &Cartridge::phase_shadow_pass,           Driver::None,      true,                                   F_DRAW },
                 { RPhase::MainPass,            "main_pass",             &Cartridge::phase_main_pass,             Driver::None,      true,                                   F_DRAW },
@@ -2414,7 +2385,6 @@ namespace t7 {
             static_assert(meter_row::GolZoneCompute      == (uint32_t)RPhase::GolZoneCompute,      "meter_row drift: GolZoneCompute");
             static_assert(meter_row::PawnAura            == (uint32_t)RPhase::PawnAura,            "meter_row drift: PawnAura");
             static_assert(meter_row::OrbSky              == (uint32_t)RPhase::OrbSky,              "meter_row drift: OrbSky");
-            static_assert(meter_row::PlacementCorrection == (uint32_t)RPhase::PlacementCorrection, "meter_row drift: PlacementCorrection");
             static_assert(meter_row::FrustumCull         == (uint32_t)RPhase::FrustumCull,         "meter_row drift: FrustumCull");
             static_assert(meter_row::ShadowPass          == (uint32_t)RPhase::ShadowPass,          "meter_row drift: ShadowPass");
             static_assert(meter_row::MainPass            == (uint32_t)RPhase::MainPass,            "meter_row drift: MainPass");
@@ -2465,15 +2435,12 @@ namespace t7 {
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
             static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");
-            static_assert((uint32_t)RPhase::GroundEntries < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull precedes the shadow pass (ordering pin)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
             static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadLights &&
                           (uint32_t)RPhase::LiveCardWrite < (uint32_t)RPhase::DispatchCompute,
                 "GROUND_CARD_1: the card writes before the consumers "
                 "(pre-evolve zone read preserved, R10<R13 order intact)");
-            static_assert((uint32_t)RPhase::LiveCardWrite < (uint32_t)RPhase::PlacementCorrection,
-                "GROUND_CARD_1: the card writes before placement reads .a");
             static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute, "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
             static_assert((uint32_t)RPhase::ShadowPass < (uint32_t)RPhase::MainPass, "draw: shadow before main");
 
@@ -2890,7 +2857,6 @@ namespace t7 {
         }
 
         inline uint32_t active_count_pyramid(const MachineCtx* c) { return census_scan_active(c->entities_state_.pyramids); }
-        inline uint32_t active_count_arch   (const MachineCtx* c) { return census_scan_active(c->entities_state_.arches); }
         inline uint32_t active_count_sphere (const MachineCtx* c) { return census_scan_active(c->sphere_state_.activeSpheres_); }
         inline uint32_t active_count_ribbon (const MachineCtx* c) { return census_scan_active(c->ribbon_state_.active); }
         inline uint32_t active_count_cube   (const MachineCtx* c) { return census_scan_active(c->cube_behaviors_state_.activeCubes_); }
@@ -2901,7 +2867,6 @@ namespace t7 {
         // two lists is a family reporting its live count off one array and its
         // ceiling off another, so they are kept adjacent on purpose.
         inline SlotCensus slot_census_pyramid(const MachineCtx* c) { return census_scan_slots(c->entities_state_.pyramids); }
-        inline SlotCensus slot_census_arch   (const MachineCtx* c) { return census_scan_slots(c->entities_state_.arches); }
         inline SlotCensus slot_census_sphere (const MachineCtx* c) { return census_scan_slots(c->sphere_state_.activeSpheres_); }
         inline SlotCensus slot_census_ribbon (const MachineCtx* c) { return census_scan_slots(c->ribbon_state_.active); }
         inline SlotCensus slot_census_cube   (const MachineCtx* c) { return census_scan_slots(c->cube_behaviors_state_.activeCubes_); }
@@ -2909,7 +2874,7 @@ namespace t7 {
 
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
-        //   ARCH, SPHERE, RIBBON, CUBE,
+        //   SPHERE, RIBBON, CUBE,
         //   GOL=5) — the enum values are pinned at roster.hpp (F-1)
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
@@ -2927,12 +2892,6 @@ namespace t7 {
               slot_census_pyramid,
               PYRAMID_TRAITS.grounded,
               "pyr" },
-            { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
-              evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
-              active_count_arch,
-              slot_census_arch,
-              ARCH_TRAITS.grounded,
-              "arch" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
               evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,

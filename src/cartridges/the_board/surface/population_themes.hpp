@@ -40,20 +40,20 @@ inline constexpr float THEME_BASE_WEIGHT = 10.0f;
 // head's oscillation rate by 1/scale. The indoor treatment in
 // bodies/ribbon.hpp stays, dormant behind these two cells. Raise them
 // and both faults return with them.
-//                              pyr   arch  sph   rib   cube  gol
+//                              pyr   sph   rib   cube  gol
 inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
-    /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
-    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
-    /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    /* MOOD_OPEN_NIGHT      */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    /* MOOD_OPEN_NOON       */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_NIGHT      */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_NOON       */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     // THE ATRIUM IS AUTHORED, NOT ROLLED (ATRIUM_1). Every family's column
     // is 0: nothing the composition law would scatter belongs in the
     // entrance. Every one of the six reaches compose_spawn_chance
     // through mood_mult_for, and adj_mod = 0 survives the whole stack —
     // the clamps bound the top only — so this row silences all of them.
-    /* MOOD_ATRIUM          */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* MOOD_ATRIUM          */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // The per-family column view, contiguous for the const float* funnels
@@ -83,7 +83,6 @@ struct ThemeEnvelope {
 struct PopulationTheme {
     float spawn_weight[PopFamily::COUNT];          // multiplier on base spawn chance per family
     float tier_wt_pyramid[3];                      // multiplier on pyramid tier base weights
-    float tier_wt_arch[3];                         // multiplier on arch tier base weights
     float tier_wt_sphere[2];                       // multiplier on sphere tier base weights (Sentinel, Anomaly)
     float tier_wt_ribbon[3];                       // multiplier on ribbon tier base weights (Serpentine, Helix, Streamer)
     float tier_wt_cube[4];                         // multiplier on cube tier base weights (SmCube..Monolith)
@@ -142,30 +141,28 @@ static_assert(offsetof(PopulationTheme, weight) ==
 // shifts spawn rates or tier draws; changing one changes worlds.
 inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 0: TRANSITION — sparse connective tissue ─────────────────
-    {   { 0.4f, 0.75f, 0.3f, 1.0f, 0.5f, 0.5f },  // spawn_weight [pyr..sph, ribn, cube, gol]
+    {   { 0.4f, 0.3f, 1.0f, 0.5f, 0.5f },  // spawn_weight [pyr, sph, ribn, cube, gol]
         { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
-        { 1.233f, 0.3f, 1.0f },                                     // tier_arch
         { 1.0f, 1.0f },                                              // tier_sphere (neutral)
         { 1.0f, 1.0f, 1.0f },                                       // tier_ribbon (neutral)
         { 1.0f, 1.0f, 1.0f, 1.0f },                                 // tier_cube (neutral)
         150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
         0.21f                                                         // weight
     },
-    // ── 1: MONUMENTAL — big pyramids, varied arches ──────────────
-    {   { 1.5f, 0.75f, 0.3f, 1.0f, 0.3f, 0.3f },
+    // ── 1: MONUMENTAL — big pyramids ─────────────────────────────
+    {   { 1.5f, 0.3f, 1.0f, 0.3f, 0.3f },
         { 0.2f, 0.5f, 3.0f },
-        { 2.941f, 0.1f, 3.0f },
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
         150.0f, 10u, 10u, 8u,
         0.30f
     },
-    // ── 2: COLONNADE — moderate arches (its dense-column bias died
-    //      with the family; the name awaits Jean's gate) ───────────
-    {   { 0.3f, 0.75f, 0.3f, 1.0f, 0.3f, 0.5f },
+    // ── 2: COLONNADE — its dense-column bias died with the column
+    //      family, its arches with ONE_WORLD-I; the name awaits Jean's
+    //      gate ───────────────────────────────────────────────────────
+    {   { 0.3f, 0.3f, 1.0f, 0.3f, 0.5f },
         { 1.0f, 1.0f, 1.0f },
-        { 1.423f, 0.5f, 1.0f },
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
@@ -174,9 +171,8 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     },
     // ── 3: ANTENNA — a corridor with no mast left to dominate it
     //      (the name awaits Jean's gate) ────────────────────────────
-    {   { 0.5f, 0.75f, 0.3f, 1.0f, 0.3f, 0.3f },
+    {   { 0.5f, 0.3f, 1.0f, 0.3f, 0.3f },
         { 1.0f, 0.05f, 2.0f },
-        { 0.949f, 0.2f, 0.8f },
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
@@ -184,9 +180,8 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
         0.18f
     },
     // ── 4: BARREN — near-empty ───────────────────────────────────
-    {   { 0.4f, 0.75f, 0.3f, 1.0f, 0.1f, 0.2f },
+    {   { 0.4f, 0.3f, 1.0f, 0.1f, 0.2f },
         { 2.0f, 0.5f, 0.2f },
-        { 1.897f, 1.0f, 1.0f },
         { 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f },
         { 1.0f, 1.0f, 1.0f, 1.0f },
@@ -215,7 +210,6 @@ inline const float* theme_tier_weights(uint32_t theme_idx, uint32_t family_id) {
     const PopulationTheme& th = THEMES[theme_idx];
     switch (family_id) {
         case PopFamily::PYRAMID: return th.tier_wt_pyramid;
-        case PopFamily::ARCH:    return th.tier_wt_arch;
         case PopFamily::SPHERE:  return th.tier_wt_sphere;
         case PopFamily::RIBBON:  return th.tier_wt_ribbon;
         case PopFamily::CUBE:    return th.tier_wt_cube;
@@ -250,7 +244,7 @@ inline uint32_t select_theme_at_node(uint32_t node_seed) {
 // is complete at the TileState member.
 struct TilePopulation {
     // Theme: evaluated from theme lattice at tile generation time
-    float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family (PopFamily order), position-locked density multiplier (applied by F3 tile_apply_spawn_mult; 1.0 = neutral default). Independent of temporal_flavor — a different axis, not a duplicate.
+    float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family (PopFamily order), position-locked density multiplier (applied by F3 tile_apply_spawn_mult; 1.0 = neutral default). Independent of temporal_flavor — a different axis, not a duplicate.
 };
 
 // The population-half authoring (Q6b: relocated verbatim from generate_
@@ -275,7 +269,7 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
         float twz = tfz * tfz * (3.0f - 2.0f * tfz);
 
         // Blend spawn weights across 4 lattice nodes.
-        float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+        float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
         for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
             uint32_t ns = cpu_lattice_node_seed(active_seed, tbx + dx, tbz + dz, THEME_SEED_BAND);

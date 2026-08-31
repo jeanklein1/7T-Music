@@ -41,8 +41,8 @@
 // The impl additionally reaches the spine-resident state
 // (mood_state / cpuSpotLights_ / sun + clear colors / world_state_ and
 // the feature-gate flags), the converted modules' surfaces (orbs'
-// configure, render_passes' compute_spot_light_vp), ARCH_TIERS / ArchIdx
-// (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
+// configure, render_passes' compute_spot_light_vp),
+// solve_catenary_a (seed_utils.hpp — the vault ceiling), and
 // Dim::PATCH_EXTENT (patch_system.hpp).
 //
 // SEAM[mood:K1] apply_mood is the single canonical mood entry point.
@@ -185,8 +185,7 @@ uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
 // c->gol_state_ / c->entities_state_ / the sun + clear channel / the
 // CPU light array), the fan's
 // TARGET organs (parameters — orbs/pawn + the machine
-// face), ARCH_TIERS /
-// ArchIdx (contracts/spawn_services.hpp), solve_catenary_a
+// face), solve_catenary_a
 // (seed_utils.hpp), and Dim::PATCH_EXTENT (patch_system.hpp).
 //
 // THE CHANNEL: the force-spawn mutation of the arch belongs to the

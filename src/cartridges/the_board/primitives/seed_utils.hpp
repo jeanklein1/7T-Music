@@ -109,7 +109,8 @@ inline uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
 
 
 // Precompute catenary parameter 'a' from (half_span, rise).
-// 50-iteration bisection, passed to GPU in ArchMeshParams.
+// 50-iteration bisection. It was the arch's; the arch left at
+// ONE_WORLD-I U3 and the vault ceiling (mood.hpp) is the caller now.
 // Census home: pure math with four cross-module
 // consumers (spawn_engine, entity_pipeline, entities, mood) — the
 // pure-math leaf is the shared header.

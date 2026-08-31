@@ -456,7 +456,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      ! force_spawn_portal_arch            src/cartridges/the_board/bodies/grounded.hpp
+      · derive_indoor_lights               src/cartridges/the_board/direction/mood.hpp
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl

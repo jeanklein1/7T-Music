@@ -114,7 +114,7 @@
 // §6    RENDERING           Lighting, terrain VS/FS, entity VS/FS, ribbon, shadows
 // §7    COMPUTE             Bindings, entry points, GoL zones, pawn aura
 // §8    PLACEMENT           Terrain sampling, entity Y-correction, frustum cull
-// §9    ENTITY MESH GEN     GPU-sovereign geometry: arches
+// §9    ENTITY MESH GEN     (retired at ONE_WORLD-I U3 with the arch)
 //
 // PANELS (the federation's strips — one sitting each; grep the names,
 // no line anchors):
@@ -1854,7 +1854,9 @@ struct DesignConfig {
     camera_push_radius: f32,        // 692  wu — the shell; 0 shuts the term off
     // ATRIUM_7 — an arch leg's own shell factor. Mirror of
     // GPUDesignConfig.field_arch_slack (state.hpp) — GROWTH LAW, same
-    // commit, same order, same type. Read by field_sum's occupier_amg loop.
+    // commit, same order, same type. UNREAD since ONE_WORLD-I U3: the
+    // arch-leg pair it was cut for left with the family. The dial keeps
+    // its mirror seat until a sweep rules on it.
     // Was _pad704_0.
     field_arch_slack: f32,          // 696
     // ─── The subtraction dials (PANORAMA_1) ──────────────────────────────
@@ -2802,31 +2804,13 @@ fn row_occupier(radius: f32) -> InfluenceProfile {
 fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     var dv = vec2<f32>(0.0, 0.0);
 
-    // The SHAFT loop stood here (32 slots: columns 0–15, antennas 16–31)
-    // and left with those families in PRUNE_2 U4. EMITTER y := SUBJECT y
-    // (SHELL_1) — the field's ruling that a vertical body pairs planar —
-    // survives in row_occupier's INFLUENCE_PLANAR_ONLY and in the arch
-    // legs below, which is the whole of the reading it earned.
-
-    // ARCH LEGS — 16 arches × 2 bodies at center ± half_span rotated;
-    // radius from the leg cross-section halves (thickness/depth) +
-    // skin. The SPAN stays open — walking through the doorway is the
-    // arch's whole meaning; only the legs push.
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        let leg_r = max(am.thickness, am.depth) * 0.5 + body_radius;
-        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-        let c0 = vec2(am.center_x, am.center_z);
-        let prof = row_occupier(leg_r);
-        let r1 = influence_response(self_p, vec2(0.0),
-                                    vec3(c0.x + leg.x, self_p.y, c0.y + leg.y), vec2(0.0),
-                                    prof, dt);
-        let r2 = influence_response(self_p, vec2(0.0),
-                                    vec3(c0.x - leg.x, self_p.y, c0.y - leg.y), vec2(0.0),
-                                    prof, dt);
-        dv += r1 + r2;
-    }
+    // THE OCCUPIER ROWS ARE EMPTY. The SHAFT loop (32 slots: columns 0–15,
+    // antennas 16–31) left with those families in PRUNE_2 U4; the ARCH LEG
+    // loop left with its family at ONE_WORLD-I U3. No standing body pushes
+    // a walker any more — every surviving family either claims no ground
+    // (spheres, cubes) or IS the ground (pyramids, GoL zones). row_occupier
+    // stands unexercised, as PROXIMITY_AFFINITY does, for the next family
+    // that needs it.
 
     // ONE clamp on the SUM (config.field_fmax's pattern). Per-row caps
     // summed are not a speed limit: standing bodies can cluster, so a body
@@ -5305,7 +5289,7 @@ struct EntityVarying {
     // card; XZ reuses world_pos (the grounded mesh-gen lift is Y-only).
     // The FS assembles paint_pos = (world_pos.x, paint_y, world_pos.z).
     // mosaic_seed 0 = unpainted — every zero-init VS opts out for free;
-    // only arch_vs writes these today.
+    // no VS writes these today.
     @location(3) paint_y: f32,
     @location(4) @interpolate(flat) mosaic_seed: u32,
 }
@@ -5839,55 +5823,6 @@ fn shadow_monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -
     return out;
 }
 
-// --- Catenary Arch
-struct ArchVertexInput {
-    @location(0) pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) color: vec3<f32>,
-    // THE INDEX CHANNEL (MOSAIC_1): enc = mosaic_seed·64 + slot, as a
-    // float (small-int exact; avoids GPU denorm flush on
-    // bitcast<f32>(u32)). slot < 64 (census C-12); seed < 65536 →
-    // enc < 2^22, f32-exact. Families that never paint write seed 0 —
-    // their bytes are unchanged and their VSes keep the plain u32()
-    // read (identity on a bare slot).
-    // Painted families (arch) and their shadow twins decode
-    // via entity_index_decode below.
-    @location(3) arch_index: f32,
-};
-
-fn entity_index_decode(v: f32) -> vec2<u32> {
-    let enc = u32(v);
-    return vec2<u32>(enc & 63u, enc >> 6u);   // (slot, mosaic_seed)
-}
-
-@vertex
-fn arch_vs(in: ArchVertexInput) -> EntityVarying {
-    let dec = entity_index_decode(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_ARCH, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    out.paint_y = in.pos.y;
-    out.mosaic_seed = dec.y;
-    return out;
-}
-
-@vertex
-fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
-    let dec = entity_index_decode(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_ARCH, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
 
 // --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (orphan
 //     sweep) — the pyramid mesh was never drawn (draw_pyramid /
@@ -5980,7 +5915,6 @@ const RIBBON_CHASE_AZ_OFFSET: f32 = 0.0;     // rad — 3.14159 if the camera la
 const RIBBON_RULE_TAU: f32 = 0.35;           // s — the rule's lateral word, low-passed before it steers
 const RIBBON_YAW_SLEW: f32 = 1.5;            // command units per second — the heading's RATE never jumps faster than this
 const RIBBON_CLEAR_MOVER: f32 = 20.0;        // the head's shell against the big movers (spheres, walkers); cubes are the body's
-const RIBBON_ARCH_SEGS: u32 = 8u;            // capsules along an arch's rib
 
 struct RibbonHeadState {          // 64 B — mirrors GPURibbonHeadState
     pos: vec3<f32>,               //  0  the pen
@@ -6063,62 +5997,6 @@ fn seg_closest(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
     return a + ab * t;
 }
 
-// THE DOORWAY (RIBBON_3): an arch is not a disc. Two piers and a rib — the
-// rib a parabola from pier top to apex to pier top (the catenary within a
-// few wu; the shell is wider than the error), walked as RIBBON_ARCH_SEGS
-// capsules; the piers two vertical capsules. Legs at center ± half_span
-// along (cos rotation, sin rotation), radius half the larger cross-section
-// — occupier_contact's own law. A reader passes under, over or around.
-fn arch_rib_point(am: ArchMeshParams, g: f32, u: f32) -> vec3<f32> {
-    let along = vec2(cos(am.rotation), sin(am.rotation)) * (u * am.half_span);
-    return vec3(am.center_x + along.x,
-                g + am.pier_height - am.burial + am.rise * (1.0 - u * u),
-                am.center_z + along.y);
-}
-
-fn sky_arch_push(p: vec3<f32>, g: f32, am: ArchMeshParams, clear: f32) -> vec3<f32> {
-    var f = vec3(0.0);
-    let r = max(am.thickness, am.depth) * 0.5;
-    var prev = arch_rib_point(am, g, -1.0);
-    for (var s = 1u; s <= RIBBON_ARCH_SEGS; s++) {
-        let cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
-        f += sky_sphere(p, seg_closest(p, prev, cur), r, clear);
-        prev = cur;
-    }
-    let pa = arch_rib_point(am, g, -1.0);
-    let pb = arch_rib_point(am, g, 1.0);
-    f += sky_sphere(p, seg_closest(p, vec3(pa.x, g, pa.z), pa), r, clear);
-    f += sky_sphere(p, seg_closest(p, vec3(pb.x, g, pb.z), pb), r, clear);
-    return f;
-}
-
-// The wall's arch: the same capsules, projected out of, sequentially.
-fn sky_arch_wall(q_in: vec3<f32>, g: f32, am: ArchMeshParams, half: f32) -> vec3<f32> {
-    var q = q_in;
-    let r = max(am.thickness, am.depth) * 0.5 + half;
-    var prev = arch_rib_point(am, g, -1.0);
-    for (var s = 1u; s <= RIBBON_ARCH_SEGS + 2u; s++) {
-        var cur = prev;
-        var a = prev;
-        if (s <= RIBBON_ARCH_SEGS) {
-            cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
-        } else if (s == RIBBON_ARCH_SEGS + 1u) {
-            a = arch_rib_point(am, g, -1.0); cur = vec3(a.x, g, a.z);
-        } else {
-            a = arch_rib_point(am, g, 1.0);  cur = vec3(a.x, g, a.z);
-        }
-        let c = seg_closest(q, a, cur);
-        let d = q - c;
-        let len = length(d);
-        if (len < r) {
-            var od = vec3(0.0, 1.0, 0.0);
-            if (len > 1e-3) { od = d / len; }
-            q += od * (r - len);
-        }
-        prev = cur;
-    }
-    return q;
-}
 
 // The rule, summed at p. agl = p.y − ribbon_ground(p.xz), computed once by
 // the caller. clear is the shell against standing things, clear_mover
@@ -6128,13 +6006,8 @@ fn sky_arch_wall(q_in: vec3<f32>, g: f32, am: ArchMeshParams, half: f32) -> vec3
 fn sky_push(p: vec3<f32>, agl: f32, clear: f32, clear_mover: f32, movers: u32, skip_agent: u32) -> vec3<f32> {
     var f = vec3(0.0);
     let g = p.y - agl;
-    // Arches — doorways. (The shaft discs stood above this line and left
-    // with COLUMN/ANTENNA in PRUNE_2 U4.)
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        f += sky_arch_push(p, g, am, clear);
-    }
+    // The shaft discs stood here and left with COLUMN/ANTENNA in PRUNE_2
+    // U4; the arch doorways left with their family at ONE_WORLD-I U3.
     // Walkers — spheres of their tier's contact radius.
     for (var i = 0u; i < 32u; i++) {
         if (i == skip_agent) { continue; }
@@ -6194,13 +6067,9 @@ fn sky_self(p: vec3<f32>, k_reader: u32, n: u32, cs: f32, emit_half: u32, clear:
 fn sky_wall(p: vec3<f32>, g: f32, half: f32, skip_agent: u32) -> vec3<f32> {
     var q = p;
     // The shaft law (out-or-up past a disc, the cheaper exit winning) stood
-    // here and left with COLUMN/ANTENNA in PRUNE_2 U4. The arch, mover and
-    // ground laws below are untouched.
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        q = sky_arch_wall(q, g, am, half);
-    }
+    // here and left with COLUMN/ANTENNA in PRUNE_2 U4; the arch law left
+    // with its family at ONE_WORLD-I U3. The mover and ground laws below
+    // are untouched.
     for (var i = 0u; i < 32u; i++) {
         if (i == skip_agent) { continue; }
         let a = render_agents[i];
@@ -6930,15 +6799,15 @@ struct PortalArray {
 }
 // THE AGENTS' ROOM CONSTANTS (CHORD_1) — one cadence, one block.
 // Everything here is CPU-authored at world/mood cadence. Mirrors
-// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (2864 B; the
+// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (1584 B; the
 // static_asserts are the handshake). Offsets: portals 0,
-// behaviors 1040, tier_gains 1392, occupier_amg 1584. (ATRIUM_4 grew
-// behaviors by one row, +32 B; PRUNE_2 U4 cut occupier_cmg, 6960 -> 2864.)
+// behaviors 1040, tier_gains 1392. (ATRIUM_4 grew behaviors by one row,
+// +32 B; PRUNE_2 U4 cut occupier_cmg, 6960 -> 2864; ONE_WORLD-I U3 cut
+// occupier_amg with the arch, 2864 -> 1584.)
 struct AgentRoomConstants {
     portals: PortalArray,
     behaviors: array<AgentBehaviorParams, 11>,
     tier_gains: array<AgentTierParams, 4>,
-    occupier_amg: array<ArchMeshParams, 16>,
 }
 @group(2) @binding(1) var<uniform> agent_room: AgentRoomConstants;
 
@@ -6999,16 +6868,11 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 
 // --- Ribbon (the render rooms' read of ring_xforms)
 @group(2) @binding(143) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
-// Entity ground atlas — VS reads ground_y via textureLoad (r32float, 256×1)
-@group(3) @binding(81) var entity_ground_atlas: texture_2d<f32>;
-
-// Atlas slot offsets (must match Dim:: constants in state.hpp)
-const GROUND_ATLAS_ARCH: i32     = 0;
-// Arch holds 0..15 and nothing else is allocated: PRUNE_2 excised every
-// range above it, and with them the documented pyramid hole at 48..55 that
-// only existed BETWEEN live ranges. This offset stays hand-mirrored with
-// state.hpp Dim::GROUND_ATLAS_* — the texture is still 256 wide, so the
-// unallocated columns above 16 are unnamed, not reserved.
+// The entity ground atlas stood here — the r32float strip
+// compute_entity_placement wrote and arch_vs / shadow_arch_vs read. Its
+// last allocated range was the arch's 0..15 (PRUNE_2 had excised every
+// range above it), and writer, readers and strip all left together at
+// ONE_WORLD-I U3.
 
 // --- The ribbon room (ribbonStateLayout_; RIBBON_1)
 // ring_xforms: written by ribbon_body, read by the render rooms as 143.
@@ -9136,27 +9000,10 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // that used to name it is struck (PURSE_0 R5; see field_sum's
     // banner and docs/FXC_LAWS_RECORD.md).
     // The shaft emitters left with COLUMN/ANTENNA in PRUNE_2 U4; the arch
-    // legs below are the field's remaining standing bodies.
-    var occ = vec3(0.0);
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        let leg_r = max(am.thickness, am.depth) * 0.5;
-        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-        // ATRIUM_7 — THE DOORWAY OPENS. These two are half_span apart, and
-        // at the SOCIAL slack their shells meet across the opening: what
-        // stands between the legs is a barrier with its crest in front of
-        // the door, which is where the passers stopped. An arch leg wears
-        // its own, tighter shell (config.field_arch_slack); the shaft loop
-        // above and every other emitter keep the social one.
-        occ += field_pair_slack(sub_pos,
-                          vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
-                          r_s, leg_r, sub_i, 740u + 2u * i, config.field_arch_slack);
-        occ += field_pair_slack(sub_pos,
-                          vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
-                          r_s, leg_r, sub_i, 741u + 2u * i, config.field_arch_slack);
-    }
-    f += occ * config.field_occupier_gain;
+    // legs left with their family at ONE_WORLD-I U3. The field has no
+    // standing-body emitters left, so the occupier term is gone and
+    // config.field_occupier_gain has nothing to scale (ATRIUM_7's doorway
+    // slack, field_arch_slack, went with the legs it was cut for).
     if (sub_i >= 32u) {
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).
@@ -11201,20 +11048,6 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
 @group(3) @binding(42) var photo_heightfield: texture_2d_array<f32>;
 @group(3) @binding(43) var photo_sampler: sampler;
 
-struct ArchGroundEntry {
-    pier_left_x: f32,
-    pier_left_z: f32,
-    pier_right_x: f32,
-    pier_right_z: f32,
-    ground_y: f32,
-    is_active: u32,
-    pier_correction_left: f32,    // CPU: max_pier - own_pier at left foot
-    pier_correction_right: f32,   // CPU: max_pier - own_pier at right foot
-};
-@group(2) @binding(81) var<storage, read_write> arch_ground: array<ArchGroundEntry, 16>;
-
-// Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
-@group(3) @binding(80) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
 
 // Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
 // with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
@@ -11343,27 +11176,6 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //   - TERRAIN WAVES: the wave voice is dead today (config.terrain_time
 //     gates it to 0 — a no-op regardless). Whether a revived wave should
 //     carry structures is a future call, not wired here.
-@compute @workgroup_size(1)
-fn compute_entity_placement() {
-    // Patch lookup is O(1) via patch_grid — no patch_count needed.
-
-    // --- Arch: 2-point min at the leg positions (slope straddle).
-    for (var i = 0u; i < 16u; i++) {
-        if (arch_ground[i].is_active != 0u) {
-            let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
-            let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
-            // b2b: each leg rides its own local GoL, then min. Ride the
-            // world-anchored GoL extrusion raw — structures are not movers,
-            // so no pawn suppression — which seats the structure on the live
-            // zone surface instead of floating on the baked static height.
-            // (Waves/pulses: see the b2b note at this kernel's banner.)
-            let tl = sample_terrain_y_at(left_xz) + sample_live_card_gol(left_xz);
-            let tr = sample_terrain_y_at(right_xz) + sample_live_card_gol(right_xz);
-            arch_ground[i].ground_y = min(tl, tr);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-}
 
 
 // §8.0.5 GPU FRUSTUM CULLING — Camera-visible patch selection
@@ -11530,439 +11342,12 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// §9 GPU ENTITY MESH GENERATION
-// ═══════════════════════════════════════════════════════════════════════
-//
-// GPU-sovereign geometry: CPU authors intent (params), GPU realizes mesh.
-// Each entity family writes into fixed per-slot regions of pre-allocated
-// VB/IB buffers. Inactive slots receive degenerate (zero-area) triangles.
-//
-// One family: arches (§9.1) — the pyramid's realization
-// is the terrain itself: placement feeds the heightfield, there is no mesh.
-//
-// Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
-// = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
-//
-// ─── THE STRIDE LAW (LATTICE_2) ──────────────────────────────────────
-//
-// ONE WORKGROUP PER SLOT, MESHGEN_LANES LANES INSIDE IT. Every family's
-// kernel used to be @workgroup_size(1): one thread built a whole entity,
-// serially, while 63 lanes of the same wave sat idle — mesh gen fires on
-// spawn frames, which is exactly where a frame can least afford it.
-//
-// The transformation is the same five times and it is deliberately narrow:
-//
-//   · the slot (and the arch's sub-mesh) comes from `workgroup_id`;
-//     `global_invocation_id` is no longer the slot. Host dispatch shapes
-//     do not change — they were already one workgroup per slot.
-//   · in every emission section the OUTERMOST loop is strided by the lane
-//     (`for (var o = lane; o < N; o += MESHGEN_LANES)`); every INNER loop
-//     stays verbatim.
-//   · the `vi++` / `ii++` cursors become closed-form arithmetic — the
-//     value the cursor HELD at that iteration, so the write addresses are
-//     the same numbers in a different order.
-//   · the skeleton before emission (profiles, trig tables, counts,
-//     ceilings) is replayed verbatim by EVERY lane. It is pure in the
-//     slot's params, so 64 lanes computing it agree by construction.
-//     No var<workgroup>, no barrier, nothing to synchronize.
-//
-// Lanes write DISJOINT addresses: each section's write index is a
-// bijection of (outer, inner), and the outer values partition across
-// lanes. Output is byte-identical to the serial kernel's.
-//
-// LOOP-CARRIED STATE STAYS INSIDE A LANE. Where an outer iteration
-// accumulates (a swept-arm walk over `apx/apy/apz`), that loop is the
-// strided one and a lane walks its whole arm serially, exactly as before.
-// This is why the stride is the OUTER loop and never the vertex.
-//
-// The ideal — an invocation is one output — is the horizon, not this
-// round: the outer stride already takes each kernel from one lane to
-// tens. If a measurement asks for more, the inner loops are next.
-const MESHGEN_LANES: u32 = 64u;
-
-
-// ─── §9.1 ARCH MESH GENERATION (catenary barrel vault) ───────────────
-//
-// Four sub-meshes per arch: outer shell, inner shell, front cap, back cap.
-// Indexed vertices with shared edges (grid topology). The catenary
-// parameter 'a' is precomputed on CPU and passed in params.
-//
-// Dispatch: (16, 4, 1) — 4 WORKGROUPS per arch slot (LATTICE_2; it was
-// 4 threads).
-//   workgroup_id.x = slot index (0..15)
-//   workgroup_id.y = sub-mesh (0=outer shell, 1=inner shell, 2=front cap,
-//                              3=back cap)
-//   local_invocation_id.x = the lane, MESHGEN_LANES of them
-//
-// Each sub-mesh writes to a deterministic offset within the slot's VB/IB
-// region, computed from segs_u and segs_v. That partition is what let the
-// four sub-meshes run as four threads in the first place; the stride law
-// now partitions each sub-mesh again, across its lanes.
-
-// ── Constants ─────────────────────────────────────────────────────────
-
-const AMG_MAX_VERTS_PER_SLOT: u32   = 2000u;
-const AMG_MAX_INDICES_PER_SLOT: u32 = 7500u;  // must be divisible by 3 (triangle alignment)
-const AMG_FLOATS_PER_VERTEX: u32    = 10u;   // pos(3) + normal(3) + color(3) + index(1)
-const AMG_MAX_SLOTS: u32            = 16u;
-
-
-// ── Parameter buffer ──────────────────────────────────────────────────
-//
-// MUST match state.hpp::GPUArchMeshParams (size: 80 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-struct ArchMeshParams {
-    center_x: f32,
-    center_z: f32,
-    rotation: f32,
-    half_span: f32,
-    rise: f32,
-    depth: f32,
-    thickness: f32,
-    pier_height: f32,
-    burial: f32,
-    catenary_a: f32,
-    segs_u: u32,
-    segs_v: u32,
-    color_r: f32,
-    color_g: f32,
-    color_b: f32,
-    is_active: u32,
-    // MOSAIC_1 (GROWTH 64 → 80 with the C++ twin): 0 = plain;
-    // enc = mosaic_seed·64 + slot rides the vertex index channel.
-    mosaic_seed: u32,
-    _pad80_0: u32,
-    _pad80_1: u32,
-    _pad80_2: u32,
-}
-
-// ── Bindings (dedicated layout — different binding numbers from pyramid) ─
-
-@group(2) @binding(180) var<storage, read>       amg_params: array<ArchMeshParams, 16>;
-@group(2) @binding(181) var<storage, read_write>  amg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  amg_indices: array<u32>;
-
-// ── Helpers ───────────────────────────────────────────────────────────
-
-fn amg_cosh(x: f32) -> f32 {
-    let ex = exp(x);
-    return (ex + 1.0 / ex) * 0.5;
-}
-
-fn amg_sinh(x: f32) -> f32 {
-    let ex = exp(x);
-    return (ex - 1.0 / ex) * 0.5;
-}
-
-fn amg_write_vertex(
-    abs_idx: u32,
-    px: f32, py: f32, pz: f32,
-    nx: f32, ny: f32, nz: f32,
-    cr: f32, cg: f32, cb: f32,
-    entity_idx: u32
-) {
-    let i = abs_idx * AMG_FLOATS_PER_VERTEX;
-    amg_vertices[i + 0u] = px;
-    amg_vertices[i + 1u] = py;
-    amg_vertices[i + 2u] = pz;
-    amg_vertices[i + 3u] = nx;
-    amg_vertices[i + 4u] = ny;
-    amg_vertices[i + 5u] = nz;
-    amg_vertices[i + 6u] = cr;
-    amg_vertices[i + 7u] = cg;
-    amg_vertices[i + 8u] = cb;
-    amg_vertices[i + 9u] = f32(entity_idx);
-}
-
-// ── Shell generation (one workgroup per sub-mesh, outer loop strided) ──
-//
-// Writes (su+1)*(sv+1) vertices and su*sv*6 indices at the given offsets.
-// offset = +half_t (outer) or -half_t (inner).
-// nsign = +1.0 (outer) or -1.0 (inner).
-//
-// Catenary profile is precomputed into lane-local arrays and reused across
-// all v-rows, which eliminates (sv) redundant exp() evaluations per
-// u-column (13× reduction for monumental arches). Under the stride law it
-// is SKELETON: every lane replays it, because it is pure in (p, offset)
-// and both are uniform across the workgroup.
-//
-// The v-row is the strided loop, the u-column the verbatim inner one.
-
-
-fn amg_gen_shell(
-    p: ArchMeshParams, slot: u32, lane: u32,
-    vb_start: u32, ib_start: u32,
-    offset: f32, nsign: f32,
-    co: f32, si: f32, base_y: f32, a: f32, H: f32
-) {
-    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
-    // enc — legacy plain-slot meshes decode identically (seed 0).
-    let enc = p.mosaic_seed * 64u + slot;
-    let su = p.segs_u;
-    let sv = p.segs_v;
-    let half_d = p.depth * 0.5;
-    let stride = su + 1u;
-
-    // ── Precompute catenary profile (one exp pair per u-column) ──
-    var cat_lx: array<f32, 49>;   // t + pnx * offset
-    var cat_ly: array<f32, 49>;   // base_y + y + pny * offset
-    var cat_pnx: array<f32, 49>;  // profile normal x (for world normal)
-    var cat_pny: array<f32, 49>;  // profile normal y
-
-    for (var iu = 0u; iu <= su; iu++) {
-        let u = f32(iu) / f32(su);
-        let t = -p.half_span + 2.0 * p.half_span * u;
-
-        let y = H - a * (amg_cosh(t / a) - 1.0);
-        let sh = amg_sinh(t / a);
-        let plen = sqrt(sh * sh + 1.0);
-        let pnx = sh / plen;
-        let pny = 1.0 / plen;
-
-        cat_lx[iu] = t + pnx * offset;
-        cat_ly[iu] = base_y + y + pny * offset;
-        cat_pnx[iu] = pnx;
-        cat_pny[iu] = pny;
-    }
-
-    // ── Vertices: sweep profile across depth ──
-    // vi was vb_start + iv * stride + iu; that is the write index now.
-    for (var iv = lane; iv <= sv; iv += MESHGEN_LANES) {
-        let v = f32(iv) / f32(sv);
-        let lz = -half_d + p.depth * v;
-        for (var iu = 0u; iu <= su; iu++) {
-            let wx = p.center_x + cat_lx[iu] * co - lz * si;
-            let wy = cat_ly[iu];
-            let wz = p.center_z + cat_lx[iu] * si + lz * co;
-
-            let wnx = (cat_pnx[iu] * nsign) * co;
-            let wny = cat_pny[iu] * nsign;
-            let wnz = (cat_pnx[iu] * nsign) * si;
-
-            amg_write_vertex(vb_start + iv * stride + iu, wx, wy, wz, wnx, wny, wnz,
-                p.color_r, p.color_g, p.color_b, enc);
-        }
-    }
-
-    // ── Indices ──
-    // ii was ib_start + (iv * su + iu) * 6u + j.
-    for (var iv = lane; iv < sv; iv += MESHGEN_LANES) {
-        for (var iu = 0u; iu < su; iu++) {
-            let i00 = vb_start + iv * stride + iu;
-            let i10 = i00 + 1u;
-            let i01 = i00 + stride;
-            let i11 = i01 + 1u;
-            let ii = ib_start + (iv * su + iu) * 6u;
-            if (nsign > 0.0) {
-                amg_indices[ii + 0u] = i00;
-                amg_indices[ii + 1u] = i01;
-                amg_indices[ii + 2u] = i10;
-                amg_indices[ii + 3u] = i10;
-                amg_indices[ii + 4u] = i01;
-                amg_indices[ii + 5u] = i11;
-            } else {
-                amg_indices[ii + 0u] = i00;
-                amg_indices[ii + 1u] = i10;
-                amg_indices[ii + 2u] = i01;
-                amg_indices[ii + 3u] = i10;
-                amg_indices[ii + 4u] = i11;
-                amg_indices[ii + 5u] = i01;
-            }
-        }
-    }
-}
-
-// ── Cap generation (one workgroup per sub-mesh, outer loop strided) ────
-//
-// Writes 2*(su+1) vertices and su*6 indices at the given offsets.
-// lz_pos = +half_d (front) or -half_d (back).
-// nz_sign = +1.0 (front) or -1.0 (back).
-//
-// The u-column is the strided loop; it writes an outer/inner PAIR, so the
-// pair's base is vb_start + iu * 2u — the two values the cursor held.
-
-fn amg_gen_cap(
-    p: ArchMeshParams, slot: u32, lane: u32,
-    vb_start: u32, ib_start: u32,
-    lz_pos: f32, nz_sign: f32,
-    co: f32, si: f32, base_y: f32, a: f32, H: f32
-) {
-    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
-    // enc — legacy plain-slot meshes decode identically (seed 0).
-    let enc = p.mosaic_seed * 64u + slot;
-    let su = p.segs_u;
-    let half_t = p.thickness * 0.5;
-
-    // Cap normal (rotated into world)
-    let cap_nx = -nz_sign * si;
-    let cap_ny = 0.0;
-    let cap_nz = nz_sign * co;
-
-    // Vertices: outer/inner pairs along catenary profile
-    for (var iu = lane; iu <= su; iu += MESHGEN_LANES) {
-        let vi = vb_start + iu * 2u;
-        let u = f32(iu) / f32(su);
-        let t = -p.half_span + 2.0 * p.half_span * u;
-
-        let y = H - a * (amg_cosh(t / a) - 1.0);
-        let sh = amg_sinh(t / a);
-        let plen = sqrt(sh * sh + 1.0);
-        let pnx = sh / plen;
-        let pny = 1.0 / plen;
-
-        // Outer vertex
-        let olx = t + pnx * half_t;
-        let oly = base_y + y + pny * half_t;
-        amg_write_vertex(vi,
-            p.center_x + olx * co - lz_pos * si,
-            oly,
-            p.center_z + olx * si + lz_pos * co,
-            cap_nx, cap_ny, cap_nz,
-            p.color_r, p.color_g, p.color_b, enc);
-
-        // Inner vertex
-        let ilx = t - pnx * half_t;
-        let ily = base_y + y - pny * half_t;
-        amg_write_vertex(vi + 1u,
-            p.center_x + ilx * co - lz_pos * si,
-            ily,
-            p.center_z + ilx * si + lz_pos * co,
-            cap_nx, cap_ny, cap_nz,
-            p.color_r, p.color_g, p.color_b, enc);
-    }
-
-    // Indices: quad strip between outer/inner
-    // ii was ib_start + iu * 6u + j.
-    for (var iu = lane; iu < su; iu += MESHGEN_LANES) {
-        let o0 = vb_start + iu * 2u;
-        let i0 = o0 + 1u;
-        let o1 = vb_start + (iu + 1u) * 2u;
-        let i1 = o1 + 1u;
-        let ii = ib_start + iu * 6u;
-        if (nz_sign > 0.0) {
-            amg_indices[ii + 0u] = o0;
-            amg_indices[ii + 1u] = i0;
-            amg_indices[ii + 2u] = o1;
-            amg_indices[ii + 3u] = o1;
-            amg_indices[ii + 4u] = i0;
-            amg_indices[ii + 5u] = i1;
-        } else {
-            amg_indices[ii + 0u] = o0;
-            amg_indices[ii + 1u] = o1;
-            amg_indices[ii + 2u] = i0;
-            amg_indices[ii + 3u] = o1;
-            amg_indices[ii + 4u] = i1;
-            amg_indices[ii + 5u] = i0;
-        }
-    }
-}
-
-// ── Compute entry point ───────────────────────────────────────────────
-//
-// Dispatch: (16, 4, 1) — one workgroup per (slot, sub-mesh)
-//   workgroup_id.x = slot, workgroup_id.y = sub-mesh, local_invocation_id.x = lane
-//
-// Sub-mesh VB/IB offsets within a slot (deterministic from segs_u, segs_v):
-//   shell_verts  = (su+1)*(sv+1)
-//   shell_indices = su*sv*6
-//   cap_verts    = 2*(su+1)
-//   cap_indices  = su*6
-//
-//   sub 0 (outer shell): vb=0,                 ib=0
-//   sub 1 (inner shell): vb=shell_verts,       ib=shell_indices
-//   sub 2 (front cap):   vb=2*shell_verts,     ib=2*shell_indices
-//   sub 3 (back cap):    vb=2*shell_verts+cap, ib=2*shell_indices+cap_indices
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn arch_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // THE WORKGROUP IS (slot, sub_mesh) — the dispatch shape is unchanged
-    // (MAX_ARCH_INSTANCES, 4, 1); it just names workgroups now, not
-    // threads. The guard is uniform across the workgroup: every lane of a
-    // dead (slot, sub_mesh) returns together.
-    let slot = wid.x;
-    let sub_mesh = wid.y;
-    let lane = lid.x;
-    if (slot >= AMG_MAX_SLOTS || sub_mesh >= 4u) { return; }
-
-    let p = amg_params[slot];
-    let slot_vb = slot * AMG_MAX_VERTS_PER_SLOT;
-    let slot_ib = slot * AMG_MAX_INDICES_PER_SLOT;
-
-    // ── Inactive: each sub-mesh zeroes its quarter of the index range ─
-    if (p.is_active == 0u) {
-        let chunk = AMG_MAX_INDICES_PER_SLOT / 4u;
-        let start = slot_ib + sub_mesh * chunk;
-        for (var i = lane; i < chunk; i += MESHGEN_LANES) {
-            amg_indices[start + i] = slot_vb;
-        }
-        return;
-    }
-
-    // ── Active: shared constants ──────────────────────────────────
-    let co = cos(p.rotation);
-    let si = sin(p.rotation);
-    let base_y = -p.burial;
-    let a = p.catenary_a;
-    let H = a * (amg_cosh(p.half_span / a) - 1.0);
-    let half_t = p.thickness * 0.5;
-    let half_d = p.depth * 0.5;
-    let su = p.segs_u;
-    let sv = p.segs_v;
-
-    // Pre-compute sub-mesh offsets
-    let shell_verts = (su + 1u) * (sv + 1u);
-    let shell_indices = su * sv * 6u;
-    let cap_verts = 2u * (su + 1u);
-    let cap_indices = su * 6u;
-
-    switch (sub_mesh) {
-        case 0u: {
-            // Outer shell
-            amg_gen_shell(p, slot, lane,
-                slot_vb, slot_ib,
-                half_t, 1.0,
-                co, si, base_y, a, H);
-        }
-        case 1u: {
-            // Inner shell
-            amg_gen_shell(p, slot, lane,
-                slot_vb + shell_verts,
-                slot_ib + shell_indices,
-                -half_t, -1.0,
-                co, si, base_y, a, H);
-        }
-        case 2u: {
-            // Front cap
-            amg_gen_cap(p, slot, lane,
-                slot_vb + 2u * shell_verts,
-                slot_ib + 2u * shell_indices,
-                half_d, 1.0,
-                co, si, base_y, a, H);
-
-            // This SUB-MESH also zeroes unused indices after the caps,
-            // strided across its lanes. Total used = 2*shell_indices +
-            // 2*cap_indices.
-            let total_used = 2u * shell_indices + 2u * cap_indices;
-            for (var i = total_used + lane; i < AMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-                amg_indices[slot_ib + i] = slot_vb;
-            }
-        }
-        case 3u: {
-            // Back cap
-            amg_gen_cap(p, slot, lane,
-                slot_vb + 2u * shell_verts + cap_verts,
-                slot_ib + 2u * shell_indices + cap_indices,
-                -half_d, -1.0,
-                co, si, base_y, a, H);
-        }
-        default: {}
-    }
-}
+// §9 GPU ENTITY MESH GENERATION stood here — GPU-sovereign geometry
+// for the one family that had it, the catenary arch. CPU authored the
+// params, the kernel realized the mesh into per-slot regions of a
+// shared VB/IB. The family left at ONE_WORLD-I U3 and took the last
+// mesh-gen kernel with it; no surviving family generates geometry on
+// the GPU.
 
 
 // ═══════════════════════════════════════════════════════════════════

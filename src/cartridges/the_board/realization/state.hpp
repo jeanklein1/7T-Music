@@ -140,6 +140,12 @@ namespace t7 {
             // AND THAT IS WHERE AN ANCHOR CAN BE, NOT WHERE A READ CAN BE
             // (LATTICE_4 R-A). Every entity VS samples the card at its
             // VERTEX position, and a mesh reaches past its anchor. The
+            // BINDING CASE WAS THE ARCH — `arch_vs` had no ring gate and
+            // its STANDARD tier reached ~52 wu past its anchor — and it
+            // left at ONE_WORLD-I U3. No surviving family draws generated
+            // geometry, so the window below is sized by the widest
+            // remaining reach, not by a mesh.
+            // VERTEX position, and a mesh reaches past its anchor. The
             // binding case is the arch: `arch_vs` has NO ring gate (the
             // per-vertex ring kill left with the families that had one), so
             // an arch anywhere in the allocation window is drawn and read at
@@ -325,21 +331,19 @@ namespace t7 {
             constexpr uint32_t SHELL_MAX_VERTICES = 2048;
             constexpr uint32_t SHELL_MAX_INDICES = 8192;
 
-            // Generative catenary arches — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_ARCH_INSTANCES = 16;
-            constexpr uint32_t AMG_MAX_VERTS_PER_SLOT = 2000;  // monumental worst case: 1470
-            constexpr uint32_t AMG_MAX_INDICES_PER_SLOT = 7500;  // monumental worst case: 7488 (must be divisible by 3!)
-            constexpr uint32_t AMG_TOTAL_VERTICES = MAX_ARCH_INSTANCES * AMG_MAX_VERTS_PER_SLOT;   // 32000
-            constexpr uint32_t AMG_TOTAL_INDICES = MAX_ARCH_INSTANCES * AMG_MAX_INDICES_PER_SLOT; // 120000
+            // MAX_ARCH_INSTANCES and the AMG_* mesh-gen capacities stood
+            // here. The catenary arch was the last family with a GPU mesh-gen
+            // scratch, and it left at ONE_WORLD-I U3 — with it went the last
+            // occupant of the converged MESHGEN trio (PRUNE_2's 180/181/182).
 
             // Generative pyramids — the instance array IS terrain
             // (contrib_pyramids_at); there is no mesh-gen scratch.
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
 
-            // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
-            constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
-            constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
-            constexpr uint32_t GROUND_ATLAS_USED = 16;
+            // The entity ground atlas stood here — a 256×1 r32float strip
+            // that compute_entity_placement wrote and arch_vs / shadow_arch_vs
+            // read. Both readers and the writer were the arch's, and the whole
+            // channel left with the family (ONE_WORLD-I U3).
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -1241,17 +1245,6 @@ namespace t7 {
         static_assert(offsetof(GPURibbonBody, emit) == 96);
         static_assert(offsetof(GPURibbonBody, deform) == 3296);
 
-        struct alignas(16) GPUArchGroundEntry {
-            float pier_left_x;
-            float pier_left_z;
-            float pier_right_x;
-            float pier_right_z;
-            float ground_y;         // written by GPU compute: min of terrain at both legs
-            uint32_t is_active;
-            float pier_correction_left;   // retired (always 0 — the pier bake is gone)
-            float pier_correction_right;  // retired (always 0 — the pier bake is gone)
-        };
-        static_assert(sizeof(GPUArchGroundEntry) == 32, "GPUArchGroundEntry must be 32 bytes");
 
         // Generative pyramids — tapered height function baked into heightfield.
         // Pawn blocked by step-height on steep faces (no separate collision).
@@ -1273,39 +1266,6 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
             "GPUPyramidArray must match WGSL layout");
 
-        // MUST match world.wgsl::ArchMeshParams (§9.1).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        // Catenary parameter 'a' is precomputed on CPU (50-iter
-        // bisection) to keep the shader simple.
-        struct alignas(16) GPUArchMeshParams {
-            float center_x;
-            float center_z;
-            float rotation;
-            float half_span;
-            float rise;
-            float depth;
-            float thickness;
-            float pier_height;
-            float burial;
-            float catenary_a;
-            uint32_t segs_u;
-            uint32_t segs_v;
-            float color_r;
-            float color_g;
-            float color_b;
-            uint32_t is_active;
-            // MOSAIC_1: 0 = plain; 1..65535 rides the index channel as
-            // enc = mosaic_seed·64 + slot. GROWTH LAW: 64 → 80 with the
-            // WGSL twin, same commit. Zero-init {} keeps every direct-
-            // build path (portals) plain by construction.
-            uint32_t mosaic_seed;
-            uint32_t _pad80_0;
-            uint32_t _pad80_1;
-            uint32_t _pad80_2;
-        };
-        static_assert(sizeof(GPUArchMeshParams) == 80,
-            "GPUArchMeshParams must be 80 bytes — keep in sync with world.wgsl::ArchMeshParams (MOSAIC_1: 64 → 80)");
 
         //
         // GoL zone config — per-zone parameters for compute + fragment shader
@@ -1709,14 +1669,6 @@ namespace t7 {
             float normal[3];
         };
 
-        // Extended vertex for arch meshes: per-vertex color enables
-        // terrain-derived tones and palette overrides per instance.
-        struct ArchVertex {
-            float pos[3];
-            float normal[3];
-            float color[3];
-            uint32_t arch_index;
-        };
 
         // Indoor shell vertex: position + normal + color (no entity index).
         // Used for ceiling, walls, and floor of indoor scenes.
@@ -1847,12 +1799,17 @@ namespace t7 {
             GPUPortalArray      portals;                                  //    0
             GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040 (ATRIUM_4: 11 rows, +32 B)
             GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1392
-            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 1584
         };
-        static_assert(sizeof(GPUAgentRoomConstants) == 2864);
+        // CHORD_1's occupier window (occupier_amg, once at 1584) was the arch
+        // legs' presence face — the same mesh-param rows the mesh-gen kernel
+        // read. It is the SECOND such window to leave: the shafts' occupier_cmg
+        // went with COLUMN and ANTENNA at PRUNE_2 U4, on the argument that
+        // every reader loop opens `if (is_active == 0u) continue;` and nothing
+        // writes the window once the family is gone. The same argument retires
+        // this one, and with it the room's tail: 2864 -> 1584.
+        static_assert(sizeof(GPUAgentRoomConstants) == 1584);
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 1040);
         static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1392);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 1584);
         // The two registries are contiguous, which is what lets
         // upload_agent_registries spend ONE write on both.
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)
@@ -1962,10 +1919,9 @@ namespace t7 {
         static_assert(sizeof(MeshVertex) == 24, "MeshVertex must be 24 bytes");
         // C1 (cable management): pin the GPU-written vertex formats to the vertex-buffer
         // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
-        // ArchVertexInput/ShellVertexInput layout, so this is the C++<->WGSL contract that
-        // was previously unguarded. ArchVertex is the
-        // SHARED format for two families (arch/pyramid mesh-gen).
-        static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
+        // ShellVertexInput layout, so this is the C++<->WGSL contract that
+        // was previously unguarded. (ArchVertex, the shared arch/pyramid
+        // mesh-gen format, left with the arch at ONE_WORLD-I U3.)
         static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
         static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
         static_assert(sizeof(GPUPatchInstance) == 16, "GPUPatchInstance must be 16 bytes");
@@ -2012,10 +1968,9 @@ namespace t7 {
             inline constexpr uint32_t GolZoneCompute      = 11;
             inline constexpr uint32_t PawnAura            = 12;
             inline constexpr uint32_t OrbSky              = 13;
-            inline constexpr uint32_t PlacementCorrection = 15;
-            inline constexpr uint32_t FrustumCull         = 16;
-            inline constexpr uint32_t ShadowPass          = 17;
-            inline constexpr uint32_t MainPass            = 18;
+            inline constexpr uint32_t FrustumCull         = 14;
+            inline constexpr uint32_t ShadowPass          = 15;
+            inline constexpr uint32_t MainPass            = 16;
         }
 
         // GROUP 1 CARRIES A DYNAMIC SEAT (shadow_slot), so every bind of it
@@ -2029,10 +1984,10 @@ namespace t7 {
             // THE DRAW LEDGER'S VOCABULARY (BUNDLE_1) — declared at the head
             // of the class because the members below are of these types, and
             // public because the draw sites name records by hand
-            // (GPUState::DR_ARCH). The ledger's own prose lives with its
+            // (GPUState::DR_SHELL). The ledger's own prose lives with its
             // methods, beside reset_frustum_indirect.
             enum DrawRecord : uint32_t {
-                DR_ARCH, DR_SHELL,
+                DR_SHELL,
                 DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
@@ -2186,10 +2141,6 @@ namespace t7 {
             wgpu::Buffer monolithVertexBuffer_, monolithIndexBuffer_;
             uint32_t monolithIndexCount_ = 0;
 
-            wgpu::Buffer archVertexBuffer_, archIndexBuffer_;
-            wgpu::Buffer archGroundBuffer_;  // per-arch ground Y correction (GPU-corrected)
-            wgpu::Buffer archMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
-            uint32_t archIndexCount_ = 0;
 
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
@@ -2214,8 +2165,6 @@ namespace t7 {
             wgpu::BindGroupLayout orbsBStateLayout_;
             wgpu::BindGroupLayout patchgenStateLayout_;
             wgpu::BindGroupLayout patchgenTexturesLayout_;
-            wgpu::BindGroupLayout placeStateLayout_;
-            wgpu::BindGroupLayout placeTexturesLayout_;
             wgpu::BindGroupLayout ribbonStateLayout_;
             wgpu::BindGroupLayout ribbonTexturesLayout_;   // SPINE_2 — the room reads the baked ground
             wgpu::BindGroupLayout sceneStateLayout_;
@@ -2240,8 +2189,6 @@ namespace t7 {
             wgpu::BindGroup orbsBStateGroup_;
             wgpu::BindGroup patchgenStateGroup_;
             wgpu::BindGroup patchgenTexturesGroup_;
-            wgpu::BindGroup placeStateGroup_;
-            wgpu::BindGroup placeTexturesGroup_;
             wgpu::BindGroup ribbonStateGroup_;
             wgpu::BindGroup ribbonTexturesGroup_;   // SPINE_2 — was the shared EMPTY filler
             wgpu::BindGroup sceneStateGroup_;
@@ -2283,9 +2230,6 @@ namespace t7 {
             wgpu::Buffer orbQuadIB_;               // 6 indices: two triangles
 
             // Entity ground atlas (r32float, 256×1) — compute writes, VS reads
-            wgpu::Texture entityGroundAtlasTexture_;
-            wgpu::TextureView entityGroundAtlasWriteView_;   // storage texture (compute)
-            wgpu::TextureView entityGroundAtlasReadView_;    // sampled texture (VS)
 
             wgpu::Texture shadowMapTexture_;
             wgpu::TextureView shadowMapView_;
@@ -2654,18 +2598,6 @@ namespace t7 {
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, col, sizeof(col));
             }
 
-            // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)
-            void upload_arch_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUArchMeshParams& params) {
-                writeSlot(queue, archMeshParamsBuffer_, slot, params);
-                // CHORD_1 — the occupier window on the same row. The mesh-gen
-                // kernel reads the storage face above; the agents room reads
-                // this one. One authored geometry, one home; the authoring
-                // site writes every window it owns, so the rows and the mesh
-                // can never disagree.
-                agentRoomStage_.occupier_amg[slot] = params;
-                writeSlot(queue, agentRoomBuffer_, slot, params,
-                    offsetof(GPUAgentRoomConstants, occupier_amg));
-            }
 
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
             // ── LOOM_2 recut strata accessors ──
@@ -2684,8 +2616,6 @@ namespace t7 {
             wgpu::BindGroupLayout orbs_b_state_layout() const { return orbsBStateLayout_; }
             wgpu::BindGroupLayout patchgen_state_layout() const { return patchgenStateLayout_; }
             wgpu::BindGroupLayout patchgen_textures_layout() const { return patchgenTexturesLayout_; }
-            wgpu::BindGroupLayout place_state_layout() const { return placeStateLayout_; }
-            wgpu::BindGroupLayout place_textures_layout() const { return placeTexturesLayout_; }
             wgpu::BindGroupLayout ribbon_state_layout() const { return ribbonStateLayout_; }
             wgpu::BindGroupLayout ribbon_textures_layout() const { return ribbonTexturesLayout_; }
             wgpu::BindGroupLayout scene_state_layout() const { return sceneStateLayout_; }
@@ -2710,8 +2640,6 @@ namespace t7 {
             wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
             wgpu::BindGroup patchgen_textures_group() const { return patchgenTexturesGroup_; }
-            wgpu::BindGroup place_state_group() const { return placeStateGroup_; }
-            wgpu::BindGroup place_textures_group() const { return placeTexturesGroup_; }
             wgpu::BindGroup ribbon_state_group() const { return ribbonStateGroup_; }
             wgpu::BindGroup ribbon_textures_group() const { return ribbonTexturesGroup_; }
             wgpu::BindGroup scene_state_group() const { return sceneStateGroup_; }
@@ -3130,15 +3058,7 @@ namespace t7 {
             wgpu::Buffer monolith_vertex_buffer() const { return monolithVertexBuffer_; }
             wgpu::Buffer monolith_index_buffer() const { return monolithIndexBuffer_; }
             uint32_t monolith_index_count() const { return monolithIndexCount_; }
-            wgpu::Buffer arch_vertex_buffer() const { return archVertexBuffer_; }
-            wgpu::Buffer arch_index_buffer() const { return archIndexBuffer_; }
-            wgpu::Buffer arch_ground_buffer() const { return archGroundBuffer_; }
-            uint32_t arch_index_count() const { return archIndexCount_; }
-            void set_arch_index_count(uint32_t count) { archIndexCount_ = count; }
 
-            void upload_arch_origins(wgpu::Queue& queue, const GPUArchGroundEntry* entries, uint32_t count) {
-                writeArray(queue, archGroundBuffer_, entries, std::min(count, Dim::MAX_ARCH_INSTANCES));
-            }
 
             // --- Pyramid accessors and upload --- (the instance array only:
             //   pyramids ARE terrain, so there is no mesh to generate.)
@@ -4060,7 +3980,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             bool createSphereMesh() {
@@ -4169,53 +4089,6 @@ namespace t7 {
                 return true;
             }
 
-            bool createArchMesh() {
-                // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pipelines droppable, but archGroundBuffer_ is exclusive-in-Entity-Placement. Retire = re-section Entity Placement.
-                // VB: Vertex + CopyDst (transition fallback) + Storage (GPU compute writes)
-                archVertexBuffer_ = makeBuffer("Arch VB (GPU mesh gen)",
-                    Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                // IB: Index + CopyDst (transition fallback) + Storage (GPU compute writes)
-                archIndexBuffer_ = makeBuffer("Arch IB (GPU mesh gen)",
-                    Dim::AMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                // Per-arch ground Y correction buffer (GPU compute writes, VS reads)
-                archGroundBuffer_ = makeBuffer("Arch Ground Y",
-                    Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // Mesh gen params buffer (16 × 80 bytes — MOSAIC_1 growth; size derives from sizeof below)
-                archMeshParamsBuffer_ = makeBuffer("Arch Mesh Params",
-                    Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchMeshParams),
-                    // CHORD_1: Uniform dropped — the occupier window it served
-                    // now rides agentRoomBuffer_; the mesh-gen kernels'
-                    // read-only storage face is all that is left on this buffer.
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                if (!archVertexBuffer_ || !archIndexBuffer_ || !archGroundBuffer_ ||
-                    !archMeshParamsBuffer_) return false;
-
-                // Index count starts at 0 — updated by cartridge as arches spawn/evict
-                archIndexCount_ = 0;
-
-                // Zero-init params buffer (all slots inactive)
-                {
-                    GPUArchMeshParams emptyParams[Dim::MAX_ARCH_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(archMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES);
-                }
-
-                // Zero-init VB so degenerate indices (pointing to vertex 0) have
-                // safe arch_index=0, preventing out-of-bounds ground_y lookups in VS.
-                {
-                    std::vector<uint8_t> zeros(Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(archVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                std::cout << "[GPUState] Arch buffers (GPU mesh gen): "
-                    << Dim::AMG_TOTAL_VERTICES << " vert, "
-                    << Dim::AMG_TOTAL_INDICES << " index capacity\n";
-                return true;
-            }
 
             bool createPyramidMesh() {
                 // Pyramids are TERRAIN (not drawn geometry): the instance array is
@@ -4399,20 +4272,6 @@ namespace t7 {
                     liveCardView_ = liveCardTexture_.CreateView();
                 }
 
-                // Entity ground atlas (r32float 256×1 — compute writes ground_y, VS textureLoad)
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::GROUND_ATLAS_WIDTH, 1, 1 };
-                    desc.format = wgpu::TextureFormat::R32Float;
-                    desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    desc.dimension = wgpu::TextureDimension::e2D;
-                    desc.mipLevelCount = 1;
-                    desc.sampleCount = 1;
-                    entityGroundAtlasTexture_ = makeTexture("Entity Ground Atlas (r32float 256x1)", desc);
-                    if (!entityGroundAtlasTexture_) return false;
-                    entityGroundAtlasWriteView_ = entityGroundAtlasTexture_.CreateView();
-                    entityGroundAtlasReadView_ = entityGroundAtlasTexture_.CreateView();
-                }
 
                 {
                     wgpu::TextureDescriptor desc{};

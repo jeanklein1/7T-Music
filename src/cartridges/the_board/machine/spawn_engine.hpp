@@ -96,11 +96,11 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 // shape both the rate and the geometry of every cluster ever born.
 // No surviving family clusters today.
 
-//                              Pyr    Arch   Sph    Ribn   Cube   GoL
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     0,     0,     0,     0 };   // min neighbors; 0 = none
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
+//                              Pyr    Sph    Ribn   Cube   GoL
+inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
+inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
+inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     0,     0,     0 };   // min neighbors; 0 = none
+inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
 
 // AFFINITY[placing][existing]: rows follow PopFamily. Every row is zero
 // since PRUNE_2 — the clustering families were COLUMN, PALM, CACTUS and
@@ -109,13 +109,12 @@ inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.
 // that wants it: proximity_row_active() folds to false for all six and
 // the whole path short-circuits at compile time.
 inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-    //           near: Pyr   Arch  Sph   Ribn  Cube  GoL
-    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    //           near: Pyr   Sph   Ribn  Cube  GoL
+    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // Precomputed: does this family have any non-zero affinity?
@@ -405,30 +404,6 @@ inline PositionResult negotiate_position(MachineCtx* c,
 
 // ═══ MESH GEN PREPARERS + CULLING ════════════════════════════════
 
-// ─── Arch / Pyramid mesh-gen preparers ────────────────────────
-
-// Rebuild GPUArchMeshParams from cached ActiveArch data.
-inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
-    const auto& a = c->entities_state_.arches[slot];
-    GPUArchMeshParams p{};
-    p.center_x = a.world_x;
-    p.center_z = a.world_z;
-    p.rotation = a.rotation;
-    p.half_span = a.half_span;
-    p.rise = a.rise;
-    p.depth = a.depth;
-    p.thickness = a.thickness;
-    p.pier_height = a.pier_height;
-    p.burial = a.burial;
-    p.catenary_a = solve_catenary_a(a.half_span, a.rise);
-    p.segs_u = a.segs_u;
-    p.segs_v = a.segs_v;
-    p.color_r = a.col_r; p.color_g = a.col_g; p.color_b = a.col_b;
-    p.mosaic_seed = a.mosaic_seed;
-    p.is_active = 1;
-    return p;
-}
-
 // Scan all active entities, toggle draw_visible with hysteresis,
 // and upload mesh param changes. Returns count of currently hidden entities.
 // THE RING is the correctness gate (re-ruled): draw membership = any part
@@ -440,33 +415,12 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
 
     const float ring = c->gpuState_.veil_ring();   // live chain value — the draw authority
 
-    // Arches
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!c->entities_state_.arches[i].active) continue;
-        const auto& a = c->entities_state_.arches[i];
-        float dx = a.world_x - c->point_.x;
-        float dz = a.world_z - c->point_.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-
-        float nearest = dist - a.half_span;            // the arch's closest reach (center − extent)
-        bool should_show = a.draw_visible
-            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)  // visible: hide once fully iced past the band
-            : (nearest <= ring);                          // hidden:  show as fragments enter the icing
-
-        if (should_show != a.draw_visible) {
-            c->entities_state_.arches[i].draw_visible = should_show;
-            if (should_show) {
-                c->gpuState_.upload_arch_mesh_params_slot(queue, i, build_arch_mesh_params(c, i));
-            }
-            else {
-                GPUArchMeshParams empty{};
-                c->gpuState_.upload_arch_mesh_params_slot(queue, i, empty);
-            }
-            c->entities_state_.arch_mesh_gen_pending = true;
-        }
-
-        if (!c->entities_state_.arches[i].draw_visible) culled++;
-    }
+    // THE ARCH LOOP stood here — the only family whose mesh could be
+    // zeroed at range, because it was the only family with a GPU mesh to
+    // zero. It left at ONE_WORLD-I U3, and with it the whole reason this
+    // sweep touched the GPU. No surviving family carries generated
+    // geometry, so nothing is culled here today.
+    (void)queue; (void)ring;
 
     return culled;
 }
@@ -535,7 +489,7 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
-    static const char* NAMES[] = { "pyr", "arch", "sph", "ribn", "cube", "gol" };
+    static const char* NAMES[] = { "pyr", "sph", "ribn", "cube", "gol" };
     // F-1's ELEVENTH positional table, and until PRUNE_2 the only one with
     // no compile-time tie to PopFamily::COUNT. The runtime bound below reads
     // COUNT, not this array, so the two could disagree in silence: trim
@@ -671,7 +625,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // weights have to be read against.
     //
     // WHY IT DECIDES: ArchConfig::SPAWN_CHANCE sets how many arches are
-    // ATTEMPTED; ARCH_TIERS' three weights only choose WHICH tier each
+    // ATTEMPTED; a family's tier weights only choose WHICH tier each
     // attempt becomes. They are zero-sum in absolute counts. So a tier
     // reweight adds big arches only while the array has room — if live is
     // already sitting at capacity, the same reweight adds nothing and

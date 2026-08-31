@@ -25,7 +25,6 @@ the header.
 | Generate Patch Cells (2D, on demand) | `generatePatchCellsPipeline_` | C | 4 / 8 | 1 / 7 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Ribbon Head (0D, 1 thread, per frame) | `ribbonHeadPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
 | Ribbon Body (1D, per ring, per frame) | `ribbonBodyPipeline_` | C | 6 / 6 | 6 / 2 | 1 / 15 | 3 / 13 | 0 / 4 |
-| Compute Entity Placement (0D) | `entityPlacementPipeline_` | C | 3 / 9 | 2 / 6 | 2 / 14 | 3 / 13 | 1 / 3 |
 | Frustum Cull Patches | `frustumCullPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Compute Pawn Aura (2D) | `pawnAuraPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 1 / 3 |
 | Live Card Write (2D, fused) | `liveCardPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
@@ -37,32 +36,28 @@ the header.
 | GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Zone Derive Params | `zoneDeriveParamsPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Arch Mesh Gen | `archMeshGenPipeline_` | C | 3 / 9 | 3 / 5 | 0 / 16 | 2 / 14 | 0 / 4 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Catenary Arch (Rasterized) | `archPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
-| Catenary Arch (Rasterized) | `archPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
 
 ## Wallet summary — worst row per lane, program-wide
 
@@ -70,8 +65,8 @@ the header.
 |---|---|---|---|
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
 | storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+6 more) |
-| sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+8 more) |
-| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+16 more) |
+| sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+7 more) |
+| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+14 more) |
 | storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column
@@ -96,7 +91,6 @@ declaration alone — no hand-authored field.
 | `render_agents` | 2:5 | storage, read | `array<AgentState, 32>` | storage |
 | `render_floating` | 2:6 | storage, read | `FloatingEntityArray` | storage |
 | `render_ring_xforms` | 2:143 | storage, read | `array<RibbonRingTransform, 400>` | storage |
-| `entity_ground_atlas` | 3:81 | handle | `texture_2d<f32>` | sampled |
 | `ring_xforms` | 2:141 | storage, read_write | `array<RibbonRingTransform, 400>` | storage |
 | `ribbon_spine` | 2:142 | storage, read_write | `array<vec4<f32>, 402>` | storage |
 | `ribbon_body_rw` | 2:144 | storage, read_write | `RibbonBody` | storage |
@@ -129,8 +123,6 @@ declaration alone — no hand-authored field.
 | `zone_derive_requests` | 2:103 | uniform | `ZoneDeriveRequestArray` | uniform |
 | `photo_heightfield` | 3:42 | handle | `texture_2d_array<f32>` | sampled |
 | `photo_sampler` | 3:43 | handle | `sampler` | samplers |
-| `arch_ground` | 2:81 | storage, read_write | `array<ArchGroundEntry, 16>` | storage |
-| `entity_ground_atlas_write` | 3:80 | handle | `texture_storage_2d<r32float, write>` | storagetex |
 | `patch_grid` | 2:43 | storage, read | `PatchGrid` | storage |
 | `fc_config` | 0:0 | uniform | `DesignConfig` | uniform |
 | `fc_vp` | 2:240 | storage, read | `VPMatrix` | storage |
@@ -138,9 +130,6 @@ declaration alone — no hand-authored field.
 | `fc_visible` | 2:63 | storage, read_write | `array<u32>` | storage |
 | `fc_indirect` | 2:64 | storage, read_write | `array<atomic<u32>, 15>` | storage |
 | `fc_draw_plan` | 2:60 | uniform | `DrawPlanParams` | uniform |
-| `amg_params` | 2:180 | storage, read | `array<ArchMeshParams, 16>` | storage |
-| `amg_vertices` | 2:181 | storage, read_write | `array<f32>` | storage |
-| `amg_indices` | 2:182 | storage, read_write | `array<u32>` | storage |
 | `orb_state` | 2:120 | storage, read_write | `array<OrbState>` | storage |
 | `orb_config` | 2:121 | uniform | `OrbConfig` | uniform |
 | `orb_state_prev` | 2:122 | storage, read | `array<OrbState>` | storage |
@@ -149,7 +138,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 47
+Lane sums equal per-seat counts on every one of the 42
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

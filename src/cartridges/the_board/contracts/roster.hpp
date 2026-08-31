@@ -51,12 +51,11 @@ namespace the_board {
 
 struct PopFamily {
     static constexpr uint32_t PYRAMID = 0;
-    static constexpr uint32_t ARCH = 1;
-    static constexpr uint32_t SPHERE = 2;    // orbital spheres
-    static constexpr uint32_t RIBBON = 3;
-    static constexpr uint32_t CUBE = 4;      // hover-bob monoliths (split from legacy FLOATING)
-    static constexpr uint32_t GOL = 5;       // Game of Life / Pulse automaton zones
-    static constexpr uint32_t COUNT = 6;
+    static constexpr uint32_t SPHERE = 1;    // orbital spheres
+    static constexpr uint32_t RIBBON = 2;
+    static constexpr uint32_t CUBE = 3;      // hover-bob monoliths (split from legacy FLOATING)
+    static constexpr uint32_t GOL = 4;       // Game of Life / Pulse automaton zones
+    static constexpr uint32_t COUNT = 5;
 };
 
 // F-1: the family ORDER is load-bearing — ELEVEN
@@ -82,18 +81,20 @@ struct PopFamily {
 // priority among the survivors is unchanged. The F-1 fear does not bite a
 // tail cut — it bites a renumbering, and there was none.
 //
-// PRUNE_2 IS THE OTHER KIND. It excises MID-TABLE families, so every
-// family above the cut renumbers and every one of the ten positional
-// tables loses that column. The fear bites, and the answer is not to
-// dodge it: each excision commit re-columns all eleven tables AND
-// FAMILY_DISPATCH in the same commit, and rewrites this assert to the
-// surviving pins. Relative order among survivors is preserved — the cut
-// closes ranks, it never reshuffles — so placement priority among the
-// survivors is unchanged, exactly as in a tail cut.
-static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
-           && PopFamily::SPHERE  == 2 && PopFamily::RIBBON  == 3
-           && PopFamily::CUBE    == 4 && PopFamily::GOL     == 5
-           && PopFamily::COUNT   == 6,
+// PRUNE_2 IS THE OTHER KIND, and ONE_WORLD-I U3 is the same kind again:
+// both excise MID-TABLE families, so every family above the cut
+// renumbers and every one of the positional tables loses that column.
+// The fear bites, and the answer is not to dodge it: each excision
+// commit re-columns all eleven tables AND FAMILY_DISPATCH in the same
+// commit, and rewrites this assert to the surviving pins. Relative order
+// among survivors is preserved — the cut closes ranks, it never
+// reshuffles — so placement priority among the survivors is unchanged,
+// exactly as in a tail cut. U3 took ARCH at index 1, so SPHERE, RIBBON,
+// CUBE and GOL each dropped one.
+static_assert(PopFamily::PYRAMID == 0
+           && PopFamily::SPHERE  == 1 && PopFamily::RIBBON  == 2
+           && PopFamily::CUBE    == 3 && PopFamily::GOL     == 4
+           && PopFamily::COUNT   == 5,
     "PopFamily ORDER is the spawn tables' row/column contract (F-1): "
     "re-column all eleven PopFamily-ordered tables + FAMILY_DISPATCH "
     "before renumbering any family");
@@ -115,7 +116,7 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
 // IDENTITY DEFAULT: today this is exactly PopFamily order, so behaviour is
 // unchanged. Reordering is a deliberate, isolated edit.
 inline constexpr uint32_t PLACEMENT_ORDER[PopFamily::COUNT] = {
-    PopFamily::PYRAMID, PopFamily::ARCH,   PopFamily::SPHERE,
+    PopFamily::PYRAMID, PopFamily::SPHERE,
     PopFamily::RIBBON,  PopFamily::CUBE,   PopFamily::GOL,
 };
 
@@ -141,7 +142,7 @@ static_assert(placement_order_is_permutation(),
     "or omission silently removes a family from every spawn");
 
 struct Roster {
-    bool pyramid, arch, sphere, ribbon, cube, gol;
+    bool pyramid, sphere, ribbon, cube, gol;
     // FEATURES (5)
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
@@ -152,7 +153,6 @@ struct Roster {
     constexpr bool family_enabled(uint32_t f) const {
         switch (f) {
             case PopFamily::PYRAMID: return pyramid;
-            case PopFamily::ARCH:    return arch;
             case PopFamily::SPHERE:  return sphere;
             case PopFamily::RIBBON:  return ribbon;
             case PopFamily::CUBE:    return cube;
@@ -162,7 +162,7 @@ struct Roster {
     }
 
     constexpr bool all_enabled() const {
-        return pyramid && arch && sphere && ribbon && cube && gol &&
+        return pyramid && sphere && ribbon && cube && gol &&
                pawn_aura && orbs && spot_lights && indoor_shell &&
                wanderers;
     }
@@ -172,7 +172,7 @@ struct Roster {
     // (demos/matrix.hpp), the compile-time proof that demo=minimal
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
-        return !pyramid && !arch && !sphere && !ribbon && !cube && !gol &&
+        return !pyramid && !sphere && !ribbon && !cube && !gol &&
                !pawn_aura && !orbs && !spot_lights && !indoor_shell &&
                !wanderers;
     }

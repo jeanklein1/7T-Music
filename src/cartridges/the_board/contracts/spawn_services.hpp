@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>                                            // size_t (the rescale template's array extent)
-#include <cmath>                                              // std::atan2 (arch_rotation_from_facing)
 #include "cartridges/the_board/contracts/roster.hpp"          // PopFamily (sizes MIN_SEPARATION)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"    // MachineCtx + EntityInstance + traits/adapter + TierProfile
@@ -9,7 +8,7 @@
 // ─── spawn_services.hpp (CONTRACT: the machine's decl tier) ───────
 // The machine natives (spawn_engine, entity_pipeline) each held a
 // two-tier shape — a DECL tier consumed BEFORE entities (the preamble
-// + generic + rescale templates, the service decls, the arch
+// + generic + rescale templates, the service decls
 // vocabulary, MIN_SEPARATION) and a BODY tier that needs entities
 // COMPLETE. The decl tier graduates HERE so the merged machine
 // headers ride the cohort tail whole. The bodies bind by the TU's own
@@ -27,7 +26,6 @@ namespace the_board {
 
 // fwd — state.hpp's GPU mesh-param records (return values below; a
 // non-defining declaration tolerates the incomplete type).
-struct GPUArchMeshParams;
 
 // ── Shared spawn helper vocabulary ─────────────────────────────────
 
@@ -64,8 +62,8 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   column = the EXISTING footprint's family. ASYMMETRIC by design: the
 //   gap one family keeps from another need not be the gap the other
 //   keeps from it. (The pair that taught this — antenna vs arch, 60 one
-//   way and 8 the other — left with PRUNE_2; the asymmetry stays a
-//   property of the table, not of that pair.)
+//   way and 8 the other — left with PRUNE_2 and ONE_WORLD-I; the
+//   asymmetry stays a property of the table, not of that pair.)
 // UNITS: world-units, ADDITIVE — the consumer sums the two footprint
 //   radii first, then adds this gap on top (and may shrink it by
 //   PROXIMITY_GAP_REDUCTION × affinity for clustering families).
@@ -100,114 +98,12 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   the footprint. If floaters ever claim ground again, the values are in git
 //   and this note is what tells you they were deliberate.
 inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-    //                near:  Pyr    Arch   Sph    Ribn   Cube   GoL
-    /* placing Pyramid  */ { 65.0f, 60.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Arch     */ { 60.0f, 20.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
-    /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
-    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
-    /* placing GoL      */ { 10.0f, 10.0f,  0.0f,  0.0f,  0.0f, 60.0f },
-};
-
-// ── Arch vocabulary (graduated with the decl tier: read by entities'
-//    recipes and direction/mood.hpp's portal/doorway geometry) ──
-
-// ── AN ARCH'S ROTATION IS ITS SPAN (ATRIUM_6) ────────────────────
-// amg_gen_shell (world.wgsl) sweeps the catenary along (cos r, sin r) and
-// the depth along (-sin r, cos r); arch_rib_point walks foot to foot along
-// the same (cos r, sin r); the crossing ellipse weights that axis by
-// inv_span_sq and its perpendicular by inv_depth_sq. Three sites, one
-// reading: (cos r, sin r) is the chord between the feet, and the OPENING's
-// normal is (-sin r, cos r).
-//
-// So a door meant to FACE a point takes the bearing of that point less a
-// quarter turn, and every CPU site that places a door to face something
-// derives it here rather than spelling a sign it can get backwards. Pass
-// the vector FROM the door TO the thing it should open onto; the length
-// does not matter.
-//
-// THE WALL CANDIDATE TABLES ARE NOT SUCH SITES. They carry their own
-// authored rotations and their own standing reading — a doorway's span
-// perpendicular to its wall — which Jean has gated as it stands. They do
-// not derive here, and this line is why they do not have to.
-inline float arch_rotation_from_facing(float nx, float nz) {
-    return std::atan2(-nx, nz);
-}
-
-struct ArchIdx {
-    static constexpr uint32_t SPAN         = 0;  // full span (halved in compute_solid_half)
-    static constexpr uint32_t RISE         = 1;
-    static constexpr uint32_t DEPTH        = 2;
-    static constexpr uint32_t THICKNESS    = 3;
-    static constexpr uint32_t PIER_HEIGHT  = 4;
-    static constexpr uint32_t PIER_PADDING = 5;
-    static constexpr uint32_t EDGE_BLEND   = 6;
-    static constexpr uint32_t COUNT        = 7;
-};
-
-// params[] order MUST match ARCH_PARAM_DEFS:
-//   [0]SPAN [1]RISE [2]DEPTH [3]THICKNESS [4]PIER_HEIGHT [5]PIER_PADDING [6]EDGE_BLEND
-//
-// Note: name is ArchTierRow, not ArchTier — the enum class ArchTier
-// (DOORWAY/STANDARD/MONUMENTAL) already occupies that name in grounded.hpp.
-struct ArchTierRow {
-    TierProfile profile;
-    float       color_override;
-    // MOSAIC_2: is this KIND ceramic? 1.0 = every body of this tier;
-    // 0.0 = none. Orthogonal to color_override: what a body's FALLBACK
-    // color is, and whether it is ceramic, are two facts.
-    // MOSAIC_3 — ALL ROWS 1.0. The contrast ruling (plain stone beside
-    // the ceramic) is retired: every arch is ceramic. The portals are
-    // the one plain population left, and they are plain for a different
-    // reason — a functional marker wears its destination's color. That
-    // exception lives at the decision in arch_write_active, NOT here.
-    // Do not "restore" DOORWAY to 0.0; that duplicates the guard.
-    float       mosaic_chance;
-    float       burial;
-    uint32_t    segs_u;
-    uint32_t    segs_v;
-};
-
-// ── Arch tier table ────────────────────────────────────────────────
-// WHAT: per-tier arch recipe — tier-selection weight + the Gaussian
-//   {mean, sigma} of each geometry parameter + mesh tessellation.
-// AXES: row = arch tier, in enum class ArchTier order
-//   (0 DOORWAY / 1 STANDARD / 2 MONUMENTAL); inner params[] column =
-//   ArchIdx order (the MUST-match note above).
-// UNITS: weight = relative tier-selection weight (normalized over rows
-//   by select_tier); {μ,σ} = world-units for SPAN/RISE/DEPTH/THICKNESS/
-//   PIER_HEIGHT, dimensionless ratio for PIER_PADDING/EDGE_BLEND;
-//   burial = fraction of pier_height sunk below ground; segs_u/v =
-//   mesh tessellation counts.
-// CONSUMERS: entity_pipeline.hpp (arch_tier_profile, burial, segs into
-//   mesh params); grounded.hpp force-spawn portal (DOORWAY row);
-//   mood.hpp portal/doorway geometry (DOORWAY row).
-// SENTINELS: color_var 0 = fall back to ColorPartDef.variance;
-//   color_override 0 = no override.
-// Biography determinant — frozen biography (§12): weight feeds
-// select_tier(gate.seed), {μ,σ} feed cpu_sample_gaussian(gate.seed);
-// changing a number changes every arch ever born.
-inline constexpr ArchTierRow ARCH_TIERS[] = {
-    //   {  weight, color_var, { {μ,σ}: SPAN      RISE        DEPTH       THICKNESS     PIER_HEIGHT  PIER_PAD     EDGE_BLEND } },  col_ovr  mosaic  burial  segs_u  segs_v
-    // DOORWAY was the open world's portal tier until the doors left
-    // (ONE_WORLD-I U2); it is a silhouette now, like the other two.
-    // ZERO-SUM (ARCH_2): at a fixed SPAWN_CHANCE these three weights trade
-    // against each other in ABSOLUTE counts — the mix is theirs, the count
-    // is the chance's. Every doorway bought by skewing is a big arch sold.
-    // STANDARD and MONUMENTAL are the outdoor silhouette and are held by
-    // ruling: buy portals with the chance, never out of them.
-    /* DOORWAY    */ {
-        { 0.60f, 0.0f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
-        0.85f, 1.0f, 0.20f, 16, 4
-    },
-    /* STANDARD   */ {
-        { 0.20f, 0.0f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
-        0.85f, 1.0f, 0.20f, 32, 8
-    },
-    /* MONUMENTAL */ {
-        { 0.20f, 0.0f, { {60.0f, 10.0f}, {80.0f, 12.0f}, {10.0f, 2.0f}, {2.5f, 0.30f}, {8.0f, 2.5f}, {1.0f, 0.3f}, {0.8f, 0.15f} }},
-        0.85f, 1.0f, 0.20f, 48, 12
-    },
+    //                near:  Pyr    Sph    Ribn   Cube   GoL
+    /* placing Pyramid  */ { 65.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
+    /* placing Ribbon   */ {  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
+    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
+    /* placing GoL      */ { 10.0f,  0.0f,  0.0f,  0.0f, 60.0f },
 };
 
 // ═══ SPAWN SERVICES — DECLARATIONS (spawn_engine) ═════════════════
@@ -279,7 +175,6 @@ PositionResult negotiate_position(MachineCtx* c,
     bool grounded,
     float footprint_r, float containment_r, uint32_t family, uint32_t slot,
     uint32_t tier = 0);
-GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot);
 uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue);
 const char* family_short_name(uint32_t family);
 void dump_entity_census(MachineCtx* c, const char* trigger);

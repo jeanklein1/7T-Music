@@ -56,18 +56,17 @@ inline constexpr float INDOOR_ENTITY_WALL_MARGIN  = 20.0f; // existing, re-homed
 // noted on the row.
 inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* pyramid */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* arch    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* sphere  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* ribbon  */ { IndoorSize::CAP,     IndoorBounds::FULL   },  // pre-scaled by RIBBON_INDOOR_SCALE; stays inside
     /* cube    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* gol     */ { IndoorSize::NATURAL, IndoorBounds::FREE   },  // may straddle; lift capped at derive
 };
 
-static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
-           && PopFamily::SPHERE  == 2 && PopFamily::RIBBON  == 3
-           && PopFamily::CUBE    == 4 && PopFamily::GOL     == 5
-           && PopFamily::COUNT   == 6,
-    "INDOOR_TREATMENT rows ride F-1's PopFamily order — pyramid, arch, "
+static_assert(PopFamily::PYRAMID == 0
+           && PopFamily::SPHERE  == 1 && PopFamily::RIBBON  == 2
+           && PopFamily::CUBE    == 3 && PopFamily::GOL     == 4
+           && PopFamily::COUNT   == 5,
+    "INDOOR_TREATMENT rows ride F-1's PopFamily order — pyramid, "
     "sphere, ribbon, cube, "
     "gol: re-row this table in lockstep before renumbering any family");
 
