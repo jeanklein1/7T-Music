@@ -494,13 +494,6 @@ namespace t7 {
                 self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.meshgen_state_cactus_group(), self->gpuState_.empty_group());
             }
 
-            static bool dispatch_prepare_mesh_blade(MachineCtx* self, wgpu::Queue& queue) {
-                return prepare_blade_mesh_gen(self->entities_state_, self, queue);
-            }
-            static void dispatch_mesh_gen_blade(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.meshgen_state_blade_group(), self->gpuState_.empty_group());
-            }
-
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
             //    scope after the class, beside the shared no-op adapters
             //    (declared in entity_types.hpp). ──
@@ -771,7 +764,7 @@ namespace t7 {
                     mark(ROSTER.pyramid, "pyramid");     mark(ROSTER.arch, "arch");
                     mark(ROSTER.column, "column");       mark(ROSTER.antenna, "antenna");
                     mark(ROSTER.palm, "palm");           mark(ROSTER.cactus, "cactus");
-                    mark(ROSTER.blade, "blade");         mark(ROSTER.sphere, "sphere");
+                    mark(ROSTER.sphere, "sphere");
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
                     mark(ROSTER.gol, "gol");
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
@@ -2027,10 +2020,6 @@ namespace t7 {
                     dirty[PopFamily::CACTUS] = FAMILY_DISPATCH[PopFamily::CACTUS].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::CACTUS];
                 }
-                if constexpr (ROSTER.blade) {     // ROSTER-GATE blade (b)
-                    dirty[PopFamily::BLADE] = FAMILY_DISPATCH[PopFamily::BLADE].prepare_mesh(&machine_ctx_, queue);
-                    anyDirty = anyDirty || dirty[PopFamily::BLADE];
-                }
                 if constexpr (ROSTER.sphere) {    // ROSTER-GATE sphere (b)
                     dirty[PopFamily::SPHERE] = FAMILY_DISPATCH[PopFamily::SPHERE].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::SPHERE];
@@ -3061,7 +3050,6 @@ namespace t7 {
         inline uint32_t active_count_antenna(const MachineCtx* c) { return census_scan_active(c->entities_state_.antennas); }
         inline uint32_t active_count_palm   (const MachineCtx* c) { return census_scan_active(c->entities_state_.palms); }
         inline uint32_t active_count_cactus (const MachineCtx* c) { return census_scan_active(c->entities_state_.cacti); }
-        inline uint32_t active_count_blade  (const MachineCtx* c) { return census_scan_active(c->entities_state_.blades); }
         inline uint32_t active_count_sphere (const MachineCtx* c) { return census_scan_active(c->sphere_state_.activeSpheres_); }
         inline uint32_t active_count_ribbon (const MachineCtx* c) { return census_scan_active(c->ribbon_state_.active); }
         inline uint32_t active_count_cube   (const MachineCtx* c) { return census_scan_active(c->cube_behaviors_state_.activeCubes_); }
@@ -3077,7 +3065,6 @@ namespace t7 {
         inline SlotCensus slot_census_antenna(const MachineCtx* c) { return census_scan_slots(c->entities_state_.antennas); }
         inline SlotCensus slot_census_palm   (const MachineCtx* c) { return census_scan_slots(c->entities_state_.palms); }
         inline SlotCensus slot_census_cactus (const MachineCtx* c) { return census_scan_slots(c->entities_state_.cacti); }
-        inline SlotCensus slot_census_blade  (const MachineCtx* c) { return census_scan_slots(c->entities_state_.blades); }
         inline SlotCensus slot_census_sphere (const MachineCtx* c) { return census_scan_slots(c->sphere_state_.activeSpheres_); }
         inline SlotCensus slot_census_ribbon (const MachineCtx* c) { return census_scan_slots(c->ribbon_state_.active); }
         inline SlotCensus slot_census_cube   (const MachineCtx* c) { return census_scan_slots(c->cube_behaviors_state_.activeCubes_); }
@@ -3085,8 +3072,8 @@ namespace t7 {
 
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
-        //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
-        //   GOL=10) — the enum values are pinned at roster.hpp (F-1)
+        //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, SPHERE, RIBBON, CUBE,
+        //   GOL=9) — the enum values are pinned at roster.hpp (F-1)
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
@@ -3133,12 +3120,6 @@ namespace t7 {
               slot_census_cactus,
               CACTUS_TRAITS.grounded,
               "cact" },
-            { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
-              evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
-              active_count_blade,
-              slot_census_blade,
-              BLADE_TRAITS.grounded,
-              "blad" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
               evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,

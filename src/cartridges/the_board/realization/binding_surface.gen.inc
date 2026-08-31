@@ -533,7 +533,7 @@
                     //  placement's GoL term rides the card's cell-exact fetch via
                     //  group 1. The zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[3].binding = bind::g2::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    entries[3].binding = bind::g2::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43]
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
@@ -1347,41 +1347,6 @@
                     if (!meshgenStateCactusGroup_) return false;
                 }
 
-                // Projected from: bladeMeshGenBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
-
-                    // R1 ruled fill: inert but present — a group is complete over its layout.
-                    entries[0].binding = bind::g2::cmg_column_ground;
-                    entries[0].buffer = columnGroundBuffer_;
-                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[1].binding = bind::g2::amg_params;
-                    entries[1].buffer = bladeMeshParamsBuffer_;
-                    entries[1].size = Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterMeshParams);
-
-                    entries[2].binding = bind::g2::amg_vertices;
-                    entries[2].buffer = bladeVertexBuffer_;
-                    entries[2].size = Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex);
-
-                    entries[3].binding = bind::g2::amg_indices;
-                    entries[3].buffer = bladeIndexBuffer_;
-                    entries[3].size = Dim::BLADEG_TOTAL_INDICES * sizeof(uint32_t);
-
-                    // R1 ruled fill: inert but present — a group is complete over its layout.
-                    entries[4].binding = bind::g2::cmg_config;
-                    entries[4].buffer = configBuffer_;
-                    entries[4].size = sizeof(GPUDesignConfig);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Meshgen State BindGroup (Blade)";
-                    desc.layout = meshgenStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    meshgenStateBladeGroup_ = device_.CreateBindGroup(&desc);
-                    if (!meshgenStateBladeGroup_) return false;
-                }
-
                 // A8b: the A face set — orb_state rw / config / prev ro. Faces of one
                 // buffer never share a group (L23-prime, group-local law).
                 {
@@ -1477,8 +1442,8 @@
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
                     std::array<wgpu::BindGroupEntry, 4> entries{};
-                    // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
-                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
+                    // Combined plant ground: palm[0..23] + cactus[24..43]
+                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES;
 
                     entries[0].binding = bind::g2::patch_grid;
                     entries[0].buffer = patchGridBuffer_;

@@ -403,54 +403,6 @@ struct ActiveCactus {
     float cached_ground_y = 0.0f;
 };
 
-// ═══ VOCABULARY: BLADE ═══════════════════════════════════════════
-
-enum class BladeClusterTier : uint32_t { SPROUT = 0, CLUMP = 1, THICKET = 2, COUNT = 3 };
-inline constexpr uint32_t BLADE_TIER_COUNT = static_cast<uint32_t>(BladeClusterTier::COUNT);
-
-// ── Color Palette ────────────────────────────────────────────────
-inline constexpr float BLADE_BODY_BASE[3] = { 0.28f, 0.52f, 0.22f };
-inline constexpr float BLADE_AGED_BASE[3] = { 0.48f, 0.45f, 0.28f };
-
-// ── Spawn Configuration ──────────────────────────────────────────
-struct BladeClusterConfig {
-    static constexpr float SPAWN_CHANCE = 0.025f;
-    static constexpr float POSITION_JITTER = 0.30f;
-};
-
-// ── Property Index Registry ──────────────────────────────────────
-struct BladeProp {
-    static constexpr uint32_t SPAWN_ROLL = 1100u;
-    static constexpr uint32_t POSITION_X = 1101u;
-    static constexpr uint32_t POSITION_Z = 1102u;
-    static constexpr uint32_t ROTATION = 1103u;
-    static constexpr uint32_t TIER = 1104u;
-    static constexpr uint32_t BLADE_COUNT = 1110u;
-    static constexpr uint32_t HEIGHT = 1111u;
-    static constexpr uint32_t HEIGHT_VAR = 1112u;
-    static constexpr uint32_t WIDTH = 1113u;
-    static constexpr uint32_t SPLAY = 1114u;
-    static constexpr uint32_t CURVE = 1115u;
-    static constexpr uint32_t TWIST = 1116u;
-    static constexpr uint32_t TAPER = 1117u;
-    static constexpr uint32_t COLOR_VAR_R = 1120u;
-    static constexpr uint32_t COLOR_VAR_G = 1121u;
-    static constexpr uint32_t COLOR_VAR_B = 1122u;
-};
-
-// ── Active Blade Tracking ────────────────────────────────────────
-struct ActiveBlade {
-    int32_t patch_gx = 0, patch_gz = 0;
-    int32_t host_gx = 0, host_gz = 0;
-    bool active = false;
-    bool draw_visible = true;
-    float world_x = 0.0f, world_z = 0.0f;
-    float height = 0.0f;
-    float radius = 0.0f;
-    uint32_t tier_idx = 0;
-    float cached_ground_y = 0.0f;
-};
-
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
 
 enum class PyramidTier : uint32_t {
@@ -525,11 +477,6 @@ struct EntitiesState {
     bool         cactus_mesh_gen_pending = false;
     float        cactus_mesh_gen_since = -1.0f;
 
-    // ── Blade ────────────────────────────────────────────────────
-    ActiveBlade blades[Dim::MAX_BLADE_INSTANCES]{};
-    bool        blade_mesh_gen_pending = false;
-    float       blade_mesh_gen_since = -1.0f;
-
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
@@ -539,7 +486,6 @@ struct EntitiesState {
 
 bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
-bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 
@@ -551,12 +497,8 @@ void evict_column(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_antenna(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_palm(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_cactus(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-void evict_blade(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-// Dispatch funnels for the clean three (table-shaped; defined below
+// Dispatch funnels for the clean pair (table-shaped; defined below
 // beside their recipes)
-bool dispatch_select_blade_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_blade_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_blade_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 bool dispatch_select_palm_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
@@ -644,20 +586,6 @@ inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queu
     }
     c->gpuState_.set_cactus_index_count(anyActive
         ? (maxSlot + 1) * Dim::CACTUSG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
-
-inline bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
-    (void)queue;
-    if (!mesh_gen_settled(es.blade_mesh_gen_pending, es.blade_mesh_gen_since,
-                          c->time_state_, c->world_state_)) return false;
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        if (es.blades[i].active) { maxSlot = i; anyActive = true; }
-    }
-    c->gpuState_.set_blade_index_count(anyActive
-        ? (maxSlot + 1) * Dim::BLADEG_MAX_INDICES_PER_SLOT : 0);
     return true;
 }
 
@@ -904,249 +832,12 @@ inline void evict_cactus(MachineCtx* self,
     self->world_state_.ground_entries_dirty = true;
 }
 
-inline void evict_blade(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue)
-{
-    unregister_footprint_for(self, PopFamily::BLADE, slot);   // the hand that claims is the hand that frees
-    self->entities_state_.blades[slot].active = false;
-    { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
-    self->entities_state_.blade_mesh_gen_pending = true;
-    self->world_state_.ground_entries_dirty = true;
-}
-
-// ═══ THE CLEAN THREE — BLADE / PALM / CACTUS RECIPES ══════════════
+// ═══ THE CLEAN PAIR — PALM / CACTUS RECIPES ══════════════════════
 //
 // Per-family tier tables, traits, adapters, and dispatch funnels.
 // Each funnels into the machine's generic three-phase verbs via
 // MachineCtx; the table rows point here (FAMILY_DISPATCH,
 // cartridge.hpp post-class).
-
-// ═══ FAMILY: BLADE ════════════════════════════════════════════════
-
-// ─── Blade Parameter Index Registry ──────────────────────────────
-
-struct BladeIdx {
-    static constexpr uint32_t BLADE_COUNT = 0;
-    static constexpr uint32_t BLADE_H     = 1;
-    static constexpr uint32_t BLADE_H_VAR = 2;
-    static constexpr uint32_t BLADE_W     = 3;
-    static constexpr uint32_t SPLAY       = 4;
-    static constexpr uint32_t CURVE       = 5;
-    static constexpr uint32_t TWIST       = 6;
-    static constexpr uint32_t TAPER       = 7;
-    static constexpr uint32_t COUNT       = 8;
-};
-
-// ─── Parameter Definitions ───────────────────────────────────────
-// prop must exactly match BladeProp::{name}, floor must match the
-// std::max() in select_blade_for_patch.
-//
-//                                             prop                    floor   round  dist
-inline constexpr TierParamDef BLADE_PARAM_DEFS[] = {
-    { BladeProp::BLADE_COUNT,                  2.0f, 1e30f,  true,  ParamDist::GAUSSIAN },
-    { BladeProp::HEIGHT,                       0.5f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { BladeProp::HEIGHT_VAR,                   0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { BladeProp::WIDTH,                        0.05f, 1e30f, false, ParamDist::GAUSSIAN },
-    { BladeProp::SPLAY,                        0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { BladeProp::CURVE,                        0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { BladeProp::TWIST,                        0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { BladeProp::TAPER,                        0.3f, 1e30f,  false, ParamDist::GAUSSIAN },
-};
-inline constexpr uint32_t BLADE_PARAM_COUNT = sizeof(BLADE_PARAM_DEFS) / sizeof(TierParamDef);
-static_assert(BLADE_PARAM_COUNT == BladeIdx::COUNT,
-    "F-4: BLADE_PARAM_DEFS must cover BladeIdx exactly (row order IS the index)");
-
-// params[] order MUST match BLADE_PARAM_DEFS:
-//   [0]BLADE_COUNT [1]BLADE_H [2]BLADE_H_VAR [3]BLADE_W
-//   [4]SPLAY [5]CURVE [6]TWIST [7]TAPER
-struct BladeTierRow {
-    TierProfile profile;
-    float       color_over;
-    uint32_t    blade_segs;
-};
-
-// ── Blade tier table ───────────────────────────────────────────────
-// Row = BladeClusterTier order (0 SPROUT / 1 CLUMP / 2 THICKET); each
-// row = { weight, color_var, { 8 {μ,σ} pairs in BladeIdx order, wrapped:
-//   line 1: BLADE_COUNT  BLADE_H  BLADE_H_VAR  BLADE_W
-//   line 2: SPLAY  CURVE  TWIST  TAPER } }, color_over, blade_segs.
-// UNITS: BLADE_COUNT = count (do_round); heights/width = wu;
-//   SPLAY/CURVE/TWIST = radians; TAPER = multiplier; weight =
-//   tier-selection weight; color_over = probability; blade_segs =
-//   mesh segments per blade.
-// CONSUMERS: blade_get_tier_profile (generic sampling); blade_segs at
-//   blade write_active. Biography determinant — frozen biography (§12).
-inline constexpr BladeTierRow BLADE_TIERS[] = {
-    /* SPROUT  */ {
-        { 0.50f, 0.06f, { {3.0f, 1.0f}, {3.0f, 0.40f}, {0.35f, 0.08f}, {0.30f, 0.06f},
-                   {0.18f, 0.06f}, {0.12f, 0.04f}, {0.05f, 0.02f}, {0.85f, 0.05f} }},
-        0.15f, 5
-    },
-    /* CLUMP   */ {
-        { 0.35f, 0.06f, { {5.0f, 2.0f}, {3.80f, 0.60f}, {0.40f, 0.10f}, {0.45f, 0.08f},
-                   {0.25f, 0.08f}, {0.18f, 0.06f}, {0.08f, 0.03f}, {0.82f, 0.05f} }},
-        0.20f, 6
-    },
-    /* THICKET */ {
-        { 0.15f, 0.08f, { {7.0f, 3.0f}, {5.20f, 1.20f}, {0.45f, 0.10f}, {0.55f, 0.10f},
-                   {0.30f, 0.10f}, {0.22f, 0.08f}, {0.10f, 0.04f}, {0.80f, 0.06f} }},
-        0.25f, 7
-    },
-};
-static_assert(sizeof(BLADE_TIERS) / sizeof(BladeTierRow) == static_cast<uint32_t>(BladeClusterTier::COUNT),
-    "F-5: BLADE_TIERS must have exactly one row per BladeClusterTier");
-
-inline const TierProfile& blade_get_tier_profile(uint32_t tier_idx) {
-    return BLADE_TIERS[tier_idx].profile;
-}
-
-// ─── Color Parts ─────────────────────────────────────────────────
-
-inline constexpr ColorPartDef BLADE_COLOR_PARTS[] = {
-    { { 0.28f, 0.52f, 0.22f },   // BLADE_BODY_BASE
-      0.0f,                        // variance set per-tier in adapter
-      BladeProp::COLOR_VAR_R, 0 },
-    { { 0.48f, 0.45f, 0.28f },   // BLADE_AGED_BASE
-      0.0f,
-      BladeProp::COLOR_VAR_R, 10 },
-};
-
-// ─── Traits Declaration ──────────────────────────────────────────
-
-inline constexpr EntityFamilyTraits BLADE_TRAITS = {
-    PopFamily::BLADE,
-    Dim::MAX_BLADE_INSTANCES,
-    true,                 // grounded
-    BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::BLADE),
-    BladeClusterConfig::POSITION_JITTER,
-    BLADE_TIER_COUNT, BladeProp::TIER,
-    BLADE_PARAM_DEFS, BLADE_PARAM_COUNT,
-    BladeProp::POSITION_X, BladeProp::POSITION_Z, BladeProp::ROTATION,
-    2, BLADE_COLOR_PARTS,
-};
-
-// ─── Blade Adapter Functions ─────────────────────────────────────
-
-inline SpawnGateOutput blade_run_gate(MachineCtx* c,
-    int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, BLADE_TRAITS, c->entities_state_.blades);
-}
-
-
-inline void blade_compute_solid_half(EntityInstance& inst,
-    const TierProfile& /*tier*/) {
-    inst.solid_half = inst.params[BladeIdx::BLADE_W] * 0.5f;
-    inst.burial = 0.0f;
-}
-
-inline void blade_write_active(MachineCtx* c, const EntityInstance& inst) {
-    auto& ab = c->entities_state_.blades[inst.slot];
-    ab.patch_gx = inst.trigger_gx;
-    ab.patch_gz = inst.trigger_gz;
-    ab.host_gx  = inst.host_gx;
-    ab.host_gz  = inst.host_gz;
-    ab.active   = true;
-    ab.draw_visible = true;
-    ab.world_x  = inst.cx;
-    ab.world_z  = inst.cz;
-    ab.height   = inst.params[BladeIdx::BLADE_H];
-    ab.radius   = inst.params[BladeIdx::BLADE_W] + inst.params[BladeIdx::SPLAY];
-    ab.tier_idx = inst.tier_idx;
-    ab.cached_ground_y = inst.cached_ground_y;
-}
-
-inline void blade_write_gpu(MachineCtx* c,
-    const EntityInstance& inst, wgpu::Queue& queue) {
-    GPUBladeClusterMeshParams mp{};
-    mp.center_x    = inst.cx;
-    mp.center_z    = inst.cz;
-    mp.blade_count = inst.params[BladeIdx::BLADE_COUNT];
-    mp.blade_h     = inst.params[BladeIdx::BLADE_H];
-    mp.blade_h_var = inst.params[BladeIdx::BLADE_H_VAR];
-    mp.blade_w     = inst.params[BladeIdx::BLADE_W];
-    mp.splay       = inst.params[BladeIdx::SPLAY];
-    mp.curve       = inst.params[BladeIdx::CURVE];
-    mp.twist       = inst.params[BladeIdx::TWIST];
-    mp.taper       = inst.params[BladeIdx::TAPER];
-    mp.blade_r     = inst.colors[0];
-    mp.blade_g     = inst.colors[1];
-    mp.blade_b     = inst.colors[2];
-    mp.aged_r      = inst.colors[3];
-    mp.aged_g      = inst.colors[4];
-    mp.aged_b      = inst.colors[5];
-    mp.blade_segs  = BLADE_TIERS[inst.tier_idx].blade_segs;
-    mp.is_active   = 1;
-    mp.seed        = inst.seed;
-    c->gpuState_.upload_blade_mesh_params_slot(queue, inst.slot, mp);
-    c->entities_state_.blade_mesh_gen_pending = true;
-}
-
-inline constexpr uint32_t BLADE_INDOOR_RESCALE_PARAMS[] = {
-    BladeIdx::BLADE_H, BladeIdx::BLADE_W,
-    // BLADE_COUNT (count), BLADE_H_VAR (fraction of BLADE_H — the per-blade
-    // jitter rides the scaled height already), SPLAY/TWIST (angles), CURVE
-    // (a multiplier ON blade_h, so it scales for free), TAPER (a width
-    // exponent) intentionally not scaled.
-};
-
-// Blade policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless taller
-// than the cap. current_h = BLADE_H, the family's NOMINAL rise, mirroring
-// palm's hook (which likewise takes the primary height param, not the
-// seeded worst case).
-//
-// BLADE_H IS NOT THE FAMILY'S TRUE CEILING, and the mesh is where that
-// shows: world.wgsl applies a per-blade jitter ABOVE the param —
-//   let h_mult = 1.0 + (blade_hash(...) - 0.5) * p.blade_h_var * 2.0;
-//   let blade_h = p.blade_h * max(0.4, h_mult);
-// so the true bound is BLADE_H * (1 + BLADE_H_VAR), with BLADE_H_VAR
-// running 0.35 / 0.40 / 0.45 by tier. Palm and cactus have no such upward
-// jitter (y = t * p.height), so for them the primary param IS the ceiling;
-// blade is the odd one out.
-//
-// TODAY THIS HOOK CANNOT FIRE, and that is worth stating rather than
-// discovering. BLADE_H is a Gaussian truncated at ±3σ, so its largest
-// reachable value is THICKET's 5.20 + 3(1.20) = 8.80 — while the only two
-// indoor ceilings are 20.0 and 25.0, i.e. cap thresholds of 15.00 and
-// 18.75. Blade is wired into the module and rides the same law as its
-// siblings, but it is inert until a shorter ceiling or a taller tier
-// arrives. It is not a behavior change today.
-inline void blade_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[BladeIdx::BLADE_H],
-        BLADE_INDOOR_RESCALE_PARAMS);
-}
-
-inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
-    blade_run_gate,
-    blade_apply_indoor_rescale,   // CAP (INDOOR_TREATMENT) — TUNE_1 A8
-    blade_compute_solid_half,
-    nullptr,                  // compute_colors → use generic (Q24)
-    blade_write_active,
-    blade_write_gpu,
-    nullptr,                  // no post_commit
-    blade_get_tier_profile,
-};
-
-// ── Blade dispatch wrappers ──
-
-inline bool dispatch_select_blade_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    EntityInstance inst{};
-    if (!generic_select(self, BLADE_TRAITS, BLADE_ADAPTER, gx, gz, inst)) return false;
-    e.family = PopFamily::BLADE; e.gx = gx; e.gz = gz; e.generic = inst; return true;
-}
-inline bool dispatch_place_blade_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (generic_place(self, BLADE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->entities_state_.blades[e.generic.slot].active = false; return false;
-}
-inline void dispatch_commit_blade_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, BLADE_TRAITS, BLADE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::BLADE, pe.generic.slot); }
-    // HOST PATCH GONE. The footprint was registered at place; its host
-    // vanished before commit. Release by OWNER — the one release path.
-    else { unregister_footprint_for(self, PopFamily::BLADE, pe.generic.slot); self->entities_state_.blades[pe.generic.slot].active = false; }
-}
 
 // ═══ FAMILY: PALM ═════════════════════════════════════════════════
 
@@ -1606,8 +1297,8 @@ inline void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe,
 
 // ─── Teardown (owner verb) ────────────────────────────────────────
 // The grounded families' half of the world-teardown sweep — CPU slot
-// clears + GPU param-slot clears + mesh-gen re-arm, seven families in
-// their one organ. UNGATED by design: the seven families share this
+// clears + GPU param-slot clears + mesh-gen re-arm, six families in
+// their one organ. UNGATED by design: the six families share this
 // organ, and per-family gating buys nothing (empty arrays clear to
 // empty). The arch clear announces the portal-set change on the
 // standing flag channel (mood_state_.portals_dirty).
@@ -1668,19 +1359,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
             c->gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
         }
         c->entities_state_.cactus_mesh_gen_pending = true;
-    }
-
-    // Blade clusters
-    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        c->entities_state_.blades[i] = ActiveBlade{};
-    }
-    c->gpuState_.set_blade_index_count(0);
-    {
-        GPUBladeClusterMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-            c->gpuState_.upload_blade_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.blade_mesh_gen_pending = true;
     }
 
     // Pyramids

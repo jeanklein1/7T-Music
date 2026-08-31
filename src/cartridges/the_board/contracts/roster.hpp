@@ -56,15 +56,14 @@ struct PopFamily {
     static constexpr uint32_t ANTENNA = 3;
     static constexpr uint32_t PALM = 4;
     static constexpr uint32_t CACTUS = 5;
-    static constexpr uint32_t BLADE = 6;
-    static constexpr uint32_t SPHERE = 7;    // orbital spheres
-    static constexpr uint32_t RIBBON = 8;
-    static constexpr uint32_t CUBE = 9;      // hover-bob monoliths (split from legacy FLOATING)
-    static constexpr uint32_t GOL = 10;       // Game of Life / Pulse automaton zones
-    static constexpr uint32_t COUNT = 11;
+    static constexpr uint32_t SPHERE = 6;    // orbital spheres
+    static constexpr uint32_t RIBBON = 7;
+    static constexpr uint32_t CUBE = 8;      // hover-bob monoliths (split from legacy FLOATING)
+    static constexpr uint32_t GOL = 9;       // Game of Life / Pulse automaton zones
+    static constexpr uint32_t COUNT = 10;
 };
 
-// F-1: the family ORDER is load-bearing — nine
+// F-1: the family ORDER is load-bearing — ten
 // spawn tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
 // vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight, MOOD_SPAWN_MULT,
 // TilePopulation::spatial_density and INDOOR_TREATMENT), as is
@@ -83,15 +82,23 @@ struct PopFamily {
 // no surviving table column moved relative to another, and placement
 // priority among the survivors is unchanged. The F-1 fear does not bite a
 // tail cut — it bites a renumbering, and there was none.
+//
+// PRUNE_2 IS THE OTHER KIND. It excises MID-TABLE families, so every
+// family above the cut renumbers and every one of the ten positional
+// tables loses that column. The fear bites, and the answer is not to
+// dodge it: each excision commit re-columns all ten tables AND
+// FAMILY_DISPATCH in the same commit, and rewrites this assert to the
+// surviving pins. Relative order among survivors is preserved — the cut
+// closes ranks, it never reshuffles — so placement priority among the
+// survivors is unchanged, exactly as in a tail cut.
 static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
            && PopFamily::COLUMN  == 2 && PopFamily::ANTENNA == 3
            && PopFamily::PALM    == 4 && PopFamily::CACTUS  == 5
-           && PopFamily::BLADE   == 6 && PopFamily::SPHERE  == 7
-           && PopFamily::RIBBON  == 8 && PopFamily::CUBE    == 9
-           && PopFamily::GOL     == 10
-           && PopFamily::COUNT   == 11,
+           && PopFamily::SPHERE  == 6 && PopFamily::RIBBON  == 7
+           && PopFamily::CUBE    == 8 && PopFamily::GOL     == 9
+           && PopFamily::COUNT   == 10,
     "PopFamily ORDER is the spawn tables' row/column contract (F-1): "
-    "re-column all nine PopFamily-ordered tables + FAMILY_DISPATCH "
+    "re-column all ten PopFamily-ordered tables + FAMILY_DISPATCH "
     "before renumbering any family");
 
 // ═══ PLACEMENT ORDER ═════════════════════════════════════════════
@@ -103,7 +110,7 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
 //
 // It was previously the loop counter itself (`for f = 0..COUNT`), which
 // welded placement priority to the enum. But the enum is ALSO the column
-// order of nine positional tables and the row order of FAMILY_DISPATCH
+// order of ten positional tables and the row order of FAMILY_DISPATCH
 // (F-1), so re-ranking priority meant re-columning everything. Splitting the
 // two lets priority be re-ranked here, alone, without touching a single
 // table — PopFamily stays pinned.
@@ -112,8 +119,8 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
 // unchanged. Reordering is a deliberate, isolated edit.
 inline constexpr uint32_t PLACEMENT_ORDER[PopFamily::COUNT] = {
     PopFamily::PYRAMID, PopFamily::ARCH,   PopFamily::COLUMN, PopFamily::ANTENNA,
-    PopFamily::PALM,    PopFamily::CACTUS, PopFamily::BLADE,  PopFamily::SPHERE,
-    PopFamily::RIBBON,  PopFamily::CUBE,   PopFamily::GOL,
+    PopFamily::PALM,    PopFamily::CACTUS, PopFamily::SPHERE, PopFamily::RIBBON,
+    PopFamily::CUBE,    PopFamily::GOL,
 };
 
 // F-6: PLACEMENT_ORDER must be a PERMUTATION of 0..COUNT-1 — every family
@@ -138,7 +145,7 @@ static_assert(placement_order_is_permutation(),
     "or omission silently removes a family from every spawn");
 
 struct Roster {
-    bool pyramid, arch, column, antenna, palm, cactus, blade,
+    bool pyramid, arch, column, antenna, palm, cactus,
          sphere, ribbon, cube, gol;
     // FEATURES (7)
     bool pawn_aura;     // presence ramp + aura terrain compute
@@ -157,7 +164,6 @@ struct Roster {
             case PopFamily::ANTENNA: return antenna;
             case PopFamily::PALM:    return palm;
             case PopFamily::CACTUS:  return cactus;
-            case PopFamily::BLADE:   return blade;
             case PopFamily::SPHERE:  return sphere;
             case PopFamily::RIBBON:  return ribbon;
             case PopFamily::CUBE:    return cube;
@@ -168,7 +174,7 @@ struct Roster {
 
     constexpr bool all_enabled() const {
         return pyramid && arch && column && antenna && palm && cactus &&
-               blade && sphere && ribbon && cube && gol &&
+               sphere && ribbon && cube && gol &&
                pawn_aura && orbs && spot_lights && indoor_shell && portal &&
                transitions && wanderers;
     }
@@ -179,7 +185,7 @@ struct Roster {
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
         return !pyramid && !arch && !column && !antenna && !palm && !cactus &&
-               !blade && !sphere && !ribbon && !cube && !gol &&
+               !sphere && !ribbon && !cube && !gol &&
                !pawn_aura && !orbs && !spot_lights && !indoor_shell && !portal &&
                !transitions && !wanderers;
     }

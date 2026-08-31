@@ -41,7 +41,6 @@ the header.
 | Column Mesh Gen | `columnMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Palm Mesh Gen | `palmMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Cactus Mesh Gen | `cactusMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
-| Blade Mesh Gen | `bladeMeshGenPipeline_` | C | 4 / 8 | 4 / 4 | 0 / 16 | 2 / 14 | 0 / 4 |
 | Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
 | Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
 | Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
@@ -60,8 +59,6 @@ the header.
 | Palm Tree (Rasterized) | `palmPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
 | Cactus (Rasterized) | `cactusPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
 | Cactus (Rasterized) | `cactusPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
-| Blade Cluster (Rasterized) | `bladePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
 | Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
 | Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
 | Sky Ribbon Entity | `ribbonPipeline_` | V | 4 / 8 | 4 / 4 | 4 / 12 | 2 / 14 | 0 / 4 |
@@ -76,7 +73,6 @@ the header.
 | Shadow Generative Column | `shadowColumnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Shadow Palm Tree | `shadowPalmPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Shadow Cactus | `shadowCactusPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Shadow Blade Cluster | `shadowBladePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
@@ -88,8 +84,8 @@ the header.
 |---|---|---|---|
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
 | storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+6 more) |
-| sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+12 more) |
-| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+20 more) |
+| sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+11 more) |
+| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+19 more) |
 | storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column
@@ -149,7 +145,7 @@ declaration alone — no hand-authored field.
 | `photo_sampler` | 3:43 | handle | `sampler` | samplers |
 | `arch_ground` | 2:81 | storage, read_write | `array<ArchGroundEntry, 16>` | storage |
 | `column_ground` | 2:82 | storage, read_write | `array<ColumnGroundEntry, 32>` | storage |
-| `plant_ground` | 2:83 | storage, read_write | `array<PalmGroundEntry, 76>` | storage |
+| `plant_ground` | 2:83 | storage, read_write | `array<PalmGroundEntry, 44>` | storage |
 | `entity_ground_atlas_write` | 3:80 | handle | `texture_storage_2d<r32float, write>` | storagetex |
 | `patch_grid` | 2:43 | storage, read | `PatchGrid` | storage |
 | `fc_config` | 0:0 | uniform | `DesignConfig` | uniform |
@@ -172,9 +168,6 @@ declaration alone — no hand-authored field.
 | `cactusg_params` | 2:180 | storage, read | `array<CactusMeshParams, 20>` | storage |
 | `cactusg_vertices` | 2:181 | storage, read_write | `array<f32>` | storage |
 | `cactusg_indices` | 2:182 | storage, read_write | `array<u32>` | storage |
-| `bladeg_params` | 2:180 | storage, read | `array<BladeClusterMeshParams, 32>` | storage |
-| `bladeg_vertices` | 2:181 | storage, read_write | `array<f32>` | storage |
-| `bladeg_indices` | 2:182 | storage, read_write | `array<u32>` | storage |
 | `orb_state` | 2:120 | storage, read_write | `array<OrbState>` | storage |
 | `orb_config` | 2:121 | uniform | `OrbConfig` | uniform |
 | `orb_state_prev` | 2:122 | storage, read | `array<OrbState>` | storage |
@@ -183,7 +176,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 65
+Lane sums equal per-seat counts on every one of the 61
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

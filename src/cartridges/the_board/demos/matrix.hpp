@@ -53,8 +53,8 @@ namespace the_board {
 // pins the count.
 namespace Piece {
 enum : uint32_t {
-    // 11 families (PopFamily order)
-    pyramid, arch, column, antenna, palm, cactus, blade,
+    // 10 families (PopFamily order)
+    pyramid, arch, column, antenna, palm, cactus,
     sphere, ribbon, cube, gol,
     // 7 features
     pawn_aura, orbs, spot_lights, indoor_shell, portal, transitions, wanderers,
@@ -81,7 +81,6 @@ inline constexpr bool GRID[Piece::COUNT][static_cast<uint32_t>(DemoCol::COUNT)] 
     /* antenna        */  {  true,  false },
     /* palm           */  {  true,  false },
     /* cactus         */  {  true,  false },
-    /* blade          */  {  true,  false },
     /* sphere         */  {  true,  false },
     /* ribbon         */  {  true,  false },
     /* cube           */  {  true,  false },
@@ -113,7 +112,7 @@ constexpr Roster column_to_roster(DemoCol d) {
     return Roster{
         GRID[Piece::pyramid][c], GRID[Piece::arch][c], GRID[Piece::column][c],
         GRID[Piece::antenna][c], GRID[Piece::palm][c], GRID[Piece::cactus][c],
-        GRID[Piece::blade][c], GRID[Piece::sphere][c], GRID[Piece::ribbon][c],
+        GRID[Piece::sphere][c], GRID[Piece::ribbon][c],
         GRID[Piece::cube][c], GRID[Piece::gol][c],
         GRID[Piece::pawn_aura][c], GRID[Piece::orbs][c], GRID[Piece::spot_lights][c],
         GRID[Piece::indoor_shell][c], GRID[Piece::portal][c],
@@ -134,8 +133,8 @@ constexpr DemoConfig demo_config(DemoCol d) {
 // (1) the row count equals Roster's field count — the field-order
 //     mapping in column_to_roster is total. (Add a field to Roster ⇒
 //     add a Piece row ⇒ this trips until they agree.)
-static_assert(Piece::COUNT == 18,
-    "matrix: Piece row count must equal Roster's 18 fields (11 families + 7 features)");
+static_assert(Piece::COUNT == 17,
+    "matrix: Piece row count must equal Roster's 17 fields (10 families + 7 features)");
 
 // (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
 //     migrated columns are pinned to the retired headers' exact values,
@@ -149,12 +148,12 @@ static_assert(Piece::COUNT == 18,
 //     now (ATRIUM_1) — the entrance is the visitor's first room — and
 //     the golden pins the new value.
 static_assert(demo_config(DemoCol::full).roster.all_enabled(),
-    "GOLDEN: demo=full must equal old full.hpp — all 19 tickable bits ON");
+    "GOLDEN: demo=full must equal old full.hpp — every tickable bit ON");
 static_assert(demo_config(DemoCol::full).seed == 42 &&
               demo_config(DemoCol::full).boot_mood == MOOD_OPEN_SUNSET,
     "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the open field (ATTIC_ATRIUM)");
 static_assert(demo_config(DemoCol::minimal).roster.none_enabled(),
-    "GOLDEN: demo=minimal must equal old minimal.hpp — all 19 tickable bits OFF");
+    "GOLDEN: demo=minimal must equal old minimal.hpp — every tickable bit OFF");
 static_assert(demo_config(DemoCol::minimal).seed == 42 &&
               demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_SUNSET,
     "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the open field (ATTIC_ATRIUM)");

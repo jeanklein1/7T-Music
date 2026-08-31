@@ -78,9 +78,6 @@ namespace t7 {
             constexpr const char* CACTUS_MESH_GEN = "cactus_mesh_gen";
             constexpr const char* CACTUS_VS = "cactus_vs";
             constexpr const char* SHADOW_CACTUS_VS = "shadow_cactus_vs";
-            constexpr const char* BLADE_MESH_GEN = "blade_cluster_mesh_gen";
-            constexpr const char* BLADE_VS = "blade_cluster_vs";
-            constexpr const char* SHADOW_BLADE_VS = "shadow_blade_cluster_vs";
 
             // Fade overlay (fullscreen transition)
             constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
@@ -213,7 +210,6 @@ namespace t7 {
             wgpu::RenderPipeline columnPipeline_;        // Generative column entity
             wgpu::RenderPipeline palmPipeline_;          // Palm tree entity
             wgpu::RenderPipeline cactusPipeline_;         // Cactus entity
-            wgpu::RenderPipeline bladePipeline_;          // Blade cluster entity
             // pyramidPipeline_ CUT — pyramid mesh never drawn
             wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
@@ -226,7 +222,6 @@ namespace t7 {
             wgpu::RenderPipeline shadowColumnPipeline_;
             wgpu::RenderPipeline shadowPalmPipeline_;
             wgpu::RenderPipeline shadowCactusPipeline_;
-            wgpu::RenderPipeline shadowBladePipeline_;
             // shadowPyramidPipeline_ CUT
             wgpu::RenderPipeline shadowShellPipeline_;
 
@@ -272,7 +267,6 @@ namespace t7 {
             wgpu::ComputePipeline columnMeshGenPipeline_;
             wgpu::ComputePipeline palmMeshGenPipeline_;
             wgpu::ComputePipeline cactusMeshGenPipeline_;
-            wgpu::ComputePipeline bladeMeshGenPipeline_;
 
         public:
             // ═══ THE BUNDLES (BUNDLE_1) ═══════════════════════════════════
@@ -753,18 +747,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_CACTUS_INSTANCES, 1, 1);
             }
 
-            void dispatch_blade_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(bladeMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
-            }
-
             // THE DRAW PLAN: one helper, three invocations — the args slot
             // rides the offset (0 / 20 / 40 bytes into the 3 x 5-u32 args
             // buffer). OIL_1 U13 (ledger: R19, C7): the three plan slots
@@ -987,19 +969,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
-            template <class Enc>
-            void draw_blade(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, bladePipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
 
             template <class Enc>
@@ -1208,19 +1177,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
-            template <class Enc>
-            void draw_shadow_blade(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowBladePipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
             // draw_shadow_pyramid CUT — caller-free
 
             template <class Enc>
@@ -1248,7 +1204,6 @@ namespace t7 {
                 if (!(ROSTER.column || ROSTER.antenna)) n += 3;
                 if (!(ROSTER.palm)) n += 3;
                 if (!(ROSTER.cactus)) n += 3;
-                if (!(ROSTER.blade)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
                 if (!(ROSTER.orbs)) n += 5;
@@ -1623,13 +1578,6 @@ namespace t7 {
                         pl, Entry::CACTUS_MESH_GEN, cactusMeshGenPipeline_)) return false;
                 }
 
-                if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("blade_cluster_mesh_gen", "Blade Mesh Gen",
-                        pl, Entry::BLADE_MESH_GEN, bladeMeshGenPipeline_)) return false;
-                }
-
                 return true;
             }
 
@@ -1658,7 +1606,7 @@ namespace t7 {
                 // The genuine forks are parameters: the VS entry (passed VERBATIM), the
                 // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
                 // and cullMode — a REAL per-pipeline field, NOT noise: single-sided frond/
-                // blade/column quads disable backface cull (None), solids keep Back. Same
+                // column/palm/cactus quads disable backface cull (None), solids keep Back. Same
                 // shared desc the originals mutated in place, rebuilt fresh per call
                 // (byte-identical result). Captures renderLayout/depthStencil/colorTarget.
                 auto makeEntity = [&](const char* label, const char* dbgLabel, const char* vsEntry,
@@ -1833,8 +1781,8 @@ namespace t7 {
                     archVBL.attributeCount = archAttrs.size();
                     archVBL.attributes = archAttrs.data();
 
-                    // Arch/column/palm/cactus/blade/pyramid — same ArchVertex format; differ by
-                    // VS + cull. Single-sided column/palm/cactus/blade quads disable backface
+                    // Arch/column/palm/cactus/pyramid — same ArchVertex format; differ by
+                    // VS + cull. Single-sided column/palm/cactus quads disable backface
                     // cull (None); arch + pyramid are solids (Back). (cullMode is a real fork.)
                     if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                     if (!makeEntity("arch", "Catenary Arch (Rasterized)", Entry::ARCH_VS,
@@ -1851,10 +1799,6 @@ namespace t7 {
                     if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
                     if (!makeEntity("cactus", "Cactus (Rasterized)", Entry::CACTUS_VS,
                         &archVBL, wgpu::CullMode::None, cactusPipeline_)) return false;
-                    }
-                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                    if (!makeEntity("blade", "Blade Cluster (Rasterized)", Entry::BLADE_VS,
-                        &archVBL, wgpu::CullMode::None, bladePipeline_)) return false;
                     }
                     // pyramid render pipeline CUT — mesh never drawn
                 }
@@ -2212,7 +2156,7 @@ namespace t7 {
                     // real category boundary (different layout, different depth state, no FS).
                     // Forks are parameters: shadow-VS (verbatim), VBL, cullMode — same
                     // Back/None split as the entity family (single-sided column/palm/cactus/
-                    // blade + pawn/ribbon/shell → None; solids → Back).
+                    // pawn/ribbon/shell → None; solids → Back).
                     // TWO BIAS PROFILES (PENUMBRA_3 C2). The profile rides the
                     // existing cullMode fork as a DEFAULTED 7th parameter, so the
                     // ten call sites that keep SOLID stay byte-identical. It must
@@ -2366,9 +2310,9 @@ namespace t7 {
                         shadowArchVBL.attributeCount = shadowArchAttrs.size();
                         shadowArchVBL.attributes = shadowArchAttrs.data();
 
-                        // arch/column/palm/cactus/blade shadows — same ArchVertex
+                        // arch/column/palm/cactus shadows — same ArchVertex
                         // format; cull matches the color pass (arch Back, the
-                        // single-sided column/palm/cactus/blade None). pyramid shadow cut.
+                        // single-sided column/palm/cactus None). pyramid shadow cut.
                         if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
                             &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
@@ -2384,10 +2328,6 @@ namespace t7 {
                         if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_cactus", "Shadow Cactus", Entry::SHADOW_CACTUS_VS,
                             &shadowArchVBL, wgpu::CullMode::None, shadowCactusPipeline_)) return false;
-                        }
-                        if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_blade", "Shadow Blade Cluster", Entry::SHADOW_BLADE_VS,
-                            &shadowArchVBL, wgpu::CullMode::None, shadowBladePipeline_)) return false;
                         }
                         // shadow_pyramid pipeline CUT — mesh never drawn
                     }

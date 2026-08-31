@@ -84,7 +84,7 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 //   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
 //   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
 //   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
-// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=10),
+// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=9),
 //   PINNED by the F-1 static_assert at roster.hpp.
 // CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
 //   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
@@ -96,29 +96,28 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 //   short-circuits the whole mechanism for that family.
 // Spawn + placement determinant — frozen biography (§12): these numbers
 // shape both the rate and the geometry of every cluster ever born.
-// Only COLUMN and the flora trio (PALM/CACTUS/BLADE) cluster today.
+// Only COLUMN and the flora pair (PALM/CACTUS) cluster today.
 
-//                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0 };   // min neighbors; 0 = none
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
+//                              Pyr    Arch   Col    Ant    Palm   Cact   Sph    Ribn   Cube   GoL
+inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
+inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
+inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     0,     0,     0,     0 };   // min neighbors; 0 = none
+inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
 
 // AFFINITY[placing][existing]: rows follow PopFamily; only Col + the
-// flora trio have non-zero rows (all others never cluster).
+// flora pair have non-zero rows (all others never cluster).
 inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-    //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Sph   Ribn  Cube  GoL
-    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.65f, 0.3f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Blad  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    //           near: Pyr   Arch  Col   Ant   Palm  Cact  Sph   Ribn  Cube  GoL
+    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.65f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // Precomputed: does this family have any non-zero affinity?
@@ -636,7 +635,7 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
-    static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad", "sph", "ribn", "cube", "gol" };
+    static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "sph", "ribn", "cube", "gol" };
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 

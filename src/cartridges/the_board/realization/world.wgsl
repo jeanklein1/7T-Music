@@ -5873,7 +5873,7 @@ struct ArchVertexInput {
     // bitcast<f32>(u32)). slot < 64 (census C-12); seed < 65536 →
     // enc < 2^22, f32-exact. Families that never paint write seed 0 —
     // their bytes are unchanged and their VSes keep the plain u32()
-    // read (identity on a bare slot: palm/cactus/blade untouched).
+    // read (identity on a bare slot: palm/cactus untouched).
     // Painted families (arch, column) and their shadow twins decode
     // via entity_index_decode below.
     @location(3) arch_index: f32,
@@ -7134,7 +7134,6 @@ const GROUND_ATLAS_COLUMN: i32   = 16;
 // hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
 const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
-const GROUND_ATLAS_BLADE: i32    = 100;
 
 // --- The ribbon room (ribbonStateLayout_; RIBBON_1)
 // ring_xforms: written by ribbon_body, read by the render rooms as 143.
@@ -11386,8 +11385,8 @@ struct PalmGroundEntry {
     is_active: u32,
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
-// Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43] + blade[44..75]
-@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 76>;
+// Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43]
+@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 44>;
 
 // Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
 @group(3) @binding(80) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
@@ -11502,12 +11501,10 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // Arch: 2-point min at the leg positions + pier_height offset (the legs' visual height).
 // Pyramid: 5-point min at center + 4 rotated corners.
-// Column/antenna, palm, cactus, blade: single-point center.
-//   (The blade GPU path IS live — this compute writes GROUND_ATLAS_BLADE
-//   and the blade VS reads it; the old "excluded/CPU-mirror" note was stale.)
+// Column/antenna, palm, cactus: single-point center.
 //
 // b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
-// families (column/antenna, palm/cactus/blade, arch feet) add
+// families (column/antenna, palm/cactus, arch feet) add
 // contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
@@ -11558,17 +11555,6 @@ fn compute_entity_placement() {
             // b2b: + world-anchored GoL (see column).
             plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Blade: plant_ground[44..75]
-    for (var i = 0u; i < 32u; i++) {
-        let slot = 44u + i;
-        if (plant_ground[slot].is_active != 0u) {
-            let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            // b2b: + world-anchored GoL (see column).
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -13527,275 +13513,6 @@ fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
 fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
-
-// ─── §9.5 BLADE CLUSTER MESH GENERATION ─────────────────────────
-//
-// BladeClusterMeshParams MUST match state.hpp::GPUBladeClusterMeshParams
-// (size: 80 bytes). If this struct gains/loses a field, the CPU side
-// and its state.hpp sizeof static_assert must be updated together.
-
-// 16 floats + 4 u32 = 20 fields × 4 = 80 bytes
-struct BladeClusterMeshParams {
-    center_x: f32, center_z: f32,                   // 1-2
-    blade_count: f32,                                // 3
-    blade_h: f32, blade_h_var: f32, blade_w: f32,   // 4-6
-    splay: f32, curve: f32, twist: f32, taper: f32, // 7-10
-    blade_r: f32, blade_g: f32, blade_b: f32,       // 11-13
-    aged_r: f32, aged_g: f32, aged_b: f32,          // 14-16
-    blade_segs: u32,                                 // 17
-    is_active: u32,                                  // 18
-    seed: u32,                                       // 19
-    _pad0: u32,                                      // 20 = 80 bytes
-}
-
-const BLADEG_MAX_VERTS_PER_SLOT: u32 = 500u;
-const BLADEG_MAX_INDICES_PER_SLOT: u32 = 1998u;
-const BLADEG_FLOATS_PER_VERTEX: u32 = 10u;
-const BLADEG_MAX_SLOTS: u32 = 32u;
-
-@group(2) @binding(180) var<storage, read>       bladeg_params: array<BladeClusterMeshParams, 32>;
-@group(2) @binding(181) var<storage, read_write>  bladeg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  bladeg_indices: array<u32>;
-
-fn bladeg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
-                       nx: f32, ny: f32, nz: f32,
-                       cr: f32, cg: f32, cb: f32, entity_idx: u32) {
-    let base = abs_idx * BLADEG_FLOATS_PER_VERTEX;
-    bladeg_vertices[base + 0u] = px;
-    bladeg_vertices[base + 1u] = py;
-    bladeg_vertices[base + 2u] = pz;
-    bladeg_vertices[base + 3u] = nx;
-    bladeg_vertices[base + 4u] = ny;
-    bladeg_vertices[base + 5u] = nz;
-    bladeg_vertices[base + 6u] = cr;
-    bladeg_vertices[base + 7u] = cg;
-    bladeg_vertices[base + 8u] = cb;
-    bladeg_vertices[base + 9u] = f32(entity_idx);
-}
-
-fn blade_hash(seed: u32, prop: u32) -> f32 {
-    var h = seed * 747796405u + prop * 2891336453u + 1u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = (h >> 16u) ^ h;
-    return f32(h) / 4294967295.0;
-}
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn blade_cluster_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
-    // The simplest of the five: ONE emission section, and every blade is
-    // the same size, so a lane owns a blade and the base is a product.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= BLADEG_MAX_SLOTS) { return; }
-
-    let p = bladeg_params[slot];
-    let vb_base = slot * BLADEG_MAX_VERTS_PER_SLOT;
-    let ib_base = slot * BLADEG_MAX_INDICES_PER_SLOT;
-
-    if (p.is_active == 0u) {
-        for (var i = lane; i < BLADEG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            bladeg_indices[ib_base + i] = vb_base;  // NOT 0u!
-        }
-        return;
-    }
-
-    let cx = p.center_x;
-    let cz = p.center_z;
-    let segs = max(3u, p.blade_segs);
-
-    // THE SLOT IS THE AUTHORITY (mirrors the palm's frond ceiling and the
-    // cactus arm's). n_blades was an unbounded trip count writing into a
-    // fixed slot, and BLADE_COUNT carries 1e30f as its parameter ceiling,
-    // so only the distribution's tail was holding it.
-    //
-    // Costs read from the loops: the vertex loop is INCLUSIVE (s <= segs)
-    // and writes TWO verts per step; the index loop is exclusive and writes
-    // six. There is NO base or root cost — vi and ii are still zero when
-    // the blade loop opens, so the whole slot is the blade budget.
-    //
-    // NOTE for a future table edit: `segs` above has a floor but no
-    // ceiling. It is safe today only because blade_segs is an authored
-    // TIER SCALAR (5/6/7), not a sampled parameter — unlike blade_count.
-    // The ceiling below is computed FROM segs, so it stays correct if that
-    // ever changes; the guard that would still be missing is on segs itself.
-    let verts_per_blade   = (segs + 1u) * 2u;
-    let indices_per_blade = segs * 6u;
-    let blade_ceiling = min(BLADEG_MAX_VERTS_PER_SLOT   / max(verts_per_blade, 1u),
-                            BLADEG_MAX_INDICES_PER_SLOT / max(indices_per_blade, 1u));
-
-    let n_blades = min(u32(max(2.0, p.blade_count)), blade_ceiling);
-    let GA = PI * (3.0 - sqrt(5.0));
-
-    // A LANE OWNS A BLADE: the body is verbatim, both inner loops and the
-    // per-blade cursor included. `verts_per_blade` / `indices_per_blade`
-    // were already named above for the ceiling; they are the stride too.
-    for (var b = lane; b < n_blades; b += MESHGEN_LANES) {
-        var vi = b * verts_per_blade;
-        var ii = b * indices_per_blade;
-
-        let azimuth = f32(b) * GA;
-        let ca = cos(azimuth);
-        let sa = sin(azimuth);
-
-        // Per-blade height variation
-        let h_mult = 1.0 + (blade_hash(p.seed, 970u + b) - 0.5) * p.blade_h_var * 2.0;
-        let blade_h = p.blade_h * max(0.4, h_mult);
-
-        // Splay: outer blades splay more
-        let rank = f32(b) / max(1.0, f32(n_blades - 1u));
-        let splay_ang = p.splay * (0.6 + 0.4 * (1.0 - rank));
-        let splay_j = (blade_hash(p.seed, 980u + b) - 0.5) * 0.15;
-        let final_splay = splay_ang + splay_j;
-
-        let cos_s = cos(final_splay);
-        let sin_s = sin(final_splay);
-        let fwd_x = ca * sin_s;
-        let fwd_y = cos_s;
-        let fwd_z = sa * sin_s;
-
-        // Right vector (perpendicular for blade width)
-        var rx: f32; var ry: f32; var rz: f32;
-        if (cos_s > 0.95) {
-            rx = -sa; ry = 0.0; rz = ca;
-        } else {
-            // cross(fwd, up)
-            rx = fwd_z; ry = 0.0; rz = -fwd_x;
-            let rl = sqrt(rx * rx + rz * rz);
-            rx /= max(rl, 0.001);
-            rz /= max(rl, 0.001);
-        }
-
-        let twist_dir = select(-1.0, 1.0, b % 2u == 0u);
-        let twist_amt = p.twist * twist_dir;
-
-        // Base color for this blade
-        let age_blend = (1.0 - rank) * 0.5;
-        let base_r = p.blade_r + (p.aged_r - p.blade_r) * age_blend;
-        let base_g = p.blade_g + (p.aged_g - p.blade_g) * age_blend;
-        let base_b = p.blade_b + (p.aged_b - p.blade_b) * age_blend;
-
-        let blade_vi_start = vi;
-
-        // Two vertices per segment step (left + right of midrib)
-        for (var s = 0u; s <= segs; s++) {
-            let t = f32(s) / f32(segs);
-            let dist = t * blade_h;
-
-            // Curve: quadratic outward arc
-            let curve_off = p.curve * blade_h * t * t;
-
-            // Position along forward + curve
-            let px = fwd_x * dist + ca * curve_off;
-            let py = fwd_y * dist;
-            let pz = fwd_z * dist + sa * curve_off;
-
-            // Width: ramp in at root, taper to point
-            let base_frac = 0.3 + 0.7 * min(1.0, t * 4.0);
-            let tip_frac = 1.0 - pow(t, p.taper * 2.5 + 0.5);
-            let w = p.blade_w * base_frac * tip_frac;
-
-            // Twist
-            let tw_angle = twist_amt * t * PI;
-            let ct = cos(tw_angle);
-            let st_tw = sin(tw_angle);
-            let trx = rx * ct + fwd_x * st_tw;
-            let try_ = ry * ct + fwd_y * st_tw;
-            let trz = rz * ct + fwd_z * st_tw;
-
-            let half_w = w * 0.5;
-            let perp_x = trx * half_w;
-            let perp_y = try_ * half_w;
-            let perp_z = trz * half_w;
-
-            // Color: shade by height, age at tip
-            let shade = 0.7 + 0.3 * sin(t * PI * 0.8);
-            let tip_age = t * t * 0.3;
-            let cr = min(1.0, (base_r + (p.aged_r - base_r) * tip_age) * shade);
-            let cg = min(1.0, (base_g + (p.aged_g - base_g) * tip_age) * shade);
-            let cb = min(1.0, (base_b + (p.aged_b - base_b) * tip_age) * shade);
-
-            // Normal: blade face normal (cross of forward and right)
-            let nx = fwd_y * trz - fwd_z * try_;
-            let ny = fwd_z * trx - fwd_x * trz;
-            let nz = fwd_x * try_ - fwd_y * trx;
-            let nl = sqrt(nx * nx + ny * ny + nz * nz);
-            let nnx = nx / max(nl, 0.001);
-            let nny = ny / max(nl, 0.001);
-            let nnz = nz / max(nl, 0.001);
-
-            // Left vertex
-            bladeg_write_vertex(vb_base + vi,
-                cx + px + perp_x, py + perp_y, cz + pz + perp_z,
-                nnx, nny, nnz, cr, cg, cb, slot);
-            vi++;
-
-            // Right vertex
-            bladeg_write_vertex(vb_base + vi,
-                cx + px - perp_x, py - perp_y, cz + pz - perp_z,
-                -nnx, -nny, -nnz, cr, cg, cb, slot);
-            vi++;
-        }
-
-        // Index the quad strip: 2 tris per segment
-        let vps = 2u;  // verts per step (left + right)
-        for (var s = 0u; s < segs; s++) {
-            let i0 = blade_vi_start + s * vps;       // left  row s
-            let i1 = blade_vi_start + s * vps + 1u;  // right row s
-            let i2 = blade_vi_start + (s + 1u) * vps;      // left  row s+1
-            let i3 = blade_vi_start + (s + 1u) * vps + 1u; // right row s+1
-
-            bladeg_indices[ib_base + ii] = vb_base + i0; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i2; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i3; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i0; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i3; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i1; ii++;
-        }
-    }
-
-    // Fill remaining indices with vb_base (NOT 0u!).
-    // `used` was the final ii, which no lane holds any more.
-    let used = n_blades * indices_per_blade;
-    for (var i = used + lane; i < BLADEG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        bladeg_indices[ib_base + i] = vb_base;
-    }
-}
-
-// ─── Blade cluster vertex shaders ──────────────────────────────────
-
-@vertex
-fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    // THE RING (draw authority) — see palm_vs: per-vertex kill beyond the ring.
-    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
-        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
-    }
-    return out;
-}
-
-@vertex
-fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
