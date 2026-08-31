@@ -879,7 +879,7 @@ struct FrameSignal {
 
 // --- [STATE:agent] AgentState
 //
-// Unified entity state — mirrors GPUAgentState in state.hpp (92 bytes).
+// Unified entity state — mirrors GPUAgentState in state.hpp (88 bytes).
 // Slot 0 is the player's body (possessed at session start); slots 1..31
 // are mood-authored agents driven by AGENT_BEHAVIORS. Scalar fields
 // throughout so WGSL uniform/storage layout matches C++ without vec3
@@ -897,9 +897,6 @@ struct AgentState {
     vel_z: f32,
     heading: f32,
     home_x: f32,
-    route: u32,     // ATRIUM_4. Was home_y — the tether is planar and nothing read it
-                    // (R4). Was PASSER's route state; the round left at ONE_WORLD-I U4
-                    // and nothing writes it now — the sweep rules on the field.
     home_z: f32,
     seed: u32,
     behavior_id: u32,
@@ -1853,13 +1850,10 @@ struct DesignConfig {
     // carries the witness). Read by cube_force_witness.
     camera_push_gain: f32,          // 688  wu/s² of shove at the shell's center
     camera_push_radius: f32,        // 692  wu — the shell; 0 shuts the term off
-    // ATRIUM_7 — an arch leg's own shell factor. Mirror of
-    // GPUDesignConfig.field_arch_slack (state.hpp) — GROWTH LAW, same
-    // commit, same order, same type. UNREAD since ONE_WORLD-I U3: the
-    // arch-leg pair it was cut for left with the family. The dial keeps
-    // its mirror seat until a sweep rules on it.
-    // Was _pad704_0.
-    field_arch_slack: f32,          // 696
+    // _pad_arch_slack_retired: field_arch_slack's slot (ATRIUM_7, an
+    // arch leg's own shell). Reader and author both left at
+    // ONE_WORLD-I U3/U5; the slot stays a named pad so no offset moves.
+    _pad_arch_slack_retired: u32,   // 696
     // ─── The subtraction dials (PANORAMA_1) ──────────────────────────────
     // Mirror of GPUDesignConfig (state.hpp) — GROWTH LAW, same commit, same
     // order, same types. DECLARED HERE AND READ BY NOTHING IN THIS ROOM: the

@@ -446,9 +446,10 @@ namespace t7 {
         //     (ONE_WORLD-I); the identity below is what the conversion
         //     rests on, not the site
         // so bearing = atan2(cos h, sin h) = PI/2 - h, exactly. One home,
-        // beside the pose it converts: the arc (force_spawn_atrium_arc)
-        // and the hang (place_atrium_poster) both read it, and neither
-        // re-derives the identity.
+        // beside the pose it converts. Its prose named two readers that do
+        // not exist anywhere in src/ — force_spawn_atrium_arc and
+        // place_atrium_poster, rot that predates this campaign — and its one
+        // live reader is the gaze bearing in bodies/agents.hpp.
         constexpr float heading_to_bearing(float h) { return 1.57079633f - h; }
 
         // Mirrors world.wgsl's COUPLING_* bit-flag block. MUST match those
@@ -802,11 +803,13 @@ namespace t7 {
             float camera_push_radius;      // 692
             // ATRIUM_7 — THE DOORWAY'S OWN SHELL. Mirror of the WGSL twin —
             // GROWTH LAW, same commit, same position, same type. Rest
-            // authored at contracts/control_panel.hpp (FIELD_ARCH_SLACK);
-            // the boot pins it. A tail pad is consumed IN PLACE, so sizeof
-            // 704 is unmoved and no witness below moves either. Was
-            // _pad704_0.
-            float field_arch_slack;        // 696
+            // _pad_arch_slack_retired: field_arch_slack's slot. The dial
+            // scaled an arch leg's own shell (ATRIUM_7) and both its
+            // reader and its authored constant left at ONE_WORLD-I U3/U5.
+            // Kept as a NAMED PAD rather than removed — the pier_count
+            // precedent: retiring the slot would shift every offset after
+            // it and re-pad four vec3 boundaries for four bytes.
+            uint32_t _pad_arch_slack_retired;   // 696
             // ─── The subtraction dials (PANORAMA_1) ──────────────────────
             // THE INSTRUMENT THE METER LACKS. `[METER]` brackets a PASS; it
             // cannot say which draw inside the pass spent the milliseconds,
@@ -874,7 +877,8 @@ namespace t7 {
 
         // NOT alignas(16), and that is the whole record: the wire the
         // bubble sensor rode (portal_trigger, once byte 60) left at
-        // ONE_WORLD-I, and 23 scalars are 92 bytes. alignas(16) would round
+        // ONE_WORLD-I U1 and the PASSER's packed route (once byte 36) at
+        // U5, so 22 scalars are 88 bytes. alignas(16) would round
         // sizeof back to 96 while the WGSL twin — whose align is its widest
         // member, 4 — stayed 92, and the storage array's stride would part
         // from C++'s silently. No pad stands in for the departed field: an
@@ -889,24 +893,20 @@ namespace t7 {
             float vel_z;           // 24
             float heading;         // 28
             float home_x;          // 32
-            uint32_t route;        // 36 — ATRIUM_4. Was home_y: the tether is planar
-                                   //      and nothing ever read it (R4). PASSER's route
-                                   //      state, packed (leg<<12)|(cur<<4)|(phase<<1)|1;
-                                   //      0 = fresh. Zero on every other behaviour.
-            float home_z;          // 40
-            uint32_t seed;         // 44 — stable noise source
-            uint32_t behavior_id;  // 48 — AgentBehaviorId (see bodies/agents.hpp)
-            uint32_t tier_idx;     // 52 — AgentTierId     (see bodies/agents.hpp)
-            uint32_t is_active;    // 56 — 0 = inactive (collapsed in VS + skipped in update)
-            float orient_x;        // 60 — heading ⊗ tilt quaternion
-            float orient_y;        // 64
-            float orient_z;        // 68
-            float orient_w;        // 72
-            float color_r;         // 76 — per-agent body color (palette pick at spawn)
-            float color_g;         // 80
-            float color_b;         // 84
-            uint32_t skin_id;      // 88 — PawnFigureDef row (0 = regular pawn). Was _pad0.
-        };                         // 92 total
+            float home_z;          // 36
+            uint32_t seed;         // 40 — stable noise source
+            uint32_t behavior_id;  // 44 — AgentBehaviorId (see bodies/agents.hpp)
+            uint32_t tier_idx;     // 48 — AgentTierId     (see bodies/agents.hpp)
+            uint32_t is_active;    // 52 — 0 = inactive (collapsed in VS + skipped in update)
+            float orient_x;        // 56 — heading ⊗ tilt quaternion
+            float orient_y;        // 60
+            float orient_z;        // 64
+            float orient_w;        // 68
+            float color_r;         // 72 — per-agent body color (palette pick at spawn)
+            float color_g;         // 76
+            float color_b;         // 80
+            uint32_t skin_id;      // 84 — PawnFigureDef row (0 = regular pawn). Was _pad0.
+        };                         // 88 total
 
         // ─── Agent registry GPU structs ──────────────────────────────
         //
@@ -1798,7 +1798,7 @@ namespace t7 {
             + sizeof(GPUAgentBehaviorDef) * GPU_AGENT_BEHAVIOR_COUNT
             == offsetof(GPUAgentRoomConstants, tier_gains),
             "behaviors and tier_gains must stay adjacent — the registry upload writes them as one range");
-        static_assert(sizeof(GPUAgentState) == 92, "GPUAgentState must be 92 bytes");
+        static_assert(sizeof(GPUAgentState) == 88, "GPUAgentState must be 88 bytes");
         static_assert(alignof(GPUAgentState) == 4,
             "GPUAgentState must stay 4-aligned — its WGSL twin is all scalars, so the "
             "storage array's stride is its size; any wider alignment pads C++ only and "
@@ -4395,7 +4395,7 @@ namespace t7 {
                 // the transport. The ribbon dialect reads the same names
                 // directly, so the two rooms cannot drift.
                 config_.field_slack         = FIELD_SLACK;
-                config_.field_arch_slack    = FIELD_ARCH_SLACK;   // ATRIUM_7 — an arch leg's own shell
+                config_._pad_arch_slack_retired = 0u;
                 // THE SUBTRACTION DIALS REST OPEN (PANORAMA_1): every draw
                 // draws. A cleared bit is a measurement in progress, never a
                 // shipped state, so the rest is the only value the audience

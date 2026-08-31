@@ -9,7 +9,7 @@
 // ─── spawn_engine.hpp (S3 · MERGED: vocabulary + state + impl) ─────
 //
 // How and when things appear: shared spawn helpers, footprint
-// registry, proximity affinity, mesh-param rebuilds, distance
+// registry, mesh-param rebuilds, distance
 // culling, census, plus the dispatch loops that drive both generic
 // and bespoke families through select → place → commit.
 //
@@ -67,62 +67,18 @@ inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
 // must be cheap enough not to become the phenomenon.
 inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 
-// ── Proximity affinity ─────────────────────────────────────────────
+// THE PROXIMITY SUBSYSTEM stood here — five PopFamily-indexed tables
+// (RADIUS / MAX_BOOST / THRESHOLD / GAP_REDUCTION and the
+// AFFINITY matrix) and one mechanism: a family with a non-zero
+// affinity row was drawn toward standing neighbours, which both
+// multiplied its spawn chance and shrank its separation gap.
 //
-// WHAT: the clustering system — five tables, one mechanism. When a
-//   family with a non-zero AFFINITY row is being placed, nearby
-//   attractor footprints (a) MULTIPLY its spawn chance (boost) and
-//   (b) SHRINK its required separation gap (gap reduction).
-// AXES: the four vectors are indexed by the PLACING family; the matrix
-//   is PROXIMITY_AFFINITY[placing][existing-neighbor]: a non-zero
-//   [X][Y] means an X being placed is drawn to standing Ys.
-// UNITS: RADIUS = wu (neighbor-scan distance around the candidate);
-//   MAX_BOOST = multiplier ceiling on the spawn-chance boost;
-//   THRESHOLD = count (minimum qualifying neighbors before any boost);
-//   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
-//   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
-//   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
-// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=5),
-//   PINNED by the F-1 static_assert at roster.hpp.
-// CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
-//   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
-//   check_position() (AFFINITY × GAP_REDUCTION → the effective gap);
-//   proximity_row_active() (constexpr row precheck).
-// SENTINELS: RADIUS 0 = family never scans (boost hard-disabled);
-//   MAX_BOOST 1.0 = no boost possible; THRESHOLD 0 = no minimum;
-//   GAP_REDUCTION 0 = gap never shrinks; an all-zero AFFINITY row
-//   short-circuits the whole mechanism for that family.
-// Spawn + placement determinant — frozen biography (§12): these numbers
-// shape both the rate and the geometry of every cluster ever born.
-// No surviving family clusters today.
-
-//                              Pyr    Sph    Ribn   Cube   GoL
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     0,     0,     0 };   // min neighbors; 0 = none
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
-
-// AFFINITY[placing][existing]: rows follow PopFamily. Every row is zero
-// since PRUNE_2 — the clustering families were COLUMN, PALM, CACTUS and
-// BLADE, and
-// all four left. The mechanism stands, unexercised, for the next family
-// that wants it: proximity_row_active() folds to false for all six and
-// the whole path short-circuits at compile time.
-inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-    //           near: Pyr   Sph   Ribn  Cube  GoL
-    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-};
-
-// Precomputed: does this family have any non-zero affinity?
-inline constexpr bool proximity_row_active(uint32_t family) {
-    for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-        if (PROXIMITY_AFFINITY[family][f] > 0.0f) return true;
-    return false;
-}
+// EVERY CLUSTERING FAMILY IS GONE. COLUMN, PALM, CACTUS and BLADE
+// left at PRUNE_2 and the whole matrix has read zero since; the
+// mechanism has been standing unexercised, folding to false at
+// compile time, waiting for a family that never came. ONE_WORLD-I
+// U5 retires it: a mechanism kept for a hypothetical is exactly
+// what the sweep is for, and git holds the numbers (L30).
 
 // ═══ MODULE STATE ══════════════════════════════════════════════════
 
@@ -221,13 +177,13 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     }
 
     // 2-6. THE COMPOSITION LAW: the stack, authored once —
-    // mood → global → tile (F3) → proximity → base × adj → min(·,1).
+    // mood → global → tile (F3) → base × adj → min(·,1).
     // Generic semantics: multiply-through on mood zero (no veto flag),
-    // proximity ON, MIN1 clamp.
+    // MIN1 clamp.
     r.theme_idx = c->themes_state_.temporal_flavor;
     auto composed = compose_spawn_chance(c, gx, gz, family,
         spawn_chance, mood_mult,
-        /*use_proximity=*/true, /*veto_on_zero_mood=*/false,
+        /*veto_on_zero_mood=*/false,
         SpawnClamp::MIN1);
 
     // 7. Spawn gate (seed + roll; the chance arrives composed)
@@ -284,7 +240,7 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 //
 // The engine's verbs: position negotiation, the footprint registry,
 // mesh-param rebuilds + distance culling, the census, gate
-// evaluation, proximity affinity, and the select → place → commit
+// evaluation, and the select → place → commit
 // dispatch loops. Reaches the machine face for the root organs
 // (c->world_state_ / c->time_state_ / c->mood_state_ /
 // c->themes_state_ / c->tile_world_state_ / c->entities_state_ /
@@ -436,11 +392,7 @@ inline bool check_position(MachineCtx* c, float px, float pz, float placing_radi
         float effective_min = placing_radius + c->spawn_engine_state_.footprints_[i].radius;
         if (c->spawn_engine_state_.footprints_[i].family < PopFamily::COUNT) {
             float min_gap = MIN_SEPARATION[placing_family][c->spawn_engine_state_.footprints_[i].family];
-            if (min_gap > 0.0f) {
-                float aff = PROXIMITY_AFFINITY[placing_family][c->spawn_engine_state_.footprints_[i].family];
-                if (aff > 0.0f) min_gap *= (1.0f - aff * PROXIMITY_GAP_REDUCTION[placing_family]);
-                effective_min += min_gap;
-            }
+            if (min_gap > 0.0f) effective_min += min_gap;
         }
         if (dx * dx + dz * dz < effective_min * effective_min) return false;
     }
@@ -726,7 +678,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // ═══ SPAWN UTILITIES ═════════════════════════════════════════════
 //
 // The spawn lifecycle's smallest building blocks: the composition
-// law, gate evaluation, jittered position, and the proximity
+// law, gate evaluation, jittered position, and the
 // affinity boost.
 
 // ─── Spawn gate ──────────────────────────────────────────────────
@@ -738,16 +690,11 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // clamp. Exact argument orders of min/max preserved per policy.
 inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t family, float base_chance, const float* mood_mult,
-    bool use_proximity, bool veto_on_zero_mood, SpawnClamp clamp) {
+    bool veto_on_zero_mood, SpawnClamp clamp) {
     float adj_mod = mood_mult[c->mood_state_.active];
     if (veto_on_zero_mood && adj_mod <= 0.0f) return { 0.0f, true };
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3: the S2 boundary face
-    if (use_proximity) {
-        float pcx = (gx + 0.5f) * Dim::PATCH_EXTENT;
-        float pcz = (gz + 0.5f) * Dim::PATCH_EXTENT;
-        adj_mod *= proximity_affinity_boost(c, pcx, pcz, family);
-    }
     float chance = base_chance * adj_mod;
     switch (clamp) {
         case SpawnClamp::MIN1:    chance = std::min(chance, 1.0f); break;
@@ -777,28 +724,6 @@ inline void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     out_z = (gz + 0.5f) * Dim::PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * Dim::PATCH_EXTENT * jitter;
 }
 
-inline float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_t family) {
-    if (!proximity_row_active(family)) return 1.0f;
-    float radius = PROXIMITY_RADIUS[family];
-    if (radius <= 0.0f) return 1.0f;
-    float r2 = radius * radius;
-    float weighted = 0.0f;
-    uint32_t count = 0;
-    for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-        if (!c->spawn_engine_state_.footprints_[i].active) continue;
-        if (c->spawn_engine_state_.footprints_[i].family >= PopFamily::COUNT) continue;
-        float aff = PROXIMITY_AFFINITY[family][c->spawn_engine_state_.footprints_[i].family];
-        if (aff <= 0.0f) continue;
-        float dx = cx - c->spawn_engine_state_.footprints_[i].x;
-        float dz = cz - c->spawn_engine_state_.footprints_[i].z;
-        if (dx * dx + dz * dz < r2) {
-            weighted += aff;
-            count++;
-        }
-    }
-    if (count < PROXIMITY_THRESHOLD[family]) return 1.0f;
-    return std::min(1.0f + weighted, PROXIMITY_MAX_BOOST[family]);
-}
 
 // ─── Select / Place / Commit dispatch loops ─────────────────────
 

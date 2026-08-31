@@ -58,9 +58,9 @@ struct PopFamily {
     static constexpr uint32_t COUNT = 5;
 };
 
-// F-1: the family ORDER is load-bearing — ELEVEN
-// tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
-// vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight, MOOD_SPAWN_MULT,
+// F-1: the family ORDER is load-bearing — FIVE
+// tables are POSITIONAL in it (the five proximity tables left at
+// ONE_WORLD-I U5: MIN_SEPARATION, THEMES[].spawn_weight, MOOD_SPAWN_MULT,
 // TilePopulation::spatial_density, INDOOR_TREATMENT, and
 // family_short_name's NAMES[] — the eleventh, which PRUNE_2 found outside
 // this roll call and pinned to COUNT where it lives), as is

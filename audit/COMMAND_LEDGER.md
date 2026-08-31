@@ -5,16 +5,16 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `16e4a59d0535f64756c2b586a5bf3f76ead2db7a`
-(ONE_WORLD-I U3: the ARCH family, whole)
+Last commit touching any scanned file: `2b8a3a52fa2545c457f968788becb39d4da7671a`
+(ONE_WORLD-I U4: the emptied rooms — the portal array and the round that walked it)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:951833669b61e2c60b334d216e34df63d0d4fcb9225db1fb4bcd68e5f33d7135` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:5f6c8b39ef462b960b5674b81523342abc131456553b6b908c44492e6b7d26a3` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:c782eb25f6b298e68eb3ba35468bc350db05405142f676737a5e177bc3513f42` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:e53ed9e77e96a1e6469af36ae9cfda0a8f78d95d9139ec329e7e6766ab95a8a1` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:f448ff115f91c0d9ebbd9f3db29625ac590bbddc912727624db6722f274fee3e` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4bd7091667bbab0a92e94011c5ab37b2b4f5c1d5b0d688c69a44e6fc95c74339` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:a1ad031e3cd45f75881f180e843b4c3da4114a8816da759ad1d82b677868afc4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
 | `src/the_board.cpp` | `sha256:98f6d39ea0c27c5c11c339b091492fa6a58cdfdd8f284f418702317d25b46f4c` |

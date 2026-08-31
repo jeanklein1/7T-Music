@@ -437,7 +437,7 @@ inline void populate_agent_slot_(const AgentState& as,
 
     // ── Write the slot ────────────────────────────────────────────
     out.pos_x   = sx;   out.pos_y   = 0.0f; out.pos_z   = sz;
-    out.home_x  = hx;   out.route   = 0u;   out.home_z  = hz;   // ATRIUM_4 — route 0 = fresh
+    out.home_x  = hx;   out.home_z  = hz;
     out.heading = 0.0f;
     out.vel_x   = 0.0f; out.vel_y   = 0.0f; out.vel_z   = 0.0f;
     out.orient_x = 0.0f; out.orient_y = 0.0f; out.orient_z = 0.0f; out.orient_w = 1.0f;

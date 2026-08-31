@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `16e4a59d0535f64756c2b586a5bf3f76ead2db7a` |
-| | ONE_WORLD-I U3: the ARCH family, whole |
+| source commit | `2b8a3a52fa2545c457f968788becb39d4da7671a` |
+| | ONE_WORLD-I U4: the emptied rooms — the portal array and the round that walked it |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:0d52022e0374572d09dd65f1103dcafe148f576c46b39b9d27801be3c09cc966` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:8947aa5935e71deee60c9b89de3c4b92b4edccb8c03e18de909b7cfedc84551f` |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:9e7914096fdf958bd44dcf2bc4af2379207ad165a344700208560a295b2f2b4a` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:801d13cc8e62e14a42f350728e5b47d2a8223c9592a35fc0d47f34ead193e1e7` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:154bfa9ea07a580f5293b72fd834ac88115d78f936b20786752ca154d5dfb82b` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c477d75c9d516f69314a6b96a4a225a45e4aa29e135ad3670684daef09986797` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:5f6c8b39ef462b960b5674b81523342abc131456553b6b908c44492e6b7d26a3` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:e15420510b21bd93f6b338302e9d2cc3790bac1c05206be54a25ce64ff586977` |
+| `audit/BINDING_LEDGER.md` | `sha256:afa79f3ee0a8f0d8df1818178dabb20949afa216b67c7e0747cbfbed744c8791` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -138,13 +138,13 @@ Boundary: the 98 module-scope binding declarations (witness 0b-0 proves the boun
 
 | idiom | what it is | instances | exemplar (verbatim, site is a line hint) |
 |---|---|---|---|
-| `W-u` | `var<uniform>` declaration | 15 | `@group(2) @binding(200) var<uniform> scene_constants: SceneConstants;` — world.wgsl:1028 |
-| `W-sr` | `var<storage, read>` declaration | 12 | `@group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;` — world.wgsl:6829 |
-| `W-srw` | `var<storage, read_write>` declaration | 15 | `@group(2) @binding(10) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;` — world.wgsl:2712 |
+| `W-u` | `var<uniform>` declaration | 15 | `@group(2) @binding(200) var<uniform> scene_constants: SceneConstants;` — world.wgsl:1025 |
+| `W-sr` | `var<storage, read>` declaration | 12 | `@group(2) @binding(5) var<storage, read> render_agents: array<AgentState, 32>;` — world.wgsl:6823 |
+| `W-srw` | `var<storage, read_write>` declaration | 15 | `@group(2) @binding(10) var<storage, read_write> field_forces : array<vec4<f32>, FIELD_SUBSCRIBERS>;` — world.wgsl:2706 |
 | `W-s0` | bare `var<storage>` (access defaulted) | 0 | — |
-| `W-h` | handle declaration (no address space clause) | 17 | `@group(1) @binding(5) var bilinear_sampler: sampler;` — world.wgsl:6928 |
+| `W-h` | handle declaration (no address space clause) | 17 | `@group(1) @binding(5) var bilinear_sampler: sampler;` — world.wgsl:6922 |
 
-Instances: 59 over 4 idioms. Ordering observed: file order is NOT (group, binding) order — first inversion: field_forces @(2,10) at line 2712 follows scene_constants @(2,200) at line 1028; the scatter is the fact M2 maps
+Instances: 59 over 4 idioms. Ordering observed: file order is NOT (group, binding) order — first inversion: field_forces @(2,10) at line 2706 follows scene_constants @(2,200) at line 1025; the scatter is the fact M2 maps
 
 ### M1.L — layout entry arrays + descriptors (`state.hpp`)
 
@@ -234,87 +234,87 @@ emit-one-block vs patch-in-place — that call is LOOM_1's.
 
 | run | lines | decls | first symbol | last symbol |
 |---|---|---|---|---|
-| 1 | 1028–1028 | 1 | `scene_constants` | `scene_constants` |
-| 2 | 2712–2712 | 1 | `field_forces` | `field_forces` |
-| 3 | 2731–2731 | 1 | `field_bus` | `field_bus` |
-| 4 | 3078–3078 | 1 | `pyramid_instances` | `pyramid_instances` |
-| 5 | 6773–6781 | 4 | `signal` | `agent_state` |
-| 6 | 6799–6803 | 4 | `agent_room` | `ribbon_state` |
-| 7 | 6829–6833 | 2 | `render_agents` | `render_floating` |
-| 8 | 6857–6872 | 5 | `render_ring_xforms` | `ribbon_body_read` |
-| 9 | 6899–6912 | 2 | `frame_r` | `shadow_slot` |
-| 10 | 6928–6954 | 12 | `bilinear_sampler` | `patch_cell_color_array_read` |
-| 11 | 7243–7258 | 11 | `zone_config` | `live_card_write` |
-| 12 | 7285–7285 | 1 | `zone_derive_requests` | `zone_derive_requests` |
-| 13 | 10793–10794 | 2 | `photo_heightfield` | `photo_sampler` |
-| 14 | 10809–10809 | 1 | `patch_grid` | `patch_grid` |
-| 15 | 10952–10956 | 5 | `fc_config` | `fc_indirect` |
-| 16 | 10974–10974 | 1 | `fc_draw_plan` | `fc_draw_plan` |
-| 17 | 11320–11332 | 5 | `orb_state` | `orb_state_prev_rw` |
+| 1 | 1025–1025 | 1 | `scene_constants` | `scene_constants` |
+| 2 | 2706–2706 | 1 | `field_forces` | `field_forces` |
+| 3 | 2725–2725 | 1 | `field_bus` | `field_bus` |
+| 4 | 3072–3072 | 1 | `pyramid_instances` | `pyramid_instances` |
+| 5 | 6767–6775 | 4 | `signal` | `agent_state` |
+| 6 | 6793–6797 | 4 | `agent_room` | `ribbon_state` |
+| 7 | 6823–6827 | 2 | `render_agents` | `render_floating` |
+| 8 | 6851–6866 | 5 | `render_ring_xforms` | `ribbon_body_read` |
+| 9 | 6893–6906 | 2 | `frame_r` | `shadow_slot` |
+| 10 | 6922–6948 | 12 | `bilinear_sampler` | `patch_cell_color_array_read` |
+| 11 | 7237–7252 | 11 | `zone_config` | `live_card_write` |
+| 12 | 7279–7279 | 1 | `zone_derive_requests` | `zone_derive_requests` |
+| 13 | 10787–10788 | 2 | `photo_heightfield` | `photo_sampler` |
+| 14 | 10803–10803 | 1 | `patch_grid` | `patch_grid` |
+| 15 | 10946–10950 | 5 | `fc_config` | `fc_indirect` |
+| 16 | 10968–10968 | 1 | `fc_draw_plan` | `fc_draw_plan` |
+| 17 | 11314–11326 | 5 | `orb_state` | `orb_state_prev_rw` |
 
 Line numbers are non-authoritative hints; cite symbols.
 
 | wgsl symbol | line (hint) | run | attached comment | Table H defended |
 |---|---|---|---|---|
-| `scene_constants` | 1028 | 1 | — | — |
-| `field_forces` | 2712 | 2 | yes | **yes** |
-| `field_bus` | 2731 | 3 | — | — |
-| `pyramid_instances` | 3078 | 4 | — | — |
-| `signal` | 6773 | 5 | yes | **yes** |
-| `config` | 6774 | 5 | — | **yes** |
-| `vp_data` | 6775 | 5 | — | — |
-| `agent_state` | 6781 | 5 | yes | **yes** |
-| `agent_room` | 6799 | 6 | — | — |
-| `camera_state` | 6801 | 6 | — | **yes** |
-| `floating_entities` | 6802 | 6 | — | **yes** |
-| `ribbon_state` | 6803 | 6 | — | — |
-| `render_agents` | 6829 | 7 | yes | — |
-| `render_floating` | 6833 | 7 | yes | — |
-| `render_ring_xforms` | 6857 | 8 | yes | — |
-| `ring_xforms` | 6866 | 8 | yes | — |
-| `ribbon_spine` | 6868 | 8 | yes | — |
-| `ribbon_body_rw` | 6870 | 8 | yes | — |
-| `ribbon_body_read` | 6872 | 8 | yes | — |
-| `frame_r` | 6899 | 9 | — | **yes** |
-| `shadow_slot` | 6912 | 9 | yes | — |
-| `bilinear_sampler` | 6928 | 10 | yes | — |
-| `nearest_sampler` | 6929 | 10 | — | — |
-| `shadow_map` | 6930 | 10 | — | — |
-| `shadow_sampler` | 6931 | 10 | yes | — |
-| `spot_shadow_map` | 6932 | 10 | — | — |
-| `patch_params_batch` | 6945 | 10 | yes | — |
-| `patch_heightfield_array_write` | 6947 | 10 | yes | — |
-| `tile_grid` | 6948 | 10 | — | — |
-| `patch_cell_color_array_write` | 6949 | 10 | — | — |
-| `patch_instances` | 6952 | 10 | yes | — |
-| `patch_heightfield_array_read` | 6953 | 10 | — | — |
-| `patch_cell_color_array_read` | 6954 | 10 | — | — |
-| `zone_config` | 7243 | 11 | yes | **yes** |
-| `zone_life` | 7244 | 11 | — | — |
-| `zone_life_tex_write` | 7245 | 11 | — | — |
-| `zone_life_read` | 7248 | 11 | yes | — |
-| `zone_params` | 7249 | 11 | — | — |
-| `pawn_aura_read` | 7250 | 11 | — | — |
-| `live_card_read` | 7251 | 11 | — | — |
-| `pawn_aura_cfg` | 7255 | 11 | yes | **yes** |
-| `pawn_aura_cells` | 7256 | 11 | — | — |
-| `pawn_aura_tex_write` | 7257 | 11 | — | — |
-| `live_card_write` | 7258 | 11 | — | — |
-| `zone_derive_requests` | 7285 | 12 | — | — |
-| `photo_heightfield` | 10793 | 13 | yes | — |
-| `photo_sampler` | 10794 | 13 | — | — |
-| `patch_grid` | 10809 | 14 | — | — |
-| `fc_config` | 10952 | 15 | yes | — |
-| `fc_vp` | 10953 | 15 | — | — |
-| `fc_patches` | 10954 | 15 | — | — |
-| `fc_visible` | 10955 | 15 | — | **yes** |
-| `fc_indirect` | 10956 | 15 | — | **yes** |
-| `fc_draw_plan` | 10974 | 16 | — | — |
-| `orb_state` | 11320 | 17 | — | **yes** |
-| `orb_config` | 11321 | 17 | — | — |
-| `orb_state_prev` | 11325 | 17 | yes | **yes** |
-| `orb_state_ro` | 11331 | 17 | yes | — |
-| `orb_state_prev_rw` | 11332 | 17 | — | — |
+| `scene_constants` | 1025 | 1 | — | — |
+| `field_forces` | 2706 | 2 | yes | **yes** |
+| `field_bus` | 2725 | 3 | — | — |
+| `pyramid_instances` | 3072 | 4 | — | — |
+| `signal` | 6767 | 5 | yes | **yes** |
+| `config` | 6768 | 5 | — | **yes** |
+| `vp_data` | 6769 | 5 | — | — |
+| `agent_state` | 6775 | 5 | yes | **yes** |
+| `agent_room` | 6793 | 6 | — | — |
+| `camera_state` | 6795 | 6 | — | **yes** |
+| `floating_entities` | 6796 | 6 | — | **yes** |
+| `ribbon_state` | 6797 | 6 | — | — |
+| `render_agents` | 6823 | 7 | yes | — |
+| `render_floating` | 6827 | 7 | yes | — |
+| `render_ring_xforms` | 6851 | 8 | yes | — |
+| `ring_xforms` | 6860 | 8 | yes | — |
+| `ribbon_spine` | 6862 | 8 | yes | — |
+| `ribbon_body_rw` | 6864 | 8 | yes | — |
+| `ribbon_body_read` | 6866 | 8 | yes | — |
+| `frame_r` | 6893 | 9 | — | **yes** |
+| `shadow_slot` | 6906 | 9 | yes | — |
+| `bilinear_sampler` | 6922 | 10 | yes | — |
+| `nearest_sampler` | 6923 | 10 | — | — |
+| `shadow_map` | 6924 | 10 | — | — |
+| `shadow_sampler` | 6925 | 10 | yes | — |
+| `spot_shadow_map` | 6926 | 10 | — | — |
+| `patch_params_batch` | 6939 | 10 | yes | — |
+| `patch_heightfield_array_write` | 6941 | 10 | yes | — |
+| `tile_grid` | 6942 | 10 | — | — |
+| `patch_cell_color_array_write` | 6943 | 10 | — | — |
+| `patch_instances` | 6946 | 10 | yes | — |
+| `patch_heightfield_array_read` | 6947 | 10 | — | — |
+| `patch_cell_color_array_read` | 6948 | 10 | — | — |
+| `zone_config` | 7237 | 11 | yes | **yes** |
+| `zone_life` | 7238 | 11 | — | — |
+| `zone_life_tex_write` | 7239 | 11 | — | — |
+| `zone_life_read` | 7242 | 11 | yes | — |
+| `zone_params` | 7243 | 11 | — | — |
+| `pawn_aura_read` | 7244 | 11 | — | — |
+| `live_card_read` | 7245 | 11 | — | — |
+| `pawn_aura_cfg` | 7249 | 11 | yes | **yes** |
+| `pawn_aura_cells` | 7250 | 11 | — | — |
+| `pawn_aura_tex_write` | 7251 | 11 | — | — |
+| `live_card_write` | 7252 | 11 | — | — |
+| `zone_derive_requests` | 7279 | 12 | — | — |
+| `photo_heightfield` | 10787 | 13 | yes | — |
+| `photo_sampler` | 10788 | 13 | — | — |
+| `patch_grid` | 10803 | 14 | — | — |
+| `fc_config` | 10946 | 15 | yes | — |
+| `fc_vp` | 10947 | 15 | — | — |
+| `fc_patches` | 10948 | 15 | — | — |
+| `fc_visible` | 10949 | 15 | — | **yes** |
+| `fc_indirect` | 10950 | 15 | — | **yes** |
+| `fc_draw_plan` | 10968 | 16 | — | — |
+| `orb_state` | 11314 | 17 | — | **yes** |
+| `orb_config` | 11315 | 17 | — | — |
+| `orb_state_prev` | 11319 | 17 | yes | **yes** |
+| `orb_state_ro` | 11325 | 17 | yes | — |
+| `orb_state_prev_rw` | 11326 | 17 | — | — |
 
 ## M3 — the fifth-home grep
 
@@ -501,31 +501,31 @@ is LOOM_1 / panel work.
 
 | wgsl struct | def (line hint) | named by slots | C++ twin | twin site | static_asserts |
 |---|---|---|---|---|---|
-| `AgentRoomConstants` | 6795 | `agent_room` | `GPUAgentRoomConstants` | `src/cartridges/the_board/realization/state.hpp:1781` | 4 |
-| `AgentState` | 890 | `agent_state`, `render_agents` | `GPUAgentState` | `src/cartridges/the_board/realization/state.hpp:882` | 2 |
-| `CameraState` | 1034 | `camera_state` | `GPUCameraState` | `src/cartridges/the_board/realization/state.hpp:1060` | 1 |
-| `DesignConfig` | 1647 | `config`, `fc_config` | `GPUDesignConfig` | `src/cartridges/the_board/realization/state.hpp:536` | 3 |
-| `DrawPlanParams` | 10967 | `fc_draw_plan` | `GPUDrawPlanParams` | `src/cartridges/the_board/realization/state.hpp:1611` | 2 |
-| `FieldBus` | 2727 | `field_bus` | `GPUFieldBus` | `src/cartridges/the_board/realization/state.hpp:1838` | 2 |
-| `FloatingEntityArray` | 1102 | `floating_entities`, `render_floating` | **none found** under the prescribed names | — | 0 |
-| `FrameR` | 6892 | `frame_r` | `GPUFrameR` | `src/cartridges/the_board/realization/state.hpp:1862` | 4 |
-| `FrameSignal` | 856 | `signal` | `GPUFrameSignal` | `src/cartridges/the_board/realization/state.hpp:479` | 2 |
-| `GoLZoneArray` | 7143 | `zone_config`, `zone_params` | `GPUGoLZoneArray` | `src/cartridges/the_board/realization/state.hpp:1300` | 1 |
-| `OrbConfig` | 11158 | `orb_config` | `GPUOrbConfig` | `src/cartridges/the_board/realization/state.hpp:1391` | 2 |
-| `OrbState` | 11143 | `orb_state`, `orb_state_prev`, `orb_state_prev_rw`, `orb_state_ro` | `GPUOrbState` | `src/cartridges/the_board/realization/state.hpp:1375` | 1 |
-| `PatchGrid` | 10802 | `patch_grid` | `GPUPatchGrid` | `src/cartridges/the_board/realization/state.hpp:1705` | 1 |
-| `PatchInstance` | 1157 | `fc_patches`, `patch_instances` | `GPUPatchInstance` | `src/cartridges/the_board/realization/state.hpp:1695` | 1 |
-| `PatchParams` | 1149 | `patch_params_batch` | `GPUPatchParams` | `src/cartridges/the_board/realization/state.hpp:1689` | 1 |
-| `PawnAuraCell` | 7226 | `pawn_aura_cells` | `GPUPawnAuraCell` | `src/cartridges/the_board/realization/state.hpp:1356` | 1 |
-| `PawnAuraConfig` | 7157 | `pawn_aura_cfg` | `GPUPawnAuraConfig` | `src/cartridges/the_board/realization/state.hpp:1335` | 1 |
-| `PyramidArray` | 3070 | `pyramid_instances` | `GPUPyramidArray` | `src/cartridges/the_board/realization/state.hpp:1261` | 1 |
-| `RibbonBody` | 5944 | `ribbon_body_read`, `ribbon_body_rw` | `GPURibbonBody` | `src/cartridges/the_board/realization/state.hpp:1231` | 4 |
-| `RibbonRingTransform` | 1135 | `render_ring_xforms`, `ring_xforms` | `GPURibbonRingTransform` | `src/cartridges/the_board/realization/state.hpp:1196` | 1 |
-| `RibbonState` | 1108 | `ribbon_state` | `GPURibbonState` | `src/cartridges/the_board/realization/state.hpp:1168` | 5 |
-| `SceneConstants` | 1023 | `scene_constants` | `GPUSceneConstants` | `src/cartridges/the_board/realization/state.hpp:1890` | 3 |
-| `TileGrid` | 1177 | `tile_grid` | `GPUTileGrid` | `src/cartridges/the_board/realization/state.hpp:864` | 1 |
-| `VPMatrix` | 3989 | `fc_vp`, `vp_data` | `GPUVPMatrix` | `src/cartridges/the_board/realization/state.hpp:1532` | 1 |
-| `ZoneDeriveRequestArray` | 7277 | `zone_derive_requests` | `GPUZoneDeriveRequestArray` | `src/cartridges/the_board/realization/state.hpp:1322` | 1 |
+| `AgentRoomConstants` | 6789 | `agent_room` | `GPUAgentRoomConstants` | `src/cartridges/the_board/realization/state.hpp:1781` | 4 |
+| `AgentState` | 890 | `agent_state`, `render_agents` | `GPUAgentState` | `src/cartridges/the_board/realization/state.hpp:886` | 2 |
+| `CameraState` | 1031 | `camera_state` | `GPUCameraState` | `src/cartridges/the_board/realization/state.hpp:1060` | 1 |
+| `DesignConfig` | 1644 | `config`, `fc_config` | `GPUDesignConfig` | `src/cartridges/the_board/realization/state.hpp:537` | 3 |
+| `DrawPlanParams` | 10961 | `fc_draw_plan` | `GPUDrawPlanParams` | `src/cartridges/the_board/realization/state.hpp:1611` | 2 |
+| `FieldBus` | 2721 | `field_bus` | `GPUFieldBus` | `src/cartridges/the_board/realization/state.hpp:1838` | 2 |
+| `FloatingEntityArray` | 1099 | `floating_entities`, `render_floating` | **none found** under the prescribed names | — | 0 |
+| `FrameR` | 6886 | `frame_r` | `GPUFrameR` | `src/cartridges/the_board/realization/state.hpp:1862` | 4 |
+| `FrameSignal` | 856 | `signal` | `GPUFrameSignal` | `src/cartridges/the_board/realization/state.hpp:480` | 2 |
+| `GoLZoneArray` | 7137 | `zone_config`, `zone_params` | `GPUGoLZoneArray` | `src/cartridges/the_board/realization/state.hpp:1300` | 1 |
+| `OrbConfig` | 11152 | `orb_config` | `GPUOrbConfig` | `src/cartridges/the_board/realization/state.hpp:1391` | 2 |
+| `OrbState` | 11137 | `orb_state`, `orb_state_prev`, `orb_state_prev_rw`, `orb_state_ro` | `GPUOrbState` | `src/cartridges/the_board/realization/state.hpp:1375` | 1 |
+| `PatchGrid` | 10796 | `patch_grid` | `GPUPatchGrid` | `src/cartridges/the_board/realization/state.hpp:1705` | 1 |
+| `PatchInstance` | 1154 | `fc_patches`, `patch_instances` | `GPUPatchInstance` | `src/cartridges/the_board/realization/state.hpp:1695` | 1 |
+| `PatchParams` | 1146 | `patch_params_batch` | `GPUPatchParams` | `src/cartridges/the_board/realization/state.hpp:1689` | 1 |
+| `PawnAuraCell` | 7220 | `pawn_aura_cells` | `GPUPawnAuraCell` | `src/cartridges/the_board/realization/state.hpp:1356` | 1 |
+| `PawnAuraConfig` | 7151 | `pawn_aura_cfg` | `GPUPawnAuraConfig` | `src/cartridges/the_board/realization/state.hpp:1335` | 1 |
+| `PyramidArray` | 3064 | `pyramid_instances` | `GPUPyramidArray` | `src/cartridges/the_board/realization/state.hpp:1261` | 1 |
+| `RibbonBody` | 5938 | `ribbon_body_read`, `ribbon_body_rw` | `GPURibbonBody` | `src/cartridges/the_board/realization/state.hpp:1231` | 4 |
+| `RibbonRingTransform` | 1132 | `render_ring_xforms`, `ring_xforms` | `GPURibbonRingTransform` | `src/cartridges/the_board/realization/state.hpp:1196` | 1 |
+| `RibbonState` | 1105 | `ribbon_state` | `GPURibbonState` | `src/cartridges/the_board/realization/state.hpp:1168` | 5 |
+| `SceneConstants` | 1020 | `scene_constants` | `GPUSceneConstants` | `src/cartridges/the_board/realization/state.hpp:1890` | 3 |
+| `TileGrid` | 1174 | `tile_grid` | `GPUTileGrid` | `src/cartridges/the_board/realization/state.hpp:867` | 1 |
+| `VPMatrix` | 3983 | `fc_vp`, `vp_data` | `GPUVPMatrix` | `src/cartridges/the_board/realization/state.hpp:1532` | 1 |
+| `ZoneDeriveRequestArray` | 7271 | `zone_derive_requests` | `GPUZoneDeriveRequestArray` | `src/cartridges/the_board/realization/state.hpp:1322` | 1 |
 
 The static_asserts, cited verbatim:
 
@@ -533,7 +533,7 @@ The static_asserts, cited verbatim:
 - `AgentRoomConstants`: `src/cartridges/the_board/realization/state.hpp:1793: static_assert(offsetof(GPUAgentRoomConstants, behaviors) == 0)`
 - `AgentRoomConstants`: `src/cartridges/the_board/realization/state.hpp:1794: static_assert(offsetof(GPUAgentRoomConstants, tier_gains) == 320)`
 - `AgentRoomConstants`: `src/cartridges/the_board/realization/state.hpp:1797: static_assert(offsetof(GPUAgentRoomConstants, behaviors) + sizeof(GPUAgentBehaviorDef) * GPU_AGENT_BEHAVIOR_COUNT == offsetof(GPUAgentRoomConstants, tier_gains), "behaviors and tier_gains must stay adjacent — the registr`
-- `AgentState`: `src/cartridges/the_board/realization/state.hpp:1801: static_assert(sizeof(GPUAgentState) == 92, "GPUAgentState must be 92 bytes")`
+- `AgentState`: `src/cartridges/the_board/realization/state.hpp:1801: static_assert(sizeof(GPUAgentState) == 88, "GPUAgentState must be 88 bytes")`
 - `AgentState`: `src/cartridges/the_board/realization/state.hpp:1802: static_assert(alignof(GPUAgentState) == 4, "GPUAgentState must stay 4-aligned — its WGSL twin is all scalars, so the " "storage array's stride is its size; any wider alignment pads C++ only and " "parts the two strides w`
 - `CameraState`: `src/cartridges/the_board/realization/state.hpp:1812: static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes")`
 - `DesignConfig`: `src/cartridges/the_board/realization/state.hpp:1726: static_assert(sizeof(GPUDesignConfig) == 704, "GPUDesignConfig must be 720 bytes. PRUNING_1 P3 removed nine " "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL " "aligns vec3 to 16 while C++ packs float[3] at`
@@ -572,7 +572,7 @@ The static_asserts, cited verbatim:
 - `SceneConstants`: `src/cartridges/the_board/realization/state.hpp:1895: static_assert(sizeof(GPUSceneConstants) == 4336)`
 - `SceneConstants`: `src/cartridges/the_board/realization/state.hpp:1896: static_assert(offsetof(GPUSceneConstants, figure_profiles) == 192)`
 - `SceneConstants`: `src/cartridges/the_board/realization/state.hpp:1897: static_assert(offsetof(GPUSceneConstants, ribbon) == 4224)`
-- `TileGrid`: `src/cartridges/the_board/realization/state.hpp:873: static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout")`
+- `TileGrid`: `src/cartridges/the_board/realization/state.hpp:876: static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout")`
 - `VPMatrix`: `src/cartridges/the_board/realization/state.hpp:1821: static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes")`
 - `ZoneDeriveRequestArray`: `src/cartridges/the_board/realization/state.hpp:1329: static_assert(sizeof(GPUZoneDeriveRequestArray) == 16 + Dim::MAX_GOL_ZONES * 32, "GPUZoneDeriveRequestArray must match WGSL layout")`
 

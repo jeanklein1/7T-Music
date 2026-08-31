@@ -94,15 +94,12 @@ inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the b
 //
 // Shafts, bodies, the beacon and the authored table keep the social slack —
 // the parting crowd is Jean's stamp and is not touched here.
-inline constexpr float FIELD_ARCH_SLACK = 1.25f;   // shell factor over an arch leg
+// FIELD_ARCH_SLACK stood here at 1.25 — retired with the legs it was
+// cut for (ONE_WORLD-I U3/U5). Its two asserts went with it.
 // The channel the gate reads. 2.0 and not 5.0: at slack 1.0 — the floor —
 // the geometry's widest possible channel is 4.30 wu, so a 5 wu channel is
 // not a tighter shell, it is a wider door.
 inline constexpr float ATRIUM_DOOR_CHANNEL_MIN = 2.0f;   // wu
-static_assert(FIELD_ARCH_SLACK < FIELD_SLACK,
-    "the doorway's shell must be tighter than the social shell");
-static_assert(FIELD_ARCH_SLACK >= 1.0f,
-    "a shell inside the leg's own surface would let a body stand in the stone");
 
 // The gate instrument's subscriber half — any class zeroes
 // independently. Applied AFTER the FMAX clamp: the summed shape is

@@ -66,7 +66,8 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   asymmetry stays a property of the table, not of that pair.)
 // UNITS: world-units, ADDITIVE — the consumer sums the two footprint
 //   radii first, then adds this gap on top (and may shrink it by
-//   PROXIMITY_GAP_REDUCTION × affinity for clustering families).
+//   the pair's gap; the clustering families that could shrink it left
+//   at PRUNE_2 and the mechanism with them at ONE_WORLD-I U5).
 // ORDER: rows and columns both follow PopFamily order (PYRAMID=0 …
 //   GOL=5), PINNED by the F-1 static_assert at roster.hpp —
 //   renumbering a family is a compile error, not a silent re-column.
@@ -117,11 +118,11 @@ inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
 // ONE stack, authored once, called by both spawn authors (the
 // generic preamble, GoL). Per-consumer FACTS travel as DATA:
 // base-chance authority (scalar, or archetype-indexed — resolved by
-// the caller before the call), clamp policy, proximity on/off, and
+// the caller before the call), clamp policy, and
 // the mood-zero veto style. The float multiplication ORDER inside the
 // definition is the bit-identity contract:
 // mood → GLOBAL_ENTITY_DENSITY → tile (spatial_density) →
-// [proximity] → base × adj → clamp. Seed domains
+// base × adj → clamp. Seed domains
 // and the rolls themselves stay with the consumers.
 
 enum class SpawnClamp : uint32_t {
@@ -136,7 +137,7 @@ struct SpawnChanceResult {
 
 SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t family, float base_chance, const float* mood_mult,
-    bool use_proximity, bool veto_on_zero_mood, SpawnClamp clamp);
+    bool veto_on_zero_mood, SpawnClamp clamp);
 
 SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
@@ -144,7 +145,6 @@ SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
 void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     uint32_t prop_x, uint32_t prop_z, float jitter,
     float& out_x, float& out_z);
-float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_t family);
 bool check_position(MachineCtx* c, float px, float pz, float placing_radius,
     uint32_t placing_family);
 uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
